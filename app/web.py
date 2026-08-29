@@ -26,7 +26,7 @@ from app.remnawave import (
     is_subscription_active,
     parse_expire,
 )
-from app.rollypay import RollyPayClient, RollyPayError, verify_webhook
+from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, verify_webhook
 from app.sync import fetch_panel
 
 logger = logging.getLogger("rm-shop.web")
@@ -342,10 +342,9 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
         event = json.loads(body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         return web.Response(status=400, text="invalid json")
-    status = str(event.get("status") or "")
     order_id = str(event.get("order_id") or "")
     payment_id = str(event.get("payment_id") or "")
-    if status != "paid":
+    if not payment_is_paid(event):
         return web.Response(text="OK")
     order = await db.get_rollypay_order(order_id) if order_id else None
     if not order and payment_id:

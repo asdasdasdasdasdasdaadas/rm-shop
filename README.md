@@ -139,7 +139,7 @@ Deep-link: `https://t.me/<BOT_USERNAME>?start=ref_<telegram_id>`.
 
 ## Оплата
 
-Касса: [RollyPay](https://docs.rollypay.io). Создание платежа `POST /api/v1/payments`, статус по GET, вебхук `POST /webhooks/rollypay`.
+Касса: [RollyPay](https://docs.rollypay.io), платежи через официальный Python SDK ([SDK](https://docs.rollypay.io/sdk/), пакет `rollypay`): `payments.create` и `payments.get`. Вебхук `POST /webhooks/rollypay`.
 
 Подпись вебхука: заголовки `X-Timestamp` и `X-Signature` (HMAC-SHA256 от `timestamp + "." + raw_body` с `ROLLYPAY_SIGNING_SECRET`).
 

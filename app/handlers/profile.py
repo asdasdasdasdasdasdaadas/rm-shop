@@ -23,7 +23,7 @@ from app.remnawave import (
 )
 from app.referrals import maybe_reward_referrer, invitee_extra_days, trial_grant_days
 from app.reports import ReportCooldown, submit_vpn_report
-from app.rollypay import RollyPayClient, RollyPayError
+from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid
 from app.sync import fetch_panel
 
 router = Router()
@@ -259,7 +259,7 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
         await ack(callback, str(exc)[:180], alert=True)
         return
     status = str(payment.get("status") or "")
-    if status != "paid":
+    if not payment_is_paid(payment):
         await ack(callback, f"Статус оплаты: {status or 'неизвестно'}", alert=True)
         return
     if order["status"] == "granted":
