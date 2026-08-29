@@ -54,10 +54,10 @@ sudo usermod -aG docker "$USER"
 exit
 ```
 
-Зайдите на сервер ещё раз. Подставьте URL репозитория.
+Зайдите на сервер ещё раз.
 
 ```bash
-git clone <URL_РЕПОЗИТОРИЯ> rm-shop
+git clone https://github.com/asdasdasdasdasdasdaadas/rm-shop.git rm-shop
 cd rm-shop
 cp .env.example .env
 nano .env
