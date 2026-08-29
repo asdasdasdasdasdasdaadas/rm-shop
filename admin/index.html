@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Админка</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div id="login" class="login-wrap">
+    <form id="loginForm" class="login-card">
+      <h1>Админка</h1>
+      <p class="muted">Управление ботом и статистика</p>
+      <input id="password" type="password" placeholder="Пароль" autocomplete="current-password">
+      <button type="submit">Войти</button>
+      <p id="loginErr" class="err hidden"></p>
+    </form>
+  </div>
+
+  <div id="shell" class="hidden">
+    <aside>
+      <div class="brand" id="brand">RM Shop</div>
+      <nav>
+        <button type="button" data-tab="overview" class="active">Обзор</button>
+        <button type="button" data-tab="users">Пользователи</button>
+        <button type="button" data-tab="orders">Оплаты</button>
+        <button type="button" data-tab="reports">Жалобы VPN</button>
+        <button type="button" data-tab="broadcast">Рассылка</button>
+        <button type="button" data-tab="settings">Настройки</button>
+      </nav>
+      <button type="button" id="logout" class="ghost">Выйти</button>
+    </aside>
+    <main>
+      <section id="tab-overview">
+        <h2>Статистика</h2>
+        <div id="cards" class="cards"></div>
+        <div class="grid2">
+          <div class="panel">
+            <h3>Заказы по статусу</h3>
+            <div id="orderStats"></div>
+          </div>
+          <div class="panel">
+            <h3>Оплаченные тарифы</h3>
+            <div id="planStats"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-users" class="hidden">
+        <h2>Пользователи</h2>
+        <div class="toolbar">
+          <input id="userQ" type="search" placeholder="ID, username, имя">
+          <button type="button" id="userSearch">Найти</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Telegram</th>
+                <th>Имя</th>
+                <th>Бесплатно</th>
+                <th>До</th>
+                <th>Статус</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="userRows"></tbody>
+          </table>
+        </div>
+        <div id="userPager" class="pager"></div>
+      </section>
+
+      <section id="tab-orders" class="hidden">
+        <h2>Оплаты RollyPay</h2>
+        <div class="toolbar">
+          <input id="orderQ" type="search" placeholder="order_id, payment_id, статус">
+          <button type="button" id="orderSearch">Найти</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Заказ</th>
+                <th>Пользователь</th>
+                <th>Тариф</th>
+                <th>Статус</th>
+                <th>Создан</th>
+              </tr>
+            </thead>
+            <tbody id="orderRows"></tbody>
+          </table>
+        </div>
+        <div id="orderPager" class="pager"></div>
+      </section>
+
+      <section id="tab-reports" class="hidden">
+        <h2>Жалобы VPN</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Время</th>
+                <th>Пользователь</th>
+                <th>Подписка до</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody id="reportRows"></tbody>
+          </table>
+        </div>
+        <div id="reportPager" class="pager"></div>
+      </section>
+
+      <section id="tab-broadcast" class="hidden">
+        <h2>Рассылка</h2>
+        <p class="muted">Сообщение уйдёт всем, кто когда-либо запускал бота.</p>
+        <textarea id="broadcastText" rows="8" placeholder="Текст сообщения"></textarea>
+        <button type="button" id="broadcastBtn">Отправить</button>
+        <p id="broadcastOut" class="muted"></p>
+      </section>
+
+      <section id="tab-settings" class="hidden">
+        <h2>Текущие настройки</h2>
+        <p class="muted">Секреты не показываются. Изменение — через .env и перезапуск.</p>
+        <pre id="settingsBox"></pre>
+      </section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <h3 id="modalTitle">Пользователь</h3>
+      <p id="modalMeta" class="muted"></p>
+      <label>Продлить на дней</label>
+      <div class="row">
+        <input id="grantDays" type="number" min="1" max="3650" value="30">
+        <button type="button" id="grantBtn">Начислить в панели</button>
+      </div>
+      <button type="button" id="trialBtn" class="ghost">Сбросить бесплатный период</button>
+      <label>Сообщение в Telegram</label>
+      <textarea id="msgText" rows="4"></textarea>
+      <button type="button" id="msgBtn">Отправить</button>
+      <button type="button" id="modalClose" class="ghost">Закрыть</button>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

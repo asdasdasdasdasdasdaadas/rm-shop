@@ -1,0 +1,17 @@
+.git
+.cursor
+.env
+.env.*
+!.env.example
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+.DS_Store
+data
+*.db
+.idea
+.vscode
+agent-transcripts
+*.md

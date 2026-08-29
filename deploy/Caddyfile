@@ -1,0 +1,8 @@
+# Подставьте свой домен. Caddy сам получит сертификат Let's Encrypt.
+# Запуск на хосте: caddy run --config deploy/Caddyfile
+# Бот в Docker слушает 127.0.0.1:8080.
+
+lk.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:8080
+}

@@ -1,0 +1,236 @@
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+import httpx
+
+from app.config import get_settings
+
+
+def _unwrap(payload: Any) -> Any:
+    if isinstance(payload, dict) and "response" in payload:
+        return payload["response"]
+    return payload
+
+
+def _as_users(data: Any) -> list[dict]:
+    data = _unwrap(data)
+    if not data:
+        return []
+    if isinstance(data, list):
+        return [u for u in data if isinstance(u, dict)]
+    if isinstance(data, dict):
+        if isinstance(data.get("users"), list):
+            return [u for u in data["users"] if isinstance(u, dict)]
+        if "username" in data or "id" in data or "uuid" in data:
+            return [data]
+    return []
+
+
+def _by_telegram(data: Any, telegram_id: int) -> dict | None:
+    for user in _as_users(data):
+        raw = user.get("telegramId")
+        if raw is None:
+            continue
+        try:
+            if int(raw) == int(telegram_id):
+                return user
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def parse_expire(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def iso_expire(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def gb_to_bytes(gb: int) -> int:
+    return 0 if gb <= 0 else gb * 1024 * 1024 * 1024
+
+
+def format_bytes(n: int | None) -> str:
+    if not n:
+        return "0 Б"
+    units = ["Б", "КБ", "МБ", "ГБ", "ТБ"]
+    value = float(n)
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{n} Б"
+
+
+class RemnawaveError(RuntimeError):
+    pass
+
+
+class RemnawaveClient:
+    def __init__(self) -> None:
+        settings = get_settings()
+        base = settings.remnawave_base_url.rstrip("/")
+        self.base = base if base.endswith("/api") else f"{base}/api"
+        self.token = settings.remnawave_token
+        self._lookup = "stream"
+        self._client = httpx.AsyncClient(
+            timeout=httpx.Timeout(8.0, connect=4.0),
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json",
+            },
+        )
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    async def _request(self, method: str, path: str, **kwargs) -> Any:
+        url = f"{self.base}{path}"
+        try:
+            response = await self._client.request(method, url, **kwargs)
+        except httpx.HTTPError as exc:
+            raise RemnawaveError(f"{method} {path}: {exc}") from exc
+        if response.status_code >= 400:
+            raise RemnawaveError(f"{method} {path} → {response.status_code}: {response.text[:500]}")
+        if not response.content:
+            return None
+        try:
+            return response.json()
+        except ValueError:
+            return response.text
+
+    async def get_user_by_id(self, user_id: int | str) -> dict | None:
+        try:
+            data = await self._request("GET", f"/users/{user_id}")
+        except RemnawaveError:
+            return None
+        users = _as_users(data)
+        return users[0] if users else None
+
+    async def get_user_by_telegram(self, telegram_id: int) -> dict | None:
+        if self._lookup == "stream":
+            try:
+                data = await self._request(
+                    "GET",
+                    "/users/stream",
+                    params={"telegramId": telegram_id, "size": 5},
+                )
+                return _by_telegram(data, telegram_id)
+            except RemnawaveError:
+                self._lookup = "by-telegram"
+
+        try:
+            data = await self._request("GET", f"/users/by-telegram-id/{telegram_id}")
+            return _by_telegram(data, telegram_id)
+        except RemnawaveError:
+            return None
+
+    async def create_user(
+        self,
+        telegram_id: int | None,
+        expire_at: datetime,
+        traffic_limit_gb: int = 0,
+        tag: str | None = None,
+        username: str | None = None,
+        hwid_limit: int | None = None,
+        description: str | None = None,
+    ) -> dict:
+        settings = get_settings()
+        uname = (username or (f"tg{telegram_id}" if telegram_id else "user"))[:36]
+        payload: dict[str, Any] = {
+            "username": uname,
+            "status": "ACTIVE",
+            "expireAt": iso_expire(expire_at),
+            "trafficLimitBytes": 0,
+            "trafficLimitStrategy": settings.remnawave_traffic_strategy,
+            "description": description or (f"tg:{telegram_id}" if telegram_id else uname),
+        }
+        if telegram_id is not None:
+            payload["telegramId"] = telegram_id
+        if settings.squad_uuids:
+            payload["activeInternalSquads"] = settings.squad_uuids
+        limit = settings.remnawave_hwid_limit if hwid_limit is None else hwid_limit
+        if limit is not None:
+            payload["hwidDeviceLimit"] = limit
+        if tag:
+            payload["tag"] = tag
+        data = await self._request("POST", "/users", json=payload)
+        users = _as_users(data)
+        if not users:
+            raise RemnawaveError("Панель не вернула пользователя после создания")
+        return users[0]
+
+    async def update_user(self, user: dict, patch: dict[str, Any]) -> dict:
+        body = dict(patch)
+        if user.get("id") is not None:
+            body["id"] = user["id"]
+        if user.get("uuid"):
+            body["uuid"] = user["uuid"]
+        data = await self._request("PATCH", "/users", json=body)
+        users = _as_users(data)
+        return users[0] if users else body
+
+    async def extend_subscription(
+        self,
+        telegram_id: int,
+        days: int,
+        traffic_limit_gb: int | None = None,
+        tag: str | None = None,
+        create_if_missing: bool = True,
+        panel_user_id: int | None = None,
+    ) -> dict:
+        settings = get_settings()
+        now = datetime.now(timezone.utc)
+        user = None
+        if panel_user_id is not None:
+            user = await self.get_user_by_id(panel_user_id)
+        if not user:
+            user = await self.get_user_by_telegram(telegram_id)
+        extra_days = timedelta(days=days)
+        if user:
+            current = parse_expire(user.get("expireAt"))
+            base = current if current and current > now else now
+            patch: dict[str, Any] = {
+                "expireAt": iso_expire(base + extra_days),
+                "status": "ACTIVE",
+                "telegramId": telegram_id,
+                "trafficLimitBytes": 0,
+            }
+            if settings.squad_uuids:
+                patch["activeInternalSquads"] = settings.squad_uuids
+            if tag:
+                patch["tag"] = tag
+            return await self.update_user(user, patch)
+        if not create_if_missing:
+            raise RemnawaveError("Пользователь в панели не найден")
+        return await self.create_user(telegram_id, now + extra_days, 0, tag=tag)
+
+
+def is_subscription_active(user: dict | None) -> bool:
+    if not user:
+        return False
+    status = str(user.get("status") or "").upper()
+    if status in {"DISABLED", "EXPIRED"}:
+        return False
+    expire = parse_expire(user.get("expireAt"))
+    if expire and expire <= datetime.now(timezone.utc):
+        return False
+    return True
+
+
+def days_remaining(user: dict | None) -> int:
+    if not user:
+        return 0
+    expire = parse_expire(user.get("expireAt"))
+    if not expire:
+        return 0
+    delta = expire - datetime.now(timezone.utc)
+    return max(0, int(delta.total_seconds() // 86400))

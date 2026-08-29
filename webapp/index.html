@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Кабинет</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div id="boot" class="state">
+    <div class="group skel">
+      <div class="cell profile">
+        <div class="avatar pulse"></div>
+        <div class="who">
+          <div class="bar pulse"></div>
+          <div class="bar short pulse"></div>
+        </div>
+      </div>
+    </div>
+    <h2 class="section-title">Подписка</h2>
+    <div class="group skel">
+      <div class="cell static"><div class="bar pulse"></div></div>
+      <div class="cell static"><div class="bar pulse"></div></div>
+      <div class="cell static"><div class="bar pulse"></div></div>
+    </div>
+  </div>
+
+  <div id="fail" class="state hidden">
+    <section class="group">
+      <p id="failText" class="muted">Не удалось загрузить данные.</p>
+      <button type="button" id="retryBtn" class="cell action">Повторить</button>
+    </section>
+  </div>
+
+  <div id="app" class="hidden">
+    <section class="group">
+      <div class="cell profile">
+        <img id="avatar" class="avatar" alt="">
+        <div class="who">
+          <div id="name" class="name"></div>
+          <div id="login" class="login"></div>
+        </div>
+        <button type="button" id="menuBtn" class="icon-btn" aria-label="Меню">
+          <span class="more"></span>
+        </button>
+      </div>
+    </section>
+
+    <div id="menu" class="sheet hidden" role="menu">
+      <a id="offerLink" href="#" target="_blank" rel="noopener">Оферта</a>
+      <a id="privacyLink" href="#" target="_blank" rel="noopener">Политика конфиденциальности</a>
+      <a id="supportLink" href="#" target="_blank" rel="noopener">Поддержка</a>
+    </div>
+    <div id="menuScrim" class="scrim hidden"></div>
+
+    <h2 class="section-title">Подписка</h2>
+    <section class="group">
+      <div class="cell static">
+        <span class="cell-label">Осталось</span>
+        <span id="days" class="cell-value"></span>
+      </div>
+      <div id="payRow" class="stack"></div>
+    </section>
+
+    <div id="connectWrap">
+      <h2 class="section-title">Подключение</h2>
+      <section class="group">
+        <div id="connectBody" class="stack"></div>
+      </section>
+    </div>
+
+    <div id="devicesWrap" class="hidden">
+      <h2 class="section-title">Устройства</h2>
+      <p class="section-note">Каждое устройство списывает 1 день с баланса и действует сутки.</p>
+      <section class="group">
+        <div id="devicesBody" class="stack"></div>
+        <button type="button" id="addDevice" class="cell action">Добавить устройство</button>
+      </section>
+    </div>
+
+    <h2 class="section-title">Приведи друга</h2>
+    <p id="inviteNote" class="section-note">Когда друг нажмёт «Попробовать бесплатно», вам начислят 7 дней, а другу +5 дней к бесплатному периоду.</p>
+    <section class="group">
+      <button type="button" id="invite" class="cell copy-cell"></button>
+      <button type="button" id="shareBtn" class="cell action">Поделиться</button>
+    </section>
+
+    <div id="promoCard" class="hidden">
+      <h2 class="section-title">Промокод</h2>
+      <section class="group">
+        <div class="cell field">
+          <input id="promo" type="text" placeholder="Введите код" autocomplete="off" autocapitalize="characters">
+        </div>
+        <button type="button" id="promoBtn" class="cell action">Применить</button>
+      </section>
+    </div>
+
+    <h2 class="section-title">Помощь</h2>
+    <section class="group">
+      <button type="button" id="vpnDown" class="cell action">VPN не работает</button>
+    </section>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
