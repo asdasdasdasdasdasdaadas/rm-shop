@@ -346,6 +346,14 @@ Dockerfile
 
 **Mini App чёрный экран / не открывается.** Нет HTTPS или `WEBAPP_PUBLIC_URL` не совпадает с доменом в BotFather.
 
+**RollyPay 401 invalid api key.** В `.env` должен быть `api_key` кассы (`rpk_live_...` или `rpk_test_...`), не `signing_secret`. Без кавычек, `ROLLYPAY_API_URL=https://rollypay.io`. Символ `$` в ключе для Docker пишите как `$$`. Проверка:
+
+```bash
+docker compose exec bot python -m app.check_rollypay
+```
+
+После правки `.env`: `docker compose up -d --force-recreate bot`. В логах строка `RollyPay SDK ... ключ длина=... начало=rpk_live` — если начало другое, ключ не тот.
+
 **Вебхук 403.** Неверный `ROLLYPAY_SIGNING_SECRET` или касса стучится не на тот URL.
 
 **Админка не пускает.** Задайте `ADMIN_PASSWORD` и перезапустите контейнер.

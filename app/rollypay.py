@@ -3,13 +3,15 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
-import uuid
+import logging
 from typing import Any
 
 from rollypay import RollyPayClient as SdkClient
 from rollypay.exceptions import RollyPayError
 
 from app.config import get_settings
+
+logger = logging.getLogger("rm-shop.rollypay")
 
 __all__ = ["RollyPayClient", "RollyPayError", "payment_is_paid", "verify_webhook"]
 
@@ -20,7 +22,10 @@ def payment_is_paid(payment: dict | None) -> bool:
 
 
 def _clean_key(raw: str) -> str:
-    key = (raw or "").strip().strip('"').strip("'")
+    key = (raw or "").replace("\ufeff", "").replace("\r", "").strip()
+    key = key.strip('"').strip("'")
+    if " #" in key:
+        key = key.split(" #", 1)[0].strip()
     if key.lower().startswith("x-api-key:"):
         key = key.split(":", 1)[1].strip()
     return key
@@ -40,19 +45,16 @@ class RollyPayClient:
 
     def __init__(self) -> None:
         settings = get_settings()
-        sdk = SdkClient(
-            api_key=_clean_key(settings.rollypay_api_key),
-            base_url=_sdk_base_url(settings.rollypay_api_url),
-            timeout=30,
-        )
-        orig = sdk.request
-
-        def request_with_nonce(method: str, path: str, **kwargs: Any) -> Any:
-            headers = dict(kwargs.pop("headers", {}) or {})
-            headers["X-Nonce"] = str(uuid.uuid4())
-            return orig(method, path, headers=headers, **kwargs)
-
-        sdk.request = request_with_nonce  # type: ignore[method-assign]
+        key = _clean_key(settings.rollypay_api_key)
+        base = _sdk_base_url(settings.rollypay_api_url)
+        prefix = key[:8] if len(key) >= 8 else key
+        logger.info("RollyPay SDK %s ключ длина=%s начало=%s", base, len(key), prefix)
+        if key and not key.startswith(("rpk_live_", "rpk_test_")):
+            logger.warning(
+                "ROLLYPAY_API_KEY не похож на ключ кассы (ожидается rpk_live_... или rpk_test_...). "
+                "Не подставляйте signing_secret. В Docker символ $ в ключе пишите как $$"
+            )
+        sdk = SdkClient(api_key=key, base_url=base, timeout=30)
         self._sdk = sdk
 
     async def aclose(self) -> None:

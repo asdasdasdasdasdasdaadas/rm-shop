@@ -20,6 +20,7 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
+    # Значения из .env. Символ $ в ключах кассы экранируйте как $$
     depends_on:
       postgres:
         condition: service_healthy
