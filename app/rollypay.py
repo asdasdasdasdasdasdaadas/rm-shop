@@ -18,7 +18,10 @@ class RollyPayClient:
     def __init__(self) -> None:
         settings = get_settings()
         self.base = settings.rollypay_api_url.rstrip("/")
-        self.api_key = settings.rollypay_api_key
+        key = (settings.rollypay_api_key or "").strip().strip('"').strip("'")
+        if key.lower().startswith("x-api-key:"):
+            key = key.split(":", 1)[1].strip()
+        self.api_key = key
         self._http = httpx.AsyncClient(timeout=20)
 
     async def aclose(self) -> None:

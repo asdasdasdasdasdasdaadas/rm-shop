@@ -233,7 +233,7 @@ cp .env.example .env
 | `REFERRAL_INVITEE_DAYS` | `5` | Бонус другу к бесплатному периоду |
 | `PLAN_*_RUB` | см. `.env.example` | Цены тарифов |
 | `STARS_ENABLED` | `false` | Оплата Stars |
-| `ROLLYPAY_API_URL` | `https://api.rollypay.io` | API кассы |
+| `ROLLYPAY_API_URL` | `https://rollypay.io` | API кассы (не `api.rollypay.io`) |
 | `ROLLYPAY_PAYMENT_METHOD` | пусто | `sbp` / `card` или выбор на форме |
 | `BALANCE_ENABLED` | `false` | Баланс дней + устройства |
 | `PROMO_ENABLED` | `true` | Промокоды |

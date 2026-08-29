@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     plan_12m_rub: float = 1499.0
     stars_enabled: bool = False
 
-    rollypay_api_url: str = "https://api.rollypay.io"
+    rollypay_api_url: str = "https://rollypay.io"
     rollypay_api_key: str = ""
     rollypay_signing_secret: str = ""
     rollypay_test: bool = True
