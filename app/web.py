@@ -478,7 +478,12 @@ async def api_vpn_report(request: web.Request) -> web.Response:
     username = (local or {}).get("username")
     first_name = (local or {}).get("first_name")
     try:
-        await submit_vpn_report(bot, rw, telegram_id, username, first_name)
+        body = await request.json()
+    except Exception:
+        body = {}
+    context = body.get("context") if isinstance(body, dict) else None
+    try:
+        await submit_vpn_report(bot, rw, telegram_id, username, first_name, client_context=context)
     except ReportCooldown as exc:
         minutes = max(1, exc.wait_sec // 60)
         return json_error(f"Повторно можно через {minutes_text(minutes)}.")

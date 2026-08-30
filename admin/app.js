@@ -344,12 +344,17 @@ async function loadReports(page) {
   body.innerHTML = "";
   data.items.forEach((r) => {
     const tr = document.createElement("tr");
+    tr.style.cursor = "pointer";
     const who = `${r.telegram_id}` + (r.username ? ` @${r.username}` : "") + (r.first_name ? ` · ${r.first_name}` : "");
-    [fmt(r.created_at), who, fmt(r.expire_at), r.panel_status || "—"].forEach((t) => {
+    const why = Array.isArray(r.payload && r.payload.why) ? (r.payload.why[0] || "—") : "—";
+    [fmt(r.created_at), who, fmt(r.expire_at), r.panel_status || "—", why].forEach((t) => {
       const td = document.createElement("td");
       td.textContent = t;
       tr.appendChild(td);
     });
+    tr.onclick = () => {
+      $("reportDetail").textContent = JSON.stringify(r.payload || r, null, 2);
+    };
     body.appendChild(tr);
   });
   pager($("reportPager"), data.page, data.total, data.limit, loadReports);

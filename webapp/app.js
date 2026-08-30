@@ -1763,10 +1763,76 @@ $("devReissue").onclick = () => {
   reissueSubscription(d.id);
 };
 
+function vpnReportContext() {
+  const me = window.__me || {};
+  const plat = tg.platform || "";
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const tgUser = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+  const devices = Array.isArray(me.devices) ? me.devices : [];
+  return {
+    source: "webapp",
+    view: screen,
+    wizard_step: screen === "wizard" ? wiz.step : null,
+    platform: (openDevice && openDevice.platform) || wiz.platform || plat,
+    client: (openDevice && openDevice.client) || wiz.client || "",
+    device: openDevice
+      ? {
+          id: openDevice.id,
+          title: openDevice.title,
+          client: openDevice.client,
+          platform: openDevice.platform,
+          active: openDevice.active,
+        }
+      : null,
+    me: {
+      days: me.days,
+      days_left: me.days_left,
+      balance_rub: me.balance_rub,
+      billing_active: me.billing_active,
+      has_access: me.has_access,
+      device_count: devices.length,
+      devices: devices.map((d) => ({
+        id: d.id,
+        title: d.title,
+        client: d.client,
+        platform: d.platform,
+        active: d.active,
+      })),
+    },
+    telegram: {
+      platform: plat,
+      version: tg.version || "",
+      colorScheme: tg.colorScheme || "",
+      isExpanded: !!tg.isExpanded,
+      viewportHeight: tg.viewportHeight || window.innerHeight,
+      viewportStableHeight: tg.viewportStableHeight || window.innerHeight,
+      language: tgUser.language_code || navigator.language || "",
+      isPremium: !!tgUser.is_premium,
+    },
+    browser: {
+      userAgent: navigator.userAgent || "",
+      language: navigator.language || "",
+      languages: navigator.languages || [],
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+      timezoneOffset: new Date().getTimezoneOffset(),
+      online: navigator.onLine,
+      connection: conn
+        ? { type: conn.effectiveType || conn.type || "", downlink: conn.downlink, rtt: conn.rtt }
+        : null,
+      screen: { w: window.screen && screen.width, h: window.screen && screen.height, dpr: window.devicePixelRatio },
+    },
+    page: { href: location.href, hidden: document.hidden },
+    now: new Date().toISOString(),
+  };
+}
+
 $("vpnDown").onclick = async () => {
   haptic();
   try {
-    await api("/api/vpn-report", { method: "POST", body: "{}" });
+    await api("/api/vpn-report", {
+      method: "POST",
+      body: JSON.stringify({ context: vpnReportContext() }),
+    });
     tg.showAlert("Принято. Мы уже смотрим.");
   } catch (e) {
     showErr(e);

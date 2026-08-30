@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=4">
+  <link rel="stylesheet" href="app.css?v=5">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -201,6 +201,7 @@
         </section>
 
         <section id="tab-reports" class="hidden">
+          <p class="muted intro">Жалобы «VPN не работает» с диагностикой из кабинета и Remnawave. Нажмите строку, чтобы открыть полный снимок.</p>
           <div class="table-wrap">
             <table>
               <thead>
@@ -209,12 +210,17 @@
                   <th>Пользователь</th>
                   <th>Подписка до</th>
                   <th>Статус</th>
+                  <th>Гипотеза</th>
                 </tr>
               </thead>
               <tbody id="reportRows"></tbody>
             </table>
           </div>
           <div id="reportPager" class="pager"></div>
+          <div class="panel">
+            <h3>Снимок жалобы</h3>
+            <pre id="reportDetail">Выберите строку</pre>
+          </div>
         </section>
 
         <section id="tab-broadcast" class="hidden">
@@ -297,6 +303,6 @@
       <button type="button" id="delBtn" class="danger">Удалить пользователя</button>
     </div>
   </div>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

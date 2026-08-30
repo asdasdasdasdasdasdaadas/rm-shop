@@ -128,6 +128,21 @@ class RemnawaveClient:
         except ValueError:
             return response.text
 
+    async def safe_get(self, *paths: str, params: dict | None = None) -> Any:
+        last = ""
+        for path in paths:
+            if not path:
+                continue
+            try:
+                kwargs: dict[str, Any] = {}
+                if params:
+                    kwargs["params"] = params
+                return _unwrap(await self._request("GET", path, **kwargs))
+            except RemnawaveError as exc:
+                last = str(exc)[:400]
+                continue
+        return {"_error": last} if last else None
+
     async def get_user_by_id(self, user_id: int | str) -> dict | None:
         ident = str(user_id).strip()
         if not ident:
@@ -344,3 +359,41 @@ def days_remaining(user: dict | None) -> int:
         return 0
     delta = expire - datetime.now(timezone.utc)
     return max(0, int(delta.total_seconds() // 86400))
+
+
+async def fetch_user_diagnostics(rw: RemnawaveClient, user: dict) -> dict:
+    uid = panel_user_key(user) or user.get("id")
+    numeric = user.get("id")
+    short = str(user.get("shortUuid") or "").strip()
+    traffic = user.get("userTraffic") if isinstance(user.get("userTraffic"), dict) else {}
+    node_uuid = str(
+        traffic.get("lastConnectedNodeUuid")
+        or user.get("lastConnectedNodeUuid")
+        or ""
+    ).strip()
+    hwid = None
+    bandwidth = None
+    node = None
+    sub = None
+    if uid:
+        hwid = await rw.safe_get(f"/hwid/devices/{uid}")
+        if isinstance(hwid, dict) and hwid.get("_error") and numeric is not None:
+            hwid = await rw.safe_get(f"/hwid/devices/{numeric}")
+    if numeric is not None:
+        bandwidth = await rw.safe_get(f"/bandwidth-stats/users/{numeric}")
+        if isinstance(bandwidth, dict) and bandwidth.get("_error") and uid:
+            bandwidth = await rw.safe_get(f"/bandwidth-stats/users/{uid}")
+        sub = await rw.safe_get(f"/subscriptions/by-id/{numeric}")
+    if isinstance(sub, dict) and sub.get("_error") and user.get("uuid"):
+        sub = await rw.safe_get(f"/subscriptions/by-uuid/{user.get('uuid')}")
+    if isinstance(sub, dict) and sub.get("_error") and short:
+        sub = await rw.safe_get(f"/subscriptions/by-short-uuid/{short}")
+    if node_uuid:
+        node = await rw.safe_get(f"/nodes/{node_uuid}")
+    return {
+        "user": user,
+        "hwid": hwid,
+        "bandwidth": bandwidth,
+        "node": node,
+        "subscription": sub,
+    }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import json
 
 import asyncpg
 
@@ -808,13 +809,14 @@ async def save_vpn_report(
     panel_status: str | None,
     subscription_url: str | None,
     remnawave_uuid: str | None,
+    payload: dict | None = None,
 ) -> dict:
     row = await _pool_req().fetchrow(
         """
         INSERT INTO vpn_reports (
-            telegram_id, username, first_name, expire_at, panel_status, subscription_url, remnawave_uuid
+            telegram_id, username, first_name, expire_at, panel_status, subscription_url, remnawave_uuid, payload
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
         RETURNING *
         """,
         telegram_id,
@@ -824,6 +826,7 @@ async def save_vpn_report(
         panel_status,
         subscription_url,
         remnawave_uuid,
+        json.dumps(payload or {}, ensure_ascii=False, default=str),
     )
     return _jsonable(dict(row)) if row else {}
 

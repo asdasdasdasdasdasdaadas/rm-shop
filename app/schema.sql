@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS vpn_reports (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE vpn_reports ADD COLUMN IF NOT EXISTS payload JSONB;
 CREATE INDEX IF NOT EXISTS vpn_reports_created_at_idx ON vpn_reports (created_at DESC);
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_rub INTEGER NOT NULL DEFAULT 0;

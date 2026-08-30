@@ -426,7 +426,22 @@ async def vpn_down(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         return
     user = callback.from_user
     try:
-        await submit_vpn_report(callback.bot, rw, user.id, user.username, user.first_name)
+        await submit_vpn_report(
+            callback.bot,
+            rw,
+            user.id,
+            user.username,
+            user.first_name,
+            client_context={
+                "source": "bot",
+                "view": "telegram",
+                "telegram": {
+                    "language": user.language_code,
+                    "isPremium": bool(getattr(user, "is_premium", False)),
+                    "platform": None,
+                },
+            },
+        )
     except ReportCooldown as exc:
         minutes = max(1, exc.wait_sec // 60)
         await ack(callback, f"Сообщение уже отправлено. Повторно можно через {minutes_text(minutes)}.", alert=True)
