@@ -104,11 +104,90 @@ function clientLabel(id) {
 }
 
 function applyTheme() {
-  document.documentElement.classList.toggle("dark", tg.colorScheme === "dark");
   try {
-    tg.setHeaderColor("secondary_bg_color");
-    tg.setBackgroundColor("secondary_bg_color");
+    tg.setHeaderColor("#0d1611");
+    tg.setBackgroundColor("#0d1611");
   } catch (_e) {}
+}
+
+const GAUGE_C = 2 * Math.PI * 46;
+const GAUGE_REF_DAYS = 30;
+const FROGS = {
+  neutral: "frogNeutral",
+  happy: "frogHappy",
+  worried: "frogWorried",
+  sad: "frogSad",
+};
+
+function setFrog(expression) {
+  Object.keys(FROGS).forEach((key) => {
+    $(FROGS[key]).classList.toggle("hidden", key !== expression);
+  });
+}
+
+function setGauge(pct, tone) {
+  const el = $("gaugeValue");
+  const p = Math.max(0, Math.min(1, Number(pct) || 0));
+  el.style.strokeDashoffset = String(GAUGE_C - GAUGE_C * p);
+  el.classList.remove("tone-empty", "tone-warn", "tone-ok");
+  el.classList.add(tone === "warn" ? "tone-warn" : tone === "empty" ? "tone-empty" : "tone-ok");
+}
+
+function paintStatus(me) {
+  const n = (me.devices || []).length;
+  const left = me.balance_enabled ? me.days_left : me.days;
+  const running = me.balance_enabled ? n > 0 : Boolean(me.has_access);
+  if (me.balance_enabled) {
+    $("balanceLine").innerHTML = `${me.balance_rub} <span>на счету</span>`;
+  } else {
+    $("balanceLine").innerHTML = `${daysLabel(me.days)} <span>подписки</span>`;
+  }
+  const pill = $("statusPill");
+  const badge = $("daysBadge");
+  if (!running) {
+    setFrog("neutral");
+    setGauge(0, "empty");
+    badge.classList.add("hidden");
+    pill.className = "status-pill";
+    pill.innerHTML = '<span class="dot"></span> Тариф не запущен';
+    $("statusNote").textContent = me.balance_enabled
+      ? "Добавьте устройство — лягушка возьмётся за дело и покажет, на сколько дней хватит баланса."
+      : "Оформите доступ — лягушка возьмётся за дело и покажет срок подписки.";
+  } else if (left < 3) {
+    setFrog("worried");
+    setGauge(left / GAUGE_REF_DAYS, "warn");
+    badge.classList.remove("hidden");
+    badge.textContent = daysLabel(left);
+    pill.className = "status-pill warn";
+    pill.innerHTML = me.balance_enabled
+      ? '<span class="dot"></span> Баланс заканчивается'
+      : '<span class="dot"></span> Срок заканчивается';
+    $("statusNote").textContent = me.balance_enabled
+      ? `При текущем расходе осталось примерно ${daysLabel(left)}.`
+      : `Осталось ${daysLabel(left)} подписки.`;
+  } else {
+    setFrog("happy");
+    setGauge(left / GAUGE_REF_DAYS, "ok");
+    badge.classList.remove("hidden");
+    badge.textContent = daysLabel(left);
+    pill.className = "status-pill on";
+    pill.innerHTML = '<span class="dot"></span> Подключено';
+    $("statusNote").textContent = me.balance_enabled
+      ? `При текущем расходе баланса хватит примерно на ${daysLabel(left)}.`
+      : `Подписка действует ещё ${daysLabel(left)}.`;
+  }
+  const add = $("ctaAdd");
+  const topup = $("topupBtn");
+  if (me.balance_enabled && n === 0) {
+    add.classList.remove("hidden");
+    add.className = "btn btn-primary";
+    topup.className = "btn btn-ghost";
+    topup.textContent = "Пополнить";
+  } else {
+    add.classList.add("hidden");
+    topup.className = "btn btn-primary";
+    topup.textContent = "Пополнить баланс";
+  }
 }
 
 applyTheme();
@@ -160,14 +239,6 @@ function rublesWord(n) {
 
 function rublesLabel(n) {
   return `${n} ${rublesWord(n)}`;
-}
-
-function daysCaption(n, me) {
-  if (me && me.balance_enabled && !(me.devices && me.devices.length)) {
-    return "НА БАЛАНСЕ · ТАРИФ НЕ ИДЁТ";
-  }
-  const w = daysWord(n).toUpperCase();
-  return `${w} ОСТАЛОСЬ`;
 }
 
 function showErr(err) {
@@ -231,6 +302,9 @@ function setMain(text, fn) {
     return;
   }
   tg.MainButton.setText(text);
+  try {
+    tg.MainButton.setParams({ color: "#2fae6b", text_color: "#0d1611" });
+  } catch (_e) {}
   tg.MainButton.show();
   tg.MainButton.enable();
   document.body.classList.add("has-main-btn");
@@ -653,35 +727,33 @@ function renderDevices(me) {
     return;
   }
   block.classList.remove("hidden");
-  $("deviceCount").textContent = String(me.devices.length);
-  $("devicesNote").textContent = me.devices.length
-    ? `${rublesLabel(me.vpn_day_price_rub)} в сутки каждое. Списание каждый день.`
-    : "Пока нет устройств, баланс не списывается. Списание начнётся после добавления.";
+  const n = me.devices.length;
+  $("deviceCount").textContent = "· " + n;
+  $("addDevice").classList.toggle("hidden", n === 0);
+  $("emptyDevices").classList.toggle("hidden", n > 0);
   const body = $("devicesBody");
+  body.classList.toggle("hidden", n === 0);
   body.innerHTML = "";
-  if (!me.devices.length) {
-    const p = document.createElement("p");
-    p.className = "muted";
-    p.textContent = "Добавьте устройство, чтобы получить ссылку подписки.";
-    body.appendChild(p);
-    return;
-  }
+  if (!n) return;
   me.devices.forEach((d) => {
     const el = document.createElement("button");
     el.type = "button";
-    el.className = "cell nav";
-    const main = document.createElement("div");
-    main.className = "plan-main";
-    const title = document.createElement("div");
-    title.className = "plan-title";
-    title.textContent = d.title || "Устройство";
+    el.className = "device-row";
+    el.innerHTML =
+      '<div class="glyph sm" aria-hidden="true">' +
+      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="2.5" stroke="#5fd68b" stroke-width="1.6"/><circle cx="12" cy="18" r="0.8" fill="#5fd68b"/></svg>' +
+      "</div>";
     const meta = document.createElement("div");
-    meta.className = "plan-sub";
-    meta.textContent = (d.platform ? platformLabel(d.platform) : "Устройство") +
-      (d.client ? " · " + clientLabel(d.client) : "");
-    main.appendChild(title);
-    main.appendChild(meta);
-    el.appendChild(main);
+    meta.className = "meta";
+    const title = document.createElement("div");
+    title.className = "n";
+    title.textContent = d.title || "Устройство";
+    const st = document.createElement("div");
+    st.className = "s" + (d.active ? "" : " off");
+    st.innerHTML = '<span class="dot"></span>' + (d.active ? "Подключено" : "Неактивно");
+    meta.appendChild(title);
+    meta.appendChild(st);
+    el.appendChild(meta);
     el.onclick = () => showDevice(d);
     body.appendChild(el);
   });
@@ -697,26 +769,17 @@ function paint(me) {
   } else {
     avatar.removeAttribute("src");
   }
-  const left = me.balance_enabled ? me.days_left : me.days;
-  const daysEl = $("daysBig");
-  if (daysEl.textContent !== String(left)) {
-    daysEl.textContent = String(left);
-    replayAnim(daysEl, "hero-pop");
-  } else {
-    daysEl.textContent = String(left);
-  }
-  $("daysCaption").textContent = daysCaption(left, me);
+  paintStatus(me);
   if (me.balance_enabled) {
-    $("balanceValue").textContent = rublesLabel(me.balance_rub);
     const rub = me.referral_reward_rub || 50;
-    $("inviteNote").textContent =
-      `Когда друг нажмёт «Попробовать бесплатно», вам и другу начислят по ${rublesLabel(rub)}.`;
+    $("inviteTitle").textContent = `Приведи друга — получи ${rub} ₽`;
+    $("inviteNote").textContent = `Другу тоже начислят ${rub} ₽ на баланс`;
   } else {
-    $("balanceValue").textContent = daysLabel(me.days);
     const refDays = me.referral_reward_days || 7;
     const friendDays = me.referral_invitee_days || 5;
+    $("inviteTitle").textContent = `Приведи друга — ${daysLabel(refDays)}`;
     $("inviteNote").textContent =
-      `Когда друг нажмёт «Попробовать бесплатно», вам начислят ${daysLabel(refDays)}, а другу +${daysLabel(friendDays)} к бесплатному периоду.`;
+      `Другу начислят +${daysLabel(friendDays)} к бесплатному периоду`;
   }
   $("invite").textContent = me.invite_url;
   $("offerLink").href = me.legal.offer;
@@ -878,7 +941,15 @@ $("promoBtn").onclick = async () => {
   }
 };
 
+$("ctaAdd").onclick = () => startWizard();
 $("addDevice").onclick = () => startWizard();
+$("addDeviceEmpty").onclick = () => startWizard();
+
+$("promoToggle").onclick = () => {
+  const body = $("promoBody");
+  body.classList.toggle("open");
+  $("promoChev").style.transform = body.classList.contains("open") ? "rotate(180deg)" : "rotate(0deg)";
+};
 
 $("devCopy").onclick = () => {
   const d = openDevice;
