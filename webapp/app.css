@@ -740,6 +740,225 @@ body.has-main-btn {
   color: var(--text-secondary);
 }
 
+.topup-hint {
+  margin: 0 4px 16px;
+  max-width: 32ch;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.pay-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.pay-tab {
+  flex: 1;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 8px;
+  min-height: 40px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+.pay-tab.on {
+  color: var(--text-primary);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-soft-border);
+}
+
+.pay-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pay-card {
+  position: relative;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  padding: 14px 14px 12px;
+  background: var(--bg-surface);
+  color: inherit;
+  font: inherit;
+  min-height: 108px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.pay-card:active { transform: scale(0.97); }
+
+.pay-card.on {
+  background: var(--bg-surface-raised);
+  border-color: transparent;
+  box-shadow: 0 0 0 1.5px var(--accent), 0 8px 22px -10px rgba(95, 214, 139, 0.35);
+}
+
+.pay-card .pay-amount {
+  font-family: Unbounded, Inter, sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.pay-card .pay-days {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.pay-card .pay-rate {
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.pay-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 7px;
+  border-radius: 20px;
+  text-transform: uppercase;
+}
+
+.pay-badge.best {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.pay-badge.hot {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.pay-custom-box {
+  background: var(--bg-surface);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-lg);
+  padding: 22px 18px 18px;
+  text-align: center;
+}
+
+.pay-custom-amount {
+  font-family: Unbounded, Inter, sans-serif;
+  font-size: 40px;
+  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1;
+}
+
+.pay-custom-amount span:first-child {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.pay-custom-days {
+  margin: 8px 0 18px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.pay-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.pay-step {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0;
+}
+
+.pay-step:active { background: rgba(255, 255, 255, 0.12); }
+
+#topupRange {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0%,
+    var(--accent) var(--fill, 50%),
+    rgba(255, 255, 255, 0.08) var(--fill, 50%)
+  );
+  outline: none;
+}
+
+#topupRange::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+#topupRange::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid var(--accent);
+  cursor: pointer;
+}
+
+.pay-range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.pay-strip {
+  margin-top: 16px;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
 .group {
   background: var(--bg-surface);
   border-radius: var(--radius-lg);

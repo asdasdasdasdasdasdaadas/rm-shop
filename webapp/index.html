@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=15">
+  <link rel="stylesheet" href="app.css?v=16">
 </head>
 <body>
   <div id="boot" class="state">
@@ -225,10 +225,31 @@
 
     <div id="view-topup" class="view hidden">
       <p class="wiz-kicker">Пополнение</p>
-      <h1 class="wiz-title">Сумма</h1>
-      <section class="group">
-        <div id="topupRow" class="stack"></div>
-      </section>
+      <h1 class="wiz-title">Сколько зальём?</h1>
+      <p id="topupHint" class="section-note topup-hint">Выберите сумму — покажем, на сколько дней доступа её хватит.</p>
+      <div id="topupTabs" class="pay-tabs hidden">
+        <button type="button" id="tabFast" class="pay-tab on">Быстрый выбор</button>
+        <button type="button" id="tabCustom" class="pay-tab">Своя сумма</button>
+      </div>
+      <div id="fastPanel">
+        <div id="topupGrid" class="pay-grid"></div>
+      </div>
+      <div id="customPanel" class="pay-custom hidden">
+        <div class="pay-custom-box">
+          <div class="pay-custom-amount"><span>₽</span><span id="customVal">0</span></div>
+          <div id="customDays" class="pay-custom-days"></div>
+          <div class="pay-stepper">
+            <button type="button" id="topupMinus" class="pay-step" aria-label="Меньше">−</button>
+            <input id="topupRange" type="range" min="50" max="400" step="50" value="100">
+            <button type="button" id="topupPlus" class="pay-step" aria-label="Больше">+</button>
+          </div>
+          <div class="pay-range-labels">
+            <span id="topupRangeMin">50 ₽</span>
+            <span id="topupRangeMax">400 ₽</span>
+          </div>
+          <div id="topupStrip" class="pay-strip"></div>
+        </div>
+      </div>
     </div>
 
     <div id="view-wizard" class="view hidden">
@@ -272,6 +293,6 @@
   </div>
   <div id="menuScrim" class="scrim hidden"></div>
 
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

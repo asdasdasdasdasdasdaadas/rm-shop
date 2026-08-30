@@ -192,9 +192,13 @@ async def api_me(request: web.Request) -> web.Response:
                     "days": p["days"],
                     "stars": p["stars"],
                     "rub": p["rub_str"],
+                    "topup_rub": int(p.get("topup_rub") or 0),
                 }
                 for code, p in settings.shop_plans.items()
             ],
+            "topup_min": settings.balance_topup_min if settings.balance_enabled else 0,
+            "topup_max": settings.balance_topup_max if settings.balance_enabled else 0,
+            "topup_step": settings.balance_topup_step if settings.balance_enabled else 0,
             "devices": devices,
             "trust": trust,
         }
