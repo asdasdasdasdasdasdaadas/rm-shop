@@ -143,7 +143,6 @@ async def my_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
             f"Сейчас: <b>{rub_text(rub)}</b>\n"
             f"Устройств: <b>{n}</b>\n"
             f"Списание: <b>{rub_text(settings.vpn_day_price_rub)}</b> в сутки за устройство.\n"
-            "Пополнение с шагом 50 рублей.\n"
             "Устройства добавляются в личном кабинете.",
             reply_markup=buy_keyboard(),
         )
@@ -206,28 +205,19 @@ async def buy_menu(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     except RemnawaveError:
         user = None
     settings = get_settings()
-    if settings.rollypay_configured:
-        pay_hint = "Оплата через RollyPay (СБП и другие способы на странице оплаты)."
-    elif settings.stars_enabled:
-        pay_hint = "Оплата через Telegram Stars."
-    else:
-        pay_hint = "Оплата ещё не настроена. Укажите ключи RollyPay в .env."
-    await callback.message.edit_text(
-        (
+    if settings.balance_enabled:
+        text = (
             "<b>Пополнение баланса</b>\n\n"
-            f"{pay_hint}\n"
-            f"Сутки на одно устройство: {rub_text(settings.vpn_day_price_rub)}. "
-            "Шаг пополнения 50 рублей."
-            if settings.balance_enabled
-            else
+            f"Сутки на одно устройство: {rub_text(settings.vpn_day_price_rub)}."
+        )
+    else:
+        text = (
             "<b>Покупка подписки</b>\n\n"
             f"Сейчас: <b>{_status_human(user)}</b>\n"
             f"До: <b>{expire_human(user)}</b>\n\n"
-            f"{pay_hint}\n"
-            "Трафик безлимитный. Если подписка ещё действует, оплаченный срок добавится к текущей дате."
-        ),
-        reply_markup=buy_keyboard(),
-    )
+            "Если подписка ещё действует, оплаченный срок добавится к текущей дате."
+        )
+    await callback.message.edit_text(text, reply_markup=buy_keyboard())
 
 
 @router.callback_query(F.data.startswith("buy:"))
@@ -256,7 +246,7 @@ async def buy_plan(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
             )
         except RollyPayError as exc:
             await callback.message.edit_text(
-                f"Не удалось создать платёж: {exc}",
+                "Не удалось создать платёж.",
                 reply_markup=back_profile_keyboard(),
             )
             return
@@ -264,7 +254,7 @@ async def buy_plan(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
         payment_id = str(data.get("payment_id") or "")
         if not pay_url or not payment_id:
             await callback.message.edit_text(
-                "Касса не вернула ссылку на оплату.",
+                "Не удалось получить ссылку на оплату.",
                 reply_markup=back_profile_keyboard(),
             )
             return
@@ -306,8 +296,8 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
     plan = settings.shop_plans.get(order["plan_code"]) or {"title": "пополнение"}
     try:
         payment = await rp.get_payment(order["payment_id"])
-    except RollyPayError as exc:
-        await ack(callback, str(exc)[:180], alert=True)
+    except RollyPayError:
+        await ack(callback, "Не удалось проверить оплату.", alert=True)
         return
     status = str(payment.get("status") or "")
     if not payment_is_paid(payment):

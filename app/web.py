@@ -264,11 +264,11 @@ async def api_invoice(request: web.Request) -> web.Response:
                 metadata={"telegram_id": str(telegram_id), "plan": code},
             )
         except RollyPayError as exc:
-            return json_error(str(exc), 502)
+            return json_error("Не удалось создать платёж", 502)
         pay_url = str(data.get("pay_url") or "")
         payment_id = str(data.get("payment_id") or "")
         if not pay_url or not payment_id:
-            return json_error("Касса не вернула ссылку на оплату", 502)
+            return json_error("Не удалось получить ссылку на оплату", 502)
         await db.save_rollypay_order(order_id, telegram_id, code, payment_id, pay_url)
         return web.json_response({"ok": True, "pay_url": pay_url, "order_id": order_id})
     if not settings.stars_enabled:
