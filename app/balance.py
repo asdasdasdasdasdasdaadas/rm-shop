@@ -7,6 +7,8 @@ from aiogram import Bot
 from app import db
 from app.config import get_settings
 from app.remnawave import RemnawaveClient, RemnawaveError
+from app.trust import collect_due_trusts
+from app.texts import rub_text
 
 logger = logging.getLogger("rm-shop.balance")
 
@@ -15,12 +17,23 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
     settings = get_settings()
     if not settings.balance_enabled:
         return
+    await collect_due_trusts(bot)
+    if await db.flag_on("maintenance"):
+        return
     price = max(1, settings.vpn_day_price_rub)
+    paused = await db.flag_on("billing_paused")
     due = await db.devices_due_for_billing()
     warned: set[int] = set()
     for item in due:
         tg_id = int(item["telegram_id"])
         panel_id = int(item["remnawave_id"])
+        if paused:
+            try:
+                await rw.extend_panel_user(panel_id, 1)
+                await db.mark_device_billed(int(item["id"]))
+            except RemnawaveError:
+                logger.exception("Не удалось продлить устройство %s при паузе тарификации", item["id"])
+            continue
         if await db.spend_balance_rub(tg_id, price):
             try:
                 await rw.extend_panel_user(panel_id, 1)
@@ -39,8 +52,8 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
                 await bot.send_message(
                     tg_id,
                     "На балансе не хватает средств на сутки VPN. "
-                    f"Стоимость: {price} руб. за устройство в день. "
-                    "Пополните баланс. Вывод средств недоступен.",
+                    f"Стоимость: {rub_text(price)} за устройство в день. "
+                    "Пополните баланс.",
                 )
             except Exception:
                 pass

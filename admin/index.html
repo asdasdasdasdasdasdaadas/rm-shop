@@ -33,6 +33,11 @@
     <main>
       <section id="tab-overview">
         <h2>Статистика</h2>
+        <div class="ops">
+          <button type="button" id="maintBtn">Тех. работы: выкл</button>
+          <button type="button" id="billBtn">Тарификация: идёт</button>
+        </div>
+        <p id="opsHint" class="muted"></p>
         <div id="cards" class="cards"></div>
         <div class="grid2">
           <div class="panel">
@@ -58,6 +63,7 @@
               <tr>
                 <th>Telegram</th>
                 <th>Имя</th>
+                <th>Баланс</th>
                 <th>Бесплатно</th>
                 <th>До</th>
                 <th>Статус</th>
@@ -131,15 +137,21 @@
     <div class="modal-card">
       <h3 id="modalTitle">Пользователь</h3>
       <p id="modalMeta" class="muted"></p>
-      <label>Начислить дни (или рубли, если включён баланс)</label>
+      <label>Начислить дни (режим подписки)</label>
       <div class="row">
         <input id="grantDays" type="number" min="1" max="3650" value="30">
         <button type="button" id="grantBtn">Начислить в панели</button>
+      </div>
+      <label>Баланс, рубли (плюс или минус)</label>
+      <div class="row">
+        <input id="balAmount" type="number" step="1" value="50">
+        <button type="button" id="balBtn">Изменить баланс</button>
       </div>
       <button type="button" id="trialBtn" class="ghost">Сбросить бесплатный период</button>
       <label>Сообщение в Telegram</label>
       <textarea id="msgText" rows="4"></textarea>
       <button type="button" id="msgBtn">Отправить</button>
+      <button type="button" id="delBtn" class="danger">Удалить пользователя</button>
       <button type="button" id="modalClose" class="ghost">Закрыть</button>
     </div>
   </div>

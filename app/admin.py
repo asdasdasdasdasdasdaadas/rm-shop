@@ -171,6 +171,49 @@ async def api_grant(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "expire_at": user.get("expireAt")})
 
 
+async def api_balance(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    telegram_id = int(request.match_info["telegram_id"])
+    body = await request.json()
+    try:
+        amount = int(body.get("amount"))
+    except (TypeError, ValueError):
+        return web.json_response({"ok": False, "error": "Укажите сумму в рублях"}, status=400)
+    if amount == 0 or abs(amount) > 1_000_000:
+        return web.json_response({"ok": False, "error": "Сумма от -1000000 до 1000000, не ноль"}, status=400)
+    if not await db.get_user(telegram_id):
+        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    total = await db.add_balance_rub(telegram_id, amount)
+    return web.json_response({"ok": True, "balance_rub": total})
+
+
+async def api_delete_user(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    telegram_id = int(request.match_info["telegram_id"])
+    local = await db.get_user(telegram_id)
+    if not local:
+        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    rw: RemnawaveClient = request.app["rw"]
+    panel_ids = []
+    if local.get("remnawave_id"):
+        panel_ids.append(int(local["remnawave_id"]))
+    for item in await db.list_devices(telegram_id):
+        if item.get("remnawave_id"):
+            panel_ids.append(int(item["remnawave_id"]))
+    for panel_id in dict.fromkeys(panel_ids):
+        try:
+            await rw.disable_panel_user(panel_id)
+        except RemnawaveError:
+            logger.exception("Не удалось отключить панель %s при удалении %s", panel_id, telegram_id)
+    if not await db.delete_user(telegram_id):
+        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    return web.json_response({"ok": True})
+
+
 async def api_trial_reset(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -224,6 +267,7 @@ async def api_settings(request: web.Request) -> web.Response:
     if denied:
         return denied
     settings = get_settings()
+    flags = await db.get_flags()
     return web.json_response(
         {
             "ok": True,
@@ -239,12 +283,30 @@ async def api_settings(request: web.Request) -> web.Response:
             "webapp_enabled": settings.webapp_enabled,
             "vpn_day_price_rub": settings.vpn_day_price_rub,
             "referral_reward_rub": settings.referral_reward_rub,
+            "maintenance": flags["maintenance"],
+            "billing_paused": flags["billing_paused"],
             "plans": [
                 {"code": code, "title": p["title"], "days": p["days"], "rub": p["rub_str"]}
                 for code, p in settings.shop_plans.items()
             ],
         }
     )
+
+
+async def api_flags(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    if request.method == "GET":
+        flags = await db.get_flags()
+        return web.json_response({"ok": True, **flags})
+    body = await request.json()
+    if "maintenance" in body:
+        await db.set_flag("maintenance", bool(body.get("maintenance")))
+    if "billing_paused" in body:
+        await db.set_flag("billing_paused", bool(body.get("billing_paused")))
+    flags = await db.get_flags()
+    return web.json_response({"ok": True, **flags})
 
 
 def mount_admin(app: web.Application) -> None:
@@ -261,7 +323,11 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/reports", api_reports)
     app.router.add_get("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/users/{telegram_id}/grant", api_grant)
+    app.router.add_post("/admin/api/users/{telegram_id}/balance", api_balance)
     app.router.add_post("/admin/api/users/{telegram_id}/trial-reset", api_trial_reset)
     app.router.add_post("/admin/api/users/{telegram_id}/message", api_message)
+    app.router.add_post("/admin/api/users/{telegram_id}/delete", api_delete_user)
+    app.router.add_get("/admin/api/flags", api_flags)
+    app.router.add_post("/admin/api/flags", api_flags)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
     app.router.add_static("/admin/static", ADMIN_DIR)

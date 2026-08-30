@@ -129,7 +129,7 @@ class Settings(BaseSettings):
         step = max(1, self.balance_topup_step)
         while amount <= self.balance_topup_max:
             result[f"b{amount}"] = {
-                "title": f"{amount} руб.",
+                "title": f"{amount} рублей",
                 "days": 0,
                 "stars": 0,
                 "rub": float(amount),

@@ -25,6 +25,7 @@ from app.referrals import maybe_reward_referrer, invitee_extra_days, trial_grant
 from app.reports import ReportCooldown, submit_vpn_report
 from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid
 from app.sync import fetch_panel
+from app.texts import days_text, minutes_text, rub_text
 
 router = Router()
 
@@ -59,9 +60,9 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         )
         await callback.message.edit_text(
             "<b>Бесплатный период</b>\n\n"
-            f"На баланс начислено <b>{amount} руб.</b> "
-            f"({settings.trial_days} дн. × {settings.vpn_day_price_rub} руб.).\n"
-            "Добавьте устройство в кабинете. Вывод средств недоступен.",
+            f"На баланс начислено <b>{rub_text(amount)}</b> "
+            f"({days_text(settings.trial_days)} × {rub_text(settings.vpn_day_price_rub)}).\n"
+            "Добавьте устройство в кабинете.",
             reply_markup=back_profile_keyboard(),
         )
         return
@@ -87,7 +88,7 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     text = subscription_issued_text(user, "Подписка оформлена")
     extra = invitee_extra_days(local)
     if extra:
-        text += f"\n\nБонус за переход по ссылке: <b>+{extra} дн.</b>"
+        text += f"\n\nБонус за переход по ссылке: <b>+{days_text(extra)}</b>"
     await callback.message.edit_text(
         text,
         reply_markup=connect_keyboard(sub_url) if sub_url else back_profile_keyboard(),
@@ -106,15 +107,15 @@ async def share(callback: CallbackQuery) -> None:
         body = (
             "<b>Приведи друга</b>\n\n"
             f"Когда друг нажмёт «Попробовать бесплатно», вам и другу начислят "
-            f"по <b>{rub} руб.</b> на баланс. Вывод средств недоступен.\n\n"
+            f"по <b>{rub_text(rub)}</b> на баланс.\n\n"
             f"Ваша ссылка:\n<code>{link}</code>"
         )
     else:
         body = (
             "<b>Приведи друга</b>\n\n"
             f"Отправьте ссылку. Когда друг нажмёт «Попробовать бесплатно», вам начислят "
-            f"<b>{settings.referral_reward_days} дн.</b>, а другу "
-            f"<b>+{settings.referral_invitee_days} дн.</b> к бесплатному периоду.\n\n"
+            f"<b>{days_text(settings.referral_reward_days)}</b>, а другу "
+            f"<b>+{days_text(settings.referral_invitee_days)}</b> к бесплатному периоду.\n\n"
             f"Ваша ссылка:\n<code>{link}</code>"
         )
     await callback.message.edit_text(
@@ -139,10 +140,10 @@ async def my_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         n = await db.device_count(callback.from_user.id)
         await callback.message.edit_text(
             "<b>Баланс</b>\n\n"
-            f"Сейчас: <b>{rub} руб.</b>\n"
+            f"Сейчас: <b>{rub_text(rub)}</b>\n"
             f"Устройств: <b>{n}</b>\n"
-            f"Списание: <b>{settings.vpn_day_price_rub} руб.</b> в сутки за устройство.\n"
-            "Пополнение с шагом 50 руб. Вывод средств недоступен.\n"
+            f"Списание: <b>{rub_text(settings.vpn_day_price_rub)}</b> в сутки за устройство.\n"
+            "Пополнение с шагом 50 рублей.\n"
             "Устройства добавляются в личном кабинете.",
             reply_markup=buy_keyboard(),
         )
@@ -215,8 +216,8 @@ async def buy_menu(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         (
             "<b>Пополнение баланса</b>\n\n"
             f"{pay_hint}\n"
-            f"Сутки на одно устройство: {settings.vpn_day_price_rub} руб. "
-            "Шаг пополнения 50 руб. Вывод средств недоступен."
+            f"Сутки на одно устройство: {rub_text(settings.vpn_day_price_rub)}. "
+            "Шаг пополнения 50 рублей."
             if settings.balance_enabled
             else
             "<b>Покупка подписки</b>\n\n"
@@ -271,7 +272,7 @@ async def buy_plan(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
             order_id, callback.from_user.id, code, payment_id, pay_url
         )
         await callback.message.edit_text(
-            f"<b>{plan['title']}</b> — {plan['rub_str']} RUB\n\n"
+            f"<b>{plan['title']}</b> — {plan['rub_str']} рублей\n\n"
             "Нажмите «Оплатить», затем вернитесь и нажмите «Проверить оплату».",
             reply_markup=pay_keyboard(pay_url, order_id),
         )
@@ -280,7 +281,7 @@ async def buy_plan(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
         await ack(callback)
         await callback.message.answer_invoice(
             title=f"Подписка {plan['title']}",
-            description=f"Доступ на {plan['days']} дней, трафик безлимитный.",
+            description=f"Доступ на {days_text(plan['days'])}, трафик безлимитный.",
             payload=f"plan:{code}",
             currency="XTR",
             prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
@@ -332,8 +333,7 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
         return
     if settings.balance_enabled:
         await callback.message.edit_text(
-            f"Баланс пополнен на {plan.get('topup_rub') or plan.get('title')}. "
-            "Вывод средств недоступен.",
+            f"Баланс пополнен на {rub_text(int(plan.get('topup_rub') or 0)) if plan.get('topup_rub') else plan.get('title')}.",
             reply_markup=back_profile_keyboard(),
         )
         return
@@ -346,6 +346,9 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
 
 @router.pre_checkout_query()
 async def pre_checkout(query: PreCheckoutQuery) -> None:
+    if await db.flag_on("maintenance"):
+        await query.answer(ok=False, error_message="Сервис временно недоступен")
+        return
     await query.answer(ok=True)
 
 
@@ -380,8 +383,7 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
         return
     if settings.balance_enabled:
         await message.answer(
-            f"Баланс пополнен на {plan.get('topup_rub') or plan.get('title')}. "
-            "Вывод средств недоступен."
+            f"Баланс пополнен на {rub_text(int(plan.get('topup_rub') or 0)) if plan.get('topup_rub') else plan.get('title')}."
         )
         return
     sub_url = (user or {}).get("subscriptionUrl") or ""
@@ -400,7 +402,7 @@ async def vpn_down(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         await submit_vpn_report(callback.bot, rw, user.id, user.username, user.first_name)
     except ReportCooldown as exc:
         minutes = max(1, exc.wait_sec // 60)
-        await ack(callback, f"Сообщение уже отправлено. Повторно можно через {minutes} мин.", alert=True)
+        await ack(callback, f"Сообщение уже отправлено. Повторно можно через {minutes_text(minutes)}.", alert=True)
         return
     except Exception:
         await ack(callback, "Не удалось отправить. Попробуйте позже.", alert=True)

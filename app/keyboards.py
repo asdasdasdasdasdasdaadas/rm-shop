@@ -6,6 +6,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.config import get_settings
+from app.texts import days_text, rub_text
 from app import runtime
 
 
@@ -32,9 +33,8 @@ def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> s
         price = settings.vpn_day_price_rub
         return (
             f"Привет, {name}.\n\n"
-            f"Баланс: <b>{rub} руб.</b>\n"
-            f"Сутки VPN на одно устройство: <b>{price} руб.</b>\n"
-            "Вывод средств недоступен."
+            f"Баланс: <b>{rub_text(rub)}</b>\n"
+            f"Сутки VPN на одно устройство: <b>{rub_text(price)}</b>"
         )
     return f"Привет, {name}.\nВыберите действие."
 
@@ -65,7 +65,7 @@ def profile_keyboard(*, trial_available: bool, has_access: bool) -> InlineKeyboa
         builder.row(InlineKeyboardButton(text="Пополнить баланс", callback_data="buy"))
         builder.row(
             InlineKeyboardButton(
-                text=f"Приведи друга — {settings.referral_reward_rub} руб.",
+                text=f"Приведи друга — {rub_text(settings.referral_reward_rub)}",
                 callback_data="share",
             )
         )
@@ -73,7 +73,7 @@ def profile_keyboard(*, trial_available: bool, has_access: bool) -> InlineKeyboa
     else:
         builder.row(InlineKeyboardButton(text="Купить подписку", callback_data="buy"))
         days = settings.referral_reward_days
-        builder.row(InlineKeyboardButton(text=f"Приведи друга — {days} дн.", callback_data="share"))
+        builder.row(InlineKeyboardButton(text=f"Приведи друга — {days_text(days)}", callback_data="share"))
         if has_access:
             builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_sub"))
             builder.row(InlineKeyboardButton(text="Подключиться", callback_data="connect"))
@@ -115,9 +115,9 @@ def buy_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for code, plan in settings.shop_plans.items():
         if settings.rollypay_configured:
-            label = f"{plan['title']} — {plan['rub_str']} RUB"
+            label = f"{plan['title']} — {plan['rub_str']} рублей"
         elif settings.stars_enabled:
-            label = f"{plan['title']} — {plan['stars']} Stars"
+            label = f"{plan['title']} — {plan['stars']} звёзд"
         else:
             label = plan["title"]
         builder.row(InlineKeyboardButton(text=label, callback_data=f"buy:{code}"))
@@ -139,13 +139,13 @@ def share_keyboard(bot_username: str, telegram_id: int) -> InlineKeyboardMarkup:
         rub = settings.referral_reward_rub
         share_text = (
             f"Подключайся. Нажми «Попробовать бесплатно» по ссылке — "
-            f"получишь {rub} руб. на баланс, и я тоже."
+            f"получишь {rub_text(rub)} на баланс, и я тоже."
         )
     else:
         days = settings.referral_reward_days
         share_text = (
             f"Подключайся. Нажми «Попробовать бесплатно» по ссылке — получишь "
-            f"+{settings.referral_invitee_days} дн., а я получу {days} дн. VPN."
+            f"+{days_text(settings.referral_invitee_days)}, а я получу {days_text(days)} VPN."
         )
     link = f"https://t.me/{bot_username}?start=ref_{telegram_id}"
     share_url = (

@@ -229,6 +229,102 @@ async def add_balance_rub(telegram_id: int, amount: int) -> int:
     return int(row["balance_rub"]) if row else 0
 
 
+async def mark_paid_topup(telegram_id: int) -> None:
+    await _pool_req().execute(
+        "UPDATE users SET has_paid_topup = TRUE WHERE telegram_id = $1",
+        telegram_id,
+    )
+
+
+async def flag_on(key: str) -> bool:
+    val = await _pool_req().fetchval("SELECT value FROM app_flags WHERE key = $1", key)
+    return str(val or "").lower() in {"1", "true", "on", "yes"}
+
+
+async def set_flag(key: str, on: bool) -> None:
+    await _pool_req().execute(
+        """
+        INSERT INTO app_flags (key, value) VALUES ($1, $2)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """,
+        key,
+        "1" if on else "0",
+    )
+
+
+async def get_flags() -> dict[str, bool]:
+    rows = await _pool_req().fetch("SELECT key, value FROM app_flags")
+    data = {r["key"]: str(r["value"] or "").lower() in {"1", "true", "on", "yes"} for r in rows}
+    return {
+        "maintenance": bool(data.get("maintenance")),
+        "billing_paused": bool(data.get("billing_paused")),
+    }
+
+
+async def open_trust_loan(telegram_id: int) -> dict | None:
+    row = await _pool_req().fetchrow(
+        """
+        SELECT * FROM trust_loans
+        WHERE telegram_id = $1 AND collected_at IS NULL
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        telegram_id,
+    )
+    return _as_dict(row)
+
+
+async def take_trust_loan(telegram_id: int, amount: int, due_at) -> dict:
+    row = await _pool_req().fetchrow(
+        """
+        INSERT INTO trust_loans (telegram_id, amount, due_at)
+        VALUES ($1, $2, $3)
+        RETURNING *
+        """,
+        telegram_id,
+        amount,
+        due_at,
+    )
+    await add_balance_rub(telegram_id, amount)
+    return dict(row) if row else {"amount": amount, "due_at": due_at}
+
+
+async def due_trust_loans() -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT * FROM trust_loans
+        WHERE collected_at IS NULL AND due_at <= timezone('utc', now())
+        ORDER BY id
+        """
+    )
+    return [dict(r) for r in rows]
+
+
+async def collect_trust_loan(loan_id: int, telegram_id: int, amount: int) -> None:
+    await add_balance_rub(telegram_id, -abs(amount))
+    await _pool_req().execute(
+        "UPDATE trust_loans SET collected_at = timezone('utc', now()) WHERE id = $1 AND collected_at IS NULL",
+        loan_id,
+    )
+
+
+async def delete_user(telegram_id: int) -> bool:
+    pool = _pool_req()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            exists = await conn.fetchval("SELECT 1 FROM users WHERE telegram_id = $1", telegram_id)
+            if not exists:
+                return False
+            await conn.execute("DELETE FROM trust_loans WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM vpn_reports WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM promo_uses WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM payments WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM rollypay_orders WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM devices WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM users WHERE telegram_id = $1", telegram_id)
+    return True
+
+
 async def spend_balance_rub(telegram_id: int, amount: int) -> bool:
     if amount < 1:
         return True
@@ -264,16 +360,24 @@ async def list_devices(telegram_id: int) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def add_device(telegram_id: int, title: str, remnawave_id: int) -> dict:
+async def add_device(
+    telegram_id: int,
+    title: str,
+    remnawave_id: int,
+    platform: str | None = None,
+    client: str | None = None,
+) -> dict:
     row = await _pool_req().fetchrow(
         """
-        INSERT INTO devices (telegram_id, title, remnawave_id, last_billed_on)
-        VALUES ($1, $2, $3, (timezone('utc', now()))::date)
+        INSERT INTO devices (telegram_id, title, remnawave_id, last_billed_on, platform, client)
+        VALUES ($1, $2, $3, (timezone('utc', now()))::date, $4, $5)
         RETURNING *
         """,
         telegram_id,
         title,
         remnawave_id,
+        platform,
+        client,
     )
     return dict(row) if row else {"title": title, "remnawave_id": remnawave_id}
 

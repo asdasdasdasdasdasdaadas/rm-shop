@@ -16,6 +16,7 @@ from app.handlers.start import router as start_router
 from app.remnawave import RemnawaveClient
 from app.rollypay import RollyPayClient
 from app.sync import sync_all
+from app.maintenance import MaintenanceMiddleware
 from app.web import start_http
 
 logging.basicConfig(
@@ -80,6 +81,8 @@ async def main() -> None:
     dp = Dispatcher()
     dp["rw"] = rw
     dp["rp"] = rp
+    dp.message.middleware(MaintenanceMiddleware())
+    dp.callback_query.middleware(MaintenanceMiddleware())
     dp.include_router(start_router)
     dp.include_router(profile_router)
 

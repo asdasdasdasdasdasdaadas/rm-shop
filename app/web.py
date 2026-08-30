@@ -28,6 +28,8 @@ from app.remnawave import (
 )
 from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, verify_webhook
 from app.sync import fetch_panel
+from app.texts import days_text, minutes_text, rub_text
+from app.trust import MAINTENANCE_TEXT, take_trust, trust_info
 
 logger = logging.getLogger("rm-shop.web")
 WEBAPP_DIR = ROOT / "webapp"
@@ -50,6 +52,12 @@ def json_error(message: str, status: int = 400) -> web.Response:
     return web.json_response({"ok": False, "error": message}, status=status)
 
 
+async def _if_down() -> web.Response | None:
+    if await db.flag_on("maintenance"):
+        return json_error(MAINTENANCE_TEXT, 503)
+    return None
+
+
 async def index(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(WEBAPP_DIR / "index.html")
 
@@ -63,6 +71,14 @@ async def api_me(request: web.Request) -> web.Response:
     if not parsed.user:
         return json_error("Недействительные данные Telegram", 401)
     telegram_id = int(parsed.user.id)
+    if await db.flag_on("maintenance"):
+        return web.json_response(
+            {
+                "ok": True,
+                "maintenance": True,
+                "brand_name": settings.brand_name,
+            }
+        )
     bot: Bot = request.app["bot"]
     rw: RemnawaveClient = request.app["rw"]
     await db.upsert_user(telegram_id, parsed.user.username, parsed.user.first_name)
@@ -89,6 +105,8 @@ async def api_me(request: web.Request) -> web.Response:
                     "days": days_remaining(panel_dev),
                     "active": is_subscription_active(panel_dev),
                     "expire_at": expire.isoformat() if expire else None,
+                    "platform": item.get("platform") or "",
+                    "client": item.get("client") or "",
                 }
             )
 
@@ -104,10 +122,19 @@ async def api_me(request: web.Request) -> web.Response:
     tg_user = parsed.user
     name = " ".join(x for x in [tg_user.first_name, tg_user.last_name] if x) if tg_user else ""
     username = f"@{tg_user.username}" if tg_user and tg_user.username else ""
+    trust = await trust_info(telegram_id, local, len(devices)) if settings.balance_enabled else None
+    if settings.balance_enabled and devices:
+        days_left = balance_rub // (max(1, settings.vpn_day_price_rub) * len(devices))
+    elif settings.balance_enabled:
+        days_left = balance_rub // max(1, settings.vpn_day_price_rub)
+    else:
+        days_left = days
+    days_left = max(0, int(days_left))
 
     return web.json_response(
         {
             "ok": True,
+            "maintenance": False,
             "user": {
                 "name": name or (local or {}).get("first_name") or "Пользователь",
                 "username": username,
@@ -120,6 +147,7 @@ async def api_me(request: web.Request) -> web.Response:
             "trial_days": trial_grant_days(local) if not settings.balance_enabled else settings.trial_days,
             "trial_rub": trial_grant_rub() if settings.balance_enabled else 0,
             "days": days,
+            "days_left": days_left,
             "balance_rub": balance_rub,
             "vpn_day_price_rub": settings.vpn_day_price_rub,
             "has_access": bool(
@@ -149,6 +177,7 @@ async def api_me(request: web.Request) -> web.Response:
                 for code, p in settings.shop_plans.items()
             ],
             "devices": devices,
+            "trust": trust,
         }
     )
 
@@ -169,6 +198,9 @@ async def api_avatar(request: web.Request) -> web.Response:
 
 
 async def api_trial(request: web.Request) -> web.Response:
+    denied = await _if_down()
+    if denied:
+        return denied
     settings = get_settings()
     try:
         telegram_id = _user_id(request)
@@ -205,6 +237,9 @@ async def api_trial(request: web.Request) -> web.Response:
 
 
 async def api_invoice(request: web.Request) -> web.Response:
+    denied = await _if_down()
+    if denied:
+        return denied
     settings = get_settings()
     try:
         telegram_id = _user_id(request)
@@ -242,7 +277,7 @@ async def api_invoice(request: web.Request) -> web.Response:
     title = "Пополнение" if settings.balance_enabled else "Подписка"
     link = await bot.create_invoice_link(
         title=f"{title}: {plan['title']}",
-        description=f"{plan['days']} дн., трафик безлимитный.",
+        description=f"{days_text(plan['days'])}, трафик безлимитный.",
         payload=f"plan:{code}",
         currency="XTR",
         prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
@@ -252,6 +287,9 @@ async def api_invoice(request: web.Request) -> web.Response:
 
 
 async def api_promo(request: web.Request) -> web.Response:
+    denied = await _if_down()
+    if denied:
+        return denied
     settings = get_settings()
     if not settings.promo_enabled:
         return json_error("Промокоды выключены")
@@ -281,6 +319,9 @@ async def api_promo(request: web.Request) -> web.Response:
 
 
 async def api_add_device(request: web.Request) -> web.Response:
+    denied = await _if_down()
+    if denied:
+        return denied
     settings = get_settings()
     if not settings.balance_enabled:
         return json_error("Баланс выключен")
@@ -290,9 +331,11 @@ async def api_add_device(request: web.Request) -> web.Response:
         return json_error("Недействительные данные Telegram", 401)
     body = await request.json()
     title = str(body.get("title") or "").strip() or "Устройство"
+    platform = str(body.get("platform") or "").strip()[:32] or None
+    client = str(body.get("client") or "").strip()[:32] or None
     price = max(1, settings.vpn_day_price_rub)
     if not await db.spend_balance_rub(telegram_id, price):
-        return json_error(f"Недостаточно средств. Нужно {price} руб. за сутки. Вывод недоступен.")
+        return json_error(f"Недостаточно средств. Нужно {rub_text(price)} за сутки.")
     rw: RemnawaveClient = request.app["rw"]
     n = await db.device_count(telegram_id) + 1
     username = f"t{telegram_id}d{n}"[:36]
@@ -309,11 +352,22 @@ async def api_add_device(request: web.Request) -> web.Response:
         await db.add_balance_rub(telegram_id, price)
         return json_error(str(exc), 502)
     rw_id = int(user["id"])
-    await db.add_device(telegram_id, title, rw_id)
-    return web.json_response({"ok": True})
+    await db.add_device(telegram_id, title, rw_id, platform, client)
+    return web.json_response(
+        {
+            "ok": True,
+            "subscription_url": user.get("subscriptionUrl") or "",
+            "title": title,
+            "platform": platform or "",
+            "client": client or "",
+        }
+    )
 
 
 async def api_vpn_report(request: web.Request) -> web.Response:
+    denied = await _if_down()
+    if denied:
+        return denied
     try:
         parsed = safe_parse_webapp_init_data(get_settings().bot_token, _init_data(request))
     except ValueError:
@@ -329,11 +383,26 @@ async def api_vpn_report(request: web.Request) -> web.Response:
         await submit_vpn_report(bot, rw, telegram_id, parsed.user.username, parsed.user.first_name)
     except ReportCooldown as exc:
         minutes = max(1, exc.wait_sec // 60)
-        return json_error(f"Повторно можно через {minutes} мин.")
+        return json_error(f"Повторно можно через {minutes_text(minutes)}.")
     except Exception:
         logger.exception("VPN report failed")
         return json_error("Не удалось отправить", 502)
     return web.json_response({"ok": True})
+
+
+async def api_trust(request: web.Request) -> web.Response:
+    denied = await _if_down()
+    if denied:
+        return denied
+    try:
+        telegram_id = _user_id(request)
+    except ValueError:
+        return json_error("Недействительные данные Telegram", 401)
+    try:
+        loan = await take_trust(telegram_id)
+    except ValueError as exc:
+        return json_error(str(exc))
+    return web.json_response({"ok": True, "loan": loan})
 
 
 async def health(_request: web.Request) -> web.Response:
@@ -379,8 +448,7 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
         if settings.balance_enabled:
             await bot.send_message(
                 telegram_id,
-                f"Баланс пополнен на {plan.get('topup_rub') or plan.get('title')}. "
-                "Вывод средств недоступен.",
+                f"Баланс пополнен на {rub_text(int(plan.get('topup_rub') or 0)) if plan.get('topup_rub') else plan.get('title')}.",
             )
         elif user:
             sub_url = user.get("subscriptionUrl") or ""
@@ -410,6 +478,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/invoice", api_invoice)
         app.router.add_post("/api/promo", api_promo)
         app.router.add_post("/api/devices", api_add_device)
+        app.router.add_post("/api/trust", api_trust)
         app.router.add_post("/api/vpn-report", api_vpn_report)
         app.router.add_static("/static", WEBAPP_DIR)
     else:

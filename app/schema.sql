@@ -37,7 +37,9 @@ CREATE TABLE IF NOT EXISTS devices (
     remnawave_id BIGINT,
     remnawave_uuid TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_billed_on DATE
+    last_billed_on DATE,
+    platform TEXT,
+    client TEXT
 );
 
 CREATE TABLE IF NOT EXISTS promo_uses (
@@ -75,5 +77,38 @@ CREATE TABLE IF NOT EXISTS vpn_reports (
 CREATE INDEX IF NOT EXISTS vpn_reports_created_at_idx ON vpn_reports (created_at DESC);
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_rub INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS has_paid_topup BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_billed_on DATE;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS platform TEXT;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS client TEXT;
+
+CREATE TABLE IF NOT EXISTS app_flags (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS trust_loans (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users (telegram_id),
+    amount INTEGER NOT NULL,
+    taken_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    due_at TIMESTAMPTZ NOT NULL,
+    collected_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS trust_loans_due_idx
+    ON trust_loans (due_at)
+    WHERE collected_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS trust_loans_open_uidx
+    ON trust_loans (telegram_id)
+    WHERE collected_at IS NULL;
+
+UPDATE users SET has_paid_topup = TRUE
+WHERE telegram_id IN (
+    SELECT DISTINCT telegram_id FROM rollypay_orders WHERE status = 'granted'
+)
+OR telegram_id IN (
+    SELECT DISTINCT telegram_id FROM payments
+);
 

@@ -9,6 +9,7 @@ from app.billing import expire_human
 from app.config import get_settings
 from app.keyboards import back_profile_keyboard, connect_keyboard
 from app.remnawave import RemnawaveClient, RemnawaveError
+from app.texts import days_text, rub_text
 
 
 def invitee_extra_days(local: dict | None) -> int:
@@ -47,12 +48,10 @@ async def maybe_reward_referrer(
         ref_text = (
             "<b>Поздравляем</b>\n\n"
             f"Друг {name} попробовал VPN бесплатно по вашей ссылке.\n"
-            f"Вам начислено <b>{amount} руб.</b> на баланс.\n"
-            "Вывод средств недоступен."
+            f"Вам начислено <b>{rub_text(amount)}</b> на баланс."
         )
         friend_text = (
-            f"За переход по ссылке на баланс начислено <b>{amount} руб.</b>\n"
-            "Вывод средств недоступен."
+            f"За переход по ссылке на баланс начислено <b>{rub_text(amount)}</b>"
         )
         try:
             await bot.send_message(referrer_id, ref_text, reply_markup=back_profile_keyboard())
@@ -83,7 +82,7 @@ async def maybe_reward_referrer(
         text = (
             "<b>Поздравляем</b>\n\n"
             f"Друг {name} попробовал VPN бесплатно по вашей ссылке.\n"
-            f"Вам начислено <b>{days} дн.</b> подписки.\n\n"
+            f"Вам начислено <b>{days_text(days)}</b> подписки.\n\n"
             f"Действует до: <b>{expire_human(user)}</b>"
         )
         extra = user.get("subscriptionUrl") or ""

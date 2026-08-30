@@ -41,6 +41,7 @@ async def grant_plan(telegram_id: int, plan_code: str, rw: RemnawaveClient) -> d
         if amount < 1:
             raise ValueError("unknown plan")
         await db.add_balance_rub(telegram_id, amount)
+        await db.mark_paid_topup(telegram_id)
         return None
     local = await db.get_user(telegram_id)
     panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None

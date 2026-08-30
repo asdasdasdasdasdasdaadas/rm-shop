@@ -75,7 +75,27 @@ function kv(box, map, empty) {
   });
 }
 
+function paintFlags(f) {
+  const m = !!f.maintenance;
+  const p = !!f.billing_paused;
+  $("maintBtn").textContent = m ? "Тех. работы: вкл" : "Тех. работы: выкл";
+  $("maintBtn").classList.toggle("warn", m);
+  $("billBtn").textContent = p ? "Тарификация: стоп" : "Тарификация: идёт";
+  $("billBtn").classList.toggle("warn", p);
+  $("opsHint").textContent = m
+    ? "Бот и Mini App отвечают, что сервис недоступен. Админка работает."
+    : p
+      ? "Устройства продлеваются, плата не списывается."
+      : "";
+}
+
+async function loadFlags() {
+  const f = await api("/admin/api/flags");
+  paintFlags(f);
+}
+
 async function loadStats() {
+  await loadFlags();
   const s = await api("/admin/api/stats");
   const u = s.users || {};
   const cards = $("cards");
@@ -88,7 +108,7 @@ async function loadStats() {
     ["Новые за сутки", u.new_1d || 0],
     ["Новые за 7 дней", u.new_7d || 0],
     ["Новые за 30 дней", u.new_30d || 0],
-    ["Оборот, RUB", s.revenue_rub || 0],
+    ["Оборот, рубли", s.revenue_rub || 0],
     ["Промокоды", s.promo_uses || 0],
     ["Stars-платежи", s.stars_payments || 0],
     ["Жалобы VPN", s.vpn_reports || 0],
@@ -131,6 +151,7 @@ async function loadUsers(page) {
     const cells = [
       u.telegram_id + (u.username ? ` @${u.username}` : ""),
       u.first_name || "—",
+      u.balance_rub == null ? "—" : String(u.balance_rub),
       u.trial_used ? "да" : "нет",
       fmt(u.expire_at),
       u.panel_status || "—",
@@ -197,7 +218,10 @@ async function loadSettings() {
 function openUser(u) {
   currentUser = u;
   $("modalTitle").textContent = u.first_name || String(u.telegram_id);
-  $("modalMeta").textContent = `ID ${u.telegram_id}` + (u.username ? ` · @${u.username}` : "");
+  $("modalMeta").textContent =
+    `ID ${u.telegram_id}` +
+    (u.username ? ` · @${u.username}` : "") +
+    (u.balance_rub == null ? "" : ` · баланс ${u.balance_rub} рублей`);
   $("modal").classList.remove("hidden");
 }
 
@@ -258,6 +282,23 @@ $("grantBtn").onclick = async () => {
   $("modal").classList.add("hidden");
   loadUsers();
 };
+$("balBtn").onclick = async () => {
+  if (!currentUser) return;
+  await api(`/admin/api/users/${currentUser.telegram_id}/balance`, {
+    method: "POST",
+    body: JSON.stringify({ amount: Number($("balAmount").value) }),
+  });
+  $("modal").classList.add("hidden");
+  loadUsers();
+};
+$("delBtn").onclick = async () => {
+  if (!currentUser) return;
+  const id = currentUser.telegram_id;
+  if (!window.confirm(`Удалить пользователя ${id}? Доступ в панели будет отключён.`)) return;
+  await api(`/admin/api/users/${id}/delete`, { method: "POST", body: "{}" });
+  $("modal").classList.add("hidden");
+  loadUsers();
+};
 $("trialBtn").onclick = async () => {
   if (!currentUser) return;
   await api(`/admin/api/users/${currentUser.telegram_id}/trial-reset`, {
@@ -278,6 +319,20 @@ $("msgBtn").onclick = async () => {
 $("modalClose").onclick = () => $("modal").classList.add("hidden");
 $("modal").onclick = (e) => {
   if (e.target === $("modal")) $("modal").classList.add("hidden");
+};
+
+$("maintBtn").onclick = async () => {
+  const f = await api("/admin/api/flags");
+  const next = !f.maintenance;
+  if (next && !window.confirm("Включить тех. работы? Бот и Mini App перестанут обслуживать пользователей.")) return;
+  paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ maintenance: next }) }));
+};
+
+$("billBtn").onclick = async () => {
+  const f = await api("/admin/api/flags");
+  const next = !f.billing_paused;
+  if (next && !window.confirm("Остановить тарификацию? Устройства останутся активными, плата списываться не будет.")) return;
+  paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ billing_paused: next }) }));
 };
 
 (async () => {
