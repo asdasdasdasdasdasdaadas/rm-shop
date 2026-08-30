@@ -178,6 +178,33 @@ class RemnawaveClient:
         users = _as_users(data)
         return users[0] if users else body
 
+    async def extend_panel_user(self, panel_user_id: int, days: int) -> dict:
+        user = await self.get_user_by_id(panel_user_id)
+        if not user:
+            raise RemnawaveError("Устройство в панели не найдено")
+        now = datetime.now(timezone.utc)
+        current = parse_expire(user.get("expireAt"))
+        base = current if current and current > now else now
+        return await self.update_user(
+            user,
+            {
+                "expireAt": iso_expire(base + timedelta(days=days)),
+                "status": "ACTIVE",
+            },
+        )
+
+    async def disable_panel_user(self, panel_user_id: int) -> None:
+        user = await self.get_user_by_id(panel_user_id)
+        if not user:
+            return
+        await self.update_user(
+            user,
+            {
+                "status": "DISABLED",
+                "expireAt": iso_expire(datetime.now(timezone.utc)),
+            },
+        )
+
     async def extend_subscription(
         self,
         telegram_id: int,

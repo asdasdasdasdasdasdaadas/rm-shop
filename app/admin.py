@@ -107,7 +107,7 @@ async def api_stats(request: web.Request) -> web.Response:
     raw = await db.admin_stats()
     revenue = 0.0
     for code, count in (raw.get("plans") or {}).items():
-        plan = settings.plans.get(code)
+        plan = settings.shop_plans.get(code) or settings.plans.get(code)
         if plan:
             revenue += float(plan["rub"]) * int(count)
     return web.json_response({"ok": True, **raw, "revenue_rub": round(revenue, 2)})
@@ -153,9 +153,13 @@ async def api_grant(request: web.Request) -> web.Response:
     body = await request.json()
     days = int(body.get("days") or 0)
     if days < 1 or days > 3650:
-        return web.json_response({"ok": False, "error": "Укажите дни от 1 до 3650"}, status=400)
+        return web.json_response({"ok": False, "error": "Укажите число от 1 до 3650"}, status=400)
     if not await db.get_user(telegram_id):
         return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    settings = get_settings()
+    if settings.balance_enabled:
+        total = await db.add_balance_rub(telegram_id, days)
+        return web.json_response({"ok": True, "balance_rub": total})
     rw: RemnawaveClient = request.app["rw"]
     local = await db.get_user(telegram_id)
     panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
@@ -233,9 +237,11 @@ async def api_settings(request: web.Request) -> web.Response:
             "rollypay_configured": settings.rollypay_configured,
             "rollypay_test": settings.rollypay_test,
             "webapp_enabled": settings.webapp_enabled,
+            "vpn_day_price_rub": settings.vpn_day_price_rub,
+            "referral_reward_rub": settings.referral_reward_rub,
             "plans": [
                 {"code": code, "title": p["title"], "days": p["days"], "rub": p["rub_str"]}
-                for code, p in settings.plans.items()
+                for code, p in settings.shop_plans.items()
             ],
         }
     )

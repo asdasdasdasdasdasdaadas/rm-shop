@@ -96,7 +96,9 @@ function renderPay(me) {
     const t = document.createElement("button");
     t.type = "button";
     t.className = "cell action";
-    t.textContent = `Попробовать бесплатно · ${daysLabel(me.trial_days)}`;
+    t.textContent = me.balance_enabled
+      ? `Попробовать бесплатно · ${me.trial_rub} руб.`
+      : `Попробовать бесплатно · ${daysLabel(me.trial_days)}`;
     t.onclick = async () => {
       haptic();
       try {
@@ -120,7 +122,7 @@ function renderPay(me) {
     title.textContent = me.balance_enabled ? `Пополнить · ${plan.title}` : plan.title;
     const sub = document.createElement("div");
     sub.className = "plan-sub";
-    sub.textContent = daysLabel(plan.days);
+    sub.textContent = me.balance_enabled ? "на баланс, без вывода" : daysLabel(plan.days);
     main.appendChild(title);
     main.appendChild(sub);
     const cost = document.createElement("span");
@@ -236,12 +238,23 @@ function paint(me) {
   } else {
     avatar.removeAttribute("src");
   }
-  $("days").textContent = daysLabel(me.days);
+  if (me.balance_enabled) {
+    $("daysLabel").textContent = "Баланс";
+    $("days").textContent = `${me.balance_rub} руб.`;
+    $("devicesNote").textContent =
+      `Каждое устройство: ${me.vpn_day_price_rub} руб. в сутки. Списание каждый день. Вывод средств недоступен.`;
+    const rub = me.referral_reward_rub || 50;
+    $("inviteNote").textContent =
+      `Когда друг нажмёт «Попробовать бесплатно», вам и другу начислят по ${rub} руб. Вывод недоступен.`;
+  } else {
+    $("daysLabel").textContent = "Осталось";
+    $("days").textContent = daysLabel(me.days);
+    const refDays = me.referral_reward_days || 7;
+    const friendDays = me.referral_invitee_days || 5;
+    $("inviteNote").textContent =
+      `Когда друг нажмёт «Попробовать бесплатно», вам начислят ${refDays} дней, а другу +${friendDays} дней к бесплатному периоду.`;
+  }
   $("invite").textContent = me.invite_url;
-  const refDays = me.referral_reward_days || 7;
-  const friendDays = me.referral_invitee_days || 5;
-  $("inviteNote").textContent =
-    `Когда друг нажмёт «Попробовать бесплатно», вам начислят ${refDays} дней, а другу +${friendDays} дней к бесплатному периоду.`;
   $("offerLink").href = me.legal.offer;
   $("privacyLink").href = me.legal.privacy;
   $("supportLink").href = me.legal.support.startsWith("@")
@@ -279,11 +292,20 @@ $("shareBtn").onclick = () => {
   haptic();
   const url = window.__me && window.__me.invite_url;
   if (url) {
-    const days = (window.__me && window.__me.referral_reward_days) || 7;
-    const extra = (window.__me && window.__me.referral_invitee_days) || 5;
-    const text = encodeURIComponent(
-      `Подключайся. Нажми «Попробовать бесплатно» по ссылке — получишь +${extra} дн., а я получу ${days} дн. VPN.`
-    );
+    const me = window.__me;
+    let text;
+    if (me && me.balance_enabled) {
+      const rub = me.referral_reward_rub || 50;
+      text = encodeURIComponent(
+        `Подключайся. Нажми «Попробовать бесплатно» по ссылке — получишь ${rub} руб. на баланс, и я тоже.`
+      );
+    } else {
+      const days = (me && me.referral_reward_days) || 7;
+      const extra = (me && me.referral_invitee_days) || 5;
+      text = encodeURIComponent(
+        `Подключайся. Нажми «Попробовать бесплатно» по ссылке — получишь +${extra} дн., а я получу ${days} дн. VPN.`
+      );
+    }
     tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${text}`);
   }
 };

@@ -213,6 +213,37 @@ async def add_balance_days(telegram_id: int, days: int) -> int:
     return int(row["balance_days"]) if row else 0
 
 
+async def add_balance_rub(telegram_id: int, amount: int) -> int:
+    if amount == 0:
+        local = await get_user(telegram_id)
+        return int((local or {}).get("balance_rub") or 0)
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users SET balance_rub = COALESCE(balance_rub, 0) + $2
+        WHERE telegram_id = $1
+        RETURNING balance_rub
+        """,
+        telegram_id,
+        amount,
+    )
+    return int(row["balance_rub"]) if row else 0
+
+
+async def spend_balance_rub(telegram_id: int, amount: int) -> bool:
+    if amount < 1:
+        return True
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users SET balance_rub = balance_rub - $2
+        WHERE telegram_id = $1 AND COALESCE(balance_rub, 0) >= $2
+        RETURNING telegram_id
+        """,
+        telegram_id,
+        amount,
+    )
+    return row is not None
+
+
 async def spend_balance_day(telegram_id: int) -> bool:
     row = await _pool_req().fetchrow(
         """
@@ -236,8 +267,8 @@ async def list_devices(telegram_id: int) -> list[dict]:
 async def add_device(telegram_id: int, title: str, remnawave_id: int) -> dict:
     row = await _pool_req().fetchrow(
         """
-        INSERT INTO devices (telegram_id, title, remnawave_id)
-        VALUES ($1, $2, $3)
+        INSERT INTO devices (telegram_id, title, remnawave_id, last_billed_on)
+        VALUES ($1, $2, $3, (timezone('utc', now()))::date)
         RETURNING *
         """,
         telegram_id,
@@ -262,6 +293,26 @@ async def device_count(telegram_id: int) -> int:
         telegram_id,
     )
     return int(val or 0)
+
+
+async def devices_due_for_billing() -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT id, telegram_id, title, remnawave_id
+        FROM devices
+        WHERE remnawave_id IS NOT NULL
+          AND (last_billed_on IS NULL OR last_billed_on < (timezone('utc', now()))::date)
+        ORDER BY id
+        """
+    )
+    return [dict(r) for r in rows]
+
+
+async def mark_device_billed(device_id: int) -> None:
+    await _pool_req().execute(
+        "UPDATE devices SET last_billed_on = (timezone('utc', now()))::date WHERE id = $1",
+        device_id,
+    )
 
 
 async def save_rollypay_order(

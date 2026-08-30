@@ -24,8 +24,18 @@ def welcome_text() -> str:
     )
 
 
-def profile_text(first_name: str | None) -> str:
+def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> str:
     name = first_name or "друг"
+    settings = get_settings()
+    if settings.balance_enabled:
+        rub = 0 if balance_rub is None else balance_rub
+        price = settings.vpn_day_price_rub
+        return (
+            f"Привет, {name}.\n\n"
+            f"Баланс: <b>{rub} руб.</b>\n"
+            f"Сутки VPN на одно устройство: <b>{price} руб.</b>\n"
+            "Вывод средств недоступен."
+        )
     return f"Привет, {name}.\nВыберите действие."
 
 
@@ -47,15 +57,26 @@ def legal_keyboard() -> InlineKeyboardMarkup:
 
 
 def profile_keyboard(*, trial_available: bool, has_access: bool) -> InlineKeyboardMarkup:
+    settings = get_settings()
     builder = InlineKeyboardBuilder()
     if trial_available:
         builder.row(InlineKeyboardButton(text="Попробовать бесплатно", callback_data="trial"))
-    builder.row(InlineKeyboardButton(text="Купить подписку", callback_data="buy"))
-    days = get_settings().referral_reward_days
-    builder.row(InlineKeyboardButton(text=f"Приведи друга — {days} дн.", callback_data="share"))
-    if has_access:
-        builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_sub"))
-        builder.row(InlineKeyboardButton(text="Подключиться", callback_data="connect"))
+    if settings.balance_enabled:
+        builder.row(InlineKeyboardButton(text="Пополнить баланс", callback_data="buy"))
+        builder.row(
+            InlineKeyboardButton(
+                text=f"Приведи друга — {settings.referral_reward_rub} руб.",
+                callback_data="share",
+            )
+        )
+        builder.row(InlineKeyboardButton(text="Мой баланс", callback_data="my_sub"))
+    else:
+        builder.row(InlineKeyboardButton(text="Купить подписку", callback_data="buy"))
+        days = settings.referral_reward_days
+        builder.row(InlineKeyboardButton(text=f"Приведи друга — {days} дн.", callback_data="share"))
+        if has_access:
+            builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_sub"))
+            builder.row(InlineKeyboardButton(text="Подключиться", callback_data="connect"))
     builder.row(InlineKeyboardButton(text="VPN не работает", callback_data="vpn_down"))
     return builder.as_markup()
 
@@ -82,7 +103,8 @@ def connect_keyboard(sub_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if sub_url.startswith("http://") or sub_url.startswith("https://"):
         builder.row(InlineKeyboardButton(text="Открыть ссылку подписки", url=sub_url))
-    builder.row(InlineKeyboardButton(text="Купить подписку", callback_data="buy"))
+    buy_title = "Пополнить баланс" if get_settings().balance_enabled else "Купить подписку"
+    builder.row(InlineKeyboardButton(text=buy_title, callback_data="buy"))
     builder.row(InlineKeyboardButton(text="VPN не работает", callback_data="vpn_down"))
     builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
     return builder.as_markup()
@@ -91,7 +113,7 @@ def connect_keyboard(sub_url: str) -> InlineKeyboardMarkup:
 def buy_keyboard() -> InlineKeyboardMarkup:
     settings = get_settings()
     builder = InlineKeyboardBuilder()
-    for code, plan in settings.plans.items():
+    for code, plan in settings.shop_plans.items():
         if settings.rollypay_configured:
             label = f"{plan['title']} — {plan['rub_str']} RUB"
         elif settings.stars_enabled:
@@ -113,16 +135,24 @@ def pay_keyboard(pay_url: str, order_id: str) -> InlineKeyboardMarkup:
 
 def share_keyboard(bot_username: str, telegram_id: int) -> InlineKeyboardMarkup:
     settings = get_settings()
-    days = settings.referral_reward_days
+    if settings.balance_enabled:
+        rub = settings.referral_reward_rub
+        share_text = (
+            f"Подключайся. Нажми «Попробовать бесплатно» по ссылке — "
+            f"получишь {rub} руб. на баланс, и я тоже."
+        )
+    else:
+        days = settings.referral_reward_days
+        share_text = (
+            f"Подключайся. Нажми «Попробовать бесплатно» по ссылке — получишь "
+            f"+{settings.referral_invitee_days} дн., а я получу {days} дн. VPN."
+        )
     link = f"https://t.me/{bot_username}?start=ref_{telegram_id}"
     share_url = (
         "https://t.me/share/url?url="
         + quote(link)
         + "&text="
-        + quote(
-            f"Подключайся. Нажми «Попробовать бесплатно» по ссылке — получишь "
-            f"+{settings.referral_invitee_days} дн., а я получу {days} дн. VPN."
-        )
+        + quote(share_text)
     )
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="Отправить другу", url=share_url))

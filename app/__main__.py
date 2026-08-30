@@ -9,6 +9,7 @@ from aiogram.enums import ParseMode
 from aiogram.types import BotCommand, ErrorEvent, MenuButtonCommands, MenuButtonWebApp, WebAppInfo
 
 from app import db, runtime
+from app.balance import charge_due_devices
 from app.config import get_settings
 from app.handlers.profile import router as profile_router
 from app.handlers.start import router as start_router
@@ -22,6 +23,19 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 logger = logging.getLogger("rm-shop")
+
+
+async def balance_charge_loop(rw: RemnawaveClient, bot: Bot) -> None:
+    settings = get_settings()
+    interval = settings.balance_charge_interval
+    if not settings.balance_enabled or interval <= 0:
+        return
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await charge_due_devices(rw, bot)
+        except Exception:
+            logger.exception("Списание за устройства не удалось")
 
 
 async def panel_sync_loop(rw: RemnawaveClient) -> None:
@@ -95,10 +109,12 @@ async def main() -> None:
             except Exception:
                 logger.warning("Не удалось выставить имя бота в Telegram из BRAND_NAME")
         sync_task = asyncio.create_task(panel_sync_loop(rw), name="panel-sync")
+        charge_task = asyncio.create_task(balance_charge_loop(rw, bot), name="balance-charge")
         try:
             await dp.start_polling(bot, drop_pending_updates=True)
         finally:
             sync_task.cancel()
+            charge_task.cancel()
     finally:
         await runner.cleanup()
         if rp is not None:

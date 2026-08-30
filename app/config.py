@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     rollypay_payment_method: str = ""
 
     balance_enabled: bool = False
+    vpn_day_price_rub: int = 6
+    balance_topup_min: int = 50
+    balance_topup_max: int = 400
+    balance_topup_step: int = 50
+    referral_reward_rub: int = 50
+    balance_charge_interval: int = 600
     promo_enabled: bool = True
     promo_codes: str = "TEST:3"
     webapp_enabled: bool = False
@@ -113,6 +119,25 @@ class Settings(BaseSettings):
                 "rub_str": f"{self.plan_12m_rub:.2f}",
             },
         }
+
+    @property
+    def shop_plans(self) -> dict[str, dict]:
+        if not self.balance_enabled:
+            return self.plans
+        result: dict[str, dict] = {}
+        amount = self.balance_topup_min
+        step = max(1, self.balance_topup_step)
+        while amount <= self.balance_topup_max:
+            result[f"b{amount}"] = {
+                "title": f"{amount} руб.",
+                "days": 0,
+                "stars": 0,
+                "rub": float(amount),
+                "rub_str": f"{amount:.2f}",
+                "topup_rub": amount,
+            }
+            amount += step
+        return result
 
     @property
     def promo_map(self) -> dict[str, int]:

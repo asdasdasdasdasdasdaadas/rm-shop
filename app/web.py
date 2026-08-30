@@ -18,7 +18,7 @@ from app.admin import mount_admin
 from app.billing import fulfill_rollypay_order, subscription_issued_text
 from app.config import ROOT, get_settings
 from app.keyboards import back_profile_keyboard, connect_keyboard
-from app.referrals import maybe_reward_referrer, trial_grant_days
+from app.referrals import maybe_reward_referrer, trial_grant_days, trial_grant_rub
 from app.remnawave import (
     RemnawaveClient,
     RemnawaveError,
@@ -70,6 +70,7 @@ async def api_me(request: web.Request) -> web.Response:
     local = await db.get_user(telegram_id)
 
     days = int(local["balance_days"] or 0) if settings.balance_enabled and local else days_remaining(panel)
+    balance_rub = int((local or {}).get("balance_rub") or 0) if local else 0
     sub_url = (panel or {}).get("subscriptionUrl") or ""
     devices = []
     if settings.balance_enabled:
@@ -116,13 +117,22 @@ async def api_me(request: web.Request) -> web.Response:
             "balance_enabled": settings.balance_enabled,
             "promo_enabled": settings.promo_enabled,
             "trial_available": bool(settings.trial_enabled and local and not local["trial_used"]),
-            "trial_days": trial_grant_days(local),
-            "referral_invitee_days": settings.referral_invitee_days,
+            "trial_days": trial_grant_days(local) if not settings.balance_enabled else settings.trial_days,
+            "trial_rub": trial_grant_rub() if settings.balance_enabled else 0,
             "days": days,
-            "has_access": bool(days > 0 or is_subscription_active(panel) or devices),
+            "balance_rub": balance_rub,
+            "vpn_day_price_rub": settings.vpn_day_price_rub,
+            "has_access": bool(
+                (settings.balance_enabled and (balance_rub > 0 or devices))
+                or days > 0
+                or is_subscription_active(panel)
+                or devices
+            ),
             "subscription_url": sub_url if not settings.balance_enabled else "",
             "invite_url": f"https://t.me/{settings.bot_username}?start=ref_{telegram_id}",
             "referral_reward_days": settings.referral_reward_days,
+            "referral_invitee_days": settings.referral_invitee_days,
+            "referral_reward_rub": settings.referral_reward_rub,
             "legal": {
                 "offer": settings.legal_offer_url,
                 "privacy": settings.legal_privacy_url,
@@ -136,7 +146,7 @@ async def api_me(request: web.Request) -> web.Response:
                     "stars": p["stars"],
                     "rub": p["rub_str"],
                 }
-                for code, p in settings.plans.items()
+                for code, p in settings.shop_plans.items()
             ],
             "devices": devices,
         }
@@ -172,7 +182,7 @@ async def api_trial(request: web.Request) -> web.Response:
     rw: RemnawaveClient = request.app["rw"]
     try:
         if settings.balance_enabled:
-            await db.add_balance_days(telegram_id, trial_grant_days(local))
+            await db.add_balance_rub(telegram_id, trial_grant_rub())
             await db.mark_trial_used(telegram_id)
         else:
             panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
@@ -202,7 +212,7 @@ async def api_invoice(request: web.Request) -> web.Response:
         return json_error("Недействительные данные Telegram", 401)
     body = await request.json()
     code = str(body.get("plan") or "")
-    plan = settings.plans.get(code)
+    plan = settings.shop_plans.get(code)
     if not plan:
         return json_error("Тариф не найден")
     if settings.rollypay_configured:
@@ -258,7 +268,7 @@ async def api_promo(request: web.Request) -> web.Response:
         return json_error("Промокод уже использован")
     rw: RemnawaveClient = request.app["rw"]
     if settings.balance_enabled:
-        await db.add_balance_days(telegram_id, days)
+        await db.add_balance_rub(telegram_id, days * max(1, settings.vpn_day_price_rub))
     else:
         local = await db.get_user(telegram_id)
         panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
@@ -280,8 +290,9 @@ async def api_add_device(request: web.Request) -> web.Response:
         return json_error("Недействительные данные Telegram", 401)
     body = await request.json()
     title = str(body.get("title") or "").strip() or "Устройство"
-    if not await db.spend_balance_day(telegram_id):
-        return json_error("Недостаточно дней на балансе")
+    price = max(1, settings.vpn_day_price_rub)
+    if not await db.spend_balance_rub(telegram_id, price):
+        return json_error(f"Недостаточно средств. Нужно {price} руб. за сутки. Вывод недоступен.")
     rw: RemnawaveClient = request.app["rw"]
     n = await db.device_count(telegram_id) + 1
     username = f"t{telegram_id}d{n}"[:36]
@@ -295,7 +306,7 @@ async def api_add_device(request: web.Request) -> web.Response:
             description=f"tg:{telegram_id}:device",
         )
     except RemnawaveError as exc:
-        await db.add_balance_days(telegram_id, 1)
+        await db.add_balance_rub(telegram_id, price)
         return json_error(str(exc), 502)
     rw_id = int(user["id"])
     await db.add_device(telegram_id, title, rw_id)
@@ -357,7 +368,7 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
         return web.Response(text="OK")
     rw: RemnawaveClient = request.app["rw"]
     bot: Bot = request.app["bot"]
-    plan = settings.plans.get(order["plan_code"]) or {"title": "подписка", "days": 0}
+    plan = settings.shop_plans.get(order["plan_code"]) or {"title": "пополнение", "days": 0, "topup_rub": 0}
     try:
         user = await fulfill_rollypay_order(order_id, rw)
     except RemnawaveError as exc:
@@ -366,7 +377,11 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
     telegram_id = int(order["telegram_id"])
     try:
         if settings.balance_enabled:
-            await bot.send_message(telegram_id, f"Баланс пополнен на {plan.get('days', 0)} дн.")
+            await bot.send_message(
+                telegram_id,
+                f"Баланс пополнен на {plan.get('topup_rub') or plan.get('title')}. "
+                "Вывод средств недоступен.",
+            )
         elif user:
             sub_url = user.get("subscriptionUrl") or ""
             await bot.send_message(

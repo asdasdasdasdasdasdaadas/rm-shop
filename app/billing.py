@@ -33,11 +33,14 @@ def subscription_issued_text(user: dict, title: str) -> str:
 
 async def grant_plan(telegram_id: int, plan_code: str, rw: RemnawaveClient) -> dict | None:
     settings = get_settings()
-    plan = settings.plans.get(plan_code)
+    plan = settings.shop_plans.get(plan_code)
     if not plan:
         raise ValueError("unknown plan")
     if settings.balance_enabled:
-        await db.add_balance_days(telegram_id, plan["days"])
+        amount = int(plan.get("topup_rub") or 0)
+        if amount < 1:
+            raise ValueError("unknown plan")
+        await db.add_balance_rub(telegram_id, amount)
         return None
     local = await db.get_user(telegram_id)
     panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None

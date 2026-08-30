@@ -57,7 +57,7 @@
     <h2 class="section-title">Подписка</h2>
     <section class="group">
       <div class="cell static">
-        <span class="cell-label">Осталось</span>
+        <span id="daysLabel" class="cell-label">Осталось</span>
         <span id="days" class="cell-value"></span>
       </div>
       <div id="payRow" class="stack"></div>
@@ -72,7 +72,7 @@
 
     <div id="devicesWrap" class="hidden">
       <h2 class="section-title">Устройства</h2>
-      <p class="section-note">Каждое устройство списывает 1 день с баланса и действует сутки.</p>
+      <p id="devicesNote" class="section-note">Каждое устройство списывает стоимость суток с баланса каждый день. Вывод средств недоступен.</p>
       <section class="group">
         <div id="devicesBody" class="stack"></div>
         <button type="button" id="addDevice" class="cell action">Добавить устройство</button>

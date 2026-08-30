@@ -52,7 +52,10 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
         local = await db.get_user(from_user.id)
     trial_available = bool(settings.trial_enabled and local and not local["trial_used"])
     access = has_access(local, panel)
-    text = profile_text(from_user.first_name if from_user else None)
+    text = profile_text(
+        from_user.first_name if from_user else None,
+        balance_rub=int((local or {}).get("balance_rub") or 0) if local else 0,
+    )
     kb = profile_keyboard(trial_available=trial_available, has_access=access)
     if isinstance(target, CallbackQuery):
         await ack(target)

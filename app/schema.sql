@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
     panel_status TEXT,
     subscription_url TEXT,
     last_synced_at TIMESTAMPTZ,
-    balance_days INTEGER NOT NULL DEFAULT 0
+    balance_days INTEGER NOT NULL DEFAULT 0,
+    balance_rub INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_remnawave_uuid_uidx
@@ -35,7 +36,8 @@ CREATE TABLE IF NOT EXISTS devices (
     title TEXT NOT NULL,
     remnawave_id BIGINT,
     remnawave_uuid TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_billed_on DATE
 );
 
 CREATE TABLE IF NOT EXISTS promo_uses (
@@ -71,4 +73,7 @@ CREATE TABLE IF NOT EXISTS vpn_reports (
 );
 
 CREATE INDEX IF NOT EXISTS vpn_reports_created_at_idx ON vpn_reports (created_at DESC);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_rub INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_billed_on DATE;
 
