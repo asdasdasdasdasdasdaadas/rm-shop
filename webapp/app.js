@@ -104,9 +104,12 @@ function clientLabel(id) {
 }
 
 function applyTheme() {
+  const bg = "#0d1611";
   try {
-    tg.setHeaderColor("#0d1611");
-    tg.setBackgroundColor("#0d1611");
+    tg.setHeaderColor(bg);
+    tg.setBackgroundColor(bg);
+    if (typeof tg.setBottomBarColor === "function") tg.setBottomBarColor(bg);
+    if (tg.MainButton && tg.MainButton.hide) tg.MainButton.hide();
   } catch (_e) {}
 }
 
@@ -270,9 +273,9 @@ function showMaint(notice) {
   $("maint").classList.remove("hidden");
   if (notice) $("maintText").textContent = notice;
   try {
-    tg.MainButton.hide();
     tg.BackButton.hide();
   } catch (_e) {}
+  setMain("");
 }
 
 function showApp() {
@@ -284,31 +287,38 @@ function showApp() {
 }
 
 let mainFn = null;
-if (tg.MainButton && tg.MainButton.onClick) {
-  tg.MainButton.onClick(() => {
-    if (mainFn) mainFn();
-  });
-}
 if (tg.BackButton && tg.BackButton.onClick) {
   tg.BackButton.onClick(() => onBack());
 }
 
+function setMainBusy(busy) {
+  const btn = $("appMainBtn");
+  if (!btn) return;
+  btn.disabled = Boolean(busy);
+}
+
 function setMain(text, fn) {
-  mainFn = fn;
-  if (!tg.MainButton) return;
+  mainFn = fn || null;
+  const bar = $("appMainBar");
+  const btn = $("appMainBtn");
+  try {
+    if (tg.MainButton && tg.MainButton.hide) tg.MainButton.hide();
+  } catch (_e) {}
   if (!text) {
-    tg.MainButton.hide();
+    bar.classList.add("hidden");
     document.body.classList.remove("has-main-btn");
     return;
   }
-  tg.MainButton.setText(text);
-  try {
-    tg.MainButton.setParams({ color: "#2fae6b", text_color: "#0d1611" });
-  } catch (_e) {}
-  tg.MainButton.show();
-  tg.MainButton.enable();
+  btn.textContent = text;
+  btn.disabled = false;
+  bar.classList.remove("hidden");
   document.body.classList.add("has-main-btn");
 }
+
+$("appMainBtn").onclick = () => {
+  if ($("appMainBtn").disabled) return;
+  if (mainFn) mainFn();
+};
 
 function replayAnim(el, cls) {
   if (!el) return;
@@ -627,7 +637,7 @@ function renderWizard() {
     haptic();
     const title = (wiz.title || "").trim() || defaultTitle();
     try {
-      tg.MainButton.showProgress();
+      setMainBusy(true);
       const created = await api("/api/devices", {
         method: "POST",
         body: JSON.stringify({
@@ -643,9 +653,7 @@ function renderWizard() {
     } catch (e) {
       showErr(e);
     } finally {
-      try {
-        tg.MainButton.hideProgress();
-      } catch (_e) {}
+      setMainBusy(false);
     }
   });
 }
