@@ -482,7 +482,7 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
 
 def build_web_app() -> web.Application:
     settings = get_settings()
-    app = web.Application()
+    app = web.Application(client_max_size=80 * 1024 * 1024)
     app.router.add_get("/health", health)
     app.router.add_post("/webhooks/rollypay", rollypay_webhook)
     if settings.webapp_enabled:

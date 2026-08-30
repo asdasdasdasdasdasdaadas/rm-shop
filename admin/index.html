@@ -23,6 +23,7 @@
       <nav>
         <button type="button" data-tab="overview" class="active">Обзор</button>
         <button type="button" data-tab="users">Пользователи</button>
+        <button type="button" data-tab="referrals">Рефералы</button>
         <button type="button" data-tab="orders">Оплаты</button>
         <button type="button" data-tab="reports">Жалобы VPN</button>
         <button type="button" data-tab="broadcast">Рассылка</button>
@@ -70,6 +71,8 @@
                 <th>Бесплатно</th>
                 <th>До</th>
                 <th>Статус</th>
+                <th>Пригласил</th>
+                <th>Друзей</th>
                 <th></th>
               </tr>
             </thead>
@@ -77,6 +80,29 @@
           </table>
         </div>
         <div id="userPager" class="pager"></div>
+      </section>
+
+      <section id="tab-referrals" class="hidden">
+        <h2>Рефералы</h2>
+        <p class="muted">Кто пришёл по чьей ссылке. Поиск по ID, username или имени любой из сторон.</p>
+        <div class="toolbar">
+          <input id="refQ" type="search" placeholder="ID, username, имя">
+          <button type="button" id="refSearch">Найти</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Пришёл</th>
+                <th>Пригласил</th>
+                <th>Когда</th>
+                <th>Награда</th>
+              </tr>
+            </thead>
+            <tbody id="refRows"></tbody>
+          </table>
+        </div>
+        <div id="refPager" class="pager"></div>
       </section>
 
       <section id="tab-orders" class="hidden">
@@ -130,11 +156,18 @@
 
       <section id="tab-backups" class="hidden">
         <h2>Бэкапы</h2>
-        <p class="muted">Дамп PostgreSQL каждый день в 00:01 по Москве. Копия уходит админам из ADMIN_IDS. Файлы лежат в папке backups на сервере.</p>
+        <p class="muted">Дамп PostgreSQL каждый день в 00:01 по Москве. Файлы лежат в папке backups на сервере, скачать можно здесь.</p>
         <div class="ops">
           <button type="button" id="backupBtn">Сделать бэкап</button>
         </div>
         <p id="backupOut" class="muted"></p>
+        <h3>Импорт при переезде</h3>
+        <p class="muted">Загрузите .sql или .sql.gz с другого хоста. Текущая база будет полностью заменена. .env (токен, домен, касса) не меняется.</p>
+        <div class="row">
+          <input id="backupFile" type="file" accept=".sql,.gz,.sql.gz">
+          <button type="button" id="restoreUploadBtn">Восстановить из файла</button>
+        </div>
+        <p id="restoreOut" class="muted"></p>
         <div class="table-wrap">
           <table>
             <thead>

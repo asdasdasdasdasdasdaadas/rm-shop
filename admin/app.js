@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 let userPage = 1;
 let orderPage = 1;
+let refPage = 1;
 let currentUser = null;
 
 async function api(path, opts = {}) {
@@ -39,11 +40,12 @@ function switchTab(name) {
   document.querySelectorAll("nav [data-tab]").forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === name);
   });
-  ["overview", "users", "orders", "reports", "broadcast", "backups", "settings"].forEach((tab) => {
+  ["overview", "users", "referrals", "orders", "reports", "broadcast", "backups", "settings"].forEach((tab) => {
     $("tab-" + tab).classList.toggle("hidden", tab !== name);
   });
   if (name === "overview") loadStats();
   if (name === "users") loadUsers();
+  if (name === "referrals") loadReferrals();
   if (name === "orders") loadOrders();
   if (name === "reports") loadReports();
   if (name === "backups") loadBackups();
@@ -116,6 +118,8 @@ async function loadStats() {
     ["Промокоды", s.promo_uses || 0],
     ["Stars-платежи", s.stars_payments || 0],
     ["Жалобы VPN", s.vpn_reports || 0],
+    ["Пришли по ссылке", (u.referred || 0)],
+    ["Реф. награда выдана", (u.referral_rewarded || 0)],
   ].forEach(([l, v]) => cards.appendChild(card(l, v)));
   kv($("orderStats"), s.orders, "Заказов пока нет");
   kv($("planStats"), s.plans, "Оплаченных тарифов нет");
@@ -144,6 +148,11 @@ function pager(el, page, total, limit, onPage) {
   }
 }
 
+function whoLabel(id, username, name) {
+  if (!id) return "—";
+  return `${id}` + (username ? ` @${username}` : "") + (name ? ` · ${name}` : "");
+}
+
 async function loadUsers(page) {
   if (page) userPage = page;
   const q = $("userQ").value.trim();
@@ -159,6 +168,10 @@ async function loadUsers(page) {
       u.trial_used ? "да" : "нет",
       fmt(u.expire_at),
       u.panel_status || "—",
+      u.referred_by
+        ? whoLabel(u.referred_by, u.referrer_username, u.referrer_name)
+        : "—",
+      String(u.invited_count || 0),
     ];
     cells.forEach((t) => {
       const td = document.createElement("td");
@@ -175,6 +188,38 @@ async function loadUsers(page) {
     body.appendChild(tr);
   });
   pager($("userPager"), data.page, data.total, data.limit, loadUsers);
+}
+
+async function loadReferrals(page) {
+  if (page) refPage = page;
+  const q = $("refQ").value.trim();
+  const data = await api(`/admin/api/referrals?q=${encodeURIComponent(q)}&page=${refPage}`);
+  const body = $("refRows");
+  body.innerHTML = "";
+  if (!data.items.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 4;
+    td.className = "muted";
+    td.textContent = "Пока никто не приходил по рефссылке";
+    tr.appendChild(td);
+    body.appendChild(tr);
+  }
+  data.items.forEach((row) => {
+    const tr = document.createElement("tr");
+    [
+      whoLabel(row.invitee_id, row.invitee_username, row.invitee_name),
+      whoLabel(row.referrer_id, row.referrer_username, row.referrer_name),
+      fmt(row.invitee_at),
+      row.referral_rewarded ? "выдана" : "ещё нет",
+    ].forEach((t) => {
+      const td = document.createElement("td");
+      td.textContent = t;
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+  pager($("refPager"), data.page, data.total, data.limit, loadReferrals);
 }
 
 async function loadOrders(page) {
@@ -225,7 +270,11 @@ function openUser(u) {
   $("modalMeta").textContent =
     `ID ${u.telegram_id}` +
     (u.username ? ` · @${u.username}` : "") +
-    (u.balance_rub == null ? "" : ` · баланс ${u.balance_rub} рублей`);
+    (u.balance_rub == null ? "" : ` · баланс ${u.balance_rub} рублей`) +
+    (u.referred_by
+      ? ` · пригласил ${whoLabel(u.referred_by, u.referrer_username, u.referrer_name)}`
+      : " · пришёл без рефссылки") +
+    ` · пригласил друзей: ${u.invited_count || 0}`;
   $("modal").classList.remove("hidden");
 }
 
@@ -257,11 +306,15 @@ document.querySelectorAll("nav [data-tab]").forEach((b) => {
 });
 $("userSearch").onclick = () => loadUsers(1);
 $("orderSearch").onclick = () => loadOrders(1);
+$("refSearch").onclick = () => loadReferrals(1);
 $("userQ").onkeydown = (e) => {
   if (e.key === "Enter") loadUsers(1);
 };
 $("orderQ").onkeydown = (e) => {
   if (e.key === "Enter") loadOrders(1);
+};
+$("refQ").onkeydown = (e) => {
+  if (e.key === "Enter") loadReferrals(1);
 };
 
 $("broadcastBtn").onclick = async () => {
@@ -291,11 +344,8 @@ function fmtWait(sec) {
 
 async function loadBackups() {
   const data = await api("/admin/api/backups");
-  const extra = data.admins
-    ? ` Копия уходит ${data.admins} админ(ам) в Telegram.`
-    : " Задайте ADMIN_IDS, чтобы файл приходил в Telegram.";
   $("backupOut").textContent =
-    `Следующий автобэкап через ${fmtWait(data.next_in_sec || 0)}. Храним ${data.keep_days} дн.` + extra;
+    `Следующий автобэкап через ${fmtWait(data.next_in_sec || 0)}. Храним ${data.keep_days} дн.`;
   const body = $("backupRows");
   body.innerHTML = "";
   if (!data.items.length) {
@@ -320,6 +370,12 @@ async function loadBackups() {
     a.href = `/admin/api/backups/${encodeURIComponent(item.name)}`;
     a.textContent = "Скачать";
     td.appendChild(a);
+    const rest = document.createElement("button");
+    rest.type = "button";
+    rest.className = "ghost";
+    rest.textContent = "Восстановить";
+    rest.onclick = () => restoreBackup({ name: item.name });
+    td.appendChild(rest);
     tr.appendChild(td);
     body.appendChild(tr);
   });
@@ -332,11 +388,51 @@ $("backupBtn").onclick = async () => {
     const r = await api("/admin/api/backups", { method: "POST", body: "{}" });
     await loadBackups();
     $("backupOut").textContent =
-      `Готово: ${r.name} (${fmtSize(r.size)}). В Telegram: ${r.sent || 0}, ошибок: ${r.failed || 0}.`;
+      `Готово: ${r.name} (${fmtSize(r.size)}).`;
   } catch (err) {
     $("backupOut").textContent = err.message || "Не удалось сделать бэкап";
   }
   $("backupBtn").disabled = false;
+};
+
+async function restoreBackup(opts) {
+  const warn =
+    "Текущая база будет полностью заменена данными из бэкапа. Продолжить?";
+  if (!window.confirm(warn)) return;
+  $("restoreOut").textContent = "Восстанавливаю...";
+  try {
+    let data;
+    if (opts.file) {
+      const fd = new FormData();
+      fd.append("file", opts.file);
+      const res = await fetch("/admin/api/backups/restore", {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd,
+      });
+      data = await res.json().catch(() => ({ ok: false, error: "Ошибка ответа" }));
+      if (!res.ok || data.ok === false) throw new Error(data.error || "Ошибка импорта");
+    } else {
+      data = await api("/admin/api/backups/restore", {
+        method: "POST",
+        body: JSON.stringify({ name: opts.name }),
+      });
+    }
+    await loadBackups();
+    $("restoreOut").textContent = `База восстановлена из ${data.filename}.`;
+  } catch (err) {
+    $("restoreOut").textContent = err.message || "Не удалось восстановить";
+  }
+}
+
+$("restoreUploadBtn").onclick = () => {
+  const input = $("backupFile");
+  const file = input.files && input.files[0];
+  if (!file) {
+    $("restoreOut").textContent = "Выберите файл .sql или .sql.gz";
+    return;
+  }
+  restoreBackup({ file });
 };
 
 $("grantBtn").onclick = async () => {

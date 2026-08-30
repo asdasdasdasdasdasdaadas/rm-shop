@@ -10,16 +10,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from aiogram import Bot
-from aiogram.types import BufferedInputFile
 
 from app import db
 from app.config import ROOT, get_settings
 
 logger = logging.getLogger("rm-shop.backup")
 MSK = timezone(timedelta(hours=3))
-TG_FILE_LIMIT = 49 * 1024 * 1024
 _lock = asyncio.Lock()
-SAFE_NAME = re.compile(r"^rm-shop-\d{4}-\d{2}-\d{2}T\d{4}-MSK\.sql\.gz$")
+SAFE_NAME = re.compile(r"^rm-shop-\d{4}-\d{2}-\d{2}T\d{4}-MSK(-imported)?\.sql\.gz$")
 
 
 def backup_dir() -> Path:
@@ -158,7 +156,7 @@ async def _dump_via_pg_dump() -> bytes:
     return out
 
 
-async def create_backup(*, reason: str, bot: Bot | None) -> dict:
+async def create_backup(*, reason: str) -> dict:
     async with _lock:
         try:
             raw = await _dump_via_pg_dump()
@@ -172,44 +170,12 @@ async def create_backup(*, reason: str, bot: Bot | None) -> dict:
         path = backup_dir() / name
         path.write_bytes(packed)
         _prune()
-        sent = 0
-        failed = 0
-        settings = get_settings()
-        caption = (
-            f"Бэкап базы ({reason})\n"
-            f"{name}\n"
-            f"{len(packed)} байт, способ: {method}"
-        )
-        if bot and settings.admin_id_set and len(packed) <= TG_FILE_LIMIT:
-            document = BufferedInputFile(packed, filename=name)
-            for admin_id in settings.admin_id_set:
-                try:
-                    await bot.send_document(
-                        admin_id,
-                        BufferedInputFile(packed, filename=name),
-                        caption=caption,
-                    )
-                    sent += 1
-                except Exception:
-                    failed += 1
-                    logger.exception("Не удалось отправить бэкап админу %s", admin_id)
-        elif bot and settings.admin_id_set and len(packed) > TG_FILE_LIMIT:
-            note = caption + "\nФайл слишком большой для Telegram, лежит на диске."
-            for admin_id in settings.admin_id_set:
-                try:
-                    await bot.send_message(admin_id, note)
-                    sent += 1
-                except Exception:
-                    failed += 1
-        logger.info("Бэкап %s готов, sent=%s failed=%s", name, sent, failed)
+        logger.info("Бэкап %s готов (%s, %s байт)", name, reason, len(packed))
         return {
             "ok": True,
             "name": name,
             "size": len(packed),
             "method": method,
-            "sent": sent,
-            "failed": failed,
-            "telegram": bool(settings.admin_id_set),
         }
 
 
@@ -221,13 +187,107 @@ def seconds_until_msk_0001() -> float:
     return max(1.0, (target - now).total_seconds())
 
 
-async def backup_loop(bot: Bot) -> None:
+async def backup_loop(_bot: Bot | None = None) -> None:
     while True:
         wait = seconds_until_msk_0001()
         logger.info("Следующий автобэкап через %.0f сек (00:01 МСК)", wait)
         await asyncio.sleep(wait)
         try:
-            await create_backup(reason="расписание 00:01 МСК", bot=bot)
+            await create_backup(reason="расписание 00:01 МСК")
         except Exception:
             logger.exception("Автобэкап не удался")
             await asyncio.sleep(60)
+
+
+MAX_UPLOAD = 80 * 1024 * 1024
+
+
+def _unpack_dump(data: bytes, filename: str) -> bytes:
+    name = (filename or "").lower()
+    if name.endswith(".gz") or data[:2] == b"\x1f\x8b":
+        try:
+            data = gzip.decompress(data)
+        except OSError as exc:
+            raise ValueError("Не удалось распаковать gzip") from exc
+    return data
+
+
+def _sanitize_dump(sql: bytes) -> bytes:
+    kept: list[bytes] = []
+    for line in sql.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if stripped.startswith(b"\\restrict") or stripped.startswith(b"\\unrestrict"):
+            continue
+        if stripped.lower().startswith(b"set transaction_timeout"):
+            continue
+        kept.append(line)
+    return b"".join(kept)
+
+
+def _validate_dump(sql: bytes) -> str:
+    head = sql[:8000].decode("utf-8", "replace")
+    if "PostgreSQL database dump" in head:
+        kind = "pg_dump"
+    elif "rm-shop backup" in head:
+        kind = "sql"
+    else:
+        raise ValueError("Файл не похож на бэкап PostgreSQL этого бота")
+    low = sql.lower()
+    if b"copy " in low and b" program " in low:
+        raise ValueError("В дампе запрещена конструкция COPY PROGRAM")
+    return kind
+
+
+async def _run_psql(payload: bytes) -> None:
+    psql = shutil.which("psql")
+    if not psql:
+        raise RuntimeError("В контейнере нет psql. Пересоберите образ бота.")
+    proc = await asyncio.create_subprocess_exec(
+        psql,
+        "--dbname",
+        get_settings().database_url,
+        "-v",
+        "ON_ERROR_STOP=1",
+        "--quiet",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _out, err = await proc.communicate(payload)
+    if proc.returncode != 0:
+        raise RuntimeError((err or b"psql error").decode("utf-8", "replace")[:800])
+
+
+async def restore_backup(data: bytes, filename: str) -> dict:
+    if len(data) > MAX_UPLOAD:
+        raise ValueError("Файл больше 80 МБ")
+    sql = _sanitize_dump(_unpack_dump(data, filename))
+    if not sql.strip():
+        raise ValueError("Пустой дамп")
+    kind = _validate_dump(sql)
+    prelude = (
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+        "WHERE datname = current_database() AND pid <> pg_backend_pid();\n"
+        "DROP SCHEMA IF EXISTS public CASCADE;\n"
+        "CREATE SCHEMA public;\n"
+        "GRANT ALL ON SCHEMA public TO CURRENT_USER;\n"
+        "GRANT ALL ON SCHEMA public TO public;\n"
+    ).encode("utf-8")
+    async with _lock:
+        await db.close_db()
+        schema_ready = False
+        try:
+            if kind == "pg_dump":
+                await _run_psql(prelude + sql)
+            else:
+                await db.init_db()
+                schema_ready = True
+                await _run_psql(sql)
+        finally:
+            if not schema_ready:
+                await db.init_db()
+        saved = backup_dir() / f"rm-shop-{_stamp()}-imported.sql.gz"
+        saved.write_bytes(gzip.compress(sql, compresslevel=6))
+        _prune()
+        logger.info("Импорт бэкапа %s (%s) завершён", filename, kind)
+        return {"ok": True, "filename": filename, "kind": kind, "bytes": len(sql)}

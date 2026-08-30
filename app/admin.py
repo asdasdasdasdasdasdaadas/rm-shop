@@ -10,7 +10,14 @@ from aiohttp import web
 from aiogram import Bot
 
 from app import db
-from app.backup import backup_path, create_backup, list_backups, seconds_until_msk_0001
+from app.backup import (
+    MAX_UPLOAD,
+    backup_path,
+    create_backup,
+    list_backups,
+    restore_backup,
+    seconds_until_msk_0001,
+)
 from app.config import ROOT, get_settings
 from app.remnawave import RemnawaveClient, RemnawaveError
 
@@ -122,6 +129,17 @@ async def api_users(request: web.Request) -> web.Response:
     page = max(1, int(request.query.get("page") or 1))
     limit = min(100, max(1, int(request.query.get("limit") or 30)))
     items, total = await db.admin_list_users(q, limit, (page - 1) * limit)
+    return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+
+
+async def api_referrals(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    q = str(request.query.get("q") or "")
+    page = max(1, int(request.query.get("page") or 1))
+    limit = min(100, max(1, int(request.query.get("limit") or 30)))
+    items, total = await db.admin_list_referrals(q, limit, (page - 1) * limit)
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 
@@ -346,7 +364,6 @@ async def api_backups(request: web.Request) -> web.Response:
             "items": list_backups(),
             "next_in_sec": int(wait),
             "keep_days": get_settings().backup_keep_days,
-            "admins": len(get_settings().admin_id_set),
         }
     )
 
@@ -356,7 +373,7 @@ async def api_backup_create(request: web.Request) -> web.Response:
     if denied:
         return denied
     try:
-        result = await create_backup(reason="админка", bot=request.app["bot"])
+        result = await create_backup(reason="админка")
     except Exception as exc:
         logger.exception("Ручной бэкап не удался")
         return web.json_response({"ok": False, "error": str(exc)[:300]}, status=500)
@@ -376,6 +393,48 @@ async def api_backup_file(request: web.Request) -> web.Response:
     )
 
 
+async def api_backup_restore(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    filename = "dump.sql"
+    data = b""
+    ctype = request.content_type or ""
+    try:
+        if ctype.startswith("multipart/"):
+            reader = await request.multipart()
+            while True:
+                field = await reader.next()
+                if field is None:
+                    break
+                if field.name != "file":
+                    continue
+                filename = field.filename or "dump.sql"
+                data = await field.read()
+                break
+        else:
+            body = await request.json()
+            source = backup_path(str(body.get("name") or ""))
+            if not source:
+                return web.json_response({"ok": False, "error": "Файл бэкапа не найден"}, status=404)
+            filename = source.name
+            data = source.read_bytes()
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    if not data:
+        return web.json_response({"ok": False, "error": "Прикрепите файл .sql или .sql.gz"}, status=400)
+    if len(data) > MAX_UPLOAD:
+        return web.json_response({"ok": False, "error": "Файл больше 80 МБ"}, status=400)
+    try:
+        result = await restore_backup(data, filename)
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    except Exception as exc:
+        logger.exception("Импорт бэкапа не удался")
+        return web.json_response({"ok": False, "error": str(exc)[:800]}, status=500)
+    return web.json_response(result)
+
+
 def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin", admin_redirect)
     app.router.add_get("/admin/", admin_index)
@@ -386,6 +445,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/session", api_session)
     app.router.add_get("/admin/api/stats", api_stats)
     app.router.add_get("/admin/api/users", api_users)
+    app.router.add_get("/admin/api/referrals", api_referrals)
     app.router.add_get("/admin/api/orders", api_orders)
     app.router.add_get("/admin/api/reports", api_reports)
     app.router.add_get("/admin/api/settings", api_settings)
@@ -399,5 +459,6 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/broadcast", api_broadcast)
     app.router.add_get("/admin/api/backups", api_backups)
     app.router.add_post("/admin/api/backups", api_backup_create)
+    app.router.add_post("/admin/api/backups/restore", api_backup_restore)
     app.router.add_get("/admin/api/backups/{name}", api_backup_file)
     app.router.add_static("/admin/static", ADMIN_DIR)

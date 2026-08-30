@@ -508,7 +508,9 @@ async def admin_stats() -> dict:
             COUNT(*) FILTER (WHERE expire_at IS NOT NULL AND expire_at > NOW())::int AS active,
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day')::int AS new_1d,
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::int AS new_7d,
-            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::int AS new_30d
+            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::int AS new_30d,
+            COUNT(*) FILTER (WHERE referred_by IS NOT NULL)::int AS referred,
+            COUNT(*) FILTER (WHERE referral_rewarded)::int AS referral_rewarded
         FROM users
         """
     )
@@ -536,33 +538,82 @@ async def admin_stats() -> dict:
 async def admin_list_users(query: str, limit: int, offset: int) -> tuple[list[dict], int]:
     pool = _pool_req()
     q = query.strip()
+    where = ""
+    args: list = []
     if q:
         pattern = f"%{q}%"
-        total = await pool.fetchval(
-            """
-            SELECT COUNT(*)::int FROM users
-            WHERE username ILIKE $1 OR first_name ILIKE $1 OR telegram_id::text LIKE $1
-            """,
-            pattern,
-        )
-        rows = await pool.fetch(
-            """
-            SELECT * FROM users
-            WHERE username ILIKE $1 OR first_name ILIKE $1 OR telegram_id::text LIKE $1
-            ORDER BY created_at DESC
-            LIMIT $2 OFFSET $3
-            """,
-            pattern,
-            limit,
-            offset,
-        )
-    else:
-        total = await pool.fetchval("SELECT COUNT(*)::int FROM users")
-        rows = await pool.fetch(
-            "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-            limit,
-            offset,
-        )
+        where = """
+            WHERE u.username ILIKE $1 OR u.first_name ILIKE $1 OR u.telegram_id::text LIKE $1
+               OR u.referred_by::text LIKE $1 OR ref.username ILIKE $1 OR ref.first_name ILIKE $1
+        """
+        args.append(pattern)
+    total_sql = f"""
+        SELECT COUNT(*)::int FROM users u
+        LEFT JOIN users ref ON ref.telegram_id = u.referred_by
+        {where}
+    """
+    list_sql = f"""
+        SELECT u.*,
+               ref.username AS referrer_username,
+               ref.first_name AS referrer_name,
+               (
+                   SELECT COUNT(*)::int FROM users inv WHERE inv.referred_by = u.telegram_id
+               ) AS invited_count
+        FROM users u
+        LEFT JOIN users ref ON ref.telegram_id = u.referred_by
+        {where}
+        ORDER BY u.created_at DESC
+        LIMIT ${len(args) + 1} OFFSET ${len(args) + 2}
+    """
+    total = await pool.fetchval(total_sql, *args)
+    rows = await pool.fetch(list_sql, *args, limit, offset)
+    return [_jsonable(dict(r)) for r in rows], int(total or 0)
+
+
+async def admin_list_referrals(query: str, limit: int, offset: int) -> tuple[list[dict], int]:
+    pool = _pool_req()
+    q = query.strip()
+    where = "WHERE u.referred_by IS NOT NULL"
+    args: list = []
+    if q:
+        pattern = f"%{q}%"
+        where += """
+            AND (
+                u.username ILIKE $1 OR u.first_name ILIKE $1 OR u.telegram_id::text LIKE $1
+                OR r.username ILIKE $1 OR r.first_name ILIKE $1 OR r.telegram_id::text LIKE $1
+            )
+        """
+        args.append(pattern)
+    total = await pool.fetchval(
+        f"""
+        SELECT COUNT(*)::int
+        FROM users u
+        JOIN users r ON r.telegram_id = u.referred_by
+        {where}
+        """,
+        *args,
+    )
+    rows = await pool.fetch(
+        f"""
+        SELECT
+            u.telegram_id AS invitee_id,
+            u.username AS invitee_username,
+            u.first_name AS invitee_name,
+            u.created_at AS invitee_at,
+            u.referral_rewarded,
+            r.telegram_id AS referrer_id,
+            r.username AS referrer_username,
+            r.first_name AS referrer_name
+        FROM users u
+        JOIN users r ON r.telegram_id = u.referred_by
+        {where}
+        ORDER BY u.created_at DESC
+        LIMIT ${len(args) + 1} OFFSET ${len(args) + 2}
+        """,
+        *args,
+        limit,
+        offset,
+    )
     return [_jsonable(dict(r)) for r in rows], int(total or 0)
 
 
