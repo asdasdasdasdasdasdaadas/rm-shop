@@ -16,5 +16,9 @@ def days_text(n: int) -> str:
     return f"{int(n)} {ru_plural(n, 'день', 'дня', 'дней')}"
 
 
+def rub_text(n: int) -> str:
+    return f"{int(n)} {ru_plural(n, 'рубль', 'рубля', 'рублей')}"
+
+
 def minutes_text(n: int) -> str:
     return f"{int(n)} {ru_plural(n, 'минуту', 'минуты', 'минут')}"
