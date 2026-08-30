@@ -1,26 +1,35 @@
 from __future__ import annotations
 
+import logging
+import time
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from aiogram import BaseMiddleware, Bot
+from aiogram.exceptions import TelegramAPIError, TelegramRetryAfter
 from aiogram.types import (
     CallbackQuery,
     FSInputFile,
     Message,
     MessageReactionUpdated,
     TelegramObject,
+    Update,
 )
 
 from app import db
 from app.config import ROOT, get_settings
 from app.trust import MAINTENANCE_TEXT
 
+logger = logging.getLogger("rm-shop.maintenance")
+
 PHOTO_DIR = ROOT / "data"
 PHOTO_STEM = "maintenance_photo"
 PHOTO_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 PHOTO_MAX = 10 * 1024 * 1024
 FILE_ID_KEY = "maintenance_photo_file_id"
+PHOTO_COOLDOWN = 2.5
+
+_last_sent_at: dict[int, float] = {}
 
 
 def photo_path() -> Path | None:
@@ -87,29 +96,54 @@ async def current_text() -> str:
     return stored or MAINTENANCE_TEXT
 
 
-async def notify_user(bot: Bot, chat_id: int) -> None:
+async def notify_user(bot: Bot, chat_id: int) -> bool:
+    now = time.monotonic()
+    if now - _last_sent_at.get(chat_id, 0.0) < PHOTO_COOLDOWN:
+        return False
     notice = await current_text()
     path = photo_path()
     caption = notice[:1024]
     rest = notice[1024:].strip()
-    if path:
-        file_id = (await db.get_kv(FILE_ID_KEY)).strip()
-        try:
-            sent = await bot.send_photo(
-                chat_id,
-                file_id or FSInputFile(path),
-                caption=caption,
-                parse_mode=None,
-            )
-        except Exception:
-            await db.set_kv(FILE_ID_KEY, "")
-            sent = await bot.send_photo(chat_id, FSInputFile(path), caption=caption, parse_mode=None)
-        if sent.photo:
-            await db.set_kv(FILE_ID_KEY, sent.photo[-1].file_id)
-    else:
-        await bot.send_message(chat_id, notice, parse_mode=None)
-    if rest:
-        await bot.send_message(chat_id, rest[:4096], parse_mode=None)
+    try:
+        if path:
+            file_id = (await db.get_kv(FILE_ID_KEY)).strip()
+            try:
+                sent = await bot.send_photo(
+                    chat_id,
+                    file_id or FSInputFile(path),
+                    caption=caption,
+                    parse_mode=None,
+                )
+            except TelegramRetryAfter:
+                raise
+            except TelegramAPIError:
+                await db.set_kv(FILE_ID_KEY, "")
+                sent = await bot.send_photo(
+                    chat_id, FSInputFile(path), caption=caption, parse_mode=None
+                )
+            if sent.photo:
+                await db.set_kv(FILE_ID_KEY, sent.photo[-1].file_id)
+        else:
+            await bot.send_message(chat_id, notice, parse_mode=None)
+        if rest:
+            await bot.send_message(chat_id, rest[:4096], parse_mode=None)
+        _last_sent_at[chat_id] = time.monotonic()
+        return True
+    except TelegramRetryAfter as exc:
+        logger.warning(
+            "Лимит Telegram при техработах chat=%s retry=%s", chat_id, exc.retry_after
+        )
+        _last_sent_at[chat_id] = time.monotonic()
+        return False
+    except TelegramAPIError:
+        logger.exception("Не удалось отправить оповещение техработ chat=%s", chat_id)
+        return False
+
+
+def _inner(event: TelegramObject) -> TelegramObject:
+    if isinstance(event, Update):
+        return event.event
+    return event
 
 
 def _chat_id(event: TelegramObject) -> int | None:
@@ -133,27 +167,26 @@ class MaintenanceMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
-        user = getattr(event, "from_user", None)
-        text = getattr(event, "text", None) or ""
-        if user and user.id in get_settings().admin_id_set:
+        inner = _inner(event)
+        if not isinstance(inner, (Message, CallbackQuery, MessageReactionUpdated)):
             return await handler(event, data)
-        if isinstance(event, Message) and str(text).startswith("/admin"):
-            return await handler(event, data)
+        user = getattr(inner, "from_user", None)
+        text = getattr(inner, "text", None) or ""
+        if isinstance(inner, Message) and str(text).startswith("/admin"):
+            if user and user.id in get_settings().admin_id_set:
+                return await handler(event, data)
         if not await db.flag_on("maintenance"):
             return await handler(event, data)
         bot: Bot | None = data.get("bot")
-        chat_id = _chat_id(event)
-        if isinstance(event, CallbackQuery):
+        chat_id = _chat_id(inner)
+        notice = await current_text()
+        if isinstance(inner, CallbackQuery):
             try:
-                await event.answer("Технические работы", show_alert=False)
+                await inner.answer(notice[:200], show_alert=True)
             except Exception:
-                pass
+                logger.debug("Не удалось ответить на callback при техработах", exc_info=True)
         if bot and chat_id:
-            try:
-                await notify_user(bot, chat_id)
-            except Exception:
-                try:
-                    await bot.send_message(chat_id, await current_text(), parse_mode=None)
-                except Exception:
-                    pass
+            await notify_user(bot, chat_id)
+        elif chat_id is None:
+            logger.warning("Техработы: нет chat_id для %s", type(inner).__name__)
         return None

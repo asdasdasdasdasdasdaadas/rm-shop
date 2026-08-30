@@ -82,11 +82,7 @@ async def main() -> None:
     dp = Dispatcher()
     dp["rw"] = rw
     dp["rp"] = rp
-    maint = MaintenanceMiddleware()
-    dp.message.middleware(maint)
-    dp.edited_message.middleware(maint)
-    dp.callback_query.middleware(maint)
-    dp.message_reaction.middleware(maint)
+    dp.update.outer_middleware(MaintenanceMiddleware())
     dp.include_router(start_router)
     dp.include_router(profile_router)
 
