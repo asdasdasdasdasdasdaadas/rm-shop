@@ -1318,6 +1318,19 @@ function openClient(client, url) {
   tg.openLink(url);
 }
 
+function paintDevice(d) {
+  const me = window.__me;
+  if ($("devBrand") && me && me.brand_name) $("devBrand").textContent = me.brand_name;
+  $("devTitle").textContent = d.title || "Устройство";
+  $("devClient").textContent = clientLabel(d.client);
+  $("devPlatform").textContent = platformLabel(d.platform);
+  $("devUrl").textContent = d.subscription_url || "Ссылка появится после создания";
+  $("devOpenLabel").textContent = "Открыть в " + clientLabel(d.client);
+  const on = Boolean(d.active);
+  $("devStatus").classList.toggle("off", !on);
+  $("devStatusText").textContent = on ? "Активно" : "Неактивно";
+}
+
 function showDevice(d) {
   haptic();
   screen = "device";
@@ -1326,10 +1339,7 @@ function showDevice(d) {
   try {
     tg.BackButton.show();
   } catch (_e) {}
-  $("devTitle").textContent = d.title || "Устройство";
-  $("devClient").textContent = clientLabel(d.client);
-  $("devPlatform").textContent = platformLabel(d.platform);
-  $("devUrl").textContent = d.subscription_url || "Ссылка появится после создания";
+  paintDevice(d);
   setMain("");
 }
 
@@ -1478,10 +1488,7 @@ function paint(me) {
     const fresh = me.devices.find((x) => x.id === openDevice.id);
     if (fresh) {
       openDevice = fresh;
-      $("devTitle").textContent = fresh.title || "Устройство";
-      $("devClient").textContent = clientLabel(fresh.client);
-      $("devPlatform").textContent = platformLabel(fresh.platform);
-      $("devUrl").textContent = fresh.subscription_url || "Ссылка появится после создания";
+      paintDevice(fresh);
     }
   }
   if (screen === "topup") renderTopup(me);
@@ -1508,12 +1515,15 @@ function closeMenu() {
   $("menuScrim").classList.add("hidden");
 }
 
-$("menuBtn").onclick = (e) => {
-  e.stopPropagation();
+function toggleMenu(e) {
+  if (e) e.stopPropagation();
   haptic();
   $("menu").classList.toggle("hidden");
   $("menuScrim").classList.toggle("hidden", $("menu").classList.contains("hidden"));
-};
+}
+
+$("menuBtn").onclick = toggleMenu;
+$("devMore").onclick = toggleMenu;
 $("menuScrim").onclick = closeMenu;
 $("menu").onclick = (e) => e.stopPropagation();
 
@@ -1683,12 +1693,31 @@ $("promoToggle").onclick = () => {
   $("promoChev").style.transform = body.classList.contains("open") ? "rotate(180deg)" : "rotate(0deg)";
 };
 
+let toastTimer = 0;
+function showToast(text) {
+  const el = $("appToast");
+  if (!el) return;
+  $("appToastText").textContent = text;
+  el.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 1600);
+}
+
+$("devBack").onclick = () => onBack();
+
 $("devCopy").onclick = () => {
   const d = openDevice;
   if (!d || !d.subscription_url) return;
   haptic();
-  navigator.clipboard.writeText(d.subscription_url);
-  tg.showAlert("Ссылка скопирована");
+  navigator.clipboard.writeText(d.subscription_url).then(() => {
+    $("devCopy").classList.add("copied");
+    $("devCopyLabel").textContent = "Готово";
+    showToast("Ссылка скопирована");
+    setTimeout(() => {
+      $("devCopy").classList.remove("copied");
+      $("devCopyLabel").textContent = "Копировать";
+    }, 1600);
+  }).catch(() => tg.showAlert("Не удалось скопировать"));
 };
 
 $("devOpen").onclick = () => {
@@ -1719,9 +1748,10 @@ async function reissueSubscription(deviceId) {
     if (deviceId && openDevice && openDevice.id === deviceId) {
       openDevice.subscription_url = data.subscription_url || "";
       $("devUrl").textContent = openDevice.subscription_url || "Ссылка появится после создания";
+      paintDevice(openDevice);
     }
     await load();
-    tg.showAlert("Ссылка перевыпущена. Обновите подписку в клиенте.");
+    showToast("Ссылка перевыпущена. Обновите подписку в клиенте.");
   } catch (e) {
     showErr(e);
   }

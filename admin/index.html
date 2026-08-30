@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=2">
+  <link rel="stylesheet" href="app.css?v=4">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -73,6 +73,23 @@
           </div>
 
           <div class="panel">
+            <h3>Замена подписок</h3>
+            <p class="muted tight">Применить ко всем учёткам в Remnawave: устройства и подписки из бота. После перевыпуска ссылки обновятся в кабинете, старые перестанут работать, каждому уйдёт сообщение с новой ссылкой.</p>
+            <label class="check-row">
+              <input id="subApplySquads" type="checkbox" checked>
+              <span>Назначить всем сквады из REMNAWAVE_SQUAD_UUIDS (новые хосты в подписке)</span>
+            </label>
+            <label class="check-row">
+              <input id="subRevoke" type="checkbox" checked>
+              <span>Перевыпустить ссылки (старые перестанут открываться)</span>
+            </label>
+            <div class="ops">
+              <button type="button" id="subReplaceBtn" class="danger">Заменить у всех</button>
+            </div>
+            <p id="subReplaceOut" class="muted"></p>
+          </div>
+
+          <div class="panel">
             <h3>Оповещение при техработах</h3>
             <label class="ops-label" for="maintNotice">Текст</label>
             <textarea id="maintNotice" rows="4" placeholder="Этот текст уйдёт в бот вместе с картинкой на любое действие пользователя"></textarea>
@@ -112,6 +129,7 @@
             <button type="button" id="bulkUnblock" class="ghost">Разблокировать</button>
             <button type="button" id="bulkDelete" class="danger">Удалить</button>
             <button type="button" id="bulkTrial" class="ghost">Сбросить триал</button>
+            <button type="button" id="bulkReissue" class="ghost">Перевыпустить ссылки</button>
             <button type="button" id="bulkMsg" class="ghost">Написать</button>
             <button type="button" id="bulkDeleteMatch" class="danger">Удалить по поиску</button>
           </div>
@@ -279,6 +297,6 @@
       <button type="button" id="delBtn" class="danger">Удалить пользователя</button>
     </div>
   </div>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

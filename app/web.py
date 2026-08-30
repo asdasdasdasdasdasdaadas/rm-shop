@@ -153,7 +153,9 @@ async def api_me(request: web.Request) -> web.Response:
                     "id": item["id"],
                     "title": item["title"],
                     "username": (panel_dev or {}).get("username") or "",
-                    "subscription_url": (panel_dev or {}).get("subscriptionUrl") or "",
+                    "subscription_url": (panel_dev or {}).get("subscriptionUrl")
+                    or item.get("subscription_url")
+                    or "",
                     "days": days_remaining(panel_dev),
                     "active": is_subscription_active(panel_dev),
                     "expire_at": expire.isoformat() if expire else None,
@@ -407,6 +409,7 @@ async def api_add_device(request: web.Request) -> web.Response:
         return json_error(str(last_error or "Не удалось создать устройство"), 502)
     rw_id = int(user["id"])
     await db.add_device(telegram_id, title, rw_id, platform, client)
+    await db.save_device_subscription(rw_id, user)
     return web.json_response(
         {
             "ok": True,
@@ -443,6 +446,7 @@ async def api_reissue_device(request: web.Request) -> web.Response:
         user = await rw.revoke_subscription(panel)
     except RemnawaveError as exc:
         return json_error(str(exc), 502)
+    await db.save_device_subscription(int(item["remnawave_id"]), user)
     return web.json_response({"ok": True, "subscription_url": user.get("subscriptionUrl") or ""})
 
 

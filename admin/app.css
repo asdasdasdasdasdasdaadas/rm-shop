@@ -318,6 +318,17 @@ tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
 tbody tr:last-child td { border-bottom: 0; }
 main a { color: var(--acc); }
 .ops { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0;
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.4;
+  cursor: pointer;
+}
+.check-row input { margin-top: 3px; flex-shrink: 0; }
 .ops-label {
   display: block;
   margin: 8px 0 6px;

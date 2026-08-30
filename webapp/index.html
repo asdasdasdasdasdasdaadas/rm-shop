@@ -7,8 +7,8 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=21">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css?v=23">
 </head>
 <body>
   <div id="boot" class="state">
@@ -267,25 +267,80 @@
     </div>
 
     <div id="view-device" class="view hidden">
-      <p class="wiz-kicker">Устройство</p>
-      <h1 id="devTitle" class="wiz-title">Устройство</h1>
-      <section class="group">
-        <div class="cell static">
-          <span class="cell-label">Клиент</span>
-          <span id="devClient" class="cell-value"></span>
+      <div class="dev-glow" aria-hidden="true"></div>
+      <div class="dev-topbar">
+        <button type="button" id="devBack" class="dev-back">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Назад
+        </button>
+        <div class="dev-titleblock">
+          <div id="devBrand" class="dev-brand">Кабинет</div>
+          <div class="dev-sub">мини-приложение</div>
         </div>
-        <div class="cell static">
-          <span class="cell-label">Платформа</span>
-          <span id="devPlatform" class="cell-value"></span>
+        <button type="button" id="devMore" class="dev-more" aria-label="Меню">•••</button>
+      </div>
+
+      <div class="dev-hero">
+        <div class="dev-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg>
         </div>
-      </section>
-      <h2 class="section-title">Ссылка подписки</h2>
-      <section class="group">
-        <div id="devUrl" class="cell copy-cell"></div>
-        <button type="button" id="devCopy" class="cell action">Скопировать</button>
-        <button type="button" id="devOpen" class="cell action">Открыть в приложении</button>
-        <button type="button" id="devReissue" class="cell action">Перевыпустить ссылку</button>
-      </section>
+        <div class="dev-hero-txt">
+          <div class="dev-eyebrow">Устройство</div>
+          <h1 id="devTitle">Устройство</h1>
+          <div id="devStatus" class="dev-status"><span class="dot"></span><span id="devStatusText">Активно</span></div>
+        </div>
+      </div>
+
+      <div class="dev-info">
+        <div class="dev-info-row">
+          <span class="k">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="4" stroke="currentColor" stroke-width="1.7"/></svg>
+            Клиент
+          </span>
+          <span id="devClient" class="v mint"></span>
+        </div>
+        <div class="dev-info-row">
+          <span class="k">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="3" stroke="currentColor" stroke-width="1.7"/></svg>
+            Платформа
+          </span>
+          <span id="devPlatform" class="v"></span>
+        </div>
+      </div>
+
+      <div class="dev-label">Ссылка подписки</div>
+      <div class="dev-link">
+        <div class="dev-link-row">
+          <div class="dev-link-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M11 6l1-1a4 4 0 015.5 5.5l-2 2M13 18l-1 1a4 4 0 01-5.5-5.5l2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <div id="devUrl" class="dev-link-text"></div>
+        </div>
+        <div class="dev-link-actions">
+          <button type="button" id="devCopy" class="dev-lbtn">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15V5a2 2 0 012-2h10" stroke="currentColor" stroke-width="2"/></svg>
+            <span id="devCopyLabel">Копировать</span>
+          </button>
+          <button type="button" id="devOpen" class="dev-lbtn primary">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span id="devOpenLabel">Открыть в приложении</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="dev-label">Ещё</div>
+      <button type="button" id="devReissue" class="dev-danger">
+        <span class="left">
+          <span class="icon-wrap" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 4v6h6M20 20v-6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 10a8 8 0 00-14.9-3.5M4 14a8 8 0 0014.9 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          <span>
+            <span class="t">Перевыпустить ссылку</span>
+            <span class="s">Старая перестанет работать</span>
+          </span>
+        </span>
+        <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </div>
   </div>
 
@@ -321,7 +376,12 @@
     </div>
   </div>
 
+  <div id="appToast" class="app-toast" aria-live="polite">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span id="appToastText">Ссылка скопирована</span>
+  </div>
+
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>

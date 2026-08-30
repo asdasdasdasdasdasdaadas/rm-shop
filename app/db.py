@@ -173,6 +173,25 @@ async def save_panel_snapshot(telegram_id: int, panel: dict | None) -> None:
     )
 
 
+async def save_device_subscription(remnawave_id: int, panel: dict | None) -> str | None:
+    if not panel:
+        return None
+    uuid = str(panel.get("uuid") or "") or None
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE devices SET
+            remnawave_uuid = COALESCE($2, remnawave_uuid),
+            subscription_url = $3
+        WHERE remnawave_id = $1
+        RETURNING title
+        """,
+        remnawave_id,
+        uuid,
+        panel.get("subscriptionUrl") or None,
+    )
+    return str(row["title"]) if row and row.get("title") else None
+
+
 async def list_panel_telegram_ids() -> list[int]:
     rows = await _pool_req().fetch(
         """
@@ -181,6 +200,30 @@ async def list_panel_telegram_ids() -> list[int]:
         """
     )
     return [int(r["telegram_id"]) for r in rows]
+
+
+async def list_panel_accounts() -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT telegram_id, remnawave_id, remnawave_uuid, NULL::text AS title
+        FROM users
+        WHERE remnawave_id IS NOT NULL OR COALESCE(remnawave_uuid, '') <> ''
+        UNION ALL
+        SELECT telegram_id, remnawave_id, NULL, title
+        FROM devices
+        WHERE remnawave_id IS NOT NULL
+        """
+    )
+    seen: set[str] = set()
+    out: list[dict] = []
+    for row in rows:
+        item = dict(row)
+        key = str(item.get("remnawave_id") or item.get("remnawave_uuid") or "")
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
 
 
 async def save_payment(telegram_id: int, plan_code: str, stars: int, payment_id: str) -> bool:

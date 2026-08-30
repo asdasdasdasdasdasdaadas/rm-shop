@@ -114,8 +114,9 @@ class RemnawaveClient:
 
     async def _request(self, method: str, path: str, **kwargs) -> Any:
         url = f"{self.base}{path}"
+        timeout = kwargs.pop("timeout", None)
         try:
-            response = await self._client.request(method, url, **kwargs)
+            response = await self._client.request(method, url, timeout=timeout, **kwargs)
         except httpx.HTTPError as exc:
             raise RemnawaveError(f"{method} {path}: {exc}") from exc
         if response.status_code >= 400:
@@ -211,6 +212,44 @@ class RemnawaveClient:
         if not users:
             raise RemnawaveError("Панель не вернула пользователя после перевыпуска ссылки")
         return users[0]
+
+    async def bulk_revoke_subscription(self, user_ids: list[int]) -> None:
+        if not user_ids:
+            return
+        timeout = httpx.Timeout(60.0, connect=8.0)
+        try:
+            await self._request(
+                "POST",
+                "/users/bulk/revoke-subscription",
+                json={"userIds": user_ids},
+                timeout=timeout,
+            )
+            return
+        except RemnawaveError:
+            pass
+        await self._request(
+            "POST",
+            "/users/bulk/revoke-subscription",
+            json={"uuids": [str(uid) for uid in user_ids]},
+            timeout=timeout,
+        )
+
+    async def bulk_update_squads(self, user_ids: list[int], squad_uuids: list[str]) -> None:
+        if not user_ids or not squad_uuids:
+            return
+        timeout = httpx.Timeout(60.0, connect=8.0)
+        body = {"userIds": user_ids, "activeInternalSquads": squad_uuids}
+        try:
+            await self._request("POST", "/users/bulk/update-squads", json=body, timeout=timeout)
+            return
+        except RemnawaveError:
+            pass
+        await self._request(
+            "POST",
+            "/users/bulk/update-squads",
+            json={"uuids": [str(uid) for uid in user_ids], "activeInternalSquads": squad_uuids},
+            timeout=timeout,
+        )
 
     async def update_user(self, user: dict, patch: dict[str, Any]) -> dict:
         body = dict(patch)

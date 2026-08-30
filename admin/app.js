@@ -128,6 +128,7 @@ async function loadFlags() {
 
 async function loadStats() {
   await loadFlags();
+  loadSubJob();
   const s = await api("/admin/api/stats");
   const u = s.users || {};
   const cards = $("cards");
@@ -463,6 +464,17 @@ $("bulkTrial").onclick = () => {
   }
   runBulk({ action: "trial_reset", ids }, `Сбросить бесплатный период у ${ids.length} пользователей?`);
 };
+$("bulkReissue").onclick = () => {
+  const ids = [...selectedUsers];
+  if (!ids.length) {
+    $("bulkOut").textContent = "Никого не выбрано";
+    return;
+  }
+  runBulk(
+    { action: "reissue", ids },
+    `Перевыпустить ссылки у ${ids.length} пользователей? Старые перестанут работать, в кабинете будут новые, уйдёт уведомление.`
+  );
+};
 $("bulkMsg").onclick = () => {
   const ids = [...selectedUsers];
   if (!ids.length) {
@@ -752,6 +764,60 @@ $("billBtn").onclick = async () => {
   const next = !f.billing_paused;
   if (next && !window.confirm("Остановить тарификацию? Устройства останутся активными, плата списываться не будет.")) return;
   paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ billing_paused: next }) }));
+};
+
+let subPoll = null;
+
+function paintSubJob(j) {
+  const out = $("subReplaceOut");
+  const btn = $("subReplaceBtn");
+  if (!out || !j) return;
+  if (btn) btn.disabled = !!j.running;
+  if (j.running) {
+    const total = j.total || 0;
+    out.textContent = total
+      ? `Идёт: ${j.done || 0} из ${total}` + (j.failed ? `, ошибок ${j.failed}` : "")
+      : "Запущено, собираю список учёток...";
+    return;
+  }
+  if (j.message) out.textContent = j.message;
+}
+
+async function loadSubJob() {
+  if (!$("subReplaceOut")) return;
+  try {
+    const j = await api("/admin/api/subscriptions/replace");
+    paintSubJob(j);
+    if (j.running) {
+      if (subPoll) clearTimeout(subPoll);
+      subPoll = setTimeout(loadSubJob, 1000);
+    }
+  } catch (_e) {
+    /* ignore */
+  }
+}
+
+$("subReplaceBtn").onclick = async () => {
+  const applySquads = $("subApplySquads").checked;
+  const revoke = $("subRevoke").checked;
+  if (!applySquads && !revoke) {
+    $("subReplaceOut").textContent = "Включите сквады и/или перевыпуск ссылок";
+    return;
+  }
+  const bits = [];
+  if (applySquads) bits.push("сквады из .env");
+  if (revoke) bits.push("новые ссылки, обновление кабинета и уведомление");
+  if (!window.confirm("Заменить подписки у всех: " + bits.join(" и ") + "?")) return;
+  $("subReplaceOut").textContent = "Запускаю...";
+  try {
+    await api("/admin/api/subscriptions/replace", {
+      method: "POST",
+      body: JSON.stringify({ apply_squads: applySquads, revoke }),
+    });
+    loadSubJob();
+  } catch (err) {
+    $("subReplaceOut").textContent = err.message || "Не удалось запустить";
+  }
 };
 
 (async () => {

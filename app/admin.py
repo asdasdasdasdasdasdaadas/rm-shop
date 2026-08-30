@@ -20,10 +20,10 @@ from app.backup import (
     seconds_until_msk_0001,
 )
 from app.config import ROOT, get_settings
-from app.keyboards import blocked_keyboard
+from app.keyboards import blocked_keyboard, cabinet_keyboard
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
-from app.keyboards import blocked_keyboard
 from app.remnawave import RemnawaveClient, RemnawaveError
+from app.texts import subscription_reissued_text
 
 logger = logging.getLogger("rm-shop.admin")
 ADMIN_DIR = ROOT / "admin"
@@ -295,7 +295,7 @@ async def api_users_bulk(request: web.Request) -> web.Response:
         return denied
     body = await request.json()
     action = str(body.get("action") or "").strip()
-    if action not in {"delete", "trial_reset", "message", "block", "unblock"}:
+    if action not in {"delete", "trial_reset", "message", "block", "unblock", "reissue"}:
         return web.json_response({"ok": False, "error": "Неизвестное действие"}, status=400)
     ids: list[int] = []
     if body.get("all_matching"):
@@ -368,6 +368,10 @@ async def api_users_bulk(request: web.Request) -> web.Response:
                     ok_n += 1
                 else:
                     failed += 1
+            elif action == "reissue":
+                links = await _reissue_user_subscriptions(rw, telegram_id)
+                await _notify_reissued(bot, {telegram_id: links})
+                ok_n += 1
             else:
                 await bot.send_message(telegram_id, text)
                 ok_n += 1
@@ -639,6 +643,244 @@ async def api_maintenance_photo(request: web.Request) -> web.Response:
     return web.FileResponse(path, headers={"Content-Type": ctype, "Cache-Control": "no-store"})
 
 
+SUB_CHUNK = 100
+
+
+def _new_sub_job() -> dict:
+    return {
+        "running": False,
+        "apply_squads": False,
+        "revoke": False,
+        "total": 0,
+        "done": 0,
+        "failed": 0,
+        "error": None,
+        "notified": 0,
+        "message": "",
+    }
+
+
+def _sub_job(app: web.Application) -> dict:
+    job = app.get("sub_replace_job")
+    if not isinstance(job, dict):
+        job = _new_sub_job()
+        app["sub_replace_job"] = job
+    return job
+
+
+def _chunks(items: list, size: int):
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
+
+
+async def _panel_user_for_account(rw: RemnawaveClient, account: dict) -> dict | None:
+    user = None
+    if account.get("remnawave_id") is not None:
+        user = await rw.get_user_by_id(int(account["remnawave_id"]))
+    if not user and account.get("remnawave_uuid"):
+        user = await rw.get_user_by_id(str(account["remnawave_uuid"]))
+    return user
+
+
+async def _persist_subscription(telegram_id: int, panel: dict, account: dict) -> tuple[str, str]:
+    url = str(panel.get("subscriptionUrl") or "")
+    title = str(account.get("title") or "")
+    panel_id = panel.get("id")
+    local = await db.get_user(telegram_id)
+    if local and panel_id is not None and local.get("remnawave_id") is not None:
+        if int(local["remnawave_id"]) == int(panel_id):
+            await db.save_panel_snapshot(telegram_id, panel)
+    elif local and not get_settings().balance_enabled:
+        await db.save_panel_snapshot(telegram_id, panel)
+    if panel_id is not None:
+        device_title = await db.save_device_subscription(int(panel_id), panel)
+        if device_title:
+            title = device_title
+    return title, url
+
+
+async def _replace_one(
+    rw: RemnawaveClient,
+    account: dict,
+    apply_squads: bool,
+    revoke: bool,
+    squads: list[str],
+) -> tuple[str, str]:
+    user = await _panel_user_for_account(rw, account)
+    if not user:
+        raise RemnawaveError("Учётка в панели не найдена")
+    if apply_squads and squads:
+        await rw.update_user(user, {"activeInternalSquads": squads})
+    if revoke:
+        user = await rw.revoke_subscription(user)
+    return await _persist_subscription(int(account["telegram_id"]), user, account)
+
+
+async def _notify_reissued(bot: Bot, by_user: dict[int, list[tuple[str, str]]]) -> int:
+    sent = 0
+    for telegram_id, links in by_user.items():
+        if await db.user_is_blocked(telegram_id):
+            continue
+        seen: set[str] = set()
+        unique: list[tuple[str, str]] = []
+        for title, url in links:
+            key = url or title
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            unique.append((title, url))
+        try:
+            await bot.send_message(
+                telegram_id,
+                subscription_reissued_text(unique),
+                reply_markup=cabinet_keyboard(),
+            )
+            sent += 1
+        except Exception:
+            logger.debug("Не удалось написать о перевыпуске %s", telegram_id, exc_info=True)
+        await asyncio.sleep(0.035)
+    return sent
+
+
+async def _sync_links_from_panel(
+    rw: RemnawaveClient, accounts: list[dict]
+) -> dict[int, list[tuple[str, str]]]:
+    by_user: dict[int, list[tuple[str, str]]] = {}
+    for account in accounts:
+        telegram_id = int(account["telegram_id"])
+        try:
+            user = await _panel_user_for_account(rw, account)
+            if not user:
+                continue
+            title, url = await _persist_subscription(telegram_id, user, account)
+            by_user.setdefault(telegram_id, []).append((title, url))
+        except Exception:
+            logger.exception("Не удалось обновить ссылку в ЛК для %s", account)
+    return by_user
+
+
+async def _reissue_user_subscriptions(rw: RemnawaveClient, telegram_id: int) -> list[tuple[str, str]]:
+    ids = await db.list_panel_ids_for_user(telegram_id)
+    if not ids:
+        raise RemnawaveError("Нет подписки в панели")
+    links: list[tuple[str, str]] = []
+    for panel_id in ids:
+        panel = await rw.get_user_by_id(panel_id)
+        if not panel:
+            continue
+        panel = await rw.revoke_subscription(panel)
+        title, url = await _persist_subscription(
+            telegram_id, panel, {"title": "", "remnawave_id": panel_id}
+        )
+        links.append((title, url))
+    if not links:
+        raise RemnawaveError("Учётка в панели не найдена")
+    return links
+
+
+async def _try_bulk_ids(
+    rw: RemnawaveClient,
+    ids: list[int],
+    apply_squads: bool,
+    revoke: bool,
+    squads: list[str],
+) -> bool:
+    if not ids:
+        return True
+    try:
+        if apply_squads:
+            for chunk in _chunks(ids, SUB_CHUNK):
+                await rw.bulk_update_squads(chunk, squads)
+        if revoke:
+            for chunk in _chunks(ids, SUB_CHUNK):
+                await rw.bulk_revoke_subscription(chunk)
+        return True
+    except RemnawaveError:
+        logger.exception("Массовая замена подписок через bulk API не удалась, иду по одной")
+        return False
+
+
+async def _run_replace_job(app: web.Application, apply_squads: bool, revoke: bool) -> None:
+    job = _sub_job(app)
+    rw: RemnawaveClient = app["rw"]
+    squads = get_settings().squad_uuids
+    try:
+        accounts = await db.list_panel_accounts()
+        job["total"] = len(accounts)
+        if not accounts:
+            job["message"] = "Нет учёток в панели"
+            return
+        ids = [int(a["remnawave_id"]) for a in accounts if a.get("remnawave_id") is not None]
+        uuid_only = [a for a in accounts if a.get("remnawave_id") is None]
+        bulk_ok = await _try_bulk_ids(rw, ids, apply_squads, revoke, squads)
+        if bulk_ok:
+            job["done"] = len(ids)
+            rest = uuid_only
+        else:
+            rest = accounts
+            job["done"] = 0
+        by_user: dict[int, list[tuple[str, str]]] = {}
+        for account in rest:
+            try:
+                title, url = await _replace_one(rw, account, apply_squads, revoke, squads)
+                job["done"] += 1
+                if revoke:
+                    by_user.setdefault(int(account["telegram_id"]), []).append((title, url))
+            except Exception:
+                job["failed"] += 1
+                logger.exception("Не удалось заменить подписку для %s", account)
+        if revoke:
+            if bulk_ok:
+                synced = await _sync_links_from_panel(rw, [a for a in accounts if a.get("remnawave_id") is not None])
+                for telegram_id, links in synced.items():
+                    by_user.setdefault(telegram_id, []).extend(links)
+            bot: Bot = app["bot"]
+            job["notified"] = await _notify_reissued(bot, by_user)
+        parts = [f"Готово: {job['done']} из {job['total']}"]
+        if job["failed"]:
+            parts.append(f"ошибок {job['failed']}")
+        if revoke:
+            parts.append(f"уведомлений {job['notified']}")
+        job["message"] = ", ".join(parts)
+    except Exception as exc:
+        logger.exception("Сбой массовой замены подписок")
+        job["error"] = str(exc)
+        job["message"] = f"Сбой: {exc}"
+    finally:
+        job["running"] = False
+
+
+async def api_replace_subscriptions(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    job = _sub_job(request.app)
+    if request.method == "GET":
+        return web.json_response({"ok": True, **job})
+    if job.get("running"):
+        return web.json_response({"ok": False, "error": "Уже выполняется", **job}, status=409)
+    body = await request.json()
+    apply_squads = bool(body.get("apply_squads"))
+    revoke = bool(body.get("revoke"))
+    if not apply_squads and not revoke:
+        return web.json_response(
+            {"ok": False, "error": "Включите сквады и/или перевыпуск ссылок"},
+            status=400,
+        )
+    if apply_squads and not get_settings().squad_uuids:
+        return web.json_response(
+            {"ok": False, "error": "В .env пустой REMNAWAVE_SQUAD_UUIDS"},
+            status=400,
+        )
+    job.update(_new_sub_job())
+    job["running"] = True
+    job["apply_squads"] = apply_squads
+    job["revoke"] = revoke
+    job["message"] = "Запущено"
+    asyncio.create_task(_run_replace_job(request.app, apply_squads, revoke))
+    return web.json_response({"ok": True, **job})
+
+
 def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin", admin_redirect)
     app.router.add_get("/admin/", admin_index)
@@ -662,6 +904,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/users/{telegram_id}/block", api_block_user)
     app.router.add_get("/admin/api/flags", api_flags)
     app.router.add_post("/admin/api/flags", api_flags)
+    app.router.add_get("/admin/api/subscriptions/replace", api_replace_subscriptions)
+    app.router.add_post("/admin/api/subscriptions/replace", api_replace_subscriptions)
     app.router.add_post("/admin/api/maintenance", api_maintenance_save)
     app.router.add_get("/admin/api/maintenance/photo", api_maintenance_photo)
     app.router.add_delete("/admin/api/maintenance/photo", api_maintenance_photo)
