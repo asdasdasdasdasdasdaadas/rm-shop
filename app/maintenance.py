@@ -18,6 +18,7 @@ from aiogram.types import (
 
 from app import db
 from app.config import ROOT, get_settings
+from app.keyboards import try_again_keyboard
 from app.trust import MAINTENANCE_TEXT
 
 logger = logging.getLogger("rm-shop.maintenance")
@@ -96,14 +97,16 @@ async def current_text() -> str:
     return stored or MAINTENANCE_TEXT
 
 
-async def notify_user(bot: Bot, chat_id: int) -> bool:
+async def notify_user(bot: Bot, chat_id: int, *, force: bool = False) -> bool:
     now = time.monotonic()
-    if now - _last_sent_at.get(chat_id, 0.0) < PHOTO_COOLDOWN:
+    if not force and now - _last_sent_at.get(chat_id, 0.0) < PHOTO_COOLDOWN:
         return False
     notice = await current_text()
     path = photo_path()
     caption = notice[:1024]
     rest = notice[1024:].strip()
+    kb = try_again_keyboard()
+    markup_first = None if rest else kb
     try:
         if path:
             file_id = (await db.get_kv(FILE_ID_KEY)).strip()
@@ -113,20 +116,25 @@ async def notify_user(bot: Bot, chat_id: int) -> bool:
                     file_id or FSInputFile(path),
                     caption=caption,
                     parse_mode=None,
+                    reply_markup=markup_first,
                 )
             except TelegramRetryAfter:
                 raise
             except TelegramAPIError:
                 await db.set_kv(FILE_ID_KEY, "")
                 sent = await bot.send_photo(
-                    chat_id, FSInputFile(path), caption=caption, parse_mode=None
+                    chat_id,
+                    FSInputFile(path),
+                    caption=caption,
+                    parse_mode=None,
+                    reply_markup=markup_first,
                 )
             if sent.photo:
                 await db.set_kv(FILE_ID_KEY, sent.photo[-1].file_id)
         else:
-            await bot.send_message(chat_id, notice, parse_mode=None)
+            await bot.send_message(chat_id, notice, parse_mode=None, reply_markup=markup_first)
         if rest:
-            await bot.send_message(chat_id, rest[:4096], parse_mode=None)
+            await bot.send_message(chat_id, rest[:4096], parse_mode=None, reply_markup=kb)
         _last_sent_at[chat_id] = time.monotonic()
         return True
     except TelegramRetryAfter as exc:
@@ -185,7 +193,8 @@ class MaintenanceMiddleware(BaseMiddleware):
             except Exception:
                 logger.debug("Не удалось ответить на callback при техработах", exc_info=True)
         if bot and chat_id:
-            await notify_user(bot, chat_id)
+            force = isinstance(inner, CallbackQuery) and inner.data == "try_again"
+            await notify_user(bot, chat_id, force=force)
         elif chat_id is None:
             logger.warning("Техработы: нет chat_id для %s", type(inner).__name__)
         return None

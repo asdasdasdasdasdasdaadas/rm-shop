@@ -154,6 +154,21 @@ async def open_profile(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     await show_profile(callback, rw)
 
 
+@router.callback_query(F.data == "try_again")
+async def try_again(callback: CallbackQuery, rw: RemnawaveClient) -> None:
+    user = callback.from_user
+    await ack(callback)
+    await db.upsert_user(user.id, user.username, user.first_name)
+    if not await is_channel_member(callback.bot, user.id):
+        await callback.message.answer(welcome_text(), reply_markup=channel_keyboard())
+        return
+    local = await db.get_user(user.id)
+    if not local or not local["accepted_legal_at"]:
+        await callback.message.answer(legal_text(), reply_markup=legal_keyboard())
+        return
+    await show_profile(callback, rw)
+
+
 @router.message(Command("admin"))
 async def cmd_admin(message: Message) -> None:
     settings = get_settings()

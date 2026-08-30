@@ -122,6 +122,12 @@ def cabinet_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def try_again_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="Попробовать ещё раз", callback_data="try_again"))
+    return builder.as_markup()
+
+
 def back_profile_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
