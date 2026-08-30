@@ -278,12 +278,13 @@ body {
   font-family: Inter, sans-serif;
   border-radius: 100px;
   font-weight: 600;
-  font-size: 14.5px;
+  font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 12px 16px;
+  padding: 16px 20px;
+  min-height: 52px;
   transition: transform 0.15s ease;
 }
 
@@ -293,12 +294,16 @@ body {
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   color: #0d1611;
   flex: 1;
-  box-shadow: 0 8px 20px -8px rgba(95, 214, 139, 0.55);
+  min-height: 56px;
+  font-size: 17px;
+  font-weight: 700;
+  box-shadow: 0 10px 24px -8px rgba(95, 214, 139, 0.65);
 }
 
 .btn-ghost {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
+  min-height: 56px;
 }
 
 .section {
@@ -694,7 +699,7 @@ body {
 }
 
 body.has-main-btn {
-  padding-bottom: calc(88px + var(--tg-safe-area-inset-bottom, 0px));
+  padding-bottom: calc(104px + var(--tg-safe-area-inset-bottom, 0px));
 }
 
 .app-main-bar {
@@ -710,6 +715,8 @@ body.has-main-btn {
 .app-main-bar .btn {
   width: 100%;
   flex: none;
+  min-height: 58px;
+  font-size: 18px;
 }
 
 .app-main-bar .btn:disabled {
