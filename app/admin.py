@@ -19,6 +19,7 @@ from app.backup import (
     seconds_until_msk_0001,
 )
 from app.config import ROOT, get_settings
+from app.maintenance import clear_photo, has_photo, photo_path, save_photo
 from app.remnawave import RemnawaveClient, RemnawaveError
 
 logger = logging.getLogger("rm-shop.admin")
@@ -312,6 +313,7 @@ async def api_settings(request: web.Request) -> web.Response:
             "maintenance": flags["maintenance"],
             "billing_paused": flags["billing_paused"],
             "maintenance_notice": flags.get("maintenance_notice") or "",
+            "maintenance_has_photo": has_photo(),
             "plans": [
                 {"code": code, "title": p["title"], "days": p["days"], "rub": p["rub_str"]}
                 for code, p in settings.shop_plans.items()
@@ -326,7 +328,7 @@ async def api_flags(request: web.Request) -> web.Response:
         return denied
     if request.method == "GET":
         flags = await db.get_flags()
-        return web.json_response({"ok": True, **flags})
+        return web.json_response({"ok": True, **flags, "maintenance_has_photo": has_photo()})
     body = await request.json()
     if "maintenance" in body:
         turning_on = bool(body.get("maintenance"))
@@ -334,23 +336,23 @@ async def api_flags(request: web.Request) -> web.Response:
         if turning_on and not was_on:
             text = str(body.get("message") or "").strip()
             if not text:
+                text = (await db.get_kv("maintenance_notice")).strip()
+            if not text:
                 return web.json_response(
-                    {"ok": False, "error": "Укажите текст оповещения для всех пользователей"},
+                    {"ok": False, "error": "Сохраните текст оповещения"},
                     status=400,
                 )
             if len(text) > 3500:
                 return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
             await db.set_kv("maintenance_notice", text)
             await db.set_flag("maintenance", True)
-            bot: Bot = request.app["bot"]
-            sent, failed = await _broadcast_all(bot, text)
             flags = await db.get_flags()
-            return web.json_response({"ok": True, **flags, "sent": sent, "failed": failed})
+            return web.json_response({"ok": True, **flags, "maintenance_has_photo": has_photo()})
         await db.set_flag("maintenance", turning_on)
     if "billing_paused" in body:
         await db.set_flag("billing_paused", bool(body.get("billing_paused")))
     flags = await db.get_flags()
-    return web.json_response({"ok": True, **flags})
+    return web.json_response({"ok": True, **flags, "maintenance_has_photo": has_photo()})
 
 
 async def api_backups(request: web.Request) -> web.Response:
@@ -435,6 +437,62 @@ async def api_backup_restore(request: web.Request) -> web.Response:
     return web.json_response(result)
 
 
+async def api_maintenance_save(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    ctype = request.content_type or ""
+    text = ""
+    photo = b""
+    filename = "photo.jpg"
+    if ctype.startswith("multipart/"):
+        reader = await request.multipart()
+        while True:
+            field = await reader.next()
+            if field is None:
+                break
+            if field.name == "message":
+                text = (await field.text()).strip()
+            elif field.name == "file":
+                filename = field.filename or "photo.jpg"
+                photo = await field.read()
+    else:
+        body = await request.json()
+        text = str(body.get("message") or "").strip()
+    if not text:
+        return web.json_response({"ok": False, "error": "Введите текст оповещения"}, status=400)
+    if len(text) > 3500:
+        return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
+    await db.set_kv("maintenance_notice", text)
+    if photo:
+        try:
+            await save_photo(photo, filename)
+        except ValueError as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    flags = await db.get_flags()
+    return web.json_response({"ok": True, **flags, "maintenance_has_photo": has_photo()})
+
+
+async def api_maintenance_photo(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    if request.method == "DELETE":
+        await clear_photo()
+        return web.json_response({"ok": True, "maintenance_has_photo": False})
+    path = photo_path()
+    if not path:
+        return web.json_response({"ok": False, "error": "Картинка не загружена"}, status=404)
+    ctype = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }.get(path.suffix.lower(), "application/octet-stream")
+    return web.FileResponse(path, headers={"Content-Type": ctype, "Cache-Control": "no-store"})
+
+
 def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin", admin_redirect)
     app.router.add_get("/admin/", admin_index)
@@ -456,6 +514,9 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/users/{telegram_id}/delete", api_delete_user)
     app.router.add_get("/admin/api/flags", api_flags)
     app.router.add_post("/admin/api/flags", api_flags)
+    app.router.add_post("/admin/api/maintenance", api_maintenance_save)
+    app.router.add_get("/admin/api/maintenance/photo", api_maintenance_photo)
+    app.router.add_delete("/admin/api/maintenance/photo", api_maintenance_photo)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
     app.router.add_get("/admin/api/backups", api_backups)
     app.router.add_post("/admin/api/backups", api_backup_create)

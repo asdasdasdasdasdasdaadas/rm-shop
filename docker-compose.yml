@@ -29,6 +29,7 @@ services:
       - ./webapp:/app/webapp
       - ./admin:/app/admin
       - ./backups:/app/backups
+      - ./data:/app/data
     ports:
       - "127.0.0.1:8080:8080"
     environment:

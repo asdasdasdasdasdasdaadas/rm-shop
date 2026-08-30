@@ -39,8 +39,16 @@
           <button type="button" id="maintBtn">Тех. работы: выкл</button>
           <button type="button" id="billBtn">Тарификация: идёт</button>
         </div>
-        <label class="ops-label" for="maintNotice">Оповещение при включении тех. работ</label>
-        <textarea id="maintNotice" rows="4" placeholder="Этот текст уйдёт всем пользователям в Telegram"></textarea>
+        <label class="ops-label" for="maintNotice">Текст при тех. работах (сохраняется)</label>
+        <textarea id="maintNotice" rows="4" placeholder="Этот текст уйдёт в бот вместе с картинкой на любое действие пользователя"></textarea>
+        <label class="ops-label" for="maintPhoto">Картинка</label>
+        <div class="row">
+          <input id="maintPhoto" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+          <button type="button" id="maintSaveBtn">Сохранить текст и картинку</button>
+          <button type="button" id="maintPhotoDel" class="ghost">Удалить картинку</button>
+        </div>
+        <p id="maintPhotoHint" class="muted"></p>
+        <img id="maintPreview" class="maint-preview hidden" alt="Превью оповещения">
         <p id="opsHint" class="muted"></p>
         <div id="cards" class="cards"></div>
         <div class="grid2">

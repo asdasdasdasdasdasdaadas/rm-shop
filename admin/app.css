@@ -128,6 +128,14 @@ main a { color: var(--acc); }
   font-size: 13px;
   color: var(--muted);
 }
+.maint-preview {
+  display: block;
+  max-width: 320px;
+  max-height: 200px;
+  margin: 8px 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
 button.danger {
   background: transparent;
   border: 1px solid var(--danger);

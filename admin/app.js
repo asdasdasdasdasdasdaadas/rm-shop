@@ -85,11 +85,21 @@ function paintFlags(f) {
   $("maintBtn").classList.toggle("warn", m);
   $("billBtn").textContent = p ? "Тарификация: стоп" : "Тарификация: идёт";
   $("billBtn").classList.toggle("warn", p);
-  if (f.maintenance_notice && !$("maintNotice").value) {
+  if (typeof f.maintenance_notice === "string") {
     $("maintNotice").value = f.maintenance_notice;
   }
+  const preview = $("maintPreview");
+  if (f.maintenance_has_photo) {
+    preview.classList.remove("hidden");
+    preview.src = "/admin/api/maintenance/photo?t=" + Date.now();
+    $("maintPhotoHint").textContent = "Картинка сохранена и будет уходить вместе с текстом.";
+  } else {
+    preview.classList.add("hidden");
+    preview.removeAttribute("src");
+    $("maintPhotoHint").textContent = "Загрузите картинку и нажмите «Сохранить».";
+  }
   $("opsHint").textContent = m
-    ? "Бот и Mini App отвечают, что сервис недоступен. Админка работает."
+    ? "Тех. работы включены: на любое действие в боте уходят сохранённые текст и картинка."
     : p
       ? "Устройства продлеваются, плата не списывается."
       : "";
@@ -493,22 +503,64 @@ $("maintBtn").onclick = async () => {
     }
     const message = $("maintNotice").value.trim();
     if (!message) {
-      $("opsHint").textContent = "Сначала введите текст оповещения. Его получат все пользователи.";
+      $("opsHint").textContent = "Сначала сохраните текст оповещения.";
       $("maintNotice").focus();
       return;
     }
-    if (!window.confirm("Включить тех. работы и отправить этот текст всем?")) return;
-    $("opsHint").textContent = "Отправка оповещения...";
+    if (!window.confirm("Включить тех. работы? На любое действие в боте уйдут сохранённые текст и картинка.")) return;
     const r = await api("/admin/api/flags", {
       method: "POST",
       body: JSON.stringify({ maintenance: true, message }),
     });
     paintFlags(r);
-    const extra = r.sent != null ? ` Оповещение: отправлено ${r.sent}, ошибок ${r.failed || 0}.` : "";
     $("opsHint").textContent =
-      "Бот и Mini App отвечают, что сервис недоступен. Админка работает." + extra;
+      "Тех. работы включены: на любое действие в боте уходят сохранённые текст и картинка.";
   } catch (err) {
     $("opsHint").textContent = err.message || "Не удалось включить тех. работы";
+  }
+};
+
+$("maintSaveBtn").onclick = async () => {
+  const message = $("maintNotice").value.trim();
+  if (!message) {
+    $("opsHint").textContent = "Введите текст оповещения.";
+    return;
+  }
+  $("opsHint").textContent = "Сохраняю...";
+  try {
+    const fd = new FormData();
+    fd.append("message", message);
+    const file = $("maintPhoto").files && $("maintPhoto").files[0];
+    if (file) fd.append("file", file);
+    const res = await fetch("/admin/api/maintenance", {
+      method: "POST",
+      credentials: "same-origin",
+      body: fd,
+    });
+    const data = await res.json().catch(() => ({ ok: false, error: "Ошибка ответа" }));
+    if (!res.ok || data.ok === false) throw new Error(data.error || "Не удалось сохранить");
+    $("maintPhoto").value = "";
+    paintFlags(data);
+    $("opsHint").textContent = "Текст и картинка сохранены. Их можно включить кнопкой тех. работ.";
+  } catch (err) {
+    $("opsHint").textContent = err.message || "Не удалось сохранить";
+  }
+};
+
+$("maintPhotoDel").onclick = async () => {
+  if (!window.confirm("Удалить сохранённую картинку?")) return;
+  try {
+    const res = await fetch("/admin/api/maintenance/photo", {
+      method: "DELETE",
+      credentials: "same-origin",
+    });
+    const data = await res.json().catch(() => ({ ok: false, error: "Ошибка ответа" }));
+    if (!res.ok || data.ok === false) throw new Error(data.error || "Не удалось удалить");
+    const f = await api("/admin/api/flags");
+    paintFlags(f);
+    $("opsHint").textContent = "Картинка удалена. Текст остался.";
+  } catch (err) {
+    $("opsHint").textContent = err.message || "Не удалось удалить картинку";
   }
 };
 

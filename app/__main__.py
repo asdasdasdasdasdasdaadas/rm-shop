@@ -82,10 +82,17 @@ async def main() -> None:
     dp = Dispatcher()
     dp["rw"] = rw
     dp["rp"] = rp
-    dp.message.middleware(MaintenanceMiddleware())
-    dp.callback_query.middleware(MaintenanceMiddleware())
+    maint = MaintenanceMiddleware()
+    dp.message.middleware(maint)
+    dp.edited_message.middleware(maint)
+    dp.callback_query.middleware(maint)
+    dp.message_reaction.middleware(maint)
     dp.include_router(start_router)
     dp.include_router(profile_router)
+
+    @dp.message_reaction()
+    async def on_reaction(_event) -> None:
+        return
 
     @dp.error()
     async def on_error(event: ErrorEvent) -> None:
@@ -116,7 +123,11 @@ async def main() -> None:
         charge_task = asyncio.create_task(balance_charge_loop(rw, bot), name="balance-charge")
         dump_task = asyncio.create_task(backup_loop(bot), name="backup")
         try:
-            await dp.start_polling(bot, drop_pending_updates=True)
+            await dp.start_polling(
+                bot,
+                drop_pending_updates=True,
+                allowed_updates=dp.resolve_used_update_types(),
+            )
         finally:
             sync_task.cancel()
             charge_task.cancel()
