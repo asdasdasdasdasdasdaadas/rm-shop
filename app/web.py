@@ -205,6 +205,7 @@ async def api_me(request: web.Request) -> web.Response:
             "billing_active": bool(settings.balance_enabled and devices),
             "balance_rub": balance_rub,
             "vpn_day_price_rub": settings.vpn_day_price_rub,
+            "max_devices": settings.max_devices,
             "has_access": bool(
                 (settings.balance_enabled and (balance_rub > 0 or devices))
                 or days > 0
@@ -382,6 +383,9 @@ async def api_add_device(request: web.Request) -> web.Response:
     title = str(body.get("title") or "").strip() or "Устройство"
     platform = str(body.get("platform") or "").strip()[:32] or None
     client = str(body.get("client") or "").strip()[:32] or None
+    cap = int(settings.max_devices or 0)
+    if cap > 0 and await db.device_count(telegram_id) >= cap:
+        return json_error(f"Можно подключить не больше {cap} устройств")
     price = max(1, settings.vpn_day_price_rub)
     if not await db.spend_balance_rub(telegram_id, price):
         return json_error(f"Недостаточно средств. Нужно {rub_text(price)} за сутки.")
@@ -396,7 +400,7 @@ async def api_add_device(request: web.Request) -> web.Response:
                 expire_at=datetime.now(timezone.utc) + timedelta(days=1),
                 tag="DEVICE",
                 username=username,
-                hwid_limit=1,
+                hwid_limit=settings.remnawave_hwid_limit,
                 description=f"tg:{telegram_id}:device",
             )
             break

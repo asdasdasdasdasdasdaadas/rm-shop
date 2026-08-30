@@ -991,6 +991,12 @@ function closeWizard() {
 function startWizard() {
   const me = window.__me;
   if (!me || !me.balance_enabled) return;
+  const cap = Number(me.max_devices) || 0;
+  const n = (me.devices || []).length;
+  if (cap > 0 && n >= cap) {
+    tg.showAlert("Можно подключить не больше " + cap + " устройств");
+    return;
+  }
   haptic();
   wiz.step = 1;
   wiz.platform = "ios";
@@ -1392,8 +1398,10 @@ function renderDevices(me) {
   }
   block.classList.remove("hidden");
   const n = me.devices.length;
-  $("deviceCount").textContent = "· " + n;
-  $("addDevice").classList.toggle("hidden", n === 0);
+  const cap = Number(me.max_devices) || 0;
+  const atCap = cap > 0 && n >= cap;
+  $("deviceCount").textContent = cap > 0 ? "· " + n + " из " + cap : "· " + n;
+  $("addDevice").classList.toggle("hidden", n === 0 || atCap);
   $("emptyDevices").classList.toggle("hidden", n > 0);
   const body = $("devicesBody");
   body.classList.toggle("hidden", n === 0);

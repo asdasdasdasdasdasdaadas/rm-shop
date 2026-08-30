@@ -372,8 +372,79 @@ async function loadReports(page) {
 
 async function loadSettings() {
   const s = await api("/admin/api/settings");
-  $("settingsBox").textContent = JSON.stringify(s, null, 2);
+  const v = s.values || {};
+  const set = (id, val) => {
+    const el = $(id);
+    if (!el) return;
+    if (el.type === "checkbox") el.checked = !!val;
+    else el.value = val == null ? "" : String(val);
+  };
+  set("setBrand", v.brand_name);
+  set("setSupport", v.support_username);
+  set("setOffer", v.legal_offer_url);
+  set("setPrivacy", v.legal_privacy_url);
+  set("setMaxDev", v.max_devices);
+  set("setHwid", v.remnawave_hwid_limit);
+  set("setDayPrice", v.vpn_day_price_rub);
+  set("setTopMin", v.balance_topup_min);
+  set("setTopMax", v.balance_topup_max);
+  set("setTopStep", v.balance_topup_step);
+  set("setRefRub", v.referral_reward_rub);
+  set("setP1", v.plan_1m_rub);
+  set("setP3", v.plan_3m_rub);
+  set("setP6", v.plan_6m_rub);
+  set("setP12", v.plan_12m_rub);
+  set("setRefDays", v.referral_reward_days);
+  set("setRefInvitee", v.referral_invitee_days);
+  set("setTrialOn", v.trial_enabled);
+  set("setTrialDays", v.trial_days);
+  set("setReportCd", v.vpn_report_cooldown_sec);
+  set("setPromoOn", v.promo_enabled);
+  set("setPromo", v.promo_codes);
+  document.querySelectorAll(".shop-balance").forEach((el) => {
+    el.classList.toggle("hidden", !s.balance_enabled);
+  });
+  document.querySelectorAll(".shop-plans").forEach((el) => {
+    el.classList.toggle("hidden", !!s.balance_enabled);
+  });
 }
+
+$("shopForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const num = (id) => Number($(id).value);
+  const payload = {
+    brand_name: $("setBrand").value,
+    support_username: $("setSupport").value,
+    legal_offer_url: $("setOffer").value,
+    legal_privacy_url: $("setPrivacy").value,
+    max_devices: num("setMaxDev"),
+    remnawave_hwid_limit: num("setHwid"),
+    vpn_day_price_rub: num("setDayPrice"),
+    balance_topup_min: num("setTopMin"),
+    balance_topup_max: num("setTopMax"),
+    balance_topup_step: num("setTopStep"),
+    referral_reward_rub: num("setRefRub"),
+    plan_1m_rub: num("setP1"),
+    plan_3m_rub: num("setP3"),
+    plan_6m_rub: num("setP6"),
+    plan_12m_rub: num("setP12"),
+    referral_reward_days: num("setRefDays"),
+    referral_invitee_days: num("setRefInvitee"),
+    trial_enabled: $("setTrialOn").checked,
+    trial_days: num("setTrialDays"),
+    vpn_report_cooldown_sec: num("setReportCd"),
+    promo_enabled: $("setPromoOn").checked,
+    promo_codes: $("setPromo").value,
+  };
+  $("shopOut").textContent = "Сохраняю...";
+  try {
+    await api("/admin/api/settings", { method: "POST", body: JSON.stringify(payload) });
+    $("shopOut").textContent = "Сохранено. Кабинет и бот уже берут новые значения.";
+    await loadSettings();
+  } catch (err) {
+    $("shopOut").textContent = err.message || "Не удалось сохранить";
+  }
+});
 
 function openUser(u) {
   currentUser = u;

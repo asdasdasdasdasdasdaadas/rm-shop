@@ -20,6 +20,7 @@ from app.maintenance import MaintenanceMiddleware
 from app.block import BlockedMiddleware
 from app.backup import backup_loop
 from app.nudge import trial_nudge_loop
+from app.shop_config import load_shop_overlay
 from app.web import start_http
 
 logging.basicConfig(
@@ -70,6 +71,7 @@ async def main() -> None:
     settings = get_settings()
     _warn_deploy(settings)
     await db.init_db()
+    await load_shop_overlay()
     rw = RemnawaveClient()
     rp = RollyPayClient() if settings.rollypay_configured else None
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))

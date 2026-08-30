@@ -20,6 +20,7 @@ from app.backup import (
     seconds_until_msk_0001,
 )
 from app.config import ROOT, get_settings
+from app.shop_config import save_shop_overlay, snapshot as shop_snapshot
 from app.keyboards import blocked_keyboard, cabinet_keyboard
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
 from app.remnawave import RemnawaveClient, RemnawaveError
@@ -443,34 +444,17 @@ async def api_settings(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
         return denied
-    settings = get_settings()
-    flags = await db.get_flags()
-    return web.json_response(
-        {
-            "ok": True,
-            "brand_name": settings.brand_name,
-            "bot_username": settings.bot_username,
-            "trial_enabled": settings.trial_enabled,
-            "trial_days": settings.trial_days,
-            "balance_enabled": settings.balance_enabled,
-            "promo_enabled": settings.promo_enabled,
-            "promo_codes": settings.promo_codes,
-            "rollypay_configured": settings.rollypay_configured,
-            "rollypay_test": settings.rollypay_test,
-            "webapp_enabled": settings.webapp_enabled,
-            "vpn_day_price_rub": settings.vpn_day_price_rub,
-            "referral_reward_rub": settings.referral_reward_rub,
-            "maintenance": flags["maintenance"],
-            "billing_paused": flags["billing_paused"],
-            "trial_nudge": flags.get("trial_nudge"),
-            "maintenance_notice": flags.get("maintenance_notice") or "",
-            "maintenance_has_photo": has_photo(),
-            "plans": [
-                {"code": code, "title": p["title"], "days": p["days"], "rub": p["rub_str"]}
-                for code, p in settings.shop_plans.items()
-            ],
-        }
-    )
+    if request.method == "GET":
+        return web.json_response(shop_snapshot())
+    try:
+        body = await request.json()
+        data = await save_shop_overlay(body)
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    except Exception:
+        logger.exception("Не удалось сохранить настройки")
+        return web.json_response({"ok": False, "error": "Не удалось сохранить"}, status=500)
+    return web.json_response(data)
 
 
 async def api_flags(request: web.Request) -> web.Response:
@@ -899,6 +883,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/orders", api_orders)
     app.router.add_get("/admin/api/reports", api_reports)
     app.router.add_get("/admin/api/settings", api_settings)
+    app.router.add_post("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/users/{telegram_id}/grant", api_grant)
     app.router.add_post("/admin/api/users/{telegram_id}/balance", api_balance)
     app.router.add_post("/admin/api/users/{telegram_id}/trial-reset", api_trial_reset)

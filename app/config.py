@@ -55,6 +55,7 @@ class Settings(BaseSettings):
 
     balance_enabled: bool = False
     vpn_day_price_rub: int = 6
+    max_devices: int = 5
     balance_topup_min: int = 50
     balance_topup_max: int = 400
     balance_topup_step: int = 50
@@ -153,6 +154,58 @@ class Settings(BaseSettings):
         return result
 
 
+SHOP_KEYS = frozenset(
+    {
+        "brand_name",
+        "support_username",
+        "legal_offer_url",
+        "legal_privacy_url",
+        "vpn_day_price_rub",
+        "max_devices",
+        "remnawave_hwid_limit",
+        "trial_enabled",
+        "trial_days",
+        "referral_reward_rub",
+        "referral_reward_days",
+        "referral_invitee_days",
+        "balance_topup_min",
+        "balance_topup_max",
+        "balance_topup_step",
+        "promo_enabled",
+        "promo_codes",
+        "plan_1m_rub",
+        "plan_3m_rub",
+        "plan_6m_rub",
+        "plan_12m_rub",
+        "vpn_report_cooldown_sec",
+    }
+)
+
+_overlay: dict = {}
+
+
+def set_shop_overlay(data: dict) -> None:
+    global _overlay
+    _overlay = {k: v for k, v in data.items() if k in SHOP_KEYS}
+
+
+def shop_overlay() -> dict:
+    return dict(_overlay)
+
+
 @lru_cache
-def get_settings() -> Settings:
+def _env_settings() -> Settings:
     return Settings()
+
+
+def get_settings() -> Settings:
+    base = _env_settings()
+    if not _overlay:
+        return base
+    update = dict(_overlay)
+    if "remnawave_hwid_limit" in update:
+        raw = update["remnawave_hwid_limit"]
+        update["remnawave_hwid_limit"] = None if raw in (0, None, "") else int(raw)
+    if hasattr(base, "model_copy"):
+        return base.model_copy(update=update)
+    return base.copy(update=update)

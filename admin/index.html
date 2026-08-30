@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=6">
+  <link rel="stylesheet" href="app.css?v=7">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -42,7 +42,7 @@
         <div class="nav-label">Сервис</div>
         <button type="button" data-tab="broadcast" data-title="Рассылка" data-lead="Сообщение всем, кто запускал бота">Рассылка</button>
         <button type="button" data-tab="backups" data-title="Бэкапы" data-lead="Дампы базы и восстановление">Бэкапы</button>
-        <button type="button" data-tab="settings" data-title="Настройки" data-lead="Текущий конфиг без секретов">Настройки</button>
+        <button type="button" data-tab="settings" data-title="Настройки" data-lead="Цены, устройства, триал и промо">Настройки</button>
       </nav>
       <button type="button" id="logout" class="ghost logout">Выйти</button>
     </aside>
@@ -273,8 +273,124 @@
         </section>
 
         <section id="tab-settings" class="hidden">
-          <p class="muted intro">Секреты не показываются. Изменение — через .env и перезапуск.</p>
-          <pre id="settingsBox"></pre>
+          <p class="muted intro">Меняется сразу, без правки .env. Токены, панель и база здесь не показываются.</p>
+          <form id="shopForm">
+            <div class="panel">
+              <h3>Бренд</h3>
+              <div class="form-grid">
+                <div>
+                  <label class="ops-label" for="setBrand">Название</label>
+                  <input id="setBrand" name="brand_name" type="text" maxlength="64" required>
+                </div>
+                <div>
+                  <label class="ops-label" for="setSupport">Поддержка (@username или ссылка)</label>
+                  <input id="setSupport" name="support_username" type="text" maxlength="80" required>
+                </div>
+                <div>
+                  <label class="ops-label" for="setOffer">Оферта</label>
+                  <input id="setOffer" name="legal_offer_url" type="url" required>
+                </div>
+                <div>
+                  <label class="ops-label" for="setPrivacy">Политика</label>
+                  <input id="setPrivacy" name="legal_privacy_url" type="url" required>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <h3>Устройства</h3>
+              <div class="form-grid">
+                <div>
+                  <label class="ops-label" for="setMaxDev">Максимум устройств в кабинете (0 = без лимита)</label>
+                  <input id="setMaxDev" name="max_devices" type="number" min="0" max="50" required>
+                </div>
+                <div>
+                  <label class="ops-label" for="setHwid">HWID на одно устройство (0 = без лимита)</label>
+                  <input id="setHwid" name="remnawave_hwid_limit" type="number" min="0" max="20" required>
+                </div>
+              </div>
+            </div>
+            <div class="panel shop-balance">
+              <h3>Цены и пополнение</h3>
+              <div class="form-grid">
+                <div>
+                  <label class="ops-label" for="setDayPrice">Сутки VPN, рубли</label>
+                  <input id="setDayPrice" name="vpn_day_price_rub" type="number" min="1" max="10000">
+                </div>
+                <div>
+                  <label class="ops-label" for="setTopMin">Пополнение от</label>
+                  <input id="setTopMin" name="balance_topup_min" type="number" min="1" required>
+                </div>
+                <div>
+                  <label class="ops-label" for="setTopMax">Пополнение до</label>
+                  <input id="setTopMax" name="balance_topup_max" type="number" min="1" required>
+                </div>
+                <div>
+                  <label class="ops-label" for="setTopStep">Шаг</label>
+                  <input id="setTopStep" name="balance_topup_step" type="number" min="1" required>
+                </div>
+                <div>
+                  <label class="ops-label" for="setRefRub">Награда за друга, рубли</label>
+                  <input id="setRefRub" name="referral_reward_rub" type="number" min="0" required>
+                </div>
+              </div>
+            </div>
+            <div class="panel shop-plans hidden">
+              <h3>Тарифы, рубли</h3>
+              <div class="form-grid">
+                <div>
+                  <label class="ops-label" for="setP1">1 месяц</label>
+                  <input id="setP1" name="plan_1m_rub" type="number" min="1" step="0.01">
+                </div>
+                <div>
+                  <label class="ops-label" for="setP3">3 месяца</label>
+                  <input id="setP3" name="plan_3m_rub" type="number" min="1" step="0.01">
+                </div>
+                <div>
+                  <label class="ops-label" for="setP6">6 месяцев</label>
+                  <input id="setP6" name="plan_6m_rub" type="number" min="1" step="0.01">
+                </div>
+                <div>
+                  <label class="ops-label" for="setP12">12 месяцев</label>
+                  <input id="setP12" name="plan_12m_rub" type="number" min="1" step="0.01">
+                </div>
+                <div>
+                  <label class="ops-label" for="setRefDays">Дни пригласившему</label>
+                  <input id="setRefDays" name="referral_reward_days" type="number" min="0">
+                </div>
+                <div>
+                  <label class="ops-label" for="setRefInvitee">Дни другу</label>
+                  <input id="setRefInvitee" name="referral_invitee_days" type="number" min="0">
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <h3>Триал и промо</h3>
+              <label class="check-row">
+                <input id="setTrialOn" name="trial_enabled" type="checkbox">
+                <span>Пробный период включён</span>
+              </label>
+              <div class="form-grid">
+                <div>
+                  <label class="ops-label" for="setTrialDays">Дней триала</label>
+                  <input id="setTrialDays" name="trial_days" type="number" min="1" max="90" required>
+                </div>
+                <div>
+                  <label class="ops-label" for="setReportCd">Пауза повторной жалобы VPN, секунды</label>
+                  <input id="setReportCd" name="vpn_report_cooldown_sec" type="number" min="0" max="86400" required>
+                </div>
+              </div>
+              <label class="check-row">
+                <input id="setPromoOn" name="promo_enabled" type="checkbox">
+                <span>Промокоды включены</span>
+              </label>
+              <label class="ops-label" for="setPromo">Промокоды (КОД:дни через запятую)</label>
+              <input id="setPromo" name="promo_codes" type="text" maxlength="2000">
+            </div>
+            <div class="ops">
+              <button type="submit">Сохранить</button>
+            </div>
+            <p id="shopOut" class="muted"></p>
+          </form>
         </section>
       </main>
     </div>
@@ -309,6 +425,6 @@
       <button type="button" id="delBtn" class="danger">Удалить пользователя</button>
     </div>
   </div>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
