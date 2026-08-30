@@ -3,6 +3,8 @@ let userPage = 1;
 let orderPage = 1;
 let refPage = 1;
 let currentUser = null;
+let selectedUsers = new Set();
+let lastUserItems = [];
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -167,10 +169,23 @@ async function loadUsers(page) {
   if (page) userPage = page;
   const q = $("userQ").value.trim();
   const data = await api(`/admin/api/users?q=${encodeURIComponent(q)}&page=${userPage}`);
+  lastUserItems = data.items || [];
   const body = $("userRows");
   body.innerHTML = "";
-  data.items.forEach((u) => {
+  lastUserItems.forEach((u) => {
     const tr = document.createElement("tr");
+    const tdCheck = document.createElement("td");
+    tdCheck.className = "check-col";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = selectedUsers.has(u.telegram_id);
+    cb.onchange = () => {
+      if (cb.checked) selectedUsers.add(u.telegram_id);
+      else selectedUsers.delete(u.telegram_id);
+      paintUserSel();
+    };
+    tdCheck.appendChild(cb);
+    tr.appendChild(tdCheck);
     const cells = [
       u.telegram_id + (u.username ? ` @${u.username}` : ""),
       u.first_name || "—",
@@ -198,6 +213,42 @@ async function loadUsers(page) {
     body.appendChild(tr);
   });
   pager($("userPager"), data.page, data.total, data.limit, loadUsers);
+  paintUserSel();
+}
+
+function paintUserSel() {
+  const n = selectedUsers.size;
+  $("userSelCount").textContent = "Выбрано: " + n;
+  const pageIds = lastUserItems.map((u) => u.telegram_id);
+  $("userSelectAll").checked = pageIds.length > 0 && pageIds.every((id) => selectedUsers.has(id));
+  $("userSelectAll").indeterminate =
+    pageIds.some((id) => selectedUsers.has(id)) && !$("userSelectAll").checked;
+}
+
+function bulkSummary(r) {
+  let text = `Готово: ${r.done} из ${r.total}`;
+  if (r.skipped) text += `, пропущено ${r.skipped}`;
+  if (r.failed) text += `, ошибок ${r.failed}`;
+  return text;
+}
+
+async function runBulk(payload, confirmText) {
+  if (!window.confirm(confirmText)) return;
+  $("bulkOut").textContent = "Выполняю...";
+  try {
+    const r = await api("/admin/api/users/bulk", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    $("bulkOut").textContent = bulkSummary(r);
+    if (payload.action === "delete") {
+      selectedUsers.clear();
+      $("modal").classList.add("hidden");
+    }
+    await loadUsers();
+  } catch (err) {
+    $("bulkOut").textContent = err.message || "Не удалось выполнить";
+  }
 }
 
 async function loadReferrals(page) {
@@ -314,11 +365,69 @@ $("logout").onclick = async () => {
 document.querySelectorAll("nav [data-tab]").forEach((b) => {
   b.onclick = () => switchTab(b.dataset.tab);
 });
-$("userSearch").onclick = () => loadUsers(1);
+$("userSearch").onclick = () => {
+  selectedUsers.clear();
+  loadUsers(1);
+};
 $("orderSearch").onclick = () => loadOrders(1);
 $("refSearch").onclick = () => loadReferrals(1);
 $("userQ").onkeydown = (e) => {
-  if (e.key === "Enter") loadUsers(1);
+  if (e.key === "Enter") {
+    selectedUsers.clear();
+    loadUsers(1);
+  }
+};
+$("userSelectAll").onchange = () => {
+  const on = $("userSelectAll").checked;
+  lastUserItems.forEach((u) => {
+    if (on) selectedUsers.add(u.telegram_id);
+    else selectedUsers.delete(u.telegram_id);
+  });
+  loadUsers();
+};
+$("bulkDelete").onclick = () => {
+  const ids = [...selectedUsers];
+  if (!ids.length) {
+    $("bulkOut").textContent = "Никого не выбрано";
+    return;
+  }
+  runBulk(
+    { action: "delete", ids },
+    `Удалить ${ids.length} пользователей? Доступ в панели будет отключён. Админы из списка пропускаются.`
+  );
+};
+$("bulkTrial").onclick = () => {
+  const ids = [...selectedUsers];
+  if (!ids.length) {
+    $("bulkOut").textContent = "Никого не выбрано";
+    return;
+  }
+  runBulk({ action: "trial_reset", ids }, `Сбросить бесплатный период у ${ids.length} пользователей?`);
+};
+$("bulkMsg").onclick = () => {
+  const ids = [...selectedUsers];
+  if (!ids.length) {
+    $("bulkOut").textContent = "Никого не выбрано";
+    return;
+  }
+  const text = window.prompt("Текст сообщения выбранным:");
+  if (text == null) return;
+  if (!String(text).trim()) {
+    $("bulkOut").textContent = "Пустой текст";
+    return;
+  }
+  runBulk(
+    { action: "message", ids, text: String(text).trim() },
+    `Отправить сообщение ${ids.length} пользователям?`
+  );
+};
+$("bulkDeleteMatch").onclick = () => {
+  const q = $("userQ").value.trim();
+  const label = q ? `по поиску «${q}»` : "всех в базе";
+  runBulk(
+    { action: "delete", all_matching: true, q },
+    `Удалить ${label}? Не больше 500 за раз. Админы пропускаются.`
+  );
 };
 $("orderQ").onkeydown = (e) => {
   if (e.key === "Enter") loadOrders(1);

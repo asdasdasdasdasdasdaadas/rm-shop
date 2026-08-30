@@ -570,6 +570,40 @@ async def admin_list_users(query: str, limit: int, offset: int) -> tuple[list[di
     return [_jsonable(dict(r)) for r in rows], int(total or 0)
 
 
+async def admin_user_ids(query: str, limit: int) -> tuple[list[int], int]:
+    pool = _pool_req()
+    q = query.strip()
+    where = ""
+    args: list = []
+    if q:
+        pattern = f"%{q}%"
+        where = """
+            WHERE u.username ILIKE $1 OR u.first_name ILIKE $1 OR u.telegram_id::text LIKE $1
+               OR u.referred_by::text LIKE $1 OR ref.username ILIKE $1 OR ref.first_name ILIKE $1
+        """
+        args.append(pattern)
+    total = await pool.fetchval(
+        f"""
+        SELECT COUNT(*)::int FROM users u
+        LEFT JOIN users ref ON ref.telegram_id = u.referred_by
+        {where}
+        """,
+        *args,
+    )
+    rows = await pool.fetch(
+        f"""
+        SELECT u.telegram_id FROM users u
+        LEFT JOIN users ref ON ref.telegram_id = u.referred_by
+        {where}
+        ORDER BY u.created_at DESC
+        LIMIT ${len(args) + 1}
+        """,
+        *args,
+        limit,
+    )
+    return [int(r["telegram_id"]) for r in rows], int(total or 0)
+
+
 async def admin_list_referrals(query: str, limit: int, offset: int) -> tuple[list[dict], int]:
     pool = _pool_req()
     q = query.strip()

@@ -209,15 +209,12 @@ async def api_balance(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "balance_rub": total})
 
 
-async def api_delete_user(request: web.Request) -> web.Response:
-    denied = _need_auth(request)
-    if denied:
-        return denied
-    telegram_id = int(request.match_info["telegram_id"])
+async def _purge_user(rw: RemnawaveClient, telegram_id: int) -> str:
+    if telegram_id in get_settings().admin_id_set:
+        return "skipped"
     local = await db.get_user(telegram_id)
     if not local:
-        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
-    rw: RemnawaveClient = request.app["rw"]
+        return "missing"
     panel_ids = []
     if local.get("remnawave_id"):
         panel_ids.append(int(local["remnawave_id"]))
@@ -230,8 +227,99 @@ async def api_delete_user(request: web.Request) -> web.Response:
         except RemnawaveError:
             logger.exception("Не удалось отключить панель %s при удалении %s", panel_id, telegram_id)
     if not await db.delete_user(telegram_id):
+        return "missing"
+    return "ok"
+
+
+async def api_delete_user(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    telegram_id = int(request.match_info["telegram_id"])
+    result = await _purge_user(request.app["rw"], telegram_id)
+    if result == "missing":
         return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    if result == "skipped":
+        return web.json_response({"ok": False, "error": "Админа удалить нельзя"}, status=400)
     return web.json_response({"ok": True})
+
+
+BULK_MAX = 500
+
+
+async def api_users_bulk(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    body = await request.json()
+    action = str(body.get("action") or "").strip()
+    if action not in {"delete", "trial_reset", "message"}:
+        return web.json_response({"ok": False, "error": "Неизвестное действие"}, status=400)
+    ids: list[int] = []
+    if body.get("all_matching"):
+        q = str(body.get("q") or "")
+        ids, total = await db.admin_user_ids(q, BULK_MAX + 1)
+        if total > BULK_MAX:
+            return web.json_response(
+                {
+                    "ok": False,
+                    "error": f"Слишком много совпадений ({total}). Уточните поиск, максимум {BULK_MAX}.",
+                },
+                status=400,
+            )
+    else:
+        raw = body.get("ids") or []
+        if not isinstance(raw, list) or not raw:
+            return web.json_response({"ok": False, "error": "Никого не выбрано"}, status=400)
+        for item in raw[: BULK_MAX + 1]:
+            try:
+                ids.append(int(item))
+            except (TypeError, ValueError):
+                continue
+        ids = list(dict.fromkeys(ids))
+        if len(ids) > BULK_MAX:
+            return web.json_response(
+                {"ok": False, "error": f"За раз не больше {BULK_MAX} пользователей"},
+                status=400,
+            )
+    if not ids:
+        return web.json_response({"ok": False, "error": "Никого не выбрано"}, status=400)
+    ok_n = 0
+    skipped = 0
+    failed = 0
+    rw: RemnawaveClient = request.app["rw"]
+    bot: Bot = request.app["bot"]
+    text = str(body.get("text") or "").strip()
+    if action == "message":
+        if not text:
+            return web.json_response({"ok": False, "error": "Пустой текст"}, status=400)
+        if len(text) > 3500:
+            return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
+    for telegram_id in ids:
+        try:
+            if action == "delete":
+                result = await _purge_user(rw, telegram_id)
+                if result == "ok":
+                    ok_n += 1
+                elif result == "skipped":
+                    skipped += 1
+                else:
+                    failed += 1
+            elif action == "trial_reset":
+                if await db.reset_trial(telegram_id):
+                    ok_n += 1
+                else:
+                    failed += 1
+            else:
+                await bot.send_message(telegram_id, text)
+                ok_n += 1
+                await asyncio.sleep(0.035)
+        except Exception:
+            logger.exception("Массовое действие %s не удалось для %s", action, telegram_id)
+            failed += 1
+    return web.json_response(
+        {"ok": True, "action": action, "done": ok_n, "skipped": skipped, "failed": failed, "total": len(ids)}
+    )
 
 
 async def api_trial_reset(request: web.Request) -> web.Response:
@@ -503,6 +591,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/session", api_session)
     app.router.add_get("/admin/api/stats", api_stats)
     app.router.add_get("/admin/api/users", api_users)
+    app.router.add_post("/admin/api/users/bulk", api_users_bulk)
     app.router.add_get("/admin/api/referrals", api_referrals)
     app.router.add_get("/admin/api/orders", api_orders)
     app.router.add_get("/admin/api/reports", api_reports)
