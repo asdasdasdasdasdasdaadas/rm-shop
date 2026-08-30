@@ -19,6 +19,7 @@ from app.sync import sync_all
 from app.maintenance import MaintenanceMiddleware
 from app.block import BlockedMiddleware
 from app.backup import backup_loop
+from app.nudge import trial_nudge_loop
 from app.web import start_http
 
 logging.basicConfig(
@@ -120,6 +121,7 @@ async def main() -> None:
         sync_task = asyncio.create_task(panel_sync_loop(rw), name="panel-sync")
         charge_task = asyncio.create_task(balance_charge_loop(rw, bot), name="balance-charge")
         dump_task = asyncio.create_task(backup_loop(bot), name="backup")
+        nudge_task = asyncio.create_task(trial_nudge_loop(bot), name="trial-nudge")
         try:
             await dp.start_polling(
                 bot,
@@ -130,6 +132,7 @@ async def main() -> None:
             sync_task.cancel()
             charge_task.cancel()
             dump_task.cancel()
+            nudge_task.cancel()
     finally:
         await runner.cleanup()
         if rp is not None:

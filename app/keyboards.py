@@ -149,6 +149,15 @@ def try_again_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def trial_nudge_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="Попробовать бесплатно", callback_data="trial", style="success")
+    )
+    add_cabinet_row(builder)
+    return builder.as_markup()
+
+
 def back_profile_keyboard(*, cabinet: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))

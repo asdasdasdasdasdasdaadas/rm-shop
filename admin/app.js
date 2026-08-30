@@ -87,10 +87,15 @@ function kv(box, map, empty) {
 function paintFlags(f) {
   const m = !!f.maintenance;
   const p = !!f.billing_paused;
+  const n = !!f.trial_nudge;
   $("maintBtn").textContent = m ? "Тех. работы: вкл" : "Тех. работы: выкл";
   $("maintBtn").classList.toggle("warn", m);
   $("billBtn").textContent = p ? "Тарификация: стоп" : "Тарификация: идёт";
   $("billBtn").classList.toggle("warn", p);
+  if ($("nudgeBtn")) {
+    $("nudgeBtn").textContent = n ? "Напоминание: вкл" : "Напоминание: выкл";
+    $("nudgeBtn").classList.toggle("warn", n);
+  }
   if (typeof f.maintenance_notice === "string") {
     $("maintNotice").value = f.maintenance_notice;
   }
@@ -111,6 +116,7 @@ function paintFlags(f) {
       : "";
   const fm = $("flagMaint");
   const fb = $("flagBill");
+  const fn = $("flagNudge");
   if (fm) {
     fm.textContent = m ? "Техработы" : "Сервис работает";
     fm.className = "flag " + (m ? "flag-warn" : "flag-ok");
@@ -118,6 +124,10 @@ function paintFlags(f) {
   if (fb) {
     fb.textContent = p ? "Тарификация на паузе" : "Тарификация идёт";
     fb.className = "flag " + (p ? "flag-warn" : "flag-ok");
+  }
+  if (fn) {
+    fn.textContent = n ? "Напоминание о триале" : "Напоминание о триале выкл";
+    fn.className = "flag " + (n ? "flag-warn" : "flag-ok");
   }
 }
 
@@ -769,6 +779,20 @@ $("billBtn").onclick = async () => {
   const next = !f.billing_paused;
   if (next && !window.confirm("Остановить тарификацию? Устройства останутся активными, плата списываться не будет.")) return;
   paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ billing_paused: next }) }));
+};
+
+$("nudgeBtn").onclick = async () => {
+  const f = await api("/admin/api/flags");
+  const next = !f.trial_nudge;
+  if (
+    next &&
+    !window.confirm(
+      "Включить напоминание? Тем, кто запустил бота больше суток назад и не брал пробный период, уйдёт сообщение."
+    )
+  ) {
+    return;
+  }
+  paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ trial_nudge: next }) }));
 };
 
 let subPoll = null;

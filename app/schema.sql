@@ -108,7 +108,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS trust_loans_open_uidx
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_nudge_sent_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS users_blocked_at_idx ON users (blocked_at) WHERE blocked_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS users_trial_nudge_idx ON users (created_at)
+    WHERE trial_nudge_sent_at IS NULL AND trial_used = FALSE;
 
 UPDATE users SET has_paid_topup = TRUE
 WHERE telegram_id IN (

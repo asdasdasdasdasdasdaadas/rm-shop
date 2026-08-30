@@ -462,6 +462,7 @@ async def api_settings(request: web.Request) -> web.Response:
             "referral_reward_rub": settings.referral_reward_rub,
             "maintenance": flags["maintenance"],
             "billing_paused": flags["billing_paused"],
+            "trial_nudge": flags.get("trial_nudge"),
             "maintenance_notice": flags.get("maintenance_notice") or "",
             "maintenance_has_photo": has_photo(),
             "plans": [
@@ -501,6 +502,8 @@ async def api_flags(request: web.Request) -> web.Response:
         await db.set_flag("maintenance", turning_on)
     if "billing_paused" in body:
         await db.set_flag("billing_paused", bool(body.get("billing_paused")))
+    if "trial_nudge" in body:
+        await db.set_flag("trial_nudge", bool(body.get("trial_nudge")))
     flags = await db.get_flags()
     return web.json_response({"ok": True, **flags, "maintenance_has_photo": has_photo()})
 

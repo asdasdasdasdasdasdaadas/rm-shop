@@ -315,6 +315,7 @@ async def get_flags() -> dict:
     return {
         "maintenance": _on("maintenance"),
         "billing_paused": _on("billing_paused"),
+        "trial_nudge": _on("trial_nudge"),
         "maintenance_notice": data.get("maintenance_notice") or "",
     }
 
@@ -785,6 +786,37 @@ async def reset_trial(telegram_id: int) -> bool:
         telegram_id,
     )
     return result == "UPDATE 1"
+
+
+async def claim_trial_nudge_batch(limit: int = 40) -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        WITH due AS (
+            SELECT u.telegram_id
+            FROM users u
+            WHERE u.trial_nudge_sent_at IS NULL
+              AND u.trial_used = FALSE
+              AND u.blocked_at IS NULL
+              AND u.remnawave_id IS NULL
+              AND COALESCE(u.has_paid_topup, FALSE) = FALSE
+              AND COALESCE(u.balance_rub, 0) = 0
+              AND u.created_at <= timezone('utc', now()) - INTERVAL '24 hours'
+              AND NOT EXISTS (
+                  SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
+              )
+            ORDER BY u.created_at
+            LIMIT $1
+        )
+        UPDATE users AS u
+        SET trial_nudge_sent_at = timezone('utc', now())
+        FROM due
+        WHERE u.telegram_id = due.telegram_id
+          AND u.trial_nudge_sent_at IS NULL
+        RETURNING u.telegram_id, u.first_name
+        """,
+        limit,
+    )
+    return [dict(r) for r in rows]
 
 
 async def list_broadcast_ids() -> list[int]:
