@@ -62,12 +62,16 @@ def profile_keyboard(*, trial_available: bool, has_access: bool) -> InlineKeyboa
     if trial_available:
         builder.row(InlineKeyboardButton(text="Попробовать бесплатно", callback_data="trial"))
     if settings.balance_enabled:
-        builder.row(InlineKeyboardButton(text="Пополнить баланс", callback_data="buy"))
         builder.row(
             InlineKeyboardButton(
-                text=f"Приведи друга — {rub_text(settings.referral_reward_rub)}",
+                text="Пополнить баланс",
+                callback_data="buy",
+                style="success",
+            ),
+            InlineKeyboardButton(
+                text="Приведи друга",
                 callback_data="share",
-            )
+            ),
         )
         builder.row(InlineKeyboardButton(text="Мой баланс", callback_data="my_sub"))
     else:
@@ -118,6 +122,7 @@ def buy_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text="Пополнить",
                 web_app=WebAppInfo(url=runtime.webapp_url),
+                style="success",
             )
         )
         builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
