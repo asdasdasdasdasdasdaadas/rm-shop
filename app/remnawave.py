@@ -168,6 +168,16 @@ class RemnawaveClient:
             raise RemnawaveError("Панель не вернула пользователя после создания")
         return users[0]
 
+    async def revoke_subscription(self, user: dict) -> dict:
+        uid = str(user.get("uuid") or "").strip()
+        if not uid:
+            raise RemnawaveError("В панели нет UUID пользователя")
+        data = await self._request("POST", f"/users/{uid}/actions/revoke", json={})
+        users = _as_users(data)
+        if not users:
+            raise RemnawaveError("Панель не вернула пользователя после перевыпуска ссылки")
+        return users[0]
+
     async def update_user(self, user: dict, patch: dict[str, Any]) -> dict:
         body = dict(patch)
         if user.get("id") is not None:

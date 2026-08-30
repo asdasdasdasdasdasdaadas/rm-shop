@@ -381,6 +381,55 @@ async def api_add_device(request: web.Request) -> web.Response:
     )
 
 
+async def api_reissue_device(request: web.Request) -> web.Response:
+    denied = await _if_down()
+    if denied:
+        return denied
+    settings = get_settings()
+    if not settings.balance_enabled:
+        return json_error("Баланс выключен")
+    try:
+        telegram_id = _user_id(request)
+    except ValueError:
+        return json_error("Недействительные данные Telegram", 401)
+    try:
+        device_id = int(request.match_info["device_id"])
+    except (KeyError, TypeError, ValueError):
+        return json_error("Устройство не найдено", 404)
+    item = await db.get_device(telegram_id, device_id)
+    if not item or not item.get("remnawave_id"):
+        return json_error("Устройство не найдено", 404)
+    rw: RemnawaveClient = request.app["rw"]
+    panel = await rw.get_user_by_id(int(item["remnawave_id"]))
+    if not panel:
+        return json_error("Устройство в панели не найдено", 404)
+    try:
+        user = await rw.revoke_subscription(panel)
+    except RemnawaveError as exc:
+        return json_error(str(exc), 502)
+    return web.json_response({"ok": True, "subscription_url": user.get("subscriptionUrl") or ""})
+
+
+async def api_reissue_subscription(request: web.Request) -> web.Response:
+    denied = await _if_down()
+    if denied:
+        return denied
+    try:
+        telegram_id = _user_id(request)
+    except ValueError:
+        return json_error("Недействительные данные Telegram", 401)
+    rw: RemnawaveClient = request.app["rw"]
+    panel = await fetch_panel(rw, telegram_id)
+    if not panel:
+        return json_error("Подписка ещё не создана")
+    try:
+        user = await rw.revoke_subscription(panel)
+    except RemnawaveError as exc:
+        return json_error(str(exc), 502)
+    await db.save_panel_snapshot(telegram_id, user)
+    return web.json_response({"ok": True, "subscription_url": user.get("subscriptionUrl") or ""})
+
+
 async def api_vpn_report(request: web.Request) -> web.Response:
     denied = await _if_down()
     if denied:
@@ -495,6 +544,8 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/invoice", api_invoice)
         app.router.add_post("/api/promo", api_promo)
         app.router.add_post("/api/devices", api_add_device)
+        app.router.add_post("/api/devices/{device_id}/reissue", api_reissue_device)
+        app.router.add_post("/api/subscription/reissue", api_reissue_subscription)
         app.router.add_post("/api/trust", api_trust)
         app.router.add_post("/api/vpn-report", api_vpn_report)
         app.router.add_static("/static", WEBAPP_DIR)

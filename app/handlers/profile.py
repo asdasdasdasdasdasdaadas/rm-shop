@@ -196,6 +196,40 @@ async def connect(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     )
 
 
+@router.callback_query(F.data == "reissue_sub")
+async def reissue_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
+    if not await gate_or_continue(callback):
+        return
+    await ack(callback)
+    settings = get_settings()
+    if settings.balance_enabled:
+        await callback.message.edit_text(
+            "Ссылку подписки можно перевыпустить в личном кабинете, на экране устройства.",
+            reply_markup=back_profile_keyboard(),
+        )
+        return
+    try:
+        user = await _panel_user(rw, callback.from_user.id)
+        if not user:
+            await callback.message.edit_text(
+                "Подписка ещё не создана.",
+                reply_markup=buy_keyboard(),
+            )
+            return
+        user = await rw.revoke_subscription(user)
+    except RemnawaveError as exc:
+        await callback.message.edit_text(str(exc), reply_markup=back_profile_keyboard())
+        return
+    await db.save_panel_snapshot(callback.from_user.id, user)
+    sub_url = user.get("subscriptionUrl") or ""
+    await callback.message.edit_text(
+        "<b>Ссылка перевыпущена</b>\n\n"
+        "Старая больше не действует. Обновите подписку в клиенте.\n\n"
+        f"<code>{sub_url}</code>",
+        reply_markup=connect_keyboard(sub_url) if sub_url else back_profile_keyboard(),
+    )
+
+
 @router.callback_query(F.data == "buy")
 async def buy_menu(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await gate_or_continue(callback):

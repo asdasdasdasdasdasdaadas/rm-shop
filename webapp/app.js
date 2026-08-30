@@ -6,6 +6,7 @@ const tg = window.Telegram && window.Telegram.WebApp
       initData: "",
       colorScheme: "light",
       showAlert: (m) => window.alert(m),
+      showConfirm: (m, cb) => cb(window.confirm(m)),
       openLink: (u) => window.open(u, "_blank"),
       openTelegramLink: (u) => window.open(u, "_blank"),
       openInvoice() {},
@@ -635,8 +636,14 @@ function renderConnect(me) {
   };
   copyRow.onclick = copy;
   copyBtn.onclick = copy;
+  const reissueBtn = document.createElement("button");
+  reissueBtn.type = "button";
+  reissueBtn.className = "cell action";
+  reissueBtn.textContent = "Перевыпустить ссылку";
+  reissueBtn.onclick = () => reissueSubscription();
   body.appendChild(copyRow);
   body.appendChild(copyBtn);
+  body.appendChild(reissueBtn);
 }
 
 function renderDevices(me) {
@@ -885,6 +892,42 @@ $("devOpen").onclick = () => {
   const d = openDevice;
   if (!d || !d.subscription_url) return;
   openClient(d.client, d.subscription_url);
+};
+
+function askReissue() {
+  return new Promise((resolve) => {
+    const msg = "Старая ссылка перестанет работать. Перевыпустить?";
+    if (typeof tg.showConfirm === "function") {
+      tg.showConfirm(msg, (ok) => resolve(Boolean(ok)));
+      return;
+    }
+    resolve(window.confirm(msg));
+  });
+}
+
+async function reissueSubscription(deviceId) {
+  haptic();
+  if (!(await askReissue())) return;
+  try {
+    const path = deviceId
+      ? `/api/devices/${deviceId}/reissue`
+      : "/api/subscription/reissue";
+    const data = await api(path, { method: "POST", body: "{}" });
+    if (deviceId && openDevice && openDevice.id === deviceId) {
+      openDevice.subscription_url = data.subscription_url || "";
+      $("devUrl").textContent = openDevice.subscription_url || "Ссылка появится после создания";
+    }
+    await load();
+    tg.showAlert("Ссылка перевыпущена. Обновите подписку в клиенте.");
+  } catch (e) {
+    showErr(e);
+  }
+}
+
+$("devReissue").onclick = () => {
+  const d = openDevice;
+  if (!d) return;
+  reissueSubscription(d.id);
 };
 
 $("vpnDown").onclick = async () => {

@@ -139,6 +139,7 @@ def connect_keyboard(sub_url: str) -> InlineKeyboardMarkup:
     if sub_url.startswith("http://") or sub_url.startswith("https://"):
         builder.row(InlineKeyboardButton(text="Открыть ссылку подписки", url=sub_url))
     buy_title = "Пополнить баланс" if get_settings().balance_enabled else "Купить подписку"
+    builder.row(InlineKeyboardButton(text="Перевыпустить ссылку", callback_data="reissue_sub"))
     builder.row(InlineKeyboardButton(text=buy_title, callback_data="buy"))
     builder.row(InlineKeyboardButton(text="VPN не работает", callback_data="vpn_down"))
     builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
