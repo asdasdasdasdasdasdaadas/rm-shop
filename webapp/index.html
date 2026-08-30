@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=16">
+  <link rel="stylesheet" href="app.css?v=17">
 </head>
 <body>
   <div id="boot" class="state">
@@ -253,8 +253,14 @@
     </div>
 
     <div id="view-wizard" class="view hidden">
+      <div id="wizProgress" class="wiz-progress">
+        <div class="wiz-seg"><i id="wizPf1"></i></div>
+        <div class="wiz-seg"><i id="wizPf2"></i></div>
+        <div class="wiz-seg"><i id="wizPf3"></i></div>
+      </div>
       <p id="wizStep" class="wiz-kicker">Шаг 1 из 3</p>
-      <h1 id="wizTitle" class="wiz-title">Выбор устройства</h1>
+      <h1 id="wizTitle" class="wiz-title">На чём подключаемся?</h1>
+      <p id="wizLead" class="topup-hint"></p>
       <div id="wizBody"></div>
       <p id="wizHint" class="section-note"></p>
     </div>
@@ -293,6 +299,13 @@
   </div>
   <div id="menuScrim" class="scrim hidden"></div>
 
-  <script src="app.js?v=16"></script>
+  <div id="qrSheet" class="sheet wiz-qr hidden">
+    <div class="wiz-qr-title">QR-код</div>
+    <img id="qrImg" class="wiz-qr-img" alt="QR">
+    <button type="button" id="qrClose" class="btn btn-ghost">Закрыть</button>
+  </div>
+  <div id="qrScrim" class="scrim hidden"></div>
+
+  <script src="app.js?v=17"></script>
 </body>
 </html>

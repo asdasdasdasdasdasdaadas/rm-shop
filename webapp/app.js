@@ -33,12 +33,12 @@ tg.expand();
 const $ = (id) => document.getElementById(id);
 
 const PLATFORMS = [
-  { id: "ios", title: "iPhone, iPad", hint: "IPHONE, IPAD" },
-  { id: "android", title: "Android", hint: "ANDROID" },
-  { id: "macos", title: "macOS", hint: "MACOS" },
-  { id: "windows", title: "Windows", hint: "WINDOWS" },
-  { id: "androidtv", title: "Android TV", hint: "ANDROID TV" },
-  { id: "appletv", title: "Apple TV", hint: "APPLE TV" },
+  { id: "ios", title: "iPhone, iPad", hint: "IPHONE, IPAD", sub: "iOS 15+" },
+  { id: "android", title: "Android", hint: "ANDROID", sub: "8.0+" },
+  { id: "macos", title: "macOS", hint: "MACOS", sub: "12+" },
+  { id: "windows", title: "Windows", hint: "WINDOWS", sub: "10/11" },
+  { id: "androidtv", title: "Android TV", hint: "ANDROID TV", sub: "Смарт-ТВ" },
+  { id: "appletv", title: "Apple TV", hint: "APPLE TV", sub: "tvOS" },
 ];
 
 const CLIENTS = {
@@ -101,6 +101,86 @@ function platformLabel(id) {
 
 function clientLabel(id) {
   return (CLIENTS[id] && CLIENTS[id].name) || id || "—";
+}
+
+function platformSub(id) {
+  const p = PLATFORMS.find((x) => x.id === id);
+  return p && p.sub ? p.sub : "";
+}
+
+function nameChips(platform) {
+  if (platform === "ios") return ["Мой iPhone", "Рабочий телефон", "Домашний iPad", "iPhone мамы"];
+  if (platform === "android") return ["Мой Android", "Рабочий телефон", "Планшет"];
+  if (platform === "macos") return ["MacBook", "iMac", "Рабочий Mac"];
+  if (platform === "windows") return ["Ноутбук", "Рабочий ПК", "Домашний ПК"];
+  if (platform === "androidtv") return ["Телевизор", "Android TV"];
+  if (platform === "appletv") return ["Apple TV", "Гостиная"];
+  return ["Моё устройство"];
+}
+
+function storeCaption(url) {
+  if (!url) return "Скачать";
+  if (url.indexOf("apple.com") >= 0) return "Открыть в App Store";
+  if (url.indexOf("google.com") >= 0) return "Открыть в Google Play";
+  return "Скачать";
+}
+
+function step2Hint(platform) {
+  if (platform === "ios") {
+    return "Для iPhone и iPad рекомендуем Incy — быстрее ставится и стабильнее держит соединение.";
+  }
+  if (platform === "android" || platform === "androidtv") {
+    return "Для Android рекомендуем Happ — ставится из магазина и просто принимает ссылку.";
+  }
+  if (platform === "macos" || platform === "appletv") {
+    return "Для Apple рекомендуем Incy, если доступен. Иначе Happ.";
+  }
+  return "Выберите клиент под вашу систему. Если уже установлен — сразу нажмите «Продолжить».";
+}
+
+function platIconSvg(id) {
+  if (id === "ios") {
+    return '<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg>';
+  }
+  if (id === "android") {
+    return '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="7" width="16" height="14" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 7V4M16 7V4M4 12h16" stroke="currentColor" stroke-width="1.8"/></svg>';
+  }
+  if (id === "macos") {
+    return '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="1.8"/></svg>';
+  }
+  if (id === "windows") {
+    return '<svg viewBox="0 0 24 24" fill="none"><path d="M3 6l8-1v7H3V6zM12 5l9-1v8h-9V5zM3 13h8v7l-8-1v-6zM12 13h9v8l-9-1v-7z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+  }
+  if (id === "androidtv") {
+    return '<svg viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 21h8" stroke="currentColor" stroke-width="1.8"/></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="11.5" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 21h8" stroke="currentColor" stroke-width="1.8"/></svg>';
+}
+
+function setWizProgress(step) {
+  const bar = $("wizProgress");
+  if (step >= 4) {
+    bar.classList.add("hidden");
+    return;
+  }
+  bar.classList.remove("hidden");
+  [1, 2, 3].forEach((n) => {
+    $("wizPf" + n).style.width = n <= step ? "100%" : "0%";
+  });
+}
+
+function hideQr() {
+  $("qrSheet").classList.add("hidden");
+  $("qrScrim").classList.add("hidden");
+}
+
+function showQr(url) {
+  if (!url) return;
+  $("qrImg").src =
+    "https://api.qrserver.com/v1/create-qr-code/?size=240x240&bgcolor=0d1611&color=5fd68b&qzone=2&data=" +
+    encodeURIComponent(url);
+  $("qrSheet").classList.remove("hidden");
+  $("qrScrim").classList.remove("hidden");
 }
 
 function applyTheme() {
@@ -500,6 +580,10 @@ function updateTopupCta(me) {
 function onBack() {
   haptic();
   if (screen === "wizard") {
+    if (!$("qrSheet").classList.contains("hidden")) {
+      hideQr();
+      return;
+    }
     if (wiz.step > 1 && !wiz.url) {
       wiz.step -= 1;
       renderWizard();
@@ -638,6 +722,7 @@ function renderTopup(me) {
 }
 
 function closeWizard() {
+  hideQr();
   wiz.step = 1;
   wiz.url = "";
   openHome();
@@ -662,43 +747,53 @@ function startWizard() {
 
 function renderWizard() {
   const body = $("wizBody");
+  const lead = $("wizLead");
   body.innerHTML = "";
   $("wizHint").textContent = "";
+  lead.textContent = "";
+  const oldOk = $("wizOkFloat");
+  if (oldOk) oldOk.remove();
+  if (wiz.url) wiz.step = 4;
+  $("wizStep").classList.toggle("hidden", wiz.step >= 4);
   replayAnim($("wizTitle"), "title-in");
+  setWizProgress(wiz.step);
+
   if (wiz.step === 1) {
     $("wizStep").textContent = "Шаг 1 из 3";
-    $("wizTitle").textContent = "Выбор устройства";
-    const group = document.createElement("section");
-    group.className = "group";
+    $("wizTitle").textContent = "На чём подключаемся?";
+    lead.textContent = "Выберите устройство — настроим ссылку и подсказки именно под него.";
+    const grid = document.createElement("div");
+    grid.className = "plat-grid";
     PLATFORMS.forEach((p) => {
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "cell nav";
-      b.style.justifyContent = "space-between";
-      const main = document.createElement("div");
-      main.className = "plan-main";
-      const t = document.createElement("div");
-      t.className = "plan-title";
-      t.textContent = p.title;
-      const s = document.createElement("div");
-      s.className = "plan-sub";
-      s.textContent = p.hint;
-      main.appendChild(t);
-      main.appendChild(s);
-      const r = document.createElement("span");
-      r.className = "radio" + (wiz.platform === p.id ? " on" : "");
-      b.appendChild(main);
-      b.appendChild(r);
+      b.className = "plat-card" + (wiz.platform === p.id ? " on" : "");
+      const check = document.createElement("span");
+      check.className = "plat-check";
+      const icon = document.createElement("div");
+      icon.className = "plat-icon";
+      icon.innerHTML = platIconSvg(p.id);
+      const name = document.createElement("div");
+      name.className = "plat-name";
+      name.textContent = p.title;
+      const sub = document.createElement("div");
+      sub.className = "plat-sub";
+      sub.textContent = p.sub || "";
+      b.appendChild(check);
+      b.appendChild(icon);
+      b.appendChild(name);
+      b.appendChild(sub);
       b.onclick = () => {
         haptic();
         wiz.platform = p.id;
         const first = clientsFor(p.id)[0];
         wiz.client = first ? first.id : "happ";
+        wiz.title = "";
         renderWizard();
       };
-      group.appendChild(b);
+      grid.appendChild(b);
     });
-    body.appendChild(group);
+    body.appendChild(grid);
     replayAnim(body, "wiz-swap");
     setMain("Продолжить", () => {
       haptic();
@@ -707,58 +802,63 @@ function renderWizard() {
     });
     return;
   }
+
   if (wiz.step === 2) {
     $("wizStep").textContent = "Шаг 2 из 3";
-    $("wizTitle").textContent = "Установите приложение";
+    $("wizTitle").textContent = "Установи приложение";
+    lead.textContent = step2Hint(wiz.platform);
     const list = clientsFor(wiz.platform);
-    const group = document.createElement("section");
-    group.className = "group";
-    list.forEach((c) => {
-      const row = document.createElement("div");
-      row.className = "cell client-row";
-      const icon = document.createElement("div");
-      icon.className = "client-icon";
-      icon.textContent = c.mark;
-      const main = document.createElement("div");
-      main.className = "plan-main";
+    list.forEach((c, i) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "wiz-app" + (wiz.client === c.id ? " on" : "");
+      const logo = document.createElement("div");
+      logo.className = "wiz-app-logo" + (i === 0 ? "" : " muted");
+      logo.textContent = c.mark;
+      const info = document.createElement("div");
+      info.className = "wiz-app-info";
       const t = document.createElement("div");
-      t.className = "plan-title";
-      t.textContent = c.name;
+      t.className = "wiz-app-name";
+      t.appendChild(document.createTextNode(c.name));
+      if (i === 0) {
+        const rec = document.createElement("span");
+        rec.className = "rec-badge";
+        rec.textContent = "Рекомендуем";
+        t.appendChild(rec);
+      }
       const s = document.createElement("div");
-      s.className = "plan-sub";
-      s.textContent = "ДЛЯ " + platformLabel(wiz.platform).toUpperCase();
-      main.appendChild(t);
-      main.appendChild(s);
+      s.className = "wiz-app-sub";
+      s.textContent = "Для " + platformLabel(wiz.platform);
+      info.appendChild(t);
+      info.appendChild(s);
       const store = c.stores[wiz.platform];
       if (store) {
-        const a = document.createElement("a");
-        a.className = "store-link";
-        a.href = store;
-        a.textContent = store.indexOf("apple.com") >= 0 ? "App Store" : store.indexOf("google.com") >= 0 ? "Google Play" : "Скачать";
+        const a = document.createElement("button");
+        a.type = "button";
+        a.className = "wiz-app-store";
+        a.textContent = storeCaption(store);
         a.onclick = (e) => {
-          e.preventDefault();
+          e.stopPropagation();
           haptic();
           tg.openLink(store);
         };
-        main.appendChild(a);
+        info.appendChild(a);
       }
       const mark = document.createElement("span");
-      mark.className = (wiz.client === c.id ? "check on" : "check");
-      row.appendChild(icon);
-      row.appendChild(main);
+      mark.className = "radio" + (wiz.client === c.id ? " on" : "");
+      row.appendChild(logo);
+      row.appendChild(info);
       row.appendChild(mark);
-      row.onclick = (e) => {
-        if (e.target.closest("a")) return;
+      row.onclick = () => {
         haptic();
         wiz.client = c.id;
         renderWizard();
       };
-      group.appendChild(row);
+      body.appendChild(row);
     });
-    body.appendChild(group);
-    replayAnim(body, "wiz-swap");
     $("wizHint").textContent =
-      "Приложение можно сменить в любой момент. Если уже установлено, нажмите «Продолжить».";
+      "Приложение можно сменить в любой момент. Уже установлено? Нажмите «Продолжить».";
+    replayAnim(body, "wiz-swap");
     setMain("Продолжить с " + clientLabel(wiz.client), () => {
       haptic();
       wiz.step = 3;
@@ -767,97 +867,185 @@ function renderWizard() {
     return;
   }
 
-  $("wizStep").textContent = "Шаг 3 из 3";
-  $("wizTitle").textContent = wiz.url ? "Приятного пользования" : "Имя устройства";
-  const group = document.createElement("section");
-  group.className = "group";
-  if (wiz.url) {
-    const lab = document.createElement("div");
-    lab.className = "cell static";
-    lab.innerHTML = `<span class="cell-label">Ваша ссылка для ${clientLabel(wiz.client)}</span>`;
-    const url = document.createElement("div");
-    url.className = "cell url-box";
-    url.textContent = wiz.url;
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.className = "cell action";
-    copy.textContent = "Скопировать";
-    copy.onclick = () => {
-      haptic();
-      navigator.clipboard.writeText(wiz.url);
-      tg.showAlert("Ссылка скопирована");
+  if (wiz.step === 3) {
+    $("wizStep").textContent = "Шаг 3 из 3";
+    $("wizTitle").textContent = "Как назовём устройство?";
+    lead.textContent = "Пригодится, если подключите несколько гаджетов — так проще не запутаться.";
+    const chips = nameChips(wiz.platform);
+    if (!(wiz.title || "").trim()) wiz.title = chips[0] || defaultTitle();
+    const box = document.createElement("div");
+    box.className = "wiz-name-box";
+    const lab = document.createElement("label");
+    lab.setAttribute("for", "devName");
+    lab.textContent = "Название устройства";
+    const input = document.createElement("input");
+    input.id = "devName";
+    input.type = "text";
+    input.placeholder = "например: мой iPhone";
+    input.value = wiz.title;
+    input.autocomplete = "off";
+    box.appendChild(lab);
+    box.appendChild(input);
+    const chipWrap = document.createElement("div");
+    chipWrap.className = "wiz-chips";
+    const paintChips = () => {
+      chipWrap.querySelectorAll(".wiz-chip").forEach((el) => {
+        el.classList.toggle("on", el.textContent === (wiz.title || "").trim());
+      });
     };
-    const open = document.createElement("button");
-    open.type = "button";
-    open.className = "cell action";
-    open.textContent = "Открыть в " + clientLabel(wiz.client);
-    open.onclick = () => openClient(wiz.client, wiz.url);
-    group.appendChild(lab);
-    group.appendChild(url);
-    group.appendChild(copy);
-    group.appendChild(open);
-  }
-  const field = document.createElement("div");
-  field.className = "cell field";
-  const input = document.createElement("input");
-  input.id = "devName";
-  input.type = "text";
-  input.placeholder = "например: мой iPhone";
-  input.value = wiz.title;
-  input.oninput = () => {
-    wiz.title = input.value;
-  };
-  field.appendChild(input);
-  if (!wiz.url) {
-    const cap = document.createElement("div");
-    cap.className = "cell static";
-    cap.innerHTML = '<span class="cell-label">Назовите устройство</span>';
-    group.appendChild(cap);
-  } else {
-    const cap = document.createElement("div");
-    cap.className = "cell static";
-    cap.innerHTML = '<span class="cell-label">Название</span>';
-    group.appendChild(cap);
-  }
-  group.appendChild(field);
-  body.appendChild(group);
-  replayAnim(body, "wiz-swap");
-  $("wizHint").textContent = "Ссылку можно вставить вручную в Happ или Incy.";
-  if (wiz.url) {
-    setMain("Готово", () => {
+    chips.forEach((label) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "wiz-chip";
+      chip.textContent = label;
+      chip.onclick = () => {
+        haptic();
+        wiz.title = label;
+        input.value = label;
+        paintChips();
+      };
+      chipWrap.appendChild(chip);
+    });
+    input.oninput = () => {
+      wiz.title = input.value;
+      paintChips();
+    };
+    body.appendChild(box);
+    body.appendChild(chipWrap);
+    paintChips();
+    replayAnim(body, "wiz-swap");
+    setMain("Создать", async () => {
       haptic();
-      closeWizard();
-      load().catch(() => {});
+      const title = (wiz.title || "").trim() || defaultTitle();
+      try {
+        setMainBusy(true);
+        const created = await api("/api/devices", {
+          method: "POST",
+          body: JSON.stringify({
+            title,
+            platform: wiz.platform,
+            client: wiz.client,
+          }),
+        });
+        wiz.title = title;
+        wiz.url = created.subscription_url || "";
+        wiz.step = 4;
+        await load();
+        renderWizard();
+      } catch (e) {
+        showErr(e);
+      } finally {
+        setMainBusy(false);
+      }
     });
     return;
   }
-  setMain("Создать", async () => {
+
+  $("wizStep").textContent = "";
+  $("wizTitle").textContent = "Готово, можно пользоваться";
+  lead.textContent =
+    "Ссылка привязана к «" +
+    wiz.title +
+    "». Откройте её в " +
+    clientLabel(wiz.client) +
+    " — VPN подключится.";
+  const ok = document.createElement("div");
+  ok.id = "wizOkFloat";
+  ok.className = "wiz-ok";
+  ok.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  $("wizTitle").parentNode.insertBefore(ok, $("wizTitle"));
+  const recap = document.createElement("div");
+  recap.className = "wiz-recap";
+  const recIcon = document.createElement("div");
+  recIcon.className = "plat-icon";
+  recIcon.innerHTML = platIconSvg(wiz.platform);
+  const recTxt = document.createElement("span");
+  const recB = document.createElement("b");
+  recB.textContent = wiz.title || defaultTitle();
+  recTxt.appendChild(recB);
+  recTxt.appendChild(
+    document.createTextNode(
+      " · " + platformLabel(wiz.platform) + " · через " + clientLabel(wiz.client)
+    )
+  );
+  recap.appendChild(recIcon);
+  recap.appendChild(recTxt);
+
+  const link = document.createElement("div");
+  link.className = "wiz-link";
+  const lbl = document.createElement("div");
+  lbl.className = "wiz-link-lbl";
+  lbl.textContent = "Ссылка для " + clientLabel(wiz.client);
+  const row = document.createElement("div");
+  row.className = "wiz-link-row";
+  const urlEl = document.createElement("div");
+  urlEl.className = "wiz-link-text";
+  urlEl.textContent = wiz.url || "";
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "wiz-copy";
+  copy.textContent = "Копировать";
+  copy.onclick = () => {
     haptic();
-    const title = (wiz.title || "").trim() || defaultTitle();
-    try {
-      setMainBusy(true);
-      const created = await api("/api/devices", {
-        method: "POST",
-        body: JSON.stringify({
-          title,
-          platform: wiz.platform,
-          client: wiz.client,
-        }),
-      });
-      wiz.title = title;
-      wiz.url = created.subscription_url || "";
-      await load();
-      renderWizard();
-    } catch (e) {
-      showErr(e);
-    } finally {
-      setMainBusy(false);
-    }
+    navigator.clipboard.writeText(wiz.url || "").then(() => {
+      copy.classList.add("on");
+      copy.textContent = "Скопировано";
+      setTimeout(() => {
+        copy.classList.remove("on");
+        copy.textContent = "Копировать";
+      }, 1600);
+    }).catch(() => tg.showAlert("Не удалось скопировать"));
+  };
+  row.appendChild(urlEl);
+  row.appendChild(copy);
+  link.appendChild(lbl);
+  link.appendChild(row);
+
+  const tiles = document.createElement("div");
+  tiles.className = "wiz-tiles";
+  const openTile = document.createElement("button");
+  openTile.type = "button";
+  openTile.className = "wiz-tile";
+  openTile.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+  const openLab = document.createElement("div");
+  openLab.className = "lab";
+  openLab.textContent = "Открыть в " + clientLabel(wiz.client);
+  openTile.appendChild(openLab);
+  openTile.onclick = () => openClient(wiz.client, wiz.url);
+  const qrTile = document.createElement("button");
+  qrTile.type = "button";
+  qrTile.className = "wiz-tile";
+  qrTile.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.8"/><path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 21h3M21 14v3" stroke="currentColor" stroke-width="1.8"/></svg>';
+  const qrLab = document.createElement("div");
+  qrLab.className = "lab";
+  qrLab.textContent = "Показать QR";
+  qrTile.appendChild(qrLab);
+  qrTile.onclick = () => {
+    haptic();
+    showQr(wiz.url);
+  };
+  tiles.appendChild(openTile);
+  tiles.appendChild(qrTile);
+
+  body.appendChild(recap);
+  body.appendChild(link);
+  body.appendChild(tiles);
+  $("wizHint").textContent =
+    "Ссылку можно вставить вручную в Happ или Incy — она не сгорает.";
+  replayAnim(body, "wiz-swap");
+  setMain("Готово", () => {
+    haptic();
+    closeWizard();
+    load().catch(() => {});
   });
 }
 
 function defaultTitle() {
-  return "Устройство " + platformLabel(wiz.platform);
+  const chips = nameChips(wiz.platform);
+  return chips[0] || ("Устройство " + platformLabel(wiz.platform));
 }
 
 function openClient(client, url) {
@@ -1274,6 +1462,9 @@ $("supportBtn").onclick = () => {
 };
 
 $("intro").onclick = () => finishIntro();
+
+$("qrClose").onclick = () => hideQr();
+$("qrScrim").onclick = () => hideQr();
 
 $("retryBtn").onclick = () => {
   showBoot();
