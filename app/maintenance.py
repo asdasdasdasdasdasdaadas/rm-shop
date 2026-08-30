@@ -179,10 +179,9 @@ class MaintenanceMiddleware(BaseMiddleware):
             return await handler(event, data)
         bot: Bot | None = data.get("bot")
         chat_id = _chat_id(inner)
-        notice = await current_text()
         if isinstance(inner, CallbackQuery):
             try:
-                await inner.answer(notice[:200], show_alert=True)
+                await inner.answer()
             except Exception:
                 logger.debug("Не удалось ответить на callback при техработах", exc_info=True)
         if bot and chat_id:
