@@ -251,7 +251,20 @@ function showErr(err) {
   tg.showAlert(err.message || String(err));
 }
 
+const INTRO_KEY = "way_intro_v1";
+let introTimer = 0;
+let introShown = false;
+
+function hideIntro() {
+  if (introTimer) {
+    clearTimeout(introTimer);
+    introTimer = 0;
+  }
+  $("intro").classList.add("hidden");
+}
+
 function showBoot() {
+  hideIntro();
   $("boot").classList.remove("hidden");
   $("fail").classList.add("hidden");
   $("maint").classList.add("hidden");
@@ -259,6 +272,7 @@ function showBoot() {
 }
 
 function showFail(message) {
+  hideIntro();
   $("boot").classList.add("hidden");
   $("app").classList.add("hidden");
   $("maint").classList.add("hidden");
@@ -267,6 +281,7 @@ function showFail(message) {
 }
 
 function showMaint(notice) {
+  hideIntro();
   $("boot").classList.add("hidden");
   $("fail").classList.add("hidden");
   $("app").classList.add("hidden");
@@ -279,11 +294,76 @@ function showMaint(notice) {
 }
 
 function showApp() {
+  hideIntro();
   $("boot").classList.add("hidden");
   $("fail").classList.add("hidden");
   $("maint").classList.add("hidden");
   $("app").classList.remove("hidden");
   replayAnim($("app"), "app-in");
+}
+
+function introSeen() {
+  try {
+    return sessionStorage.getItem(INTRO_KEY) === "1";
+  } catch (_e) {
+    return introShown;
+  }
+}
+
+function markIntroSeen() {
+  introShown = true;
+  try {
+    sessionStorage.setItem(INTRO_KEY, "1");
+  } catch (_e) {}
+}
+
+function finishIntro() {
+  if (introTimer) {
+    clearTimeout(introTimer);
+    introTimer = 0;
+  }
+  markIntroSeen();
+  showApp();
+}
+
+function reducedMotion() {
+  return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function shouldShowIntro() {
+  return !introSeen();
+}
+
+function showIntro(me) {
+  const user = me.user || {};
+  const name = (user.name || "").trim() || "друг";
+  const nick = (user.username || "").trim();
+  $("introHello").textContent = "Привет";
+  $("introName").textContent = name;
+  const nickEl = $("introNick");
+  nickEl.textContent = nick;
+  nickEl.classList.toggle("hidden", !nick);
+  const av = $("introAvatar");
+  const fb = $("introFallback");
+  if (user.photo) {
+    av.src = user.photo;
+    av.classList.remove("hidden");
+    fb.classList.add("hidden");
+  } else {
+    av.removeAttribute("src");
+    av.classList.add("hidden");
+    fb.textContent = (name.charAt(0) || "?").toUpperCase();
+    fb.classList.remove("hidden");
+  }
+  $("boot").classList.add("hidden");
+  $("fail").classList.add("hidden");
+  $("maint").classList.add("hidden");
+  $("app").classList.add("hidden");
+  $("intro").classList.remove("hidden");
+  try {
+    tg.HapticFeedback.impactOccurred("light");
+  } catch (_e) {}
+  introTimer = setTimeout(finishIntro, reducedMotion() ? 400 : 2400);
 }
 
 let mainFn = null;
@@ -838,7 +918,9 @@ function paint(me) {
       $("devUrl").textContent = fresh.subscription_url || "Ссылка появится после создания";
     }
   }
-  showApp();
+  if (!$("intro").classList.contains("hidden")) return;
+  if (shouldShowIntro()) showIntro(me);
+  else showApp();
 }
 
 async function load() {
@@ -1024,6 +1106,8 @@ $("supportBtn").onclick = () => {
   const url = (window.__me && window.__me.legal && window.__me.legal.support) || $("supportLink").href;
   if (url) tg.openTelegramLink(url);
 };
+
+$("intro").onclick = () => finishIntro();
 
 $("retryBtn").onclick = () => {
   showBoot();

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=13">
+  <link rel="stylesheet" href="app.css?v=15">
 </head>
 <body>
   <div id="boot" class="state">
@@ -23,6 +23,37 @@
     <div class="section skel-card">
       <div class="bar pulse"></div>
       <div class="bar short pulse"></div>
+    </div>
+  </div>
+
+  <div id="intro" class="intro hidden" role="button" tabindex="0" aria-label="Продолжить">
+    <div class="intro-glow" aria-hidden="true"></div>
+    <div class="intro-frog-wrap" aria-hidden="true">
+      <svg class="intro-frog" viewBox="0 0 64 64" fill="none">
+        <ellipse cx="32" cy="38" rx="20" ry="16" fill="#6bd98a"/>
+        <g class="intro-eyes">
+          <circle cx="18" cy="22" r="9" fill="#6bd98a"/>
+          <circle cx="46" cy="22" r="9" fill="#6bd98a"/>
+          <circle cx="18" cy="22" r="5.2" fill="#fff"/>
+          <circle cx="46" cy="22" r="5.2" fill="#fff"/>
+          <circle cx="18" cy="23" r="2.3" fill="#173321"/>
+          <circle cx="46" cy="23" r="2.3" fill="#173321"/>
+        </g>
+        <path d="M20 40q12 10 24 0" stroke="#173321" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <ellipse cx="22" cy="45" rx="4.4" ry="2.6" fill="#ffb4b4" opacity=".55"/>
+        <ellipse cx="42" cy="45" rx="4.4" ry="2.6" fill="#ffb4b4" opacity=".55"/>
+        <ellipse cx="18" cy="52" rx="6" ry="3.2" fill="#3f9e63"/>
+        <ellipse cx="46" cy="52" rx="6" ry="3.2" fill="#3f9e63"/>
+      </svg>
+    </div>
+    <div class="intro-who">
+      <img id="introAvatar" class="intro-avatar hidden" alt="">
+      <div id="introFallback" class="intro-avatar intro-fallback hidden" aria-hidden="true"></div>
+      <div>
+        <div id="introHello" class="intro-hello">Привет</div>
+        <div id="introName" class="intro-name"></div>
+        <div id="introNick" class="intro-nick"></div>
+      </div>
     </div>
   </div>
 
@@ -241,6 +272,6 @@
   </div>
   <div id="menuScrim" class="scrim hidden"></div>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>

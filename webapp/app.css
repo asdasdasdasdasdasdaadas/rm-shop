@@ -41,6 +41,7 @@
 html, body {
   margin: 0;
   min-height: 100%;
+  color-scheme: dark;
   background:
     radial-gradient(circle at 15% -10%, rgba(95, 214, 139, 0.14), transparent 45%),
     var(--bg-app);
@@ -526,6 +527,8 @@ body {
   font-size: 13.5px;
   font-family: inherit;
   outline: none;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .promo-inner input::placeholder { color: var(--text-tertiary); }
@@ -845,6 +848,42 @@ body.has-main-btn {
   padding-bottom: 14px;
 }
 
+.cell.field {
+  padding: 8px 12px 12px;
+}
+
+.field input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--divider);
+  border-radius: 100px;
+  background: var(--bg-surface-soft);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px;
+  padding: 12px 16px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.field input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.field input:focus {
+  border-color: var(--accent-soft-border);
+}
+
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:focus,
+.promo-inner input:-webkit-autofill,
+.promo-inner input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  box-shadow: 0 0 0 1000px var(--bg-surface-soft) inset;
+  transition: background-color 9999s ease-out;
+}
+
 .hidden { display: none !important; }
 
 .scrim {
@@ -968,6 +1007,140 @@ body.has-main-btn {
 #fail:not(.hidden),
 #maint:not(.hidden) {
   animation: rise-in 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding:
+    calc(24px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, 0px)))
+    24px
+    calc(32px + var(--tg-safe-area-inset-bottom, 0px));
+  background:
+    radial-gradient(circle at 50% 38%, rgba(95, 214, 139, 0.18), transparent 42%),
+    var(--bg-app);
+  cursor: pointer;
+}
+
+.intro.hidden { display: none !important; }
+
+.intro-glow {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(95, 214, 139, 0.35), transparent 70%);
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: intro-glow 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.intro-frog-wrap {
+  position: relative;
+  z-index: 1;
+  width: 200px;
+  height: 200px;
+  animation: intro-hop 1.15s cubic-bezier(0.45, 1.55, 0.4, 1) infinite;
+}
+
+.intro-frog {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.28));
+}
+
+.intro-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: intro-blink 3.2s ease-in-out infinite;
+}
+
+.intro-who {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 100%;
+  animation: intro-who-in 0.5s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.intro-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(95, 214, 139, 0.16);
+  border: 2px solid rgba(95, 214, 139, 0.35);
+  flex-shrink: 0;
+}
+
+.intro-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  font-family: Unbounded, Inter, sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.intro-avatar.hidden,
+.intro-fallback.hidden { display: none !important; }
+
+.intro-hello {
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.intro-name {
+  font-family: Unbounded, Inter, sans-serif;
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.intro-nick {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+@keyframes intro-hop {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  18% { transform: translateY(10px) scale(1.08, 0.88); }
+  42% { transform: translateY(-22px) scale(0.94, 1.08); }
+  58% { transform: translateY(4px) scale(1.04, 0.94); }
+  72% { transform: translateY(0) scale(1, 1); }
+}
+
+@keyframes intro-blink {
+  0%, 40%, 48%, 100% { transform: scaleY(1); }
+  44% { transform: scaleY(0.08); }
+}
+
+@keyframes intro-glow {
+  0%, 100% { opacity: 0.55; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+}
+
+@keyframes intro-who-in {
+  from { opacity: 0.35; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
