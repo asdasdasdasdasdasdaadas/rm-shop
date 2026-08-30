@@ -138,7 +138,7 @@ function paintStatus(me) {
   const left = me.balance_enabled ? me.days_left : me.days;
   const running = me.balance_enabled ? n > 0 : Boolean(me.has_access);
   if (me.balance_enabled) {
-    $("balanceLine").innerHTML = `${me.balance_rub} <span>на счету</span>`;
+    $("balanceLine").innerHTML = `${me.balance_rub} ₽ <span>на счету</span>`;
   } else {
     $("balanceLine").innerHTML = `${daysLabel(me.days)} <span>подписки</span>`;
   }

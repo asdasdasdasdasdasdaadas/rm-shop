@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
@@ -25,6 +26,7 @@ from app.remnawave import (
     days_remaining,
     is_subscription_active,
     parse_expire,
+    username_taken,
 )
 from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, verify_webhook
 from app.sync import fetch_panel
@@ -354,20 +356,27 @@ async def api_add_device(request: web.Request) -> web.Response:
     if not await db.spend_balance_rub(telegram_id, price):
         return json_error(f"Недостаточно средств. Нужно {rub_text(price)} за сутки.")
     rw: RemnawaveClient = request.app["rw"]
-    n = await db.device_count(telegram_id) + 1
-    username = f"t{telegram_id}d{n}"[:36]
-    try:
-        user = await rw.create_user(
-            telegram_id=None,
-            expire_at=datetime.now(timezone.utc) + timedelta(days=1),
-            tag="DEVICE",
-            username=username,
-            hwid_limit=1,
-            description=f"tg:{telegram_id}:device",
-        )
-    except RemnawaveError as exc:
+    user = None
+    last_error: RemnawaveError | None = None
+    for _ in range(6):
+        username = f"t{telegram_id}x{secrets.token_hex(4)}"[:36]
+        try:
+            user = await rw.create_user(
+                telegram_id=None,
+                expire_at=datetime.now(timezone.utc) + timedelta(days=1),
+                tag="DEVICE",
+                username=username,
+                hwid_limit=1,
+                description=f"tg:{telegram_id}:device",
+            )
+            break
+        except RemnawaveError as exc:
+            last_error = exc
+            if not username_taken(exc):
+                break
+    if user is None:
         await db.add_balance_rub(telegram_id, price)
-        return json_error(str(exc), 502)
+        return json_error(str(last_error or "Не удалось создать устройство"), 502)
     rw_id = int(user["id"])
     await db.add_device(telegram_id, title, rw_id, platform, client)
     return web.json_response(

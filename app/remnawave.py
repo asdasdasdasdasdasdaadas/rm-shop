@@ -74,6 +74,11 @@ class RemnawaveError(RuntimeError):
     pass
 
 
+def username_taken(exc: RemnawaveError) -> bool:
+    text = str(exc).lower()
+    return "a019" in text or "username already exists" in text
+
+
 class RemnawaveClient:
     def __init__(self) -> None:
         settings = get_settings()
