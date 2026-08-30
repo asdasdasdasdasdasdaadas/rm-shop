@@ -376,6 +376,18 @@ body {
 
 .empty-devices .btn { margin-top: 16px; width: 100%; }
 
+.coach-replay {
+  margin-top: 12px;
+  border: 0;
+  background: none;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 .device-row {
   display: flex;
   align-items: center;
@@ -1746,6 +1758,81 @@ body.has-main-btn {
 @keyframes intro-who-in {
   from { opacity: 0.35; transform: translateY(10px); }
   to { opacity: 1; transform: none; }
+}
+
+.coach {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.coach.hidden { display: none !important; }
+
+.coach-catch {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+.coach-hole {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(6, 12, 9, 0.72);
+  border: 1.5px solid rgba(95, 214, 139, 0.55);
+  background: transparent;
+}
+
+.coach-card {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  z-index: 5;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 16px 16px 14px;
+  pointer-events: auto;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--accent-soft-border);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+.coach-kicker {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.coach-title {
+  margin-top: 6px;
+  color: var(--text-primary);
+  font-family: Unbounded, Inter, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.coach-text {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.coach-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.coach-actions .btn {
+  flex: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -376,6 +376,7 @@ function hideIntro() {
 }
 
 function showBoot() {
+  hideCoach();
   hideIntro();
   $("boot").classList.remove("hidden");
   $("fail").classList.add("hidden");
@@ -384,6 +385,7 @@ function showBoot() {
 }
 
 function showFail(message) {
+  hideCoach();
   hideIntro();
   $("boot").classList.add("hidden");
   $("app").classList.add("hidden");
@@ -393,6 +395,7 @@ function showFail(message) {
 }
 
 function showMaint(notice) {
+  hideCoach();
   hideIntro();
   $("boot").classList.add("hidden");
   $("fail").classList.add("hidden");
@@ -412,6 +415,9 @@ function showApp() {
   $("maint").classList.add("hidden");
   $("app").classList.remove("hidden");
   replayAnim($("app"), "app-in");
+  requestAnimationFrame(() => {
+    setTimeout(() => maybeStartCoach(false), 80);
+  });
 }
 
 function introSeen() {
@@ -520,6 +526,7 @@ function replayAnim(el, cls) {
 }
 
 function switchView(id, motion) {
+  if (id !== "view-home") hideCoach();
   ["view-home", "view-topup", "view-wizard", "view-device"].forEach((vid) => {
     const el = $(vid);
     const on = vid === id;
@@ -541,6 +548,196 @@ let screen = "home";
 let openDevice = null;
 let topupMode = "fast";
 let topupCode = "";
+
+const COACH_KEY = "way_home_coach_v1";
+let coachIndex = 0;
+let coachList = [];
+let coachVisible = false;
+let coachPlaceTimer = 0;
+
+function coachDone() {
+  try {
+    return localStorage.getItem(COACH_KEY) === "1";
+  } catch (_e) {
+    return false;
+  }
+}
+
+function markCoachDone() {
+  try {
+    localStorage.setItem(COACH_KEY, "1");
+  } catch (_e) {}
+}
+
+function hideCoach() {
+  coachVisible = false;
+  if (coachPlaceTimer) {
+    clearTimeout(coachPlaceTimer);
+    coachPlaceTimer = 0;
+  }
+  const el = $("coach");
+  if (el) el.classList.add("hidden");
+}
+
+function finishCoach() {
+  markCoachDone();
+  hideCoach();
+}
+
+function coachTargetOk(id) {
+  const el = $(id);
+  if (!el || el.classList.contains("hidden")) return false;
+  const cs = window.getComputedStyle(el);
+  if (cs.display === "none" || cs.visibility === "hidden") return false;
+  return true;
+}
+
+function buildCoachSteps(me) {
+  const steps = [];
+  if (!me) return steps;
+  if (me.balance_enabled) {
+    const n = (me.devices || []).length;
+    if (me.trial_available && coachTargetOk("trialHomeBtn")) {
+      steps.push({
+        id: "trialHomeBtn",
+        title: "Можно начать бесплатно",
+        text: "Пробные рубли сразу на баланс. Потом добавьте устройство — без него деньги не списываются.",
+      });
+    } else if ((me.balance_rub || 0) < 1 && coachTargetOk("topupBtn")) {
+      steps.push({
+        id: "topupBtn",
+        title: "Сначала пополните баланс",
+        text: "Сутки спишутся, когда появится первое устройство. Пока устройств нет — баланс не тратится.",
+      });
+    }
+    if (n === 0 && coachTargetOk("ctaAdd")) {
+      steps.push({
+        id: "ctaAdd",
+        title: "Добавьте устройство",
+        text: "Выберите телефон или компьютер, установите приложение — ссылка подставится сама. Займёт меньше минуты.",
+        action: "wizard",
+      });
+    }
+  } else if (!me.has_access && coachTargetOk("topupBtn")) {
+    steps.push({
+      id: "topupBtn",
+      title: "Оформите доступ",
+      text: "Выберите срок подписки. После оплаты появится ссылка для приложения.",
+      action: "topup",
+    });
+  }
+  return steps;
+}
+
+function layoutCoach() {
+  if (!coachVisible) return;
+  const step = coachList[coachIndex];
+  if (!step) {
+    finishCoach();
+    return;
+  }
+  const target = $(step.id);
+  if (!target || !coachTargetOk(step.id)) {
+    coachIndex += 1;
+    layoutCoach();
+    return;
+  }
+  const r = target.getBoundingClientRect();
+  const pad = 6;
+  const hole = $("coachHole");
+  hole.style.top = `${Math.max(8, r.top - pad)}px`;
+  hole.style.left = `${Math.max(8, r.left - pad)}px`;
+  hole.style.width = `${r.width + pad * 2}px`;
+  hole.style.height = `${r.height + pad * 2}px`;
+  const radius = getComputedStyle(target).borderRadius;
+  hole.style.borderRadius = radius && radius !== "0px" ? radius : "16px";
+
+  const total = coachList.length;
+  $("coachKicker").textContent = `${coachIndex + 1} из ${total}`;
+  $("coachTitle").textContent = step.title;
+  $("coachText").textContent = step.text;
+  const last = coachIndex === total - 1;
+  const next = $("coachNext");
+  if (step.action === "wizard") next.textContent = "Добавить устройство";
+  else if (step.action === "topup") next.textContent = "Пополнить";
+  else next.textContent = last ? "Понятно" : "Далее";
+
+  const card = $("coachCard");
+  const spaceBelow = window.innerHeight - r.bottom;
+  if (spaceBelow > 200) {
+    card.style.top = `${r.bottom + 14}px`;
+    card.style.bottom = "auto";
+  } else {
+    card.style.bottom = `${Math.max(16, window.innerHeight - r.top + 14)}px`;
+    card.style.top = "auto";
+  }
+}
+
+function placeCoach() {
+  const step = coachList[coachIndex];
+  if (!step) {
+    finishCoach();
+    return;
+  }
+  const target = $(step.id);
+  if (!target || !coachTargetOk(step.id)) {
+    coachIndex += 1;
+    placeCoach();
+    return;
+  }
+  target.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (coachPlaceTimer) clearTimeout(coachPlaceTimer);
+  const delay = reducedMotion() ? 0 : 280;
+  coachPlaceTimer = setTimeout(() => {
+    coachPlaceTimer = 0;
+    layoutCoach();
+  }, delay);
+}
+
+function maybeStartCoach(force) {
+  if (screen !== "home") return;
+  if ($("app").classList.contains("hidden")) return;
+  if (!$("intro").classList.contains("hidden")) return;
+  if (!$("fail").classList.contains("hidden")) return;
+  if (!$("maint").classList.contains("hidden")) return;
+  if (!force && coachDone()) return;
+  if (coachVisible && !force) {
+    layoutCoach();
+    return;
+  }
+  coachList = buildCoachSteps(window.__me);
+  if (!coachList.length) {
+    const n = window.__me && window.__me.devices ? window.__me.devices.length : 0;
+    if (!force && n > 0) markCoachDone();
+    hideCoach();
+    return;
+  }
+  coachIndex = 0;
+  coachVisible = true;
+  $("coach").classList.remove("hidden");
+  placeCoach();
+}
+
+function coachAdvance() {
+  haptic();
+  const step = coachList[coachIndex];
+  if (step && step.action === "wizard") {
+    finishCoach();
+    startWizard();
+    return;
+  }
+  if (step && step.action === "topup") {
+    finishCoach();
+    openTopup();
+    return;
+  }
+  if (coachIndex >= coachList.length - 1) {
+    finishCoach();
+    return;
+  }
+  coachIndex += 1;
+  placeCoach();
+}
 
 function planRub(plan) {
   if (!plan) return 0;
@@ -642,6 +839,7 @@ function openHome() {
   try {
     tg.BackButton.hide();
   } catch (_e) {}
+  requestAnimationFrame(() => maybeStartCoach(false));
 }
 
 function openTopup() {
@@ -1420,6 +1618,30 @@ $("promoBtn").onclick = async () => {
 $("ctaAdd").onclick = () => startWizard();
 $("addDevice").onclick = () => startWizard();
 $("addDeviceEmpty").onclick = () => startWizard();
+$("coachSkip").onclick = (e) => {
+  e.stopPropagation();
+  haptic();
+  finishCoach();
+};
+$("coachNext").onclick = (e) => {
+  e.stopPropagation();
+  coachAdvance();
+};
+$("coachCard").onclick = (e) => e.stopPropagation();
+$("coachCatch").onclick = () => {
+  haptic();
+  finishCoach();
+};
+$("coachReplay").onclick = () => {
+  haptic();
+  try {
+    localStorage.removeItem(COACH_KEY);
+  } catch (_e) {}
+  maybeStartCoach(true);
+};
+window.addEventListener("resize", () => {
+  if (coachVisible) layoutCoach();
+});
 
 $("promoToggle").onclick = () => {
   const body = $("promoBody");
