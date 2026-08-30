@@ -17,6 +17,7 @@ from app.remnawave import RemnawaveClient
 from app.rollypay import RollyPayClient
 from app.sync import sync_all
 from app.maintenance import MaintenanceMiddleware
+from app.backup import backup_loop
 from app.web import start_http
 
 logging.basicConfig(
@@ -113,11 +114,13 @@ async def main() -> None:
                 logger.warning("Не удалось выставить имя бота в Telegram из BRAND_NAME")
         sync_task = asyncio.create_task(panel_sync_loop(rw), name="panel-sync")
         charge_task = asyncio.create_task(balance_charge_loop(rw, bot), name="balance-charge")
+        dump_task = asyncio.create_task(backup_loop(bot), name="backup")
         try:
             await dp.start_polling(bot, drop_pending_updates=True)
         finally:
             sync_task.cancel()
             charge_task.cancel()
+            dump_task.cancel()
     finally:
         await runner.cleanup()
         if rp is not None:

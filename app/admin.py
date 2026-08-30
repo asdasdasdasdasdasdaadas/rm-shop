@@ -10,6 +10,7 @@ from aiohttp import web
 from aiogram import Bot
 
 from app import db
+from app.backup import backup_path, create_backup, list_backups, seconds_until_msk_0001
 from app.config import ROOT, get_settings
 from app.remnawave import RemnawaveClient, RemnawaveError
 
@@ -334,6 +335,47 @@ async def api_flags(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **flags})
 
 
+async def api_backups(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    wait = seconds_until_msk_0001()
+    return web.json_response(
+        {
+            "ok": True,
+            "items": list_backups(),
+            "next_in_sec": int(wait),
+            "keep_days": get_settings().backup_keep_days,
+            "admins": len(get_settings().admin_id_set),
+        }
+    )
+
+
+async def api_backup_create(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        result = await create_backup(reason="админка", bot=request.app["bot"])
+    except Exception as exc:
+        logger.exception("Ручной бэкап не удался")
+        return web.json_response({"ok": False, "error": str(exc)[:300]}, status=500)
+    return web.json_response(result)
+
+
+async def api_backup_file(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    path = backup_path(str(request.match_info["name"]))
+    if not path:
+        return web.json_response({"ok": False, "error": "Файл не найден"}, status=404)
+    return web.FileResponse(
+        path,
+        headers={"Content-Disposition": f'attachment; filename="{path.name}"'},
+    )
+
+
 def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin", admin_redirect)
     app.router.add_get("/admin/", admin_index)
@@ -355,4 +397,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/flags", api_flags)
     app.router.add_post("/admin/api/flags", api_flags)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
+    app.router.add_get("/admin/api/backups", api_backups)
+    app.router.add_post("/admin/api/backups", api_backup_create)
+    app.router.add_get("/admin/api/backups/{name}", api_backup_file)
     app.router.add_static("/admin/static", ADMIN_DIR)

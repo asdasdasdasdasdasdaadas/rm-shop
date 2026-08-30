@@ -39,13 +39,14 @@ function switchTab(name) {
   document.querySelectorAll("nav [data-tab]").forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === name);
   });
-  ["overview", "users", "orders", "reports", "broadcast", "settings"].forEach((tab) => {
+  ["overview", "users", "orders", "reports", "broadcast", "backups", "settings"].forEach((tab) => {
     $("tab-" + tab).classList.toggle("hidden", tab !== name);
   });
   if (name === "overview") loadStats();
   if (name === "users") loadUsers();
   if (name === "orders") loadOrders();
   if (name === "reports") loadReports();
+  if (name === "backups") loadBackups();
   if (name === "settings") loadSettings();
 }
 
@@ -274,6 +275,68 @@ $("broadcastBtn").onclick = async () => {
   } catch (err) {
     $("broadcastOut").textContent = err.message;
   }
+};
+
+function fmtSize(n) {
+  if (n < 1024) return `${n} Б`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} КБ`;
+  return `${(n / 1024 / 1024).toFixed(1)} МБ`;
+}
+
+function fmtWait(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return `${h} ч ${m} мин`;
+}
+
+async function loadBackups() {
+  const data = await api("/admin/api/backups");
+  const extra = data.admins
+    ? ` Копия уходит ${data.admins} админ(ам) в Telegram.`
+    : " Задайте ADMIN_IDS, чтобы файл приходил в Telegram.";
+  $("backupOut").textContent =
+    `Следующий автобэкап через ${fmtWait(data.next_in_sec || 0)}. Храним ${data.keep_days} дн.` + extra;
+  const body = $("backupRows");
+  body.innerHTML = "";
+  if (!data.items.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 4;
+    td.className = "muted";
+    td.textContent = "Файлов пока нет";
+    tr.appendChild(td);
+    body.appendChild(tr);
+    return;
+  }
+  data.items.forEach((item) => {
+    const tr = document.createElement("tr");
+    [item.name, fmtSize(item.size), fmt(item.created_at)].forEach((t) => {
+      const td = document.createElement("td");
+      td.textContent = t;
+      tr.appendChild(td);
+    });
+    const td = document.createElement("td");
+    const a = document.createElement("a");
+    a.href = `/admin/api/backups/${encodeURIComponent(item.name)}`;
+    a.textContent = "Скачать";
+    td.appendChild(a);
+    tr.appendChild(td);
+    body.appendChild(tr);
+  });
+}
+
+$("backupBtn").onclick = async () => {
+  $("backupOut").textContent = "Создаю бэкап...";
+  $("backupBtn").disabled = true;
+  try {
+    const r = await api("/admin/api/backups", { method: "POST", body: "{}" });
+    await loadBackups();
+    $("backupOut").textContent =
+      `Готово: ${r.name} (${fmtSize(r.size)}). В Telegram: ${r.sent || 0}, ошибок: ${r.failed || 0}.`;
+  } catch (err) {
+    $("backupOut").textContent = err.message || "Не удалось сделать бэкап";
+  }
+  $("backupBtn").disabled = false;
 };
 
 $("grantBtn").onclick = async () => {

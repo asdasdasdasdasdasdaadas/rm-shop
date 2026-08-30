@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     panel_sync_ttl: int = 60
     panel_sync_interval: int = 600
     vpn_report_cooldown_sec: int = 900
+    backup_keep_days: int = 14
 
     @property
     def admin_id_set(self) -> set[int]:

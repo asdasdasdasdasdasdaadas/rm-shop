@@ -26,6 +26,7 @@
         <button type="button" data-tab="orders">Оплаты</button>
         <button type="button" data-tab="reports">Жалобы VPN</button>
         <button type="button" data-tab="broadcast">Рассылка</button>
+        <button type="button" data-tab="backups">Бэкапы</button>
         <button type="button" data-tab="settings">Настройки</button>
       </nav>
       <button type="button" id="logout" class="ghost">Выйти</button>
@@ -125,6 +126,28 @@
         <textarea id="broadcastText" rows="8" placeholder="Текст сообщения"></textarea>
         <button type="button" id="broadcastBtn">Отправить</button>
         <p id="broadcastOut" class="muted"></p>
+      </section>
+
+      <section id="tab-backups" class="hidden">
+        <h2>Бэкапы</h2>
+        <p class="muted">Дамп PostgreSQL каждый день в 00:01 по Москве. Копия уходит админам из ADMIN_IDS. Файлы лежат в папке backups на сервере.</p>
+        <div class="ops">
+          <button type="button" id="backupBtn">Сделать бэкап</button>
+        </div>
+        <p id="backupOut" class="muted"></p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Файл</th>
+                <th>Размер</th>
+                <th>Создан</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="backupRows"></tbody>
+          </table>
+        </div>
       </section>
 
       <section id="tab-settings" class="hidden">

@@ -120,6 +120,7 @@ h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 th { color: var(--muted); font-weight: 500; }
+main a { color: var(--acc); }
 .ops { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .ops-label {
   display: block;
