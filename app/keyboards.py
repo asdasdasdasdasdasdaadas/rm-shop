@@ -113,6 +113,15 @@ def connect_keyboard(sub_url: str) -> InlineKeyboardMarkup:
 def buy_keyboard() -> InlineKeyboardMarkup:
     settings = get_settings()
     builder = InlineKeyboardBuilder()
+    if settings.balance_enabled and runtime.webapp_url:
+        builder.row(
+            InlineKeyboardButton(
+                text="Пополнить",
+                web_app=WebAppInfo(url=runtime.webapp_url),
+            )
+        )
+        builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+        return builder.as_markup()
     for code, plan in settings.shop_plans.items():
         if settings.rollypay_configured:
             label = f"{plan['title']} — {plan['rub_str']} рублей"

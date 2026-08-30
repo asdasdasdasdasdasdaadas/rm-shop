@@ -243,7 +243,7 @@ function replayAnim(el, cls) {
 }
 
 function switchView(id, motion) {
-  ["view-home", "view-sub", "view-wizard", "view-device"].forEach((vid) => {
+  ["view-home", "view-sub", "view-topup", "view-wizard", "view-device"].forEach((vid) => {
     const el = $(vid);
     const on = vid === id;
     el.classList.toggle("hidden", !on);
@@ -262,6 +262,7 @@ const wiz = {
 
 let screen = "home";
 let openDevice = null;
+let topupBack = "sub";
 
 function onBack() {
   haptic();
@@ -276,11 +277,16 @@ function onBack() {
   }
   if (screen === "device") {
     openHome();
+    return;
+  }
+  if (screen === "topup") {
+    if (topupBack === "home") openHome();
+    else openSub();
   }
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "topup";
   screen = "home";
   openDevice = null;
   switchView("view-home", fromStack ? "pop" : "fade");
@@ -305,6 +311,69 @@ function openSub() {
   try {
     tg.BackButton.hide();
   } catch (_e) {}
+}
+
+function openTopup(back) {
+  const me = window.__me;
+  if (!me) return;
+  topupBack = back || "sub";
+  screen = "topup";
+  switchView("view-topup", "push");
+  hideChromeNav(true);
+  setMain("");
+  try {
+    tg.BackButton.show();
+  } catch (_e) {}
+  renderTopup(me);
+}
+
+async function payPlan(plan) {
+  const inv = await api("/api/invoice", {
+    method: "POST",
+    body: JSON.stringify({ plan: plan.code }),
+  });
+  if (inv.pay_url) {
+    tg.openLink(inv.pay_url);
+    return;
+  }
+  tg.openInvoice(inv.invoice_url, (status) => {
+    if (status === "paid") load();
+  });
+}
+
+function renderTopup(me) {
+  const row = $("topupRow");
+  row.innerHTML = "";
+  me.plans.forEach((plan) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "cell nav";
+    const price = plan.rub ? rublesLabel(Number(plan.rub) || plan.rub) : `${plan.stars} звёзд`;
+    const main = document.createElement("div");
+    main.className = "plan-main";
+    const title = document.createElement("div");
+    title.className = "plan-title";
+    title.textContent = plan.title;
+    const sub = document.createElement("div");
+    sub.className = "plan-sub";
+    sub.textContent = me.balance_enabled ? "на баланс" : daysLabel(plan.days);
+    main.appendChild(title);
+    main.appendChild(sub);
+    const cost = document.createElement("span");
+    cost.className = "plan-price";
+    cost.textContent = price;
+    b.appendChild(main);
+    b.appendChild(cost);
+    b.onclick = async () => {
+      haptic();
+      try {
+        await payPlan(plan);
+      } catch (e) {
+        showErr(e);
+      }
+    };
+    row.appendChild(b);
+  });
 }
 
 function closeWizard() {
@@ -580,46 +649,15 @@ function renderPay(me) {
     };
     row.appendChild(t);
   }
-  me.plans.forEach((plan) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "cell nav";
-    const price = plan.rub ? rublesLabel(Number(plan.rub) || plan.rub) : `${plan.stars} звёзд`;
-    const main = document.createElement("div");
-    main.className = "plan-main";
-    const title = document.createElement("div");
-    title.className = "plan-title";
-    title.textContent = me.balance_enabled ? `Пополнить · ${plan.title}` : plan.title;
-    const sub = document.createElement("div");
-    sub.className = "plan-sub";
-    sub.textContent = me.balance_enabled ? "на баланс" : daysLabel(plan.days);
-    main.appendChild(title);
-    main.appendChild(sub);
-    const cost = document.createElement("span");
-    cost.className = "plan-price";
-    cost.textContent = price;
-    b.appendChild(main);
-    b.appendChild(cost);
-    b.onclick = async () => {
-      haptic();
-      try {
-        const inv = await api("/api/invoice", {
-          method: "POST",
-          body: JSON.stringify({ plan: plan.code }),
-        });
-        if (inv.pay_url) {
-          tg.openLink(inv.pay_url);
-          return;
-        }
-        tg.openInvoice(inv.invoice_url, (status) => {
-          if (status === "paid") load();
-        });
-      } catch (e) {
-        showErr(e);
-      }
-    };
-    row.appendChild(b);
-  });
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "cell action";
+  b.textContent = me.balance_enabled ? "Пополнить" : "Купить подписку";
+  b.onclick = () => {
+    haptic();
+    openTopup("sub");
+  };
+  row.appendChild(b);
 }
 
 function renderConnect(me) {
@@ -819,7 +857,7 @@ document.querySelectorAll(".tab").forEach((el) => {
 
 $("topupBtn").onclick = () => {
   haptic();
-  openSub();
+  openTopup("home");
 };
 
 $("promoHint").onclick = () => {
