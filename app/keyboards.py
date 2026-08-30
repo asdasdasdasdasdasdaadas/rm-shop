@@ -44,9 +44,30 @@ def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> s
         return (
             f"Привет, {name}.\n\n"
             f"Баланс: <b>{rub_text(rub)}</b>\n"
-            f"Сутки VPN на одно устройство: <b>{rub_text(price)}</b>"
+            f"Сутки VPN на одно устройство: <b>{rub_text(price)}</b>\n\n"
+            "Чтобы включить VPN, нажмите «Открыть кабинет» внизу и добавьте устройство. "
+            "Пока устройств нет, баланс не списывается."
         )
-    return f"Привет, {name}.\nВыберите действие."
+    return (
+        f"Привет, {name}.\n"
+        "Выберите действие. Кабинет внизу — там подписка и подключение."
+    )
+
+
+def cabinet_button() -> InlineKeyboardButton | None:
+    if not runtime.webapp_url:
+        return None
+    return InlineKeyboardButton(
+        text="Открыть кабинет",
+        web_app=WebAppInfo(url=runtime.webapp_url),
+        style="success",
+    )
+
+
+def add_cabinet_row(builder: InlineKeyboardBuilder) -> None:
+    btn = cabinet_button()
+    if btn:
+        builder.row(btn)
 
 
 def channel_keyboard() -> InlineKeyboardMarkup:
@@ -107,18 +128,13 @@ def profile_keyboard(*, trial_available: bool, has_access: bool) -> InlineKeyboa
             builder.row(InlineKeyboardButton(text="Подключиться", callback_data="connect"))
     builder.row(InlineKeyboardButton(text="VPN не работает", callback_data="vpn_down"))
     builder.row(InlineKeyboardButton(text="Поддержка", url=support_url()))
+    add_cabinet_row(builder)
     return builder.as_markup()
 
 
 def cabinet_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    if runtime.webapp_url:
-        builder.row(
-            InlineKeyboardButton(
-                text="Личный кабинет",
-                web_app=WebAppInfo(url=runtime.webapp_url),
-            )
-        )
+    add_cabinet_row(builder)
     return builder.as_markup()
 
 
@@ -128,9 +144,11 @@ def try_again_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def back_profile_keyboard() -> InlineKeyboardMarkup:
+def back_profile_keyboard(*, cabinet: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+    if cabinet:
+        add_cabinet_row(builder)
     return builder.as_markup()
 
 

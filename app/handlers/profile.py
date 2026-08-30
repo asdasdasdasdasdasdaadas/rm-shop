@@ -61,9 +61,10 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         await callback.message.edit_text(
             "<b>Бесплатный период</b>\n\n"
             f"На баланс начислено <b>{rub_text(amount)}</b> "
-            f"({days_text(settings.trial_days)} × {rub_text(settings.vpn_day_price_rub)}).\n"
-            "Добавьте устройство в кабинете.",
-            reply_markup=back_profile_keyboard(),
+            f"({days_text(settings.trial_days)} × {rub_text(settings.vpn_day_price_rub)}).\n\n"
+            "Откройте кабинет, добавьте устройство и импортируйте ссылку в Happ или Incy. "
+            "Пока устройств нет, баланс не списывается.",
+            reply_markup=back_profile_keyboard(cabinet=True),
         )
         return
     try:
