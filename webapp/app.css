@@ -1799,6 +1799,12 @@ body.has-main-btn {
   background: var(--bg-surface-raised);
   border: 1px solid var(--accent-soft-border);
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  top: auto;
+  bottom: calc(28px + var(--tg-safe-area-inset-bottom, 0px));
+}
+
+.coach-hole.is-off {
+  opacity: 0;
 }
 
 .coach-kicker {

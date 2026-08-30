@@ -415,9 +415,7 @@ function showApp() {
   $("maint").classList.add("hidden");
   $("app").classList.remove("hidden");
   replayAnim($("app"), "app-in");
-  requestAnimationFrame(() => {
-    setTimeout(() => maybeStartCoach(false), 80);
-  });
+  scheduleCoach();
 }
 
 function introSeen() {
@@ -549,11 +547,12 @@ let openDevice = null;
 let topupMode = "fast";
 let topupCode = "";
 
-const COACH_KEY = "way_home_coach_v1";
+const COACH_KEY = "way_home_coach_v2";
 let coachIndex = 0;
 let coachList = [];
 let coachVisible = false;
 let coachPlaceTimer = 0;
+let coachStartTimers = [];
 
 function coachDone() {
   try {
@@ -584,12 +583,9 @@ function finishCoach() {
   hideCoach();
 }
 
-function coachTargetOk(id) {
+function coachElReady(id) {
   const el = $(id);
-  if (!el || el.classList.contains("hidden")) return false;
-  const cs = window.getComputedStyle(el);
-  if (cs.display === "none" || cs.visibility === "hidden") return false;
-  return true;
+  return Boolean(el && !el.classList.contains("hidden"));
 }
 
 function buildCoachSteps(me) {
@@ -597,28 +593,35 @@ function buildCoachSteps(me) {
   if (!me) return steps;
   if (me.balance_enabled) {
     const n = (me.devices || []).length;
-    if (me.trial_available && coachTargetOk("trialHomeBtn")) {
+    if (me.trial_available && coachElReady("trialHomeBtn")) {
       steps.push({
         id: "trialHomeBtn",
         title: "Можно начать бесплатно",
         text: "Пробные рубли сразу на баланс. Потом добавьте устройство — без него деньги не списываются.",
       });
-    } else if ((me.balance_rub || 0) < 1 && coachTargetOk("topupBtn")) {
+    } else if ((me.balance_rub || 0) < 1 && coachElReady("topupBtn")) {
       steps.push({
         id: "topupBtn",
         title: "Сначала пополните баланс",
         text: "Сутки спишутся, когда появится первое устройство. Пока устройств нет — баланс не тратится.",
       });
     }
-    if (n === 0 && coachTargetOk("ctaAdd")) {
+    if (n === 0 && $("ctaAdd") && !$("ctaAdd").classList.contains("hidden")) {
       steps.push({
         id: "ctaAdd",
         title: "Добавьте устройство",
         text: "Выберите телефон или компьютер, установите приложение — ссылка подставится сама. Займёт меньше минуты.",
         action: "wizard",
       });
+    } else if (n === 0 && $("addDeviceEmpty") && !$("emptyDevices").classList.contains("hidden")) {
+      steps.push({
+        id: "addDeviceEmpty",
+        title: "Добавьте устройство",
+        text: "Выберите телефон или компьютер, установите приложение — ссылка подставится сама. Займёт меньше минуты.",
+        action: "wizard",
+      });
     }
-  } else if (!me.has_access && coachTargetOk("topupBtn")) {
+  } else if (!me.has_access && coachElReady("topupBtn")) {
     steps.push({
       id: "topupBtn",
       title: "Оформите доступ",
@@ -629,29 +632,9 @@ function buildCoachSteps(me) {
   return steps;
 }
 
-function layoutCoach() {
-  if (!coachVisible) return;
+function applyCoachCopy() {
   const step = coachList[coachIndex];
-  if (!step) {
-    finishCoach();
-    return;
-  }
-  const target = $(step.id);
-  if (!target || !coachTargetOk(step.id)) {
-    coachIndex += 1;
-    layoutCoach();
-    return;
-  }
-  const r = target.getBoundingClientRect();
-  const pad = 6;
-  const hole = $("coachHole");
-  hole.style.top = `${Math.max(8, r.top - pad)}px`;
-  hole.style.left = `${Math.max(8, r.left - pad)}px`;
-  hole.style.width = `${r.width + pad * 2}px`;
-  hole.style.height = `${r.height + pad * 2}px`;
-  const radius = getComputedStyle(target).borderRadius;
-  hole.style.borderRadius = radius && radius !== "0px" ? radius : "16px";
-
+  if (!step) return;
   const total = coachList.length;
   $("coachKicker").textContent = `${coachIndex + 1} из ${total}`;
   $("coachTitle").textContent = step.title;
@@ -661,8 +644,45 @@ function layoutCoach() {
   if (step.action === "wizard") next.textContent = "Добавить устройство";
   else if (step.action === "topup") next.textContent = "Пополнить";
   else next.textContent = last ? "Понятно" : "Далее";
+}
 
+function pinCoachCard() {
   const card = $("coachCard");
+  const hole = $("coachHole");
+  hole.classList.add("is-off");
+  card.style.top = "auto";
+  card.style.bottom = `calc(28px + var(--tg-safe-area-inset-bottom, 0px))`;
+}
+
+function layoutCoach() {
+  if (!coachVisible) return;
+  const step = coachList[coachIndex];
+  if (!step) {
+    hideCoach();
+    return;
+  }
+  applyCoachCopy();
+  const target = $(step.id);
+  const hole = $("coachHole");
+  const card = $("coachCard");
+  if (!target || target.classList.contains("hidden")) {
+    pinCoachCard();
+    return;
+  }
+  const r = target.getBoundingClientRect();
+  if (r.width < 24 || r.height < 20 || r.bottom < 8 || r.top > window.innerHeight - 8) {
+    pinCoachCard();
+    return;
+  }
+  hole.classList.remove("is-off");
+  const pad = 6;
+  hole.style.top = `${Math.max(8, r.top - pad)}px`;
+  hole.style.left = `${Math.max(8, r.left - pad)}px`;
+  hole.style.width = `${r.width + pad * 2}px`;
+  hole.style.height = `${r.height + pad * 2}px`;
+  const radius = getComputedStyle(target).borderRadius;
+  hole.style.borderRadius = radius && radius !== "0px" ? radius : "16px";
+
   const spaceBelow = window.innerHeight - r.bottom;
   if (spaceBelow > 200) {
     card.style.top = `${r.bottom + 14}px`;
@@ -676,45 +696,55 @@ function layoutCoach() {
 function placeCoach() {
   const step = coachList[coachIndex];
   if (!step) {
-    finishCoach();
+    hideCoach();
     return;
   }
+  applyCoachCopy();
   const target = $(step.id);
-  if (!target || !coachTargetOk(step.id)) {
-    coachIndex += 1;
-    placeCoach();
-    return;
+  if (target && !target.classList.contains("hidden")) {
+    try {
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+    } catch (_e) {}
   }
-  target.scrollIntoView({ block: "center", behavior: "smooth" });
   if (coachPlaceTimer) clearTimeout(coachPlaceTimer);
-  const delay = reducedMotion() ? 0 : 280;
+  const delay = reducedMotion() ? 0 : 200;
   coachPlaceTimer = setTimeout(() => {
     coachPlaceTimer = 0;
     layoutCoach();
   }, delay);
 }
 
+function coachCanRun() {
+  if (screen !== "home") return false;
+  if ($("app").classList.contains("hidden")) return false;
+  if (!$("intro").classList.contains("hidden")) return false;
+  if (!$("fail").classList.contains("hidden")) return false;
+  if (!$("maint").classList.contains("hidden")) return false;
+  return true;
+}
+
+function scheduleCoach() {
+  coachStartTimers.forEach((id) => clearTimeout(id));
+  coachStartTimers = [];
+  [350, 800, 1400].forEach((ms) => {
+    coachStartTimers.push(setTimeout(() => maybeStartCoach(false), ms));
+  });
+}
+
 function maybeStartCoach(force) {
-  if (screen !== "home") return;
-  if ($("app").classList.contains("hidden")) return;
-  if (!$("intro").classList.contains("hidden")) return;
-  if (!$("fail").classList.contains("hidden")) return;
-  if (!$("maint").classList.contains("hidden")) return;
+  if (!coachCanRun()) return;
   if (!force && coachDone()) return;
   if (coachVisible && !force) {
     layoutCoach();
     return;
   }
   coachList = buildCoachSteps(window.__me);
-  if (!coachList.length) {
-    const n = window.__me && window.__me.devices ? window.__me.devices.length : 0;
-    if (!force && n > 0) markCoachDone();
-    hideCoach();
-    return;
-  }
+  if (!coachList.length) return;
   coachIndex = 0;
   coachVisible = true;
   $("coach").classList.remove("hidden");
+  applyCoachCopy();
+  pinCoachCard();
   placeCoach();
 }
 
@@ -839,7 +869,7 @@ function openHome() {
   try {
     tg.BackButton.hide();
   } catch (_e) {}
-  requestAnimationFrame(() => maybeStartCoach(false));
+  requestAnimationFrame(() => scheduleCoach());
 }
 
 function openTopup() {
@@ -1728,6 +1758,10 @@ $("retryBtn").onclick = () => {
 if (tg.onEvent) {
   tg.onEvent("invoiceClosed", (status) => {
     if (status === "paid") load().catch(() => {});
+  });
+  tg.onEvent("viewportChanged", () => {
+    if (coachVisible) layoutCoach();
+    else if (!coachDone()) scheduleCoach();
   });
 }
 document.addEventListener("visibilitychange", () => {
