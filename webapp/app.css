@@ -1051,14 +1051,18 @@ body {
 
 .wiz-tile .lab { font-size: 12px; font-weight: 700; }
 
-.wiz-qr {
+.sheet.wiz-qr {
   top: 50%;
   right: auto;
   left: 50%;
   transform: translate(-50%, -50%);
-  min-width: 260px;
+  width: min(300px, calc(100vw - 32px));
+  min-width: 0;
+  max-width: calc(100vw - 32px);
   padding: 18px;
   text-align: center;
+  overflow: visible;
+  box-sizing: border-box;
 }
 
 .wiz-qr-title {
@@ -1067,13 +1071,18 @@ body {
   margin-bottom: 12px;
 }
 
-.wiz-qr-img {
-  width: 220px;
-  height: 220px;
+.wiz-qr-box {
+  background: #fff;
   border-radius: 12px;
-  background: var(--bg-app);
+  padding: 14px;
   margin: 0 auto 14px;
+}
+
+.wiz-qr-svg {
+  width: 100%;
+  height: auto;
   display: block;
+  aspect-ratio: 1;
 }
 
 .wiz-qr .btn { width: 100%; }

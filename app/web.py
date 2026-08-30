@@ -79,6 +79,10 @@ async def webapp_js(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(WEBAPP_DIR / "app.js", headers=_NO_STORE)
 
 
+async def webapp_qrcode(_request: web.Request) -> web.FileResponse:
+    return web.FileResponse(WEBAPP_DIR / "qrcode.min.js", headers=_NO_STORE)
+
+
 async def api_me(request: web.Request) -> web.Response:
     settings = get_settings()
     try:
@@ -551,6 +555,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/", index)
         app.router.add_get("/app.css", webapp_css)
         app.router.add_get("/app.js", webapp_js)
+        app.router.add_get("/qrcode.min.js", webapp_qrcode)
         app.router.add_get("/api/me", api_me)
         app.router.add_get("/api/avatar", api_avatar)
         app.router.add_post("/api/trial", api_trial)

@@ -172,13 +172,45 @@ function setWizProgress(step) {
 function hideQr() {
   $("qrSheet").classList.add("hidden");
   $("qrScrim").classList.add("hidden");
+  $("qrBox").innerHTML = "";
 }
 
 function showQr(url) {
   if (!url) return;
-  $("qrImg").src =
-    "https://api.qrserver.com/v1/create-qr-code/?size=240x240&bgcolor=0d1611&color=5fd68b&qzone=2&data=" +
-    encodeURIComponent(url);
+  const box = $("qrBox");
+  box.innerHTML = "";
+  if (typeof qrcode !== "function") {
+    tg.showAlert("Не удалось построить QR-код");
+    return;
+  }
+  const qr = qrcode(0, "M");
+  qr.addData(url);
+  qr.make();
+  const n = qr.getModuleCount();
+  const pad = 4;
+  const dim = n + pad * 2;
+  let d = "";
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (qr.isDark(r, c)) d += "M" + (c + pad) + " " + (r + pad) + "h1v1h-1z";
+    }
+  }
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 " + dim + " " + dim);
+  svg.setAttribute("class", "wiz-qr-svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "QR-код");
+  const bg = document.createElementNS(ns, "rect");
+  bg.setAttribute("width", String(dim));
+  bg.setAttribute("height", String(dim));
+  bg.setAttribute("fill", "#ffffff");
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", d);
+  path.setAttribute("fill", "#0d1611");
+  svg.appendChild(bg);
+  svg.appendChild(path);
+  box.appendChild(svg);
   $("qrSheet").classList.remove("hidden");
   $("qrScrim").classList.remove("hidden");
 }

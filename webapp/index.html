@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=17">
+  <link rel="stylesheet" href="app.css?v=18">
 </head>
 <body>
   <div id="boot" class="state">
@@ -301,11 +301,12 @@
 
   <div id="qrSheet" class="sheet wiz-qr hidden">
     <div class="wiz-qr-title">QR-код</div>
-    <img id="qrImg" class="wiz-qr-img" alt="QR">
+    <div id="qrBox" class="wiz-qr-box"></div>
     <button type="button" id="qrClose" class="btn btn-ghost">Закрыть</button>
   </div>
   <div id="qrScrim" class="scrim hidden"></div>
 
-  <script src="app.js?v=17"></script>
+  <script src="qrcode.min.js"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>
