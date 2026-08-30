@@ -31,6 +31,7 @@ from app.remnawave import (
 from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, verify_webhook
 from app.sync import fetch_panel
 from app.texts import days_text, minutes_text, rub_text
+from app.block import BLOCKED_NOTICE
 from app.maintenance import current_text
 from app.trust import take_trust, trust_info
 
@@ -59,6 +60,26 @@ async def _if_down() -> web.Response | None:
     if await db.flag_on("maintenance"):
         return json_error(await current_text(), 503)
     return None
+
+
+async def _if_blocked(telegram_id: int) -> web.Response | None:
+    if await db.user_is_blocked(telegram_id):
+        return json_error(BLOCKED_NOTICE, 403)
+    return None
+
+
+async def _require_tg(request: web.Request) -> tuple[int | None, web.Response | None]:
+    denied = await _if_down()
+    if denied:
+        return None, denied
+    try:
+        telegram_id = _user_id(request)
+    except (ValueError, web.HTTPUnauthorized):
+        return None, json_error("Недействительные данные Telegram", 401)
+    denied = await _if_blocked(telegram_id)
+    if denied:
+        return None, denied
+    return telegram_id, None
 
 
 _NO_STORE = {
@@ -98,6 +119,15 @@ async def api_me(request: web.Request) -> web.Response:
                 "ok": True,
                 "maintenance": True,
                 "notice": await current_text(),
+                "brand_name": settings.brand_name,
+            }
+        )
+    if await db.user_is_blocked(telegram_id):
+        return web.json_response(
+            {
+                "ok": True,
+                "blocked": True,
+                "notice": BLOCKED_NOTICE,
                 "brand_name": settings.brand_name,
             }
         )
@@ -225,14 +255,10 @@ async def api_avatar(request: web.Request) -> web.Response:
 
 
 async def api_trial(request: web.Request) -> web.Response:
-    denied = await _if_down()
+    telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
     settings = get_settings()
-    try:
-        telegram_id = _user_id(request)
-    except ValueError:
-        return json_error("Недействительные данные Telegram", 401)
     local = await db.get_user(telegram_id)
     if not settings.trial_enabled:
         return json_error("Сейчас нельзя попробовать бесплатно")
@@ -264,14 +290,10 @@ async def api_trial(request: web.Request) -> web.Response:
 
 
 async def api_invoice(request: web.Request) -> web.Response:
-    denied = await _if_down()
+    telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
     settings = get_settings()
-    try:
-        telegram_id = _user_id(request)
-    except ValueError:
-        return json_error("Недействительные данные Telegram", 401)
     body = await request.json()
     code = str(body.get("plan") or "")
     plan = settings.shop_plans.get(code)
@@ -320,10 +342,9 @@ async def api_promo(request: web.Request) -> web.Response:
     settings = get_settings()
     if not settings.promo_enabled:
         return json_error("Промокоды выключены")
-    try:
-        telegram_id = _user_id(request)
-    except ValueError:
-        return json_error("Недействительные данные Telegram", 401)
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
     body = await request.json()
     code = str(body.get("code") or "").strip().upper()
     days = settings.promo_map.get(code)
@@ -352,10 +373,9 @@ async def api_add_device(request: web.Request) -> web.Response:
     settings = get_settings()
     if not settings.balance_enabled:
         return json_error("Баланс выключен")
-    try:
-        telegram_id = _user_id(request)
-    except ValueError:
-        return json_error("Недействительные данные Telegram", 401)
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
     body = await request.json()
     title = str(body.get("title") or "").strip() or "Устройство"
     platform = str(body.get("platform") or "").strip()[:32] or None
@@ -405,10 +425,9 @@ async def api_reissue_device(request: web.Request) -> web.Response:
     settings = get_settings()
     if not settings.balance_enabled:
         return json_error("Баланс выключен")
-    try:
-        telegram_id = _user_id(request)
-    except ValueError:
-        return json_error("Недействительные данные Telegram", 401)
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
     try:
         device_id = int(request.match_info["device_id"])
     except (KeyError, TypeError, ValueError):
@@ -428,13 +447,9 @@ async def api_reissue_device(request: web.Request) -> web.Response:
 
 
 async def api_reissue_subscription(request: web.Request) -> web.Response:
-    denied = await _if_down()
+    telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
-    try:
-        telegram_id = _user_id(request)
-    except ValueError:
-        return json_error("Недействительные данные Telegram", 401)
     rw: RemnawaveClient = request.app["rw"]
     panel = await fetch_panel(rw, telegram_id, force=True)
     if not panel:
@@ -448,22 +463,18 @@ async def api_reissue_subscription(request: web.Request) -> web.Response:
 
 
 async def api_vpn_report(request: web.Request) -> web.Response:
-    denied = await _if_down()
+    telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
-    try:
-        parsed = safe_parse_webapp_init_data(get_settings().bot_token, _init_data(request))
-    except ValueError:
-        return json_error("Недействительные данные Telegram", 401)
-    if not parsed.user:
-        return json_error("Недействительные данные Telegram", 401)
+    local = await db.get_user(telegram_id)
     from app.reports import ReportCooldown, submit_vpn_report
 
     bot: Bot = request.app["bot"]
     rw: RemnawaveClient = request.app["rw"]
-    telegram_id = int(parsed.user.id)
+    username = (local or {}).get("username")
+    first_name = (local or {}).get("first_name")
     try:
-        await submit_vpn_report(bot, rw, telegram_id, parsed.user.username, parsed.user.first_name)
+        await submit_vpn_report(bot, rw, telegram_id, username, first_name)
     except ReportCooldown as exc:
         minutes = max(1, exc.wait_sec // 60)
         return json_error(f"Повторно можно через {minutes_text(minutes)}.")
@@ -474,13 +485,9 @@ async def api_vpn_report(request: web.Request) -> web.Response:
 
 
 async def api_trust(request: web.Request) -> web.Response:
-    denied = await _if_down()
+    telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
-    try:
-        telegram_id = _user_id(request)
-    except ValueError:
-        return json_error("Недействительные данные Telegram", 401)
     try:
         loan = await take_trust(telegram_id)
     except ValueError as exc:

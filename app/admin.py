@@ -10,6 +10,7 @@ from aiohttp import web
 from aiogram import Bot
 
 from app import db
+from app.block import BLOCKED_NOTICE
 from app.backup import (
     MAX_UPLOAD,
     backup_path,
@@ -19,7 +20,9 @@ from app.backup import (
     seconds_until_msk_0001,
 )
 from app.config import ROOT, get_settings
+from app.keyboards import blocked_keyboard
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
+from app.keyboards import blocked_keyboard
 from app.remnawave import RemnawaveClient, RemnawaveError
 
 logger = logging.getLogger("rm-shop.admin")
@@ -215,19 +218,36 @@ async def _purge_user(rw: RemnawaveClient, telegram_id: int) -> str:
     local = await db.get_user(telegram_id)
     if not local:
         return "missing"
-    panel_ids = []
-    if local.get("remnawave_id"):
-        panel_ids.append(int(local["remnawave_id"]))
-    for item in await db.list_devices(telegram_id):
-        if item.get("remnawave_id"):
-            panel_ids.append(int(item["remnawave_id"]))
-    for panel_id in dict.fromkeys(panel_ids):
+    for panel_id in await db.list_panel_ids_for_user(telegram_id):
         try:
             await rw.disable_panel_user(panel_id)
         except RemnawaveError:
             logger.exception("Не удалось отключить панель %s при удалении %s", panel_id, telegram_id)
     if not await db.delete_user(telegram_id):
         return "missing"
+    return "ok"
+
+
+async def _apply_block(
+    rw: RemnawaveClient,
+    telegram_id: int,
+    blocked: bool,
+    reason: str | None = None,
+) -> str:
+    if telegram_id in get_settings().admin_id_set:
+        return "skipped"
+    if not await db.get_user(telegram_id):
+        return "missing"
+    if blocked:
+        for panel_id in await db.list_panel_ids_for_user(telegram_id):
+            try:
+                await rw.disable_panel_user(panel_id)
+            except RemnawaveError:
+                logger.exception("Не удалось отключить панель %s при блоке %s", panel_id, telegram_id)
+        await db.set_user_blocked(telegram_id, True, reason)
+    else:
+        await db.set_user_blocked(telegram_id, False)
+        await db.clear_device_billing(telegram_id)
     return "ok"
 
 
@@ -244,6 +264,28 @@ async def api_delete_user(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def api_block_user(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    telegram_id = int(request.match_info["telegram_id"])
+    body = await request.json()
+    blocked = bool(body.get("blocked"))
+    reason = str(body.get("reason") or "").strip() or None
+    result = await _apply_block(request.app["rw"], telegram_id, blocked, reason)
+    if result == "missing":
+        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    if result == "skipped":
+        return web.json_response({"ok": False, "error": "Админа заблокировать нельзя"}, status=400)
+    if blocked:
+        bot: Bot = request.app["bot"]
+        try:
+            await bot.send_message(telegram_id, BLOCKED_NOTICE, reply_markup=blocked_keyboard())
+        except Exception:
+            logger.debug("Не удалось написать заблокированному %s", telegram_id, exc_info=True)
+    return web.json_response({"ok": True, "blocked": blocked})
+
+
 BULK_MAX = 500
 
 
@@ -253,7 +295,7 @@ async def api_users_bulk(request: web.Request) -> web.Response:
         return denied
     body = await request.json()
     action = str(body.get("action") or "").strip()
-    if action not in {"delete", "trial_reset", "message"}:
+    if action not in {"delete", "trial_reset", "message", "block", "unblock"}:
         return web.json_response({"ok": False, "error": "Неизвестное действие"}, status=400)
     ids: list[int] = []
     if body.get("all_matching"):
@@ -299,6 +341,22 @@ async def api_users_bulk(request: web.Request) -> web.Response:
         try:
             if action == "delete":
                 result = await _purge_user(rw, telegram_id)
+                if result == "ok":
+                    ok_n += 1
+                elif result == "skipped":
+                    skipped += 1
+                else:
+                    failed += 1
+            elif action == "block":
+                result = await _apply_block(rw, telegram_id, True)
+                if result == "ok":
+                    ok_n += 1
+                elif result == "skipped":
+                    skipped += 1
+                else:
+                    failed += 1
+            elif action == "unblock":
+                result = await _apply_block(rw, telegram_id, False)
                 if result == "ok":
                     ok_n += 1
                 elif result == "skipped":
@@ -601,6 +659,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/users/{telegram_id}/trial-reset", api_trial_reset)
     app.router.add_post("/admin/api/users/{telegram_id}/message", api_message)
     app.router.add_post("/admin/api/users/{telegram_id}/delete", api_delete_user)
+    app.router.add_post("/admin/api/users/{telegram_id}/block", api_block_user)
     app.router.add_get("/admin/api/flags", api_flags)
     app.router.add_post("/admin/api/flags", api_flags)
     app.router.add_post("/admin/api/maintenance", api_maintenance_save)

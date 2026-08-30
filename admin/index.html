@@ -4,14 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Админка</title>
-  <link rel="stylesheet" href="app.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css?v=2">
 </head>
 <body>
   <div id="login" class="login-wrap">
     <form id="loginForm" class="login-card">
-      <h1>Админка</h1>
-      <p class="muted">Управление ботом и статистика</p>
-      <input id="password" type="password" placeholder="Пароль" autocomplete="current-password">
+      <div class="login-mark" aria-hidden="true"></div>
+      <h1>Кабинет управления</h1>
+      <p class="muted">Статистика, пользователи и сервис бота</p>
+      <label class="field-label" for="password">Пароль</label>
+      <input id="password" type="password" placeholder="Введите пароль" autocomplete="current-password">
       <button type="submit">Войти</button>
       <p id="loginErr" class="err hidden"></p>
     </form>
@@ -19,217 +24,261 @@
 
   <div id="shell" class="hidden">
     <aside>
-      <div class="brand" id="brand">RM Shop</div>
+      <div class="brand-block">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <div class="brand" id="brand">RM Shop</div>
+          <div class="brand-sub">Админка</div>
+        </div>
+      </div>
       <nav>
-        <button type="button" data-tab="overview" class="active">Обзор</button>
-        <button type="button" data-tab="users">Пользователи</button>
-        <button type="button" data-tab="referrals">Рефералы</button>
-        <button type="button" data-tab="orders">Оплаты</button>
-        <button type="button" data-tab="reports">Жалобы VPN</button>
-        <button type="button" data-tab="broadcast">Рассылка</button>
-        <button type="button" data-tab="backups">Бэкапы</button>
-        <button type="button" data-tab="settings">Настройки</button>
+        <div class="nav-label">Сводка</div>
+        <button type="button" data-tab="overview" data-title="Обзор" data-lead="Статистика, техработы и тарификация" class="active">Обзор</button>
+        <div class="nav-label">Клиенты</div>
+        <button type="button" data-tab="users" data-title="Пользователи" data-lead="Поиск, блокировки, баланс и массовые действия">Пользователи</button>
+        <button type="button" data-tab="referrals" data-title="Рефералы" data-lead="Кто пришёл по чьей ссылке">Рефералы</button>
+        <button type="button" data-tab="orders" data-title="Оплаты" data-lead="Заказы и статусы кассы">Оплаты</button>
+        <button type="button" data-tab="reports" data-title="Жалобы VPN" data-lead="Сообщения «VPN не работает»">Жалобы VPN</button>
+        <div class="nav-label">Сервис</div>
+        <button type="button" data-tab="broadcast" data-title="Рассылка" data-lead="Сообщение всем, кто запускал бота">Рассылка</button>
+        <button type="button" data-tab="backups" data-title="Бэкапы" data-lead="Дампы базы и восстановление">Бэкапы</button>
+        <button type="button" data-tab="settings" data-title="Настройки" data-lead="Текущий конфиг без секретов">Настройки</button>
       </nav>
-      <button type="button" id="logout" class="ghost">Выйти</button>
+      <button type="button" id="logout" class="ghost logout">Выйти</button>
     </aside>
-    <main>
-      <section id="tab-overview">
-        <h2>Статистика</h2>
-        <div class="ops">
-          <button type="button" id="maintBtn">Тех. работы: выкл</button>
-          <button type="button" id="billBtn">Тарификация: идёт</button>
+    <div class="workspace">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Обзор</h1>
+          <p id="pageLead" class="muted">Статистика, техработы и тарификация</p>
         </div>
-        <label class="ops-label" for="maintNotice">Текст при тех. работах (сохраняется)</label>
-        <textarea id="maintNotice" rows="4" placeholder="Этот текст уйдёт в бот вместе с картинкой на любое действие пользователя"></textarea>
-        <label class="ops-label" for="maintPhoto">Картинка</label>
-        <div class="row">
-          <input id="maintPhoto" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
-          <button type="button" id="maintSaveBtn">Сохранить текст и картинку</button>
-          <button type="button" id="maintPhotoDel" class="ghost">Удалить картинку</button>
+        <div class="top-flags">
+          <span id="flagMaint" class="flag flag-ok">Сервис работает</span>
+          <span id="flagBill" class="flag flag-ok">Тарификация идёт</span>
         </div>
-        <p id="maintPhotoHint" class="muted"></p>
-        <img id="maintPreview" class="maint-preview hidden" alt="Превью оповещения">
-        <p id="opsHint" class="muted"></p>
-        <div id="cards" class="cards"></div>
-        <div class="grid2">
+      </header>
+      <main>
+        <section id="tab-overview">
+          <div class="ops-grid">
+            <div class="panel ops-card">
+              <div class="ops-kicker">Режим сервиса</div>
+              <button type="button" id="maintBtn">Тех. работы: выкл</button>
+              <p class="muted tight">На любое действие в боте уйдут сохранённые текст и картинка.</p>
+            </div>
+            <div class="panel ops-card">
+              <div class="ops-kicker">Списание</div>
+              <button type="button" id="billBtn">Тарификация: идёт</button>
+              <p class="muted tight">Пауза продлевает устройства без списания с баланса.</p>
+            </div>
+          </div>
+
           <div class="panel">
-            <h3>Заказы по статусу</h3>
-            <div id="orderStats"></div>
+            <h3>Оповещение при техработах</h3>
+            <label class="ops-label" for="maintNotice">Текст</label>
+            <textarea id="maintNotice" rows="4" placeholder="Этот текст уйдёт в бот вместе с картинкой на любое действие пользователя"></textarea>
+            <label class="ops-label" for="maintPhoto">Картинка</label>
+            <div class="row">
+              <input id="maintPhoto" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+              <button type="button" id="maintSaveBtn">Сохранить</button>
+              <button type="button" id="maintPhotoDel" class="ghost">Удалить картинку</button>
+            </div>
+            <p id="maintPhotoHint" class="muted"></p>
+            <img id="maintPreview" class="maint-preview hidden" alt="Превью оповещения">
+            <p id="opsHint" class="muted"></p>
+          </div>
+
+          <h3 class="block-title">Показатели</h3>
+          <div id="cards" class="cards"></div>
+          <div class="grid2">
+            <div class="panel">
+              <h3>Заказы по статусу</h3>
+              <div id="orderStats"></div>
+            </div>
+            <div class="panel">
+              <h3>Оплаченные тарифы</h3>
+              <div id="planStats"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-users" class="hidden">
+          <div class="toolbar">
+            <input id="userQ" type="search" placeholder="ID, username, имя или «блок»">
+            <button type="button" id="userSearch">Найти</button>
+          </div>
+          <div class="toolbar bulk-bar">
+            <span id="userSelCount" class="chip">Выбрано: 0</span>
+            <button type="button" id="bulkBlock" class="danger">Заблокировать</button>
+            <button type="button" id="bulkUnblock" class="ghost">Разблокировать</button>
+            <button type="button" id="bulkDelete" class="danger">Удалить</button>
+            <button type="button" id="bulkTrial" class="ghost">Сбросить триал</button>
+            <button type="button" id="bulkMsg" class="ghost">Написать</button>
+            <button type="button" id="bulkDeleteMatch" class="danger">Удалить по поиску</button>
+          </div>
+          <p id="bulkOut" class="muted"></p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="check-col"><input id="userSelectAll" type="checkbox" aria-label="Выбрать страницу"></th>
+                  <th>Telegram</th>
+                  <th>Имя</th>
+                  <th>Баланс</th>
+                  <th>Триал</th>
+                  <th>До</th>
+                  <th>Статус</th>
+                  <th>Пригласил</th>
+                  <th>Друзей</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="userRows"></tbody>
+            </table>
+          </div>
+          <div id="userPager" class="pager"></div>
+        </section>
+
+        <section id="tab-referrals" class="hidden">
+          <p class="muted intro">Поиск по ID, username или имени любой из сторон.</p>
+          <div class="toolbar">
+            <input id="refQ" type="search" placeholder="ID, username, имя">
+            <button type="button" id="refSearch">Найти</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Пришёл</th>
+                  <th>Пригласил</th>
+                  <th>Когда</th>
+                  <th>Награда</th>
+                </tr>
+              </thead>
+              <tbody id="refRows"></tbody>
+            </table>
+          </div>
+          <div id="refPager" class="pager"></div>
+        </section>
+
+        <section id="tab-orders" class="hidden">
+          <div class="toolbar">
+            <input id="orderQ" type="search" placeholder="order_id, payment_id, статус">
+            <button type="button" id="orderSearch">Найти</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Заказ</th>
+                  <th>Пользователь</th>
+                  <th>Тариф</th>
+                  <th>Статус</th>
+                  <th>Создан</th>
+                </tr>
+              </thead>
+              <tbody id="orderRows"></tbody>
+            </table>
+          </div>
+          <div id="orderPager" class="pager"></div>
+        </section>
+
+        <section id="tab-reports" class="hidden">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Время</th>
+                  <th>Пользователь</th>
+                  <th>Подписка до</th>
+                  <th>Статус</th>
+                </tr>
+              </thead>
+              <tbody id="reportRows"></tbody>
+            </table>
+          </div>
+          <div id="reportPager" class="pager"></div>
+        </section>
+
+        <section id="tab-broadcast" class="hidden">
+          <div class="panel narrow">
+            <h3>Новое сообщение</h3>
+            <p class="muted">Уйдёт всем, кто когда-либо запускал бота. Заблокированные не получают рассылку.</p>
+            <textarea id="broadcastText" rows="8" placeholder="Текст сообщения"></textarea>
+            <button type="button" id="broadcastBtn">Отправить</button>
+            <p id="broadcastOut" class="muted"></p>
+          </div>
+        </section>
+
+        <section id="tab-backups" class="hidden">
+          <div class="panel">
+            <h3>Автобэкап</h3>
+            <p class="muted">Дамп PostgreSQL каждый день в 00:01 по Москве. Файлы на сервере, скачать можно здесь.</p>
+            <div class="ops">
+              <button type="button" id="backupBtn">Сделать бэкап сейчас</button>
+            </div>
+            <p id="backupOut" class="muted"></p>
           </div>
           <div class="panel">
-            <h3>Оплаченные тарифы</h3>
-            <div id="planStats"></div>
+            <h3>Импорт при переезде</h3>
+            <p class="muted">Загрузите .sql или .sql.gz. Текущая база будет полностью заменена. .env не меняется.</p>
+            <div class="row">
+              <input id="backupFile" type="file" accept=".sql,.gz,.sql.gz">
+              <button type="button" id="restoreUploadBtn">Восстановить из файла</button>
+            </div>
+            <p id="restoreOut" class="muted"></p>
           </div>
-        </div>
-      </section>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Файл</th>
+                  <th>Размер</th>
+                  <th>Создан</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="backupRows"></tbody>
+            </table>
+          </div>
+        </section>
 
-      <section id="tab-users" class="hidden">
-        <h2>Пользователи</h2>
-        <div class="toolbar">
-          <input id="userQ" type="search" placeholder="ID, username, имя">
-          <button type="button" id="userSearch">Найти</button>
-        </div>
-        <div class="toolbar bulk-bar">
-          <span id="userSelCount" class="muted">Выбрано: 0</span>
-          <button type="button" id="bulkDelete" class="danger">Удалить выбранных</button>
-          <button type="button" id="bulkTrial" class="ghost">Сбросить бесплатный период</button>
-          <button type="button" id="bulkMsg" class="ghost">Написать выбранным</button>
-          <button type="button" id="bulkDeleteMatch" class="danger">Удалить всех по поиску</button>
-        </div>
-        <p id="bulkOut" class="muted"></p>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th class="check-col"><input id="userSelectAll" type="checkbox" aria-label="Выбрать страницу"></th>
-                <th>Telegram</th>
-                <th>Имя</th>
-                <th>Баланс</th>
-                <th>Бесплатно</th>
-                <th>До</th>
-                <th>Статус</th>
-                <th>Пригласил</th>
-                <th>Друзей</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="userRows"></tbody>
-          </table>
-        </div>
-        <div id="userPager" class="pager"></div>
-      </section>
-
-      <section id="tab-referrals" class="hidden">
-        <h2>Рефералы</h2>
-        <p class="muted">Кто пришёл по чьей ссылке. Поиск по ID, username или имени любой из сторон.</p>
-        <div class="toolbar">
-          <input id="refQ" type="search" placeholder="ID, username, имя">
-          <button type="button" id="refSearch">Найти</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Пришёл</th>
-                <th>Пригласил</th>
-                <th>Когда</th>
-                <th>Награда</th>
-              </tr>
-            </thead>
-            <tbody id="refRows"></tbody>
-          </table>
-        </div>
-        <div id="refPager" class="pager"></div>
-      </section>
-
-      <section id="tab-orders" class="hidden">
-        <h2>Оплаты</h2>
-        <div class="toolbar">
-          <input id="orderQ" type="search" placeholder="order_id, payment_id, статус">
-          <button type="button" id="orderSearch">Найти</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Заказ</th>
-                <th>Пользователь</th>
-                <th>Тариф</th>
-                <th>Статус</th>
-                <th>Создан</th>
-              </tr>
-            </thead>
-            <tbody id="orderRows"></tbody>
-          </table>
-        </div>
-        <div id="orderPager" class="pager"></div>
-      </section>
-
-      <section id="tab-reports" class="hidden">
-        <h2>Жалобы VPN</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Время</th>
-                <th>Пользователь</th>
-                <th>Подписка до</th>
-                <th>Статус</th>
-              </tr>
-            </thead>
-            <tbody id="reportRows"></tbody>
-          </table>
-        </div>
-        <div id="reportPager" class="pager"></div>
-      </section>
-
-      <section id="tab-broadcast" class="hidden">
-        <h2>Рассылка</h2>
-        <p class="muted">Сообщение уйдёт всем, кто когда-либо запускал бота.</p>
-        <textarea id="broadcastText" rows="8" placeholder="Текст сообщения"></textarea>
-        <button type="button" id="broadcastBtn">Отправить</button>
-        <p id="broadcastOut" class="muted"></p>
-      </section>
-
-      <section id="tab-backups" class="hidden">
-        <h2>Бэкапы</h2>
-        <p class="muted">Дамп PostgreSQL каждый день в 00:01 по Москве. Файлы лежат в папке backups на сервере, скачать можно здесь.</p>
-        <div class="ops">
-          <button type="button" id="backupBtn">Сделать бэкап</button>
-        </div>
-        <p id="backupOut" class="muted"></p>
-        <h3>Импорт при переезде</h3>
-        <p class="muted">Загрузите .sql или .sql.gz с другого хоста. Текущая база будет полностью заменена. .env (токен, домен, касса) не меняется.</p>
-        <div class="row">
-          <input id="backupFile" type="file" accept=".sql,.gz,.sql.gz">
-          <button type="button" id="restoreUploadBtn">Восстановить из файла</button>
-        </div>
-        <p id="restoreOut" class="muted"></p>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Файл</th>
-                <th>Размер</th>
-                <th>Создан</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="backupRows"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section id="tab-settings" class="hidden">
-        <h2>Текущие настройки</h2>
-        <p class="muted">Секреты не показываются. Изменение — через .env и перезапуск.</p>
-        <pre id="settingsBox"></pre>
-      </section>
-    </main>
+        <section id="tab-settings" class="hidden">
+          <p class="muted intro">Секреты не показываются. Изменение — через .env и перезапуск.</p>
+          <pre id="settingsBox"></pre>
+        </section>
+      </main>
+    </div>
   </div>
 
   <div id="modal" class="modal hidden">
     <div class="modal-card">
-      <h3 id="modalTitle">Пользователь</h3>
-      <p id="modalMeta" class="muted"></p>
+      <div class="modal-head">
+        <div>
+          <h3 id="modalTitle">Пользователь</h3>
+          <p id="modalMeta" class="muted"></p>
+        </div>
+        <button type="button" id="modalClose" class="ghost">Закрыть</button>
+      </div>
       <label>Начислить дни (режим подписки)</label>
       <div class="row">
         <input id="grantDays" type="number" min="1" max="3650" value="30">
-        <button type="button" id="grantBtn">Начислить в панели</button>
+        <button type="button" id="grantBtn">Начислить</button>
       </div>
       <label>Баланс, рубли (плюс или минус)</label>
       <div class="row">
         <input id="balAmount" type="number" step="1" value="50">
         <button type="button" id="balBtn">Изменить баланс</button>
       </div>
-      <button type="button" id="trialBtn" class="ghost">Сбросить бесплатный период</button>
+      <div class="modal-actions">
+        <button type="button" id="trialBtn" class="ghost">Сбросить бесплатный период</button>
+        <button type="button" id="blockBtn" class="danger">Заблокировать</button>
+      </div>
       <label>Сообщение в Telegram</label>
       <textarea id="msgText" rows="4"></textarea>
       <button type="button" id="msgBtn">Отправить</button>
       <button type="button" id="delBtn" class="danger">Удалить пользователя</button>
-      <button type="button" id="modalClose" class="ghost">Закрыть</button>
     </div>
   </div>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

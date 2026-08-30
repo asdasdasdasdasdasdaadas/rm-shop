@@ -41,6 +41,10 @@ function showShell() {
 function switchTab(name) {
   document.querySelectorAll("nav [data-tab]").forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === name);
+    if (b.dataset.tab === name) {
+      if ($("pageTitle")) $("pageTitle").textContent = b.dataset.title || name;
+      if ($("pageLead")) $("pageLead").textContent = b.dataset.lead || "";
+    }
   });
   ["overview", "users", "referrals", "orders", "reports", "broadcast", "backups", "settings"].forEach((tab) => {
     $("tab-" + tab).classList.toggle("hidden", tab !== name);
@@ -105,6 +109,16 @@ function paintFlags(f) {
     : p
       ? "Устройства продлеваются, плата не списывается."
       : "";
+  const fm = $("flagMaint");
+  const fb = $("flagBill");
+  if (fm) {
+    fm.textContent = m ? "Техработы" : "Сервис работает";
+    fm.className = "flag " + (m ? "flag-warn" : "flag-ok");
+  }
+  if (fb) {
+    fb.textContent = p ? "Тарификация на паузе" : "Тарификация идёт";
+    fb.className = "flag " + (p ? "flag-warn" : "flag-ok");
+  }
 }
 
 async function loadFlags() {
@@ -130,6 +144,7 @@ async function loadStats() {
     ["Промокоды", s.promo_uses || 0],
     ["Stars-платежи", s.stars_payments || 0],
     ["Жалобы VPN", s.vpn_reports || 0],
+    ["Заблокированы", u.blocked || 0],
     ["Пришли по ссылке", (u.referred || 0)],
     ["Реф. награда выдана", (u.referral_rewarded || 0)],
   ].forEach(([l, v]) => cards.appendChild(card(l, v)));
@@ -165,6 +180,30 @@ function whoLabel(id, username, name) {
   return `${id}` + (username ? ` @${username}` : "") + (name ? ` · ${name}` : "");
 }
 
+function pillKind(text) {
+  const v = String(text || "").toLowerCase();
+  if (v.includes("блок") || v === "disabled" || v === "expired" || v === "failed") return "bad";
+  if (v === "active" || v === "granted" || v === "выдана" || v === "paid") return "ok";
+  if (v === "created" || v === "ещё нет" || v === "pending") return "warn";
+  return "";
+}
+
+function tdText(text) {
+  const td = document.createElement("td");
+  td.textContent = text;
+  return td;
+}
+
+function tdPill(text) {
+  const td = document.createElement("td");
+  const s = document.createElement("span");
+  const kind = pillKind(text);
+  s.className = kind ? `pill pill-${kind}` : "pill";
+  s.textContent = text;
+  td.appendChild(s);
+  return td;
+}
+
 async function loadUsers(page) {
   if (page) userPage = page;
   const q = $("userQ").value.trim();
@@ -174,6 +213,7 @@ async function loadUsers(page) {
   body.innerHTML = "";
   lastUserItems.forEach((u) => {
     const tr = document.createElement("tr");
+    tr.className = u.blocked_at ? "is-blocked" : "";
     const tdCheck = document.createElement("td");
     tdCheck.className = "check-col";
     const cb = document.createElement("input");
@@ -192,17 +232,15 @@ async function loadUsers(page) {
       u.balance_rub == null ? "—" : String(u.balance_rub),
       u.trial_used ? "да" : "нет",
       fmt(u.expire_at),
-      u.panel_status || "—",
+    ];
+    cells.forEach((t) => tr.appendChild(tdText(t)));
+    tr.appendChild(tdPill(u.blocked_at ? "блок" : (u.panel_status || "—")));
+    tr.appendChild(tdText(
       u.referred_by
         ? whoLabel(u.referred_by, u.referrer_username, u.referrer_name)
-        : "—",
-      String(u.invited_count || 0),
-    ];
-    cells.forEach((t) => {
-      const td = document.createElement("td");
-      td.textContent = t;
-      tr.appendChild(td);
-    });
+        : "—"
+    ));
+    tr.appendChild(tdText(String(u.invited_count || 0)));
     const td = document.createElement("td");
     const btn = document.createElement("button");
     btn.className = "ghost";
@@ -272,12 +310,8 @@ async function loadReferrals(page) {
       whoLabel(row.invitee_id, row.invitee_username, row.invitee_name),
       whoLabel(row.referrer_id, row.referrer_username, row.referrer_name),
       fmt(row.invitee_at),
-      row.referral_rewarded ? "выдана" : "ещё нет",
-    ].forEach((t) => {
-      const td = document.createElement("td");
-      td.textContent = t;
-      tr.appendChild(td);
-    });
+    ].forEach((t) => tr.appendChild(tdText(t)));
+    tr.appendChild(tdPill(row.referral_rewarded ? "выдана" : "ещё нет"));
     body.appendChild(tr);
   });
   pager($("refPager"), data.page, data.total, data.limit, loadReferrals);
@@ -291,11 +325,11 @@ async function loadOrders(page) {
   body.innerHTML = "";
   data.items.forEach((o) => {
     const tr = document.createElement("tr");
-    [o.order_id, o.telegram_id, o.plan_code, o.status, fmt(o.created_at)].forEach((t) => {
-      const td = document.createElement("td");
-      td.textContent = t;
-      tr.appendChild(td);
-    });
+    tr.appendChild(tdText(o.order_id));
+    tr.appendChild(tdText(o.telegram_id));
+    tr.appendChild(tdText(o.plan_code));
+    tr.appendChild(tdPill(o.status));
+    tr.appendChild(tdText(fmt(o.created_at)));
     body.appendChild(tr);
   });
   pager($("orderPager"), data.page, data.total, data.limit, loadOrders);
@@ -335,7 +369,10 @@ function openUser(u) {
     (u.referred_by
       ? ` · пригласил ${whoLabel(u.referred_by, u.referrer_username, u.referrer_name)}`
       : " · пришёл без рефссылки") +
-    ` · пригласил друзей: ${u.invited_count || 0}`;
+    ` · пригласил друзей: ${u.invited_count || 0}` +
+    (u.blocked_at ? " · заблокирован" : "");
+  $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
+  $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
   $("modal").classList.remove("hidden");
 }
 
@@ -384,6 +421,28 @@ $("userSelectAll").onchange = () => {
     else selectedUsers.delete(u.telegram_id);
   });
   loadUsers();
+};
+$("bulkBlock").onclick = () => {
+  const ids = [...selectedUsers];
+  if (!ids.length) {
+    $("bulkOut").textContent = "Никого не выбрано";
+    return;
+  }
+  runBulk(
+    { action: "block", ids },
+    `Заблокировать ${ids.length} пользователей? VPN отключится, бот и кабинет станут недоступны. Админы пропускаются.`
+  );
+};
+$("bulkUnblock").onclick = () => {
+  const ids = [...selectedUsers];
+  if (!ids.length) {
+    $("bulkOut").textContent = "Никого не выбрано";
+    return;
+  }
+  runBulk(
+    { action: "unblock", ids },
+    `Разблокировать ${ids.length} пользователей?`
+  );
 };
 $("bulkDelete").onclick = () => {
   const ids = [...selectedUsers];
@@ -489,6 +548,7 @@ async function loadBackups() {
     a.href = `/admin/api/backups/${encodeURIComponent(item.name)}`;
     a.textContent = "Скачать";
     td.appendChild(a);
+    a.style.marginRight = "10px";
     const rest = document.createElement("button");
     rest.type = "button";
     rest.className = "ghost";
@@ -585,6 +645,20 @@ $("trialBtn").onclick = async () => {
   await api(`/admin/api/users/${currentUser.telegram_id}/trial-reset`, {
     method: "POST",
     body: "{}",
+  });
+  $("modal").classList.add("hidden");
+  loadUsers();
+};
+$("blockBtn").onclick = async () => {
+  if (!currentUser) return;
+  const on = !currentUser.blocked_at;
+  const msg = on
+    ? `Заблокировать ${currentUser.telegram_id}? VPN отключится, бот и кабинет станут недоступны.`
+    : `Разблокировать ${currentUser.telegram_id}?`;
+  if (!window.confirm(msg)) return;
+  await api(`/admin/api/users/${currentUser.telegram_id}/block`, {
+    method: "POST",
+    body: JSON.stringify({ blocked: on }),
   });
   $("modal").classList.add("hidden");
   loadUsers();

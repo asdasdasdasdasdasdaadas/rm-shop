@@ -17,6 +17,7 @@ from app.remnawave import RemnawaveClient
 from app.rollypay import RollyPayClient
 from app.sync import sync_all
 from app.maintenance import MaintenanceMiddleware
+from app.block import BlockedMiddleware
 from app.backup import backup_loop
 from app.web import start_http
 
@@ -83,6 +84,7 @@ async def main() -> None:
     dp["rw"] = rw
     dp["rp"] = rp
     dp.update.outer_middleware(MaintenanceMiddleware())
+    dp.update.outer_middleware(BlockedMiddleware())
     dp.include_router(start_router)
     dp.include_router(profile_router)
 

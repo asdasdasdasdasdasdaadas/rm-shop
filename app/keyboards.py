@@ -137,6 +137,12 @@ def cabinet_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def blocked_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="Поддержка", url=support_url()))
+    return builder.as_markup()
+
+
 def try_again_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="Попробовать ещё раз", callback_data="try_again"))

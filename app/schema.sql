@@ -104,6 +104,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS trust_loans_open_uidx
     ON trust_loans (telegram_id)
     WHERE collected_at IS NULL;
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
+CREATE INDEX IF NOT EXISTS users_blocked_at_idx ON users (blocked_at) WHERE blocked_at IS NOT NULL;
+
 UPDATE users SET has_paid_topup = TRUE
 WHERE telegram_id IN (
     SELECT DISTINCT telegram_id FROM rollypay_orders WHERE status = 'granted'

@@ -1496,6 +1496,10 @@ async function load() {
     showMaint(me.notice);
     return;
   }
+  if (me.blocked) {
+    showMaint(me.notice || "Доступ ограничен.");
+    return;
+  }
   paint(me);
 }
 

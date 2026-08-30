@@ -322,6 +322,57 @@ async def collect_trust_loan(loan_id: int, telegram_id: int, amount: int) -> Non
     )
 
 
+async def user_is_blocked(telegram_id: int) -> bool:
+    val = await _pool_req().fetchval(
+        "SELECT blocked_at IS NOT NULL FROM users WHERE telegram_id = $1",
+        telegram_id,
+    )
+    return bool(val)
+
+
+async def set_user_blocked(telegram_id: int, blocked: bool, reason: str | None = None) -> bool:
+    pool = _pool_req()
+    if blocked:
+        note = (reason or "").strip()[:500] or None
+        result = await pool.execute(
+            """
+            UPDATE users
+            SET blocked_at = COALESCE(blocked_at, $2),
+                blocked_reason = $3
+            WHERE telegram_id = $1
+            """,
+            telegram_id,
+            _utc_now(),
+            note,
+        )
+    else:
+        result = await pool.execute(
+            "UPDATE users SET blocked_at = NULL, blocked_reason = NULL WHERE telegram_id = $1",
+            telegram_id,
+        )
+    return result == "UPDATE 1"
+
+
+async def list_panel_ids_for_user(telegram_id: int) -> list[int]:
+    local = await get_user(telegram_id)
+    if not local:
+        return []
+    ids: list[int] = []
+    if local.get("remnawave_id"):
+        ids.append(int(local["remnawave_id"]))
+    for item in await list_devices(telegram_id):
+        if item.get("remnawave_id"):
+            ids.append(int(item["remnawave_id"]))
+    return list(dict.fromkeys(ids))
+
+
+async def clear_device_billing(telegram_id: int) -> None:
+    await _pool_req().execute(
+        "UPDATE devices SET last_billed_on = NULL WHERE telegram_id = $1",
+        telegram_id,
+    )
+
+
 async def delete_user(telegram_id: int) -> bool:
     pool = _pool_req()
     async with pool.acquire() as conn:
@@ -420,6 +471,7 @@ async def devices_due_for_billing() -> list[dict]:
         FROM devices
         WHERE remnawave_id IS NOT NULL
           AND (last_billed_on IS NULL OR last_billed_on < (timezone('utc', now()))::date)
+          AND telegram_id NOT IN (SELECT telegram_id FROM users WHERE blocked_at IS NOT NULL)
         ORDER BY id
         """
     )
@@ -510,7 +562,8 @@ async def admin_stats() -> dict:
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::int AS new_7d,
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::int AS new_30d,
             COUNT(*) FILTER (WHERE referred_by IS NOT NULL)::int AS referred,
-            COUNT(*) FILTER (WHERE referral_rewarded)::int AS referral_rewarded
+            COUNT(*) FILTER (WHERE referral_rewarded)::int AS referral_rewarded,
+            COUNT(*) FILTER (WHERE blocked_at IS NOT NULL)::int AS blocked
         FROM users
         """
     )
@@ -535,18 +588,23 @@ async def admin_stats() -> dict:
     }
 
 
-async def admin_list_users(query: str, limit: int, offset: int) -> tuple[list[dict], int]:
-    pool = _pool_req()
+def _admin_users_filter(query: str) -> tuple[str, list]:
     q = query.strip()
-    where = ""
-    args: list = []
-    if q:
-        pattern = f"%{q}%"
-        where = """
+    if not q:
+        return "", []
+    if q.lower() in {"блок", "blocked", "ban"}:
+        return "WHERE u.blocked_at IS NOT NULL", []
+    pattern = f"%{q}%"
+    where = """
             WHERE u.username ILIKE $1 OR u.first_name ILIKE $1 OR u.telegram_id::text LIKE $1
                OR u.referred_by::text LIKE $1 OR ref.username ILIKE $1 OR ref.first_name ILIKE $1
         """
-        args.append(pattern)
+    return where, [pattern]
+
+
+async def admin_list_users(query: str, limit: int, offset: int) -> tuple[list[dict], int]:
+    pool = _pool_req()
+    where, args = _admin_users_filter(query)
     total_sql = f"""
         SELECT COUNT(*)::int FROM users u
         LEFT JOIN users ref ON ref.telegram_id = u.referred_by
@@ -572,16 +630,7 @@ async def admin_list_users(query: str, limit: int, offset: int) -> tuple[list[di
 
 async def admin_user_ids(query: str, limit: int) -> tuple[list[int], int]:
     pool = _pool_req()
-    q = query.strip()
-    where = ""
-    args: list = []
-    if q:
-        pattern = f"%{q}%"
-        where = """
-            WHERE u.username ILIKE $1 OR u.first_name ILIKE $1 OR u.telegram_id::text LIKE $1
-               OR u.referred_by::text LIKE $1 OR ref.username ILIKE $1 OR ref.first_name ILIKE $1
-        """
-        args.append(pattern)
+    where, args = _admin_users_filter(query)
     total = await pool.fetchval(
         f"""
         SELECT COUNT(*)::int FROM users u
@@ -695,7 +744,9 @@ async def reset_trial(telegram_id: int) -> bool:
 
 
 async def list_broadcast_ids() -> list[int]:
-    rows = await _pool_req().fetch("SELECT telegram_id FROM users ORDER BY telegram_id")
+    rows = await _pool_req().fetch(
+        "SELECT telegram_id FROM users WHERE blocked_at IS NULL ORDER BY telegram_id"
+    )
     return [int(r["telegram_id"]) for r in rows]
 
 
