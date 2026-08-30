@@ -241,15 +241,7 @@ async def api_message(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
-async def api_broadcast(request: web.Request) -> web.Response:
-    denied = _need_auth(request)
-    if denied:
-        return denied
-    body = await request.json()
-    text = str(body.get("text") or "").strip()
-    if not text:
-        return web.json_response({"ok": False, "error": "Пустой текст"}, status=400)
-    bot: Bot = request.app["bot"]
+async def _broadcast_all(bot: Bot, text: str) -> tuple[int, int]:
     sent = 0
     failed = 0
     for telegram_id in await db.list_broadcast_ids():
@@ -258,7 +250,22 @@ async def api_broadcast(request: web.Request) -> web.Response:
             sent += 1
         except Exception:
             failed += 1
-            await asyncio.sleep(0.05)
+        await asyncio.sleep(0.035)
+    return sent, failed
+
+
+async def api_broadcast(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    body = await request.json()
+    text = str(body.get("text") or "").strip()
+    if not text:
+        return web.json_response({"ok": False, "error": "Пустой текст"}, status=400)
+    if len(text) > 3500:
+        return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
+    bot: Bot = request.app["bot"]
+    sent, failed = await _broadcast_all(bot, text)
     return web.json_response({"ok": True, "sent": sent, "failed": failed})
 
 
@@ -285,6 +292,7 @@ async def api_settings(request: web.Request) -> web.Response:
             "referral_reward_rub": settings.referral_reward_rub,
             "maintenance": flags["maintenance"],
             "billing_paused": flags["billing_paused"],
+            "maintenance_notice": flags.get("maintenance_notice") or "",
             "plans": [
                 {"code": code, "title": p["title"], "days": p["days"], "rub": p["rub_str"]}
                 for code, p in settings.shop_plans.items()
@@ -302,7 +310,24 @@ async def api_flags(request: web.Request) -> web.Response:
         return web.json_response({"ok": True, **flags})
     body = await request.json()
     if "maintenance" in body:
-        await db.set_flag("maintenance", bool(body.get("maintenance")))
+        turning_on = bool(body.get("maintenance"))
+        was_on = await db.flag_on("maintenance")
+        if turning_on and not was_on:
+            text = str(body.get("message") or "").strip()
+            if not text:
+                return web.json_response(
+                    {"ok": False, "error": "Укажите текст оповещения для всех пользователей"},
+                    status=400,
+                )
+            if len(text) > 3500:
+                return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
+            await db.set_kv("maintenance_notice", text)
+            await db.set_flag("maintenance", True)
+            bot: Bot = request.app["bot"]
+            sent, failed = await _broadcast_all(bot, text)
+            flags = await db.get_flags()
+            return web.json_response({"ok": True, **flags, "sent": sent, "failed": failed})
+        await db.set_flag("maintenance", turning_on)
     if "billing_paused" in body:
         await db.set_flag("billing_paused", bool(body.get("billing_paused")))
     flags = await db.get_flags()

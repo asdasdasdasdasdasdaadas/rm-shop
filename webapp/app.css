@@ -36,7 +36,7 @@ body {
   padding:
     calc(10px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, 0px)))
     16px
-    calc(88px + var(--tg-safe-area-inset-bottom, 0px));
+    calc(24px + var(--tg-safe-area-inset-bottom, 0px));
 }
 
 #app {
@@ -219,31 +219,6 @@ body {
   letter-spacing: -0.6px;
   line-height: 1.15;
 }
-
-.tabbar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 10;
-  display: flex;
-  background: var(--section);
-  border-top: 0.5px solid var(--sep);
-  padding-bottom: var(--tg-safe-area-inset-bottom, 0px);
-}
-
-.tab {
-  flex: 1;
-  border: 0;
-  background: transparent;
-  color: var(--hint);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 10px 8px 8px;
-}
-
-.tab.on { color: var(--link); }
 
 body.has-main-btn {
   padding-bottom: calc(24px + var(--tg-safe-area-inset-bottom, 0px));
@@ -638,8 +613,7 @@ body.has-main-btn {
 
 .pill,
 .plus-btn,
-.icon-btn,
-.tab {
+.icon-btn {
   transition: transform 0.18s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.18s ease, color 0.18s ease, background-color 0.18s ease;
 }
 
@@ -675,10 +649,6 @@ body.has-main-btn {
   to { transform: scale(1); opacity: 1; }
 }
 
-.tab.on {
-  transform: scale(1.04);
-}
-
 .sheet:not(.hidden) {
   animation: sheet-in 0.22s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
@@ -712,27 +682,11 @@ body.has-main-btn {
   transition: transform 0.2s ease;
 }
 
-.tabbar {
-  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease;
-}
-
-body.has-main-btn .tabbar {
-  display: flex;
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(12px);
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation: none !important;
     transition: none !important;
-  }
-  body.has-main-btn .tabbar {
-    display: none;
-    opacity: 1;
-    transform: none;
   }
 }

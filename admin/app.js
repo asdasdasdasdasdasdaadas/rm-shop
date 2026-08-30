@@ -82,6 +82,9 @@ function paintFlags(f) {
   $("maintBtn").classList.toggle("warn", m);
   $("billBtn").textContent = p ? "Тарификация: стоп" : "Тарификация: идёт";
   $("billBtn").classList.toggle("warn", p);
+  if (f.maintenance_notice && !$("maintNotice").value) {
+    $("maintNotice").value = f.maintenance_notice;
+  }
   $("opsHint").textContent = m
     ? "Бот и Mini App отвечают, что сервис недоступен. Админка работает."
     : p
@@ -322,10 +325,32 @@ $("modal").onclick = (e) => {
 };
 
 $("maintBtn").onclick = async () => {
-  const f = await api("/admin/api/flags");
-  const next = !f.maintenance;
-  if (next && !window.confirm("Включить тех. работы? Бот и Mini App перестанут обслуживать пользователей.")) return;
-  paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ maintenance: next }) }));
+  try {
+    const f = await api("/admin/api/flags");
+    const next = !f.maintenance;
+    if (!next) {
+      paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ maintenance: false }) }));
+      return;
+    }
+    const message = $("maintNotice").value.trim();
+    if (!message) {
+      $("opsHint").textContent = "Сначала введите текст оповещения. Его получат все пользователи.";
+      $("maintNotice").focus();
+      return;
+    }
+    if (!window.confirm("Включить тех. работы и отправить этот текст всем?")) return;
+    $("opsHint").textContent = "Отправка оповещения...";
+    const r = await api("/admin/api/flags", {
+      method: "POST",
+      body: JSON.stringify({ maintenance: true, message }),
+    });
+    paintFlags(r);
+    const extra = r.sent != null ? ` Оповещение: отправлено ${r.sent}, ошибок ${r.failed || 0}.` : "";
+    $("opsHint").textContent =
+      "Бот и Mini App отвечают, что сервис недоступен. Админка работает." + extra;
+  } catch (err) {
+    $("opsHint").textContent = err.message || "Не удалось включить тех. работы";
+  }
 };
 
 $("billBtn").onclick = async () => {

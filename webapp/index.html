@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Кабинет</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="app.css?v=8">
 </head>
 <body>
   <div id="boot" class="state">
@@ -34,7 +34,7 @@
 
   <div id="maint" class="state hidden">
     <section class="group">
-      <p class="muted">Сейчас ведутся технические работы. Сервис временно недоступен.</p>
+      <p id="maintText" class="muted">Сейчас ведутся технические работы. Сервис временно недоступен.</p>
     </section>
   </div>
 
@@ -71,12 +71,6 @@
           <span class="cell-label">Доверительный платёж</span>
           <span id="trustDue" class="cell-value"></span>
         </div>
-        <button type="button" id="promoHint" class="cell nav hidden">
-          <div class="plan-main">
-            <div class="plan-title">Промокод</div>
-            <div id="promoHintSub" class="plan-sub">Начислит дни на баланс</div>
-          </div>
-        </button>
         <button type="button" id="trialHomeBtn" class="cell action hidden"></button>
       </section>
 
@@ -85,18 +79,11 @@
           <h2 class="section-title tight">Устройства <span id="deviceCount" class="count-badge">0</span></h2>
           <button type="button" id="addDevice" class="plus-btn" aria-label="Добавить">+</button>
         </div>
-        <p id="devicesNote" class="section-note">Каждое устройство списывает стоимость суток с баланса каждый день.</p>
+        <p id="devicesNote" class="section-note">Пока нет устройств, баланс не списывается.</p>
         <section class="group">
           <div id="devicesBody" class="stack"></div>
         </section>
       </div>
-    </div>
-
-    <div id="view-sub" class="view hidden">
-      <h2 class="section-title">Подписка</h2>
-      <section class="group">
-        <div id="payRow" class="stack"></div>
-      </section>
 
       <div id="connectWrap">
         <h2 class="section-title">Подключение</h2>
@@ -125,6 +112,7 @@
       <h2 class="section-title">Помощь</h2>
       <section class="group">
         <button type="button" id="vpnDown" class="cell action">VPN не работает</button>
+        <button type="button" id="supportBtn" class="cell action">Поддержка</button>
       </section>
     </div>
 
@@ -164,10 +152,6 @@
       </section>
     </div>
 
-    <nav id="tabbar" class="tabbar">
-      <button type="button" class="tab on" data-tab="home">Устройства</button>
-      <button type="button" class="tab" data-tab="sub">Подписка</button>
-    </nav>
   </div>
 
   <div id="menu" class="sheet hidden" role="menu">
@@ -177,6 +161,6 @@
   </div>
   <div id="menuScrim" class="scrim hidden"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

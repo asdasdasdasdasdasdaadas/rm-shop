@@ -121,6 +121,12 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 th { color: var(--muted); font-weight: 500; }
 .ops { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.ops-label {
+  display: block;
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
 button.danger {
   background: transparent;
   border: 1px solid var(--danger);

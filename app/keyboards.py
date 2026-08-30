@@ -10,6 +10,16 @@ from app.texts import days_text, rub_text
 from app import runtime
 
 
+def support_url() -> str:
+    raw = (get_settings().support_username or "").strip()
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return raw.replace("://tg.me/", "://t.me/", 1)
+    handle = raw.lstrip("@")
+    if not handle or handle == "support":
+        handle = "way_proxy_support"
+    return f"https://t.me/{handle}"
+
+
 def legal_text() -> str:
     return (
         "Перед использованием примите оферту и политику конфиденциальности. "
@@ -42,8 +52,20 @@ def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> s
 def channel_keyboard() -> InlineKeyboardMarkup:
     settings = get_settings()
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="Подписаться на канал", url=settings.required_channel_url))
-    builder.row(InlineKeyboardButton(text="Проверить подписку", callback_data="check_sub"))
+    builder.row(
+        InlineKeyboardButton(
+            text="Подписаться на канал",
+            url=settings.required_channel_url,
+            style="primary",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Проверить подписку",
+            callback_data="check_sub",
+            style="success",
+        )
+    )
     return builder.as_markup()
 
 
@@ -52,7 +74,9 @@ def legal_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="Оферта", url=settings.legal_offer_url))
     builder.row(InlineKeyboardButton(text="Политика конфиденциальности", url=settings.legal_privacy_url))
-    builder.row(InlineKeyboardButton(text="Принимаю", callback_data="accept_legal"))
+    builder.row(
+        InlineKeyboardButton(text="Принимаю", callback_data="accept_legal", style="success")
+    )
     return builder.as_markup()
 
 
@@ -82,6 +106,7 @@ def profile_keyboard(*, trial_available: bool, has_access: bool) -> InlineKeyboa
             builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_sub"))
             builder.row(InlineKeyboardButton(text="Подключиться", callback_data="connect"))
     builder.row(InlineKeyboardButton(text="VPN не работает", callback_data="vpn_down"))
+    builder.row(InlineKeyboardButton(text="Поддержка", url=support_url()))
     return builder.as_markup()
 
 
@@ -169,6 +194,8 @@ def share_keyboard(bot_username: str, telegram_id: int) -> InlineKeyboardMarkup:
         + quote(share_text)
     )
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="Отправить другу", url=share_url))
+    builder.row(
+        InlineKeyboardButton(text="Отправить другу", url=share_url, style="success")
+    )
     builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
     return builder.as_markup()

@@ -10,6 +10,11 @@ from app.config import get_settings
 from app.trust import MAINTENANCE_TEXT
 
 
+async def current_text() -> str:
+    stored = (await db.get_kv("maintenance_notice")).strip()
+    return stored or MAINTENANCE_TEXT
+
+
 class MaintenanceMiddleware(BaseMiddleware):
     async def __call__(
         self,
@@ -25,15 +30,16 @@ class MaintenanceMiddleware(BaseMiddleware):
             return await handler(event, data)
         if not await db.flag_on("maintenance"):
             return await handler(event, data)
+        notice = await current_text()
         if isinstance(event, CallbackQuery):
             try:
-                await event.answer(MAINTENANCE_TEXT, show_alert=True)
+                await event.answer(notice[:200], show_alert=True)
             except Exception:
                 pass
             return None
         if isinstance(event, Message):
             try:
-                await event.answer(MAINTENANCE_TEXT)
+                await event.answer(notice)
             except Exception:
                 pass
             return None

@@ -14,7 +14,7 @@ MAINTENANCE_TEXT = "Сейчас ведутся технические рабо�
 
 def daily_cost_rub(device_count: int, price: int | None = None) -> int:
     day = max(1, price if price is not None else get_settings().vpn_day_price_rub)
-    return day * max(1, device_count)
+    return day * max(0, int(device_count or 0))
 
 
 def trust_amount_rub(device_count: int, price: int | None = None) -> int:
@@ -47,6 +47,8 @@ async def trust_info(telegram_id: int, local: dict | None, device_count: int) ->
         reason = "Уже есть незакрытый доверительный платёж"
     elif not paid:
         reason = "Сначала нужно хотя бы раз пополнить баланс. Рефералы и бонусы не считаются"
+    elif device_count < 1:
+        reason = "Сначала добавьте устройство"
     elif balance > daily:
         reason = "Баланс ещё не близок к минимуму"
     else:

@@ -161,7 +161,10 @@ function rublesLabel(n) {
   return `${n} ${rublesWord(n)}`;
 }
 
-function daysCaption(n) {
+function daysCaption(n, me) {
+  if (me && me.balance_enabled && !(me.devices && me.devices.length)) {
+    return "НА БАЛАНСЕ · ТАРИФ НЕ ИДЁТ";
+  }
   const w = daysWord(n).toUpperCase();
   return `${w} ОСТАЛОСЬ`;
 }
@@ -188,11 +191,12 @@ function showFail(message) {
   $("failText").textContent = message;
 }
 
-function showMaint() {
+function showMaint(notice) {
   $("boot").classList.add("hidden");
   $("fail").classList.add("hidden");
   $("app").classList.add("hidden");
   $("maint").classList.remove("hidden");
+  if (notice) $("maintText").textContent = notice;
   try {
     tg.MainButton.hide();
     tg.BackButton.hide();
@@ -231,10 +235,6 @@ function setMain(text, fn) {
   document.body.classList.add("has-main-btn");
 }
 
-function hideChromeNav(hideTabs) {
-  $("tabbar").classList.toggle("hidden", hideTabs);
-}
-
 function replayAnim(el, cls) {
   if (!el) return;
   el.classList.remove(cls);
@@ -243,7 +243,7 @@ function replayAnim(el, cls) {
 }
 
 function switchView(id, motion) {
-  ["view-home", "view-sub", "view-topup", "view-wizard", "view-device"].forEach((vid) => {
+  ["view-home", "view-topup", "view-wizard", "view-device"].forEach((vid) => {
     const el = $(vid);
     const on = vid === id;
     el.classList.toggle("hidden", !on);
@@ -262,8 +262,6 @@ const wiz = {
 
 let screen = "home";
 let openDevice = null;
-let topupBack = "sub";
-
 function onBack() {
   haptic();
   if (screen === "wizard") {
@@ -280,8 +278,7 @@ function onBack() {
     return;
   }
   if (screen === "topup") {
-    if (topupBack === "home") openHome();
-    else openSub();
+    openHome();
   }
 }
 
@@ -290,36 +287,17 @@ function openHome() {
   screen = "home";
   openDevice = null;
   switchView("view-home", fromStack ? "pop" : "fade");
-  document.querySelectorAll(".tab").forEach((el) => {
-    el.classList.toggle("on", el.dataset.tab === "home");
-  });
-  hideChromeNav(false);
   setMain("");
   try {
     tg.BackButton.hide();
   } catch (_e) {}
 }
 
-function openSub() {
-  screen = "sub";
-  switchView("view-sub", "fade");
-  document.querySelectorAll(".tab").forEach((el) => {
-    el.classList.toggle("on", el.dataset.tab === "sub");
-  });
-  hideChromeNav(false);
-  setMain("");
-  try {
-    tg.BackButton.hide();
-  } catch (_e) {}
-}
-
-function openTopup(back) {
+function openTopup() {
   const me = window.__me;
   if (!me) return;
-  topupBack = back || "sub";
   screen = "topup";
   switchView("view-topup", "push");
-  hideChromeNav(true);
   setMain("");
   try {
     tg.BackButton.show();
@@ -393,7 +371,6 @@ function startWizard() {
   wiz.url = "";
   screen = "wizard";
   switchView("view-wizard", "push");
-  hideChromeNav(true);
   try {
     tg.BackButton.show();
   } catch (_e) {}
@@ -617,7 +594,6 @@ function showDevice(d) {
   screen = "device";
   openDevice = d;
   switchView("view-device", "push");
-  hideChromeNav(true);
   try {
     tg.BackButton.show();
   } catch (_e) {}
@@ -626,38 +602,6 @@ function showDevice(d) {
   $("devPlatform").textContent = platformLabel(d.platform);
   $("devUrl").textContent = d.subscription_url || "Ссылка появится после создания";
   setMain("");
-}
-
-function renderPay(me) {
-  const row = $("payRow");
-  row.innerHTML = "";
-  if (me.trial_available) {
-    const t = document.createElement("button");
-    t.type = "button";
-    t.className = "cell action";
-    t.textContent = me.balance_enabled
-      ? `Попробовать бесплатно · ${rublesLabel(me.trial_rub)}`
-      : `Попробовать бесплатно · ${daysLabel(me.trial_days)}`;
-    t.onclick = async () => {
-      haptic();
-      try {
-        await api("/api/trial", { method: "POST", body: "{}" });
-        await load();
-      } catch (e) {
-        showErr(e);
-      }
-    };
-    row.appendChild(t);
-  }
-  const b = document.createElement("button");
-  b.type = "button";
-  b.className = "cell action";
-  b.textContent = me.balance_enabled ? "Пополнить" : "Купить подписку";
-  b.onclick = () => {
-    haptic();
-    openTopup("sub");
-  };
-  row.appendChild(b);
 }
 
 function renderConnect(me) {
@@ -703,8 +647,9 @@ function renderDevices(me) {
   }
   block.classList.remove("hidden");
   $("deviceCount").textContent = String(me.devices.length);
-  $("devicesNote").textContent =
-    `${rublesLabel(me.vpn_day_price_rub)} в сутки каждое. Списание каждый день.`;
+  $("devicesNote").textContent = me.devices.length
+    ? `${rublesLabel(me.vpn_day_price_rub)} в сутки каждое. Списание каждый день.`
+    : "Пока нет устройств, баланс не списывается. Списание начнётся после добавления.";
   const body = $("devicesBody");
   body.innerHTML = "";
   if (!me.devices.length) {
@@ -753,7 +698,7 @@ function paint(me) {
   } else {
     daysEl.textContent = String(left);
   }
-  $("daysCaption").textContent = daysCaption(left);
+  $("daysCaption").textContent = daysCaption(left, me);
   if (me.balance_enabled) {
     $("balanceValue").textContent = rublesLabel(me.balance_rub);
     const rub = me.referral_reward_rub || 50;
@@ -769,16 +714,11 @@ function paint(me) {
   $("invite").textContent = me.invite_url;
   $("offerLink").href = me.legal.offer;
   $("privacyLink").href = me.legal.privacy;
-  $("supportLink").href = me.legal.support.startsWith("@")
-    ? `https://t.me/${me.legal.support.slice(1)}`
-    : me.legal.support;
+  $("supportLink").href = me.legal.support;
   if (me.promo_enabled) {
     $("promoCard").classList.remove("hidden");
-    $("promoHint").classList.remove("hidden");
-    $("promoHintSub").textContent = "Начислит дни на баланс";
   } else {
     $("promoCard").classList.add("hidden");
-    $("promoHint").classList.add("hidden");
   }
   const trustBtn = $("trustBtn");
   const trustOpen = $("trustOpen");
@@ -807,7 +747,6 @@ function paint(me) {
   } else {
     trialHome.classList.add("hidden");
   }
-  renderPay(me);
   renderConnect(me);
   renderDevices(me);
   window.__me = me;
@@ -827,7 +766,7 @@ function paint(me) {
 async function load() {
   const me = await api("/api/me");
   if (me.maintenance) {
-    showMaint();
+    showMaint(me.notice);
     return;
   }
   paint(me);
@@ -847,23 +786,9 @@ $("menuBtn").onclick = (e) => {
 $("menuScrim").onclick = closeMenu;
 $("menu").onclick = (e) => e.stopPropagation();
 
-document.querySelectorAll(".tab").forEach((el) => {
-  el.onclick = () => {
-    haptic();
-    if (el.dataset.tab === "sub") openSub();
-    else openHome();
-  };
-});
-
 $("topupBtn").onclick = () => {
   haptic();
-  openTopup("home");
-};
-
-$("promoHint").onclick = () => {
-  haptic();
-  openSub();
-  $("promo").focus();
+  openTopup();
 };
 
 $("trialHomeBtn").onclick = async () => {
@@ -970,6 +895,12 @@ $("vpnDown").onclick = async () => {
   } catch (e) {
     showErr(e);
   }
+};
+
+$("supportBtn").onclick = () => {
+  haptic();
+  const url = (window.__me && window.__me.legal && window.__me.legal.support) || $("supportLink").href;
+  if (url) tg.openTelegramLink(url);
 };
 
 $("retryBtn").onclick = () => {

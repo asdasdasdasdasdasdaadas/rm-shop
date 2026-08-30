@@ -17,7 +17,7 @@ from app import db, runtime
 from app.admin import mount_admin
 from app.billing import fulfill_rollypay_order, subscription_issued_text
 from app.config import ROOT, get_settings
-from app.keyboards import back_profile_keyboard, connect_keyboard
+from app.keyboards import back_profile_keyboard, connect_keyboard, support_url
 from app.referrals import maybe_reward_referrer, trial_grant_days, trial_grant_rub
 from app.remnawave import (
     RemnawaveClient,
@@ -29,7 +29,8 @@ from app.remnawave import (
 from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, verify_webhook
 from app.sync import fetch_panel
 from app.texts import days_text, minutes_text, rub_text
-from app.trust import MAINTENANCE_TEXT, take_trust, trust_info
+from app.maintenance import current_text
+from app.trust import take_trust, trust_info
 
 logger = logging.getLogger("rm-shop.web")
 WEBAPP_DIR = ROOT / "webapp"
@@ -54,12 +55,26 @@ def json_error(message: str, status: int = 400) -> web.Response:
 
 async def _if_down() -> web.Response | None:
     if await db.flag_on("maintenance"):
-        return json_error(MAINTENANCE_TEXT, 503)
+        return json_error(await current_text(), 503)
     return None
 
 
+_NO_STORE = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+}
+
+
 async def index(_request: web.Request) -> web.FileResponse:
-    return web.FileResponse(WEBAPP_DIR / "index.html")
+    return web.FileResponse(WEBAPP_DIR / "index.html", headers=_NO_STORE)
+
+
+async def webapp_css(_request: web.Request) -> web.FileResponse:
+    return web.FileResponse(WEBAPP_DIR / "app.css", headers=_NO_STORE)
+
+
+async def webapp_js(_request: web.Request) -> web.FileResponse:
+    return web.FileResponse(WEBAPP_DIR / "app.js", headers=_NO_STORE)
 
 
 async def api_me(request: web.Request) -> web.Response:
@@ -76,6 +91,7 @@ async def api_me(request: web.Request) -> web.Response:
             {
                 "ok": True,
                 "maintenance": True,
+                "notice": await current_text(),
                 "brand_name": settings.brand_name,
             }
         )
@@ -148,6 +164,7 @@ async def api_me(request: web.Request) -> web.Response:
             "trial_rub": trial_grant_rub() if settings.balance_enabled else 0,
             "days": days,
             "days_left": days_left,
+            "billing_active": bool(settings.balance_enabled and devices),
             "balance_rub": balance_rub,
             "vpn_day_price_rub": settings.vpn_day_price_rub,
             "has_access": bool(
@@ -164,7 +181,7 @@ async def api_me(request: web.Request) -> web.Response:
             "legal": {
                 "offer": settings.legal_offer_url,
                 "privacy": settings.legal_privacy_url,
-                "support": settings.support_username,
+                "support": support_url(),
             },
             "plans": [
                 {
@@ -470,8 +487,8 @@ def build_web_app() -> web.Application:
     app.router.add_post("/webhooks/rollypay", rollypay_webhook)
     if settings.webapp_enabled:
         app.router.add_get("/", index)
-        app.router.add_get("/app.css", lambda _r: web.FileResponse(WEBAPP_DIR / "app.css"))
-        app.router.add_get("/app.js", lambda _r: web.FileResponse(WEBAPP_DIR / "app.js"))
+        app.router.add_get("/app.css", webapp_css)
+        app.router.add_get("/app.js", webapp_js)
         app.router.add_get("/api/me", api_me)
         app.router.add_get("/api/avatar", api_avatar)
         app.router.add_post("/api/trial", api_trial)

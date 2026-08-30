@@ -142,7 +142,8 @@ async def my_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
             "<b>Баланс</b>\n\n"
             f"Сейчас: <b>{rub_text(rub)}</b>\n"
             f"Устройств: <b>{n}</b>\n"
-            f"Списание: <b>{rub_text(settings.vpn_day_price_rub)}</b> в сутки за устройство.\n"
+            f"Списание: <b>{rub_text(settings.vpn_day_price_rub)}</b> в сутки за устройство, "
+            "только пока есть хотя бы одно устройство.\n"
             "Устройства добавляются в личном кабинете.",
             reply_markup=buy_keyboard(),
         )
@@ -208,7 +209,8 @@ async def buy_menu(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if settings.balance_enabled:
         text = (
             "<b>Пополнение баланса</b>\n\n"
-            f"Сутки на одно устройство: {rub_text(settings.vpn_day_price_rub)}."
+            f"Сутки на одно устройство: {rub_text(settings.vpn_day_price_rub)}. "
+            "Пока устройств нет, баланс не списывается."
         )
     else:
         text = (

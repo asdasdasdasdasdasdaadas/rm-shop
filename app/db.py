@@ -242,22 +242,36 @@ async def flag_on(key: str) -> bool:
 
 
 async def set_flag(key: str, on: bool) -> None:
+    await set_kv(key, "1" if on else "0")
+
+
+async def get_kv(key: str) -> str:
+    val = await _pool_req().fetchval("SELECT value FROM app_flags WHERE key = $1", key)
+    return str(val or "")
+
+
+async def set_kv(key: str, value: str) -> None:
     await _pool_req().execute(
         """
         INSERT INTO app_flags (key, value) VALUES ($1, $2)
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
         """,
         key,
-        "1" if on else "0",
+        value,
     )
 
 
-async def get_flags() -> dict[str, bool]:
+async def get_flags() -> dict:
     rows = await _pool_req().fetch("SELECT key, value FROM app_flags")
-    data = {r["key"]: str(r["value"] or "").lower() in {"1", "true", "on", "yes"} for r in rows}
+    data = {str(r["key"]): str(r["value"] or "") for r in rows}
+
+    def _on(key: str) -> bool:
+        return data.get(key, "").lower() in {"1", "true", "on", "yes"}
+
     return {
-        "maintenance": bool(data.get("maintenance")),
-        "billing_paused": bool(data.get("billing_paused")),
+        "maintenance": _on("maintenance"),
+        "billing_paused": _on("billing_paused"),
+        "maintenance_notice": data.get("maintenance_notice") or "",
     }
 
 

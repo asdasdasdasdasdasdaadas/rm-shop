@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     webapp_public_url: str = ""
 
     brand_name: str = "RM Shop"
-    support_username: str = "@support"
+    support_username: str = "@way_proxy_support"
     admin_password: str = ""
     database_url: str = "postgresql://rmshop:rmshop@127.0.0.1:5432/rmshop"
     panel_sync_ttl: int = 60
