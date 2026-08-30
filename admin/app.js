@@ -28,7 +28,14 @@ function fmt(dt) {
   return d.toLocaleString("ru-RU");
 }
 
+function setNavOpen(open) {
+  document.body.classList.toggle("nav-open", open);
+  const toggle = $("navToggle");
+  if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
 function showLogin() {
+  setNavOpen(false);
   $("login").classList.remove("hidden");
   $("shell").classList.add("hidden");
 }
@@ -56,6 +63,7 @@ function switchTab(name) {
   if (name === "reports") loadReports();
   if (name === "backups") loadBackups();
   if (name === "settings") loadSettings();
+  setNavOpen(false);
 }
 
 function card(label, value) {
@@ -488,6 +496,14 @@ $("logout").onclick = async () => {
 
 document.querySelectorAll("nav [data-tab]").forEach((b) => {
   b.onclick = () => switchTab(b.dataset.tab);
+});
+$("navToggle").onclick = () => setNavOpen(!document.body.classList.contains("nav-open"));
+$("navScrim").onclick = () => setNavOpen(false);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") setNavOpen(false);
+});
+window.addEventListener("resize", () => {
+  if (window.matchMedia("(min-width: 901px)").matches) setNavOpen(false);
 });
 $("userSearch").onclick = () => {
   selectedUsers.clear();
