@@ -436,7 +436,7 @@ async def api_reissue_subscription(request: web.Request) -> web.Response:
     except ValueError:
         return json_error("Недействительные данные Telegram", 401)
     rw: RemnawaveClient = request.app["rw"]
-    panel = await fetch_panel(rw, telegram_id)
+    panel = await fetch_panel(rw, telegram_id, force=True)
     if not panel:
         return json_error("Подписка ещё не создана")
     try:

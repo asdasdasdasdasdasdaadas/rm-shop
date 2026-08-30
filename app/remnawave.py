@@ -23,9 +23,24 @@ def _as_users(data: Any) -> list[dict]:
     if isinstance(data, dict):
         if isinstance(data.get("users"), list):
             return [u for u in data["users"] if isinstance(u, dict)]
-        if "username" in data or "id" in data or "uuid" in data:
+        nested = data.get("user")
+        if isinstance(nested, dict):
+            return [nested]
+        if "username" in data or "id" in data or "uuid" in data or "shortUuid" in data:
             return [data]
     return []
+
+
+def panel_user_key(user: dict | None) -> str:
+    if not user:
+        return ""
+    uid = str(user.get("uuid") or "").strip()
+    if uid:
+        return uid
+    raw_id = user.get("id")
+    if raw_id is not None and str(raw_id).strip() != "":
+        return str(raw_id).strip()
+    return ""
 
 
 def _by_telegram(data: Any, telegram_id: int) -> dict | None:
@@ -113,12 +128,21 @@ class RemnawaveClient:
             return response.text
 
     async def get_user_by_id(self, user_id: int | str) -> dict | None:
-        try:
-            data = await self._request("GET", f"/users/{user_id}")
-        except RemnawaveError:
+        ident = str(user_id).strip()
+        if not ident:
             return None
-        users = _as_users(data)
-        return users[0] if users else None
+        paths = [f"/users/{ident}"]
+        if ident.isdigit():
+            paths.append(f"/users/by-id/{ident}")
+        for path in paths:
+            try:
+                data = await self._request("GET", path)
+            except RemnawaveError:
+                continue
+            users = _as_users(data)
+            if users:
+                return users[0]
+        return None
 
     async def get_user_by_telegram(self, telegram_id: int) -> dict | None:
         if self._lookup == "stream":
@@ -174,9 +198,14 @@ class RemnawaveClient:
         return users[0]
 
     async def revoke_subscription(self, user: dict) -> dict:
-        uid = str(user.get("uuid") or "").strip()
+        uid = panel_user_key(user)
+        if not uid and user.get("id") is not None:
+            fresh = await self.get_user_by_id(user["id"])
+            if fresh:
+                user = fresh
+                uid = panel_user_key(user)
         if not uid:
-            raise RemnawaveError("В панели нет UUID пользователя")
+            raise RemnawaveError("Не удалось определить пользователя в панели")
         data = await self._request("POST", f"/users/{uid}/actions/revoke", json={})
         users = _as_users(data)
         if not users:
