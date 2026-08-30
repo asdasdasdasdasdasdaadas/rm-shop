@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
@@ -20,6 +22,42 @@ from app.remnawave import RemnawaveClient
 from app.sync import fetch_panel, has_access
 
 router = Router()
+
+
+def _aware(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def is_established_user(local: dict, *, devices: int = 0) -> bool:
+    if local.get("trial_used"):
+        return True
+    if local.get("remnawave_id") or local.get("remnawave_uuid"):
+        return True
+    if local.get("has_paid_topup"):
+        return True
+    if int(local.get("balance_rub") or 0) or int(local.get("balance_days") or 0):
+        return True
+    if devices > 0:
+        return True
+    created = local.get("created_at")
+    if isinstance(created, datetime):
+        return datetime.now(timezone.utc) - _aware(created) > timedelta(minutes=1)
+    return False
+
+
+async def user_passed_legal(telegram_id: int) -> bool:
+    local = await db.get_user(telegram_id)
+    if not local:
+        return False
+    if local.get("accepted_legal_at"):
+        return True
+    devices = await db.device_count(telegram_id)
+    if not is_established_user(local, devices=devices):
+        return False
+    await db.accept_legal(telegram_id)
+    return True
 
 
 async def ack(callback: CallbackQuery, text: str | None = None, alert: bool = False) -> None:
@@ -79,8 +117,7 @@ async def gate_or_continue(event: Message | CallbackQuery) -> bool:
         else:
             await event.answer(text, reply_markup=kb)
         return False
-    local = await db.get_user(user.id)
-    if not local or not local["accepted_legal_at"]:
+    if not await user_passed_legal(user.id):
         text = legal_text()
         kb = legal_keyboard()
         if isinstance(event, CallbackQuery):
@@ -107,8 +144,7 @@ async def cmd_start(message: Message, rw: RemnawaveClient) -> None:
     if not await is_channel_member(message.bot, message.from_user.id):
         await message.answer(welcome_text(), reply_markup=channel_keyboard())
         return
-    local = await db.get_user(message.from_user.id)
-    if not local or not local["accepted_legal_at"]:
+    if not await user_passed_legal(message.from_user.id):
         await message.answer(legal_text(), reply_markup=legal_keyboard())
         return
     await show_profile(message, rw)
@@ -124,8 +160,7 @@ async def check_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await is_channel_member(callback.bot, callback.from_user.id, force=True):
         await ack(callback, "Подписка не найдена. Подпишитесь и нажмите ещё раз.", alert=True)
         return
-    local = await db.get_user(callback.from_user.id)
-    if local and local["accepted_legal_at"]:
+    if await user_passed_legal(callback.from_user.id):
         await show_profile(callback, rw)
         return
     await callback.message.edit_text(legal_text(), reply_markup=legal_keyboard())
@@ -162,10 +197,7 @@ async def try_again(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await is_channel_member(callback.bot, user.id):
         await callback.message.answer(welcome_text(), reply_markup=channel_keyboard())
         return
-    local = await db.get_user(user.id)
-    if not local or not local["accepted_legal_at"]:
-        await callback.message.answer(legal_text(), reply_markup=legal_keyboard())
-        return
+    await user_passed_legal(user.id)
     await show_profile(callback, rw)
 
 

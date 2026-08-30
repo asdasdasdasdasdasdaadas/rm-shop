@@ -118,7 +118,6 @@ def profile_keyboard(*, trial_available: bool, has_access: bool) -> InlineKeyboa
                 callback_data="share",
             ),
         )
-        builder.row(InlineKeyboardButton(text="Мой баланс", callback_data="my_sub"))
     else:
         builder.row(InlineKeyboardButton(text="Купить подписку", callback_data="buy"))
         days = settings.referral_reward_days
