@@ -506,6 +506,15 @@ async def get_device(telegram_id: int, device_id: int) -> dict | None:
     return _as_dict(row)
 
 
+async def delete_device(telegram_id: int, device_id: int) -> dict | None:
+    row = await _pool_req().fetchrow(
+        "DELETE FROM devices WHERE id = $1 AND telegram_id = $2 RETURNING *",
+        device_id,
+        telegram_id,
+    )
+    return _as_dict(row)
+
+
 async def device_count(telegram_id: int) -> int:
     val = await _pool_req().fetchval(
         "SELECT COUNT(*) FROM devices WHERE telegram_id = $1",

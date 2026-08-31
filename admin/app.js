@@ -205,7 +205,7 @@ function pillKind(text) {
   const v = String(text || "").toLowerCase();
   if (v.includes("блок") || v === "disabled" || v === "expired" || v === "failed" || v === "отключение" || v === "ошибка") return "bad";
   if (v === "active" || v === "granted" || v === "выдана" || v === "paid" || v === "списание" || v === "включение" || v === "начисление" || v === "обещанный") return "ok";
-  if (v === "created" || v === "ещё нет" || v === "pending" || v === "пауза" || v === "баланс" || v === "возврат обещанного") return "warn";
+  if (v === "created" || v === "ещё нет" || v === "pending" || v === "пауза" || v === "баланс" || v === "возврат обещанного" || v === "удаление") return "warn";
   return "";
 }
 
@@ -365,6 +365,7 @@ const BILL_KIND = {
   admin_grant: "начисление",
   trust: "обещанный",
   trust_collect: "возврат обещанного",
+  device_delete: "удаление",
   error: "ошибка",
 };
 const BILL_SOURCE = { cron: "тарификация", admin: "админка", user: "кабинет" };

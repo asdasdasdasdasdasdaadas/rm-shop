@@ -1089,7 +1089,7 @@ body {
   right: 0;
   bottom: 0;
   left: 0;
-  width: min(300px, calc(100% - 32px));
+  width: min(340px, calc(100% - 32px));
   height: fit-content;
   max-height: calc(100% - 32px);
   min-width: 0;
@@ -2102,20 +2102,40 @@ body.has-main-btn {
   user-select: text;
   -webkit-user-select: text;
 }
+.dev-qr-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.dev-qr-btn.hidden { display: none; }
 .dev-qr {
-  width: min(168px, 100%);
-  margin: 0 auto 14px;
-  padding: 10px;
+  width: 88px;
+  height: 88px;
+  padding: 6px;
   background: #0d1611;
   border: 1px solid rgba(143, 227, 176, 0.16);
-  border-radius: 14px;
+  border-radius: 12px;
   box-sizing: border-box;
 }
 .dev-qr svg,
 .dev-qr-svg {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+}
+.dev-qr-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
 }
 .dev-link-actions {
   display: flex;
@@ -2190,6 +2210,7 @@ body.has-main-btn {
 .dev-danger .t { display: block; font-size: 13.5px; font-weight: 700; color: #ff8f7a; }
 .dev-danger .s { display: block; font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
 .dev-danger .chev { color: var(--text-tertiary); flex-shrink: 0; }
+.dev-danger + .dev-danger { margin-top: 8px; }
 
 .app-toast {
   position: fixed;

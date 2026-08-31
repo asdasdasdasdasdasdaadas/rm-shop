@@ -314,6 +314,19 @@ class RemnawaveClient:
             },
         )
 
+    async def delete_panel_user(self, panel_user_id: int) -> None:
+        user = await self.get_user_by_id(panel_user_id)
+        if not user:
+            return
+        uid = panel_user_key(user)
+        if uid:
+            try:
+                await self._request("DELETE", f"/users/{uid}")
+                return
+            except RemnawaveError:
+                pass
+        await self.disable_panel_user(panel_user_id)
+
     async def extend_subscription(
         self,
         telegram_id: int,

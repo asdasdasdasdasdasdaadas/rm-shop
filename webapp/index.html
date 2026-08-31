@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=31">
+  <link rel="stylesheet" href="app.css?v=32">
 </head>
 <body>
   <div id="boot" class="state">
@@ -319,7 +319,10 @@
       <div class="dev-label">Ссылка подписки</div>
       <div class="dev-link">
         <div id="devUrl" class="dev-link-text"></div>
-        <div id="devQr" class="dev-qr hidden" aria-hidden="true"></div>
+        <button type="button" id="devQrBtn" class="dev-qr-btn hidden">
+          <span id="devQr" class="dev-qr" aria-hidden="true"></span>
+          <span class="dev-qr-hint">Нажмите, чтобы увеличить</span>
+        </button>
         <div class="dev-link-actions">
           <button type="button" id="devCopy" class="dev-lbtn">
             <svg class="dev-lbtn-ico" viewBox="0 0 24 24" aria-hidden="true">
@@ -345,6 +348,18 @@
           <span>
             <span class="t">Перевыпустить ссылку</span>
             <span class="s">Старая перестанет работать</span>
+          </span>
+        </span>
+        <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" id="devDelete" class="dev-danger">
+        <span class="left">
+          <span class="icon-wrap" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 7V5h4v2M8 7l1 12h6l1-12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span>
+            <span class="t">Удалить устройство</span>
+            <span class="s">VPN на нём перестанет работать</span>
           </span>
         </span>
         <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -390,6 +405,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=32"></script>
+  <script src="app.js?v=33"></script>
 </body>
 </html>

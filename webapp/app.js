@@ -899,11 +899,13 @@ function syncWebBack() {
 
 function onBack() {
   haptic();
-  if (screen === "wizard") {
+  if (screen === "wizard" || screen === "device") {
     if (!$("qrSheet").classList.contains("hidden")) {
       hideQr();
       return;
     }
+  }
+  if (screen === "wizard") {
     if (wiz.step > 1 && !wiz.url) {
       wiz.step -= 1;
       renderWizard();
@@ -1420,9 +1422,10 @@ function paintDevice(d) {
   $("devStatus").classList.toggle("off", !on);
   $("devStatusText").textContent = on ? "Активно" : "Неактивно";
   const box = $("devQr");
+  const btn = $("devQrBtn");
   box.innerHTML = "";
   const svg = d.subscription_url ? makeQrSvg(d.subscription_url, "dev-qr-svg") : null;
-  box.classList.toggle("hidden", !svg);
+  btn.classList.toggle("hidden", !svg);
   if (svg) box.appendChild(svg);
 }
 
@@ -1884,6 +1887,42 @@ $("devReissue").onclick = () => {
   if (!d) return;
   reissueSubscription(d.id);
 };
+
+$("devQrBtn").onclick = () => {
+  const d = openDevice;
+  if (!d || !d.subscription_url) return;
+  haptic();
+  showQr(d.subscription_url);
+};
+
+function askDeleteDevice() {
+  return new Promise((resolve) => {
+    const msg = "Устройство будет удалено, VPN на нём перестанет работать. Продолжить?";
+    if (typeof tg.showConfirm === "function") {
+      tg.showConfirm(msg, (ok) => resolve(Boolean(ok)));
+      return;
+    }
+    resolve(window.confirm(msg));
+  });
+}
+
+async function deleteDevice() {
+  const d = openDevice;
+  if (!d) return;
+  haptic();
+  if (!(await askDeleteDevice())) return;
+  try {
+    await api(`/api/devices/${d.id}`, { method: "DELETE" });
+    lastDevicesKey = "";
+    openHome();
+    await load();
+    showToast("Устройство удалено");
+  } catch (e) {
+    showErr(e);
+  }
+}
+
+$("devDelete").onclick = () => deleteDevice();
 
 function vpnReportContext() {
   const me = window.__me || {};

@@ -480,6 +480,43 @@ async def api_reissue_device(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "subscription_url": user.get("subscriptionUrl") or ""})
 
 
+async def api_delete_device(request: web.Request) -> web.Response:
+    denied = await _if_down()
+    if denied:
+        return denied
+    settings = get_settings()
+    if not settings.balance_enabled:
+        return json_error("Баланс выключен")
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        device_id = int(request.match_info["device_id"])
+    except (KeyError, TypeError, ValueError):
+        return json_error("Устройство не найдено", 404)
+    item = await db.get_device(telegram_id, device_id)
+    if not item:
+        return json_error("Устройство не найдено", 404)
+    rw: RemnawaveClient = request.app["rw"]
+    if item.get("remnawave_id"):
+        try:
+            await rw.delete_panel_user(int(item["remnawave_id"]))
+        except RemnawaveError as exc:
+            return json_error(str(exc), 502)
+    removed = await db.delete_device(telegram_id, device_id)
+    if not removed:
+        return json_error("Устройство не найдено", 404)
+    await db.log_billing_event(
+        telegram_id,
+        "device_delete",
+        source="user",
+        device_id=device_id,
+        device_title=str(item.get("title") or ""),
+        note="Устройство удалено из кабинета",
+    )
+    return web.json_response({"ok": True})
+
+
 async def api_reissue_subscription(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tg(request)
     if denied:
@@ -614,6 +651,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/promo", api_promo)
         app.router.add_post("/api/devices", api_add_device)
         app.router.add_post("/api/devices/{device_id}/reissue", api_reissue_device)
+        app.router.add_delete("/api/devices/{device_id}", api_delete_device)
         app.router.add_post("/api/subscription/reissue", api_reissue_subscription)
         app.router.add_post("/api/trust", api_trust)
         app.router.add_post("/api/vpn-report", api_vpn_report)
