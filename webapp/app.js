@@ -914,10 +914,9 @@ function renderTopup(me) {
   if (!canCustom) topupMode = "fast";
   applyTopupMode();
   $("topupHint").textContent = me.balance_enabled
-    ? "Выберите сумму — покажем, на сколько дней доступа её хватит."
+    ? `С каждого устройства списывается ${me.vpn_day_price_rub} ₽ в сутки. Карточки показывают, на сколько дней хватит суммы при одном устройстве.`
     : "Выберите срок подписки.";
   const amounts = plans.map(planRub).filter((n) => n > 0);
-  const maxAmt = amounts.length ? Math.max(...amounts) : 0;
   const hitAmt = amounts.includes(100) ? 100 : (amounts[1] || 0);
   const grid = $("topupGrid");
   grid.innerHTML = "";
@@ -926,12 +925,7 @@ function renderTopup(me) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "pay-card" + (plan.code === topupCode ? " on" : "");
-    if (me.balance_enabled && amount === maxAmt && maxAmt > 0) {
-      const badge = document.createElement("span");
-      badge.className = "pay-badge best";
-      badge.textContent = "Выгодно";
-      b.appendChild(badge);
-    } else if (me.balance_enabled && amount === hitAmt && hitAmt !== maxAmt) {
+    if (me.balance_enabled && amount === hitAmt && hitAmt > 0) {
       const badge = document.createElement("span");
       badge.className = "pay-badge hot";
       badge.textContent = "Хит";
@@ -945,18 +939,16 @@ function renderTopup(me) {
     const days = document.createElement("div");
     days.className = "pay-days";
     days.textContent = me.balance_enabled
-      ? `≈ ${daysLabel(topupDaysFor(me, amount))} доступа`
+      ? `≈ ${daysLabel(topupDaysFor(me, amount))}`
       : daysLabel(plan.days);
-    const rateEl = document.createElement("div");
-    rateEl.className = "pay-rate";
-    if (me.balance_enabled) {
-      rateEl.textContent = `${me.vpn_day_price_rub} ₽/день за устройство`;
-    } else {
-      rateEl.textContent = plan.rub ? `${plan.rub} ₽` : `${plan.stars} звёзд`;
-    }
     b.appendChild(amt);
     b.appendChild(days);
-    b.appendChild(rateEl);
+    if (!me.balance_enabled) {
+      const rateEl = document.createElement("div");
+      rateEl.className = "pay-rate";
+      rateEl.textContent = plan.rub ? `${plan.rub} ₽` : `${plan.stars} звёзд`;
+      b.appendChild(rateEl);
+    }
     b.onclick = () => {
       haptic();
       topupCode = plan.code;
@@ -977,12 +969,12 @@ function renderTopup(me) {
     range.value = String(val);
     setTopupRangeFill(range);
     $("customVal").textContent = String(val);
-    $("customDays").textContent = `≈ ${daysLabel(topupDaysFor(me, val))} VPN`;
+    $("customDays").textContent = `≈ ${daysLabel(topupDaysFor(me, val))}`;
     $("topupRangeMin").textContent = `${min} ₽`;
     $("topupRangeMax").textContent = `${max} ₽`;
     const nDev = (me.devices || []).length;
     $("topupStrip").textContent = nDev
-      ? `Списание ${me.vpn_day_price_rub} ₽ в день за устройство. Сейчас устройств: ${nDev}.`
+      ? `Сейчас устройств: ${nDev}. Чем их больше, тем быстрее уходит баланс.`
       : "Пока нет устройств — баланс не списывается. Оценка дней — как для одного устройства.";
   }
   updateTopupCta(me);
@@ -1578,7 +1570,7 @@ $("topupRange").oninput = () => {
   setTopupRangeFill(range);
   const val = Number(range.value);
   $("customVal").textContent = String(val);
-  $("customDays").textContent = `≈ ${daysLabel(topupDaysFor(me, val))} VPN`;
+  $("customDays").textContent = `≈ ${daysLabel(topupDaysFor(me, val))}`;
 };
 
 $("topupRange").onchange = () => snapTopupFromRange();
