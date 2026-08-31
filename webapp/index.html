@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=25">
+  <link rel="stylesheet" href="app.css?v=26">
 </head>
 <body>
   <div id="boot" class="state">
@@ -267,19 +267,6 @@
     </div>
 
     <div id="view-device" class="view hidden">
-      <div class="dev-glow" aria-hidden="true"></div>
-      <div class="dev-topbar">
-        <button type="button" id="devBack" class="dev-back">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Назад
-        </button>
-        <div class="dev-titleblock">
-          <div id="devBrand" class="dev-brand">Кабинет</div>
-          <div class="dev-sub">мини-приложение</div>
-        </div>
-        <button type="button" id="devMore" class="dev-more" aria-label="Меню">•••</button>
-      </div>
-
       <div class="dev-hero">
         <div class="dev-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg>
@@ -310,12 +297,8 @@
 
       <div class="dev-label">Ссылка подписки</div>
       <div class="dev-link">
-        <div class="dev-link-row">
-          <div class="dev-link-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M11 6l1-1a4 4 0 015.5 5.5l-2 2M13 18l-1 1a4 4 0 01-5.5-5.5l2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          </div>
-          <div id="devUrl" class="dev-link-text"></div>
-        </div>
+        <div id="devQr" class="dev-qr hidden" aria-hidden="true"></div>
+        <div id="devUrl" class="dev-link-text"></div>
         <div class="dev-link-actions">
           <button type="button" id="devCopy" class="dev-lbtn">
             <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15V5a2 2 0 012-2h10" stroke="currentColor" stroke-width="2"/></svg>
@@ -382,6 +365,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=24"></script>
+  <script src="app.js?v=25"></script>
 </body>
 </html>

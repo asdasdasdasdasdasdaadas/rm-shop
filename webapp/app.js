@@ -175,14 +175,8 @@ function hideQr() {
   $("qrBox").innerHTML = "";
 }
 
-function showQr(url) {
-  if (!url) return;
-  const box = $("qrBox");
-  box.innerHTML = "";
-  if (typeof qrcode !== "function") {
-    tg.showAlert("Не удалось построить QR-код");
-    return;
-  }
+function makeQrSvg(url, className) {
+  if (!url || typeof qrcode !== "function") return null;
   const qr = qrcode(0, "M");
   qr.addData(url);
   qr.make();
@@ -198,7 +192,7 @@ function showQr(url) {
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", "0 0 " + dim + " " + dim);
-  svg.setAttribute("class", "wiz-qr-svg");
+  svg.setAttribute("class", className || "wiz-qr-svg");
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", "QR-код");
   const bg = document.createElementNS(ns, "rect");
@@ -210,6 +204,18 @@ function showQr(url) {
   path.setAttribute("fill", "#0d1611");
   svg.appendChild(bg);
   svg.appendChild(path);
+  return svg;
+}
+
+function showQr(url) {
+  if (!url) return;
+  const box = $("qrBox");
+  box.innerHTML = "";
+  const svg = makeQrSvg(url, "wiz-qr-svg");
+  if (!svg) {
+    tg.showAlert("Не удалось построить QR-код");
+    return;
+  }
   box.appendChild(svg);
   $("qrSheet").classList.remove("hidden");
   $("qrScrim").classList.remove("hidden");
@@ -868,6 +874,7 @@ function openHome() {
   setMain("");
   try {
     tg.BackButton.hide();
+    if (typeof tg.enableVerticalSwipes === "function") tg.enableVerticalSwipes();
   } catch (_e) {}
   requestAnimationFrame(() => scheduleCoach());
 }
@@ -1325,8 +1332,6 @@ function openClient(client, url) {
 }
 
 function paintDevice(d) {
-  const me = window.__me;
-  if ($("devBrand") && me && me.brand_name) $("devBrand").textContent = me.brand_name;
   $("devTitle").textContent = d.title || "Устройство";
   $("devClient").textContent = clientLabel(d.client);
   $("devPlatform").textContent = platformLabel(d.platform);
@@ -1335,6 +1340,11 @@ function paintDevice(d) {
   const on = Boolean(d.active);
   $("devStatus").classList.toggle("off", !on);
   $("devStatusText").textContent = on ? "Активно" : "Неактивно";
+  const box = $("devQr");
+  box.innerHTML = "";
+  const svg = d.subscription_url ? makeQrSvg(d.subscription_url, "dev-qr-svg") : null;
+  box.classList.toggle("hidden", !svg);
+  if (svg) box.appendChild(svg);
 }
 
 function showDevice(d) {
@@ -1344,6 +1354,7 @@ function showDevice(d) {
   switchView("view-device", "push");
   try {
     tg.BackButton.show();
+    if (typeof tg.disableVerticalSwipes === "function") tg.disableVerticalSwipes();
   } catch (_e) {}
   paintDevice(d);
   setMain("");
@@ -1531,7 +1542,6 @@ function toggleMenu(e) {
 }
 
 $("menuBtn").onclick = toggleMenu;
-$("devMore").onclick = toggleMenu;
 $("menuScrim").onclick = closeMenu;
 $("menu").onclick = (e) => e.stopPropagation();
 
@@ -1710,8 +1720,6 @@ function showToast(text) {
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove("show"), 1600);
 }
-
-$("devBack").onclick = () => onBack();
 
 $("devCopy").onclick = () => {
   const d = openDevice;

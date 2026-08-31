@@ -48,6 +48,8 @@ html, body {
   color: var(--text-primary);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -60,6 +62,7 @@ body {
 #app {
   max-width: 520px;
   margin: 0 auto;
+  overflow-x: hidden;
 }
 
 #view-home.view {
@@ -1870,65 +1873,14 @@ body.has-main-btn {
   font-family: Manrope, Inter, sans-serif;
   position: relative;
   padding-bottom: 12px;
-}
-
-.dev-glow {
-  position: absolute;
-  top: -70px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 280px;
-  height: 120px;
-  background: linear-gradient(90deg, #c98bf5, #5ec8f0 50%, #ff9fc0);
-  filter: blur(38px);
-  opacity: 0.32;
-  border-radius: 100%;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.dev-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-  z-index: 2;
-  padding: 4px 0 8px;
-}
-.dev-back {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 0;
-  background: none;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 15.5px;
-  font-weight: 600;
-  padding: 0;
-  cursor: pointer;
-}
-.dev-back svg { width: 17px; height: 17px; }
-.dev-titleblock { text-align: center; }
-.dev-brand { font-size: 14.5px; font-weight: 700; }
-.dev-sub { font-size: 10.5px; color: var(--text-tertiary); margin-top: 1px; }
-.dev-more {
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-secondary);
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  cursor: pointer;
+  overflow-x: hidden;
 }
 
 .dev-hero {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin: 18px 0 20px;
+  margin: 4px 0 20px;
   position: relative;
   z-index: 2;
 }
@@ -2033,29 +1985,31 @@ body.has-main-btn {
   position: relative;
   z-index: 2;
 }
-.dev-link-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.dev-link-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: rgba(94, 200, 240, 0.12);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #5ec8f0;
-  flex-shrink: 0;
+.dev-qr {
+  width: min(200px, 100%);
+  margin: 0 auto 14px;
+  padding: 10px;
+  background: #fff;
+  border-radius: 14px;
+  box-sizing: border-box;
 }
-.dev-link-icon svg { width: 16px; height: 16px; }
+.dev-qr svg,
+.dev-qr-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
 .dev-link-text {
-  flex: 1;
-  font-size: 12.5px;
+  font-size: 12px;
+  line-height: 1.5;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  white-space: pre-wrap;
+  margin-bottom: 14px;
 }
-.dev-link-actions { display: flex; gap: 8px; }
+.dev-link-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .dev-lbtn {
   flex: 1;
   display: flex;
