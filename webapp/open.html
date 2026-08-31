@@ -34,15 +34,21 @@
   </main>
   <script>
     (function () {
+      var msg = document.getElementById("msg");
+      var a = document.getElementById("manual");
+      var to = "";
+      try {
+        to = new URLSearchParams(window.location.search).get("to") || "";
+      } catch (_e) {}
       var scheme = (to.split(":")[0] || "").toLowerCase();
       var blocked = { javascript:1, data:1, file:1, about:1, blob:1, mailto:1, http:1, https:1, vbscript:1 };
-      if (!/^[a-z][a-z0-9+.-]{0,31}$/.test(scheme) || blocked[scheme] || to.indexOf("://") < 0) {
+      if (!to || !/^[a-z][a-z0-9+.-]{0,31}$/.test(scheme) || blocked[scheme] || to.indexOf("://") < 0) {
         msg.textContent = "Не удалось открыть приложение.";
         return;
       }
       a.href = to;
       a.classList.remove("hidden");
-      location.href = to;
+      window.location.href = to;
       setTimeout(function () {
         msg.textContent = "Если приложение не открылось, нажмите кнопку ниже. Убедитесь, что клиент установлен.";
       }, 700);
