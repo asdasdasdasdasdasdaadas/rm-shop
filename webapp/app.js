@@ -189,6 +189,7 @@ function makeQrSvg(url, className) {
       if (qr.isDark(r, c)) d += "M" + (c + pad) + " " + (r + pad) + "h1v1h-1z";
     }
   }
+  const dark = className === "dev-qr-svg";
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", "0 0 " + dim + " " + dim);
@@ -198,10 +199,10 @@ function makeQrSvg(url, className) {
   const bg = document.createElementNS(ns, "rect");
   bg.setAttribute("width", String(dim));
   bg.setAttribute("height", String(dim));
-  bg.setAttribute("fill", "#ffffff");
+  bg.setAttribute("fill", dark ? "#0d1611" : "#ffffff");
   const path = document.createElementNS(ns, "path");
   path.setAttribute("d", d);
-  path.setAttribute("fill", "#0d1611");
+  path.setAttribute("fill", dark ? "#5fd68b" : "#0d1611");
   svg.appendChild(bg);
   svg.appendChild(path);
   return svg;

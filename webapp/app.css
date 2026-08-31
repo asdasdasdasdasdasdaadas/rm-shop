@@ -1989,7 +1989,8 @@ body.has-main-btn {
   width: min(200px, 100%);
   margin: 0 auto 14px;
   padding: 10px;
-  background: #fff;
+  background: #0d1611;
+  border: 1px solid rgba(143, 227, 176, 0.16);
   border-radius: 14px;
   box-sizing: border-box;
 }
