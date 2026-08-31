@@ -383,7 +383,6 @@ async def submit_vpn_report(
 
     reasons = _guess(local, devices, panels, flags)
     now = datetime.now().astimezone().strftime("%d.%m.%Y %H:%M:%S")
-    uname = f"@{username}" if username else "без username"
     name = first_name or "—"
     expire = _dt((panels[0] or {}).get("expireAt")) if panels else _dt((local or {}).get("expire_at"))
     status = str((panels[0] or {}).get("status") or (local or {}).get("panel_status") or "")
@@ -421,37 +420,14 @@ async def submit_vpn_report(
         payload,
     )
 
-    head = [
-        "<b>VPN не работает</b>",
-        "",
-        _line("когда", now),
-        f"кто: {escape(name)} ({escape(uname)})",
-        _line("Telegram ID", telegram_id),
-        _line("язык бота", (ctx.get("telegram") or {}).get("language") if isinstance(ctx.get("telegram"), dict) else None),
-        "",
-        "<b>Почему (гипотезы)</b>",
-    ]
-    for item in reasons:
-        head.append(f"— {escape(item)}")
-    head.extend(["", _shop_block(local, devices, flags), "", _client_block(ctx)])
-    for diag in diags:
-        title = ""
-        user = diag.get("user") or {}
-        for item in devices:
-            if item.get("remnawave_id") is not None and user.get("id") is not None:
-                if int(item["remnawave_id"]) == int(user["id"]):
-                    title = str(item.get("title") or "")
-                    break
-        head.extend(["", _panel_block(diag, title)])
-
-    log = "\n".join(head)
-    chunks = _chunks(log)
-    total = len(chunks)
+    today = await db.count_vpn_reports_today()
+    who = escape(name)
+    if username:
+        who += f" (@{escape(username)})"
+    text = f"<b>VPN: +1</b>\nСегодня: {today}\n{who} · {telegram_id}"
     for admin_id in settings.admin_id_set:
-        for i, chunk in enumerate(chunks, 1):
-            prefix = f"<i>часть {i}/{total}</i>\n" if total > 1 else ""
-            try:
-                await bot.send_message(admin_id, prefix + chunk)
-            except Exception:
-                continue
+        try:
+            await bot.send_message(admin_id, text)
+        except Exception:
+            continue
     return saved

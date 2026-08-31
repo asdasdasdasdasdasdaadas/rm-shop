@@ -5,6 +5,7 @@ from typing import Any
 
 from app import db
 from app.config import SHOP_KEYS, get_settings, set_shop_overlay
+from app.vpn_apps import public_vpn_apps, validate_vpn_apps
 
 KV_KEY = "shop_settings"
 
@@ -72,6 +73,7 @@ def validate_shop(body: dict) -> dict:
     out["plan_6m_rub"] = _as_float(body.get("plan_6m_rub"), 1, 100000, "Тариф 6 месяцев")
     out["plan_12m_rub"] = _as_float(body.get("plan_12m_rub"), 1, 100000, "Тариф 12 месяцев")
     out["vpn_report_cooldown_sec"] = _as_int(body.get("vpn_report_cooldown_sec"), 0, 86400, "Пауза жалобы VPN")
+    out["vpn_apps"] = validate_vpn_apps(body.get("vpn_apps"))
     return {k: out[k] for k in SHOP_KEYS}
 
 
@@ -104,6 +106,7 @@ def snapshot() -> dict:
             "plan_6m_rub": s.plan_6m_rub,
             "plan_12m_rub": s.plan_12m_rub,
             "vpn_report_cooldown_sec": s.vpn_report_cooldown_sec,
+            "vpn_apps": public_vpn_apps(),
         },
     }
 

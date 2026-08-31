@@ -33,6 +33,7 @@ from app.sync import fetch_panel
 from app.texts import days_text, minutes_text, rub_text
 from app.block import BLOCKED_NOTICE
 from app.maintenance import current_text
+from app.vpn_apps import public_vpn_apps
 from app.trust import take_trust, trust_info
 
 logger = logging.getLogger("rm-shop.web")
@@ -100,8 +101,8 @@ async def webapp_js(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(WEBAPP_DIR / "app.js", headers=_NO_STORE)
 
 
-async def webapp_qrcode(_request: web.Request) -> web.FileResponse:
-    return web.FileResponse(WEBAPP_DIR / "qrcode.min.js", headers=_NO_STORE)
+async def webapp_open(_request: web.Request) -> web.FileResponse:
+    return web.FileResponse(WEBAPP_DIR / "open.html", headers=_NO_STORE)
 
 
 async def api_me(request: web.Request) -> web.Response:
@@ -238,6 +239,7 @@ async def api_me(request: web.Request) -> web.Response:
             "topup_step": settings.balance_topup_step if settings.balance_enabled else 0,
             "devices": devices,
             "trust": trust,
+            "vpn_apps": public_vpn_apps(),
         }
     )
 
@@ -576,6 +578,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/app.css", webapp_css)
         app.router.add_get("/app.js", webapp_js)
         app.router.add_get("/qrcode.min.js", webapp_qrcode)
+        app.router.add_get("/open.html", webapp_open)
         app.router.add_get("/api/me", api_me)
         app.router.add_get("/api/avatar", api_avatar)
         app.router.add_post("/api/trial", api_trial)

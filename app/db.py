@@ -833,6 +833,20 @@ async def last_vpn_report_at(telegram_id: int):
     )
 
 
+async def count_vpn_reports_today() -> int:
+    return int(
+        await _pool_req().fetchval(
+            """
+            SELECT COUNT(*)::int
+            FROM vpn_reports
+            WHERE created_at >= (timezone('Europe/Moscow', now())::date)::timestamp
+                  AT TIME ZONE 'Europe/Moscow'
+            """
+        )
+        or 0
+    )
+
+
 async def save_vpn_report(
     telegram_id: int,
     username: str | None,

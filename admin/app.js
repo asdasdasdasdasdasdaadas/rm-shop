@@ -409,11 +409,107 @@ async function loadSettings() {
   set("setReportCd", v.vpn_report_cooldown_sec);
   set("setPromoOn", v.promo_enabled);
   set("setPromo", v.promo_codes);
+  renderVpnApps(Array.isArray(v.vpn_apps) ? v.vpn_apps : []);
   document.querySelectorAll(".shop-balance").forEach((el) => {
     el.classList.toggle("hidden", !s.balance_enabled);
   });
   document.querySelectorAll(".shop-plans").forEach((el) => {
     el.classList.toggle("hidden", !!s.balance_enabled);
+  });
+}
+
+const VPN_PLATS = [
+  ["ios", "iOS"],
+  ["macos", "macOS"],
+  ["appletv", "Apple TV"],
+  ["android", "Android"],
+  ["androidtv", "Android TV"],
+  ["windows", "Windows"],
+];
+
+function emptyVpnApp() {
+  return { id: "", name: "", mark: "", deep_link: "", platforms: ["ios"], stores: {} };
+}
+
+function renderVpnApps(list) {
+  const box = $("vpnAppsList");
+  if (!box) return;
+  box.innerHTML = "";
+  (list.length ? list : [emptyVpnApp()]).forEach((app) => box.appendChild(vpnAppCard(app)));
+}
+
+function vpnAppCard(app) {
+  const wrap = document.createElement("div");
+  wrap.className = "vpn-app";
+  const head = document.createElement("div");
+  head.className = "vpn-app-head";
+  const mk = (cls, placeholder, value, extra) => {
+    const el = document.createElement("input");
+    el.className = cls;
+    el.type = "text";
+    el.placeholder = placeholder;
+    el.value = value || "";
+    if (extra) Object.assign(el, extra);
+    return el;
+  };
+  head.appendChild(mk("va-id", "id, латиница", app.id || "", { maxLength: 24 }));
+  head.appendChild(mk("va-name", "Название", app.name || "", { maxLength: 40 }));
+  head.appendChild(mk("va-mark", "Значок", app.mark || "", { maxLength: 4 }));
+  head.appendChild(mk("va-deep", "happ://add/{url}", app.deep_link || "", { maxLength: 200 }));
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "ghost";
+  del.textContent = "Убрать";
+  del.onclick = () => wrap.remove();
+  head.appendChild(del);
+  wrap.appendChild(head);
+  const plats = document.createElement("div");
+  plats.className = "va-plats";
+  const on = new Set(app.platforms || []);
+  const stores = app.stores || {};
+  VPN_PLATS.forEach(([id, label]) => {
+    const row = document.createElement("label");
+    row.className = "va-plat";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.dataset.plat = id;
+    cb.checked = on.has(id);
+    const name = document.createElement("span");
+    name.textContent = label;
+    const store = document.createElement("input");
+    store.type = "url";
+    store.className = "va-store";
+    store.dataset.plat = id;
+    store.placeholder = "Ссылка магазина";
+    store.value = stores[id] || "";
+    row.appendChild(cb);
+    row.appendChild(name);
+    row.appendChild(store);
+    plats.appendChild(row);
+  });
+  wrap.appendChild(plats);
+  return wrap;
+}
+
+function collectVpnApps() {
+  return [...document.querySelectorAll("#vpnAppsList .vpn-app")].map((card) => {
+    const platforms = [];
+    const stores = {};
+    card.querySelectorAll(".va-plat").forEach((row) => {
+      const cb = row.querySelector("input[type=checkbox]");
+      const store = row.querySelector(".va-store");
+      if (!cb || !cb.checked) return;
+      platforms.push(cb.dataset.plat);
+      if (store && store.value.trim()) stores[cb.dataset.plat] = store.value.trim();
+    });
+    return {
+      id: (card.querySelector(".va-id") || {}).value || "",
+      name: (card.querySelector(".va-name") || {}).value || "",
+      mark: (card.querySelector(".va-mark") || {}).value || "",
+      deep_link: (card.querySelector(".va-deep") || {}).value || "",
+      platforms,
+      stores,
+    };
   });
 }
 
@@ -443,6 +539,7 @@ $("shopForm").addEventListener("submit", async (e) => {
     vpn_report_cooldown_sec: num("setReportCd"),
     promo_enabled: $("setPromoOn").checked,
     promo_codes: $("setPromo").value,
+    vpn_apps: collectVpnApps(),
   };
   $("shopOut").textContent = "Сохраняю...";
   try {
@@ -453,6 +550,11 @@ $("shopForm").addEventListener("submit", async (e) => {
     $("shopOut").textContent = err.message || "Не удалось сохранить";
   }
 });
+
+$("vpnAppAdd").onclick = () => {
+  const box = $("vpnAppsList");
+  if (box) box.appendChild(vpnAppCard(emptyVpnApp()));
+};
 
 function openUser(u) {
   currentUser = u;

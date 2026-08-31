@@ -41,21 +41,25 @@ const PLATFORMS = [
   { id: "appletv", title: "Apple TV", hint: "APPLE TV", sub: "tvOS" },
 ];
 
-const CLIENTS = {
-  incy: {
+const DEFAULT_VPN_APPS = [
+  {
     id: "incy",
     name: "Incy",
     mark: "IN",
+    deep_link: "incy://import/{url}",
+    platforms: ["ios", "macos", "appletv"],
     stores: {
       ios: "https://apps.apple.com/search?term=Incy",
       macos: "https://apps.apple.com/search?term=Incy",
       appletv: "https://apps.apple.com/search?term=Incy",
     },
   },
-  happ: {
+  {
     id: "happ",
     name: "Happ",
     mark: "H",
+    deep_link: "happ://add/{url}",
+    platforms: ["ios", "macos", "appletv", "android", "androidtv", "windows"],
     stores: {
       ios: "https://apps.apple.com/app/id6504287215",
       macos: "https://apps.apple.com/app/id6504287215",
@@ -65,33 +69,39 @@ const CLIENTS = {
       windows: "https://github.com/Happ-proxy/happ-desktop/releases",
     },
   },
-  v2rayng: {
+  {
     id: "v2rayng",
     name: "v2rayNG",
     mark: "v2",
+    deep_link: "v2rayng://install-sub?url={enc}",
+    platforms: ["android", "androidtv"],
     stores: {
       android: "https://play.google.com/store/apps/details?id=com.v2ray.ang",
       androidtv: "https://play.google.com/store/apps/details?id=com.v2ray.ang",
     },
   },
-  v2rayn: {
+  {
     id: "v2rayn",
     name: "v2rayN",
     mark: "v2",
-    stores: {
-      windows: "https://github.com/2dust/v2rayN/releases",
-    },
+    deep_link: "",
+    platforms: ["windows"],
+    stores: { windows: "https://github.com/2dust/v2rayN/releases" },
   },
-};
+];
+
+let vpnApps = DEFAULT_VPN_APPS.slice();
+
+function applyVpnApps(list) {
+  vpnApps = Array.isArray(list) && list.length ? list : DEFAULT_VPN_APPS.slice();
+}
 
 function clientsFor(platform) {
-  if (platform === "ios" || platform === "macos" || platform === "appletv") {
-    return [CLIENTS.incy, CLIENTS.happ];
-  }
-  if (platform === "android" || platform === "androidtv") {
-    return [CLIENTS.happ, CLIENTS.v2rayng];
-  }
-  return [CLIENTS.happ, CLIENTS.v2rayn];
+  return vpnApps.filter((c) => (c.platforms || []).indexOf(platform) >= 0);
+}
+
+function clientById(id) {
+  return vpnApps.find((c) => c.id === id) || DEFAULT_VPN_APPS.find((c) => c.id === id) || null;
 }
 
 function platformLabel(id) {
@@ -100,7 +110,8 @@ function platformLabel(id) {
 }
 
 function clientLabel(id) {
-  return (CLIENTS[id] && CLIENTS[id].name) || id || "—";
+  const c = clientById(id);
+  return (c && c.name) || id || "—";
 }
 
 function platformSub(id) {
@@ -1000,7 +1011,8 @@ function startWizard() {
   haptic();
   wiz.step = 1;
   wiz.platform = "ios";
-  wiz.client = "incy";
+  const first = clientsFor("ios")[0];
+  wiz.client = first ? first.id : "";
   wiz.title = "";
   wiz.url = "";
   screen = "wizard";
@@ -1053,7 +1065,7 @@ function renderWizard() {
         haptic();
         wiz.platform = p.id;
         const first = clientsFor(p.id)[0];
-        wiz.client = first ? first.id : "happ";
+        wiz.client = first ? first.id : "";
         wiz.title = "";
         renderWizard();
       };
@@ -1074,6 +1086,17 @@ function renderWizard() {
     $("wizTitle").textContent = "Установи приложение";
     lead.textContent = step2Hint(wiz.platform);
     const list = clientsFor(wiz.platform);
+    if (!list.length) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "Для этой платформы нет приложений. Добавьте их в админке.";
+      body.appendChild(empty);
+      $("wizHint").textContent = "";
+      replayAnim(body, "wiz-swap");
+      setMain("");
+      return;
+    }
+    if (!list.some((c) => c.id === wiz.client)) wiz.client = list[0].id;
     list.forEach((c, i) => {
       const row = document.createElement("button");
       row.type = "button";
@@ -1097,7 +1120,7 @@ function renderWizard() {
       s.textContent = "Для " + platformLabel(wiz.platform);
       info.appendChild(t);
       info.appendChild(s);
-      const store = c.stores[wiz.platform];
+      const store = (c.stores || {})[wiz.platform];
       if (store) {
         const a = document.createElement("button");
         a.type = "button";
@@ -1314,14 +1337,31 @@ function defaultTitle() {
   return chips[0] || ("Устройство " + platformLabel(wiz.platform));
 }
 
+function clientDeepLink(client, url) {
+  if (!url) return "";
+  const c = clientById(client);
+  const tpl = (c && c.deep_link) || "";
+  if (!tpl) return "";
+  return tpl.split("{enc}").join(encodeURIComponent(url)).split("{url}").join(url);
+}
+
 function openClient(client, url) {
   haptic();
   if (!url) return;
-  if (client === "happ") {
-    window.location.href = "happ://add/" + encodeURIComponent(url);
+  const deep = clientDeepLink(client, url);
+  if (!deep) {
+    tg.openLink(url);
     return;
   }
-  tg.openLink(url);
+  let bridge = "";
+  try {
+    bridge = new URL("open.html", window.location.href).href + "?to=" + encodeURIComponent(deep);
+  } catch (_e) {}
+  if (bridge) {
+    tg.openLink(bridge);
+    return;
+  }
+  window.location.href = deep;
 }
 
 function paintDevice(d) {
@@ -1436,6 +1476,7 @@ function renderDevices(me) {
 }
 
 function paint(me) {
+  applyVpnApps(me.vpn_apps);
   if (me.brand_name) document.title = me.brand_name;
   $("name").textContent = me.user.name;
   $("login").textContent = me.user.username || "без username";

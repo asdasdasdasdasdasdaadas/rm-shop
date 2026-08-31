@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=8">
+  <link rel="stylesheet" href="app.css?v=9">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -315,6 +315,14 @@
                 </div>
               </div>
             </div>
+            <div class="panel">
+              <h3>Клиенты VPN</h3>
+              <p class="muted tight">Порядок в списке — приоритет: первое приложение для платформы помечается как рекомендуемое. Пустая ссылка магазина скрывает кнопку скачивания. В шаблоне открытия укажите {url} или {enc}.</p>
+              <div id="vpnAppsList"></div>
+              <div class="ops">
+                <button type="button" id="vpnAppAdd" class="ghost">Добавить приложение</button>
+              </div>
+            </div>
             <div class="panel shop-balance">
               <h3>Цены и пополнение</h3>
               <div class="form-grid">
@@ -431,6 +439,6 @@
       <button type="button" id="delBtn" class="danger">Удалить пользователя</button>
     </div>
   </div>
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

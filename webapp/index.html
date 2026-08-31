@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=27">
+  <link rel="stylesheet" href="app.css?v=29">
 </head>
 <body>
   <div id="boot" class="state">
@@ -65,9 +65,29 @@
   </div>
 
   <div id="maint" class="state hidden">
-    <section class="section">
-      <p id="maintText" class="muted">Сейчас ведутся технические работы. Сервис временно недоступен.</p>
-    </section>
+    <div class="maint-glow" aria-hidden="true"></div>
+    <div class="maint-frog-wrap" aria-hidden="true">
+      <svg class="maint-frog" viewBox="0 0 64 64" fill="none">
+        <ellipse cx="32" cy="38" rx="20" ry="16" fill="#6bd98a"/>
+        <g class="maint-eyes">
+          <circle cx="18" cy="22" r="9" fill="#6bd98a"/>
+          <circle cx="46" cy="22" r="9" fill="#6bd98a"/>
+          <circle cx="18" cy="22" r="5.2" fill="#fff"/>
+          <circle cx="46" cy="22" r="5.2" fill="#fff"/>
+          <g class="maint-pupils">
+            <circle cx="19" cy="23.4" r="2.3" fill="#173321"/>
+            <circle cx="47" cy="23.4" r="2.3" fill="#173321"/>
+          </g>
+        </g>
+        <path d="M22 44q10-5 20 0" stroke="#173321" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+        <ellipse cx="22" cy="45" rx="4" ry="2.4" fill="#dff2e2" opacity=".55"/>
+        <ellipse cx="42" cy="45" rx="4" ry="2.4" fill="#dff2e2" opacity=".55"/>
+        <ellipse cx="18" cy="52" rx="6" ry="3.2" fill="#3f9e63"/>
+        <ellipse cx="46" cy="52" rx="6" ry="3.2" fill="#3f9e63"/>
+      </svg>
+    </div>
+    <h1 class="maint-title">Скоро вернёмся</h1>
+    <p id="maintText" class="maint-text">Сейчас ведутся технические работы. Сервис временно недоступен.</p>
   </div>
 
   <div id="app" class="hidden">
@@ -297,15 +317,19 @@
 
       <div class="dev-label">Ссылка подписки</div>
       <div class="dev-link">
-        <div id="devQr" class="dev-qr hidden" aria-hidden="true"></div>
         <div id="devUrl" class="dev-link-text"></div>
+        <div id="devQr" class="dev-qr hidden" aria-hidden="true"></div>
         <div class="dev-link-actions">
           <button type="button" id="devCopy" class="dev-lbtn">
-            <svg viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15V5a2 2 0 012-2h10" stroke="currentColor" stroke-width="2"/></svg>
+            <svg class="dev-lbtn-ico" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor" d="M9 8h10a2 2 0 012 2v10a2 2 0 01-2 2H9a2 2 0 01-2-2V10a2 2 0 012-2zm-3-1V5a2 2 0 012-2h9v2H8v1H6z"/>
+            </svg>
             <span id="devCopyLabel">Копировать</span>
           </button>
           <button type="button" id="devOpen" class="dev-lbtn primary">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <svg class="dev-lbtn-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            </svg>
             <span id="devOpenLabel">Открыть в приложении</span>
           </button>
         </div>
@@ -365,6 +389,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=27"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>
