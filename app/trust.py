@@ -6,6 +6,7 @@ import asyncpg
 
 from app import db
 from app.config import get_settings
+from app.notices import notice_text
 from app.texts import rub_text
 
 TRUST_DAYS = 3
@@ -17,8 +18,12 @@ def daily_cost_rub(device_count: int, price: int | None = None) -> int:
     return day * max(0, int(device_count or 0))
 
 
-def trust_amount_rub(device_count: int, price: int | None = None) -> int:
-    return TRUST_DAYS * daily_cost_rub(device_count, price)
+def one_device_day_rub(price: int | None = None) -> int:
+    return max(1, price if price is not None else get_settings().vpn_day_price_rub)
+
+
+def trust_amount_rub(price: int | None = None) -> int:
+    return TRUST_DAYS * one_device_day_rub(price)
 
 
 def _json_loan(row: dict | None) -> dict | None:
@@ -34,23 +39,23 @@ def _json_loan(row: dict | None) -> dict | None:
 
 async def trust_info(telegram_id: int, local: dict | None, device_count: int) -> dict:
     settings = get_settings()
-    amount = trust_amount_rub(device_count, settings.vpn_day_price_rub)
-    daily = daily_cost_rub(device_count, settings.vpn_day_price_rub)
+    day = one_device_day_rub(settings.vpn_day_price_rub)
+    amount = trust_amount_rub(settings.vpn_day_price_rub)
     open_loan = await db.open_trust_loan(telegram_id) if local else None
     balance = int((local or {}).get("balance_rub") or 0)
     paid = bool((local or {}).get("has_paid_topup"))
     reason = ""
     available = False
     if not settings.balance_enabled:
-        reason = "Доверительный платёж доступен только в режиме баланса"
+        reason = "Обещанный платёж доступен только в режиме баланса"
     elif open_loan:
-        reason = "Уже есть незакрытый доверительный платёж"
+        reason = "Уже есть незакрытый обещанный платёж"
     elif not paid:
         reason = "Сначала нужно хотя бы раз пополнить баланс. Рефералы и бонусы не считаются"
     elif device_count < 1:
         reason = "Сначала добавьте устройство"
-    elif balance > daily:
-        reason = "Баланс ещё не близок к минимуму"
+    elif balance > day:
+        reason = "Баланс ещё не близок к нулю"
     else:
         available = True
     return {
@@ -58,7 +63,7 @@ async def trust_info(telegram_id: int, local: dict | None, device_count: int) ->
         "reason": reason,
         "amount": amount,
         "days": TRUST_DAYS,
-        "daily_cost": daily,
+        "daily_cost": day,
         "open": _json_loan(open_loan),
     }
 
@@ -66,21 +71,28 @@ async def trust_info(telegram_id: int, local: dict | None, device_count: int) ->
 async def take_trust(telegram_id: int) -> dict:
     settings = get_settings()
     if not settings.balance_enabled:
-        raise ValueError("Доверительный платёж недоступен")
+        raise ValueError("Обещанный платёж недоступен")
     local = await db.get_user(telegram_id)
     if not local:
         raise ValueError("Пользователь не найден")
     n = await db.device_count(telegram_id)
     info = await trust_info(telegram_id, local, n)
     if not info["available"]:
-        raise ValueError(info["reason"] or "Нельзя взять доверительный платёж")
+        raise ValueError(info["reason"] or "Нельзя взять обещанный платёж")
     due = datetime.now(timezone.utc) + timedelta(days=TRUST_DAYS)
     try:
         loan = await db.take_trust_loan(telegram_id, info["amount"], due)
     except asyncpg.exceptions.UniqueViolationError as exc:
-        raise ValueError("Уже есть незакрытый доверительный платёж") from exc
+        raise ValueError("Уже есть незакрытый обещанный платёж") from exc
     except Exception as exc:
-        raise ValueError("Не удалось оформить доверительный платёж") from exc
+        raise ValueError("Не удалось оформить обещанный платёж") from exc
+    await db.log_billing_event(
+        telegram_id,
+        "trust",
+        source="user",
+        amount=int(info["amount"]),
+        note="Обещанный платёж: 3 дня одного устройства",
+    )
     return _json_loan(loan) or {"amount": info["amount"], "due_at": due.isoformat()}
 
 
@@ -90,14 +102,20 @@ async def collect_due_trusts(bot) -> None:
         amount = int(loan["amount"] or 0)
         try:
             await db.collect_trust_loan(int(loan["id"]), tg_id, amount)
+            await db.log_billing_event(
+                tg_id,
+                "trust_collect",
+                source="cron",
+                amount=-abs(amount),
+                note="Списание обещанного платежа",
+            )
         except Exception:
             continue
         if bot:
             try:
                 await bot.send_message(
                     tg_id,
-                    f"Списан доверительный платёж: {rub_text(amount)}. "
-                    "Если баланс ушёл в минус, пополните его.",
+                    notice_text("trust_collect", amount=rub_text(amount)),
                 )
             except Exception:
                 pass

@@ -10,7 +10,8 @@ from aiohttp import web
 from aiogram import Bot
 
 from app import db
-from app.block import BLOCKED_NOTICE
+from app.balance import sync_user_billing
+from app.block import blocked_notice
 from app.backup import (
     MAX_UPLOAD,
     backup_path,
@@ -169,6 +170,21 @@ async def api_reports(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 
+async def api_billing(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    q = str(request.query.get("q") or "")
+    telegram_id = None
+    raw_tid = str(request.query.get("telegram_id") or "").strip()
+    if raw_tid.isdigit():
+        telegram_id = int(raw_tid)
+    page = max(1, int(request.query.get("page") or 1))
+    limit = min(100, max(1, int(request.query.get("limit") or 40)))
+    items, total = await db.admin_list_billing(q, limit, (page - 1) * limit, telegram_id)
+    return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+
+
 async def api_grant(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -183,7 +199,16 @@ async def api_grant(request: web.Request) -> web.Response:
     settings = get_settings()
     if settings.balance_enabled:
         total = await db.add_balance_rub(telegram_id, days)
-        return web.json_response({"ok": True, "balance_rub": total})
+        await db.log_billing_event(
+            telegram_id,
+            "admin_grant",
+            source="admin",
+            amount=days,
+            balance_after=total,
+            note="Начисление из админки",
+        )
+        billing = await sync_user_billing(request.app["rw"], telegram_id, request.app.get("bot"))
+        return web.json_response({"ok": True, "balance_rub": total, "billing": billing})
     rw: RemnawaveClient = request.app["rw"]
     local = await db.get_user(telegram_id)
     panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
@@ -210,7 +235,16 @@ async def api_balance(request: web.Request) -> web.Response:
     if not await db.get_user(telegram_id):
         return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
     total = await db.add_balance_rub(telegram_id, amount)
-    return web.json_response({"ok": True, "balance_rub": total})
+    await db.log_billing_event(
+        telegram_id,
+        "admin_balance",
+        source="admin",
+        amount=amount,
+        balance_after=total,
+        note="Правка баланса в админке",
+    )
+    billing = await sync_user_billing(request.app["rw"], telegram_id, request.app.get("bot"))
+    return web.json_response({"ok": True, "balance_rub": total, "billing": billing})
 
 
 async def _purge_user(rw: RemnawaveClient, telegram_id: int) -> str:
@@ -281,7 +315,7 @@ async def api_block_user(request: web.Request) -> web.Response:
     if blocked:
         bot: Bot = request.app["bot"]
         try:
-            await bot.send_message(telegram_id, BLOCKED_NOTICE, reply_markup=blocked_keyboard())
+            await bot.send_message(telegram_id, blocked_notice(), reply_markup=blocked_keyboard())
         except Exception:
             logger.debug("Не удалось написать заблокированному %s", telegram_id, exc_info=True)
     return web.json_response({"ok": True, "blocked": blocked})
@@ -882,6 +916,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/referrals", api_referrals)
     app.router.add_get("/admin/api/orders", api_orders)
     app.router.add_get("/admin/api/reports", api_reports)
+    app.router.add_get("/admin/api/billing", api_billing)
     app.router.add_get("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/users/{telegram_id}/grant", api_grant)

@@ -291,6 +291,17 @@ class RemnawaveClient:
             },
         )
 
+    async def enable_panel_user(self, panel_user_id: int) -> dict:
+        user = await self.get_user_by_id(panel_user_id)
+        if not user:
+            raise RemnawaveError("Устройство в панели не найдено")
+        now = datetime.now(timezone.utc)
+        current = parse_expire(user.get("expireAt"))
+        patch: dict[str, Any] = {"status": "ACTIVE"}
+        if not current or current <= now:
+            patch["expireAt"] = iso_expire(now + timedelta(days=1))
+        return await self.update_user(user, patch)
+
     async def disable_panel_user(self, panel_user_id: int) -> None:
         user = await self.get_user_by_id(panel_user_id)
         if not user:

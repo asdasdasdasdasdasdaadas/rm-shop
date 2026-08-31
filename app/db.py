@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import hashlib
 import json
+import logging
 import secrets
 
 import asyncpg
@@ -433,6 +434,7 @@ async def delete_user(telegram_id: int) -> bool:
             await conn.execute("DELETE FROM payments WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM rollypay_orders WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM cabinet_tokens WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM billing_events WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM devices WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM users WHERE telegram_id = $1", telegram_id)
     return True
@@ -947,6 +949,102 @@ async def users_needing_cabinet_link(day_price: int) -> list[int]:
         price,
     )
     return [int(r["telegram_id"]) for r in rows]
+
+
+async def log_billing_event(
+    telegram_id: int,
+    kind: str,
+    *,
+    source: str = "cron",
+    amount: int = 0,
+    balance_after: int | None = None,
+    device_id: int | None = None,
+    device_title: str | None = None,
+    note: str | None = None,
+) -> None:
+    try:
+        after = balance_after
+        if after is None:
+            local = await get_user(telegram_id)
+            after = int((local or {}).get("balance_rub") or 0) if local else None
+        await _pool_req().execute(
+            """
+            INSERT INTO billing_events (
+                telegram_id, kind, source, amount, balance_after, device_id, device_title, note
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            """,
+            telegram_id,
+            kind,
+            source,
+            int(amount or 0),
+            after,
+            int(device_id) if device_id is not None else None,
+            (device_title or "").strip() or None,
+            (note or "").strip() or None,
+        )
+    except Exception:
+        logging.getLogger("rm-shop.db").exception("Не удалось записать событие биллинга")
+
+
+def _admin_billing_filter(query: str, telegram_id: int | None = None) -> tuple[str, list]:
+    args: list = []
+    clauses: list[str] = []
+    if telegram_id is not None:
+        args.append(int(telegram_id))
+        clauses.append(f"e.telegram_id = ${len(args)}")
+    q = (query or "").strip()
+    if q:
+        args.append(f"%{q}%")
+        n = len(args)
+        clauses.append(
+            f"""(
+               e.telegram_id::text LIKE ${n}
+               OR e.kind ILIKE ${n}
+               OR e.source ILIKE ${n}
+               OR COALESCE(e.device_title, '') ILIKE ${n}
+               OR COALESCE(e.note, '') ILIKE ${n}
+               OR COALESCE(u.username, '') ILIKE ${n}
+               OR COALESCE(u.first_name, '') ILIKE ${n}
+            )"""
+        )
+    if not clauses:
+        return "", []
+    return "WHERE " + " AND ".join(clauses), args
+
+
+async def admin_list_billing(
+    query: str,
+    limit: int,
+    offset: int,
+    telegram_id: int | None = None,
+) -> tuple[list[dict], int]:
+    pool = _pool_req()
+    where, args = _admin_billing_filter(query, telegram_id)
+    total = await pool.fetchval(
+        f"""
+        SELECT COUNT(*)::int
+        FROM billing_events e
+        LEFT JOIN users u ON u.telegram_id = e.telegram_id
+        {where}
+        """,
+        *args,
+    )
+    n = len(args)
+    rows = await pool.fetch(
+        f"""
+        SELECT e.*, u.username, u.first_name
+        FROM billing_events e
+        LEFT JOIN users u ON u.telegram_id = e.telegram_id
+        {where}
+        ORDER BY e.id DESC
+        LIMIT ${n + 1} OFFSET ${n + 2}
+        """,
+        *args,
+        limit,
+        offset,
+    )
+    return [_jsonable(dict(r)) for r in rows], int(total or 0)
 
 
 async def admin_list_reports(limit: int, offset: int) -> tuple[list[dict], int]:

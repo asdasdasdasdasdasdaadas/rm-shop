@@ -119,6 +119,22 @@ CREATE TABLE IF NOT EXISTS cabinet_tokens (
 
 CREATE INDEX IF NOT EXISTS cabinet_tokens_tg_idx ON cabinet_tokens (telegram_id);
 CREATE INDEX IF NOT EXISTS cabinet_tokens_expires_idx ON cabinet_tokens (expires_at);
+
+CREATE TABLE IF NOT EXISTS billing_events (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL,
+    kind TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'cron',
+    amount INTEGER NOT NULL DEFAULT 0,
+    balance_after INTEGER,
+    device_id BIGINT,
+    device_title TEXT,
+    note TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS billing_events_created_idx ON billing_events (created_at DESC);
+CREATE INDEX IF NOT EXISTS billing_events_tg_idx ON billing_events (telegram_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS users_blocked_at_idx ON users (blocked_at) WHERE blocked_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS users_trial_nudge_idx ON users (created_at)
     WHERE trial_nudge_sent_at IS NULL AND trial_used = FALSE;

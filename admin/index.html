@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=9">
+  <link rel="stylesheet" href="app.css?v=11">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -39,6 +39,7 @@
         <button type="button" data-tab="users" data-title="Пользователи" data-lead="Поиск, блокировки, баланс и массовые действия">Пользователи</button>
         <button type="button" data-tab="referrals" data-title="Рефералы" data-lead="Кто пришёл по чьей ссылке">Рефералы</button>
         <button type="button" data-tab="orders" data-title="Оплаты" data-lead="Заказы и статусы кассы">Оплаты</button>
+        <button type="button" data-tab="billing" data-title="Биллинг" data-lead="Списания, отключения и правки баланса">Биллинг</button>
         <button type="button" data-tab="reports" data-title="Жалобы VPN" data-lead="Сообщения «VPN не работает»">Жалобы VPN</button>
         <div class="nav-label">Сервис</div>
         <button type="button" data-tab="broadcast" data-title="Рассылка" data-lead="Сообщение всем, кто запускал бота">Рассылка</button>
@@ -210,6 +211,31 @@
             </table>
           </div>
           <div id="orderPager" class="pager"></div>
+        </section>
+
+        <section id="tab-billing" class="hidden">
+          <p class="muted intro">Списания за сутки, отключения VPN, правки баланса из админки. Поиск по ID, имени, устройству или типу события (charge, disable, admin_balance).</p>
+          <div class="toolbar">
+            <input id="billQ" type="search" placeholder="ID, username, устройство, тип">
+            <button type="button" id="billSearch">Найти</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Время</th>
+                  <th>Пользователь</th>
+                  <th>Событие</th>
+                  <th>Устройство</th>
+                  <th>Сумма</th>
+                  <th>Баланс после</th>
+                  <th>Источник</th>
+                </tr>
+              </thead>
+              <tbody id="billRows"></tbody>
+            </table>
+          </div>
+          <div id="billPager" class="pager"></div>
         </section>
 
         <section id="tab-reports" class="hidden">
@@ -400,6 +426,11 @@
               <label class="ops-label" for="setPromo">Промокоды (КОД:дни через запятую)</label>
               <input id="setPromo" name="promo_codes" type="text" maxlength="2000">
             </div>
+            <div class="panel">
+              <h3>Уведомления в Telegram</h3>
+              <p class="muted tight">Тексты, которые бот шлёт сам. Слова в фигурных скобках подставляются автоматически. Можно оставлять HTML: &lt;b&gt;жирный&lt;/b&gt; и &lt;code&gt;ссылка&lt;/code&gt;.</p>
+              <div id="noticesList"></div>
+            </div>
             <div class="ops">
               <button type="submit">Сохранить</button>
             </div>
@@ -437,8 +468,22 @@
       <textarea id="msgText" rows="4"></textarea>
       <button type="button" id="msgBtn">Отправить</button>
       <button type="button" id="delBtn" class="danger">Удалить пользователя</button>
+      <h3 class="block-title">История биллинга</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Когда</th>
+              <th>Событие</th>
+              <th>Сумма</th>
+              <th>После</th>
+            </tr>
+          </thead>
+          <tbody id="userBillRows"></tbody>
+        </table>
+      </div>
     </div>
   </div>
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>

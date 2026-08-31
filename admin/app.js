@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 let userPage = 1;
 let orderPage = 1;
 let refPage = 1;
+let billPage = 1;
 let currentUser = null;
 let selectedUsers = new Set();
 let lastUserItems = [];
@@ -53,13 +54,14 @@ function switchTab(name) {
       if ($("pageLead")) $("pageLead").textContent = b.dataset.lead || "";
     }
   });
-  ["overview", "users", "referrals", "orders", "reports", "broadcast", "backups", "settings"].forEach((tab) => {
+  ["overview", "users", "referrals", "orders", "billing", "reports", "broadcast", "backups", "settings"].forEach((tab) => {
     $("tab-" + tab).classList.toggle("hidden", tab !== name);
   });
   if (name === "overview") loadStats();
   if (name === "users") loadUsers();
   if (name === "referrals") loadReferrals();
   if (name === "orders") loadOrders();
+  if (name === "billing") loadBilling();
   if (name === "reports") loadReports();
   if (name === "backups") loadBackups();
   if (name === "settings") loadSettings();
@@ -201,9 +203,9 @@ function whoLabel(id, username, name) {
 
 function pillKind(text) {
   const v = String(text || "").toLowerCase();
-  if (v.includes("блок") || v === "disabled" || v === "expired" || v === "failed") return "bad";
-  if (v === "active" || v === "granted" || v === "выдана" || v === "paid") return "ok";
-  if (v === "created" || v === "ещё нет" || v === "pending") return "warn";
+  if (v.includes("блок") || v === "disabled" || v === "expired" || v === "failed" || v === "отключение" || v === "ошибка") return "bad";
+  if (v === "active" || v === "granted" || v === "выдана" || v === "paid" || v === "списание" || v === "включение" || v === "начисление" || v === "обещанный") return "ok";
+  if (v === "created" || v === "ещё нет" || v === "pending" || v === "пауза" || v === "баланс" || v === "возврат обещанного") return "warn";
   return "";
 }
 
@@ -354,6 +356,109 @@ async function loadOrders(page) {
   pager($("orderPager"), data.page, data.total, data.limit, loadOrders);
 }
 
+const BILL_KIND = {
+  charge: "списание",
+  disable: "отключение",
+  pause: "пауза",
+  revive: "включение",
+  admin_balance: "баланс",
+  admin_grant: "начисление",
+  trust: "обещанный",
+  trust_collect: "возврат обещанного",
+  error: "ошибка",
+};
+const BILL_SOURCE = { cron: "тарификация", admin: "админка", user: "кабинет" };
+
+function billKindLabel(kind) {
+  return BILL_KIND[kind] || kind || "—";
+}
+
+function billAmount(n) {
+  if (n == null || n === 0) return "—";
+  const v = Number(n);
+  if (!Number.isFinite(v)) return String(n);
+  return (v > 0 ? "+" : "") + v + " ₽";
+}
+
+function billRowCells(e) {
+  return [
+    fmt(e.created_at),
+    whoLabel(e.telegram_id, e.username, e.first_name),
+    billKindLabel(e.kind),
+    e.device_title || "—",
+    billAmount(e.amount),
+    e.balance_after == null ? "—" : `${e.balance_after} ₽`,
+    BILL_SOURCE[e.source] || e.source || "—",
+  ];
+}
+
+async function loadBilling(page) {
+  if (page) billPage = page;
+  const q = $("billQ").value.trim();
+  const data = await api(`/admin/api/billing?q=${encodeURIComponent(q)}&page=${billPage}`);
+  const body = $("billRows");
+  body.innerHTML = "";
+  if (!data.items.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 7;
+    td.className = "muted";
+    td.textContent = "Пока нет событий биллинга";
+    tr.appendChild(td);
+    body.appendChild(tr);
+  }
+  data.items.forEach((e) => {
+    const tr = document.createElement("tr");
+    const cells = billRowCells(e);
+    tr.appendChild(tdText(cells[0]));
+    tr.appendChild(tdText(cells[1]));
+    tr.appendChild(tdPill(cells[2]));
+    tr.appendChild(tdText(cells[3]));
+    tr.appendChild(tdText(cells[4]));
+    tr.appendChild(tdText(cells[5]));
+    tr.appendChild(tdText(cells[6]));
+    if (e.note) tr.title = e.note;
+    body.appendChild(tr);
+  });
+  pager($("billPager"), data.page, data.total, data.limit, loadBilling);
+}
+
+async function loadUserBilling(telegramId) {
+  const body = $("userBillRows");
+  if (!body) return;
+  body.innerHTML = "";
+  try {
+    const data = await api(`/admin/api/billing?telegram_id=${encodeURIComponent(String(telegramId))}&page=1&limit=12`);
+    const items = data.items || [];
+    if (!items.length) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 4;
+      td.className = "muted";
+      td.textContent = "Пока пусто";
+      tr.appendChild(td);
+      body.appendChild(tr);
+      return;
+    }
+    items.forEach((e) => {
+      const tr = document.createElement("tr");
+      [fmt(e.created_at), billKindLabel(e.kind), billAmount(e.amount), e.balance_after == null ? "—" : `${e.balance_after} ₽`].forEach((t, i) => {
+        tr.appendChild(i === 1 ? tdPill(t) : tdText(t));
+      });
+      if (e.note || e.device_title) tr.title = [e.device_title, e.note].filter(Boolean).join(" · ");
+      body.appendChild(tr);
+    });
+  } catch (_e) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 4;
+    td.className = "muted";
+    td.textContent = "Не удалось загрузить";
+    tr.appendChild(td);
+    body.appendChild(tr);
+  }
+}
+
 let reportPage = 1;
 async function loadReports(page) {
   if (page) reportPage = page;
@@ -410,6 +515,7 @@ async function loadSettings() {
   set("setPromoOn", v.promo_enabled);
   set("setPromo", v.promo_codes);
   renderVpnApps(Array.isArray(v.vpn_apps) ? v.vpn_apps : []);
+  renderNotices(s.notice_fields || [], v.notices || {});
   document.querySelectorAll(".shop-balance").forEach((el) => {
     el.classList.toggle("hidden", !s.balance_enabled);
   });
@@ -540,6 +646,7 @@ $("shopForm").addEventListener("submit", async (e) => {
     promo_enabled: $("setPromoOn").checked,
     promo_codes: $("setPromo").value,
     vpn_apps: collectVpnApps(),
+    notices: collectNotices(),
   };
   $("shopOut").textContent = "Сохраняю...";
   try {
@@ -556,6 +663,40 @@ $("vpnAppAdd").onclick = () => {
   if (box) box.appendChild(vpnAppCard(emptyVpnApp()));
 };
 
+function renderNotices(fields, values) {
+  const box = $("noticesList");
+  if (!box) return;
+  box.innerHTML = "";
+  (fields || []).forEach((field) => {
+    const wrap = document.createElement("div");
+    wrap.className = "notice-field";
+    const lab = document.createElement("label");
+    lab.className = "ops-label";
+    lab.textContent = field.title || field.key;
+    const ta = document.createElement("textarea");
+    ta.dataset.notice = field.key;
+    ta.rows = 4;
+    ta.value = values[field.key] || "";
+    wrap.appendChild(lab);
+    if (field.hint) {
+      const hint = document.createElement("p");
+      hint.className = "muted tight";
+      hint.textContent = "Плейсхолдеры: " + field.hint;
+      wrap.appendChild(hint);
+    }
+    wrap.appendChild(ta);
+    box.appendChild(wrap);
+  });
+}
+
+function collectNotices() {
+  const out = {};
+  document.querySelectorAll("#noticesList [data-notice]").forEach((el) => {
+    out[el.dataset.notice] = el.value;
+  });
+  return out;
+}
+
 function openUser(u) {
   currentUser = u;
   $("modalTitle").textContent = u.first_name || String(u.telegram_id);
@@ -571,6 +712,7 @@ function openUser(u) {
   $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
   $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
   $("modal").classList.remove("hidden");
+  loadUserBilling(u.telegram_id);
 }
 
 $("loginForm").onsubmit = async (e) => {
@@ -612,6 +754,7 @@ $("userSearch").onclick = () => {
   loadUsers(1);
 };
 $("orderSearch").onclick = () => loadOrders(1);
+$("billSearch").onclick = () => loadBilling(1);
 $("refSearch").onclick = () => loadReferrals(1);
 $("userQ").onkeydown = (e) => {
   if (e.key === "Enter") {
@@ -706,6 +849,9 @@ $("bulkDeleteMatch").onclick = () => {
 };
 $("orderQ").onkeydown = (e) => {
   if (e.key === "Enter") loadOrders(1);
+};
+$("billQ").onkeydown = (e) => {
+  if (e.key === "Enter") loadBilling(1);
 };
 $("refQ").onkeydown = (e) => {
   if (e.key === "Enter") loadReferrals(1);

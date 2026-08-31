@@ -25,6 +25,7 @@ from app.referrals import maybe_reward_referrer, invitee_extra_days, trial_grant
 from app.reports import ReportCooldown, submit_vpn_report
 from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid
 from app.sync import fetch_panel
+from app.notices import notice_text
 from app.texts import days_text, minutes_text, rub_text
 
 router = Router()
@@ -348,19 +349,22 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
         user = await fulfill_rollypay_order(order_id, rw)
     except RemnawaveError as exc:
         await callback.message.edit_text(
-            f"Оплата прошла, но панель не ответила: {exc}\nНапишите в поддержку.",
+            notice_text("payment_panel_error", error=exc),
             reply_markup=back_profile_keyboard(),
         )
         return
     if user is None and not settings.balance_enabled:
         await callback.message.edit_text(
-            "Этот платёж уже обработан.",
+            notice_text("payment_duplicate"),
             reply_markup=back_profile_keyboard(),
         )
         return
     if settings.balance_enabled:
         await callback.message.edit_text(
-            f"Баланс пополнен на {rub_text(int(plan.get('topup_rub') or 0)) if plan.get('topup_rub') else plan.get('title')}.",
+            notice_text(
+                "topup_ok",
+                amount=rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
+            ),
             reply_markup=back_profile_keyboard(),
         )
         return
@@ -389,7 +393,7 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
     settings = get_settings()
     plan = settings.shop_plans.get(code)
     if not plan:
-        await message.answer("Платёж получен, но тариф неизвестен. Напишите в поддержку.")
+        await message.answer(notice_text("payment_unknown"))
         return
     inserted = await db.save_payment(
         message.from_user.id,
@@ -398,19 +402,19 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
         payment.telegram_payment_charge_id,
     )
     if not inserted:
-        await message.answer("Этот платёж уже обработан.")
+        await message.answer(notice_text("payment_duplicate"))
         return
     try:
         user = await grant_plan(message.from_user.id, code, rw)
     except RemnawaveError as exc:
-        await message.answer(
-            f"Оплата прошла, но панель не ответила: {exc}\n"
-            "Напишите в поддержку."
-        )
+        await message.answer(notice_text("payment_panel_error", error=exc))
         return
     if settings.balance_enabled:
         await message.answer(
-            f"Баланс пополнен на {rub_text(int(plan.get('topup_rub') or 0)) if plan.get('topup_rub') else plan.get('title')}."
+            notice_text(
+                "topup_ok",
+                amount=rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
+            )
         )
         return
     sub_url = (user or {}).get("subscriptionUrl") or ""

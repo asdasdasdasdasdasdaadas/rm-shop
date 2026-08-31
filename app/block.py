@@ -10,10 +10,12 @@ from aiogram.types import CallbackQuery, Message, MessageReactionUpdated, Telegr
 from app import db
 from app.config import get_settings
 from app.keyboards import blocked_keyboard
+from app.notices import notice_text
 
 logger = logging.getLogger("rm-shop.block")
 
-BLOCKED_NOTICE = "Доступ ограничен. Если это ошибка, напишите в поддержку."
+def blocked_notice() -> str:
+    return notice_text("blocked")
 _COOLDOWN = 4.0
 _last_sent_at: dict[int, float] = {}
 
@@ -23,7 +25,7 @@ async def notify_blocked(bot: Bot, chat_id: int) -> None:
     if now - _last_sent_at.get(chat_id, 0.0) < _COOLDOWN:
         return
     try:
-        await bot.send_message(chat_id, BLOCKED_NOTICE, reply_markup=blocked_keyboard())
+        await bot.send_message(chat_id, blocked_notice(), reply_markup=blocked_keyboard())
         _last_sent_at[chat_id] = now
     except Exception:
         logger.debug("Не удалось отправить уведомление о блоке chat=%s", chat_id, exc_info=True)

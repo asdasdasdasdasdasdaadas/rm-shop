@@ -6,6 +6,7 @@ from aiogram import Bot
 
 from app import db
 from app.billing import expire_human
+from app.notices import notice_text, sub_block
 from app.config import get_settings
 from app.keyboards import back_profile_keyboard, connect_keyboard
 from app.remnawave import RemnawaveClient, RemnawaveError
@@ -45,14 +46,8 @@ async def maybe_reward_referrer(
             return
         await db.add_balance_rub(referrer_id, amount)
         await db.add_balance_rub(new_user_id, amount)
-        ref_text = (
-            "<b>Поздравляем</b>\n\n"
-            f"Друг {name} попробовал VPN бесплатно по вашей ссылке.\n"
-            f"Вам начислено <b>{rub_text(amount)}</b> на баланс."
-        )
-        friend_text = (
-            f"За переход по ссылке на баланс начислено <b>{rub_text(amount)}</b>"
-        )
+        ref_text = notice_text("referral_referrer_balance", name=name, amount=rub_text(amount))
+        friend_text = notice_text("referral_invitee_balance", amount=rub_text(amount))
         try:
             await bot.send_message(referrer_id, ref_text, reply_markup=back_profile_keyboard())
         except Exception:
@@ -79,15 +74,14 @@ async def maybe_reward_referrer(
             panel_user_id=panel_id,
         )
         await db.save_panel_snapshot(referrer_id, user)
-        text = (
-            "<b>Поздравляем</b>\n\n"
-            f"Друг {name} попробовал VPN бесплатно по вашей ссылке.\n"
-            f"Вам начислено <b>{days_text(days)}</b> подписки.\n\n"
-            f"Действует до: <b>{expire_human(user)}</b>"
-        )
         extra = user.get("subscriptionUrl") or ""
-        if extra:
-            text += f"\n\nСсылка подписки:\n<code>{extra}</code>"
+        text = notice_text(
+            "referral_referrer_days",
+            name=name,
+            days=days_text(days),
+            expire=expire_human(user),
+            sub_block=sub_block(extra),
+        )
         sub_url = extra
     except RemnawaveError:
         await db.unclaim_referral_reward(new_user_id)

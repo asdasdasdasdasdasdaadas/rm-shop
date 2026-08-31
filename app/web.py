@@ -30,8 +30,10 @@ from app.remnawave import (
 )
 from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, verify_webhook
 from app.sync import fetch_panel
+from app.notices import notice_text
 from app.texts import days_text, minutes_text, rub_text
-from app.block import BLOCKED_NOTICE
+from app.balance import sync_user_billing
+from app.block import blocked_notice
 from app.maintenance import current_text
 from app.vpn_apps import public_vpn_apps
 from app.trust import take_trust, trust_info
@@ -84,7 +86,7 @@ async def _if_down() -> web.Response | None:
 
 async def _if_blocked(telegram_id: int) -> web.Response | None:
     if await db.user_is_blocked(telegram_id):
-        return json_error(BLOCKED_NOTICE, 403)
+        return json_error(blocked_notice(), 403)
     return None
 
 
@@ -146,7 +148,7 @@ async def api_me(request: web.Request) -> web.Response:
             {
                 "ok": True,
                 "blocked": True,
-                "notice": BLOCKED_NOTICE,
+                "notice": blocked_notice(),
                 "brand_name": settings.brand_name,
             }
         )
@@ -529,6 +531,7 @@ async def api_trust(request: web.Request) -> web.Response:
         loan = await take_trust(telegram_id)
     except ValueError as exc:
         return json_error(str(exc))
+    await sync_user_billing(request.app["rw"], telegram_id, request.app.get("bot"))
     return web.json_response({"ok": True, "loan": loan})
 
 
@@ -575,7 +578,10 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
         if settings.balance_enabled:
             await bot.send_message(
                 telegram_id,
-                f"Баланс пополнен на {rub_text(int(plan.get('topup_rub') or 0)) if plan.get('topup_rub') else plan.get('title')}.",
+                notice_text(
+                    "topup_ok",
+                    amount=rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
+                ),
             )
         elif user:
             sub_url = user.get("subscriptionUrl") or ""

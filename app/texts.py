@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from html import escape
 
+from app.notices import notice_text
+
 
 def ru_plural(n: int, one: str, few: str, many: str) -> str:
     absn = abs(int(n))
@@ -23,23 +25,21 @@ def rub_text(n: int) -> str:
 
 
 def subscription_reissued_text(items: list[tuple[str, str]]) -> str:
-    parts = [
-        "Ссылка подписки обновлена. Старая больше не работает.",
-        "",
-        "Откройте кабинет и заново добавьте подписку в приложение.",
-    ]
     shown = [(title, url) for title, url in items if url]
+    extra: list[str] = []
     if len(shown) == 1:
         title, url = shown[0]
+        extra.append("")
         if title:
-            parts.extend(["", title])
-        parts.append(f"<code>{escape(url)}</code>")
+            extra.append(title)
+        extra.append(f"<code>{escape(url)}</code>")
     elif shown:
         for title, url in shown:
-            parts.append("")
-            parts.append(title or "Устройство")
-            parts.append(f"<code>{escape(url)}</code>")
-    return "\n".join(parts)
+            extra.append("")
+            extra.append(title or "Устройство")
+            extra.append(f"<code>{escape(url)}</code>")
+    links = "\n".join(extra)
+    return notice_text("sub_reissued", links=links)
 
 
 def minutes_text(n: int) -> str:

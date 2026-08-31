@@ -8,6 +8,7 @@ from aiogram import Bot
 from app import db
 from app.config import get_settings
 from app.keyboards import trial_nudge_keyboard
+from app.notices import notice_text
 from app.referrals import trial_grant_rub
 from app.texts import days_text, rub_text
 
@@ -25,11 +26,7 @@ def trial_nudge_text(first_name: str | None) -> str:
         )
     else:
         extra = f"Бесплатный период — {days}."
-    return (
-        f"{name}, вы запустили бота, но ещё не пробовали VPN.\n\n"
-        f"Давайте попробуем: {extra} "
-        "Если не зайдёт — просто не продлевайте."
-    )
+    return notice_text("trial_nudge", name=name, extra=extra)
 
 
 async def send_due_trial_nudges(bot: Bot) -> int:

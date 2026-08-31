@@ -6,6 +6,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.config import get_settings
+from app.notices import notice_text
 from app.texts import days_text, rub_text
 from app import runtime
 
@@ -21,18 +22,11 @@ def support_url() -> str:
 
 
 def legal_text() -> str:
-    return (
-        "Перед использованием примите оферту и политику конфиденциальности. "
-        "Документы открываются по ссылкам ниже."
-    )
+    return notice_text("legal")
 
 
 def welcome_text() -> str:
-    settings = get_settings()
-    return (
-        f"Добро пожаловать в <b>{settings.brand_name}</b>.\n\n"
-        "Чтобы пользоваться ботом, подпишитесь на канал и нажмите «Проверить подписку»."
-    )
+    return notice_text("welcome", brand=get_settings().brand_name)
 
 
 def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> str:
@@ -40,18 +34,13 @@ def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> s
     settings = get_settings()
     if settings.balance_enabled:
         rub = 0 if balance_rub is None else balance_rub
-        price = settings.vpn_day_price_rub
-        return (
-            f"Привет, {name}.\n\n"
-            f"Баланс: <b>{rub_text(rub)}</b>\n"
-            f"Сутки VPN на одно устройство: <b>{rub_text(price)}</b>\n\n"
-            "Чтобы включить VPN, нажмите «Открыть кабинет» внизу и добавьте устройство. "
-            "Пока устройств нет, баланс не списывается."
+        return notice_text(
+            "profile_balance",
+            name=name,
+            balance=rub_text(rub),
+            price=rub_text(settings.vpn_day_price_rub),
         )
-    return (
-        f"Привет, {name}.\n"
-        "Выберите действие. Кабинет внизу — там подписка и подключение."
-    )
+    return notice_text("profile_days", name=name)
 
 
 def cabinet_button() -> InlineKeyboardButton | None:

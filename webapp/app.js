@@ -455,13 +455,16 @@ function showMaint(notice) {
 }
 
 function showApp() {
+  const wasHidden = $("app").classList.contains("hidden");
   hideIntro();
   $("boot").classList.add("hidden");
   $("fail").classList.add("hidden");
   $("maint").classList.add("hidden");
   $("app").classList.remove("hidden");
-  replayAnim($("app"), "app-in");
-  scheduleCoach();
+  if (wasHidden) {
+    if (!reducedMotion()) replayAnim($("app"), "app-in");
+    scheduleCoach();
+  }
 }
 
 function introSeen() {
@@ -589,6 +592,8 @@ const wiz = {
 };
 
 let screen = "home";
+let loadSeq = 0;
+let lastConnectUrl = null;
 let openDevice = null;
 let topupMode = "fast";
 let topupCode = "";
@@ -1440,9 +1445,13 @@ function renderConnect(me) {
   const body = $("connectBody");
   if (me.balance_enabled) {
     wrap.classList.add("hidden");
+    lastConnectUrl = null;
     return;
   }
   wrap.classList.remove("hidden");
+  const url = me.subscription_url || "";
+  if (url === lastConnectUrl && body.childElementCount) return;
+  lastConnectUrl = url;
   body.innerHTML = "";
   if (!me.subscription_url) {
     const p = document.createElement("p");
@@ -1476,10 +1485,19 @@ function renderConnect(me) {
   body.appendChild(reissueBtn);
 }
 
+function devicesKey(me) {
+  return (me.devices || [])
+    .map((d) => [d.id, d.title || "", d.active ? 1 : 0, d.client || "", d.platform || ""].join(":"))
+    .join("|") + "|" + String(me.max_devices || 0);
+}
+
+let lastDevicesKey = "";
+
 function renderDevices(me) {
   const block = $("devicesBlock");
   if (!me.balance_enabled) {
     block.classList.add("hidden");
+    lastDevicesKey = "";
     return;
   }
   block.classList.remove("hidden");
@@ -1491,6 +1509,9 @@ function renderDevices(me) {
   $("emptyDevices").classList.toggle("hidden", n > 0);
   const body = $("devicesBody");
   body.classList.toggle("hidden", n === 0);
+  const key = devicesKey(me);
+  if (key === lastDevicesKey) return;
+  lastDevicesKey = key;
   body.innerHTML = "";
   if (!n) return;
   me.devices.forEach((d) => {
@@ -1523,9 +1544,10 @@ function paint(me) {
   $("name").textContent = me.user.name;
   $("login").textContent = me.user.username || "без username";
   const avatar = $("avatar");
-  if (me.user.photo) {
-    avatar.src = me.user.photo;
-  } else {
+  const photo = me.user.photo || "";
+  if (photo) {
+    if (avatar.getAttribute("src") !== photo) avatar.src = photo;
+  } else if (avatar.getAttribute("src")) {
     avatar.removeAttribute("src");
   }
   paintStatus(me);
@@ -1562,7 +1584,7 @@ function paint(me) {
   } else if (me.balance_enabled && t && t.available) {
     trustOpen.classList.add("hidden");
     trustBtn.classList.remove("hidden");
-    trustBtn.textContent = `Доверительный платёж · ${rublesLabel(t.amount)}`;
+    trustBtn.textContent = `Обещанный платёж · ${rublesLabel(t.amount)}`;
   } else {
     trustBtn.classList.add("hidden");
     trustOpen.classList.add("hidden");
@@ -1582,8 +1604,14 @@ function paint(me) {
   if (screen === "device" && openDevice) {
     const fresh = me.devices.find((x) => x.id === openDevice.id);
     if (fresh) {
+      const same =
+        fresh.subscription_url === openDevice.subscription_url &&
+        fresh.title === openDevice.title &&
+        fresh.active === openDevice.active &&
+        fresh.client === openDevice.client &&
+        fresh.platform === openDevice.platform;
       openDevice = fresh;
-      paintDevice(fresh);
+      if (!same) paintDevice(fresh);
     }
   }
   if (screen === "topup") renderTopup(me);
@@ -1593,7 +1621,9 @@ function paint(me) {
 }
 
 async function load() {
+  const seq = ++loadSeq;
   const me = await api("/api/me");
+  if (seq !== loadSeq) return;
   if (me.maintenance) {
     showMaint(me.notice);
     return;
@@ -1689,7 +1719,7 @@ $("trustBtn").onclick = () => {
   if (!t || !t.available) return;
   haptic();
   const text =
-    `Начислить ${rublesLabel(t.amount)} (${daysLabel(t.days)} по ${rublesLabel(t.daily_cost)} в сутки). ` +
+    `Начислить ${rublesLabel(t.amount)} — ${daysLabel(t.days)} одного устройства. ` +
     `Через ${daysLabel(t.days)} сумма спишется, даже если баланс уйдёт в минус.`;
   const go = async () => {
     try {
@@ -1955,13 +1985,13 @@ if (tg.onEvent) {
   });
   tg.onEvent("viewportChanged", () => {
     if (coachVisible) layoutCoach();
-    else if (!coachDone()) scheduleCoach();
   });
 }
+let visTimer = 0;
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && window.__me) {
-    load().catch(() => {});
-  }
+  if (document.visibilityState !== "visible" || !window.__me) return;
+  clearTimeout(visTimer);
+  visTimer = setTimeout(() => load().catch(() => {}), 400);
 });
 
 load().catch((err) => showFail(err.message || "Не удалось загрузить данные"));

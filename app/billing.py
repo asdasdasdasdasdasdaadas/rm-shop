@@ -4,6 +4,7 @@ import asyncio
 
 from app import db
 from app.config import get_settings
+from app.notices import notice_text, sub_block
 from app.remnawave import RemnawaveClient, parse_expire
 
 _fulfill_guard = asyncio.Lock()
@@ -20,15 +21,12 @@ def expire_human(user: dict | None) -> str:
 
 
 def subscription_issued_text(user: dict, title: str) -> str:
-    sub_url = user.get("subscriptionUrl") or ""
-    lines = [
-        f"<b>{title}</b>",
-        "",
-        f"Действует до: <b>{expire_human(user)}</b>",
-    ]
-    if sub_url:
-        lines.extend(["", "Ссылка подписки:", f"<code>{sub_url}</code>"])
-    return "\n".join(lines)
+    return notice_text(
+        "subscription_issued",
+        title=title,
+        expire=expire_human(user),
+        sub_block=sub_block((user or {}).get("subscriptionUrl")),
+    )
 
 
 async def grant_plan(telegram_id: int, plan_code: str, rw: RemnawaveClient) -> dict | None:
