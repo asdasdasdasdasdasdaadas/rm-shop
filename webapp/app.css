@@ -65,6 +65,23 @@ body {
   overflow-x: hidden;
 }
 
+.web-back {
+  display: inline-flex;
+  align-items: center;
+  margin: 2px 0 6px;
+  padding: 8px 0;
+  background: none;
+  border: 0;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.web-back.hidden {
+  display: none !important;
+}
+
 #view-home.view {
   display: flex;
   flex-direction: column;

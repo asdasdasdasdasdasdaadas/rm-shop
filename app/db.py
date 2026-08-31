@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import hashlib
 import json
+import secrets
 
 import asyncpg
 
@@ -430,6 +432,7 @@ async def delete_user(telegram_id: int) -> bool:
             await conn.execute("DELETE FROM promo_uses WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM payments WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM rollypay_orders WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM cabinet_tokens WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM devices WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM users WHERE telegram_id = $1", telegram_id)
     return True
@@ -875,6 +878,75 @@ async def save_vpn_report(
         json.dumps(payload or {}, ensure_ascii=False, default=str),
     )
     return _jsonable(dict(row)) if row else {}
+
+
+def _cabinet_token_hash(raw: str) -> str:
+    return hashlib.sha256((raw or "").encode("utf-8")).hexdigest()
+
+
+async def issue_cabinet_token(telegram_id: int, days: int = 10) -> str:
+    raw = secrets.token_urlsafe(32)
+    expires = _utc_now() + timedelta(days=max(1, days))
+    await _pool_req().execute(
+        """
+        INSERT INTO cabinet_tokens (token_hash, telegram_id, expires_at)
+        VALUES ($1, $2, $3)
+        """,
+        _cabinet_token_hash(raw),
+        telegram_id,
+        expires,
+    )
+    return raw
+
+
+async def delete_cabinet_token(raw: str) -> None:
+    await _pool_req().execute(
+        "DELETE FROM cabinet_tokens WHERE token_hash = $1",
+        _cabinet_token_hash(raw),
+    )
+
+
+async def get_cabinet_token_user(raw: str) -> int | None:
+    token = (raw or "").strip()
+    if not token:
+        return None
+    row = await _pool_req().fetchrow(
+        """
+        SELECT telegram_id FROM cabinet_tokens
+        WHERE token_hash = $1 AND expires_at > NOW()
+        """,
+        _cabinet_token_hash(token),
+    )
+    if not row:
+        return None
+    return int(row["telegram_id"])
+
+
+async def purge_expired_cabinet_tokens() -> None:
+    await _pool_req().execute("DELETE FROM cabinet_tokens WHERE expires_at <= NOW()")
+
+
+async def users_needing_cabinet_link(day_price: int) -> list[int]:
+    price = max(1, int(day_price))
+    rows = await _pool_req().fetch(
+        """
+        SELECT u.telegram_id
+        FROM users u
+        JOIN devices d ON d.telegram_id = u.telegram_id
+        WHERE u.blocked_at IS NULL
+        GROUP BY u.telegram_id, u.balance_rub
+        HAVING COUNT(d.id) > 0
+           AND COALESCE(u.balance_rub, 0) < (2 * $1 * COUNT(d.id))
+           AND NOT EXISTS (
+               SELECT 1 FROM cabinet_tokens t
+               WHERE t.telegram_id = u.telegram_id
+                 AND t.expires_at > NOW()
+           )
+        ORDER BY u.telegram_id
+        """,
+        price,
+    )
+    return [int(r["telegram_id"]) for r in rows]
 
 
 async def admin_list_reports(limit: int, offset: int) -> tuple[list[dict], int]:

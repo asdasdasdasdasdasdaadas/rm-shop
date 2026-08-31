@@ -44,13 +44,32 @@ def _init_data(request: web.Request) -> str:
     return request.headers.get("X-Init-Data") or request.query.get("initData") or ""
 
 
-def _user_id(request: web.Request) -> int:
+def _lk_token(request: web.Request) -> str:
+    header = (request.headers.get("X-Lk-Token") or "").strip()
+    if header:
+        return header
+    auth = (request.headers.get("Authorization") or "").strip()
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return (request.query.get("t") or "").strip()
+
+
+async def _resolve_telegram_id(request: web.Request):
     settings = get_settings()
     raw = _init_data(request)
-    data = safe_parse_webapp_init_data(settings.bot_token, raw)
-    if not data.user:
-        raise web.HTTPUnauthorized(text="no user")
-    return int(data.user.id)
+    if raw:
+        try:
+            parsed = safe_parse_webapp_init_data(settings.bot_token, raw)
+            if parsed.user:
+                return int(parsed.user.id), parsed
+        except ValueError:
+            pass
+    token = _lk_token(request)
+    if token:
+        uid = await db.get_cabinet_token_user(token)
+        if uid:
+            return uid, None
+    return None, None
 
 
 def json_error(message: str, status: int = 400) -> web.Response:
@@ -73,10 +92,9 @@ async def _require_tg(request: web.Request) -> tuple[int | None, web.Response | 
     denied = await _if_down()
     if denied:
         return None, denied
-    try:
-        telegram_id = _user_id(request)
-    except (ValueError, web.HTTPUnauthorized):
-        return None, json_error("Недействительные данные Telegram", 401)
+    telegram_id, _parsed = await _resolve_telegram_id(request)
+    if not telegram_id:
+        return None, json_error("Ссылка недействительна или истекла", 401)
     denied = await _if_blocked(telegram_id)
     if denied:
         return None, denied
@@ -107,13 +125,9 @@ async def webapp_open(_request: web.Request) -> web.FileResponse:
 
 async def api_me(request: web.Request) -> web.Response:
     settings = get_settings()
-    try:
-        parsed = safe_parse_webapp_init_data(settings.bot_token, _init_data(request))
-    except ValueError:
-        return json_error("Недействительные данные Telegram", 401)
-    if not parsed.user:
-        return json_error("Недействительные данные Telegram", 401)
-    telegram_id = int(parsed.user.id)
+    telegram_id, parsed = await _resolve_telegram_id(request)
+    if not telegram_id:
+        return json_error("Ссылка недействительна или истекла", 401)
     if await db.flag_on("maintenance"):
         return web.json_response(
             {
@@ -134,7 +148,9 @@ async def api_me(request: web.Request) -> web.Response:
         )
     bot: Bot = request.app["bot"]
     rw: RemnawaveClient = request.app["rw"]
-    await db.upsert_user(telegram_id, parsed.user.username, parsed.user.first_name)
+    tg_user = parsed.user if parsed else None
+    if tg_user:
+        await db.upsert_user(telegram_id, tg_user.username, tg_user.first_name)
     panel = await fetch_panel(rw, telegram_id)
     local = await db.get_user(telegram_id)
 
@@ -174,9 +190,11 @@ async def api_me(request: web.Request) -> web.Response:
     except Exception:
         photo = ""
 
-    tg_user = parsed.user
     name = " ".join(x for x in [tg_user.first_name, tg_user.last_name] if x) if tg_user else ""
     username = f"@{tg_user.username}" if tg_user and tg_user.username else ""
+    if not username and local and local.get("username"):
+        nick = str(local["username"])
+        username = nick if nick.startswith("@") else f"@{nick}"
     trust = await trust_info(telegram_id, local, len(devices)) if settings.balance_enabled else None
     if settings.balance_enabled and devices:
         days_left = balance_rub // (max(1, settings.vpn_day_price_rub) * len(devices))

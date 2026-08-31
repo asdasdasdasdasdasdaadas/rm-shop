@@ -4,13 +4,14 @@ import logging
 
 from aiogram import Bot
 
-from app import db
+from app import db, runtime
 from app.config import get_settings
 from app.remnawave import RemnawaveClient, RemnawaveError
 from app.trust import collect_due_trusts
 from app.texts import rub_text
 
 logger = logging.getLogger("rm-shop.balance")
+CABINET_LINK_DAYS = 10
 
 
 async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> None:
@@ -57,3 +58,35 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
                 )
             except Exception:
                 pass
+
+    await send_low_balance_cabinet_links(bot)
+
+
+async def send_low_balance_cabinet_links(bot: Bot | None) -> int:
+    settings = get_settings()
+    if not bot or not settings.balance_enabled or not settings.webapp_enabled:
+        return 0
+    base = (settings.webapp_public_url or runtime.webapp_url or "").rstrip("/")
+    if not base.startswith("http"):
+        return 0
+    await db.purge_expired_cabinet_tokens()
+    price = max(1, settings.vpn_day_price_rub)
+    sent = 0
+    for telegram_id in await db.users_needing_cabinet_link(price):
+        token = await db.issue_cabinet_token(telegram_id, CABINET_LINK_DAYS)
+        url = f"{base}/?t={token}"
+        text = (
+            "Баланса хватит меньше чем на двое суток. "
+            "Если VPN отключится, Telegram может быть недоступен.\n\n"
+            "Кабинет из браузера, без VPN. Ссылка действует 10 дней:\n"
+            f"{url}"
+        )
+        try:
+            await bot.send_message(telegram_id, text)
+            sent += 1
+        except Exception:
+            await db.delete_cabinet_token(token)
+            logger.debug("Ссылка на кабинет не ушла %s", telegram_id, exc_info=True)
+    if sent:
+        logger.info("Ссылки на кабинет из браузера: %s", sent)
+    return sent

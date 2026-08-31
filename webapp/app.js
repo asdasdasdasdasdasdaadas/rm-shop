@@ -30,6 +30,32 @@ const tg = window.Telegram && window.Telegram.WebApp
 tg.ready();
 tg.expand();
 
+const LK_TOKEN_KEY = "way_lk_token";
+
+function readLkToken() {
+  const params = new URLSearchParams(window.location.search);
+  const fromUrl = (params.get("t") || "").trim();
+  if (fromUrl) {
+    try {
+      localStorage.setItem(LK_TOKEN_KEY, fromUrl);
+    } catch (_e) {}
+    params.delete("t");
+    const qs = params.toString();
+    const next = window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
+    try {
+      history.replaceState({}, "", next);
+    } catch (_e) {}
+    return fromUrl;
+  }
+  try {
+    return localStorage.getItem(LK_TOKEN_KEY) || "";
+  } catch (_e) {
+    return "";
+  }
+}
+
+const lkToken = readLkToken();
+
 const $ = (id) => document.getElementById(id);
 
 const PLATFORMS = [
@@ -333,13 +359,15 @@ function haptic() {
 }
 
 async function api(path, opts = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Init-Data": tg.initData || "",
+    ...(opts.headers || {}),
+  };
+  if (lkToken) headers["X-Lk-Token"] = lkToken;
   const res = await fetch(path, {
     ...opts,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Init-Data": tg.initData || "",
-      ...(opts.headers || {}),
-    },
+    headers,
   });
   const data = await res.json().catch(() => ({ ok: false, error: "Ошибка ответа" }));
   if (!res.ok || data.ok === false) {
@@ -854,6 +882,16 @@ function updateTopupCta(me) {
     }
   });
 }
+function browserCabinet() {
+  return Boolean(lkToken) && !tg.initData;
+}
+
+function syncWebBack() {
+  const el = $("webBack");
+  if (!el) return;
+  el.classList.toggle("hidden", !(browserCabinet() && screen !== "home"));
+}
+
 function onBack() {
   haptic();
   if (screen === "wizard") {
@@ -888,6 +926,7 @@ function openHome() {
     tg.BackButton.hide();
     if (typeof tg.enableVerticalSwipes === "function") tg.enableVerticalSwipes();
   } catch (_e) {}
+  syncWebBack();
   requestAnimationFrame(() => scheduleCoach());
 }
 
@@ -900,6 +939,7 @@ function openTopup() {
   try {
     tg.BackButton.show();
   } catch (_e) {}
+  syncWebBack();
   renderTopup(me);
 }
 
@@ -1020,6 +1060,7 @@ function startWizard() {
   try {
     tg.BackButton.show();
   } catch (_e) {}
+  syncWebBack();
   renderWizard();
 }
 
@@ -1389,6 +1430,7 @@ function showDevice(d) {
     tg.BackButton.show();
     if (typeof tg.disableVerticalSwipes === "function") tg.disableVerticalSwipes();
   } catch (_e) {}
+  syncWebBack();
   paintDevice(d);
   setMain("");
 }
@@ -1904,6 +1946,8 @@ $("retryBtn").onclick = () => {
   showBoot();
   load().catch((err) => showFail(err.message || "Не удалось загрузить данные"));
 };
+
+$("webBack").onclick = () => onBack();
 
 if (tg.onEvent) {
   tg.onEvent("invoiceClosed", (status) => {

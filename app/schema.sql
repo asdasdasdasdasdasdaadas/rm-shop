@@ -109,6 +109,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS trust_loans_open_uidx
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_nudge_sent_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS cabinet_tokens (
+    token_hash TEXT PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users (telegram_id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS cabinet_tokens_tg_idx ON cabinet_tokens (telegram_id);
+CREATE INDEX IF NOT EXISTS cabinet_tokens_expires_idx ON cabinet_tokens (expires_at);
 CREATE INDEX IF NOT EXISTS users_blocked_at_idx ON users (blocked_at) WHERE blocked_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS users_trial_nudge_idx ON users (created_at)
     WHERE trial_nudge_sent_at IS NULL AND trial_used = FALSE;
