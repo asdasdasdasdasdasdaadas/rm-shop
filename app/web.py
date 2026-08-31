@@ -119,6 +119,10 @@ async def webapp_js(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(WEBAPP_DIR / "app.js", headers=_NO_STORE)
 
 
+async def webapp_qrcode(_request: web.Request) -> web.FileResponse:
+    return web.FileResponse(WEBAPP_DIR / "qrcode.min.js", headers=_NO_STORE)
+
+
 async def webapp_open(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(WEBAPP_DIR / "open.html", headers=_NO_STORE)
 
