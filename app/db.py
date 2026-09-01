@@ -336,7 +336,8 @@ async def open_trust_loan(telegram_id: int) -> dict | None:
     return _as_dict(row)
 
 
-async def take_trust_loan(telegram_id: int, amount: int, due_at) -> dict:
+async def take_trust_loan(telegram_id: int, credit: int, due_at, debt: int | None = None) -> dict:
+    repay = int(debt if debt is not None else credit)
     row = await _pool_req().fetchrow(
         """
         INSERT INTO trust_loans (telegram_id, amount, due_at)
@@ -344,11 +345,11 @@ async def take_trust_loan(telegram_id: int, amount: int, due_at) -> dict:
         RETURNING *
         """,
         telegram_id,
-        amount,
+        repay,
         due_at,
     )
-    await add_balance_rub(telegram_id, amount)
-    return dict(row) if row else {"amount": amount, "due_at": due_at}
+    await add_balance_rub(telegram_id, int(credit))
+    return dict(row) if row else {"amount": repay, "due_at": due_at}
 
 
 async def due_trust_loans() -> list[dict]:

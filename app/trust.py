@@ -10,6 +10,7 @@ from app.notices import notice_text
 from app.texts import rub_text
 
 TRUST_DAYS = 3
+TRUST_FEE_RUB = 12
 MAINTENANCE_TEXT = "Сейчас ведутся технические работы. Сервис временно недоступен."
 
 
@@ -22,8 +23,12 @@ def one_device_day_rub(price: int | None = None) -> int:
     return max(1, price if price is not None else get_settings().vpn_day_price_rub)
 
 
-def trust_amount_rub(price: int | None = None) -> int:
+def trust_credit_rub(price: int | None = None) -> int:
     return TRUST_DAYS * one_device_day_rub(price)
+
+
+def trust_repay_rub(price: int | None = None) -> int:
+    return trust_credit_rub(price) + TRUST_FEE_RUB
 
 
 def _json_loan(row: dict | None) -> dict | None:
@@ -40,7 +45,8 @@ def _json_loan(row: dict | None) -> dict | None:
 async def trust_info(telegram_id: int, local: dict | None, device_count: int) -> dict:
     settings = get_settings()
     day = one_device_day_rub(settings.vpn_day_price_rub)
-    amount = trust_amount_rub(settings.vpn_day_price_rub)
+    credit = trust_credit_rub(settings.vpn_day_price_rub)
+    repay = trust_repay_rub(settings.vpn_day_price_rub)
     open_loan = await db.open_trust_loan(telegram_id) if local else None
     balance = int((local or {}).get("balance_rub") or 0)
     paid = bool((local or {}).get("has_paid_topup"))
@@ -61,7 +67,9 @@ async def trust_info(telegram_id: int, local: dict | None, device_count: int) ->
     return {
         "available": available,
         "reason": reason,
-        "amount": amount,
+        "amount": credit,
+        "fee": TRUST_FEE_RUB,
+        "repay": repay,
         "days": TRUST_DAYS,
         "daily_cost": day,
         "open": _json_loan(open_loan),
@@ -81,7 +89,7 @@ async def take_trust(telegram_id: int) -> dict:
         raise ValueError(info["reason"] or "Нельзя взять обещанный платёж")
     due = datetime.now(timezone.utc) + timedelta(days=TRUST_DAYS)
     try:
-        loan = await db.take_trust_loan(telegram_id, info["amount"], due)
+        loan = await db.take_trust_loan(telegram_id, info["amount"], due, info["repay"])
     except asyncpg.exceptions.UniqueViolationError as exc:
         raise ValueError("Уже есть незакрытый обещанный платёж") from exc
     except Exception as exc:
@@ -90,8 +98,8 @@ async def take_trust(telegram_id: int) -> dict:
         telegram_id,
         "trust",
         source="user",
-        amount=int(info["amount"]),
-        note="Обещанный платёж: 3 дня одного устройства",
+        amount=int(info["repay"]),
+        note=f"Обещанный платёж: {TRUST_DAYS} дня + комиссия {TRUST_FEE_RUB} ₽",
     )
     return _json_loan(loan) or {"amount": info["amount"], "due_at": due.isoformat()}
 

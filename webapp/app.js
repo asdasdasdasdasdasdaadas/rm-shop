@@ -619,24 +619,39 @@ function markCoachDone() {
   } catch (_e) {}
 }
 
+function clearCoachPulse() {
+  document.querySelectorAll(".coach-pulse").forEach((el) => el.classList.remove("coach-pulse"));
+}
+
 function hideCoach() {
   coachVisible = false;
   if (coachPlaceTimer) {
     clearTimeout(coachPlaceTimer);
     coachPlaceTimer = 0;
   }
+  clearCoachPulse();
   const el = $("coach");
   if (el) el.classList.add("hidden");
 }
 
 function finishCoach() {
-  markCoachDone();
   hideCoach();
+  if (!hasRequiredCoach(window.__me)) markCoachDone();
+}
+
+function hasRequiredCoach(me) {
+  return buildCoachSteps(me).some((s) => s.required);
 }
 
 function coachElReady(id) {
   const el = $(id);
   return Boolean(el && !el.classList.contains("hidden"));
+}
+
+function deviceCoachTarget() {
+  if (coachElReady("ctaAdd")) return "ctaAdd";
+  if (coachElReady("addDeviceEmpty")) return "addDeviceEmpty";
+  return "";
 }
 
 function buildCoachSteps(me) {
@@ -647,34 +662,33 @@ function buildCoachSteps(me) {
     if (me.trial_available && coachElReady("trialHomeBtn")) {
       steps.push({
         id: "trialHomeBtn",
-        title: "Можно начать бесплатно",
-        text: "Пробные рубли сразу на баланс. Потом добавьте устройство — без него деньги не списываются.",
+        required: true,
+        title: "Начните бесплатно",
+        text: "Нажмите сюда — пробные рубли сразу на баланс. Без устройства деньги не списываются.",
       });
     } else if ((me.balance_rub || 0) < 1 && coachElReady("topupBtn")) {
       steps.push({
         id: "topupBtn",
-        title: "Сначала пополните баланс",
-        text: "Сутки спишутся, когда появится первое устройство. Пока устройств нет — баланс не тратится.",
+        required: true,
+        title: "Пополните баланс",
+        text: "Без денег устройство не создать. Сутки спишутся только после подключения.",
+        action: "topup",
       });
     }
-    if (n === 0 && $("ctaAdd") && !$("ctaAdd").classList.contains("hidden")) {
+    const addId = n === 0 ? deviceCoachTarget() : "";
+    if (addId) {
       steps.push({
-        id: "ctaAdd",
+        id: addId,
+        required: true,
         title: "Добавьте устройство",
-        text: "Выберите телефон или компьютер, установите приложение — ссылка подставится сама. Займёт меньше минуты.",
-        action: "wizard",
-      });
-    } else if (n === 0 && $("addDeviceEmpty") && !$("emptyDevices").classList.contains("hidden")) {
-      steps.push({
-        id: "addDeviceEmpty",
-        title: "Добавьте устройство",
-        text: "Выберите телефон или компьютер, установите приложение — ссылка подставится сама. Займёт меньше минуты.",
+        text: "Без устройства VPN не заработает и баланс не начнёт тратиться. Нажмите кнопку и пройдите три коротких шага.",
         action: "wizard",
       });
     }
   } else if (!me.has_access && coachElReady("topupBtn")) {
     steps.push({
       id: "topupBtn",
+      required: true,
       title: "Оформите доступ",
       text: "Выберите срок подписки. После оплаты появится ссылка для приложения.",
       action: "topup",
@@ -695,6 +709,10 @@ function applyCoachCopy() {
   if (step.action === "wizard") next.textContent = "Добавить устройство";
   else if (step.action === "topup") next.textContent = "Пополнить";
   else next.textContent = last ? "Понятно" : "Далее";
+  $("coachSkip").classList.toggle("hidden", Boolean(step.required));
+  $("coach").classList.toggle("is-required", Boolean(step.required));
+  const catchEl = $("coachCatch");
+  if (catchEl) catchEl.style.pointerEvents = step.required ? "none" : "auto";
 }
 
 function pinCoachCard() {
@@ -726,13 +744,15 @@ function layoutCoach() {
     return;
   }
   hole.classList.remove("is-off");
-  const pad = 6;
+  const pad = 8;
   hole.style.top = `${Math.max(8, r.top - pad)}px`;
   hole.style.left = `${Math.max(8, r.left - pad)}px`;
   hole.style.width = `${r.width + pad * 2}px`;
   hole.style.height = `${r.height + pad * 2}px`;
   const radius = getComputedStyle(target).borderRadius;
   hole.style.borderRadius = radius && radius !== "0px" ? radius : "16px";
+  clearCoachPulse();
+  target.classList.add("coach-pulse");
 
   const spaceBelow = window.innerHeight - r.bottom;
   if (spaceBelow > 200) {
@@ -784,7 +804,8 @@ function scheduleCoach() {
 
 function maybeStartCoach(force) {
   if (!coachCanRun()) return;
-  if (!force && coachDone()) return;
+  const required = hasRequiredCoach(window.__me);
+  if (!force && coachDone() && !required) return;
   if (coachVisible && !force) {
     layoutCoach();
     return;
@@ -1582,12 +1603,12 @@ function paint(me) {
     trustOpen.classList.remove("hidden");
     const due = t.open.due_at ? new Date(t.open.due_at) : null;
     $("trustDue").textContent = due && !Number.isNaN(due.getTime())
-      ? `списание ${due.toLocaleDateString("ru-RU")}`
-      : rublesLabel(t.open.amount);
+      ? `вернуть ${rublesLabel(t.open.amount)} · ${due.toLocaleDateString("ru-RU")}`
+      : `вернуть ${rublesLabel(t.open.amount)}`;
   } else if (me.balance_enabled && t && t.available) {
     trustOpen.classList.add("hidden");
     trustBtn.classList.remove("hidden");
-    trustBtn.textContent = `Обещанный платёж · ${rublesLabel(t.amount)}`;
+    trustBtn.textContent = `Обещанный платёж · ${daysLabel(t.days)} + ${rublesLabel(t.fee || 12)}`
   } else {
     trustBtn.classList.add("hidden");
     trustOpen.classList.add("hidden");
@@ -1621,6 +1642,29 @@ function paint(me) {
   if (!$("intro").classList.contains("hidden")) return;
   if (shouldShowIntro()) showIntro(me);
   else showApp();
+  syncCoach(me);
+}
+
+function syncCoach(me) {
+  if (screen !== "home") return;
+  if ($("app").classList.contains("hidden")) return;
+  if (hasRequiredCoach(me)) {
+    if (coachVisible) {
+      const oldId = coachList[coachIndex] && coachList[coachIndex].id;
+      coachList = buildCoachSteps(me);
+      if (!coachList.length) {
+        hideCoach();
+        return;
+      }
+      const idx = coachList.findIndex((s) => s.id === oldId);
+      coachIndex = idx >= 0 ? idx : 0;
+      placeCoach();
+      return;
+    }
+    scheduleCoach();
+    return;
+  }
+  if (coachVisible) finishCoach();
 }
 
 async function load() {
@@ -1721,9 +1765,12 @@ $("trustBtn").onclick = () => {
   const t = me && me.trust;
   if (!t || !t.available) return;
   haptic();
+  const credit = rublesLabel(t.amount);
+  const fee = rublesLabel(t.fee || 12);
+  const repay = rublesLabel(t.repay || (t.amount + (t.fee || 12)));
   const text =
-    `Начислить ${rublesLabel(t.amount)} — ${daysLabel(t.days)} одного устройства. ` +
-    `Через ${daysLabel(t.days)} сумма спишется, даже если баланс уйдёт в минус.`;
+    `Начислим ${credit} — ${daysLabel(t.days)} одного устройства. ` +
+    `За услугу спишется ещё ${fee}. Через ${daysLabel(t.days)} вернём ${repay}, даже если баланс уйдёт в минус.`;
   const go = async () => {
     try {
       await api("/api/trust", { method: "POST", body: "{}" });
@@ -1792,6 +1839,8 @@ $("addDeviceEmpty").onclick = () => startWizard();
 $("coachSkip").onclick = (e) => {
   e.stopPropagation();
   haptic();
+  const step = coachList[coachIndex];
+  if (step && step.required) return;
   finishCoach();
 };
 $("coachNext").onclick = (e) => {
@@ -1800,6 +1849,8 @@ $("coachNext").onclick = (e) => {
 };
 $("coachCard").onclick = (e) => e.stopPropagation();
 $("coachCatch").onclick = () => {
+  const step = coachList[coachIndex];
+  if (step && step.required) return;
   haptic();
   finishCoach();
 };

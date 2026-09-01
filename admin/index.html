@@ -6,15 +6,18 @@
   <title>Админка</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=11">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css?v=12">
 </head>
 <body>
   <div id="login" class="login-wrap">
     <form id="loginForm" class="login-card">
-      <div class="login-mark" aria-hidden="true"></div>
-      <h1>Кабинет управления</h1>
-      <p class="muted">Статистика, пользователи и сервис бота</p>
+      <div class="login-mark" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none"><ellipse cx="24" cy="30" rx="11" ry="13" fill="currentColor"/><circle cx="12" cy="14" r="4.4" fill="currentColor"/><circle cx="36" cy="14" r="4.4" fill="currentColor"/><circle cx="20" cy="8" r="3.6" fill="currentColor" opacity=".75"/><circle cx="28" cy="8" r="3.6" fill="currentColor" opacity=".75"/></svg>
+      </div>
+      <p class="login-kicker">Управление</p>
+      <h1>Кабинет сервиса</h1>
+      <p class="muted">Пользователи, оплаты, биллинг и настройки бота</p>
       <label class="field-label" for="password">Пароль</label>
       <input id="password" type="password" placeholder="Введите пароль" autocomplete="current-password">
       <button type="submit">Войти</button>
@@ -26,7 +29,9 @@
     <div id="navScrim" class="nav-scrim" aria-hidden="true"></div>
     <aside id="sidebar">
       <div class="brand-block">
-        <div class="logo" aria-hidden="true"></div>
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none"><ellipse cx="24" cy="30" rx="11" ry="13" fill="currentColor"/><circle cx="12" cy="14" r="4.4" fill="currentColor"/><circle cx="36" cy="14" r="4.4" fill="currentColor"/><circle cx="20" cy="8" r="3.6" fill="currentColor" opacity=".75"/><circle cx="28" cy="8" r="3.6" fill="currentColor" opacity=".75"/></svg>
+        </div>
         <div>
           <div class="brand" id="brand">RM Shop</div>
           <div class="brand-sub">Админка</div>
@@ -34,17 +39,44 @@
       </div>
       <nav>
         <div class="nav-label">Сводка</div>
-        <button type="button" data-tab="overview" data-title="Обзор" data-lead="Статистика, техработы и тарификация" class="active">Обзор</button>
+        <button type="button" data-tab="overview" data-title="Обзор" data-lead="Статистика, техработы и тарификация" class="active">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 11l8-7 8 7v8a2 2 0 01-2 2h-4v-6H10v6H6a2 2 0 01-2-2v-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          Обзор
+        </button>
         <div class="nav-label">Клиенты</div>
-        <button type="button" data-tab="users" data-title="Пользователи" data-lead="Поиск, блокировки, баланс и массовые действия">Пользователи</button>
-        <button type="button" data-tab="referrals" data-title="Рефералы" data-lead="Кто пришёл по чьей ссылке">Рефералы</button>
-        <button type="button" data-tab="orders" data-title="Оплаты" data-lead="Заказы и статусы кассы">Оплаты</button>
-        <button type="button" data-tab="billing" data-title="Биллинг" data-lead="Списания, отключения и правки баланса">Биллинг</button>
-        <button type="button" data-tab="reports" data-title="Жалобы VPN" data-lead="Сообщения «VPN не работает»">Жалобы VPN</button>
+        <button type="button" data-tab="users" data-title="Пользователи" data-lead="Поиск, блокировки, баланс и массовые действия">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.8"/><path d="M4 19c.6-3.2 2.8-5 5-5s4.4 1.8 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="17" cy="9" r="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M16.2 14.2c1.8.4 3.3 1.8 3.8 4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Пользователи
+        </button>
+        <button type="button" data-tab="referrals" data-title="Рефералы" data-lead="Кто пришёл по чьей ссылке">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M12 21c-4.4-2.9-8-6.6-8-11a5 5 0 018-4 5 5 0 018 4c0 4.4-3.6 8.1-8 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          Рефералы
+        </button>
+        <button type="button" data-tab="orders" data-title="Оплаты" data-lead="Заказы и статусы кассы">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M8 6V4.8A1.8 1.8 0 019.8 3h4.4A1.8 1.8 0 0116 4.8V6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Оплаты
+        </button>
+        <button type="button" data-tab="billing" data-title="Биллинг" data-lead="Списания, отключения и правки баланса">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v8M9.5 10.5c.6-1 1.5-1.5 2.5-1.5 1.6 0 2.5.9 2.5 2s-.9 2-2.5 2-2.5.8-2.5 2 .9 2 2.5 2c1.1 0 2-.5 2.6-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Биллинг
+        </button>
+        <button type="button" data-tab="reports" data-title="Жалобы VPN" data-lead="Сообщения «VPN не работает»">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M12 8v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16.2" r="1" fill="currentColor"/><path d="M11.1 4.8L3.6 18.2A2 2 0 005.4 21h13.2a2 2 0 001.8-2.8L12.9 4.8a1 1 0 00-1.8 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          Жалобы VPN
+        </button>
         <div class="nav-label">Сервис</div>
-        <button type="button" data-tab="broadcast" data-title="Рассылка" data-lead="Сообщение всем, кто запускал бота">Рассылка</button>
-        <button type="button" data-tab="backups" data-title="Бэкапы" data-lead="Дампы базы и восстановление">Бэкапы</button>
-        <button type="button" data-tab="settings" data-title="Настройки" data-lead="Цены, устройства, триал и промо">Настройки</button>
+        <button type="button" data-tab="broadcast" data-title="Рассылка" data-lead="Сообщение всем, кто запускал бота">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 11l16-6-6 16-2.5-6.5L4 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          Рассылка
+        </button>
+        <button type="button" data-tab="backups" data-title="Бэкапы" data-lead="Дампы базы и восстановление">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M7 7h10v12H7z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 4h6v3H9zM9 12h6M9 16h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Бэкапы
+        </button>
+        <button type="button" data-tab="settings" data-title="Настройки" data-lead="Цены, устройства, триал и промо">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 4.5v2M12 17.5v2M4.5 12h2M17.5 12h2M6.4 6.4l1.4 1.4M16.2 16.2l1.4 1.4M17.6 6.4l-1.4 1.4M7.8 16.2l-1.4 1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Настройки
+        </button>
       </nav>
       <button type="button" id="logout" class="ghost logout">Выйти</button>
     </aside>
@@ -431,10 +463,10 @@
               <p class="muted tight">Тексты, которые бот шлёт сам. Слова в фигурных скобках подставляются автоматически. Можно оставлять HTML: &lt;b&gt;жирный&lt;/b&gt; и &lt;code&gt;ссылка&lt;/code&gt;.</p>
               <div id="noticesList"></div>
             </div>
-            <div class="ops">
-              <button type="submit">Сохранить</button>
+            <div class="ops sticky-save">
+              <button type="submit">Сохранить настройки</button>
+              <p id="shopOut" class="muted"></p>
             </div>
-            <p id="shopOut" class="muted"></p>
           </form>
         </section>
       </main>
@@ -484,6 +516,6 @@
       </div>
     </div>
   </div>
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
