@@ -24,7 +24,7 @@ from app.config import ROOT, get_settings
 from app.shop_config import save_shop_overlay, snapshot as shop_snapshot
 from app.keyboards import blocked_keyboard, cabinet_keyboard
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
-from app.remnawave import RemnawaveClient, RemnawaveError
+from app.remnawave import RemnawaveClient, RemnawaveError, panel_online_at
 from app.texts import subscription_reissued_text
 
 logger = logging.getLogger("rm-shop.admin")
@@ -136,6 +136,64 @@ async def api_users(request: web.Request) -> web.Response:
     limit = min(100, max(1, int(request.query.get("limit") or 30)))
     items, total = await db.admin_list_users(q, limit, (page - 1) * limit)
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+
+
+async def api_user_devices(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except (KeyError, TypeError, ValueError):
+        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    local = await db.get_user(telegram_id)
+    if not local:
+        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    rw: RemnawaveClient = request.app["rw"]
+    rows = await db.list_devices(telegram_id)
+    items: list[dict] = []
+    if rows:
+        for item in rows:
+            online = item.get("last_online_at")
+            status = ""
+            if item.get("remnawave_id"):
+                try:
+                    panel = await rw.get_user_by_id(int(item["remnawave_id"]))
+                except Exception:
+                    panel = None
+                if panel:
+                    status = str(panel.get("status") or "")
+                    seen = panel_online_at(panel)
+                    if seen:
+                        await db.set_device_last_online(int(item["id"]), seen)
+                        online = seen
+            items.append(
+                {
+                    "id": item["id"],
+                    "title": item.get("title") or "Устройство",
+                    "platform": item.get("platform") or "",
+                    "client": item.get("client") or "",
+                    "status": status,
+                    "last_online_at": online.isoformat() if hasattr(online, "isoformat") else online,
+                }
+            )
+    elif local.get("remnawave_id"):
+        try:
+            panel = await rw.get_user_by_id(int(local["remnawave_id"]))
+        except Exception:
+            panel = None
+        seen = panel_online_at(panel) if panel else None
+        items.append(
+            {
+                "id": None,
+                "title": "Подписка",
+                "platform": "",
+                "client": "",
+                "status": str((panel or {}).get("status") or local.get("panel_status") or ""),
+                "last_online_at": seen.isoformat() if seen else None,
+            }
+        )
+    return web.json_response({"ok": True, "items": items})
 
 
 async def api_referrals(request: web.Request) -> web.Response:
@@ -912,6 +970,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/session", api_session)
     app.router.add_get("/admin/api/stats", api_stats)
     app.router.add_get("/admin/api/users", api_users)
+    app.router.add_get("/admin/api/users/{telegram_id}/devices", api_user_devices)
     app.router.add_post("/admin/api/users/bulk", api_users_bulk)
     app.router.add_get("/admin/api/referrals", api_referrals)
     app.router.add_get("/admin/api/orders", api_orders)

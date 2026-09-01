@@ -406,6 +406,11 @@ th {
 }
 tbody tr:hover td { background: rgba(143, 227, 176, 0.04); }
 tbody tr:last-child td { border-bottom: 0; }
+td.wrap {
+  white-space: normal;
+  max-width: 260px;
+  line-height: 1.35;
+}
 main a { color: var(--acc); }
 .ops { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .sticky-save {
@@ -505,7 +510,7 @@ pre {
   border: 1px solid var(--acc-border);
   border-radius: 24px;
   padding: 22px;
-  width: min(560px, 100%);
+  width: min(720px, 100%);
   display: flex;
   flex-direction: column;
   gap: 8px;

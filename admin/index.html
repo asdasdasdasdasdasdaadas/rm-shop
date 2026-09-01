@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=12">
+  <link rel="stylesheet" href="app.css?v=13">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -187,6 +187,8 @@
                   <th>Telegram</th>
                   <th>Имя</th>
                   <th>Баланс</th>
+                  <th>Устройства</th>
+                  <th>Онлайн</th>
                   <th>Триал</th>
                   <th>До</th>
                   <th>Статус</th>
@@ -500,6 +502,21 @@
       <textarea id="msgText" rows="4"></textarea>
       <button type="button" id="msgBtn">Отправить</button>
       <button type="button" id="delBtn" class="danger">Удалить пользователя</button>
+      <h3 class="block-title">Устройства</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Клиент</th>
+              <th>Платформа</th>
+              <th>Статус</th>
+              <th>Последний онлайн</th>
+            </tr>
+          </thead>
+          <tbody id="userDeviceRows"></tbody>
+        </table>
+      </div>
       <h3 class="block-title">История биллинга</h3>
       <div class="table-wrap">
         <table>
@@ -516,6 +533,6 @@
       </div>
     </div>
   </div>
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>

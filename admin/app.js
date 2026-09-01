@@ -29,6 +29,25 @@ function fmt(dt) {
   return d.toLocaleString("ru-RU");
 }
 
+function fmtAgo(dt) {
+  if (!dt) return "—";
+  const d = new Date(dt);
+  if (Number.isNaN(d.getTime())) return "—";
+  const sec = Math.round((Date.now() - d.getTime()) / 1000);
+  if (sec < 90) return "только что";
+  if (sec < 3600) return Math.floor(sec / 60) + " мин назад";
+  if (sec < 86400) return Math.floor(sec / 3600) + " ч назад";
+  if (sec < 86400 * 7) return Math.floor(sec / 86400) + " дн назад";
+  return fmt(dt);
+}
+
+function deviceCell(u) {
+  const n = Number(u.device_count) || 0;
+  const titles = String(u.device_titles || "").trim();
+  if (n < 1) return u.remnawave_id ? "подписка" : "—";
+  return titles ? n + " · " + titles : String(n);
+}
+
 function setNavOpen(open) {
   document.body.classList.toggle("nav-open", open);
   const toggle = $("navToggle");
@@ -251,10 +270,21 @@ async function loadUsers(page) {
       u.telegram_id + (u.username ? ` @${u.username}` : ""),
       u.first_name || "—",
       u.balance_rub == null ? "—" : String(u.balance_rub),
-      u.trial_used ? "да" : "нет",
-      fmt(u.expire_at),
+      deviceCell(u),
     ];
-    cells.forEach((t) => tr.appendChild(tdText(t)));
+    cells.forEach((t, i) => {
+      const td = tdText(t);
+      if (i === 3) {
+        td.className = "wrap";
+        td.title = t;
+      }
+      tr.appendChild(td);
+    });
+    const tdOnline = tdText(fmtAgo(u.last_online_at));
+    tdOnline.title = fmt(u.last_online_at);
+    tr.appendChild(tdOnline);
+    tr.appendChild(tdText(u.trial_used ? "да" : "нет"));
+    tr.appendChild(tdText(fmt(u.expire_at)));
     tr.appendChild(tdPill(u.blocked_at ? "блок" : (u.panel_status || "—")));
     tr.appendChild(tdText(
       u.referred_by
@@ -422,6 +452,56 @@ async function loadBilling(page) {
     body.appendChild(tr);
   });
   pager($("billPager"), data.page, data.total, data.limit, loadBilling);
+}
+
+async function loadUserDevices(telegramId) {
+  const body = $("userDeviceRows");
+  if (!body) return;
+  body.innerHTML = "";
+  const wait = document.createElement("tr");
+  const waitTd = document.createElement("td");
+  waitTd.colSpan = 5;
+  waitTd.className = "muted";
+  waitTd.textContent = "Загружаю из панели...";
+  wait.appendChild(waitTd);
+  body.appendChild(wait);
+  try {
+    const data = await api(`/admin/api/users/${encodeURIComponent(String(telegramId))}/devices`);
+    body.innerHTML = "";
+    const items = data.items || [];
+    if (!items.length) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 5;
+      td.className = "muted";
+      td.textContent = "Устройств нет";
+      tr.appendChild(td);
+      body.appendChild(tr);
+      return;
+    }
+    items.forEach((d) => {
+      const tr = document.createElement("tr");
+      [
+        d.title || "Устройство",
+        d.client || "—",
+        d.platform || "—",
+      ].forEach((t) => tr.appendChild(tdText(t)));
+      tr.appendChild(tdPill(d.status || "—"));
+      const tdOn = tdText(fmtAgo(d.last_online_at));
+      tdOn.title = fmt(d.last_online_at);
+      tr.appendChild(tdOn);
+      body.appendChild(tr);
+    });
+  } catch (_e) {
+    body.innerHTML = "";
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 5;
+    td.className = "muted";
+    td.textContent = "Не удалось загрузить устройства";
+    tr.appendChild(td);
+    body.appendChild(tr);
+  }
 }
 
 async function loadUserBilling(telegramId) {
@@ -713,6 +793,7 @@ function openUser(u) {
   $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
   $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
   $("modal").classList.remove("hidden");
+  loadUserDevices(u.telegram_id);
   loadUserBilling(u.telegram_id);
 }
 

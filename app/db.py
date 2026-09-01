@@ -196,6 +196,14 @@ async def save_device_subscription(remnawave_id: int, panel: dict | None) -> str
     return str(row["title"]) if row and row.get("title") else None
 
 
+async def set_device_last_online(device_id: int, online_at) -> None:
+    await _pool_req().execute(
+        "UPDATE devices SET last_online_at = $2 WHERE id = $1",
+        device_id,
+        online_at,
+    )
+
+
 async def list_panel_telegram_ids() -> list[int]:
     rows = await _pool_req().fetch(
         """
@@ -674,6 +682,19 @@ async def admin_list_users(query: str, limit: int, offset: int) -> tuple[list[di
         SELECT u.*,
                ref.username AS referrer_username,
                ref.first_name AS referrer_name,
+               (
+                   SELECT COUNT(*)::int FROM devices d WHERE d.telegram_id = u.telegram_id
+               ) AS device_count,
+               (
+                   SELECT COALESCE(string_agg(d.title, ', ' ORDER BY d.id), '')
+                   FROM devices d
+                   WHERE d.telegram_id = u.telegram_id
+               ) AS device_titles,
+               (
+                   SELECT MAX(d.last_online_at)
+                   FROM devices d
+                   WHERE d.telegram_id = u.telegram_id
+               ) AS last_online_at,
                (
                    SELECT COUNT(*)::int FROM users inv WHERE inv.referred_by = u.telegram_id
                ) AS invited_count

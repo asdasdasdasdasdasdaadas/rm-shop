@@ -65,6 +65,25 @@ def parse_expire(value: str | None) -> datetime | None:
         return None
 
 
+def panel_online_at(user: dict | None) -> datetime | None:
+    if not user:
+        return None
+    traffic = user.get("userTraffic") if isinstance(user.get("userTraffic"), dict) else {}
+    for raw in (
+        traffic.get("onlineAt"),
+        user.get("onlineAt"),
+        traffic.get("lastConnectedAt"),
+        user.get("lastConnectedAt"),
+        user.get("subLastOpenedAt"),
+        user.get("subLastOpened"),
+    ):
+        if isinstance(raw, str) and raw.strip():
+            dt = parse_expire(raw)
+            if dt:
+                return dt
+    return None
+
+
 def iso_expire(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
