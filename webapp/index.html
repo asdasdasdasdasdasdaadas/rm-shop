@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=33">
+  <link rel="stylesheet" href="app.css?v=34">
 </head>
 <body>
   <div id="boot" class="state">
@@ -240,6 +240,7 @@
         <div class="section-title-plain">Помощь</div>
         <div class="section help-list">
           <button type="button" id="vpnDown">VPN не работает <span class="arrow">›</span></button>
+          <button type="button" id="trustHelp">Обещанный платёж <span class="arrow">›</span></button>
           <button type="button" id="supportBtn">Поддержка <span class="arrow">›</span></button>
         </div>
       </div>
@@ -372,6 +373,7 @@
   </div>
 
   <div id="menu" class="sheet hidden" role="menu">
+    <button type="button" id="menuTrust" class="hidden" role="menuitem">Обещанный платёж</button>
     <a id="offerLink" href="#" target="_blank" rel="noopener">Оферта</a>
     <a id="privacyLink" href="#" target="_blank" rel="noopener">Политика конфиденциальности</a>
     <a id="supportLink" href="#" target="_blank" rel="noopener">Поддержка</a>
@@ -405,6 +407,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=35"></script>
+  <script src="app.js?v=36"></script>
 </body>
 </html>

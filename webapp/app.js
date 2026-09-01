@@ -1597,21 +1597,28 @@ function paint(me) {
   }
   const trustBtn = $("trustBtn");
   const trustOpen = $("trustOpen");
+  const trustHelp = $("trustHelp");
+  const menuTrust = $("menuTrust");
   const t = me.trust;
-  if (me.balance_enabled && t && t.open) {
+  const showTrust = Boolean(me.balance_enabled && t);
+  if (trustHelp) trustHelp.classList.toggle("hidden", !showTrust);
+  if (menuTrust) menuTrust.classList.toggle("hidden", !showTrust);
+  if (!showTrust) {
+    trustBtn.classList.add("hidden");
+    trustOpen.classList.add("hidden");
+  } else if (t.open) {
     trustBtn.classList.add("hidden");
     trustOpen.classList.remove("hidden");
     const due = t.open.due_at ? new Date(t.open.due_at) : null;
     $("trustDue").textContent = due && !Number.isNaN(due.getTime())
       ? `вернуть ${rublesLabel(t.open.amount)} · ${due.toLocaleDateString("ru-RU")}`
       : `вернуть ${rublesLabel(t.open.amount)}`;
-  } else if (me.balance_enabled && t && t.available) {
+  } else {
     trustOpen.classList.add("hidden");
     trustBtn.classList.remove("hidden");
-    trustBtn.textContent = `Обещанный платёж · ${daysLabel(t.days)} + ${rublesLabel(t.fee || 12)}`
-  } else {
-    trustBtn.classList.add("hidden");
-    trustOpen.classList.add("hidden");
+    trustBtn.textContent = t.available
+      ? `Обещанный платёж · ${daysLabel(t.days)} + ${rublesLabel(t.fee || 12)}`
+      : `Обещанный платёж · ${daysLabel(t.days)}`;
   }
   const trialHome = $("trialHomeBtn");
   if (me.trial_available) {
@@ -1760,11 +1767,32 @@ $("trialHomeBtn").onclick = async () => {
   }
 };
 
-$("trustBtn").onclick = () => {
+$("trustBtn").onclick = () => openTrust();
+$("trustHelp").onclick = () => openTrust();
+$("menuTrust").onclick = () => {
+  closeMenu();
+  openTrust();
+};
+
+function openTrust() {
   const me = window.__me;
   const t = me && me.trust;
-  if (!t || !t.available) return;
+  if (!me || !me.balance_enabled || !t) return;
   haptic();
+  if (t.open) {
+    const due = t.open.due_at ? new Date(t.open.due_at) : null;
+    const when = due && !Number.isNaN(due.getTime()) ? due.toLocaleDateString("ru-RU") : "";
+    tg.showAlert(
+      when
+        ? `Обещанный платёж уже открыт. Вернуть ${rublesLabel(t.open.amount)} ${when}.`
+        : `Обещанный платёж уже открыт. Вернуть ${rublesLabel(t.open.amount)}.`
+    );
+    return;
+  }
+  if (!t.available) {
+    tg.showAlert(t.reason || "Сейчас обещанный платёж недоступен");
+    return;
+  }
   const credit = rublesLabel(t.amount);
   const fee = rublesLabel(t.fee || 12);
   const repay = rublesLabel(t.repay || (t.amount + (t.fee || 12)));
@@ -1786,7 +1814,7 @@ $("trustBtn").onclick = () => {
   } else if (window.confirm(text)) {
     go();
   }
-};
+}
 
 $("shareBtn").onclick = () => {
   haptic();
