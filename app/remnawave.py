@@ -179,6 +179,96 @@ class RemnawaveClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
+    def _page_inner(self, payload: Any) -> dict:
+        if isinstance(payload, dict) and isinstance(payload.get("response"), dict):
+            return payload["response"]
+        if isinstance(payload, dict):
+            return payload
+        return {}
+
+    async def _users_stream_page(
+        self, cursor: Any, size: int
+    ) -> tuple[list[dict], Any, bool]:
+        params: dict[str, Any] = {"size": size}
+        if cursor is not None and cursor != "":
+            params["cursor"] = cursor
+        data = await self._request(
+            "GET",
+            "/users/stream",
+            params=params,
+            timeout=httpx.Timeout(30.0, connect=8.0),
+        )
+        if not isinstance(data, dict):
+            raise RemnawaveError("GET /users/stream: нужен JSON")
+        inner = self._page_inner(data)
+        users = _as_users(inner if inner else data)
+        next_cursor = inner.get("nextCursor")
+        has_more = bool(inner.get("hasMore"))
+        if next_cursor in ("", None):
+            next_cursor = None
+        return users, next_cursor, has_more
+
+    async def _users_list_page(self, start: int, size: int) -> tuple[list[dict], bool]:
+        last: RemnawaveError | None = None
+        data = None
+        for params in (
+            {"start": start, "size": size},
+            {"skip": start, "take": size},
+        ):
+            try:
+                data = await self._request(
+                    "GET",
+                    "/users",
+                    params=params,
+                    timeout=httpx.Timeout(30.0, connect=8.0),
+                )
+                last = None
+                break
+            except RemnawaveError as exc:
+                last = exc
+        if last:
+            raise last
+        if not isinstance(data, dict):
+            raise RemnawaveError("GET /users: нужен JSON")
+        inner = self._page_inner(data)
+        users = _as_users(inner if inner else data)
+        if isinstance(inner.get("data"), list) and not users:
+            users = [u for u in inner["data"] if isinstance(u, dict)]
+        total = inner.get("total")
+        if isinstance(total, int):
+            return users, start + len(users) < total
+        return users, len(users) >= size
+
+    async def iter_user_pages(self, size: int = 250):
+        cursor = None
+        seen_cursors: set[str] = set()
+        stream_ok = False
+        try:
+            while True:
+                users, next_cursor, has_more = await self._users_stream_page(cursor, size)
+                stream_ok = True
+                yield users
+                if next_cursor is None and not has_more:
+                    return
+                if not has_more:
+                    return
+                marker = str(next_cursor)
+                if next_cursor is None or marker in seen_cursors:
+                    return
+                seen_cursors.add(marker)
+                cursor = next_cursor
+            return
+        except RemnawaveError:
+            if stream_ok:
+                return
+        start = 0
+        while True:
+            users, has_more = await self._users_list_page(start, size)
+            yield users
+            if not has_more or not users:
+                return
+            start += len(users)
+
     async def _request(self, method: str, path: str, **kwargs) -> Any:
         url = f"{self.base}{path}"
         timeout = kwargs.pop("timeout", None)
@@ -333,6 +423,32 @@ class RemnawaveClient:
             timeout=timeout,
         )
 
+    async def _bulk_post(self, path: str, user_ids: list[int], extra: dict[str, Any]) -> None:
+        if not user_ids:
+            return
+        timeout = httpx.Timeout(60.0, connect=8.0)
+        try:
+            await self._request("POST", path, json={"userIds": user_ids, **extra}, timeout=timeout)
+            return
+        except RemnawaveError:
+            pass
+        await self._request(
+            "POST",
+            path,
+            json={"uuids": [str(uid) for uid in user_ids], **extra},
+            timeout=timeout,
+        )
+
+    async def bulk_extend_expiration(self, user_ids: list[int], days: int) -> None:
+        if days < 1:
+            return
+        await self._bulk_post("/users/bulk/extend-expiration-date", user_ids, {"extendDays": int(days)})
+
+    async def bulk_update_users(self, user_ids: list[int], fields: dict[str, Any]) -> None:
+        if not fields:
+            return
+        await self._bulk_post("/users/bulk/update", user_ids, {"fields": fields})
+
     async def update_user(self, user: dict, patch: dict[str, Any]) -> dict:
         body = dict(patch)
         if user.get("id") is not None:
@@ -394,17 +510,23 @@ class RemnawaveClient:
         return user
 
     async def disable_panel_user(self, panel_user_id: int) -> None:
-        user = await self.get_user_by_id(panel_user_id)
-        if not user:
-            return
-        if str(user.get("status") or "").upper() in {"DISABLED", "EXPIRED"}:
-            return
+        user = {"id": panel_user_id}
         try:
             await self._user_action(user, "disable")
             return
         except RemnawaveError:
             pass
-        await self.update_user(user, {"status": "DISABLED"})
+        try:
+            await self.update_user(user, {"status": "DISABLED"})
+            return
+        except RemnawaveError:
+            pass
+        fresh = await self.get_user_by_id(panel_user_id)
+        if not fresh:
+            return
+        if str(fresh.get("status") or "").upper() in {"DISABLED", "EXPIRED"}:
+            return
+        await self._user_action(fresh, "disable")
 
     async def delete_panel_user(self, panel_user_id: int) -> None:
         user = await self.get_user_by_id(panel_user_id)

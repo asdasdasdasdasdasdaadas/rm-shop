@@ -197,6 +197,153 @@ async def save_panel_snapshot(telegram_id: int, panel: dict | None) -> None:
     )
 
 
+def _panel_sync_tuple(panel: dict) -> tuple | None:
+    raw_id = panel.get("id")
+    remnawave_id = None
+    try:
+        if raw_id is not None and str(raw_id).isdigit():
+            remnawave_id = int(raw_id)
+    except (TypeError, ValueError):
+        remnawave_id = None
+    uuid = str(panel.get("uuid") or "") or None
+    expire_raw = panel.get("expireAt")
+    expire_at = None
+    if expire_raw:
+        try:
+            expire_at = datetime.fromisoformat(str(expire_raw).replace("Z", "+00:00"))
+        except ValueError:
+            expire_at = None
+    status = str(panel.get("status") or "") or None
+    sub = panel.get("subscriptionUrl") or None
+    online = None
+    traffic = panel.get("userTraffic") if isinstance(panel.get("userTraffic"), dict) else {}
+    nested = panel.get("traffic") if isinstance(panel.get("traffic"), dict) else {}
+    for raw in (
+        traffic.get("onlineAt"),
+        nested.get("onlineAt"),
+        panel.get("onlineAt"),
+        panel.get("lastConnectedAt"),
+        panel.get("lastOnlineAt"),
+    ):
+        if not raw:
+            continue
+        try:
+            online = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            break
+        except ValueError:
+            online = None
+    if remnawave_id is None and not uuid:
+        return None
+    return remnawave_id, uuid, expire_at, status, sub, online
+
+
+async def apply_panel_snapshots(panels: list[dict]) -> int:
+    rows = []
+    seen: set[tuple] = set()
+    for panel in panels:
+        if not isinstance(panel, dict):
+            continue
+        parsed = _panel_sync_tuple(panel)
+        if not parsed:
+            continue
+        key = (parsed[0], parsed[1])
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(parsed)
+    if not rows:
+        return 0
+    ids = [r[0] for r in rows]
+    uuids = [r[1] for r in rows]
+    expires = [r[2] for r in rows]
+    statuses = [r[3] for r in rows]
+    subs = [r[4] for r in rows]
+    onlines = [r[5] for r in rows]
+    now = _utc_now()
+    pool = _pool_req()
+    await pool.execute(
+        """
+        UPDATE devices d SET
+            remnawave_uuid = COALESCE(v.uuid, d.remnawave_uuid),
+            subscription_url = COALESCE(v.sub, d.subscription_url),
+            last_online_at = CASE
+                WHEN v.online_at IS NULL THEN d.last_online_at
+                WHEN d.last_online_at IS NULL OR v.online_at > d.last_online_at THEN v.online_at
+                ELSE d.last_online_at
+            END
+        FROM unnest(
+            $1::bigint[], $2::text[], $3::text[], $4::timestamptz[]
+        ) AS v(pid, uuid, sub, online_at)
+        WHERE d.remnawave_id IS NOT NULL AND d.remnawave_id = v.pid
+        """,
+        ids,
+        uuids,
+        subs,
+        onlines,
+    )
+    result = await pool.execute(
+        """
+        UPDATE users u SET
+            remnawave_uuid = COALESCE(v.uuid, u.remnawave_uuid),
+            expire_at = v.expire_at,
+            panel_status = v.status,
+            subscription_url = COALESCE(v.sub, u.subscription_url),
+            last_synced_at = $6
+        FROM unnest(
+            $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[]
+        ) AS v(pid, uuid, expire_at, status, sub)
+        WHERE u.remnawave_id IS NOT NULL AND u.remnawave_id = v.pid
+        """,
+        ids,
+        uuids,
+        expires,
+        statuses,
+        subs,
+        now,
+    )
+    await pool.execute(
+        """
+        UPDATE users u SET
+            remnawave_id = COALESCE(u.remnawave_id, v.pid),
+            remnawave_uuid = COALESCE(v.uuid, u.remnawave_uuid),
+            expire_at = v.expire_at,
+            panel_status = v.status,
+            subscription_url = COALESCE(v.sub, u.subscription_url),
+            last_synced_at = $6
+        FROM unnest(
+            $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[]
+        ) AS v(pid, uuid, expire_at, status, sub)
+        WHERE COALESCE(u.remnawave_uuid, '') <> ''
+          AND v.uuid IS NOT NULL
+          AND u.remnawave_uuid = v.uuid
+          AND (u.remnawave_id IS NULL OR u.remnawave_id = v.pid)
+        """,
+        ids,
+        uuids,
+        expires,
+        statuses,
+        subs,
+        now,
+    )
+    try:
+        return int(str(result).split()[-1])
+    except (TypeError, ValueError, IndexError):
+        return len(rows)
+
+
+async def list_stale_panel_telegram_ids(limit: int) -> list[int]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT telegram_id FROM users
+        WHERE remnawave_id IS NOT NULL OR COALESCE(remnawave_uuid, '') <> ''
+        ORDER BY last_synced_at NULLS FIRST, telegram_id
+        LIMIT $1
+        """,
+        limit,
+    )
+    return [int(r["telegram_id"]) for r in rows]
+
+
 async def save_device_subscription(remnawave_id: int, panel: dict | None) -> str | None:
     if not panel:
         return None
@@ -359,6 +506,23 @@ async def get_flags() -> dict:
         "trial_nudge": _on("trial_nudge"),
         "maintenance_notice": data.get("maintenance_notice") or "",
     }
+
+
+async def set_job_report(name: str, payload: dict) -> None:
+    data = dict(payload)
+    data["at"] = _utc_now().isoformat()
+    await set_kv(f"job:{name}", json.dumps(data, ensure_ascii=False, default=str))
+
+
+async def get_job_report(name: str) -> dict | None:
+    raw = (await get_kv(f"job:{name}")).strip()
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
 
 
 async def open_trust_loan(telegram_id: int) -> dict | None:
@@ -605,9 +769,20 @@ async def devices_to_retry_disable() -> list[dict]:
 
 
 async def mark_device_billed(device_id: int) -> None:
+    await mark_devices_billed([device_id])
+
+
+async def mark_devices_billed(device_ids: list[int]) -> None:
+    ids = [int(x) for x in device_ids if x is not None]
+    if not ids:
+        return
     await _pool_req().execute(
-        "UPDATE devices SET last_billed_on = (timezone('utc', now()))::date WHERE id = $1",
-        device_id,
+        """
+        UPDATE devices
+        SET last_billed_on = (timezone('utc', now()))::date
+        WHERE id = ANY($1::bigint[])
+        """,
+        ids,
     )
 
 

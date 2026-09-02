@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 from app import db
 from app.config import get_settings
 from app.remnawave import RemnawaveClient, RemnawaveError, is_subscription_active
+
+logger = logging.getLogger("rm-shop.sync")
 
 
 def _fresh(local: dict | None) -> bool:
@@ -43,12 +48,87 @@ async def fetch_panel(rw: RemnawaveClient, telegram_id: int, *, force: bool = Fa
     return panel
 
 
+async def _sync_stale_batch(rw: RemnawaveClient) -> int:
+    settings = get_settings()
+    ids = await db.list_stale_panel_telegram_ids(max(1, settings.panel_sync_fallback_batch))
+    if not ids:
+        return 0
+    sem = asyncio.Semaphore(max(1, settings.panel_sync_concurrency))
+
+    async def one(telegram_id: int) -> None:
+        async with sem:
+            try:
+                await fetch_panel(rw, telegram_id, force=True)
+            except Exception:
+                logger.debug("Не удалось сверить %s", telegram_id)
+
+    await asyncio.gather(*[one(tid) for tid in ids])
+    return len(ids)
+
+
 async def sync_all(rw: RemnawaveClient) -> None:
-    for telegram_id in await db.list_panel_telegram_ids():
-        try:
-            await fetch_panel(rw, telegram_id, force=True)
-        except Exception:
-            continue
+    settings = get_settings()
+    size = max(50, min(500, settings.panel_sync_page_size))
+    started = time.monotonic()
+    pages = 0
+    seen = 0
+    applied = 0
+    mode = "пакет"
+    try:
+        async for users in rw.iter_user_pages(size):
+            pages += 1
+            seen += len(users)
+            if users:
+                applied += await db.apply_panel_snapshots(users)
+    except RemnawaveError:
+        logger.warning("Пакетная сверка с панелью недоступна, берём порцию по одному")
+        n = await _sync_stale_batch(rw)
+        logger.info("Сверка порцией: %s пользователей", n)
+        await db.set_job_report(
+            "panel_sync",
+            {
+                "mode": "по одному",
+                "pages": 0,
+                "seen": n,
+                "applied": n,
+                "seconds": round(time.monotonic() - started, 1),
+            },
+        )
+        return
+    if pages == 0 or seen == 0:
+        n = await _sync_stale_batch(rw)
+        mode = "по одному"
+        if n:
+            logger.info("Список панели пуст или недоступен, сверка порцией: %s пользователей", n)
+        elif pages == 0:
+            logger.info("Панель не отдала список, сверка порцией: 0")
+        await db.set_job_report(
+            "panel_sync",
+            {
+                "mode": mode,
+                "pages": pages,
+                "seen": n,
+                "applied": n,
+                "seconds": round(time.monotonic() - started, 1),
+            },
+        )
+        return
+    logger.info(
+        "Сверка с Remnawave: %s страниц, %s учёток в панели, обновлено записей: %s",
+        pages,
+        seen,
+        applied,
+    )
+    await db.set_job_report(
+        "panel_sync",
+        {
+            "mode": mode,
+            "pages": pages,
+            "seen": seen,
+            "applied": applied,
+            "seconds": round(time.monotonic() - started, 1),
+        },
+    )
 
 
 def has_access(local: dict | None, panel: dict | None) -> bool:

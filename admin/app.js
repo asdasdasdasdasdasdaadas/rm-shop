@@ -206,6 +206,52 @@ function kv(box, map, empty) {
   });
 }
 
+function jobWhen(at) {
+  if (!at) return "неизвестно";
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return String(at);
+  return d.toLocaleString("ru-RU", { timeZone: "Europe/Moscow" });
+}
+
+function paintJobs(jobs) {
+  const billing = jobs.billing;
+  const sync = jobs.panel_sync;
+  if (!billing) {
+    kv(
+      $("jobBilling"),
+      {},
+      "Ещё не было цикла после деплоя. Первый проход крона (до 10 минут) покажет, приняла ли панель пакет: «пакет» или «по одному»."
+    );
+  } else {
+    kv($("jobBilling"), {
+      Когда: jobWhen(billing.at),
+      "Устройств в очереди": billing.pending ?? 0,
+      Продлили: billing.extended ?? 0,
+      Отключили: billing.disabled ?? 0,
+      "Как продлевали": billing.extend_mode || "нет",
+      "Как отключали": billing.disable_mode || "нет",
+      "Пауза тарификации": billing.paused ? "да" : "нет",
+      "Секунд": billing.seconds ?? 0,
+    });
+  }
+  if (!sync) {
+    kv(
+      $("jobSync"),
+      {},
+      "Ещё не было сверки после деплоя. Крон раз в 10 минут."
+    );
+  } else {
+    kv($("jobSync"), {
+      Когда: jobWhen(sync.at),
+      Как: sync.mode || "нет",
+      Страниц: sync.pages ?? 0,
+      "Учёток в панели": sync.seen ?? 0,
+      "Обновлено у нас": sync.applied ?? 0,
+      "Секунд": sync.seconds ?? 0,
+    });
+  }
+}
+
 function paintFlags(f) {
   const m = !!f.maintenance;
   const p = !!f.billing_paused;
@@ -283,6 +329,7 @@ async function loadStats() {
   ].forEach(([l, v, tab]) => cards.appendChild(card(l, v, tab)));
   kv($("orderStats"), s.orders, "Заказов пока нет");
   kv($("planStats"), s.plans, "Оплаченных тарифов нет");
+  paintJobs(s.jobs || {});
 }
 
 function pager(el, page, total, limit, onPage) {

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=19">
+  <link rel="stylesheet" href="app.css?v=20">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -109,6 +109,20 @@
             <div class="panel">
               <h3>Оплаченные тарифы</h3>
               <div id="planStats"></div>
+            </div>
+          </div>
+
+          <div class="section-label">Панель и списание</div>
+          <div class="grid2">
+            <div class="panel">
+              <h3>Последнее списание</h3>
+              <p class="muted tight">Крон раз в 10 минут. «Пакет» значит панель приняла bulk API, «по одному» — откат на старый путь.</p>
+              <div id="jobBilling" class="job-lines"></div>
+            </div>
+            <div class="panel">
+              <h3>Последняя сверка с Remnawave</h3>
+              <p class="muted tight">Копия статусов в нашей базе. На VPN и деньги не влияет.</p>
+              <div id="jobSync" class="job-lines"></div>
             </div>
           </div>
 
@@ -600,6 +614,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>

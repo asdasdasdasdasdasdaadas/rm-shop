@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     trust_days: int = 3
     trust_fee_rub: int = 12
     balance_charge_interval: int = 600
+    billing_concurrency: int = 12
+    billing_bulk_chunk: int = 80
     promo_enabled: bool = True
     promo_codes: str = "TEST:3"
     webapp_enabled: bool = False
@@ -80,6 +82,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://rmshop:rmshop@127.0.0.1:5432/rmshop"
     panel_sync_ttl: int = 60
     panel_sync_interval: int = 600
+    panel_sync_page_size: int = 250
+    panel_sync_fallback_batch: int = 200
+    panel_sync_concurrency: int = 8
     vpn_report_cooldown_sec: int = 900
     backup_keep_days: int = 14
 

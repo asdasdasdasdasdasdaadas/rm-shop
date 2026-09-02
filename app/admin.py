@@ -125,7 +125,17 @@ async def api_stats(request: web.Request) -> web.Response:
         plan = settings.plan_by_code(code) or settings.plans.get(code)
         if plan:
             revenue += float(plan["rub"]) * int(count)
-    return web.json_response({"ok": True, **raw, "revenue_rub": round(revenue, 2)})
+    return web.json_response(
+        {
+            "ok": True,
+            **raw,
+            "revenue_rub": round(revenue, 2),
+            "jobs": {
+                "billing": await db.get_job_report("billing"),
+                "panel_sync": await db.get_job_report("panel_sync"),
+            },
+        }
+    )
 
 
 async def api_users(request: web.Request) -> web.Response:
