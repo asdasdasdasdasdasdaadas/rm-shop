@@ -1064,6 +1064,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/", admin_index)
     app.router.add_get("/admin/app.css", lambda _r: web.FileResponse(ADMIN_DIR / "app.css", headers=_NO_STORE))
     app.router.add_get("/admin/app.js", lambda _r: web.FileResponse(ADMIN_DIR / "app.js", headers=_NO_STORE))
+    app.router.add_get("/admin/api/build", api_admin_build)
     app.router.add_post("/admin/api/login", api_login)
     app.router.add_post("/admin/api/logout", api_logout)
     app.router.add_get("/admin/api/session", api_session)
