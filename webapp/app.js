@@ -597,6 +597,7 @@ let lastConnectUrl = null;
 let openDevice = null;
 let topupMode = "fast";
 let topupCode = "";
+let topupCustomRub = 0;
 
 const COACH_KEY = "way_home_coach_v2";
 let coachIndex = 0;
@@ -859,6 +860,18 @@ function topupDaysFor(me, amount) {
 }
 
 function currentTopupPlan(me) {
+  if (topupMode === "custom") {
+    const min = Number(me.topup_min) || 1;
+    const max = Number(me.topup_max) || min;
+    const n = Number(topupCustomRub);
+    if (!Number.isFinite(n) || n < min || n > max) return null;
+    return {
+      code: "b" + n,
+      title: n + " рублей",
+      topup_rub: n,
+      rub: n,
+    };
+  }
   const plans = me.plans || [];
   return plans.find((p) => p.code === topupCode) || plans[0] || null;
 }
@@ -868,14 +881,6 @@ function ensureTopupCode(me) {
   if (plans.some((p) => p.code === topupCode)) return;
   const hit = plans.find((p) => planRub(p) === 100);
   topupCode = (hit || plans[0] || {}).code || "";
-}
-
-function setTopupRangeFill(range) {
-  const min = Number(range.min);
-  const max = Number(range.max);
-  const val = Number(range.value);
-  const pct = max === min ? 100 : ((val - min) / (max - min)) * 100;
-  range.style.setProperty("--fill", `${pct}%`);
 }
 
 function applyTopupMode() {
@@ -889,7 +894,10 @@ function applyTopupMode() {
 function updateTopupCta(me) {
   const plan = currentTopupPlan(me);
   if (!plan) {
-    setMain("");
+    const min = Number(me.topup_min) || 1;
+    setMain(topupMode === "custom" ? `Укажите сумму от ${min} ₽` : "");
+    const btn = $("appMainBtn");
+    if (btn && topupMode === "custom") btn.disabled = true;
     return;
   }
   const amount = planRub(plan);
@@ -989,7 +997,7 @@ function renderTopup(me) {
   if (!me) return;
   ensureTopupCode(me);
   const plans = me.plans || [];
-  const canCustom = Boolean(me.balance_enabled && plans.length > 1);
+  const canCustom = Boolean(me.balance_enabled);
   $("topupTabs").classList.toggle("hidden", !canCustom);
   if (!canCustom) topupMode = "fast";
   applyTopupMode();
@@ -1039,19 +1047,13 @@ function renderTopup(me) {
   if (canCustom) {
     const min = Number(me.topup_min) || amounts[0] || 50;
     const max = Number(me.topup_max) || amounts[amounts.length - 1] || min;
-    const step = Math.max(1, Number(me.topup_step) || 50);
-    const plan = currentTopupPlan(me);
-    const val = planRub(plan) || min;
-    const range = $("topupRange");
-    range.min = String(min);
-    range.max = String(max);
-    range.step = String(step);
-    range.value = String(val);
-    setTopupRangeFill(range);
-    $("customVal").textContent = String(val);
-    $("customDays").textContent = `≈ ${daysLabel(topupDaysFor(me, val))}`;
-    $("topupRangeMin").textContent = `${min} ₽`;
-    $("topupRangeMax").textContent = `${max} ₽`;
+    if (!topupCustomRub) {
+      const hit = amounts.includes(100) ? 100 : (planRub(currentTopupPlan(me)) || min);
+      topupCustomRub = Math.min(max, Math.max(min, hit));
+    }
+    const inp = $("topupAmount");
+    if (document.activeElement !== inp) inp.value = String(topupCustomRub);
+    paintCustomTopup(me);
     const nDev = (me.devices || []).length;
     $("topupStrip").textContent = nDev
       ? `Сейчас устройств: ${nDev}. Чем их больше, тем быстрее уходит баланс.`
@@ -1722,41 +1724,46 @@ $("tabCustom").onclick = () => {
   haptic();
   topupMode = "custom";
   if (window.__me) renderTopup(window.__me);
+  const inp = $("topupAmount");
+  if (inp) setTimeout(() => inp.focus(), 50);
 };
 
-function snapTopupFromRange() {
-  const me = window.__me;
-  if (!me) return;
-  const val = Number($("topupRange").value);
-  const plan = (me.plans || []).find((p) => planRub(p) === val);
-  if (plan) topupCode = plan.code;
-  renderTopup(me);
+function paintCustomTopup(me) {
+  const min = Number(me.topup_min) || 1;
+  const max = Number(me.topup_max) || min;
+  const raw = String(($("topupAmount") && $("topupAmount").value) || "").replace(/\D/g, "");
+  const n = raw ? Number(raw) : null;
+  const hint = $("topupCustomHint");
+  if (n == null) {
+    $("customDays").textContent = "Введите любую сумму";
+    hint.textContent = `От ${min} до ${max} ₽`;
+    hint.classList.remove("bad");
+    return;
+  }
+  const ok = n >= min && n <= max;
+  if (ok) topupCustomRub = n;
+  $("customDays").textContent = `≈ ${daysLabel(topupDaysFor(me, n))}`;
+  hint.textContent = ok ? `От ${min} до ${max} ₽` : `Можно от ${min} до ${max} ₽`;
+  hint.classList.toggle("bad", !ok);
 }
 
-$("topupRange").oninput = () => {
+$("topupAmount").oninput = () => {
   const me = window.__me;
   if (!me) return;
-  const range = $("topupRange");
-  setTopupRangeFill(range);
-  const val = Number(range.value);
-  $("customVal").textContent = String(val);
-  $("customDays").textContent = `≈ ${daysLabel(topupDaysFor(me, val))}`;
+  const inp = $("topupAmount");
+  const next = String(inp.value || "").replace(/\D/g, "");
+  if (inp.value !== next) inp.value = next;
+  paintCustomTopup(me);
+  updateTopupCta(me);
 };
 
-$("topupRange").onchange = () => snapTopupFromRange();
-
-$("topupMinus").onclick = () => {
-  const range = $("topupRange");
-  range.value = String(Math.max(Number(range.min), Number(range.value) - Number(range.step)));
-  haptic();
-  snapTopupFromRange();
-};
-
-$("topupPlus").onclick = () => {
-  const range = $("topupRange");
-  range.value = String(Math.min(Number(range.max), Number(range.value) + Number(range.step)));
-  haptic();
-  snapTopupFromRange();
+$("topupAmount").onkeydown = (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    $("topupAmount").blur();
+    const btn = $("appMainBtn");
+    if (btn && !btn.disabled) btn.click();
+  }
 };
 
 $("trialHomeBtn").onclick = async () => {

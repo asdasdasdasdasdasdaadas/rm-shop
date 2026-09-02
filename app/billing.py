@@ -31,7 +31,7 @@ def subscription_issued_text(user: dict, title: str) -> str:
 
 async def grant_plan(telegram_id: int, plan_code: str, rw: RemnawaveClient) -> dict | None:
     settings = get_settings()
-    plan = settings.shop_plans.get(plan_code)
+    plan = settings.plan_by_code(plan_code)
     if not plan:
         raise ValueError("unknown plan")
     if settings.balance_enabled:

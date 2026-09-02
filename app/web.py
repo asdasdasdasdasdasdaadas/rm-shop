@@ -325,9 +325,11 @@ async def api_invoice(request: web.Request) -> web.Response:
     settings = get_settings()
     body = await request.json()
     code = str(body.get("plan") or "")
-    plan = settings.shop_plans.get(code)
+    plan = settings.plan_by_code(code)
     if not plan:
         return json_error("Тариф не найден")
+    if not settings.rollypay_configured and int(plan.get("stars") or 0) < 1:
+        return json_error("Эта сумма доступна при оплате в рублях")
     if settings.rollypay_configured:
         rp: RollyPayClient | None = request.app.get("rp")
         if rp is None:
@@ -604,7 +606,7 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
         return web.Response(text="OK")
     rw: RemnawaveClient = request.app["rw"]
     bot: Bot = request.app["bot"]
-    plan = settings.shop_plans.get(order["plan_code"]) or {"title": "пополнение", "days": 0, "topup_rub": 0}
+    plan = settings.plan_by_code(order["plan_code"]) or {"title": "пополнение", "days": 0, "topup_rub": 0}
     try:
         user = await fulfill_rollypay_order(order_id, rw)
     except RemnawaveError as exc:

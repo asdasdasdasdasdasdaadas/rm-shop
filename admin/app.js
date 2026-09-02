@@ -6,6 +6,54 @@ let billPage = 1;
 let currentUser = null;
 let selectedUsers = new Set();
 let lastUserItems = [];
+const TABS = ["overview", "users", "referrals", "orders", "billing", "reports", "broadcast", "backups", "settings"];
+let toastTimer = 0;
+
+function toast(msg) {
+  const el = $("toast");
+  if (!el || !msg) return;
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2800);
+}
+
+function debounce(fn, ms) {
+  let t = 0;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
+
+function emptyRow(cols, text) {
+  const tr = document.createElement("tr");
+  const td = document.createElement("td");
+  td.colSpan = cols;
+  td.className = "muted empty-cell";
+  td.textContent = text;
+  tr.appendChild(td);
+  return tr;
+}
+
+function closeModal() {
+  $("modal").classList.add("hidden");
+}
+
+function setModalPane(name) {
+  document.querySelectorAll("#modalTabs [data-pane]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.pane === name);
+  });
+  ["act", "dev", "bill"].forEach((pane) => {
+    const el = $("pane-" + pane);
+    if (el) el.classList.toggle("hidden", pane !== name);
+  });
+}
+
+function tabFromHash() {
+  const name = (location.hash || "").replace("#", "").trim();
+  return TABS.includes(name) ? name : "overview";
+}
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -58,6 +106,8 @@ function showLogin() {
   setNavOpen(false);
   $("login").classList.remove("hidden");
   $("shell").classList.add("hidden");
+  const pw = $("password");
+  if (pw) pw.focus();
 }
 
 function showShell() {
@@ -65,7 +115,8 @@ function showShell() {
   $("shell").classList.remove("hidden");
 }
 
-function switchTab(name) {
+function switchTab(name, opts = {}) {
+  if (!TABS.includes(name)) name = "overview";
   document.querySelectorAll("nav [data-tab]").forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === name);
     if (b.dataset.tab === name) {
@@ -73,9 +124,12 @@ function switchTab(name) {
       if ($("pageLead")) $("pageLead").textContent = b.dataset.lead || "";
     }
   });
-  ["overview", "users", "referrals", "orders", "billing", "reports", "broadcast", "backups", "settings"].forEach((tab) => {
+  TABS.forEach((tab) => {
     $("tab-" + tab).classList.toggle("hidden", tab !== name);
   });
+  if (!opts.skipHash && location.hash.replace("#", "") !== name) {
+    history.replaceState(null, "", "#" + name);
+  }
   if (name === "overview") loadStats();
   if (name === "users") loadUsers();
   if (name === "referrals") loadReferrals();
@@ -87,12 +141,23 @@ function switchTab(name) {
   setNavOpen(false);
 }
 
-function card(label, value) {
+function card(label, value, tab) {
   const el = document.createElement("div");
-  el.className = "card";
+  el.className = tab ? "card card-link" : "card";
   el.innerHTML = `<div class="l"></div><div class="n"></div>`;
   el.querySelector(".n").textContent = value;
   el.querySelector(".l").textContent = label;
+  if (tab) {
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
+    el.onclick = () => switchTab(tab);
+    el.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        switchTab(tab);
+      }
+    };
+  }
   return el;
 }
 
@@ -173,21 +238,21 @@ async function loadStats() {
   const cards = $("cards");
   cards.innerHTML = "";
   [
-    ["Пользователи", u.users_total || 0],
+    ["Пользователи", u.users_total || 0, "users"],
     ["Оферта принята", u.legal_ok || 0],
     ["Активные подписки", u.active || 0],
     ["Бесплатный период использован", u.trial_used || 0],
     ["Новые за сутки", u.new_1d || 0],
     ["Новые за 7 дней", u.new_7d || 0],
     ["Новые за 30 дней", u.new_30d || 0],
-    ["Оборот, рубли", s.revenue_rub || 0],
+    ["Оборот, рубли", s.revenue_rub || 0, "orders"],
     ["Промокоды", s.promo_uses || 0],
     ["Stars-платежи", s.stars_payments || 0],
-    ["Жалобы VPN", s.vpn_reports || 0],
-    ["Заблокированы", u.blocked || 0],
-    ["Пришли по ссылке", (u.referred || 0)],
-    ["Реф. награда выдана", (u.referral_rewarded || 0)],
-  ].forEach(([l, v]) => cards.appendChild(card(l, v)));
+    ["Жалобы VPN", s.vpn_reports || 0, "reports"],
+    ["Заблокированы", u.blocked || 0, "users"],
+    ["Пришли по ссылке", u.referred || 0, "referrals"],
+    ["Реф. награда выдана", u.referral_rewarded || 0, "referrals"],
+  ].forEach(([l, v, tab]) => cards.appendChild(card(l, v, tab)));
   kv($("orderStats"), s.orders, "Заказов пока нет");
   kv($("planStats"), s.plans, "Оплаченных тарифов нет");
 }
@@ -251,14 +316,18 @@ async function loadUsers(page) {
   lastUserItems = data.items || [];
   const body = $("userRows");
   body.innerHTML = "";
+  if (!lastUserItems.length) {
+    body.appendChild(emptyRow(11, q ? "Никого не нашли" : "Пользователей пока нет"));
+  }
   lastUserItems.forEach((u) => {
     const tr = document.createElement("tr");
-    tr.className = u.blocked_at ? "is-blocked" : "";
+    tr.className = "row-link" + (u.blocked_at ? " is-blocked" : "");
     const tdCheck = document.createElement("td");
     tdCheck.className = "check-col";
     const cb = document.createElement("input");
     cb.type = "checkbox";
     cb.checked = selectedUsers.has(u.telegram_id);
+    cb.onclick = (e) => e.stopPropagation();
     cb.onchange = () => {
       if (cb.checked) selectedUsers.add(u.telegram_id);
       else selectedUsers.delete(u.telegram_id);
@@ -266,20 +335,21 @@ async function loadUsers(page) {
     };
     tdCheck.appendChild(cb);
     tr.appendChild(tdCheck);
-    const cells = [
-      u.telegram_id + (u.username ? ` @${u.username}` : ""),
-      u.first_name || "—",
-      u.balance_rub == null ? "—" : String(u.balance_rub),
-      deviceCell(u),
-    ];
-    cells.forEach((t, i) => {
-      const td = tdText(t);
-      if (i === 3) {
-        td.className = "wrap";
-        td.title = t;
-      }
-      tr.appendChild(td);
-    });
+    const tdWho = document.createElement("td");
+    tdWho.className = "who-cell";
+    const idLine = document.createElement("div");
+    idLine.textContent = u.telegram_id + (u.username ? " @" + u.username : "");
+    const nameLine = document.createElement("div");
+    nameLine.className = "who-sub";
+    nameLine.textContent = u.first_name || "без имени";
+    tdWho.appendChild(idLine);
+    tdWho.appendChild(nameLine);
+    tr.appendChild(tdWho);
+    tr.appendChild(tdText(u.balance_rub == null ? "—" : String(u.balance_rub)));
+    const tdDev = tdText(deviceCell(u));
+    tdDev.className = "wrap";
+    tdDev.title = deviceCell(u);
+    tr.appendChild(tdDev);
     const tdOnline = tdText(fmtAgo(u.last_online_at));
     tdOnline.title = fmt(u.last_online_at);
     tr.appendChild(tdOnline);
@@ -296,9 +366,13 @@ async function loadUsers(page) {
     const btn = document.createElement("button");
     btn.className = "ghost";
     btn.textContent = "Открыть";
-    btn.onclick = () => openUser(u);
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      openUser(u);
+    };
     td.appendChild(btn);
     tr.appendChild(td);
+    tr.onclick = () => openUser(u);
     body.appendChild(tr);
   });
   pager($("userPager"), data.page, data.total, data.limit, loadUsers);
@@ -308,6 +382,8 @@ async function loadUsers(page) {
 function paintUserSel() {
   const n = selectedUsers.size;
   $("userSelCount").textContent = "Выбрано: " + n;
+  const bar = $("bulkBar");
+  if (bar) bar.classList.toggle("is-empty", n === 0);
   const pageIds = lastUserItems.map((u) => u.telegram_id);
   $("userSelectAll").checked = pageIds.length > 0 && pageIds.every((id) => selectedUsers.has(id));
   $("userSelectAll").indeterminate =
@@ -330,9 +406,10 @@ async function runBulk(payload, confirmText) {
       body: JSON.stringify(payload),
     });
     $("bulkOut").textContent = bulkSummary(r);
+    toast(bulkSummary(r));
     if (payload.action === "delete") {
       selectedUsers.clear();
-      $("modal").classList.add("hidden");
+      closeModal();
     }
     await loadUsers();
   } catch (err) {
@@ -374,6 +451,9 @@ async function loadOrders(page) {
   const data = await api(`/admin/api/orders?q=${encodeURIComponent(q)}&page=${orderPage}`);
   const body = $("orderRows");
   body.innerHTML = "";
+  if (!data.items.length) {
+    body.appendChild(emptyRow(5, q ? "Заказов не нашли" : "Заказов пока нет"));
+  }
   data.items.forEach((o) => {
     const tr = document.createElement("tr");
     tr.appendChild(tdText(o.order_id));
@@ -739,6 +819,7 @@ $("shopForm").addEventListener("submit", async (e) => {
   try {
     await api("/admin/api/settings", { method: "POST", body: JSON.stringify(payload) });
     $("shopOut").textContent = "Сохранено. Кабинет и бот уже берут новые значения.";
+    toast("Настройки сохранены");
     await loadSettings();
   } catch (err) {
     $("shopOut").textContent = err.message || "Не удалось сохранить";
@@ -798,7 +879,30 @@ function openUser(u) {
     (u.blocked_at ? " · заблокирован" : "");
   $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
   $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
+  setModalPane("act");
   $("modal").classList.remove("hidden");
+  loadUserDevices(u.telegram_id);
+  loadUserBilling(u.telegram_id);
+}
+
+async function refreshOpenUser() {
+  await loadUsers();
+  if (!currentUser) return;
+  const u = lastUserItems.find((x) => x.telegram_id === currentUser.telegram_id);
+  if (!u) return;
+  currentUser = u;
+  $("modalTitle").textContent = u.first_name || String(u.telegram_id);
+  $("modalMeta").textContent =
+    `ID ${u.telegram_id}` +
+    (u.username ? ` · @${u.username}` : "") +
+    (u.balance_rub == null ? "" : ` · баланс ${u.balance_rub} рублей`) +
+    (u.referred_by
+      ? ` · пригласил ${whoLabel(u.referred_by, u.referrer_username, u.referrer_name)}`
+      : " · пришёл без рефссылки") +
+    ` · пригласил друзей: ${u.invited_count || 0}` +
+    (u.blocked_at ? " · заблокирован" : "");
+  $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
+  $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
   loadUserDevices(u.telegram_id);
   loadUserBilling(u.telegram_id);
 }
@@ -814,7 +918,7 @@ $("loginForm").onsubmit = async (e) => {
       $("brand").textContent = s.brand || "Админка";
     });
     showShell();
-    loadStats();
+    switchTab(tabFromHash());
   } catch (err) {
     $("loginErr").textContent = err.message;
     $("loginErr").classList.remove("hidden");
@@ -829,11 +933,40 @@ $("logout").onclick = async () => {
 document.querySelectorAll("nav [data-tab]").forEach((b) => {
   b.onclick = () => switchTab(b.dataset.tab);
 });
+document.querySelectorAll("#setNav [data-jump]").forEach((b) => {
+  b.onclick = () => {
+    const el = $(b.dataset.jump);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+});
+document.querySelectorAll("#modalTabs [data-pane]").forEach((b) => {
+  b.onclick = () => setModalPane(b.dataset.pane);
+});
+["flagMaint", "flagBill", "flagNudge"].forEach((id) => {
+  const el = $(id);
+  if (el) el.onclick = () => switchTab("overview");
+});
 $("navToggle").onclick = () => setNavOpen(!document.body.classList.contains("nav-open"));
 $("navScrim").onclick = () => setNavOpen(false);
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") setNavOpen(false);
+  if (e.key === "Escape") {
+    if (!$("modal").classList.contains("hidden")) {
+      closeModal();
+      return;
+    }
+    setNavOpen(false);
+    return;
+  }
+  const tag = (e.target && e.target.tagName) || "";
+  if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey && tag !== "INPUT" && tag !== "TEXTAREA") {
+    e.preventDefault();
+    const tab = tabFromHash();
+    const map = { users: "userQ", referrals: "refQ", orders: "orderQ", billing: "billQ" };
+    const id = map[tab];
+    if (id && $(id)) $(id).focus();
+  }
 });
+window.addEventListener("hashchange", () => switchTab(tabFromHash(), { skipHash: true }));
 window.addEventListener("resize", () => {
   if (window.matchMedia("(min-width: 901px)").matches) setNavOpen(false);
 });
@@ -844,6 +977,13 @@ $("userSearch").onclick = () => {
 $("orderSearch").onclick = () => loadOrders(1);
 $("billSearch").onclick = () => loadBilling(1);
 $("refSearch").onclick = () => loadReferrals(1);
+$("userQ").oninput = debounce(() => {
+  selectedUsers.clear();
+  loadUsers(1);
+}, 280);
+$("orderQ").oninput = debounce(() => loadOrders(1), 280);
+$("billQ").oninput = debounce(() => loadBilling(1), 280);
+$("refQ").oninput = debounce(() => loadReferrals(1), 280);
 $("userQ").onkeydown = (e) => {
   if (e.key === "Enter") {
     selectedUsers.clear();
@@ -953,6 +1093,7 @@ $("broadcastBtn").onclick = async () => {
       body: JSON.stringify({ text: $("broadcastText").value }),
     });
     $("broadcastOut").textContent = `Отправлено: ${r.sent}, ошибок: ${r.failed}`;
+    toast(`Отправлено: ${r.sent}`);
   } catch (err) {
     $("broadcastOut").textContent = err.message;
   }
@@ -1070,8 +1211,8 @@ $("grantBtn").onclick = async () => {
     method: "POST",
     body: JSON.stringify({ days: Number($("grantDays").value) }),
   });
-  $("modal").classList.add("hidden");
-  loadUsers();
+  toast("Дни начислены");
+  await refreshOpenUser();
 };
 $("balBtn").onclick = async () => {
   if (!currentUser) return;
@@ -1079,15 +1220,15 @@ $("balBtn").onclick = async () => {
     method: "POST",
     body: JSON.stringify({ amount: Number($("balAmount").value) }),
   });
-  $("modal").classList.add("hidden");
-  loadUsers();
+  toast("Баланс изменён");
+  await refreshOpenUser();
 };
 $("delBtn").onclick = async () => {
   if (!currentUser) return;
   const id = currentUser.telegram_id;
   if (!window.confirm(`Удалить пользователя ${id}? Доступ в панели будет отключён.`)) return;
   await api(`/admin/api/users/${id}/delete`, { method: "POST", body: "{}" });
-  $("modal").classList.add("hidden");
+  closeModal();
   loadUsers();
 };
 $("trialBtn").onclick = async () => {
@@ -1096,8 +1237,8 @@ $("trialBtn").onclick = async () => {
     method: "POST",
     body: "{}",
   });
-  $("modal").classList.add("hidden");
-  loadUsers();
+  toast("Триал сброшен");
+  await refreshOpenUser();
 };
 $("blockBtn").onclick = async () => {
   if (!currentUser) return;
@@ -1110,8 +1251,8 @@ $("blockBtn").onclick = async () => {
     method: "POST",
     body: JSON.stringify({ blocked: on }),
   });
-  $("modal").classList.add("hidden");
-  loadUsers();
+  toast(on ? "Заблокирован" : "Разблокирован");
+  await refreshOpenUser();
 };
 $("msgBtn").onclick = async () => {
   if (!currentUser) return;
@@ -1120,10 +1261,11 @@ $("msgBtn").onclick = async () => {
     body: JSON.stringify({ text: $("msgText").value }),
   });
   $("msgText").value = "";
+  toast("Сообщение отправлено");
 };
-$("modalClose").onclick = () => $("modal").classList.add("hidden");
+$("modalClose").onclick = closeModal;
 $("modal").onclick = (e) => {
-  if (e.target === $("modal")) $("modal").classList.add("hidden");
+  if (e.target === $("modal")) closeModal();
 };
 
 $("maintBtn").onclick = async () => {
@@ -1277,7 +1419,7 @@ $("subReplaceBtn").onclick = async () => {
     const s = await api("/admin/api/session");
     $("brand").textContent = s.brand || "Админка";
     showShell();
-    loadStats();
+    switchTab(tabFromHash());
   } catch (_e) {
     showLogin();
   }

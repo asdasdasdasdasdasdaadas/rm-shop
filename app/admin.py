@@ -121,7 +121,7 @@ async def api_stats(request: web.Request) -> web.Response:
     raw = await db.admin_stats()
     revenue = 0.0
     for code, count in (raw.get("plans") or {}).items():
-        plan = settings.shop_plans.get(code) or settings.plans.get(code)
+        plan = settings.plan_by_code(code) or settings.plans.get(code)
         if plan:
             revenue += float(plan["rub"]) * int(count)
     return web.json_response({"ok": True, **raw, "revenue_rub": round(revenue, 2)})

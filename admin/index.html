@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=17">
+  <link rel="stylesheet" href="app.css?v=18">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -99,6 +99,19 @@
       </header>
       <main>
         <section id="tab-overview">
+          <div class="section-label">Показатели</div>
+          <div id="cards" class="cards"></div>
+          <div class="grid2">
+            <div class="panel">
+              <h3>Заказы по статусу</h3>
+              <div id="orderStats"></div>
+            </div>
+            <div class="panel">
+              <h3>Оплаченные тарифы</h3>
+              <div id="planStats"></div>
+            </div>
+          </div>
+
           <div class="section-label">Режимы</div>
           <div class="ops-grid">
             <div class="panel ops-card">
@@ -118,8 +131,8 @@
             </div>
           </div>
 
-          <div class="panel">
-            <h3>Замена подписок</h3>
+          <details class="panel fold">
+            <summary>Замена подписок у всех</summary>
             <p class="muted tight">Применить ко всем учёткам в Remnawave: устройства и подписки из бота. После перевыпуска ссылки обновятся в кабинете, старые перестанут работать, каждому уйдёт сообщение с новой ссылкой.</p>
             <label class="check-row">
               <input id="subApplySquads" type="checkbox" checked>
@@ -133,7 +146,7 @@
               <button type="button" id="subReplaceBtn" class="danger">Заменить у всех</button>
             </div>
             <p id="subReplaceOut" class="muted"></p>
-          </div>
+          </details>
 
           <div class="panel">
             <h3>Оповещение при техработах</h3>
@@ -149,19 +162,6 @@
             <img id="maintPreview" class="maint-preview hidden" alt="Превью оповещения">
             <p id="opsHint" class="muted"></p>
           </div>
-
-          <div class="section-label">Показатели</div>
-          <div id="cards" class="cards"></div>
-          <div class="grid2">
-            <div class="panel">
-              <h3>Заказы по статусу</h3>
-              <div id="orderStats"></div>
-            </div>
-            <div class="panel">
-              <h3>Оплаченные тарифы</h3>
-              <div id="planStats"></div>
-            </div>
-          </div>
         </section>
 
         <section id="tab-users" class="hidden">
@@ -169,7 +169,7 @@
             <input id="userQ" type="search" placeholder="ID, username, имя или «блок»">
             <button type="button" id="userSearch">Найти</button>
           </div>
-          <div class="toolbar bulk-bar">
+          <div id="bulkBar" class="toolbar bulk-bar is-empty">
             <span id="userSelCount" class="chip">Выбрано: 0</span>
             <button type="button" id="bulkBlock" class="danger">Заблокировать</button>
             <button type="button" id="bulkUnblock" class="ghost">Разблокировать</button>
@@ -177,16 +177,19 @@
             <button type="button" id="bulkTrial" class="ghost">Сбросить триал</button>
             <button type="button" id="bulkReissue" class="ghost">Перевыпустить ссылки</button>
             <button type="button" id="bulkMsg" class="ghost">Написать</button>
-            <button type="button" id="bulkDeleteMatch" class="danger">Удалить по поиску</button>
           </div>
           <p id="bulkOut" class="muted"></p>
+          <details class="fold danger-fold">
+            <summary>Удалить по текущему поиску</summary>
+            <p class="muted tight">Снесёт найденных (не больше 500 за раз). Админы пропускаются.</p>
+            <button type="button" id="bulkDeleteMatch" class="danger">Удалить по поиску</button>
+          </details>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th class="check-col"><input id="userSelectAll" type="checkbox" aria-label="Выбрать страницу"></th>
-                  <th>Telegram</th>
-                  <th>Имя</th>
+                  <th>Клиент</th>
                   <th>Баланс</th>
                   <th>Устройства</th>
                   <th>Онлайн</th>
@@ -341,8 +344,16 @@
 
         <section id="tab-settings" class="hidden">
           <p class="muted intro">Меняется сразу, без правки .env. Токены, панель и база здесь не показываются.</p>
+          <div class="seg settings-nav" id="setNav">
+            <button type="button" data-jump="set-brand" class="ghost">Бренд</button>
+            <button type="button" data-jump="set-devices" class="ghost">Устройства</button>
+            <button type="button" data-jump="set-apps" class="ghost">Клиенты</button>
+            <button type="button" data-jump="set-prices" class="ghost">Цены</button>
+            <button type="button" data-jump="set-trial" class="ghost">Триал</button>
+            <button type="button" data-jump="set-notices" class="ghost">Тексты</button>
+          </div>
           <form id="shopForm">
-            <div class="panel">
+            <div class="panel" id="set-brand">
               <h3>Бренд</h3>
               <div class="form-grid">
                 <div>
@@ -363,7 +374,7 @@
                 </div>
               </div>
             </div>
-            <div class="panel">
+            <div class="panel" id="set-devices">
               <h3>Устройства</h3>
               <div class="form-grid">
                 <div>
@@ -376,7 +387,7 @@
                 </div>
               </div>
             </div>
-            <div class="panel">
+            <div class="panel" id="set-apps">
               <h3>Клиенты VPN</h3>
               <p class="muted tight">Порядок в списке — приоритет: первое приложение для платформы помечается как рекомендуемое. Пустая ссылка магазина скрывает кнопку скачивания. В шаблоне открытия укажите {url} или {enc}.</p>
               <div id="vpnAppsList"></div>
@@ -384,7 +395,7 @@
                 <button type="button" id="vpnAppAdd" class="ghost">Добавить приложение</button>
               </div>
             </div>
-            <div class="panel shop-balance">
+            <div class="panel shop-balance" id="set-prices">
               <h3>Цены и пополнение</h3>
               <div class="form-grid">
                 <div>
@@ -456,7 +467,7 @@
                 </div>
               </div>
             </div>
-            <div class="panel">
+            <div class="panel" id="set-trial">
               <h3>Триал и промо</h3>
               <label class="check-row">
                 <input id="setTrialOn" name="trial_enabled" type="checkbox">
@@ -479,7 +490,7 @@
               <label class="ops-label" for="setPromo">Промокоды (КОД:дни через запятую)</label>
               <input id="setPromo" name="promo_codes" type="text" maxlength="2000">
             </div>
-            <div class="panel">
+            <div class="panel" id="set-notices">
               <h3>Уведомления в Telegram</h3>
               <p class="muted tight">Тексты, которые бот шлёт сам. Слова в фигурных скобках подставляются автоматически. Можно оставлять HTML: &lt;b&gt;жирный&lt;/b&gt; и &lt;code&gt;ссылка&lt;/code&gt;.</p>
               <div id="noticesList"></div>
@@ -503,6 +514,12 @@
         </div>
         <button type="button" id="modalClose" class="ghost">Закрыть</button>
       </div>
+      <div class="seg" id="modalTabs">
+        <button type="button" class="ghost active" data-pane="act">Действия</button>
+        <button type="button" class="ghost" data-pane="dev">Устройства</button>
+        <button type="button" class="ghost" data-pane="bill">Биллинг</button>
+      </div>
+      <div id="pane-act" class="modal-pane">
       <div class="modal-section">
         <div class="section-label">Начисления</div>
         <label>Начислить дни (режим подписки)</label>
@@ -527,6 +544,8 @@
         <button type="button" id="msgBtn">Отправить</button>
         <button type="button" id="delBtn" class="danger">Удалить пользователя</button>
       </div>
+      </div>
+      <div id="pane-dev" class="modal-pane hidden">
       <div class="section-label">Устройства</div>
       <div class="table-wrap">
         <table>
@@ -542,6 +561,8 @@
           <tbody id="userDeviceRows"></tbody>
         </table>
       </div>
+      </div>
+      <div id="pane-bill" class="modal-pane hidden">
       <div class="section-label">История биллинга</div>
       <div class="table-wrap">
         <table>
@@ -556,8 +577,10 @@
           <tbody id="userBillRows"></tbody>
         </table>
       </div>
+      </div>
     </div>
   </div>
-  <script src="app.js?v=17"></script>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js?v=18"></script>
 </body>
 </html>

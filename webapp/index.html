@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=34">
+  <link rel="stylesheet" href="app.css?v=35">
 </head>
 <body>
   <div id="boot" class="state">
@@ -259,17 +259,13 @@
       </div>
       <div id="customPanel" class="pay-custom hidden">
         <div class="pay-custom-box">
-          <div class="pay-custom-amount"><span>₽</span><span id="customVal">0</span></div>
+          <label class="pay-custom-label" for="topupAmount">Сумма, рубли</label>
+          <div class="pay-custom-field">
+            <span>₽</span>
+            <input id="topupAmount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" maxlength="6">
+          </div>
           <div id="customDays" class="pay-custom-days"></div>
-          <div class="pay-stepper">
-            <button type="button" id="topupMinus" class="pay-step" aria-label="Меньше">−</button>
-            <input id="topupRange" type="range" min="50" max="400" step="50" value="100">
-            <button type="button" id="topupPlus" class="pay-step" aria-label="Больше">+</button>
-          </div>
-          <div class="pay-range-labels">
-            <span id="topupRangeMin">50 ₽</span>
-            <span id="topupRangeMax">400 ₽</span>
-          </div>
+          <p id="topupCustomHint" class="pay-custom-hint"></p>
           <div id="topupStrip" class="pay-strip"></div>
         </div>
       </div>
@@ -407,6 +403,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=37"></script>
+  <script src="app.js?v=38"></script>
 </body>
 </html>

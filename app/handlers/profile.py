@@ -264,7 +264,7 @@ async def buy_plan(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
         return
     code = callback.data.split(":", 1)[1]
     settings = get_settings()
-    plan = settings.shop_plans.get(code)
+    plan = settings.plan_by_code(code)
     if not plan:
         await ack(callback, "Тариф не найден", alert=True)
         return
@@ -331,7 +331,7 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
         await ack(callback, "Оплата не настроена", alert=True)
         return
     settings = get_settings()
-    plan = settings.shop_plans.get(order["plan_code"]) or {"title": "пополнение"}
+    plan = settings.plan_by_code(order["plan_code"]) or {"title": "пополнение"}
     try:
         payment = await rp.get_payment(order["payment_id"])
     except RollyPayError:
@@ -391,7 +391,7 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
         return
     code = payload.split(":", 1)[1]
     settings = get_settings()
-    plan = settings.shop_plans.get(code)
+    plan = settings.plan_by_code(code)
     if not plan:
         await message.answer(notice_text("payment_unknown"))
         return

@@ -144,6 +144,30 @@ class Settings(BaseSettings):
             amount += step
         return result
 
+    def plan_by_code(self, code: str) -> dict | None:
+        key = str(code or "").strip()
+        if not key:
+            return None
+        plan = self.shop_plans.get(key)
+        if plan:
+            return plan
+        if not self.balance_enabled or not key.startswith("b"):
+            return None
+        raw = key[1:]
+        if not raw.isdigit():
+            return None
+        amount = int(raw)
+        if amount < self.balance_topup_min or amount > self.balance_topup_max:
+            return None
+        return {
+            "title": f"{amount} рублей",
+            "days": 0,
+            "stars": 0,
+            "rub": float(amount),
+            "rub_str": f"{amount:.2f}",
+            "topup_rub": amount,
+        }
+
     @property
     def promo_map(self) -> dict[str, int]:
         result: dict[str, int] = {}
