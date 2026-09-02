@@ -32,6 +32,10 @@ logger = logging.getLogger("rm-shop.admin")
 ADMIN_DIR = ROOT / "admin"
 COOKIE = "rm_admin"
 COOKIE_TTL = 7 * 24 * 3600
+_NO_STORE = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+}
 
 
 def _secret() -> bytes:
@@ -75,7 +79,7 @@ async def admin_redirect(_request: web.Request) -> web.Response:
 
 
 async def admin_index(_request: web.Request) -> web.FileResponse:
-    return web.FileResponse(ADMIN_DIR / "index.html")
+    return web.FileResponse(ADMIN_DIR / "index.html", headers=_NO_STORE)
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -1054,8 +1058,8 @@ async def api_replace_subscriptions(request: web.Request) -> web.Response:
 def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin", admin_redirect)
     app.router.add_get("/admin/", admin_index)
-    app.router.add_get("/admin/app.css", lambda _r: web.FileResponse(ADMIN_DIR / "app.css"))
-    app.router.add_get("/admin/app.js", lambda _r: web.FileResponse(ADMIN_DIR / "app.js"))
+    app.router.add_get("/admin/app.css", lambda _r: web.FileResponse(ADMIN_DIR / "app.css", headers=_NO_STORE))
+    app.router.add_get("/admin/app.js", lambda _r: web.FileResponse(ADMIN_DIR / "app.js", headers=_NO_STORE))
     app.router.add_post("/admin/api/login", api_login)
     app.router.add_post("/admin/api/logout", api_logout)
     app.router.add_get("/admin/api/session", api_session)
