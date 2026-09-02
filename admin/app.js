@@ -695,6 +695,9 @@ async function loadSettings() {
   set("setTopMax", v.balance_topup_max);
   set("setTopStep", v.balance_topup_step);
   set("setRefRub", v.referral_reward_rub);
+  set("setStoryOn", v.story_reward_enabled);
+  set("setStoryRub", v.story_reward_rub);
+  set("setStoryText", v.story_share_text);
   set("setTrustOn", v.trust_enabled);
   set("setTrustDays", v.trust_days);
   set("setTrustFee", v.trust_fee_rub);
@@ -829,6 +832,9 @@ $("shopForm").addEventListener("submit", async (e) => {
     balance_topup_max: num("setTopMax"),
     balance_topup_step: num("setTopStep"),
     referral_reward_rub: num("setRefRub"),
+    story_reward_enabled: $("setStoryOn").checked,
+    story_reward_rub: num("setStoryRub"),
+    story_share_text: $("setStoryText").value,
     trust_enabled: $("setTrustOn").checked,
     trust_days: num("setTrustDays"),
     trust_fee_rub: num("setTrustFee"),

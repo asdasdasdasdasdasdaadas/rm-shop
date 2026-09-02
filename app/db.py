@@ -103,6 +103,26 @@ async def unclaim_referral_reward(telegram_id: int) -> None:
     )
 
 
+async def claim_story_reward(telegram_id: int, amount: int) -> int | None:
+    if amount <= 0:
+        return None
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users
+        SET story_rewarded_at = timezone('utc', now()),
+            balance_rub = COALESCE(balance_rub, 0) + $2
+        WHERE telegram_id = $1
+          AND story_rewarded_at IS NULL
+        RETURNING balance_rub
+        """,
+        telegram_id,
+        amount,
+    )
+    if not row:
+        return None
+    return int(row["balance_rub"])
+
+
 async def accept_legal(telegram_id: int) -> None:
     await _pool_req().execute(
         "UPDATE users SET accepted_legal_at = $1 WHERE telegram_id = $2",

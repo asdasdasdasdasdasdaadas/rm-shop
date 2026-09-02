@@ -421,6 +421,24 @@
               </div>
             </div>
             <div class="panel shop-balance">
+              <h3>История в Telegram</h3>
+              <p class="muted tight">Кнопка в кабинете открывает редактор истории с картинкой и ссылкой на бота. Telegram не подтверждает публикацию: награда выдаётся один раз после нажатия. Ссылка-виджет в истории доступна только у Premium.</p>
+              <label class="check-row">
+                <input id="setStoryOn" name="story_reward_enabled" type="checkbox">
+                <span>Награда за историю включена</span>
+              </label>
+              <div class="form-grid">
+                <div>
+                  <label class="ops-label" for="setStoryRub">Награда, рубли</label>
+                  <input id="setStoryRub" name="story_reward_rub" type="number" min="0" required>
+                </div>
+                <div>
+                  <label class="ops-label" for="setStoryText">Текст в истории</label>
+                  <input id="setStoryText" name="story_share_text" type="text" maxlength="500">
+                </div>
+              </div>
+            </div>
+            <div class="panel shop-balance">
               <h3>Обещанный платёж</h3>
               <p class="muted tight">Начисляет баланс на указанное число суток одного устройства. Через этот срок списывается начисленное плюс комиссия.</p>
               <label class="check-row">

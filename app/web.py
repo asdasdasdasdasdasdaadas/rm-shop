@@ -103,6 +103,35 @@ async def _require_tg(request: web.Request) -> tuple[int | None, web.Response | 
     return telegram_id, None
 
 
+async def _require_miniapp(request: web.Request) -> tuple[int | None, web.Response | None]:
+    denied = await _if_down()
+    if denied:
+        return None, denied
+    settings = get_settings()
+    raw = _init_data(request)
+    if not raw:
+        return None, json_error("Откройте кабинет из Telegram, чтобы выложить историю", 401)
+    try:
+        parsed = safe_parse_webapp_init_data(settings.bot_token, raw)
+    except ValueError:
+        return None, json_error("Ссылка недействительна или истекла", 401)
+    if not parsed.user:
+        return None, json_error("Ссылка недействительна или истекла", 401)
+    telegram_id = int(parsed.user.id)
+    denied = await _if_blocked(telegram_id)
+    if denied:
+        return None, denied
+    return telegram_id, None
+
+
+def _public_origin(request: web.Request) -> str:
+    settings = get_settings()
+    base = (settings.webapp_public_url or "").rstrip("/")
+    if base:
+        return base
+    return str(request.url.origin).rstrip("/")
+
+
 _NO_STORE = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
@@ -127,6 +156,13 @@ async def webapp_qrcode(_request: web.Request) -> web.FileResponse:
 
 async def webapp_open(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(WEBAPP_DIR / "open.html", headers=_NO_STORE)
+
+
+async def webapp_story(_request: web.Request) -> web.FileResponse:
+    return web.FileResponse(
+        WEBAPP_DIR / "story.png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 async def api_me(request: web.Request) -> web.Response:
@@ -242,6 +278,19 @@ async def api_me(request: web.Request) -> web.Response:
             "referral_reward_days": settings.referral_reward_days,
             "referral_invitee_days": settings.referral_invitee_days,
             "referral_reward_rub": settings.referral_reward_rub,
+            "story_reward_enabled": bool(
+                settings.balance_enabled
+                and settings.story_reward_enabled
+                and settings.story_reward_rub > 0
+            ),
+            "story_reward_rub": settings.story_reward_rub if settings.balance_enabled else 0,
+            "story_rewarded": bool(local and local.get("story_rewarded_at")),
+            "story_media_url": f"{_public_origin(request)}/story.png",
+            "story_share_text": (
+                settings.story_share_text.strip()
+                or "VPN без границ. Подключайся в боте."
+            ),
+            "story_bot_url": f"https://t.me/{settings.bot_username}",
             "legal": {
                 "offer": settings.legal_offer_url,
                 "privacy": settings.legal_privacy_url,
@@ -316,6 +365,40 @@ async def api_trial(request: web.Request) -> web.Response:
     friend_name = (local or {}).get("first_name")
     await maybe_reward_referrer(bot, rw, telegram_id, friend_name)
     return web.json_response({"ok": True})
+
+
+async def api_story_share(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_miniapp(request)
+    if denied:
+        return denied
+    settings = get_settings()
+    amount = int(settings.story_reward_rub or 0)
+    if not (settings.balance_enabled and settings.story_reward_enabled and amount > 0):
+        return json_error("Награда за историю сейчас недоступна")
+    local = await db.get_user(telegram_id)
+    if not local:
+        return json_error("Пользователь не найден")
+    if local.get("story_rewarded_at"):
+        return web.json_response({"ok": True, "already": True, "balance_rub": int(local.get("balance_rub") or 0)})
+    total = await db.claim_story_reward(telegram_id, amount)
+    if total is None:
+        local = await db.get_user(telegram_id)
+        return web.json_response(
+            {
+                "ok": True,
+                "already": True,
+                "balance_rub": int((local or {}).get("balance_rub") or 0),
+            }
+        )
+    await db.log_billing_event(
+        telegram_id,
+        "story",
+        source="webapp",
+        amount=amount,
+        balance_after=total,
+        note="Награда за историю",
+    )
+    return web.json_response({"ok": True, "already": False, "balance_rub": total})
 
 
 async def api_invoice(request: web.Request) -> web.Response:
@@ -646,6 +729,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/app.js", webapp_js)
         app.router.add_get("/qrcode.min.js", webapp_qrcode)
         app.router.add_get("/open.html", webapp_open)
+        app.router.add_get("/story.png", webapp_story)
         app.router.add_get("/api/me", api_me)
         app.router.add_get("/api/avatar", api_avatar)
         app.router.add_post("/api/trial", api_trial)
@@ -657,6 +741,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/subscription/reissue", api_reissue_subscription)
         app.router.add_post("/api/trust", api_trust)
         app.router.add_post("/api/vpn-report", api_vpn_report)
+        app.router.add_post("/api/story-share", api_story_share)
         app.router.add_static("/static", WEBAPP_DIR)
     else:
         app.router.add_get("/", health)

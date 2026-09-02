@@ -57,6 +57,12 @@ def validate_shop(body: dict) -> dict:
     out["trial_enabled"] = bool(body.get("trial_enabled"))
     out["trial_days"] = _as_int(body.get("trial_days"), 1, 90, "Дни триала")
     out["referral_reward_rub"] = _as_int(body.get("referral_reward_rub"), 0, 100000, "Реф. в рублях")
+    out["story_reward_enabled"] = bool(body.get("story_reward_enabled"))
+    out["story_reward_rub"] = _as_int(body.get("story_reward_rub"), 0, 100000, "Награда за историю")
+    caption = str(body.get("story_share_text") or "").strip()
+    if len(caption) > 500:
+        raise ValueError("Текст истории: до 500 символов")
+    out["story_share_text"] = caption
     out["trust_enabled"] = bool(body.get("trust_enabled"))
     out["trust_days"] = _as_int(body.get("trust_days"), 1, 30, "Дни обещанного платежа")
     out["trust_fee_rub"] = _as_int(body.get("trust_fee_rub"), 0, 10000, "Комиссия обещанного платежа")
@@ -100,6 +106,9 @@ def snapshot() -> dict:
             "trial_enabled": s.trial_enabled,
             "trial_days": s.trial_days,
             "referral_reward_rub": s.referral_reward_rub,
+            "story_reward_enabled": s.story_reward_enabled,
+            "story_reward_rub": s.story_reward_rub,
+            "story_share_text": s.story_share_text,
             "trust_enabled": s.trust_enabled,
             "trust_days": s.trust_days,
             "trust_fee_rub": s.trust_fee_rub,

@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     balance_topup_max: int = 400
     balance_topup_step: int = 50
     referral_reward_rub: int = 50
+    story_reward_enabled: bool = True
+    story_reward_rub: int = 150
+    story_share_text: str = "VPN без границ. Подключайся в боте."
     trust_enabled: bool = True
     trust_days: int = 3
     trust_fee_rub: int = 12
@@ -193,6 +196,9 @@ SHOP_KEYS = frozenset(
         "trial_enabled",
         "trial_days",
         "referral_reward_rub",
+        "story_reward_enabled",
+        "story_reward_rub",
+        "story_share_text",
         "trust_enabled",
         "trust_days",
         "trust_fee_rub",

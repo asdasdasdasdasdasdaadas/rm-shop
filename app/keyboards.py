@@ -114,6 +114,18 @@ def profile_keyboard(*, trial_available: bool, has_access: bool) -> InlineKeyboa
         if has_access:
             builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_sub"))
             builder.row(InlineKeyboardButton(text="Подключиться", callback_data="connect"))
+    if (
+        settings.balance_enabled
+        and settings.story_reward_enabled
+        and settings.story_reward_rub > 0
+        and runtime.webapp_url
+    ):
+        builder.row(
+            InlineKeyboardButton(
+                text=f"История — {rub_text(settings.story_reward_rub)}",
+                web_app=WebAppInfo(url=runtime.webapp_url),
+            )
+        )
     builder.row(InlineKeyboardButton(text="VPN не работает", callback_data="vpn_down"))
     builder.row(InlineKeyboardButton(text="Поддержка", url=support_url()))
     add_cabinet_row(builder)

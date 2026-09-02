@@ -107,6 +107,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS trust_loans_open_uidx
     ON trust_loans (telegram_id)
     WHERE collected_at IS NULL;
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS story_rewarded_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_nudge_sent_at TIMESTAMPTZ;

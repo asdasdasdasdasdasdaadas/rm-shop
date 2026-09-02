@@ -1589,6 +1589,23 @@ function paint(me) {
       `Другу начислят +${daysLabel(friendDays)} к бесплатному периоду`;
   }
   $("invite").textContent = me.invite_url;
+  const storyCard = $("storyCard");
+  if (me.story_reward_enabled) {
+    const rub = me.story_reward_rub || 0;
+    storyCard.classList.remove("hidden");
+    if (me.story_rewarded) {
+      $("storyTitle").textContent = "Выложить историю";
+      $("storyNote").textContent = "Награда уже начислена. Можно выложить ещё раз.";
+      $("storyBtn").textContent = "Ещё раз";
+    } else {
+      $("storyTitle").textContent = `История — ${rub} ₽`;
+      $("storyNote").textContent =
+        "Откроется редактор истории Telegram. Награда один раз после нажатия.";
+      $("storyBtn").textContent = "Выложить";
+    }
+  } else {
+    storyCard.classList.add("hidden");
+  }
   $("offerLink").href = me.legal.offer;
   $("privacyLink").href = me.legal.privacy;
   $("supportLink").href = me.legal.support;
@@ -1825,6 +1842,37 @@ function openTrust() {
     go();
   }
 }
+
+$("storyBtn").onclick = async () => {
+  haptic();
+  const me = window.__me;
+  if (!me || !me.story_reward_enabled) return;
+  const media = me.story_media_url || `${window.location.origin}/story.png`;
+  const caption = [me.story_share_text, me.story_bot_url].filter(Boolean).join("\n");
+  const canShare = typeof tg.shareToStory === "function";
+  if (!canShare || browserCabinet()) {
+    tg.showAlert("Откройте кабинет в Telegram, чтобы выложить историю. Нужна свежая версия приложения.");
+    return;
+  }
+  try {
+    tg.shareToStory(media, {
+      text: caption,
+      widget_link: me.story_bot_url
+        ? { url: me.story_bot_url, name: me.brand_name || "VPN" }
+        : undefined,
+    });
+  } catch (_e) {
+    tg.showAlert("Не удалось открыть историю. Обновите Telegram.");
+    return;
+  }
+  if (me.story_rewarded) return;
+  try {
+    await api("/api/story-share", { method: "POST", body: "{}" });
+    await load();
+  } catch (e) {
+    showErr(e);
+  }
+};
 
 $("shareBtn").onclick = () => {
   haptic();
