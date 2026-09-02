@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=23">
+  <link rel="stylesheet" href="app.css?v=24">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -549,7 +549,7 @@
             </div>
             <div class="panel shop-balance">
               <h3>История в Telegram</h3>
-              <p class="muted tight">Кнопка в кабинете открывает редактор истории с картинкой и ссылкой на бота. Telegram не подтверждает публикацию: награда выдаётся один раз после нажатия. Ссылка-виджет в истории доступна только у Premium.</p>
+              <p class="muted tight">Кнопка в кабинете открывает редактор истории. Награда один раз, после паузы на проверку. Telegram публикацию не подтверждает.</p>
               <label class="check-row">
                 <input id="setStoryOn" name="story_reward_enabled" type="checkbox">
                 <span>Награда за историю включена</span>
@@ -558,6 +558,10 @@
                 <div>
                   <label class="ops-label" for="setStoryRub">Награда, рубли</label>
                   <input id="setStoryRub" name="story_reward_rub" type="number" min="0" required>
+                </div>
+                <div>
+                  <label class="ops-label" for="setStoryCheck">Проверка, минуты</label>
+                  <input id="setStoryCheck" name="story_check_minutes" type="number" min="1" max="10080" required>
                 </div>
                 <div>
                   <label class="ops-label" for="setStoryText">Текст в истории</label>
@@ -743,6 +747,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=23"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

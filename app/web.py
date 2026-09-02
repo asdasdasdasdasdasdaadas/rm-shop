@@ -25,6 +25,7 @@ from app.remnawave import (
     RemnawaveError,
     days_remaining,
     is_subscription_active,
+    parse_dt,
     parse_expire,
     username_taken,
 )
@@ -40,6 +41,24 @@ from app.trust import take_trust, trust_info
 
 logger = logging.getLogger("rm-shop.web")
 WEBAPP_DIR = ROOT / "webapp"
+
+
+def _story_check_state(local, settings) -> dict:
+    minutes = int(settings.story_check_minutes or 0)
+    pending_at = parse_dt((local or {}).get("story_pending_at"))
+    rewarded = bool(local and local.get("story_rewarded_at"))
+    until = None
+    remain = 0
+    if pending_at and not rewarded and minutes > 0:
+        until = pending_at + timedelta(minutes=minutes)
+        remain = max(0, int((until - datetime.now(timezone.utc)).total_seconds()))
+    return {
+        "story_rewarded": rewarded,
+        "story_pending": bool(pending_at and not rewarded),
+        "story_check_until": until.isoformat() if until else None,
+        "story_check_seconds": remain,
+        "story_check_minutes": minutes,
+    }
 
 
 def _init_data(request: web.Request) -> str:
@@ -158,10 +177,17 @@ async def webapp_open(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(WEBAPP_DIR / "open.html", headers=_NO_STORE)
 
 
+def _story_image_path():
+    preferred = WEBAPP_DIR / "stories_img.png"
+    if preferred.is_file():
+        return preferred
+    return WEBAPP_DIR / "story.png"
+
+
 async def webapp_story(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(
-        WEBAPP_DIR / "story.png",
-        headers={"Cache-Control": "public, max-age=86400"},
+        _story_image_path(),
+        headers={"Cache-Control": "public, max-age=3600"},
     )
 
 
@@ -284,8 +310,8 @@ async def api_me(request: web.Request) -> web.Response:
                 and settings.story_reward_rub > 0
             ),
             "story_reward_rub": settings.story_reward_rub if settings.balance_enabled else 0,
-            "story_rewarded": bool(local and local.get("story_rewarded_at")),
-            "story_media_url": f"{_public_origin(request)}/story.png",
+            **_story_check_state(local, settings),
+            "story_media_url": f"{_public_origin(request)}/story.png?v=stories",
             "story_share_text": (
                 settings.story_share_text.strip()
                 or "VPN без границ. Подключайся в боте."
@@ -373,32 +399,37 @@ async def api_story_share(request: web.Request) -> web.Response:
         return denied
     settings = get_settings()
     amount = int(settings.story_reward_rub or 0)
-    if not (settings.balance_enabled and settings.story_reward_enabled and amount > 0):
+    minutes = int(settings.story_check_minutes or 0)
+    if not (settings.balance_enabled and settings.story_reward_enabled and amount > 0 and minutes > 0):
         return json_error("Награда за историю сейчас недоступна")
     local = await db.get_user(telegram_id)
     if not local:
         return json_error("Пользователь не найден")
     if local.get("story_rewarded_at"):
         return web.json_response({"ok": True, "already": True, "balance_rub": int(local.get("balance_rub") or 0)})
-    total = await db.claim_story_reward(telegram_id, amount)
-    if total is None:
-        local = await db.get_user(telegram_id)
-        return web.json_response(
-            {
-                "ok": True,
-                "already": True,
-                "balance_rub": int((local or {}).get("balance_rub") or 0),
-            }
-        )
-    await db.log_billing_event(
-        telegram_id,
-        "story",
-        source="webapp",
-        amount=amount,
-        balance_after=total,
-        note="Награда за историю",
+    pending_at = parse_dt(local.get("story_pending_at"))
+    if not pending_at:
+        started = await db.start_story_check(telegram_id)
+        if not started:
+            local = await db.get_user(telegram_id)
+            pending_at = parse_dt((local or {}).get("story_pending_at"))
+            if (local or {}).get("story_rewarded_at"):
+                return web.json_response(
+                    {"ok": True, "already": True, "balance_rub": int((local or {}).get("balance_rub") or 0)}
+                )
+        else:
+            pending_at = datetime.now(timezone.utc)
+    until = pending_at + timedelta(minutes=minutes) if pending_at else None
+    remain = max(0, int((until - datetime.now(timezone.utc)).total_seconds())) if until else 0
+    return web.json_response(
+        {
+            "ok": True,
+            "pending": True,
+            "story_check_until": until.isoformat() if until else None,
+            "story_check_seconds": remain,
+            "balance_rub": int((local or {}).get("balance_rub") or 0),
+        }
     )
-    return web.json_response({"ok": True, "already": False, "balance_rub": total})
 
 
 async def api_invoice(request: web.Request) -> web.Response:
@@ -730,6 +761,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/qrcode.min.js", webapp_qrcode)
         app.router.add_get("/open.html", webapp_open)
         app.router.add_get("/story.png", webapp_story)
+        app.router.add_get("/stories_img.png", webapp_story)
         app.router.add_get("/api/me", api_me)
         app.router.add_get("/api/avatar", api_avatar)
         app.router.add_post("/api/trial", api_trial)

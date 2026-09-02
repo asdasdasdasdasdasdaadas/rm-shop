@@ -1564,6 +1564,64 @@ function renderDevices(me) {
   });
 }
 
+function fmtStoryRemain(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return h + " ч " + String(m).padStart(2, "0") + " мин";
+  return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+}
+
+let storyTick = 0;
+
+function stopStoryTimer() {
+  clearInterval(storyTick);
+  storyTick = 0;
+}
+
+function storyRemain(me) {
+  if (me.story_check_until) {
+    const until = new Date(me.story_check_until).getTime();
+    if (!Number.isNaN(until)) return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+  }
+  return Number(me.story_check_seconds) || 0;
+}
+
+function paintStoryCard(me, rub) {
+  const card = $("storyCard");
+  const timer = $("storyTimer");
+  const pending = !!me.story_pending && !me.story_rewarded;
+  card.classList.toggle("is-checking", pending);
+  stopStoryTimer();
+  if (pending) {
+    $("storyTitle").textContent = "Проверка истории";
+    $("storyNote").textContent = "Награда придёт, когда таймер дойдёт до нуля.";
+    const tick = () => {
+      const left = storyRemain(window.__me || me);
+      timer.textContent = fmtStoryRemain(left);
+      timer.classList.remove("hidden");
+      if (left <= 0) {
+        stopStoryTimer();
+        load();
+      }
+    };
+    tick();
+    storyTick = setInterval(tick, 1000);
+    return;
+  }
+  timer.classList.add("hidden");
+  if (me.story_rewarded) {
+    $("storyTitle").textContent = "Выложить историю";
+    $("storyNote").textContent = "Награда уже начислена. Можно выложить ещё раз.";
+    $("storyBtn").textContent = "Ещё раз";
+  } else {
+    $("storyTitle").textContent = `История — ${rub} ₽`;
+    $("storyNote").textContent = "Откроется редактор истории Telegram. Награда один раз после проверки.";
+    $("storyBtn").textContent = "Выложить";
+  }
+}
+
 function paint(me) {
   applyVpnApps(me.vpn_apps);
   if (me.brand_name) document.title = me.brand_name;
@@ -1593,18 +1651,10 @@ function paint(me) {
   if (me.story_reward_enabled) {
     const rub = me.story_reward_rub || 0;
     storyCard.classList.remove("hidden");
-    if (me.story_rewarded) {
-      $("storyTitle").textContent = "Выложить историю";
-      $("storyNote").textContent = "Награда уже начислена. Можно выложить ещё раз.";
-      $("storyBtn").textContent = "Ещё раз";
-    } else {
-      $("storyTitle").textContent = `История — ${rub} ₽`;
-      $("storyNote").textContent =
-        "Откроется редактор истории Telegram. Награда один раз после нажатия.";
-      $("storyBtn").textContent = "Выложить";
-    }
+    paintStoryCard(me, rub);
   } else {
     storyCard.classList.add("hidden");
+    stopStoryTimer();
   }
   $("offerLink").href = me.legal.offer;
   $("privacyLink").href = me.legal.privacy;
@@ -1865,7 +1915,7 @@ $("storyBtn").onclick = async () => {
     tg.showAlert("Не удалось открыть историю. Обновите Telegram.");
     return;
   }
-  if (me.story_rewarded) return;
+  if (me.story_rewarded || me.story_pending) return;
   try {
     await api("/api/story-share", { method: "POST", body: "{}" });
     await load();

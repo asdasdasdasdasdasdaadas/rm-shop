@@ -1148,6 +1148,7 @@ async function loadSettings() {
   set("setRefRub", v.referral_reward_rub);
   set("setStoryOn", v.story_reward_enabled);
   set("setStoryRub", v.story_reward_rub);
+  set("setStoryCheck", v.story_check_minutes);
   set("setStoryText", v.story_share_text);
   set("setTrustOn", v.trust_enabled);
   set("setTrustDays", v.trust_days);
@@ -1304,6 +1305,7 @@ $("shopForm").addEventListener("submit", async (e) => {
     referral_reward_rub: num("setRefRub"),
     story_reward_enabled: $("setStoryOn").checked,
     story_reward_rub: num("setStoryRub"),
+    story_check_minutes: num("setStoryCheck"),
     story_share_text: $("setStoryText").value,
     trust_enabled: $("setTrustOn").checked,
     trust_days: num("setTrustDays"),

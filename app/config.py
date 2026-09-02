@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     story_reward_enabled: bool = True
     story_reward_rub: int = 150
     story_share_text: str = "VPN без границ. Подключайся в боте."
+    story_check_minutes: int = 30
     trust_enabled: bool = True
     trust_days: int = 3
     trust_fee_rub: int = 12
@@ -204,6 +205,7 @@ SHOP_KEYS = frozenset(
         "story_reward_enabled",
         "story_reward_rub",
         "story_share_text",
+        "story_check_minutes",
         "trust_enabled",
         "trust_days",
         "trust_fee_rub",

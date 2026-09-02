@@ -90,7 +90,7 @@ def legal_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def profile_keyboard(*, trial_available: bool, has_access: bool) -> InlineKeyboardMarkup:
+def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bool = True) -> InlineKeyboardMarkup:
     settings = get_settings()
     builder = InlineKeyboardBuilder()
     if trial_available:
@@ -115,7 +115,8 @@ def profile_keyboard(*, trial_available: bool, has_access: bool) -> InlineKeyboa
             builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_sub"))
             builder.row(InlineKeyboardButton(text="Подключиться", callback_data="connect"))
     if (
-        settings.balance_enabled
+        story_offer
+        and settings.balance_enabled
         and settings.story_reward_enabled
         and settings.story_reward_rub > 0
         and runtime.webapp_url

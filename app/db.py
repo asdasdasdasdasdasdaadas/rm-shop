@@ -103,6 +103,40 @@ async def unclaim_referral_reward(telegram_id: int) -> None:
     )
 
 
+async def start_story_check(telegram_id: int) -> bool:
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users
+        SET story_pending_at = timezone('utc', now())
+        WHERE telegram_id = $1
+          AND story_rewarded_at IS NULL
+          AND story_pending_at IS NULL
+        RETURNING telegram_id
+        """,
+        telegram_id,
+    )
+    return bool(row)
+
+
+async def payout_due_story_rewards(minutes: int, amount: int) -> list[dict]:
+    if minutes < 1 or amount <= 0:
+        return []
+    rows = await _pool_req().fetch(
+        """
+        UPDATE users
+        SET story_rewarded_at = timezone('utc', now()),
+            balance_rub = COALESCE(balance_rub, 0) + $2
+        WHERE story_rewarded_at IS NULL
+          AND story_pending_at IS NOT NULL
+          AND story_pending_at <= timezone('utc', now()) - ($1::int * INTERVAL '1 minute')
+        RETURNING telegram_id, balance_rub, first_name
+        """,
+        minutes,
+        amount,
+    )
+    return [dict(r) for r in rows]
+
+
 async def claim_story_reward(telegram_id: int, amount: int) -> int | None:
     if amount <= 0:
         return None

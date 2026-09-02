@@ -63,6 +63,7 @@ def validate_shop(body: dict) -> dict:
     if len(caption) > 500:
         raise ValueError("Текст истории: до 500 символов")
     out["story_share_text"] = caption
+    out["story_check_minutes"] = _as_int(body.get("story_check_minutes"), 1, 10080, "Проверка истории, минуты")
     out["trust_enabled"] = bool(body.get("trust_enabled"))
     out["trust_days"] = _as_int(body.get("trust_days"), 1, 30, "Дни обещанного платежа")
     out["trust_fee_rub"] = _as_int(body.get("trust_fee_rub"), 0, 10000, "Комиссия обещанного платежа")
@@ -109,6 +110,7 @@ def snapshot() -> dict:
             "story_reward_enabled": s.story_reward_enabled,
             "story_reward_rub": s.story_reward_rub,
             "story_share_text": s.story_share_text,
+            "story_check_minutes": s.story_check_minutes,
             "trust_enabled": s.trust_enabled,
             "trust_days": s.trust_days,
             "trust_fee_rub": s.trust_fee_rub,

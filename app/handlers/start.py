@@ -94,7 +94,18 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
         from_user.first_name if from_user else None,
         balance_rub=int((local or {}).get("balance_rub") or 0) if local else 0,
     )
-    kb = profile_keyboard(trial_available=trial_available, has_access=access)
+    kb = profile_keyboard(
+        trial_available=trial_available,
+        has_access=access,
+        story_offer=bool(
+            settings.balance_enabled
+            and settings.story_reward_enabled
+            and settings.story_reward_rub > 0
+            and local
+            and not local.get("story_rewarded_at")
+            and not local.get("story_pending_at")
+        ),
+    )
     if isinstance(target, CallbackQuery):
         await ack(target)
         try:

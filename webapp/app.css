@@ -509,6 +509,17 @@ body {
   font-family: inherit;
   cursor: pointer;
 }
+.story-timer {
+  flex: none;
+  min-width: 72px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+#storyCard.is-checking .cta { display: none; }
 
 .promo-card { padding: 2px 12px; }
 

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=35">
+  <link rel="stylesheet" href="app.css?v=36">
 </head>
 <body>
   <div id="boot" class="state">
@@ -231,9 +231,10 @@
           <div id="storyTitle" class="t">Выложить историю</div>
           <div id="storyNote" class="d"></div>
         </div>
-        <div class="cta">
+        <div class="cta" id="storyCta">
           <button type="button" id="storyBtn">История</button>
         </div>
+        <div id="storyTimer" class="story-timer hidden" aria-live="polite"></div>
       </div>
 
       <div id="promoCard" class="section promo-card hidden">
@@ -416,6 +417,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=38"></script>
+  <script src="app.js?v=39"></script>
 </body>
 </html>
