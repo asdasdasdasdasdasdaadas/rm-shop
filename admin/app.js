@@ -114,10 +114,8 @@ function applyTheme(t) {
   const theme = t === "light" ? "light" : "dark";
   document.documentElement.setAttribute("data-theme", theme);
   localStorage.setItem("way-admin-theme", theme);
-  const sun = $("themeIconSun");
-  const moon = $("themeIconMoon");
-  if (sun) sun.classList.toggle("hidden", theme === "light");
-  if (moon) moon.classList.toggle("hidden", theme !== "light");
+  document.querySelectorAll(".theme-icon-sun").forEach((el) => el.classList.toggle("hidden", theme === "light"));
+  document.querySelectorAll(".theme-icon-moon").forEach((el) => el.classList.toggle("hidden", theme !== "light"));
 }
 
 function toggleTheme() {
@@ -1466,6 +1464,7 @@ document.querySelectorAll("#modalTabs [data-pane]").forEach((b) => {
 $("navToggle").onclick = () => setNavOpen(!document.body.classList.contains("nav-open"));
 $("navScrim").onclick = () => setNavOpen(false);
 if ($("themeToggle")) $("themeToggle").onclick = toggleTheme;
+if ($("loginThemeToggle")) $("loginThemeToggle").onclick = toggleTheme;
 if ($("sidebarCollapse")) {
   $("sidebarCollapse").onclick = () =>
     setSidebarCollapsed(!document.documentElement.classList.contains("sidebar-collapsed"));

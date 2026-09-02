@@ -82,6 +82,10 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(ADMIN_DIR / "index.html", headers=_NO_STORE)
 
 
+async def api_admin_build(_request: web.Request) -> web.Response:
+    return web.json_response({"ok": True, "build": "23"})
+
+
 async def api_login(request: web.Request) -> web.Response:
     settings = get_settings()
     if not settings.admin_password:

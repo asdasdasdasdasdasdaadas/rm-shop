@@ -107,6 +107,12 @@ html[data-theme="light"] {
   place-items: center;
   padding: 24px;
 }
+.login-theme {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 2;
+}
 .login-wrap::before {
   content: "";
   position: absolute;
