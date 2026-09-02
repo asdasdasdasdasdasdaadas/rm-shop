@@ -25,7 +25,21 @@ def _as_users(data: Any) -> list[dict]:
             return [u for u in data["users"] if isinstance(u, dict)]
         nested = data.get("user")
         if isinstance(nested, dict):
-            return [nested]
+            merged = dict(nested)
+            traffic = data.get("userTraffic")
+            if isinstance(traffic, dict) and not isinstance(merged.get("userTraffic"), dict):
+                merged["userTraffic"] = traffic
+            for key in (
+                "onlineAt",
+                "lastConnectedAt",
+                "firstConnectedAt",
+                "subLastOpenedAt",
+                "subLastOpened",
+                "usedTrafficBytes",
+            ):
+                if key in data and merged.get(key) in (None, ""):
+                    merged[key] = data[key]
+            return [merged]
         if "username" in data or "id" in data or "uuid" in data or "shortUuid" in data:
             return [data]
     return []
@@ -60,27 +74,61 @@ def parse_expire(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
+def parse_dt(value: Any) -> datetime | None:
+    if value is None or value is False:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+    if isinstance(value, (int, float)):
+        n = float(value)
+        if n > 1e12:
+            n /= 1000.0
+        if n > 1e9:
+            try:
+                return datetime.fromtimestamp(n, tz=timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                return None
+        return None
+    if isinstance(value, dict):
+        for key in ("onlineAt", "date", "$date", "timestamp"):
+            if key in value:
+                dt = parse_dt(value[key])
+                if dt:
+                    return dt
+        return None
+    text = str(value).strip()
+    if not text or text.lower() in {"none", "null"}:
+        return None
+    return parse_expire(text)
 
 
 def panel_online_at(user: dict | None) -> datetime | None:
     if not user:
         return None
     traffic = user.get("userTraffic") if isinstance(user.get("userTraffic"), dict) else {}
+    nested = user.get("traffic") if isinstance(user.get("traffic"), dict) else {}
     for raw in (
         traffic.get("onlineAt"),
+        nested.get("onlineAt"),
         user.get("onlineAt"),
         traffic.get("lastConnectedAt"),
+        nested.get("lastConnectedAt"),
         user.get("lastConnectedAt"),
+        user.get("lastOnlineAt"),
+        user.get("lastOnline"),
         user.get("subLastOpenedAt"),
         user.get("subLastOpened"),
     ):
-        if isinstance(raw, str) and raw.strip():
-            dt = parse_expire(raw)
-            if dt:
-                return dt
+        dt = parse_dt(raw)
+        if dt:
+            return dt
     return None
 
 

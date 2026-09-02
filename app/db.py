@@ -196,6 +196,16 @@ async def save_device_subscription(remnawave_id: int, panel: dict | None) -> str
     return str(row["title"]) if row and row.get("title") else None
 
 
+async def list_devices_for_users(telegram_ids: list[int]) -> list[dict]:
+    if not telegram_ids:
+        return []
+    rows = await _pool_req().fetch(
+        "SELECT * FROM devices WHERE telegram_id = ANY($1::bigint[]) ORDER BY id",
+        telegram_ids,
+    )
+    return [dict(r) for r in rows]
+
+
 async def set_device_last_online(device_id: int, online_at) -> None:
     await _pool_req().execute(
         "UPDATE devices SET last_online_at = $2 WHERE id = $1",

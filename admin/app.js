@@ -89,6 +89,34 @@ function fmtAgo(dt) {
   return fmt(dt);
 }
 
+function onlineCell(dt) {
+  const td = document.createElement("td");
+  td.className = "who-cell";
+  const ago = fmtAgo(dt);
+  const abs = fmt(dt);
+  td.title = abs;
+  const main = document.createElement("div");
+  main.textContent = ago;
+  td.appendChild(main);
+  if (ago !== "—" && abs !== "—") {
+    const sub = document.createElement("div");
+    sub.className = "who-sub";
+    sub.textContent = abs;
+    td.appendChild(sub);
+  }
+  return td;
+}
+
+function paintModalOnline(dt) {
+  const el = $("modalOnline");
+  if (!el) return;
+  if (!dt) {
+    el.textContent = "Онлайн: нет данных из панели";
+    return;
+  }
+  el.textContent = "Онлайн: " + fmtAgo(dt) + " · " + fmt(dt);
+}
+
 function deviceCell(u) {
   const n = Number(u.device_count) || 0;
   const titles = String(u.device_titles || "").trim();
@@ -350,9 +378,7 @@ async function loadUsers(page) {
     tdDev.className = "wrap";
     tdDev.title = deviceCell(u);
     tr.appendChild(tdDev);
-    const tdOnline = tdText(fmtAgo(u.last_online_at));
-    tdOnline.title = fmt(u.last_online_at);
-    tr.appendChild(tdOnline);
+    tr.appendChild(onlineCell(u.last_online_at));
     tr.appendChild(tdText(u.trial_used ? "да" : "нет"));
     tr.appendChild(tdText(fmt(u.expire_at)));
     tr.appendChild(tdPill(u.blocked_at ? "блок" : (u.panel_status || "—")));
@@ -549,6 +575,12 @@ async function loadUserDevices(telegramId) {
     const data = await api(`/admin/api/users/${encodeURIComponent(String(telegramId))}/devices`);
     body.innerHTML = "";
     const items = data.items || [];
+    let latest = null;
+    items.forEach((d) => {
+      const t = d.last_online_at ? new Date(d.last_online_at).getTime() : 0;
+      if (t && (!latest || t > latest.t)) latest = { t, raw: d.last_online_at };
+    });
+    paintModalOnline(latest ? latest.raw : null);
     if (!items.length) {
       const tr = document.createElement("tr");
       const td = document.createElement("td");
@@ -567,8 +599,7 @@ async function loadUserDevices(telegramId) {
         d.platform || "—",
       ].forEach((t) => tr.appendChild(tdText(t)));
       tr.appendChild(tdPill(d.status || "—"));
-      const tdOn = tdText(fmtAgo(d.last_online_at));
-      tdOn.title = fmt(d.last_online_at);
+      const tdOn = onlineCell(d.last_online_at);
       tr.appendChild(tdOn);
       body.appendChild(tr);
     });
@@ -879,6 +910,7 @@ function openUser(u) {
     (u.blocked_at ? " · заблокирован" : "");
   $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
   $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
+  paintModalOnline(u.last_online_at);
   setModalPane("act");
   $("modal").classList.remove("hidden");
   loadUserDevices(u.telegram_id);
@@ -903,6 +935,7 @@ async function refreshOpenUser() {
     (u.blocked_at ? " · заблокирован" : "");
   $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
   $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
+  paintModalOnline(u.last_online_at);
   loadUserDevices(u.telegram_id);
   loadUserBilling(u.telegram_id);
 }

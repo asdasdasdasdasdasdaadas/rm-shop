@@ -6,6 +6,7 @@ import hmac
 import logging
 import time
 
+from datetime import datetime
 from aiohttp import web
 from aiogram import Bot
 
@@ -24,7 +25,7 @@ from app.config import ROOT, get_settings
 from app.shop_config import save_shop_overlay, snapshot as shop_snapshot
 from app.keyboards import blocked_keyboard, cabinet_keyboard
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
-from app.remnawave import RemnawaveClient, RemnawaveError, panel_online_at
+from app.remnawave import RemnawaveClient, RemnawaveError, panel_online_at, parse_dt
 from app.texts import subscription_reissued_text
 
 logger = logging.getLogger("rm-shop.admin")
@@ -135,7 +136,65 @@ async def api_users(request: web.Request) -> web.Response:
     page = max(1, int(request.query.get("page") or 1))
     limit = min(100, max(1, int(request.query.get("limit") or 30)))
     items, total = await db.admin_list_users(q, limit, (page - 1) * limit)
+    rw: RemnawaveClient = request.app["rw"]
+    await _enrich_users_online(rw, items)
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+
+
+def _best_online(*values) -> datetime | None:
+    best = None
+    for raw in values:
+        dt = parse_dt(raw)
+        if dt and (best is None or dt > best):
+            best = dt
+    return best
+
+
+async def _enrich_users_online(rw: RemnawaveClient, items: list[dict]) -> None:
+    if not items:
+        return
+    tgs = [int(u["telegram_id"]) for u in items if u.get("telegram_id") is not None]
+    devices = await db.list_devices_for_users(tgs)
+    by_tg: dict[int, list[dict]] = {}
+    panel_ids: list[int] = []
+    for row in devices:
+        by_tg.setdefault(int(row["telegram_id"]), []).append(row)
+        if row.get("remnawave_id"):
+            panel_ids.append(int(row["remnawave_id"]))
+    for user in items:
+        if user.get("remnawave_id"):
+            panel_ids.append(int(user["remnawave_id"]))
+    unique = list(dict.fromkeys(panel_ids))
+    sem = asyncio.Semaphore(8)
+
+    async def fetch(pid: int):
+        async with sem:
+            try:
+                return pid, await rw.get_user_by_id(pid)
+            except Exception:
+                return pid, None
+
+    panels = {}
+    if unique:
+        for pid, panel in await asyncio.gather(*[fetch(pid) for pid in unique]):
+            panels[pid] = panel
+    for user in items:
+        tg_id = int(user["telegram_id"])
+        best = parse_dt(user.get("last_online_at"))
+        rows = by_tg.get(tg_id) or []
+        for row in rows:
+            pid = int(row["remnawave_id"]) if row.get("remnawave_id") else None
+            panel = panels.get(pid) if pid is not None else None
+            seen = panel_online_at(panel) if panel else None
+            if seen and row.get("id"):
+                try:
+                    await db.set_device_last_online(int(row["id"]), seen)
+                except Exception:
+                    logger.debug("Не удалось сохранить онлайн устройства %s", row.get("id"))
+            best = _best_online(best, seen, row.get("last_online_at"))
+        if user.get("remnawave_id"):
+            best = _best_online(best, panel_online_at(panels.get(int(user["remnawave_id"]))))
+        user["last_online_at"] = best.isoformat() if best else None
 
 
 async def api_user_devices(request: web.Request) -> web.Response:
