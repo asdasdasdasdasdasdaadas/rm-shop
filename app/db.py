@@ -879,6 +879,20 @@ async def admin_stats() -> dict:
     )
     promo = await pool.fetchval("SELECT COUNT(*)::int FROM promo_uses")
     stars = await pool.fetchval("SELECT COUNT(*)::int FROM payments")
+    billing_today = await pool.fetchrow(
+        """
+        SELECT
+            COUNT(*) FILTER (WHERE kind = 'charge')::int AS charges,
+            COUNT(*) FILTER (WHERE kind = 'error')::int AS errors,
+            COALESCE(SUM(amount) FILTER (WHERE amount > 0), 0)::int AS credited
+        FROM billing_events
+        WHERE created_at >= ((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::date)
+              AT TIME ZONE 'Europe/Moscow'
+        """
+    )
+    broadcast_users = await pool.fetchval(
+        "SELECT COUNT(*)::int FROM users WHERE blocked_at IS NULL"
+    )
     return {
         "users": dict(users) if users else {},
         "orders": {r["status"]: r["n"] for r in orders},
@@ -886,26 +900,65 @@ async def admin_stats() -> dict:
         "promo_uses": int(promo or 0),
         "stars_payments": int(stars or 0),
         "vpn_reports": int(await pool.fetchval("SELECT COUNT(*)::int FROM vpn_reports") or 0),
+        "billing_today": dict(billing_today) if billing_today else {},
+        "broadcast_users": int(broadcast_users or 0),
     }
 
 
-def _admin_users_filter(query: str) -> tuple[str, list]:
-    q = query.strip()
-    if not q:
-        return "", []
+def _admin_users_filter(query: str, extra: dict | None = None) -> tuple[str, list]:
+    clauses: list[str] = []
+    args: list = []
+    q = (query or "").strip()
+    extra = extra or {}
     if q.lower() in {"блок", "blocked", "ban"}:
-        return "WHERE u.blocked_at IS NOT NULL", []
-    pattern = f"%{q}%"
-    where = """
-            WHERE u.username ILIKE $1 OR u.first_name ILIKE $1 OR u.telegram_id::text LIKE $1
-               OR u.referred_by::text LIKE $1 OR ref.username ILIKE $1 OR ref.first_name ILIKE $1
-        """
-    return where, [pattern]
+        clauses.append("u.blocked_at IS NOT NULL")
+    elif q:
+        args.append(f"%{q}%")
+        n = len(args)
+        clauses.append(
+            f"""(
+            u.username ILIKE ${n} OR u.first_name ILIKE ${n} OR u.telegram_id::text LIKE ${n}
+               OR u.referred_by::text LIKE ${n} OR ref.username ILIKE ${n} OR ref.first_name ILIKE ${n}
+            )"""
+        )
+    status = str(extra.get("status") or "").strip()
+    if status == "block":
+        clauses.append("u.blocked_at IS NOT NULL")
+    elif status == "ok":
+        clauses.append("u.blocked_at IS NULL")
+    trial = str(extra.get("trial") or "").strip()
+    if trial == "yes":
+        clauses.append("u.trial_used")
+    elif trial == "no":
+        clauses.append("NOT u.trial_used")
+    devices = str(extra.get("devices") or "").strip()
+    if devices == "yes":
+        clauses.append("EXISTS (SELECT 1 FROM devices d0 WHERE d0.telegram_id = u.telegram_id)")
+    elif devices == "no":
+        clauses.append("NOT EXISTS (SELECT 1 FROM devices d0 WHERE d0.telegram_id = u.telegram_id)")
+    for key, op in (("bal_min", ">="), ("bal_max", "<=")):
+        raw = str(extra.get(key) or "").strip()
+        if raw.isdigit() or (raw.startswith("-") and raw[1:].isdigit()):
+            args.append(int(raw))
+            clauses.append(f"COALESCE(u.balance_rub, 0) {op} ${len(args)}")
+    from_d = str(extra.get("from") or "").strip()
+    to_d = str(extra.get("to") or "").strip()
+    if from_d:
+        args.append(from_d)
+        clauses.append(f"u.created_at >= ${len(args)}::date")
+    if to_d:
+        args.append(to_d)
+        clauses.append(f"u.created_at < (${len(args)}::date + INTERVAL '1 day')")
+    if not clauses:
+        return "", []
+    return "WHERE " + " AND ".join(clauses), args
 
 
-async def admin_list_users(query: str, limit: int, offset: int) -> tuple[list[dict], int]:
+async def admin_list_users(
+    query: str, limit: int, offset: int, extra: dict | None = None
+) -> tuple[list[dict], int]:
     pool = _pool_req()
-    where, args = _admin_users_filter(query)
+    where, args = _admin_users_filter(query, extra)
     total_sql = f"""
         SELECT COUNT(*)::int FROM users u
         LEFT JOIN users ref ON ref.telegram_id = u.referred_by
@@ -942,9 +995,9 @@ async def admin_list_users(query: str, limit: int, offset: int) -> tuple[list[di
     return [_jsonable(dict(r)) for r in rows], int(total or 0)
 
 
-async def admin_user_ids(query: str, limit: int) -> tuple[list[int], int]:
+async def admin_user_ids(query: str, limit: int, extra: dict | None = None) -> tuple[list[int], int]:
     pool = _pool_req()
-    where, args = _admin_users_filter(query)
+    where, args = _admin_users_filter(query, extra)
     total = await pool.fetchval(
         f"""
         SELECT COUNT(*)::int FROM users u
@@ -967,20 +1020,37 @@ async def admin_user_ids(query: str, limit: int) -> tuple[list[int], int]:
     return [int(r["telegram_id"]) for r in rows], int(total or 0)
 
 
-async def admin_list_referrals(query: str, limit: int, offset: int) -> tuple[list[dict], int]:
+async def admin_list_referrals(
+    query: str, limit: int, offset: int, extra: dict | None = None
+) -> tuple[list[dict], int]:
     pool = _pool_req()
+    extra = extra or {}
     q = query.strip()
     where = "WHERE u.referred_by IS NOT NULL"
     args: list = []
     if q:
         pattern = f"%{q}%"
-        where += """
+        args.append(pattern)
+        n = len(args)
+        where += f"""
             AND (
-                u.username ILIKE $1 OR u.first_name ILIKE $1 OR u.telegram_id::text LIKE $1
-                OR r.username ILIKE $1 OR r.first_name ILIKE $1 OR r.telegram_id::text LIKE $1
+                u.username ILIKE ${n} OR u.first_name ILIKE ${n} OR u.telegram_id::text LIKE ${n}
+                OR r.username ILIKE ${n} OR r.first_name ILIKE ${n} OR r.telegram_id::text LIKE ${n}
             )
         """
-        args.append(pattern)
+    reward = str(extra.get("reward") or "").strip()
+    if reward == "yes":
+        where += " AND u.referral_rewarded"
+    elif reward == "no":
+        where += " AND NOT u.referral_rewarded"
+    from_d = str(extra.get("from") or "").strip()
+    to_d = str(extra.get("to") or "").strip()
+    if from_d:
+        args.append(from_d)
+        where += f" AND u.created_at >= ${len(args)}::date"
+    if to_d:
+        args.append(to_d)
+        where += f" AND u.created_at < (${len(args)}::date + INTERVAL '1 day')"
     total = await pool.fetchval(
         f"""
         SELECT COUNT(*)::int
@@ -1014,38 +1084,43 @@ async def admin_list_referrals(query: str, limit: int, offset: int) -> tuple[lis
     return [_jsonable(dict(r)) for r in rows], int(total or 0)
 
 
-async def admin_list_orders(query: str, limit: int, offset: int) -> tuple[list[dict], int]:
+async def admin_list_orders(
+    query: str, limit: int, offset: int, extra: dict | None = None
+) -> tuple[list[dict], int]:
     pool = _pool_req()
+    extra = extra or {}
+    clauses: list[str] = []
+    args: list = []
     q = query.strip()
     if q:
-        pattern = f"%{q}%"
-        total = await pool.fetchval(
-            """
-            SELECT COUNT(*)::int FROM rollypay_orders
-            WHERE order_id ILIKE $1 OR COALESCE(payment_id, '') ILIKE $1
-               OR telegram_id::text LIKE $1 OR status ILIKE $1
-            """,
-            pattern,
+        args.append(f"%{q}%")
+        n = len(args)
+        clauses.append(
+            f"""(order_id ILIKE ${n} OR COALESCE(payment_id, '') ILIKE ${n}
+               OR telegram_id::text LIKE ${n} OR status ILIKE ${n}
+               OR COALESCE(plan_code, '') ILIKE ${n})"""
         )
-        rows = await pool.fetch(
-            """
-            SELECT * FROM rollypay_orders
-            WHERE order_id ILIKE $1 OR COALESCE(payment_id, '') ILIKE $1
-               OR telegram_id::text LIKE $1 OR status ILIKE $1
-            ORDER BY created_at DESC
-            LIMIT $2 OFFSET $3
-            """,
-            pattern,
-            limit,
-            offset,
-        )
-    else:
-        total = await pool.fetchval("SELECT COUNT(*)::int FROM rollypay_orders")
-        rows = await pool.fetch(
-            "SELECT * FROM rollypay_orders ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-            limit,
-            offset,
-        )
+    status = str(extra.get("status") or "").strip()
+    if status:
+        args.append(status)
+        clauses.append(f"status = ${len(args)}")
+    from_d = str(extra.get("from") or "").strip()
+    to_d = str(extra.get("to") or "").strip()
+    if from_d:
+        args.append(from_d)
+        clauses.append(f"created_at >= ${len(args)}::date")
+    if to_d:
+        args.append(to_d)
+        clauses.append(f"created_at < (${len(args)}::date + INTERVAL '1 day')")
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    total = await pool.fetchval(f"SELECT COUNT(*)::int FROM rollypay_orders {where}", *args)
+    n = len(args)
+    rows = await pool.fetch(
+        f"SELECT * FROM rollypay_orders {where} ORDER BY created_at DESC LIMIT ${n + 1} OFFSET ${n + 2}",
+        *args,
+        limit,
+        offset,
+    )
     return [_jsonable(dict(r)) for r in rows], int(total or 0)
 
 
@@ -1251,9 +1326,12 @@ async def log_billing_event(
         logging.getLogger("rm-shop.db").exception("Не удалось записать событие биллинга")
 
 
-def _admin_billing_filter(query: str, telegram_id: int | None = None) -> tuple[str, list]:
+def _admin_billing_filter(
+    query: str, telegram_id: int | None = None, extra: dict | None = None
+) -> tuple[str, list]:
     args: list = []
     clauses: list[str] = []
+    extra = extra or {}
     if telegram_id is not None:
         args.append(int(telegram_id))
         clauses.append(f"e.telegram_id = ${len(args)}")
@@ -1272,6 +1350,22 @@ def _admin_billing_filter(query: str, telegram_id: int | None = None) -> tuple[s
                OR COALESCE(u.first_name, '') ILIKE ${n}
             )"""
         )
+    kind = str(extra.get("kind") or "").strip()
+    if kind:
+        args.append(kind)
+        clauses.append(f"e.kind = ${len(args)}")
+    source = str(extra.get("source") or "").strip()
+    if source:
+        args.append(source)
+        clauses.append(f"e.source = ${len(args)}")
+    from_d = str(extra.get("from") or "").strip()
+    to_d = str(extra.get("to") or "").strip()
+    if from_d:
+        args.append(from_d)
+        clauses.append(f"e.created_at >= ${len(args)}::date")
+    if to_d:
+        args.append(to_d)
+        clauses.append(f"e.created_at < (${len(args)}::date + INTERVAL '1 day')")
     if not clauses:
         return "", []
     return "WHERE " + " AND ".join(clauses), args
@@ -1282,9 +1376,10 @@ async def admin_list_billing(
     limit: int,
     offset: int,
     telegram_id: int | None = None,
+    extra: dict | None = None,
 ) -> tuple[list[dict], int]:
     pool = _pool_req()
-    where, args = _admin_billing_filter(query, telegram_id)
+    where, args = _admin_billing_filter(query, telegram_id, extra)
     total = await pool.fetchval(
         f"""
         SELECT COUNT(*)::int
@@ -1311,11 +1406,33 @@ async def admin_list_billing(
     return [_jsonable(dict(r)) for r in rows], int(total or 0)
 
 
-async def admin_list_reports(limit: int, offset: int) -> tuple[list[dict], int]:
+async def admin_list_reports(
+    limit: int, offset: int, extra: dict | None = None
+) -> tuple[list[dict], int]:
     pool = _pool_req()
-    total = await pool.fetchval("SELECT COUNT(*)::int FROM vpn_reports")
+    extra = extra or {}
+    clauses: list[str] = []
+    args: list = []
+    status = str(extra.get("status") or "").strip()
+    if status == "empty":
+        clauses.append("(panel_status IS NULL OR panel_status = '')")
+    elif status:
+        args.append(status)
+        clauses.append(f"panel_status = ${len(args)}")
+    from_d = str(extra.get("from") or "").strip()
+    to_d = str(extra.get("to") or "").strip()
+    if from_d:
+        args.append(from_d)
+        clauses.append(f"created_at >= ${len(args)}::date")
+    if to_d:
+        args.append(to_d)
+        clauses.append(f"created_at < (${len(args)}::date + INTERVAL '1 day')")
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    total = await pool.fetchval(f"SELECT COUNT(*)::int FROM vpn_reports {where}", *args)
+    n = len(args)
     rows = await pool.fetch(
-        "SELECT * FROM vpn_reports ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+        f"SELECT * FROM vpn_reports {where} ORDER BY created_at DESC LIMIT ${n + 1} OFFSET ${n + 2}",
+        *args,
         limit,
         offset,
     )

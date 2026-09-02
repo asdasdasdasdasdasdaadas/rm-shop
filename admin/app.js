@@ -7,7 +7,17 @@ let currentUser = null;
 let selectedUsers = new Set();
 let lastUserItems = [];
 const TABS = ["overview", "users", "referrals", "orders", "billing", "reports", "broadcast", "backups", "settings"];
+const TAB_KEYS = {
+  users: ["q", "status", "trial", "devices", "bal_min", "bal_max", "from", "to"],
+  referrals: ["q", "reward", "from", "to"],
+  orders: ["q", "status", "from", "to"],
+  billing: ["q", "kind", "source", "from", "to"],
+  reports: ["status", "from", "to"],
+};
 let toastTimer = 0;
+let pageLimit = Number(localStorage.getItem("way-admin-limit") || 25);
+if (![25, 50, 100].includes(pageLimit)) pageLimit = 25;
+let skipHashWrite = false;
 
 function toast(msg) {
   const el = $("toast");
@@ -50,9 +60,141 @@ function setModalPane(name) {
   });
 }
 
+function confirmAction(title, body, danger) {
+  return new Promise((resolve) => {
+    const dlg = $("confirmDlg");
+    if (!dlg) {
+      resolve(window.confirm(body || title));
+      return;
+    }
+    $("confirmTitle").textContent = title || "Подтверждение";
+    $("confirmBody").textContent = body || "";
+    $("confirmOk").className = danger === false ? "" : "danger";
+    dlg.classList.remove("hidden");
+    const done = (ok) => {
+      dlg.classList.add("hidden");
+      $("confirmOk").onclick = null;
+      $("confirmCancel").onclick = null;
+      resolve(ok);
+    };
+    $("confirmOk").onclick = () => done(true);
+    $("confirmCancel").onclick = () => done(false);
+  });
+}
+
+function parseRoute() {
+  const raw = (location.hash || "#overview").replace(/^#/, "");
+  const i = raw.indexOf("?");
+  const tab = ((i >= 0 ? raw.slice(0, i) : raw) || "overview").trim();
+  const params = new URLSearchParams(i >= 0 ? raw.slice(i + 1) : "");
+  return { tab: TABS.includes(tab) ? tab : "overview", params };
+}
+
+function writeRoute(tab, params) {
+  const keys = TAB_KEYS[tab] || [];
+  const next = new URLSearchParams();
+  keys.forEach((k) => {
+    const v = params.get(k);
+    if (v) next.set(k, v);
+  });
+  const qs = next.toString();
+  const hash = "#" + tab + (qs ? "?" + qs : "");
+  if (location.hash !== hash) {
+    skipHashWrite = true;
+    history.replaceState(null, "", hash);
+    skipHashWrite = false;
+  }
+}
+
 function tabFromHash() {
-  const name = (location.hash || "").replace("#", "").trim();
-  return TABS.includes(name) ? name : "overview";
+  return parseRoute().tab;
+}
+
+function applyTheme(t) {
+  const theme = t === "light" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", theme);
+  localStorage.setItem("way-admin-theme", theme);
+  const sun = $("themeIconSun");
+  const moon = $("themeIconMoon");
+  if (sun) sun.classList.toggle("hidden", theme === "light");
+  if (moon) moon.classList.toggle("hidden", theme !== "light");
+}
+
+function toggleTheme() {
+  applyTheme(document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light");
+}
+
+function setSidebarCollapsed(on) {
+  document.documentElement.classList.toggle("sidebar-collapsed", on);
+  localStorage.setItem("way-admin-sidebar", on ? "1" : "0");
+  const btn = $("sidebarCollapse");
+  if (btn) btn.textContent = on ? "Меню" : "Свернуть";
+}
+
+function syncSidebarDefault() {
+  if (localStorage.getItem("way-admin-sidebar") != null) return;
+  const w = window.innerWidth;
+  if (w >= 768 && w < 1024) document.documentElement.classList.add("sidebar-collapsed");
+}
+
+function labelRow(tr, labels) {
+  [...tr.children].forEach((td, i) => {
+    if (labels[i]) td.setAttribute("data-label", labels[i]);
+  });
+}
+
+function paintChips(boxId, items, onClear) {
+  const box = $(boxId);
+  if (!box) return;
+  box.innerHTML = "";
+  items.forEach(([key, label]) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "filter-chip";
+    b.textContent = label + " x";
+    b.onclick = () => onClear(key);
+    box.appendChild(b);
+  });
+}
+
+function val(id) {
+  const el = $(id);
+  return el ? String(el.value || "").trim() : "";
+}
+
+function setVal(id, v) {
+  const el = $(id);
+  if (el) el.value = v || "";
+}
+
+function collectUserFilters() {
+  return {
+    q: val("userQ"),
+    status: val("userStatus"),
+    trial: val("userTrial"),
+    devices: val("userDevices"),
+    bal_min: val("userBalMin"),
+    bal_max: val("userBalMax"),
+    from: val("userFrom"),
+    to: val("userTo"),
+  };
+}
+
+function fillFromParams(map, params) {
+  Object.entries(map).forEach(([key, id]) => setVal(id, params.get(key) || ""));
+}
+
+function queryString(obj) {
+  const p = new URLSearchParams();
+  Object.entries(obj).forEach(([k, v]) => {
+    if (v != null && String(v).trim() !== "") p.set(k, String(v).trim());
+  });
+  p.set("limit", String(pageLimit));
+  return p.toString();
+}
+
+function hasAny(obj) {
+  return Object.values(obj).some((v) => v != null && String(v).trim() !== "");
 }
 
 async function api(path, opts = {}) {
@@ -145,18 +287,92 @@ function showShell() {
 
 function switchTab(name, opts = {}) {
   if (!TABS.includes(name)) name = "overview";
-  document.querySelectorAll("nav [data-tab]").forEach((b) => {
+  const route = parseRoute();
+  if (!opts.skipFill) {
+    if (name === "users") {
+      fillFromParams(
+        {
+          q: "userQ",
+          status: "userStatus",
+          trial: "userTrial",
+          devices: "userDevices",
+          bal_min: "userBalMin",
+          bal_max: "userBalMax",
+          from: "userFrom",
+          to: "userTo",
+        },
+        route.tab === "users" ? route.params : new URLSearchParams()
+      );
+    }
+    if (name === "referrals") {
+      fillFromParams(
+        { q: "refQ", reward: "refReward", from: "refFrom", to: "refTo" },
+        route.tab === "referrals" ? route.params : new URLSearchParams()
+      );
+    }
+    if (name === "orders") {
+      fillFromParams(
+        { q: "orderQ", status: "orderStatus", from: "orderFrom", to: "orderTo" },
+        route.tab === "orders" ? route.params : new URLSearchParams()
+      );
+    }
+    if (name === "billing") {
+      fillFromParams(
+        { q: "billQ", kind: "billKind", source: "billSource", from: "billFrom", to: "billTo" },
+        route.tab === "billing" ? route.params : new URLSearchParams()
+      );
+    }
+    if (name === "reports") {
+      fillFromParams(
+        { status: "reportStatus", from: "reportFrom", to: "reportTo" },
+        route.tab === "reports" ? route.params : new URLSearchParams()
+      );
+    }
+  }
+  document.querySelectorAll("nav [data-tab], .bottom-nav [data-tab]").forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === name);
-    if (b.dataset.tab === name) {
-      if ($("pageTitle")) $("pageTitle").textContent = b.dataset.title || name;
+    if (b.dataset.tab === name && b.dataset.title) {
+      if ($("pageTitle")) $("pageTitle").textContent = b.dataset.title;
       if ($("pageLead")) $("pageLead").textContent = b.dataset.lead || "";
     }
   });
+  const titleBtn = document.querySelector(`nav [data-tab="${name}"]`);
+  if (titleBtn) {
+    if ($("pageTitle")) $("pageTitle").textContent = titleBtn.dataset.title || name;
+    if ($("pageLead")) $("pageLead").textContent = titleBtn.dataset.lead || "";
+    if ($("pageCrumb")) $("pageCrumb").textContent = "Админка / " + (titleBtn.dataset.title || name);
+  }
   TABS.forEach((tab) => {
     $("tab-" + tab).classList.toggle("hidden", tab !== name);
   });
-  if (!opts.skipHash && location.hash.replace("#", "") !== name) {
-    history.replaceState(null, "", "#" + name);
+  if (!opts.skipHash) {
+    const params = new URLSearchParams();
+    if (name === "users") Object.entries(collectUserFilters()).forEach(([k, v]) => v && params.set(k, v));
+    if (name === "referrals") {
+      [["q", "refQ"], ["reward", "refReward"], ["from", "refFrom"], ["to", "refTo"]].forEach(([k, id]) => {
+        const v = val(id);
+        if (v) params.set(k, v);
+      });
+    }
+    if (name === "orders") {
+      [["q", "orderQ"], ["status", "orderStatus"], ["from", "orderFrom"], ["to", "orderTo"]].forEach(([k, id]) => {
+        const v = val(id);
+        if (v) params.set(k, v);
+      });
+    }
+    if (name === "billing") {
+      [["q", "billQ"], ["kind", "billKind"], ["source", "billSource"], ["from", "billFrom"], ["to", "billTo"]].forEach(([k, id]) => {
+        const v = val(id);
+        if (v) params.set(k, v);
+      });
+    }
+    if (name === "reports") {
+      [["status", "reportStatus"], ["from", "reportFrom"], ["to", "reportTo"]].forEach(([k, id]) => {
+        const v = val(id);
+        if (v) params.set(k, v);
+      });
+    }
+    writeRoute(name, params);
   }
   if (name === "overview") loadStats();
   if (name === "users") loadUsers();
@@ -266,6 +482,8 @@ function paintFlags(f) {
   }
   if (typeof f.maintenance_notice === "string") {
     $("maintNotice").value = f.maintenance_notice;
+    const phone = $("maintPhonePreview");
+    if (phone) phone.textContent = f.maintenance_notice || "Текст оповещения появится здесь";
   }
   const preview = $("maintPreview");
   if (f.maintenance_has_photo) {
@@ -305,31 +523,65 @@ async function loadFlags() {
 }
 
 async function loadStats() {
-  await loadFlags();
-  loadSubJob();
-  const s = await api("/admin/api/stats");
-  const u = s.users || {};
-  const cards = $("cards");
-  cards.innerHTML = "";
-  [
-    ["Пользователи", u.users_total || 0, "users"],
-    ["Оферта принята", u.legal_ok || 0],
-    ["Активные подписки", u.active || 0],
-    ["Бесплатный период использован", u.trial_used || 0],
-    ["Новые за сутки", u.new_1d || 0],
-    ["Новые за 7 дней", u.new_7d || 0],
-    ["Новые за 30 дней", u.new_30d || 0],
-    ["Оборот, рубли", s.revenue_rub || 0, "orders"],
-    ["Промокоды", s.promo_uses || 0],
-    ["Stars-платежи", s.stars_payments || 0],
-    ["Жалобы VPN", s.vpn_reports || 0, "reports"],
-    ["Заблокированы", u.blocked || 0, "users"],
-    ["Пришли по ссылке", u.referred || 0, "referrals"],
-    ["Реф. награда выдана", u.referral_rewarded || 0, "referrals"],
-  ].forEach(([l, v, tab]) => cards.appendChild(card(l, v, tab)));
-  kv($("orderStats"), s.orders, "Заказов пока нет");
-  kv($("planStats"), s.plans, "Оплаченных тарифов нет");
-  paintJobs(s.jobs || {});
+  const err = $("statsErr");
+  if (err) {
+    err.classList.add("hidden");
+    err.textContent = "";
+  }
+  try {
+    await loadFlags();
+    loadSubJob();
+    const s = await api("/admin/api/stats");
+    const u = s.users || {};
+    const fill = (id, rows) => {
+      const box = $(id);
+      if (!box) return;
+      box.innerHTML = "";
+      rows.forEach(([l, v, tab]) => box.appendChild(card(l, v, tab)));
+    };
+    fill("cardsAudience", [
+      ["Пользователи", u.users_total || 0, "users"],
+      ["Оферта принята", u.legal_ok || 0],
+      ["Активные подписки", u.active || 0],
+      ["Бесплатный период использован", u.trial_used || 0],
+      ["Новые за сутки", u.new_1d || 0],
+      ["Новые за 7 дней", u.new_7d || 0],
+      ["Новые за 30 дней", u.new_30d || 0],
+      ["Пришли по ссылке", u.referred || 0, "referrals"],
+    ]);
+    fill("cardsFinance", [
+      ["Оборот, рубли", s.revenue_rub || 0, "orders"],
+      ["Промокоды", s.promo_uses || 0],
+      ["Stars-платежи", s.stars_payments || 0],
+      ["Реф. награда выдана", u.referral_rewarded || 0, "referrals"],
+    ]);
+    fill("cardsIssues", [
+      ["Жалобы VPN", s.vpn_reports || 0, "reports"],
+      ["Заблокированы", u.blocked || 0, "users"],
+    ]);
+    kv($("orderStats"), s.orders, "Заказов пока нет");
+    kv($("planStats"), s.plans, "Оплаченных тарифов нет");
+    paintJobs(s.jobs || {});
+    const today = s.billing_today || {};
+    if ($("billToday")) {
+      $("billToday").textContent =
+        "За сегодня: " +
+        (today.charges || 0) +
+        " списаний, " +
+        (today.errors || 0) +
+        " ошибок, " +
+        (today.credited || 0) +
+        " ₽ начислено";
+    }
+    if ($("broadcastCount")) {
+      $("broadcastCount").textContent = "Уйдёт примерно " + (s.broadcast_users || 0) + " пользователям (без заблокированных).";
+    }
+  } catch (e) {
+    if (err) {
+      err.classList.remove("hidden");
+      err.textContent = (e && e.message) || "Не удалось загрузить обзор";
+    }
+  }
 }
 
 function pager(el, page, total, limit, onPage) {
@@ -339,6 +591,21 @@ function pager(el, page, total, limit, onPage) {
   info.className = "muted";
   info.textContent = `${total} записей, стр. ${page}/${pages}`;
   el.appendChild(info);
+  const sel = document.createElement("select");
+  sel.setAttribute("aria-label", "На странице");
+  [25, 50, 100].forEach((n) => {
+    const o = document.createElement("option");
+    o.value = String(n);
+    o.textContent = n + " на стр.";
+    if (n === pageLimit) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = () => {
+    pageLimit = Number(sel.value) || 25;
+    localStorage.setItem("way-admin-limit", String(pageLimit));
+    onPage(1);
+  };
+  el.appendChild(sel);
   if (page > 1) {
     const prev = document.createElement("button");
     prev.className = "ghost";
@@ -386,13 +653,41 @@ function tdPill(text) {
 
 async function loadUsers(page) {
   if (page) userPage = page;
-  const q = $("userQ").value.trim();
-  const data = await api(`/admin/api/users?q=${encodeURIComponent(q)}&page=${userPage}`);
+  const f = collectUserFilters();
+  const reset = $("userReset");
+  if (reset) reset.classList.toggle("hidden", !hasAny(f));
+  const chips = [];
+  if (f.status) chips.push(["status", "Статус: " + (f.status === "block" ? "блок" : "активен")]);
+  if (f.trial) chips.push(["trial", "Триал: " + f.trial]);
+  if (f.devices) chips.push(["devices", "Устройства: " + f.devices]);
+  if (f.bal_min) chips.push(["bal_min", "Баланс от " + f.bal_min]);
+  if (f.bal_max) chips.push(["bal_max", "Баланс до " + f.bal_max]);
+  if (f.from) chips.push(["from", "с " + f.from]);
+  if (f.to) chips.push(["to", "по " + f.to]);
+  if (f.q) chips.push(["q", "поиск: " + f.q]);
+  paintChips("userChips", chips, (key) => {
+    const map = {
+      q: "userQ",
+      status: "userStatus",
+      trial: "userTrial",
+      devices: "userDevices",
+      bal_min: "userBalMin",
+      bal_max: "userBalMax",
+      from: "userFrom",
+      to: "userTo",
+    };
+    setVal(map[key], "");
+    selectedUsers.clear();
+    loadUsers(1);
+  });
+  writeRoute("users", new URLSearchParams(Object.entries(f).filter(([, v]) => v)));
+  const data = await api(`/admin/api/users?${queryString({ ...f, page: userPage })}`);
   lastUserItems = data.items || [];
   const body = $("userRows");
   body.innerHTML = "";
+  const labels = ["", "Клиент", "Баланс", "Устройства", "Онлайн", "Триал", "До", "Статус", "Пригласил", "Друзей", ""];
   if (!lastUserItems.length) {
-    body.appendChild(emptyRow(11, q ? "Никого не нашли" : "Пользователей пока нет"));
+    body.appendChild(emptyRow(11, hasAny(f) ? "Никого не нашли по фильтрам" : "Пользователей пока нет"));
   }
   lastUserItems.forEach((u) => {
     const tr = document.createElement("tr");
@@ -446,6 +741,7 @@ async function loadUsers(page) {
     td.appendChild(btn);
     tr.appendChild(td);
     tr.onclick = () => openUser(u);
+    labelRow(tr, labels);
     body.appendChild(tr);
   });
   pager($("userPager"), data.page, data.total, data.limit, loadUsers);
@@ -471,7 +767,7 @@ function bulkSummary(r) {
 }
 
 async function runBulk(payload, confirmText) {
-  if (!window.confirm(confirmText)) return;
+  if (!(await confirmAction("Массовое действие", confirmText))) return;
   $("bulkOut").textContent = "Выполняю...";
   try {
     const r = await api("/admin/api/users/bulk", {
@@ -492,18 +788,25 @@ async function runBulk(payload, confirmText) {
 
 async function loadReferrals(page) {
   if (page) refPage = page;
-  const q = $("refQ").value.trim();
-  const data = await api(`/admin/api/referrals?q=${encodeURIComponent(q)}&page=${refPage}`);
+  const f = { q: val("refQ"), reward: val("refReward"), from: val("refFrom"), to: val("refTo") };
+  const reset = $("refReset");
+  if (reset) reset.classList.toggle("hidden", !hasAny(f));
+  const chips = [];
+  if (f.q) chips.push(["q", "поиск: " + f.q]);
+  if (f.reward) chips.push(["reward", "награда: " + f.reward]);
+  if (f.from) chips.push(["from", "с " + f.from]);
+  if (f.to) chips.push(["to", "по " + f.to]);
+  paintChips("refChips", chips, (key) => {
+    setVal({ q: "refQ", reward: "refReward", from: "refFrom", to: "refTo" }[key], "");
+    loadReferrals(1);
+  });
+  writeRoute("referrals", new URLSearchParams(Object.entries(f).filter(([, v]) => v)));
+  const data = await api(`/admin/api/referrals?${queryString({ ...f, page: refPage })}`);
   const body = $("refRows");
   body.innerHTML = "";
+  const labels = ["Пришёл", "Пригласил", "Когда", "Награда"];
   if (!data.items.length) {
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 4;
-    td.className = "muted";
-    td.textContent = "Пока никто не приходил по рефссылке";
-    tr.appendChild(td);
-    body.appendChild(tr);
+    body.appendChild(emptyRow(4, hasAny(f) ? "Ничего не нашли" : "Пока никто не приходил по рефссылке"));
   }
   data.items.forEach((row) => {
     const tr = document.createElement("tr");
@@ -513,6 +816,7 @@ async function loadReferrals(page) {
       fmt(row.invitee_at),
     ].forEach((t) => tr.appendChild(tdText(t)));
     tr.appendChild(tdPill(row.referral_rewarded ? "выдана" : "ещё нет"));
+    labelRow(tr, labels);
     body.appendChild(tr);
   });
   pager($("refPager"), data.page, data.total, data.limit, loadReferrals);
@@ -520,12 +824,25 @@ async function loadReferrals(page) {
 
 async function loadOrders(page) {
   if (page) orderPage = page;
-  const q = $("orderQ").value.trim();
-  const data = await api(`/admin/api/orders?q=${encodeURIComponent(q)}&page=${orderPage}`);
+  const f = { q: val("orderQ"), status: val("orderStatus"), from: val("orderFrom"), to: val("orderTo") };
+  const reset = $("orderReset");
+  if (reset) reset.classList.toggle("hidden", !hasAny(f));
+  const chips = [];
+  if (f.q) chips.push(["q", "поиск: " + f.q]);
+  if (f.status) chips.push(["status", f.status]);
+  if (f.from) chips.push(["from", "с " + f.from]);
+  if (f.to) chips.push(["to", "по " + f.to]);
+  paintChips("orderChips", chips, (key) => {
+    setVal({ q: "orderQ", status: "orderStatus", from: "orderFrom", to: "orderTo" }[key], "");
+    loadOrders(1);
+  });
+  writeRoute("orders", new URLSearchParams(Object.entries(f).filter(([, v]) => v)));
+  const data = await api(`/admin/api/orders?${queryString({ ...f, page: orderPage })}`);
   const body = $("orderRows");
   body.innerHTML = "";
+  const labels = ["Заказ", "Пользователь", "Тариф", "Статус", "Создан"];
   if (!data.items.length) {
-    body.appendChild(emptyRow(5, q ? "Заказов не нашли" : "Заказов пока нет"));
+    body.appendChild(emptyRow(5, hasAny(f) ? "Заказов не нашли" : "Заказов пока нет"));
   }
   data.items.forEach((o) => {
     const tr = document.createElement("tr");
@@ -534,6 +851,7 @@ async function loadOrders(page) {
     tr.appendChild(tdText(o.plan_code));
     tr.appendChild(tdPill(o.status));
     tr.appendChild(tdText(fmt(o.created_at)));
+    labelRow(tr, labels);
     body.appendChild(tr);
   });
   pager($("orderPager"), data.page, data.total, data.limit, loadOrders);
@@ -578,22 +896,63 @@ function billRowCells(e) {
 
 async function loadBilling(page) {
   if (page) billPage = page;
-  const q = $("billQ").value.trim();
-  const data = await api(`/admin/api/billing?q=${encodeURIComponent(q)}&page=${billPage}`);
+  const f = {
+    q: val("billQ"),
+    kind: val("billKind"),
+    source: val("billSource"),
+    from: val("billFrom"),
+    to: val("billTo"),
+  };
+  const reset = $("billReset");
+  if (reset) reset.classList.toggle("hidden", !hasAny(f));
+  const chips = [];
+  if (f.q) chips.push(["q", "поиск: " + f.q]);
+  if (f.kind) chips.push(["kind", billKindLabel(f.kind)]);
+  if (f.source) chips.push(["source", BILL_SOURCE[f.source] || f.source]);
+  if (f.from) chips.push(["from", "с " + f.from]);
+  if (f.to) chips.push(["to", "по " + f.to]);
+  paintChips("billChips", chips, (key) => {
+    setVal({ q: "billQ", kind: "billKind", source: "billSource", from: "billFrom", to: "billTo" }[key], "");
+    loadBilling(1);
+  });
+  writeRoute("billing", new URLSearchParams(Object.entries(f).filter(([, v]) => v)));
+  const data = await api(`/admin/api/billing?${queryString({ ...f, page: billPage })}`);
   const body = $("billRows");
   body.innerHTML = "";
-  if (!data.items.length) {
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 7;
-    td.className = "muted";
-    td.textContent = "Пока нет событий биллинга";
-    tr.appendChild(td);
-    body.appendChild(tr);
+  const labels = ["Время", "Пользователь", "Событие", "Устройство", "Сумма", "Баланс после", "Источник"];
+  const items = data.items || [];
+  if (!items.length) {
+    body.appendChild(emptyRow(7, hasAny(f) ? "Ничего не нашли" : "Пока нет событий биллинга"));
   }
-  data.items.forEach((e) => {
+  const grouped = [];
+  for (let i = 0; i < items.length; i++) {
+    const e = items[i];
+    if (e.kind === "error") {
+      const key = String(e.telegram_id) + "|" + (e.device_title || "") + "|" + (e.note || "");
+      const kids = [e];
+      while (i + 1 < items.length && items[i + 1].kind === "error") {
+        const n = items[i + 1];
+        const nk = String(n.telegram_id) + "|" + (n.device_title || "") + "|" + (n.note || "");
+        if (nk !== key) break;
+        kids.push(n);
+        i++;
+      }
+      grouped.push({ kids, sample: e });
+    } else {
+      grouped.push({ kids: [e], sample: e });
+    }
+  }
+  grouped.forEach((g) => {
+    const e = g.sample;
     const tr = document.createElement("tr");
+    const amount = Number(e.amount || 0);
+    if (e.kind === "error") tr.classList.add("bill-row-error");
+    else if (amount > 0) tr.classList.add("bill-row-plus");
     const cells = billRowCells(e);
+    if (g.kids.length > 1) {
+      cells[2] = billKindLabel(e.kind) + " · " + g.kids.length + " повтор.";
+      tr.classList.add("group-row");
+    }
     tr.appendChild(tdText(cells[0]));
     tr.appendChild(tdText(cells[1]));
     tr.appendChild(tdPill(cells[2]));
@@ -602,7 +961,36 @@ async function loadBilling(page) {
     tr.appendChild(tdText(cells[5]));
     tr.appendChild(tdText(cells[6]));
     if (e.note) tr.title = e.note;
+    labelRow(tr, labels);
     body.appendChild(tr);
+    if (g.kids.length > 1) {
+      tr.onclick = () => {
+        const open = tr.dataset.open === "1";
+        tr.dataset.open = open ? "0" : "1";
+        let next = tr.nextElementSibling;
+        while (next && next.classList.contains("bill-child")) {
+          const cur = next;
+          next = next.nextElementSibling;
+          if (open) cur.remove();
+        }
+        if (!open) {
+          g.kids.slice(1).reverse().forEach((child) => {
+            const cr = document.createElement("tr");
+            cr.className = "bill-child bill-row-error";
+            const cc = billRowCells(child);
+            cr.appendChild(tdText(cc[0]));
+            cr.appendChild(tdText(cc[1]));
+            cr.appendChild(tdPill(cc[2]));
+            cr.appendChild(tdText(cc[3]));
+            cr.appendChild(tdText(cc[4]));
+            cr.appendChild(tdText(cc[5]));
+            cr.appendChild(tdText(cc[6]));
+            labelRow(cr, labels);
+            tr.after(cr);
+          });
+        }
+      };
+    }
   });
   pager($("billPager"), data.page, data.total, data.limit, loadBilling);
 }
@@ -701,19 +1089,37 @@ async function loadUserBilling(telegramId) {
 let reportPage = 1;
 async function loadReports(page) {
   if (page) reportPage = page;
-  const data = await api(`/admin/api/reports?page=${reportPage}`);
+  const f = { status: val("reportStatus"), from: val("reportFrom"), to: val("reportTo") };
+  const reset = $("reportReset");
+  if (reset) reset.classList.toggle("hidden", !hasAny(f));
+  const chips = [];
+  if (f.status) chips.push(["status", f.status === "empty" ? "без статуса" : f.status]);
+  if (f.from) chips.push(["from", "с " + f.from]);
+  if (f.to) chips.push(["to", "по " + f.to]);
+  paintChips("reportChips", chips, (key) => {
+    setVal({ status: "reportStatus", from: "reportFrom", to: "reportTo" }[key], "");
+    loadReports(1);
+  });
+  writeRoute("reports", new URLSearchParams(Object.entries(f).filter(([, v]) => v)));
+  const data = await api(`/admin/api/reports?${queryString({ ...f, page: reportPage })}`);
   const body = $("reportRows");
   body.innerHTML = "";
+  const labels = ["Время", "Пользователь", "Подписка до", "Статус", "Гипотеза"];
+  if (!data.items.length) {
+    body.appendChild(emptyRow(5, hasAny(f) ? "Жалоб не нашли" : "Жалоб пока нет"));
+  }
   data.items.forEach((r) => {
     const tr = document.createElement("tr");
     tr.style.cursor = "pointer";
     const who = `${r.telegram_id}` + (r.username ? ` @${r.username}` : "") + (r.first_name ? ` · ${r.first_name}` : "");
     const why = Array.isArray(r.payload && r.payload.why) ? (r.payload.why[0] || "—") : "—";
-    [fmt(r.created_at), who, fmt(r.expire_at), r.panel_status || "—", why].forEach((t) => {
+    const st = r.panel_status || "не решено";
+    [fmt(r.created_at), who, fmt(r.expire_at), st, why].forEach((t) => {
       const td = document.createElement("td");
       td.textContent = t;
       tr.appendChild(td);
     });
+    labelRow(tr, labels);
     tr.onclick = () => {
       $("reportDetail").textContent = JSON.stringify(r.payload || r, null, 2);
     };
@@ -790,8 +1196,14 @@ function renderVpnApps(list) {
 }
 
 function vpnAppCard(app) {
-  const wrap = document.createElement("div");
-  wrap.className = "vpn-app";
+  const wrap = document.createElement("details");
+  wrap.className = "vpn-app panel";
+  const sum = document.createElement("summary");
+  const platsN = (app.platforms || []).length;
+  sum.textContent = (app.name || "Приложение") + " · " + platsN + " платформ";
+  wrap.appendChild(sum);
+  const body = document.createElement("div");
+  body.className = "vpn-app-body";
   const head = document.createElement("div");
   head.className = "vpn-app-head";
   const mk = (cls, placeholder, value, extra) => {
@@ -803,17 +1215,25 @@ function vpnAppCard(app) {
     if (extra) Object.assign(el, extra);
     return el;
   };
+  const nameIn = mk("va-name", "Название", app.name || "", { maxLength: 40 });
+  nameIn.oninput = () => {
+    const n = wrap.querySelectorAll(".va-plat input[type=checkbox]:checked").length;
+    sum.textContent = (nameIn.value || "Приложение") + " · " + n + " платформ";
+  };
   head.appendChild(mk("va-id", "id, латиница", app.id || "", { maxLength: 24 }));
-  head.appendChild(mk("va-name", "Название", app.name || "", { maxLength: 40 }));
+  head.appendChild(nameIn);
   head.appendChild(mk("va-mark", "Значок", app.mark || "", { maxLength: 4 }));
   head.appendChild(mk("va-deep", "happ://add/{url}", app.deep_link || "", { maxLength: 200 }));
   const del = document.createElement("button");
   del.type = "button";
   del.className = "ghost";
   del.textContent = "Убрать";
-  del.onclick = () => wrap.remove();
+  del.onclick = (e) => {
+    e.preventDefault();
+    wrap.remove();
+  };
   head.appendChild(del);
-  wrap.appendChild(head);
+  body.appendChild(head);
   const plats = document.createElement("div");
   plats.className = "va-plats";
   const on = new Set(app.platforms || []);
@@ -825,6 +1245,10 @@ function vpnAppCard(app) {
     cb.type = "checkbox";
     cb.dataset.plat = id;
     cb.checked = on.has(id);
+    cb.onchange = () => {
+      const n = wrap.querySelectorAll(".va-plat input[type=checkbox]:checked").length;
+      sum.textContent = (nameIn.value || "Приложение") + " · " + n + " платформ";
+    };
     const name = document.createElement("span");
     name.textContent = label;
     const store = document.createElement("input");
@@ -838,7 +1262,8 @@ function vpnAppCard(app) {
     row.appendChild(store);
     plats.appendChild(row);
   });
-  wrap.appendChild(plats);
+  body.appendChild(plats);
+  wrap.appendChild(body);
   return wrap;
 }
 
@@ -1016,7 +1441,7 @@ $("logout").onclick = async () => {
   showLogin();
 };
 
-document.querySelectorAll("nav [data-tab]").forEach((b) => {
+document.querySelectorAll("nav [data-tab], .bottom-nav [data-tab]").forEach((b) => {
   b.onclick = () => switchTab(b.dataset.tab);
 });
 document.querySelectorAll("#setNav [data-jump]").forEach((b) => {
@@ -1025,6 +1450,12 @@ document.querySelectorAll("#setNav [data-jump]").forEach((b) => {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 });
+if ($("setNavSelect")) {
+  $("setNavSelect").onchange = () => {
+    const el = $($("setNavSelect").value);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+}
 document.querySelectorAll("#modalTabs [data-pane]").forEach((b) => {
   b.onclick = () => setModalPane(b.dataset.pane);
 });
@@ -1034,8 +1465,17 @@ document.querySelectorAll("#modalTabs [data-pane]").forEach((b) => {
 });
 $("navToggle").onclick = () => setNavOpen(!document.body.classList.contains("nav-open"));
 $("navScrim").onclick = () => setNavOpen(false);
+if ($("themeToggle")) $("themeToggle").onclick = toggleTheme;
+if ($("sidebarCollapse")) {
+  $("sidebarCollapse").onclick = () =>
+    setSidebarCollapsed(!document.documentElement.classList.contains("sidebar-collapsed"));
+}
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
+    if ($("confirmDlg") && !$("confirmDlg").classList.contains("hidden")) {
+      $("confirmCancel").click();
+      return;
+    }
     if (!$("modal").classList.contains("hidden")) {
       closeModal();
       return;
@@ -1052,7 +1492,10 @@ document.addEventListener("keydown", (e) => {
     if (id && $(id)) $(id).focus();
   }
 });
-window.addEventListener("hashchange", () => switchTab(tabFromHash(), { skipHash: true }));
+window.addEventListener("hashchange", () => {
+  if (skipHashWrite) return;
+  switchTab(tabFromHash(), { skipHash: true });
+});
 window.addEventListener("resize", () => {
   if (window.matchMedia("(min-width: 901px)").matches) setNavOpen(false);
 });
@@ -1060,16 +1503,68 @@ $("userSearch").onclick = () => {
   selectedUsers.clear();
   loadUsers(1);
 };
+if ($("userReset")) {
+  $("userReset").onclick = () => {
+    ["userQ", "userStatus", "userTrial", "userDevices", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => setVal(id, ""));
+    selectedUsers.clear();
+    loadUsers(1);
+  };
+}
 $("orderSearch").onclick = () => loadOrders(1);
+if ($("orderReset")) {
+  $("orderReset").onclick = () => {
+    ["orderQ", "orderStatus", "orderFrom", "orderTo"].forEach((id) => setVal(id, ""));
+    loadOrders(1);
+  };
+}
 $("billSearch").onclick = () => loadBilling(1);
+if ($("billReset")) {
+  $("billReset").onclick = () => {
+    ["billQ", "billKind", "billSource", "billFrom", "billTo"].forEach((id) => setVal(id, ""));
+    loadBilling(1);
+  };
+}
 $("refSearch").onclick = () => loadReferrals(1);
-$("userQ").oninput = debounce(() => {
+if ($("refReset")) {
+  $("refReset").onclick = () => {
+    ["refQ", "refReward", "refFrom", "refTo"].forEach((id) => setVal(id, ""));
+    loadReferrals(1);
+  };
+}
+if ($("reportReset")) {
+  $("reportReset").onclick = () => {
+    ["reportStatus", "reportFrom", "reportTo"].forEach((id) => setVal(id, ""));
+    loadReports(1);
+  };
+}
+const userReload = debounce(() => {
   selectedUsers.clear();
   loadUsers(1);
-}, 280);
-$("orderQ").oninput = debounce(() => loadOrders(1), 280);
-$("billQ").oninput = debounce(() => loadBilling(1), 280);
-$("refQ").oninput = debounce(() => loadReferrals(1), 280);
+}, 300);
+$("userQ").oninput = userReload;
+["userStatus", "userTrial", "userDevices", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => {
+  const el = $(id);
+  if (el) el.onchange = userReload;
+});
+$("orderQ").oninput = debounce(() => loadOrders(1), 300);
+["orderStatus", "orderFrom", "orderTo"].forEach((id) => {
+  const el = $(id);
+  if (el) el.onchange = () => loadOrders(1);
+});
+$("billQ").oninput = debounce(() => loadBilling(1), 300);
+["billKind", "billSource", "billFrom", "billTo"].forEach((id) => {
+  const el = $(id);
+  if (el) el.onchange = () => loadBilling(1);
+});
+$("refQ").oninput = debounce(() => loadReferrals(1), 300);
+["refReward", "refFrom", "refTo"].forEach((id) => {
+  const el = $(id);
+  if (el) el.onchange = () => loadReferrals(1);
+});
+["reportStatus", "reportFrom", "reportTo"].forEach((id) => {
+  const el = $(id);
+  if (el) el.onchange = () => loadReports(1);
+});
 $("userQ").onkeydown = (e) => {
   if (e.key === "Enter") {
     selectedUsers.clear();
@@ -1172,6 +1667,12 @@ $("refQ").onkeydown = (e) => {
 };
 
 $("broadcastBtn").onclick = async () => {
+  const text = $("broadcastText").value.trim();
+  if (!text) {
+    $("broadcastOut").textContent = "Введите текст";
+    return;
+  }
+  if (!(await confirmAction("Рассылка всем", "Сообщение уйдёт всем незаблокированным пользователям. Отменить рассылку нельзя."))) return;
   $("broadcastOut").textContent = "Отправка...";
   try {
     const r = await api("/admin/api/broadcast", {
@@ -1233,6 +1734,7 @@ async function loadBackups() {
     rest.onclick = () => restoreBackup({ name: item.name });
     td.appendChild(rest);
     tr.appendChild(td);
+    labelRow(tr, ["Файл", "Размер", "Создан", ""]);
     body.appendChild(tr);
   });
 }
@@ -1254,7 +1756,7 @@ $("backupBtn").onclick = async () => {
 async function restoreBackup(opts) {
   const warn =
     "Текущая база будет полностью заменена данными из бэкапа. Продолжить?";
-  if (!window.confirm(warn)) return;
+  if (!(await confirmAction("Восстановление базы", warn))) return;
   $("restoreOut").textContent = "Восстанавливаю...";
   try {
     let data;
@@ -1312,7 +1814,7 @@ $("balBtn").onclick = async () => {
 $("delBtn").onclick = async () => {
   if (!currentUser) return;
   const id = currentUser.telegram_id;
-  if (!window.confirm(`Удалить пользователя ${id}? Доступ в панели будет отключён.`)) return;
+  if (!(await confirmAction("Удалить пользователя", `Удалить пользователя ${id}? Доступ в панели будет отключён.`))) return;
   await api(`/admin/api/users/${id}/delete`, { method: "POST", body: "{}" });
   closeModal();
   loadUsers();
@@ -1332,7 +1834,7 @@ $("blockBtn").onclick = async () => {
   const msg = on
     ? `Заблокировать ${currentUser.telegram_id}? VPN отключится, бот и кабинет станут недоступны.`
     : `Разблокировать ${currentUser.telegram_id}?`;
-  if (!window.confirm(msg)) return;
+  if (!(await confirmAction(on ? "Блокировка" : "Разблокировка", msg))) return;
   await api(`/admin/api/users/${currentUser.telegram_id}/block`, {
     method: "POST",
     body: JSON.stringify({ blocked: on }),
@@ -1368,7 +1870,7 @@ $("maintBtn").onclick = async () => {
       $("maintNotice").focus();
       return;
     }
-    if (!window.confirm("Включить тех. работы? На любое действие в боте уйдут сохранённые текст и картинка.")) return;
+    if (!(await confirmAction("Тех. работы", "Включить тех. работы? На любое действие в боте уйдут сохранённые текст и картинка."))) return;
     const r = await api("/admin/api/flags", {
       method: "POST",
       body: JSON.stringify({ maintenance: true, message }),
@@ -1409,7 +1911,7 @@ $("maintSaveBtn").onclick = async () => {
 };
 
 $("maintPhotoDel").onclick = async () => {
-  if (!window.confirm("Удалить сохранённую картинку?")) return;
+  if (!(await confirmAction("Картинка", "Удалить сохранённую картинку?"))) return;
   try {
     const res = await fetch("/admin/api/maintenance/photo", {
       method: "DELETE",
@@ -1428,7 +1930,7 @@ $("maintPhotoDel").onclick = async () => {
 $("billBtn").onclick = async () => {
   const f = await api("/admin/api/flags");
   const next = !f.billing_paused;
-  if (next && !window.confirm("Остановить тарификацию? Устройства останутся активными, плата списываться не будет.")) return;
+  if (next && !(await confirmAction("Тарификация", "Остановить тарификацию? Устройства останутся активными, плата списываться не будет."))) return;
   paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ billing_paused: next }) }));
 };
 
@@ -1437,9 +1939,10 @@ $("nudgeBtn").onclick = async () => {
   const next = !f.trial_nudge;
   if (
     next &&
-    !window.confirm(
+    !(await confirmAction(
+      "Напоминание о триале",
       "Включить напоминание? Тем, кто запустил бота больше суток назад и не брал пробный период, уйдёт сообщение."
-    )
+    ))
   ) {
     return;
   }
@@ -1487,7 +1990,7 @@ $("subReplaceBtn").onclick = async () => {
   const bits = [];
   if (applySquads) bits.push("сквады из .env");
   if (revoke) bits.push("новые ссылки, обновление кабинета и уведомление");
-  if (!window.confirm("Заменить подписки у всех: " + bits.join(" и ") + "?")) return;
+  if (!(await confirmAction("Замена подписок", "Заменить подписки у всех: " + bits.join(" и ") + "?"))) return;
   $("subReplaceOut").textContent = "Запускаю...";
   try {
     await api("/admin/api/subscriptions/replace", {
@@ -1501,6 +2004,19 @@ $("subReplaceBtn").onclick = async () => {
 };
 
 (async () => {
+  applyTheme(document.documentElement.getAttribute("data-theme") || "dark");
+  syncSidebarDefault();
+  setSidebarCollapsed(document.documentElement.classList.contains("sidebar-collapsed"));
+  if ($("broadcastText") && $("broadcastPreview")) {
+    $("broadcastText").oninput = () => {
+      $("broadcastPreview").textContent = $("broadcastText").value.trim() || "Превью сообщения";
+    };
+  }
+  if ($("maintNotice") && $("maintPhonePreview")) {
+    $("maintNotice").oninput = () => {
+      $("maintPhonePreview").textContent = $("maintNotice").value.trim() || "Текст оповещения появится здесь";
+    };
+  }
   try {
     const s = await api("/admin/api/session");
     $("brand").textContent = s.brand || "Админка";

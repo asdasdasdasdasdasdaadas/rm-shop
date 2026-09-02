@@ -138,6 +138,15 @@ async def api_stats(request: web.Request) -> web.Response:
     )
 
 
+def _query_extra(request: web.Request, *keys: str) -> dict:
+    out: dict[str, str] = {}
+    for key in keys:
+        val = str(request.query.get(key) or "").strip()
+        if val:
+            out[key] = val
+    return out
+
+
 async def api_users(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -145,7 +154,8 @@ async def api_users(request: web.Request) -> web.Response:
     q = str(request.query.get("q") or "")
     page = max(1, int(request.query.get("page") or 1))
     limit = min(100, max(1, int(request.query.get("limit") or 30)))
-    items, total = await db.admin_list_users(q, limit, (page - 1) * limit)
+    extra = _query_extra(request, "status", "trial", "devices", "bal_min", "bal_max", "from", "to")
+    items, total = await db.admin_list_users(q, limit, (page - 1) * limit, extra)
     rw: RemnawaveClient = request.app["rw"]
     await _enrich_users_online(rw, items)
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
@@ -272,7 +282,9 @@ async def api_referrals(request: web.Request) -> web.Response:
     q = str(request.query.get("q") or "")
     page = max(1, int(request.query.get("page") or 1))
     limit = min(100, max(1, int(request.query.get("limit") or 30)))
-    items, total = await db.admin_list_referrals(q, limit, (page - 1) * limit)
+    items, total = await db.admin_list_referrals(
+        q, limit, (page - 1) * limit, _query_extra(request, "reward", "from", "to")
+    )
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 
@@ -283,7 +295,9 @@ async def api_orders(request: web.Request) -> web.Response:
     q = str(request.query.get("q") or "")
     page = max(1, int(request.query.get("page") or 1))
     limit = min(100, max(1, int(request.query.get("limit") or 30)))
-    items, total = await db.admin_list_orders(q, limit, (page - 1) * limit)
+    items, total = await db.admin_list_orders(
+        q, limit, (page - 1) * limit, _query_extra(request, "status", "from", "to")
+    )
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 
@@ -293,7 +307,9 @@ async def api_reports(request: web.Request) -> web.Response:
         return denied
     page = max(1, int(request.query.get("page") or 1))
     limit = min(100, max(1, int(request.query.get("limit") or 30)))
-    items, total = await db.admin_list_reports(limit, (page - 1) * limit)
+    items, total = await db.admin_list_reports(
+        limit, (page - 1) * limit, _query_extra(request, "status", "from", "to")
+    )
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 
@@ -308,7 +324,13 @@ async def api_billing(request: web.Request) -> web.Response:
         telegram_id = int(raw_tid)
     page = max(1, int(request.query.get("page") or 1))
     limit = min(100, max(1, int(request.query.get("limit") or 40)))
-    items, total = await db.admin_list_billing(q, limit, (page - 1) * limit, telegram_id)
+    items, total = await db.admin_list_billing(
+        q,
+        limit,
+        (page - 1) * limit,
+        telegram_id,
+        _query_extra(request, "kind", "source", "from", "to"),
+    )
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 

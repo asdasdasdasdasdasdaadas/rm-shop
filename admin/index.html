@@ -1,13 +1,26 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
+  <script>
+    (function () {
+      var k = "way-admin-theme";
+      var t = localStorage.getItem(k);
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      document.documentElement.setAttribute("data-theme", t);
+      if (localStorage.getItem("way-admin-sidebar") === "1") {
+        document.documentElement.classList.add("sidebar-collapsed");
+      }
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=20">
+  <link rel="stylesheet" href="app.css?v=21">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -41,43 +54,44 @@
         <div class="nav-label">Сводка</div>
         <button type="button" data-tab="overview" data-title="Обзор" data-lead="Статистика, техработы и тарификация" class="active">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 11l8-7 8 7v8a2 2 0 01-2 2h-4v-6H10v6H6a2 2 0 01-2-2v-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-          Обзор
+          <span class="nav-text">Обзор</span>
         </button>
         <div class="nav-label">Клиенты</div>
         <button type="button" data-tab="users" data-title="Пользователи" data-lead="Поиск, блокировки, баланс и массовые действия">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.8"/><path d="M4 19c.6-3.2 2.8-5 5-5s4.4 1.8 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="17" cy="9" r="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M16.2 14.2c1.8.4 3.3 1.8 3.8 4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          Пользователи
+          <span class="nav-text">Пользователи</span>
         </button>
         <button type="button" data-tab="referrals" data-title="Рефералы" data-lead="Кто пришёл по чьей ссылке">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M12 21c-4.4-2.9-8-6.6-8-11a5 5 0 018-4 5 5 0 018 4c0 4.4-3.6 8.1-8 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-          Рефералы
+          <span class="nav-text">Рефералы</span>
         </button>
         <button type="button" data-tab="orders" data-title="Оплаты" data-lead="Заказы и статусы кассы">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="13" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M8 6V4.8A1.8 1.8 0 019.8 3h4.4A1.8 1.8 0 0116 4.8V6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          Оплаты
+          <span class="nav-text">Оплаты</span>
         </button>
         <button type="button" data-tab="billing" data-title="Биллинг" data-lead="Списания, отключения и правки баланса">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v8M9.5 10.5c.6-1 1.5-1.5 2.5-1.5 1.6 0 2.5.9 2.5 2s-.9 2-2.5 2-2.5.8-2.5 2 .9 2 2.5 2c1.1 0 2-.5 2.6-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          Биллинг
+          <span class="nav-text">Биллинг</span>
         </button>
         <button type="button" data-tab="reports" data-title="Жалобы VPN" data-lead="Сообщения «VPN не работает»">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M12 8v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16.2" r="1" fill="currentColor"/><path d="M11.1 4.8L3.6 18.2A2 2 0 005.4 21h13.2a2 2 0 001.8-2.8L12.9 4.8a1 1 0 00-1.8 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-          Жалобы VPN
+          <span class="nav-text">Жалобы VPN</span>
         </button>
         <div class="nav-label">Сервис</div>
         <button type="button" data-tab="broadcast" data-title="Рассылка" data-lead="Сообщение всем, кто запускал бота">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 11l16-6-6 16-2.5-6.5L4 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-          Рассылка
+          <span class="nav-text">Рассылка</span>
         </button>
         <button type="button" data-tab="backups" data-title="Бэкапы" data-lead="Дампы базы и восстановление">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M7 7h10v12H7z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 4h6v3H9zM9 12h6M9 16h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          Бэкапы
+          <span class="nav-text">Бэкапы</span>
         </button>
         <button type="button" data-tab="settings" data-title="Настройки" data-lead="Цены, устройства, триал и промо">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 4.5v2M12 17.5v2M4.5 12h2M17.5 12h2M6.4 6.4l1.4 1.4M16.2 16.2l1.4 1.4M17.6 6.4l-1.4 1.4M7.8 16.2l-1.4 1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          Настройки
+          <span class="nav-text">Настройки</span>
         </button>
       </nav>
+      <button type="button" id="sidebarCollapse" class="ghost sidebar-toggle" aria-label="Свернуть меню">Свернуть</button>
       <button type="button" id="logout" class="ghost logout">Выйти</button>
     </aside>
     <div class="workspace">
@@ -87,20 +101,32 @@
             <span></span><span></span><span></span>
           </button>
           <div class="topbar-copy">
+            <p class="crumb" id="pageCrumb">Админка / Обзор</p>
             <h1 id="pageTitle">Обзор</h1>
             <p id="pageLead" class="muted">Статистика, техработы и тарификация</p>
           </div>
         </div>
-        <div class="top-flags">
-          <span id="flagMaint" class="flag flag-ok">Сервис работает</span>
-          <span id="flagBill" class="flag flag-ok">Тарификация идёт</span>
-          <span id="flagNudge" class="flag flag-ok">Напоминание о триале выкл</span>
+        <div class="topbar-actions">
+          <button type="button" id="themeToggle" class="icon-btn" aria-label="Тема">
+            <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <svg id="themeIconMoon" class="hidden" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 4.5A8 8 0 108 19.5 7 7 0 0016 4.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="top-flags">
+            <span id="flagMaint" class="flag flag-ok">Сервис работает</span>
+            <span id="flagBill" class="flag flag-ok">Тарификация идёт</span>
+            <span id="flagNudge" class="flag flag-ok">Напоминание о триале выкл</span>
+          </div>
         </div>
       </header>
       <main>
         <section id="tab-overview">
-          <div class="section-label">Показатели</div>
-          <div id="cards" class="cards"></div>
+          <div id="statsErr" class="banner-error hidden"></div>
+          <div class="section-label">Аудитория</div>
+          <div id="cardsAudience" class="cards cards-snap"></div>
+          <div class="section-label">Финансы</div>
+          <div id="cardsFinance" class="cards cards-snap"></div>
+          <div class="section-label">Проблемы</div>
+          <div id="cardsIssues" class="cards cards-snap"></div>
           <div class="grid2">
             <div class="panel">
               <h3>Заказы по статусу</h3>
@@ -174,15 +200,39 @@
             </div>
             <p id="maintPhotoHint" class="muted"></p>
             <img id="maintPreview" class="maint-preview hidden" alt="Превью оповещения">
+            <div class="phone-mock" aria-hidden="true">
+              <div class="phone-screen" id="maintPhonePreview">Текст оповещения появится здесь</div>
+            </div>
             <p id="opsHint" class="muted"></p>
           </div>
         </section>
 
         <section id="tab-users" class="hidden">
-          <div class="toolbar">
-            <input id="userQ" type="search" placeholder="ID, username, имя или «блок»">
+          <div class="filters" id="userFilters">
+            <input id="userQ" type="search" placeholder="ID, username, имя">
+            <select id="userStatus" aria-label="Статус">
+              <option value="">Статус: все</option>
+              <option value="ok">Активен</option>
+              <option value="block">Блок</option>
+            </select>
+            <select id="userTrial" aria-label="Триал">
+              <option value="">Триал: все</option>
+              <option value="yes">Да</option>
+              <option value="no">Нет</option>
+            </select>
+            <select id="userDevices" aria-label="Устройства">
+              <option value="">Устройства: все</option>
+              <option value="yes">Есть</option>
+              <option value="no">Нет</option>
+            </select>
+            <input id="userBalMin" type="number" placeholder="Баланс от" min="0">
+            <input id="userBalMax" type="number" placeholder="Баланс до" min="0">
+            <input id="userFrom" type="date" aria-label="Регистрация с">
+            <input id="userTo" type="date" aria-label="Регистрация по">
             <button type="button" id="userSearch">Найти</button>
+            <button type="button" id="userReset" class="ghost hidden">Сбросить фильтры</button>
           </div>
+          <div id="userChips" class="filter-chips"></div>
           <div id="bulkBar" class="toolbar bulk-bar is-empty">
             <span id="userSelCount" class="chip">Выбрано: 0</span>
             <button type="button" id="bulkBlock" class="danger">Заблокировать</button>
@@ -199,7 +249,7 @@
             <button type="button" id="bulkDeleteMatch" class="danger">Удалить по поиску</button>
           </details>
           <div class="table-wrap">
-            <table>
+            <table class="table-as-cards">
               <thead>
                 <tr>
                   <th class="check-col"><input id="userSelectAll" type="checkbox" aria-label="Выбрать страницу"></th>
@@ -223,12 +273,21 @@
 
         <section id="tab-referrals" class="hidden">
           <p class="muted intro">Поиск по ID, username или имени любой из сторон.</p>
-          <div class="toolbar">
+          <div class="filters">
             <input id="refQ" type="search" placeholder="ID, username, имя">
+            <select id="refReward" aria-label="Награда">
+              <option value="">Награда: все</option>
+              <option value="yes">Есть</option>
+              <option value="no">Нет</option>
+            </select>
+            <input id="refFrom" type="date" aria-label="С">
+            <input id="refTo" type="date" aria-label="По">
             <button type="button" id="refSearch">Найти</button>
+            <button type="button" id="refReset" class="ghost hidden">Сбросить фильтры</button>
           </div>
+          <div id="refChips" class="filter-chips"></div>
           <div class="table-wrap">
-            <table>
+            <table class="table-as-cards">
               <thead>
                 <tr>
                   <th>Пришёл</th>
@@ -244,12 +303,23 @@
         </section>
 
         <section id="tab-orders" class="hidden">
-          <div class="toolbar">
-            <input id="orderQ" type="search" placeholder="order_id, payment_id, статус">
+          <div class="filters">
+            <input id="orderQ" type="search" placeholder="order_id, payment_id">
+            <select id="orderStatus" aria-label="Статус">
+              <option value="">Статус: все</option>
+              <option value="created">created</option>
+              <option value="paid">paid</option>
+              <option value="granted">granted</option>
+              <option value="failed">failed</option>
+            </select>
+            <input id="orderFrom" type="date" aria-label="С">
+            <input id="orderTo" type="date" aria-label="По">
             <button type="button" id="orderSearch">Найти</button>
+            <button type="button" id="orderReset" class="ghost hidden">Сбросить фильтры</button>
           </div>
+          <div id="orderChips" class="filter-chips"></div>
           <div class="table-wrap">
-            <table>
+            <table class="table-as-cards">
               <thead>
                 <tr>
                   <th>Заказ</th>
@@ -266,13 +336,33 @@
         </section>
 
         <section id="tab-billing" class="hidden">
-          <p class="muted intro">Списания за сутки, отключения VPN, правки баланса из админки. Поиск по ID, имени, устройству или типу события (charge, disable, admin_balance).</p>
-          <div class="toolbar">
-            <input id="billQ" type="search" placeholder="ID, username, устройство, тип">
+          <p class="muted intro">Списания за сутки, отключения VPN, правки баланса из админки.</p>
+          <p id="billToday" class="chip">За сегодня: —</p>
+          <div class="filters">
+            <input id="billQ" type="search" placeholder="ID, username, устройство">
+            <select id="billKind" aria-label="Тип">
+              <option value="">Тип: все</option>
+              <option value="charge">списание</option>
+              <option value="disable">отключение</option>
+              <option value="admin_balance">баланс</option>
+              <option value="error">ошибка</option>
+              <option value="device_delete">удаление</option>
+              <option value="trust">обещанный</option>
+            </select>
+            <select id="billSource" aria-label="Источник">
+              <option value="">Источник: все</option>
+              <option value="cron">тарификация</option>
+              <option value="admin">админка</option>
+              <option value="user">кабинет</option>
+            </select>
+            <input id="billFrom" type="date" aria-label="С">
+            <input id="billTo" type="date" aria-label="По">
             <button type="button" id="billSearch">Найти</button>
+            <button type="button" id="billReset" class="ghost hidden">Сбросить фильтры</button>
           </div>
+          <div id="billChips" class="filter-chips"></div>
           <div class="table-wrap">
-            <table>
+            <table class="table-as-cards">
               <thead>
                 <tr>
                   <th>Время</th>
@@ -291,9 +381,20 @@
         </section>
 
         <section id="tab-reports" class="hidden">
-          <p class="muted intro">Жалобы «VPN не работает» с диагностикой из кабинета и Remnawave. Нажмите строку, чтобы открыть полный снимок.</p>
+          <p class="muted intro">Жалобы «VPN не работает». Нажмите строку, чтобы открыть полный снимок.</p>
+          <div class="filters">
+            <select id="reportStatus" aria-label="Статус">
+              <option value="">Статус: все</option>
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="empty">без статуса</option>
+            </select>
+            <input id="reportFrom" type="date" aria-label="С">
+            <input id="reportTo" type="date" aria-label="По">
+            <button type="button" id="reportReset" class="ghost hidden">Сбросить фильтры</button>
+          </div>
+          <div id="reportChips" class="filter-chips"></div>
           <div class="table-wrap">
-            <table>
+            <table class="table-as-cards">
               <thead>
                 <tr>
                   <th>Время</th>
@@ -318,6 +419,8 @@
             <h3>Новое сообщение</h3>
             <p class="muted">Уйдёт всем, кто когда-либо запускал бота. Заблокированные не получают рассылку.</p>
             <textarea id="broadcastText" rows="8" placeholder="Текст сообщения"></textarea>
+            <p id="broadcastCount" class="muted">Получатели: после входа покажем оценку по базе</p>
+            <div class="chat-preview" id="broadcastPreview">Превью сообщения</div>
             <button type="button" id="broadcastBtn">Отправить</button>
             <p id="broadcastOut" class="muted"></p>
           </div>
@@ -342,10 +445,7 @@
             <p id="restoreOut" class="muted"></p>
           </div>
           <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Файл</th>
+            <table class="table-as-cards">
                   <th>Размер</th>
                   <th>Создан</th>
                   <th></th>
@@ -358,6 +458,14 @@
 
         <section id="tab-settings" class="hidden">
           <p class="muted intro">Меняется сразу, без правки .env. Токены, панель и база здесь не показываются.</p>
+          <select id="setNavSelect" class="set-nav-select" aria-label="Раздел настроек">
+            <option value="set-brand">Бренд</option>
+            <option value="set-devices">Устройства</option>
+            <option value="set-apps">Клиенты</option>
+            <option value="set-prices">Цены</option>
+            <option value="set-trial">Триал</option>
+            <option value="set-notices">Тексты</option>
+          </select>
           <div class="seg settings-nav" id="setNav">
             <button type="button" data-jump="set-brand" class="ghost">Бренд</button>
             <button type="button" data-jump="set-devices" class="ghost">Устройства</button>
@@ -535,6 +643,12 @@
         </section>
       </main>
     </div>
+    <nav class="bottom-nav" aria-label="Основные разделы">
+      <button type="button" data-tab="overview">Обзор</button>
+      <button type="button" data-tab="users">Пользователи</button>
+      <button type="button" data-tab="orders">Оплаты</button>
+      <button type="button" data-tab="settings">Настройки</button>
+    </nav>
   </div>
 
   <div id="modal" class="modal hidden">
@@ -613,7 +727,17 @@
       </div>
     </div>
   </div>
+  <div id="confirmDlg" class="modal hidden">
+    <div class="modal-card confirm-card">
+      <h3 id="confirmTitle">Подтверждение</h3>
+      <p id="confirmBody" class="muted"></p>
+      <div class="ops">
+        <button type="button" id="confirmCancel" class="ghost">Отмена</button>
+        <button type="button" id="confirmOk" class="danger">Продолжить</button>
+      </div>
+    </div>
+  </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>
