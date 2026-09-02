@@ -546,6 +546,34 @@ async def devices_due_for_billing() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+async def devices_to_retry_disable() -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT d.id, d.telegram_id, d.title, d.remnawave_id
+        FROM devices d
+        WHERE d.remnawave_id IS NOT NULL
+          AND d.telegram_id NOT IN (SELECT telegram_id FROM users WHERE blocked_at IS NOT NULL)
+          AND EXISTS (
+            SELECT 1
+            FROM billing_events e
+            WHERE e.device_id = d.id
+              AND e.kind = 'error'
+              AND COALESCE(e.note, '') = 'Панель не отключила устройство'
+              AND e.created_at >= (timezone('utc', now()))::date
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM billing_events e
+            WHERE e.device_id = d.id
+              AND e.kind IN ('disable', 'charge', 'pause')
+              AND e.created_at >= (timezone('utc', now()))::date
+          )
+        ORDER BY d.id
+        """
+    )
+    return [dict(r) for r in rows]
+
+
 async def mark_device_billed(device_id: int) -> None:
     await _pool_req().execute(
         "UPDATE devices SET last_billed_on = (timezone('utc', now()))::date WHERE id = $1",

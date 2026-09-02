@@ -295,6 +295,27 @@ class RemnawaveClient:
         users = _as_users(data)
         return users[0] if users else body
 
+    async def _user_action(self, user: dict, action: str) -> dict:
+        uid = panel_user_key(user)
+        numeric = user.get("id")
+        idents: list[str] = []
+        if uid:
+            idents.append(str(uid))
+        if numeric is not None and str(numeric).strip() not in idents:
+            idents.append(str(numeric).strip())
+        last: RemnawaveError | None = None
+        for ident in idents:
+            for path in (f"/users/{ident}/actions/{action}", f"/users/{ident}/{action}"):
+                try:
+                    data = await self._request("POST", path, json={})
+                    users = _as_users(data)
+                    return users[0] if users else user
+                except RemnawaveError as exc:
+                    last = exc
+        if last:
+            raise last
+        raise RemnawaveError(f"Не удалось выполнить {action}")
+
     async def extend_panel_user(self, panel_user_id: int, days: int) -> dict:
         user = await self.get_user_by_id(panel_user_id)
         if not user:
@@ -314,24 +335,28 @@ class RemnawaveClient:
         user = await self.get_user_by_id(panel_user_id)
         if not user:
             raise RemnawaveError("Устройство в панели не найдено")
+        try:
+            user = await self._user_action(user, "enable")
+        except RemnawaveError:
+            user = await self.update_user(user, {"status": "ACTIVE"})
         now = datetime.now(timezone.utc)
         current = parse_expire(user.get("expireAt"))
-        patch: dict[str, Any] = {"status": "ACTIVE"}
         if not current or current <= now:
-            patch["expireAt"] = iso_expire(now + timedelta(days=1))
-        return await self.update_user(user, patch)
+            user = await self.update_user(user, {"expireAt": iso_expire(now + timedelta(days=1))})
+        return user
 
     async def disable_panel_user(self, panel_user_id: int) -> None:
         user = await self.get_user_by_id(panel_user_id)
         if not user:
             return
-        await self.update_user(
-            user,
-            {
-                "status": "DISABLED",
-                "expireAt": iso_expire(datetime.now(timezone.utc)),
-            },
-        )
+        if str(user.get("status") or "").upper() in {"DISABLED", "EXPIRED"}:
+            return
+        try:
+            await self._user_action(user, "disable")
+            return
+        except RemnawaveError:
+            pass
+        await self.update_user(user, {"status": "DISABLED"})
 
     async def delete_panel_user(self, panel_user_id: int) -> None:
         user = await self.get_user_by_id(panel_user_id)

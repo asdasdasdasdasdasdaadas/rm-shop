@@ -57,6 +57,9 @@ def validate_shop(body: dict) -> dict:
     out["trial_enabled"] = bool(body.get("trial_enabled"))
     out["trial_days"] = _as_int(body.get("trial_days"), 1, 90, "Дни триала")
     out["referral_reward_rub"] = _as_int(body.get("referral_reward_rub"), 0, 100000, "Реф. в рублях")
+    out["trust_enabled"] = bool(body.get("trust_enabled"))
+    out["trust_days"] = _as_int(body.get("trust_days"), 1, 30, "Дни обещанного платежа")
+    out["trust_fee_rub"] = _as_int(body.get("trust_fee_rub"), 0, 10000, "Комиссия обещанного платежа")
     out["referral_reward_days"] = _as_int(body.get("referral_reward_days"), 0, 365, "Реф. дни пригласившему")
     out["referral_invitee_days"] = _as_int(body.get("referral_invitee_days"), 0, 365, "Реф. дни другу")
     out["balance_topup_min"] = _as_int(body.get("balance_topup_min"), 1, 100000, "Мин. пополнение")
@@ -97,6 +100,9 @@ def snapshot() -> dict:
             "trial_enabled": s.trial_enabled,
             "trial_days": s.trial_days,
             "referral_reward_rub": s.referral_reward_rub,
+            "trust_enabled": s.trust_enabled,
+            "trust_days": s.trust_days,
+            "trust_fee_rub": s.trust_fee_rub,
             "referral_reward_days": s.referral_reward_days,
             "referral_invitee_days": s.referral_invitee_days,
             "balance_topup_min": s.balance_topup_min,

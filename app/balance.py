@@ -114,6 +114,7 @@ async def _bill_due_device(
             note="Панель не отключила устройство",
         )
         return "error"
+    await db.mark_device_billed(device_id)
     await db.log_billing_event(
         tg_id,
         "disable",
@@ -136,7 +137,13 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
     price = max(1, settings.vpn_day_price_rub)
     paused = await db.flag_on("billing_paused")
     warned: set[int] = set()
+    seen: set[int] = set()
     for item in await db.devices_due_for_billing():
+        seen.add(int(item["id"]))
+        await _bill_due_device(rw, bot, item, price, paused, warned)
+    for item in await db.devices_to_retry_disable():
+        if int(item["id"]) in seen:
+            continue
         await _bill_due_device(rw, bot, item, price, paused, warned)
     await send_low_balance_cabinet_links(bot)
 

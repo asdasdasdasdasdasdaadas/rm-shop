@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     balance_topup_max: int = 400
     balance_topup_step: int = 50
     referral_reward_rub: int = 50
+    trust_enabled: bool = True
+    trust_days: int = 3
+    trust_fee_rub: int = 12
     balance_charge_interval: int = 600
     promo_enabled: bool = True
     promo_codes: str = "TEST:3"
@@ -166,6 +169,9 @@ SHOP_KEYS = frozenset(
         "trial_enabled",
         "trial_days",
         "referral_reward_rub",
+        "trust_enabled",
+        "trust_days",
+        "trust_fee_rub",
         "referral_reward_days",
         "referral_invitee_days",
         "balance_topup_min",

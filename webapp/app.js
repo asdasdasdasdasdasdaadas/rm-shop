@@ -1600,7 +1600,7 @@ function paint(me) {
   const trustHelp = $("trustHelp");
   const menuTrust = $("menuTrust");
   const t = me.trust;
-  const showTrust = Boolean(me.balance_enabled && t);
+  const showTrust = Boolean(me.balance_enabled && t && t.enabled !== false);
   if (trustHelp) trustHelp.classList.toggle("hidden", !showTrust);
   if (menuTrust) menuTrust.classList.toggle("hidden", !showTrust);
   if (!showTrust) {
@@ -1617,7 +1617,9 @@ function paint(me) {
     trustOpen.classList.add("hidden");
     trustBtn.classList.remove("hidden");
     trustBtn.textContent = t.available
-      ? `Обещанный платёж · ${daysLabel(t.days)} + ${rublesLabel(t.fee || 12)}`
+      ? Number(t.fee) > 0
+        ? `Обещанный платёж · ${daysLabel(t.days)} + ${rublesLabel(t.fee)}`
+        : `Обещанный платёж · ${daysLabel(t.days)}`
       : `Обещанный платёж · ${daysLabel(t.days)}`;
   }
   const trialHome = $("trialHomeBtn");
@@ -1794,11 +1796,12 @@ function openTrust() {
     return;
   }
   const credit = rublesLabel(t.amount);
-  const fee = rublesLabel(t.fee || 12);
-  const repay = rublesLabel(t.repay || (t.amount + (t.fee || 12)));
+  const fee = Number(t.fee) || 0;
+  const repay = rublesLabel(t.repay || t.amount + fee);
   const text =
-    `Начислим ${credit} — ${daysLabel(t.days)} одного устройства. ` +
-    `За услугу спишется ещё ${fee}. Через ${daysLabel(t.days)} вернём ${repay}, даже если баланс уйдёт в минус.`;
+    `Начислим ${credit} — ${daysLabel(t.days)} одного устройства.` +
+    (fee > 0 ? ` За услугу спишется ещё ${rublesLabel(fee)}.` : "") +
+    ` Через ${daysLabel(t.days)} вернём ${repay}, даже если баланс уйдёт в минус.`;
   const go = async () => {
     try {
       await api("/api/trust", { method: "POST", body: "{}" });

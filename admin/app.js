@@ -90,7 +90,7 @@ function switchTab(name) {
 function card(label, value) {
   const el = document.createElement("div");
   el.className = "card";
-  el.innerHTML = `<div class="n"></div><div class="l"></div>`;
+  el.innerHTML = `<div class="l"></div><div class="n"></div>`;
   el.querySelector(".n").textContent = value;
   el.querySelector(".l").textContent = label;
   return el;
@@ -584,6 +584,9 @@ async function loadSettings() {
   set("setTopMax", v.balance_topup_max);
   set("setTopStep", v.balance_topup_step);
   set("setRefRub", v.referral_reward_rub);
+  set("setTrustOn", v.trust_enabled);
+  set("setTrustDays", v.trust_days);
+  set("setTrustFee", v.trust_fee_rub);
   set("setP1", v.plan_1m_rub);
   set("setP3", v.plan_3m_rub);
   set("setP6", v.plan_6m_rub);
@@ -715,6 +718,9 @@ $("shopForm").addEventListener("submit", async (e) => {
     balance_topup_max: num("setTopMax"),
     balance_topup_step: num("setTopStep"),
     referral_reward_rub: num("setRefRub"),
+    trust_enabled: $("setTrustOn").checked,
+    trust_days: num("setTrustDays"),
+    trust_fee_rub: num("setTrustFee"),
     plan_1m_rub: num("setP1"),
     plan_3m_rub: num("setP3"),
     plan_6m_rub: num("setP6"),
