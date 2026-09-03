@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="23">
+  <meta name="admin-build" content="25">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -173,6 +173,16 @@
               <div class="ops-kicker">Триал</div>
               <button type="button" id="nudgeBtn">Напоминание: выкл</button>
               <p class="muted tight">Через сутки тем, кто запустил бота и так и не взял пробный период, уйдёт сообщение «давайте попробуем».</p>
+            </div>
+            <div class="panel ops-card">
+              <div class="ops-kicker">Друзья</div>
+              <button type="button" id="inviteNudgeBtn">Приглашение: выкл</button>
+              <p class="muted tight">Через двое суток после запуска бота уйдёт ссылка «приведи друга» и кнопка отправки.</p>
+            </div>
+            <div class="panel ops-card">
+              <div class="ops-kicker">Справка</div>
+              <button type="button" id="infoNudgeBtn">Справка: выкл</button>
+              <p class="muted tight">Через четверо суток уйдёт короткое объяснение кабинета, списания и истории.</p>
             </div>
           </div>
 
@@ -747,6 +757,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=24"></script>
+  <script src="app.js?v=25"></script>
 </body>
 </html>

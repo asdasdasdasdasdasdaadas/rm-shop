@@ -470,6 +470,8 @@ function paintFlags(f) {
   const m = !!f.maintenance;
   const p = !!f.billing_paused;
   const n = !!f.trial_nudge;
+  const inv = !!f.invite_nudge;
+  const inf = !!f.info_nudge;
   $("maintBtn").textContent = m ? "Тех. работы: вкл" : "Тех. работы: выкл";
   $("maintBtn").classList.toggle("warn", m);
   $("billBtn").textContent = p ? "Тарификация: стоп" : "Тарификация: идёт";
@@ -477,6 +479,14 @@ function paintFlags(f) {
   if ($("nudgeBtn")) {
     $("nudgeBtn").textContent = n ? "Напоминание: вкл" : "Напоминание: выкл";
     $("nudgeBtn").classList.toggle("warn", n);
+  }
+  if ($("inviteNudgeBtn")) {
+    $("inviteNudgeBtn").textContent = inv ? "Приглашение: вкл" : "Приглашение: выкл";
+    $("inviteNudgeBtn").classList.toggle("warn", inv);
+  }
+  if ($("infoNudgeBtn")) {
+    $("infoNudgeBtn").textContent = inf ? "Справка: вкл" : "Справка: выкл";
+    $("infoNudgeBtn").classList.toggle("warn", inf);
   }
   if (typeof f.maintenance_notice === "string") {
     $("maintNotice").value = f.maintenance_notice;
@@ -1948,6 +1958,36 @@ $("nudgeBtn").onclick = async () => {
     return;
   }
   paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ trial_nudge: next }) }));
+};
+
+$("inviteNudgeBtn").onclick = async () => {
+  const f = await api("/admin/api/flags");
+  const next = !f.invite_nudge;
+  if (
+    next &&
+    !(await confirmAction(
+      "Приглашение друга",
+      "Включить рассылку? Тем, кто запустил бота больше двух суток назад, уйдёт ссылка «приведи друга»."
+    ))
+  ) {
+    return;
+  }
+  paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ invite_nudge: next }) }));
+};
+
+$("infoNudgeBtn").onclick = async () => {
+  const f = await api("/admin/api/flags");
+  const next = !f.info_nudge;
+  if (
+    next &&
+    !(await confirmAction(
+      "Справка о кабинете",
+      "Включить рассылку? Тем, кто в боте уже четыре суток, уйдёт короткое объяснение кабинета и списания."
+    ))
+  ) {
+    return;
+  }
+  paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ info_nudge: next }) }));
 };
 
 let subPoll = null;

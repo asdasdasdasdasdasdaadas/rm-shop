@@ -685,6 +685,10 @@ async def api_flags(request: web.Request) -> web.Response:
         await db.set_flag("billing_paused", bool(body.get("billing_paused")))
     if "trial_nudge" in body:
         await db.set_flag("trial_nudge", bool(body.get("trial_nudge")))
+    if "invite_nudge" in body:
+        await db.set_flag("invite_nudge", bool(body.get("invite_nudge")))
+    if "info_nudge" in body:
+        await db.set_flag("info_nudge", bool(body.get("info_nudge")))
     flags = await db.get_flags()
     return web.json_response({"ok": True, **flags, "maintenance_has_photo": has_photo()})
 

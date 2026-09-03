@@ -44,6 +44,19 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Давайте попробуем: {extra} "
         "Если не зайдёт — просто не продлевайте."
     ),
+    "invite_nudge": (
+        "{name}, за друга можно получить {reward}.\n\n"
+        "Когда человек перейдёт по вашей ссылке и нажмёт «Попробовать бесплатно», "
+        "бонус придёт вам обоим.\n\n"
+        "Ваша ссылка:\n{link}"
+    ),
+    "info_nudge": (
+        "Как устроен кабинет.\n\n"
+        "Сутки VPN списываются только с добавленных устройств, по {price} за каждое в день. "
+        "Пока устройств нет, баланс не тратится.\n\n"
+        "Кабинет всегда можно открыть из бота, даже если VPN вдруг отключится."
+        "{story}"
+    ),
     "referral_referrer_balance": (
         "<b>Поздравляем</b>\n\n"
         "Друг {name} попробовал VPN бесплатно по вашей ссылке.\n"
@@ -80,6 +93,8 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "cabinet_link", "title": "Ссылка на кабинет без VPN", "hint": "{url}"},
     {"key": "trust_collect", "title": "Списание обещанного платежа", "hint": "{amount}"},
     {"key": "trial_nudge", "title": "Напоминание взять триал", "hint": "{name} {extra}"},
+    {"key": "invite_nudge", "title": "Пригласить друга", "hint": "{name} {reward} {link}"},
+    {"key": "info_nudge", "title": "Как устроен кабинет", "hint": "{price} {story}"},
     {"key": "referral_referrer_balance", "title": "Реферал: пригласившему (баланс)", "hint": "{name} {amount}"},
     {"key": "referral_invitee_balance", "title": "Реферал: другу (баланс)", "hint": "{amount}"},
     {"key": "referral_referrer_days", "title": "Реферал: пригласившему (дни)", "hint": "{name} {days} {expire} {sub_block}"},
