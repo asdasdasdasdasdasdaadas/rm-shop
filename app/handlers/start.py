@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from app import db
@@ -18,6 +18,7 @@ from app.keyboards import (
     profile_text,
     welcome_text,
 )
+from app.referrals import maybe_reward_referrer, trial_is_available
 from app.remnawave import RemnawaveClient
 from app.sync import fetch_panel, has_access
 
@@ -68,12 +69,12 @@ async def ack(callback: CallbackQuery, text: str | None = None, alert: bool = Fa
 
 
 def _parse_ref(payload: str | None) -> int | None:
-    if not payload:
-        return None
-    parts = payload.split(maxsplit=1)
-    arg = parts[1] if len(parts) > 1 else ""
-    if arg.startswith("ref_"):
-        raw = arg.removeprefix("ref_")
+    raw = (payload or "").strip()
+    if raw.startswith("/start"):
+        parts = raw.split(maxsplit=1)
+        raw = parts[1] if len(parts) > 1 else ""
+    if raw.startswith("ref_"):
+        raw = raw.removeprefix("ref_")
         if raw.isdigit():
             return int(raw)
     return None
@@ -88,7 +89,12 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
     if from_user:
         panel = await fetch_panel(rw, from_user.id)
         local = await db.get_user(from_user.id)
-    trial_available = bool(settings.trial_enabled and local and not local["trial_used"])
+        if local and local.get("referred_by") and not local.get("referral_rewarded"):
+            await maybe_reward_referrer(
+                target.bot, rw, from_user.id, from_user.first_name
+            )
+            local = await db.get_user(from_user.id)
+    trial_available = trial_is_available(local)
     access = has_access(local, panel)
     text = profile_text(
         from_user.first_name if from_user else None,
@@ -144,8 +150,8 @@ async def gate_or_continue(event: Message | CallbackQuery) -> bool:
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, rw: RemnawaveClient) -> None:
-    ref = _parse_ref(message.text)
+async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObject) -> None:
+    ref = _parse_ref(command.args) or _parse_ref(message.text)
     await db.upsert_user(
         message.from_user.id,
         message.from_user.username,

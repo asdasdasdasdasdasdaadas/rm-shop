@@ -65,7 +65,18 @@ async def upsert_user(
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (telegram_id) DO UPDATE SET
             username = EXCLUDED.username,
-            first_name = EXCLUDED.first_name
+            first_name = EXCLUDED.first_name,
+            referred_by = CASE
+                WHEN users.referred_by IS NOT NULL THEN users.referred_by
+                WHEN EXCLUDED.referred_by IS NULL THEN users.referred_by
+                WHEN users.trial_used
+                  OR COALESCE(users.has_paid_topup, FALSE)
+                  OR COALESCE(users.balance_rub, 0) <> 0
+                  OR users.remnawave_id IS NOT NULL
+                  OR users.referral_rewarded
+                THEN users.referred_by
+                ELSE EXCLUDED.referred_by
+            END
         """,
         telegram_id,
         username,

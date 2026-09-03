@@ -21,7 +21,7 @@ from app.admin import mount_admin
 from app.billing import fulfill_rollypay_order, subscription_issued_text
 from app.config import ROOT, get_settings
 from app.keyboards import back_profile_keyboard, connect_keyboard, support_url
-from app.referrals import maybe_reward_referrer, trial_grant_days, trial_grant_rub
+from app.referrals import maybe_reward_referrer, trial_grant_days, trial_grant_rub, trial_is_available
 from app.remnawave import (
     PANEL_LEASE_DAYS,
     RemnawaveClient,
@@ -310,7 +310,7 @@ async def api_me(request: web.Request) -> web.Response:
             "brand_name": settings.brand_name,
             "balance_enabled": settings.balance_enabled,
             "promo_enabled": settings.promo_enabled,
-            "trial_available": bool(settings.trial_enabled and local and not local["trial_used"]),
+            "trial_available": trial_is_available(local),
             "trial_days": trial_grant_days(local) if not settings.balance_enabled else settings.trial_days,
             "trial_rub": trial_grant_rub() if settings.balance_enabled else 0,
             "days": days,
@@ -390,10 +390,10 @@ async def api_trial(request: web.Request) -> web.Response:
         return denied
     settings = get_settings()
     local = await db.get_user(telegram_id)
-    if not settings.trial_enabled:
-        return json_error("Сейчас нельзя попробовать бесплатно")
     if local and local["trial_used"]:
         return json_error("Вы уже пробовали бесплатно")
+    if not trial_is_available(local):
+        return json_error("Сейчас нельзя попробовать бесплатно")
     rw: RemnawaveClient = request.app["rw"]
     try:
         if settings.balance_enabled:

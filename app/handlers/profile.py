@@ -21,7 +21,7 @@ from app.remnawave import (
     RemnawaveError,
     is_subscription_active,
 )
-from app.referrals import maybe_reward_referrer, invitee_extra_days, trial_grant_days, trial_grant_rub
+from app.referrals import maybe_reward_referrer, invitee_extra_days, trial_grant_days, trial_grant_rub, trial_is_available
 from app.reports import ReportCooldown, submit_vpn_report
 from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid
 from app.sync import fetch_panel
@@ -46,11 +46,11 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     await ack(callback)
     settings = get_settings()
     local = await db.get_user(callback.from_user.id)
-    if not settings.trial_enabled:
+    if not trial_is_available(local):
+        if local and local.get("trial_used"):
+            await show_profile(callback, rw)
+            return
         await callback.message.edit_text("Сейчас нельзя попробовать бесплатно.", reply_markup=back_profile_keyboard())
-        return
-    if local and local["trial_used"]:
-        await show_profile(callback, rw)
         return
     if settings.balance_enabled:
         amount = trial_grant_rub()

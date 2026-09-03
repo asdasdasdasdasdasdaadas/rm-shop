@@ -29,6 +29,17 @@ def trial_grant_rub() -> int:
     return max(0, settings.trial_days) * max(1, settings.vpn_day_price_rub)
 
 
+def trial_is_available(local: dict | None) -> bool:
+    if not local or local.get("trial_used"):
+        return False
+    settings = get_settings()
+    if int(settings.trial_days or 0) < 1:
+        return False
+    if settings.trial_enabled:
+        return True
+    return not bool(local.get("has_paid_topup") or local.get("remnawave_id"))
+
+
 async def maybe_reward_referrer(
     bot: Bot,
     rw: RemnawaveClient,
