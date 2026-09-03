@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -37,6 +38,7 @@ from app.balance import sync_user_billing
 from app.block import blocked_notice
 from app.maintenance import current_text
 from app.vpn_apps import public_vpn_apps
+from app.story import notify_admins_story
 from app.trust import take_trust, trust_info
 
 logger = logging.getLogger("rm-shop.web")
@@ -400,7 +402,7 @@ async def api_story_share(request: web.Request) -> web.Response:
     settings = get_settings()
     amount = int(settings.story_reward_rub or 0)
     minutes = int(settings.story_check_minutes or 0)
-    if not (settings.balance_enabled and settings.story_reward_enabled and amount > 0 and minutes > 0):
+    if not (settings.balance_enabled and settings.story_reward_enabled and amount > 0):
         return json_error("Награда за историю сейчас недоступна")
     local = await db.get_user(telegram_id)
     if not local:
@@ -418,7 +420,11 @@ async def api_story_share(request: web.Request) -> web.Response:
                     {"ok": True, "already": True, "balance_rub": int((local or {}).get("balance_rub") or 0)}
                 )
         else:
-            pending_at = datetime.now(timezone.utc)
+            local = await db.get_user(telegram_id) or local
+            pending_at = parse_dt(local.get("story_pending_at")) or datetime.now(timezone.utc)
+            bot = request.app.get("bot")
+            if bot:
+                asyncio.create_task(notify_admins_story(bot, local, amount))
     until = pending_at + timedelta(minutes=minutes) if pending_at else None
     remain = max(0, int((until - datetime.now(timezone.utc)).total_seconds())) if until else 0
     return web.json_response(

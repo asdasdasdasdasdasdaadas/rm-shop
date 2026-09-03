@@ -240,3 +240,17 @@ def share_keyboard(bot_username: str, telegram_id: int) -> InlineKeyboardMarkup:
     )
     builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
     return builder.as_markup()
+
+
+def story_mod_keyboard(telegram_id: int, username: str | None) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    handle = (username or "").lstrip("@").strip()
+    if handle:
+        builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"https://t.me/{handle}"))
+    else:
+        builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"tg://user?id={telegram_id}"))
+    builder.row(
+        InlineKeyboardButton(text="Подтвердить", callback_data=f"st_ok:{telegram_id}"),
+        InlineKeyboardButton(text="Отказать", callback_data=f"st_no:{telegram_id}"),
+    )
+    return builder.as_markup()

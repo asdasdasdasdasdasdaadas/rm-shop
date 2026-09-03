@@ -1596,15 +1596,19 @@ function paintStoryCard(me, rub) {
   stopStoryTimer();
   if (pending) {
     $("storyTitle").textContent = "Проверка истории";
-    $("storyNote").textContent = "Награда придёт, когда таймер дойдёт до нуля.";
+    $("storyNote").textContent = "Администратор подтвердит или отклонит награду.";
+    let ticks = 0;
     const tick = () => {
-      const left = storyRemain(window.__me || me);
-      timer.textContent = fmtStoryRemain(left);
-      timer.classList.remove("hidden");
-      if (left <= 0) {
+      const cur = window.__me || me;
+      if (!cur.story_pending || cur.story_rewarded) {
         stopStoryTimer();
-        load();
+        return;
       }
+      const left = storyRemain(cur);
+      timer.textContent = left > 0 ? fmtStoryRemain(left) : "ещё на проверке";
+      timer.classList.remove("hidden");
+      ticks += 1;
+      if (ticks % 15 === 0) load();
     };
     tick();
     storyTick = setInterval(tick, 1000);
@@ -1617,7 +1621,7 @@ function paintStoryCard(me, rub) {
     $("storyBtn").textContent = "Ещё раз";
   } else {
     $("storyTitle").textContent = `История — ${rub} ₽`;
-    $("storyNote").textContent = "Откроется редактор истории Telegram. Награда один раз после проверки.";
+    $("storyNote").textContent = "Откроется редактор истории Telegram. Награда один раз после подтверждения администратором.";
     $("storyBtn").textContent = "Выложить";
   }
 }

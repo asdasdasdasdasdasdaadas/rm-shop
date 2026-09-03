@@ -183,6 +183,11 @@ class MaintenanceMiddleware(BaseMiddleware):
         if isinstance(inner, Message) and str(text).startswith("/admin"):
             if user and user.id in get_settings().admin_id_set:
                 return await handler(event, data)
+        cb_data = getattr(inner, "data", None) or ""
+        if user and user.id in get_settings().admin_id_set and (
+            str(cb_data).startswith("st_ok:") or str(cb_data).startswith("st_no:")
+        ):
+            return await handler(event, data)
         if not await db.flag_on("maintenance"):
             return await handler(event, data)
         bot: Bot | None = data.get("bot")

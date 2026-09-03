@@ -13,6 +13,7 @@ from app.balance import charge_due_devices
 from app.config import get_settings
 from app.handlers.profile import router as profile_router
 from app.handlers.start import router as start_router
+from app.handlers.story_mod import router as story_mod_router
 from app.remnawave import RemnawaveClient
 from app.rollypay import RollyPayClient
 from app.sync import sync_all
@@ -20,7 +21,6 @@ from app.maintenance import MaintenanceMiddleware
 from app.block import BlockedMiddleware
 from app.backup import backup_loop
 from app.nudge import trial_nudge_loop
-from app.story import story_payout_loop
 from app.shop_config import load_shop_overlay
 from app.web import start_http
 
@@ -90,6 +90,7 @@ async def main() -> None:
     dp.update.outer_middleware(MaintenanceMiddleware())
     dp.update.outer_middleware(BlockedMiddleware())
     dp.include_router(start_router)
+    dp.include_router(story_mod_router)
     dp.include_router(profile_router)
 
     @dp.message_reaction()
@@ -125,7 +126,6 @@ async def main() -> None:
         charge_task = asyncio.create_task(balance_charge_loop(rw, bot), name="balance-charge")
         dump_task = asyncio.create_task(backup_loop(bot), name="backup")
         nudge_task = asyncio.create_task(trial_nudge_loop(bot), name="trial-nudge")
-        story_task = asyncio.create_task(story_payout_loop(rw, bot), name="story-payout")
         try:
             await dp.start_polling(
                 bot,
@@ -137,7 +137,6 @@ async def main() -> None:
             charge_task.cancel()
             dump_task.cancel()
             nudge_task.cancel()
-            story_task.cancel()
     finally:
         await runner.cleanup()
         if rp is not None:
