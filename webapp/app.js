@@ -573,7 +573,7 @@ function replayAnim(el, cls) {
 }
 
 function switchView(id, motion) {
-  if (id !== "view-home") hideCoach();
+  if (id !== "view-home" && id !== "view-wizard") hideCoach();
   ["view-home", "view-topup", "view-wizard", "view-device"].forEach((vid) => {
     const el = $(vid);
     const on = vid === id;
@@ -600,6 +600,8 @@ let topupCode = "";
 let topupCustomRub = 0;
 
 const COACH_KEY = "way_home_coach_v2";
+const WIZ_COACH_KEY = "way_wiz_coach_v1";
+const ONBOARD_KEY = "way_onboard_v1";
 let coachIndex = 0;
 let coachList = [];
 let coachVisible = false;
@@ -613,10 +615,28 @@ let coachScrollLocked = false;
 
 function coachDone() {
   try {
-    return localStorage.getItem(COACH_KEY) === "1";
+    return localStorage.getItem(ONBOARD_KEY) === "1" || localStorage.getItem(COACH_KEY) === "1";
   } catch (_e) {
     return false;
   }
+}
+
+function onboardDone() {
+  try {
+    return localStorage.getItem(ONBOARD_KEY) === "1";
+  } catch (_e) {
+    return false;
+  }
+}
+
+function markOnboardDone() {
+  try {
+    localStorage.setItem(ONBOARD_KEY, "1");
+    localStorage.setItem(COACH_KEY, "1");
+  } catch (_e) {}
+  try {
+    localStorage.setItem(WIZ_COACH_KEY, JSON.stringify({ 1: 1, 2: 1, 3: 1, 4: 1, done: 1 }));
+  } catch (_e) {}
 }
 
 function markCoachDone() {
@@ -630,7 +650,7 @@ function clearCoachPulse() {
 }
 
 function onCoachScrollGuard(e) {
-  if (!coachVisible && !coachScrollLocked) return;
+  if (!coachScrollLocked) return;
   const t = e.target;
   if (t && t.closest && t.closest("#coachCard")) return;
   e.preventDefault();
@@ -721,9 +741,16 @@ function playCoachStepIn() {
   card.classList.add("coach-step-in");
 }
 
-function finishCoach() {
+function finishCoach(acknowledge) {
+  const step = coachList[coachIndex];
+  const wizTip = Boolean(step && step.wiz);
+  if (wizTip) {
+    markWizCoachStep(wiz.step);
+    if (wiz.step >= 4) markOnboardDone();
+  }
   hideCoach();
-  if (!hasRequiredCoach(window.__me)) markCoachDone();
+  if (wizTip) return;
+  if (acknowledge || !hasRequiredCoach(window.__me)) markCoachDone();
 }
 
 function hasRequiredCoach(me) {
@@ -793,13 +820,122 @@ function applyCoachCopy() {
   $("coachText").textContent = step.text;
   const last = coachIndex === total - 1;
   const next = $("coachNext");
-  if (step.action === "wizard") next.textContent = "Добавить устройство";
-  else if (step.action === "topup") next.textContent = "Пополнить";
-  else next.textContent = last ? "Понятно" : "Далее";
+  next.textContent = last ? "Понятно" : "Далее";
   $("coachSkip").classList.toggle("hidden", Boolean(step.required));
   $("coach").classList.toggle("is-required", Boolean(step.required));
   const catchEl = $("coachCatch");
   if (catchEl) catchEl.style.pointerEvents = step.required ? "none" : "auto";
+}
+
+function markWizCoachStep(step) {
+  try {
+    const seen = JSON.parse(localStorage.getItem(WIZ_COACH_KEY) || "{}");
+    seen[String(step)] = 1;
+    localStorage.setItem(WIZ_COACH_KEY, JSON.stringify(seen));
+  } catch (_e) {}
+}
+
+function wizCoachSeen(step) {
+  try {
+    const seen = JSON.parse(localStorage.getItem(WIZ_COACH_KEY) || "{}");
+    return Boolean(seen[String(step)]);
+  } catch (_e) {
+    return false;
+  }
+}
+
+function buildWizCoachSteps() {
+  if (screen !== "wizard" || onboardDone() || wizCoachSeen("done") || wizCoachSeen(wiz.step)) return [];
+  if (wiz.step === 1 && $("wizPlatGrid")) {
+    return [
+      {
+        id: "wizPlatGrid",
+        wiz: true,
+        required: true,
+        title: "Выберите устройство",
+        text: "Телефон, компьютер или телевизор. От выбора зависят приложение и подсказки.",
+      },
+    ];
+  }
+  if (wiz.step === 2) {
+    const id = $("wizStoreBtn") ? "wizStoreBtn" : $("wizAppList") ? "wizAppList" : "";
+    if (!id) return [];
+    return [
+      {
+        id,
+        wiz: true,
+        required: true,
+        title: "Поставьте приложение",
+        text: "Скачайте клиент из магазина, если его ещё нет. Когда будет установлено, нажмите Продолжить внизу.",
+      },
+    ];
+  }
+  if (wiz.step === 3 && $("wizNameBox")) {
+    return [
+      {
+        id: "wizNameBox",
+        wiz: true,
+        required: true,
+        title: "Назовите и создайте",
+        text: "Имя только для списка в кабинете. Кнопка «Создать» спишет сутки с баланса и выдаст ссылку.",
+      },
+    ];
+  }
+  if (wiz.step === 4 && $("wizOpenTile")) {
+    return [
+      {
+        id: "wizOpenTile",
+        wiz: true,
+        required: true,
+        title: "Откройте в приложении",
+        text: "Нажмите «Открыть» или вставьте ссылку вручную. После этого VPN заработает.",
+      },
+    ];
+  }
+  return [];
+}
+
+let wizCoachTimer = 0;
+
+function queueWizCoach() {
+  if (wizCoachTimer) clearTimeout(wizCoachTimer);
+  wizCoachTimer = setTimeout(() => {
+    wizCoachTimer = 0;
+    startWizCoach();
+  }, reducedMotion() ? 40 : 380);
+}
+
+function startWizCoach() {
+  if (screen !== "wizard") return;
+  if ($("app").classList.contains("hidden")) return;
+  const steps = buildWizCoachSteps();
+  if (!steps.length) {
+    if (coachVisible && coachList[coachIndex] && coachList[coachIndex].wiz) hideCoach();
+    return;
+  }
+  if (coachVisible && coachList[coachIndex] && coachList[coachIndex].id === steps[0].id) {
+    requestCoachLayout();
+    return;
+  }
+  coachList = steps;
+  coachIndex = 0;
+  coachVisible = true;
+  if (coachHideTimer) {
+    clearTimeout(coachHideTimer);
+    coachHideTimer = 0;
+  }
+  $("coach").classList.remove("hidden");
+  applyCoachCopy();
+  pinCoachCard();
+  playCoachEnter();
+  placeCoach();
+}
+
+function coachCardBottom() {
+  const bar = $("appMainBar");
+  const mainOn = bar && !bar.classList.contains("hidden");
+  const pad = screen === "wizard" && mainOn ? 88 : 28;
+  return `calc(${pad}px + var(--tg-safe-area-inset-bottom, 0px))`;
 }
 
 function pinCoachCard() {
@@ -807,7 +943,7 @@ function pinCoachCard() {
   const hole = $("coachHole");
   hole.classList.add("is-off");
   card.style.top = "auto";
-  card.style.bottom = `calc(28px + var(--tg-safe-area-inset-bottom, 0px))`;
+  card.style.bottom = coachCardBottom();
 }
 
 function coachTargetVisible(el) {
@@ -838,7 +974,7 @@ function layoutCoach() {
   const hole = $("coachHole");
   const card = $("coachCard");
   card.style.top = "auto";
-  card.style.bottom = `calc(28px + var(--tg-safe-area-inset-bottom, 0px))`;
+  card.style.bottom = coachCardBottom();
   if (!target || target.classList.contains("hidden")) {
     hole.classList.add("is-off");
     return;
@@ -872,7 +1008,7 @@ function placeCoach() {
   const card = $("coachCard");
   if (card) {
     card.style.top = "auto";
-    card.style.bottom = `calc(28px + var(--tg-safe-area-inset-bottom, 0px))`;
+    card.style.bottom = coachCardBottom();
   }
   const target = $(step.id);
   if (target && !target.classList.contains("hidden") && !coachTargetVisible(target)) {
@@ -888,7 +1024,7 @@ function placeCoach() {
 }
 
 function coachCanRun() {
-  if (screen !== "home") return false;
+  if (screen !== "home" && screen !== "wizard") return false;
   if ($("app").classList.contains("hidden")) return false;
   if (!$("intro").classList.contains("hidden")) return false;
   if (!$("fail").classList.contains("hidden")) return false;
@@ -904,9 +1040,9 @@ function scheduleCoach() {
 }
 
 function maybeStartCoach(force) {
+  if (screen === "wizard") return;
   if (!coachCanRun()) return;
-  const required = hasRequiredCoach(window.__me);
-  if (!force && coachDone() && !required) return;
+  if (!force && coachDone()) return;
   if (coachVisible && !force) {
     requestCoachLayout();
     return;
@@ -930,18 +1066,12 @@ function maybeStartCoach(force) {
 function coachAdvance() {
   haptic();
   const step = coachList[coachIndex];
-  if (step && step.action === "wizard") {
-    finishCoach();
-    startWizard();
-    return;
-  }
-  if (step && step.action === "topup") {
-    finishCoach();
-    openTopup();
+  if (step && (step.action === "wizard" || step.action === "topup")) {
+    finishCoach(true);
     return;
   }
   if (coachIndex >= coachList.length - 1) {
-    finishCoach();
+    finishCoach(true);
     return;
   }
   coachIndex += 1;
@@ -1043,6 +1173,7 @@ function onBack() {
   }
   if (screen === "wizard") {
     if (wiz.step > 1 && !wiz.url) {
+      markWizCoachStep(wiz.step);
       wiz.step -= 1;
       renderWizard();
       return;
@@ -1170,6 +1301,7 @@ function renderTopup(me) {
 }
 
 function closeWizard() {
+  if (wiz.url) markOnboardDone();
   hideQr();
   wiz.step = 1;
   wiz.url = "";
@@ -1186,6 +1318,7 @@ function startWizard() {
     return;
   }
   haptic();
+  hideCoach();
   wiz.step = 1;
   wiz.platform = "ios";
   const first = clientsFor("ios")[0];
@@ -1219,6 +1352,7 @@ function renderWizard() {
     $("wizTitle").textContent = "На чём подключаемся?";
     lead.textContent = "Выберите устройство — настроим ссылку и подсказки именно под него.";
     const grid = document.createElement("div");
+    grid.id = "wizPlatGrid";
     grid.className = "plat-grid";
     PLATFORMS.forEach((p) => {
       const b = document.createElement("button");
@@ -1253,9 +1387,11 @@ function renderWizard() {
     replayAnim(body, "wiz-swap");
     setMain("Продолжить", () => {
       haptic();
+      markWizCoachStep(1);
       wiz.step = 2;
       renderWizard();
     });
+    queueWizCoach();
     return;
   }
 
@@ -1272,9 +1408,12 @@ function renderWizard() {
       $("wizHint").textContent = "";
       replayAnim(body, "wiz-swap");
       setMain("");
+      queueWizCoach();
       return;
     }
     if (!list.some((c) => c.id === wiz.client)) wiz.client = list[0].id;
+    const listWrap = document.createElement("div");
+    listWrap.id = "wizAppList";
     list.forEach((c, i) => {
       const row = document.createElement("button");
       row.type = "button";
@@ -1321,16 +1460,21 @@ function renderWizard() {
         wiz.client = c.id;
         renderWizard();
       };
-      body.appendChild(row);
+      listWrap.appendChild(row);
     });
+    body.appendChild(listWrap);
+    const storeBtn = listWrap.querySelector(".wiz-app-store");
+    if (storeBtn) storeBtn.id = "wizStoreBtn";
     $("wizHint").textContent =
       "Приложение можно сменить в любой момент. Уже установлено? Нажмите «Продолжить».";
     replayAnim(body, "wiz-swap");
     setMain("Продолжить с " + clientLabel(wiz.client), () => {
       haptic();
+      markWizCoachStep(2);
       wiz.step = 3;
       renderWizard();
     });
+    queueWizCoach();
     return;
   }
 
@@ -1341,6 +1485,7 @@ function renderWizard() {
     const chips = nameChips(wiz.platform);
     if (!(wiz.title || "").trim()) wiz.title = chips[0] || defaultTitle();
     const box = document.createElement("div");
+    box.id = "wizNameBox";
     box.className = "wiz-name-box";
     const lab = document.createElement("label");
     lab.setAttribute("for", "devName");
@@ -1394,6 +1539,7 @@ function renderWizard() {
             client: wiz.client,
           }),
         });
+        markWizCoachStep(3);
         wiz.title = title;
         wiz.url = created.subscription_url || "";
         wiz.step = 4;
@@ -1405,6 +1551,7 @@ function renderWizard() {
         setMainBusy(false);
       }
     });
+    queueWizCoach();
     return;
   }
 
@@ -1473,6 +1620,7 @@ function renderWizard() {
   tiles.className = "wiz-tiles";
   const openTile = document.createElement("button");
   openTile.type = "button";
+  openTile.id = "wizOpenTile";
   openTile.className = "wiz-tile";
   openTile.innerHTML =
     '<svg viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
@@ -1508,6 +1656,7 @@ function renderWizard() {
     closeWizard();
     load().catch(() => {});
   });
+  queueWizCoach();
 }
 
 function defaultTitle() {
@@ -1837,6 +1986,10 @@ function paint(me) {
 function syncCoach(me) {
   if (screen !== "home") return;
   if ($("app").classList.contains("hidden")) return;
+  if (coachDone()) {
+    if (coachVisible && !(coachList[coachIndex] && coachList[coachIndex].wiz)) hideCoach();
+    return;
+  }
   if (hasRequiredCoach(me)) {
     if (coachVisible) {
       const oldId = coachList[coachIndex] && coachList[coachIndex].id;
@@ -2110,6 +2263,8 @@ $("coachReplay").onclick = () => {
   haptic();
   try {
     localStorage.removeItem(COACH_KEY);
+    localStorage.removeItem(WIZ_COACH_KEY);
+    localStorage.removeItem(ONBOARD_KEY);
   } catch (_e) {}
   maybeStartCoach(true);
 };
