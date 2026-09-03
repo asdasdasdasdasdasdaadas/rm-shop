@@ -90,6 +90,22 @@ def legal_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def story_webapp_button(*, story_offer: bool) -> InlineKeyboardButton | None:
+    settings = get_settings()
+    if (
+        not story_offer
+        or not settings.balance_enabled
+        or not settings.story_reward_enabled
+        or settings.story_reward_rub <= 0
+        or not runtime.webapp_url
+    ):
+        return None
+    return InlineKeyboardButton(
+        text=f"История — {rub_text(settings.story_reward_rub)}",
+        web_app=WebAppInfo(url=runtime.webapp_url),
+    )
+
+
 def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bool = True) -> InlineKeyboardMarkup:
     settings = get_settings()
     builder = InlineKeyboardBuilder()
@@ -114,19 +130,9 @@ def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bo
         if has_access:
             builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_sub"))
             builder.row(InlineKeyboardButton(text="Подключиться", callback_data="connect"))
-    if (
-        story_offer
-        and settings.balance_enabled
-        and settings.story_reward_enabled
-        and settings.story_reward_rub > 0
-        and runtime.webapp_url
-    ):
-        builder.row(
-            InlineKeyboardButton(
-                text=f"История — {rub_text(settings.story_reward_rub)}",
-                web_app=WebAppInfo(url=runtime.webapp_url),
-            )
-        )
+    story_btn = story_webapp_button(story_offer=story_offer)
+    if story_btn:
+        builder.row(story_btn)
     builder.row(InlineKeyboardButton(text="VPN не работает", callback_data="vpn_down"))
     builder.row(InlineKeyboardButton(text="Поддержка", url=support_url()))
     add_cabinet_row(builder)
@@ -213,7 +219,7 @@ def pay_keyboard(pay_url: str, order_id: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def share_keyboard(bot_username: str, telegram_id: int) -> InlineKeyboardMarkup:
+def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = False) -> InlineKeyboardMarkup:
     settings = get_settings()
     if settings.balance_enabled:
         rub = settings.referral_reward_rub
@@ -238,6 +244,9 @@ def share_keyboard(bot_username: str, telegram_id: int) -> InlineKeyboardMarkup:
     builder.row(
         InlineKeyboardButton(text="Отправить другу", url=share_url, style="success")
     )
+    story_btn = story_webapp_button(story_offer=story_offer)
+    if story_btn:
+        builder.row(story_btn)
     builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
     return builder.as_markup()
 
