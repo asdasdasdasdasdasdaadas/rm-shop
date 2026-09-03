@@ -46,6 +46,8 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
     if not bot or tg_id in warned:
         return
     warned.add(tg_id)
+    if not await db.claim_low_balance_notice(tg_id):
+        return
     try:
         await bot.send_message(
             tg_id,

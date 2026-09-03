@@ -532,7 +532,12 @@ async def add_balance_rub(telegram_id: int, amount: int) -> int:
         return int((local or {}).get("balance_rub") or 0)
     row = await _pool_req().fetchrow(
         """
-        UPDATE users SET balance_rub = COALESCE(balance_rub, 0) + $2
+        UPDATE users SET
+            balance_rub = COALESCE(balance_rub, 0) + $2,
+            low_balance_notified_at = CASE
+                WHEN $2 > 0 THEN NULL
+                ELSE low_balance_notified_at
+            END
         WHERE telegram_id = $1
         RETURNING balance_rub
         """,
@@ -540,6 +545,23 @@ async def add_balance_rub(telegram_id: int, amount: int) -> int:
         amount,
     )
     return int(row["balance_rub"]) if row else 0
+
+
+async def claim_low_balance_notice(telegram_id: int) -> bool:
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users
+        SET low_balance_notified_at = timezone('utc', now())
+        WHERE telegram_id = $1
+          AND (
+            low_balance_notified_at IS NULL
+            OR low_balance_notified_at <= timezone('utc', now()) - INTERVAL '24 hours'
+          )
+        RETURNING telegram_id
+        """,
+        telegram_id,
+    )
+    return row is not None
 
 
 async def mark_paid_topup(telegram_id: int) -> None:
@@ -585,6 +607,8 @@ async def get_flags() -> dict:
         "maintenance": _on("maintenance"),
         "billing_paused": _on("billing_paused"),
         "trial_nudge": _on("trial_nudge"),
+        "invite_nudge": _on("invite_nudge"),
+        "info_nudge": _on("info_nudge"),
         "maintenance_notice": data.get("maintenance_notice") or "",
     }
 
@@ -1280,6 +1304,54 @@ async def claim_trial_nudge_batch(limit: int = 40) -> list[dict]:
         FROM due
         WHERE u.telegram_id = due.telegram_id
           AND u.trial_nudge_sent_at IS NULL
+        RETURNING u.telegram_id, u.first_name
+        """,
+        limit,
+    )
+    return [dict(r) for r in rows]
+
+
+async def claim_invite_nudge_batch(limit: int = 40) -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        WITH due AS (
+            SELECT u.telegram_id
+            FROM users u
+            WHERE u.invite_nudge_sent_at IS NULL
+              AND u.blocked_at IS NULL
+              AND u.created_at <= timezone('utc', now()) - INTERVAL '48 hours'
+            ORDER BY u.created_at
+            LIMIT $1
+        )
+        UPDATE users AS u
+        SET invite_nudge_sent_at = timezone('utc', now())
+        FROM due
+        WHERE u.telegram_id = due.telegram_id
+          AND u.invite_nudge_sent_at IS NULL
+        RETURNING u.telegram_id, u.first_name
+        """,
+        limit,
+    )
+    return [dict(r) for r in rows]
+
+
+async def claim_info_nudge_batch(limit: int = 40) -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        WITH due AS (
+            SELECT u.telegram_id
+            FROM users u
+            WHERE u.info_nudge_sent_at IS NULL
+              AND u.blocked_at IS NULL
+              AND u.created_at <= timezone('utc', now()) - INTERVAL '96 hours'
+            ORDER BY u.created_at
+            LIMIT $1
+        )
+        UPDATE users AS u
+        SET info_nudge_sent_at = timezone('utc', now())
+        FROM due
+        WHERE u.telegram_id = due.telegram_id
+          AND u.info_nudge_sent_at IS NULL
         RETURNING u.telegram_id, u.first_name
         """,
         limit,

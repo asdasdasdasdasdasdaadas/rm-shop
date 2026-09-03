@@ -119,6 +119,9 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS story_pending_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_nudge_sent_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_nudge_sent_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS info_nudge_sent_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS low_balance_notified_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS cabinet_tokens (
     token_hash TEXT PRIMARY KEY,
@@ -149,6 +152,10 @@ CREATE INDEX IF NOT EXISTS billing_events_device_kind_idx ON billing_events (dev
 CREATE INDEX IF NOT EXISTS users_blocked_at_idx ON users (blocked_at) WHERE blocked_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS users_trial_nudge_idx ON users (created_at)
     WHERE trial_nudge_sent_at IS NULL AND trial_used = FALSE;
+CREATE INDEX IF NOT EXISTS users_invite_nudge_idx ON users (created_at)
+    WHERE invite_nudge_sent_at IS NULL;
+CREATE INDEX IF NOT EXISTS users_info_nudge_idx ON users (created_at)
+    WHERE info_nudge_sent_at IS NULL;
 
 UPDATE users SET has_paid_topup = TRUE
 WHERE telegram_id IN (
