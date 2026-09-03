@@ -215,16 +215,28 @@ async def webapp_open(_request: web.Request) -> web.FileResponse:
 
 
 def _story_image_path():
-    preferred = WEBAPP_DIR / "stories_img.png"
-    if preferred.is_file():
-        return preferred
+    for name in ("stories_img.jpg", "stories_img.jpeg", "stories_img.png", "story.png"):
+        path = WEBAPP_DIR / name
+        if path.is_file():
+            return path
     return WEBAPP_DIR / "story.png"
 
 
+def _story_media_type(path) -> str:
+    suffix = path.suffix.lower()
+    if suffix in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    return "image/png"
+
+
 async def webapp_story(_request: web.Request) -> web.FileResponse:
+    path = _story_image_path()
     return web.FileResponse(
-        _story_image_path(),
-        headers={"Cache-Control": "public, max-age=3600"},
+        path,
+        headers={
+            "Cache-Control": "public, max-age=3600",
+            "Content-Type": _story_media_type(path),
+        },
     )
 
 
@@ -337,7 +349,11 @@ async def api_me(request: web.Request) -> web.Response:
             ),
             "story_reward_rub": settings.story_reward_rub if settings.balance_enabled else 0,
             **_story_check_state(local, settings),
-            "story_media_url": f"{_public_origin(request)}/story.png?v=stories3",
+            "story_media_url": (
+                f"{_public_origin(request)}"
+                f"{'/story.jpg' if _story_media_type(_story_image_path()) == 'image/jpeg' else '/story.png'}"
+                f"?v=stories4"
+            ),
             "story_share_text": (
                 settings.story_share_text.strip()
                 or "VPN без границ. Подключайся в боте."
@@ -791,7 +807,9 @@ def build_web_app() -> web.Application:
         app.router.add_get("/qrcode.min.js", webapp_qrcode)
         app.router.add_get("/open.html", webapp_open)
         app.router.add_get("/story.png", webapp_story)
+        app.router.add_get("/story.jpg", webapp_story)
         app.router.add_get("/stories_img.png", webapp_story)
+        app.router.add_get("/stories_img.jpg", webapp_story)
         app.router.add_get("/api/me", api_me)
         app.router.add_get("/api/avatar", api_avatar)
         app.router.add_post("/api/trial", api_trial)
