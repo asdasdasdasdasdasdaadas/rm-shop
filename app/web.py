@@ -337,7 +337,7 @@ async def api_me(request: web.Request) -> web.Response:
             ),
             "story_reward_rub": settings.story_reward_rub if settings.balance_enabled else 0,
             **_story_check_state(local, settings),
-            "story_media_url": f"{_public_origin(request)}/story.png?v=stories2",
+            "story_media_url": f"{_public_origin(request)}/story.png?v=stories3",
             "story_share_text": (
                 settings.story_share_text.strip()
                 or "VPN без границ. Подключайся в боте."
