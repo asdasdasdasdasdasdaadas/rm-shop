@@ -7,12 +7,35 @@ from app.config import shop_overlay
 
 PLATFORMS = ("ios", "macos", "appletv", "android", "androidtv", "windows")
 _ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,23}$")
+KNOWN_ICONS = {"incy", "happ", "v2rayng", "v2rayn"}
+
+
+def default_icon_for(app_id: str) -> str:
+    if app_id in KNOWN_ICONS:
+        return f"/icons/{app_id}.png"
+    return ""
+
+
+def _clean_icon(value: Any, app_id: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return default_icon_for(app_id)
+    if text.startswith("http://") or text.startswith("https://"):
+        if len(text) > 500:
+            raise ValueError(f"{app_id}: ссылка на иконку слишком длинная")
+        return text
+    if text.startswith("/icons/") or text.startswith("/static/icons/"):
+        if len(text) > 200:
+            raise ValueError(f"{app_id}: путь иконки слишком длинный")
+        return text
+    raise ValueError(f"{app_id}: иконка — http(s) или путь /icons/имя.png")
 
 DEFAULT_VPN_APPS: list[dict[str, Any]] = [
     {
         "id": "incy",
         "name": "Incy",
         "mark": "IN",
+        "icon": "/icons/incy.png",
         "deep_link": "incy://import/{url}",
         "platforms": ["ios", "macos", "appletv"],
         "stores": {
@@ -25,6 +48,7 @@ DEFAULT_VPN_APPS: list[dict[str, Any]] = [
         "id": "happ",
         "name": "Happ",
         "mark": "H",
+        "icon": "/icons/happ.png",
         "deep_link": "happ://add/{url}",
         "platforms": ["ios", "macos", "appletv", "android", "androidtv", "windows"],
         "stores": {
@@ -40,6 +64,7 @@ DEFAULT_VPN_APPS: list[dict[str, Any]] = [
         "id": "v2rayng",
         "name": "v2rayNG",
         "mark": "v2",
+        "icon": "/icons/v2rayng.png",
         "deep_link": "v2rayng://install-sub?url={enc}",
         "platforms": ["android", "androidtv"],
         "stores": {
@@ -51,6 +76,7 @@ DEFAULT_VPN_APPS: list[dict[str, Any]] = [
         "id": "v2rayn",
         "name": "v2rayN",
         "mark": "v2",
+        "icon": "/icons/v2rayn.png",
         "deep_link": "",
         "platforms": ["windows"],
         "stores": {
@@ -125,6 +151,7 @@ def validate_vpn_apps(raw: Any) -> list[dict[str, Any]]:
                 "id": app_id,
                 "name": name,
                 "mark": mark,
+                "icon": _clean_icon(item.get("icon"), app_id),
                 "deep_link": deep,
                 "platforms": platforms,
                 "stores": stores,

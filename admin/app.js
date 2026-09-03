@@ -383,6 +383,43 @@ function switchTab(name, opts = {}) {
   setNavOpen(false);
 }
 
+function clientCard(item) {
+  const el = document.createElement("div");
+  el.className = "card card-app";
+  const ico = document.createElement("div");
+  ico.className = "app-ico";
+  if (item.icon) {
+    const img = document.createElement("img");
+    img.alt = "";
+    img.src = item.icon;
+    img.onerror = () => {
+      ico.classList.add("is-mark");
+      ico.textContent = (item.name || "?").slice(0, 2);
+      img.remove();
+    };
+    ico.appendChild(img);
+  } else {
+    ico.classList.add("is-mark");
+    ico.textContent = (item.name || "?").slice(0, 2);
+  }
+  const body = document.createElement("div");
+  const l = document.createElement("div");
+  l.className = "l";
+  l.textContent = item.name || item.id || "Приложение";
+  const n = document.createElement("div");
+  n.className = "n";
+  n.textContent = item.devices || 0;
+  const s = document.createElement("div");
+  s.className = "s";
+  s.textContent = (item.users || 0) + " польз.";
+  body.appendChild(l);
+  body.appendChild(n);
+  body.appendChild(s);
+  el.appendChild(ico);
+  el.appendChild(body);
+  return el;
+}
+
 function card(label, value, tab) {
   const el = document.createElement("div");
   el.className = tab ? "card card-link" : "card";
@@ -567,6 +604,16 @@ async function loadStats() {
       ["Жалобы VPN", s.vpn_reports || 0, "reports"],
       ["Заблокированы", u.blocked || 0, "users"],
     ]);
+    const appsBox = $("cardsClients");
+    if (appsBox) {
+      appsBox.innerHTML = "";
+      const clients = s.clients || [];
+      if (!clients.length) {
+        appsBox.appendChild(card("Устройств с клиентом", 0));
+      } else {
+        clients.forEach((item) => appsBox.appendChild(clientCard(item)));
+      }
+    }
     kv($("orderStats"), s.orders, "Заказов пока нет");
     kv($("planStats"), s.plans, "Оплаченных тарифов нет");
     paintJobs(s.jobs || {});
@@ -1194,7 +1241,7 @@ const VPN_PLATS = [
 ];
 
 function emptyVpnApp() {
-  return { id: "", name: "", mark: "", deep_link: "", platforms: ["ios"], stores: {} };
+  return { id: "", name: "", mark: "", icon: "", deep_link: "", platforms: ["ios"], stores: {} };
 }
 
 function renderVpnApps(list) {
@@ -1232,6 +1279,7 @@ function vpnAppCard(app) {
   head.appendChild(mk("va-id", "id, латиница", app.id || "", { maxLength: 24 }));
   head.appendChild(nameIn);
   head.appendChild(mk("va-mark", "Значок", app.mark || "", { maxLength: 4 }));
+  head.appendChild(mk("va-icon", "Иконка /icons/имя.png", app.icon || "", { maxLength: 500 }));
   head.appendChild(mk("va-deep", "happ://add/{url}", app.deep_link || "", { maxLength: 200 }));
   const del = document.createElement("button");
   del.type = "button";
@@ -1291,6 +1339,7 @@ function collectVpnApps() {
       id: (card.querySelector(".va-id") || {}).value || "",
       name: (card.querySelector(".va-name") || {}).value || "",
       mark: (card.querySelector(".va-mark") || {}).value || "",
+      icon: (card.querySelector(".va-icon") || {}).value || "",
       deep_link: (card.querySelector(".va-deep") || {}).value || "",
       platforms,
       stores,

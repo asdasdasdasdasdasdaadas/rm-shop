@@ -1052,6 +1052,16 @@ async def admin_stats() -> dict:
     broadcast_users = await pool.fetchval(
         "SELECT COUNT(*)::int FROM users WHERE blocked_at IS NULL"
     )
+    client_rows = await pool.fetch(
+        """
+        SELECT COALESCE(NULLIF(TRIM(client), ''), '') AS client_id,
+               COUNT(*)::int AS devices,
+               COUNT(DISTINCT telegram_id)::int AS users
+        FROM devices
+        GROUP BY 1
+        ORDER BY devices DESC, client_id
+        """
+    )
     return {
         "users": dict(users) if users else {},
         "orders": {r["status"]: r["n"] for r in orders},
@@ -1061,6 +1071,7 @@ async def admin_stats() -> dict:
         "vpn_reports": int(await pool.fetchval("SELECT COUNT(*)::int FROM vpn_reports") or 0),
         "billing_today": dict(billing_today) if billing_today else {},
         "broadcast_users": int(broadcast_users or 0),
+        "clients": [dict(r) for r in client_rows],
     }
 
 

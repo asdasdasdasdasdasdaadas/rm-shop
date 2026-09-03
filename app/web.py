@@ -807,6 +807,7 @@ def build_web_app() -> web.Application:
         app.router.add_static("/static", WEBAPP_DIR)
     else:
         app.router.add_get("/", health)
+    app.router.add_static("/icons", WEBAPP_DIR / "icons")
     mount_admin(app)
     return app
 

@@ -72,6 +72,7 @@ const DEFAULT_VPN_APPS = [
     id: "incy",
     name: "Incy",
     mark: "IN",
+    icon: "/icons/incy.png",
     deep_link: "incy://import/{url}",
     platforms: ["ios", "macos", "appletv"],
     stores: {
@@ -84,6 +85,7 @@ const DEFAULT_VPN_APPS = [
     id: "happ",
     name: "Happ",
     mark: "H",
+    icon: "/icons/happ.png",
     deep_link: "happ://add/{url}",
     platforms: ["ios", "macos", "appletv", "android", "androidtv", "windows"],
     stores: {
@@ -99,6 +101,7 @@ const DEFAULT_VPN_APPS = [
     id: "v2rayng",
     name: "v2rayNG",
     mark: "v2",
+    icon: "/icons/v2rayng.png",
     deep_link: "v2rayng://install-sub?url={enc}",
     platforms: ["android", "androidtv"],
     stores: {
@@ -110,6 +113,7 @@ const DEFAULT_VPN_APPS = [
     id: "v2rayn",
     name: "v2rayN",
     mark: "v2",
+    icon: "/icons/v2rayn.png",
     deep_link: "",
     platforms: ["windows"],
     stores: { windows: "https://github.com/2dust/v2rayN/releases" },
@@ -138,6 +142,24 @@ function platformLabel(id) {
 function clientLabel(id) {
   const c = clientById(id);
   return (c && c.name) || id || "—";
+}
+
+function fillAppLogo(el, app, muted) {
+  const icon = app && app.icon;
+  el.className = "wiz-app-logo" + (muted ? " muted" : "") + (icon ? " has-img" : "");
+  el.textContent = "";
+  if (icon) {
+    const img = document.createElement("img");
+    img.alt = "";
+    img.src = icon;
+    img.onerror = () => {
+      el.classList.remove("has-img");
+      el.textContent = (app && app.mark) || "";
+    };
+    el.appendChild(img);
+    return;
+  }
+  el.textContent = (app && app.mark) || "";
 }
 
 function platformSub(id) {
@@ -1419,8 +1441,7 @@ function renderWizard() {
       row.type = "button";
       row.className = "wiz-app" + (wiz.client === c.id ? " on" : "");
       const logo = document.createElement("div");
-      logo.className = "wiz-app-logo" + (i === 0 ? "" : " muted");
-      logo.textContent = c.mark;
+      fillAppLogo(logo, c, i !== 0);
       const info = document.createElement("div");
       info.className = "wiz-app-info";
       const t = document.createElement("div");

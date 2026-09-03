@@ -26,6 +26,7 @@ from app.shop_config import save_shop_overlay, snapshot as shop_snapshot
 from app.keyboards import blocked_keyboard, cabinet_keyboard
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
 from app.remnawave import RemnawaveClient, RemnawaveError, panel_online_at, parse_dt
+from app.vpn_apps import public_vpn_apps
 from app.texts import subscription_reissued_text
 
 logger = logging.getLogger("rm-shop.admin")
@@ -133,10 +134,40 @@ async def api_stats(request: web.Request) -> web.Response:
         plan = settings.plan_by_code(code) or settings.plans.get(code)
         if plan:
             revenue += float(plan["rub"]) * int(count)
+    apps = {a["id"]: a for a in public_vpn_apps()}
+    seen: set[str] = set()
+    clients = []
+    for row in raw.pop("clients", []) or []:
+        cid = str(row.get("client_id") or "")
+        meta = apps.get(cid) or {}
+        key = cid or "unknown"
+        seen.add(key)
+        clients.append(
+            {
+                "id": key,
+                "name": meta.get("name") or cid or "Без клиента",
+                "icon": meta.get("icon") or "",
+                "devices": int(row.get("devices") or 0),
+                "users": int(row.get("users") or 0),
+            }
+        )
+    for app in public_vpn_apps():
+        if app["id"] in seen:
+            continue
+        clients.append(
+            {
+                "id": app["id"],
+                "name": app.get("name") or app["id"],
+                "icon": app.get("icon") or "",
+                "devices": 0,
+                "users": 0,
+            }
+        )
     return web.json_response(
         {
             "ok": True,
             **raw,
+            "clients": clients,
             "revenue_rub": round(revenue, 2),
             "jobs": {
                 "billing": await db.get_job_report("billing"),
@@ -1072,6 +1103,7 @@ async def api_replace_subscriptions(request: web.Request) -> web.Response:
 def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin", admin_redirect)
     app.router.add_get("/admin/", admin_index)
+    app.router.add_get("/admin/stats", admin_index)
     app.router.add_get("/admin/app.css", lambda _r: web.FileResponse(ADMIN_DIR / "app.css", headers=_NO_STORE))
     app.router.add_get("/admin/app.js", lambda _r: web.FileResponse(ADMIN_DIR / "app.js", headers=_NO_STORE))
     app.router.add_get("/admin/api/build", api_admin_build)

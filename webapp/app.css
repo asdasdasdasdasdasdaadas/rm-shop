@@ -899,9 +899,23 @@ body.coach-lock {
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
 }
 
-.wiz-app-logo.muted {
-  background: linear-gradient(135deg, #9db3a4, #66796d);
-  color: #0d1611;
+.wiz-app-logo.has-img {
+  background: #fff;
+  padding: 0;
+  overflow: hidden;
+}
+
+.wiz-app-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: inherit;
+}
+
+.wiz-app-logo.muted.has-img {
+  background: #fff;
+  filter: saturate(0.92);
 }
 
 .wiz-app-info { flex: 1; min-width: 0; }
