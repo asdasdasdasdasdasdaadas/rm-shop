@@ -605,6 +605,9 @@ let coachList = [];
 let coachVisible = false;
 let coachPlaceTimer = 0;
 let coachStartTimers = [];
+let coachLayoutRaf = 0;
+let coachViewportTimer = 0;
+let coachHideTimer = 0;
 
 function coachDone() {
   try {
@@ -630,9 +633,58 @@ function hideCoach() {
     clearTimeout(coachPlaceTimer);
     coachPlaceTimer = 0;
   }
+  if (coachLayoutRaf) {
+    cancelAnimationFrame(coachLayoutRaf);
+    coachLayoutRaf = 0;
+  }
+  if (coachViewportTimer) {
+    clearTimeout(coachViewportTimer);
+    coachViewportTimer = 0;
+  }
+  if (coachHideTimer) {
+    clearTimeout(coachHideTimer);
+    coachHideTimer = 0;
+  }
   clearCoachPulse();
   const el = $("coach");
-  if (el) el.classList.add("hidden");
+  if (!el || el.classList.contains("hidden")) {
+    if (el) el.classList.remove("is-on", "is-out");
+    return;
+  }
+  el.classList.add("is-out");
+  if (reducedMotion()) {
+    el.classList.add("hidden");
+    el.classList.remove("is-on", "is-out");
+    return;
+  }
+  coachHideTimer = setTimeout(() => {
+    coachHideTimer = 0;
+    el.classList.add("hidden");
+    el.classList.remove("is-on", "is-out");
+  }, 220);
+}
+
+function playCoachEnter() {
+  const el = $("coach");
+  const card = $("coachCard");
+  if (!el || !card) return;
+  el.classList.remove("is-out");
+  if (reducedMotion()) {
+    el.classList.add("is-on");
+    return;
+  }
+  el.classList.remove("is-on");
+  card.classList.remove("coach-step-in");
+  void el.offsetWidth;
+  el.classList.add("is-on");
+}
+
+function playCoachStepIn() {
+  const card = $("coachCard");
+  if (!card || reducedMotion()) return;
+  card.classList.remove("coach-step-in");
+  void card.offsetWidth;
+  card.classList.add("coach-step-in");
 }
 
 function finishCoach() {
@@ -724,6 +776,22 @@ function pinCoachCard() {
   card.style.bottom = `calc(28px + var(--tg-safe-area-inset-bottom, 0px))`;
 }
 
+function coachTargetVisible(el) {
+  const r = el.getBoundingClientRect();
+  const top = 8;
+  const bottom = window.innerHeight - 8;
+  return r.width >= 24 && r.height >= 20 && r.top >= top && r.bottom <= bottom;
+}
+
+function requestCoachLayout() {
+  if (!coachVisible) return;
+  if (coachLayoutRaf) cancelAnimationFrame(coachLayoutRaf);
+  coachLayoutRaf = requestAnimationFrame(() => {
+    coachLayoutRaf = 0;
+    layoutCoach();
+  });
+}
+
 function layoutCoach() {
   if (!coachVisible) return;
   const step = coachList[coachIndex];
@@ -735,13 +803,15 @@ function layoutCoach() {
   const target = $(step.id);
   const hole = $("coachHole");
   const card = $("coachCard");
+  card.style.top = "auto";
+  card.style.bottom = `calc(28px + var(--tg-safe-area-inset-bottom, 0px))`;
   if (!target || target.classList.contains("hidden")) {
-    pinCoachCard();
+    hole.classList.add("is-off");
     return;
   }
   const r = target.getBoundingClientRect();
   if (r.width < 24 || r.height < 20 || r.bottom < 8 || r.top > window.innerHeight - 8) {
-    pinCoachCard();
+    hole.classList.add("is-off");
     return;
   }
   hole.classList.remove("is-off");
@@ -752,16 +822,9 @@ function layoutCoach() {
   hole.style.height = `${r.height + pad * 2}px`;
   const radius = getComputedStyle(target).borderRadius;
   hole.style.borderRadius = radius && radius !== "0px" ? radius : "16px";
-  clearCoachPulse();
-  target.classList.add("coach-pulse");
-
-  const spaceBelow = window.innerHeight - r.bottom;
-  if (spaceBelow > 200) {
-    card.style.top = `${r.bottom + 14}px`;
-    card.style.bottom = "auto";
-  } else {
-    card.style.bottom = `${Math.max(16, window.innerHeight - r.top + 14)}px`;
-    card.style.top = "auto";
+  if (!target.classList.contains("coach-pulse")) {
+    clearCoachPulse();
+    target.classList.add("coach-pulse");
   }
 }
 
@@ -772,18 +835,22 @@ function placeCoach() {
     return;
   }
   applyCoachCopy();
+  const card = $("coachCard");
+  if (card) {
+    card.style.top = "auto";
+    card.style.bottom = `calc(28px + var(--tg-safe-area-inset-bottom, 0px))`;
+  }
   const target = $(step.id);
-  if (target && !target.classList.contains("hidden")) {
+  if (target && !target.classList.contains("hidden") && !coachTargetVisible(target)) {
     try {
-      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      target.scrollIntoView({ block: "nearest", behavior: "auto" });
     } catch (_e) {}
   }
   if (coachPlaceTimer) clearTimeout(coachPlaceTimer);
-  const delay = reducedMotion() ? 0 : 200;
   coachPlaceTimer = setTimeout(() => {
     coachPlaceTimer = 0;
     layoutCoach();
-  }, delay);
+  }, 0);
 }
 
 function coachCanRun() {
@@ -798,9 +865,8 @@ function coachCanRun() {
 function scheduleCoach() {
   coachStartTimers.forEach((id) => clearTimeout(id));
   coachStartTimers = [];
-  [350, 800, 1400].forEach((ms) => {
-    coachStartTimers.push(setTimeout(() => maybeStartCoach(false), ms));
-  });
+  const wait = reducedMotion() ? 0 : 520;
+  coachStartTimers.push(setTimeout(() => maybeStartCoach(false), wait));
 }
 
 function maybeStartCoach(force) {
@@ -808,16 +874,21 @@ function maybeStartCoach(force) {
   const required = hasRequiredCoach(window.__me);
   if (!force && coachDone() && !required) return;
   if (coachVisible && !force) {
-    layoutCoach();
+    requestCoachLayout();
     return;
   }
   coachList = buildCoachSteps(window.__me);
   if (!coachList.length) return;
   coachIndex = 0;
   coachVisible = true;
+  if (coachHideTimer) {
+    clearTimeout(coachHideTimer);
+    coachHideTimer = 0;
+  }
   $("coach").classList.remove("hidden");
   applyCoachCopy();
   pinCoachCard();
+  playCoachEnter();
   placeCoach();
 }
 
@@ -840,6 +911,7 @@ function coachAdvance() {
   }
   coachIndex += 1;
   placeCoach();
+  playCoachStepIn();
 }
 
 function planRub(plan) {
@@ -1740,6 +1812,11 @@ function syncCoach(me) {
       }
       const idx = coachList.findIndex((s) => s.id === oldId);
       coachIndex = idx >= 0 ? idx : 0;
+      const nextId = coachList[coachIndex] && coachList[coachIndex].id;
+      if (nextId === oldId) {
+        applyCoachCopy();
+        return;
+      }
       placeCoach();
       return;
     }
@@ -2002,7 +2079,12 @@ $("coachReplay").onclick = () => {
   maybeStartCoach(true);
 };
 window.addEventListener("resize", () => {
-  if (coachVisible) layoutCoach();
+  if (!coachVisible) return;
+  clearTimeout(coachViewportTimer);
+  coachViewportTimer = setTimeout(() => {
+    coachViewportTimer = 0;
+    requestCoachLayout();
+  }, 80);
 });
 
 $("promoToggle").onclick = () => {
@@ -2214,7 +2296,12 @@ if (tg.onEvent) {
     if (status === "paid") load().catch(() => {});
   });
   tg.onEvent("viewportChanged", () => {
-    if (coachVisible) layoutCoach();
+    if (!coachVisible) return;
+    clearTimeout(coachViewportTimer);
+    coachViewportTimer = setTimeout(() => {
+      coachViewportTimer = 0;
+      requestCoachLayout();
+    }, 80);
   });
 }
 let visTimer = 0;
