@@ -16,9 +16,9 @@
   --text-secondary: #9db3a4;
   --text-tertiary: #66796d;
   --divider: rgba(255, 255, 255, 0.06);
-  --radius-lg: 22px;
-  --radius-md: 16px;
-  --radius-sm: 12px;
+  --radius-lg: 32px;
+  --radius-md: 24px;
+  --radius-sm: 16px;
 
   --bg: var(--bg-app);
   --section: var(--bg-surface);
@@ -55,8 +55,19 @@ html, body {
 body {
   padding:
     calc(10px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, 0px)))
-    16px
-    calc(24px + var(--tg-safe-area-inset-bottom, 0px));
+    max(
+      16px,
+      env(safe-area-inset-right, 0px),
+      var(--tg-safe-area-inset-right, 0px),
+      var(--tg-content-safe-area-inset-right, 0px)
+    )
+    calc(24px + var(--tg-safe-area-inset-bottom, 0px))
+    max(
+      16px,
+      env(safe-area-inset-left, 0px),
+      var(--tg-safe-area-inset-left, 0px),
+      var(--tg-content-safe-area-inset-left, 0px)
+    );
 }
 
 body.coach-lock {
@@ -70,7 +81,7 @@ body.coach-lock {
 #app {
   max-width: 520px;
   margin: 0 auto;
-  overflow-x: hidden;
+  overflow-x: visible;
 }
 
 .web-back {
@@ -783,6 +794,7 @@ body.coach-lock {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  padding: 3px;
 }
 
 .plat-card {
@@ -1173,7 +1185,10 @@ body.has-main-btn {
   right: 0;
   bottom: 0;
   z-index: 15;
-  padding: 12px 16px calc(12px + var(--tg-safe-area-inset-bottom, 0px));
+  padding: 12px
+    max(16px, env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px))
+    calc(12px + var(--tg-safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px));
   background: var(--bg-app);
 }
 
@@ -1242,6 +1257,7 @@ body.has-main-btn {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  padding: 3px;
 }
 
 .pay-card {
@@ -1555,7 +1571,7 @@ body.has-main-btn {
   right: 16px;
   min-width: 230px;
   background: var(--bg-surface-raised);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
   border: 1px solid var(--divider);
@@ -1942,8 +1958,8 @@ body.has-main-btn {
 
 .coach-card {
   position: absolute;
-  left: 16px;
-  right: 16px;
+  left: max(16px, env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px));
   z-index: 5;
   max-width: 520px;
   margin: 0 auto;
@@ -2064,7 +2080,6 @@ body.has-main-btn {
   font-family: Manrope, Inter, sans-serif;
   position: relative;
   padding-bottom: 12px;
-  overflow-x: hidden;
 }
 
 .dev-hero {
@@ -2131,7 +2146,7 @@ body.has-main-btn {
 .dev-info {
   background: #122318;
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   margin-bottom: 16px;
   position: relative;
@@ -2170,7 +2185,7 @@ body.has-main-btn {
 .dev-link {
   background: #122318;
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   padding: 16px;
   margin-bottom: 14px;
   position: relative;
@@ -2270,7 +2285,7 @@ body.has-main-btn {
   width: 100%;
   border: 1px solid rgba(255, 143, 122, 0.22);
   background: rgba(255, 143, 122, 0.05);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   padding: 14px 16px;
   display: flex;
   align-items: center;
