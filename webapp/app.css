@@ -59,6 +59,14 @@ body {
     calc(24px + var(--tg-safe-area-inset-bottom, 0px));
 }
 
+body.coach-lock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
 #app {
   max-width: 520px;
   margin: 0 auto;

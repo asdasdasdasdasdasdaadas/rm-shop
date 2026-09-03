@@ -240,30 +240,36 @@ async def api_user_devices(request: web.Request) -> web.Response:
     rows = await db.list_devices(telegram_id)
     items: list[dict] = []
     if rows:
-        for item in rows:
+        sem = asyncio.Semaphore(8)
+
+        async def load_row(item: dict) -> dict:
             online = item.get("last_online_at")
-            status = ""
+            status = str(item.get("panel_status") or "")
             if item.get("remnawave_id"):
-                try:
-                    panel = await rw.get_user_by_id(int(item["remnawave_id"]))
-                except Exception:
-                    panel = None
+                async with sem:
+                    try:
+                        panel = await rw.get_user_by_id(int(item["remnawave_id"]))
+                    except Exception:
+                        panel = None
                 if panel:
-                    status = str(panel.get("status") or "")
+                    status = str(panel.get("status") or status)
                     seen = panel_online_at(panel)
                     if seen:
-                        await db.set_device_last_online(int(item["id"]), seen)
+                        try:
+                            await db.set_device_last_online(int(item["id"]), seen)
+                        except Exception:
+                            pass
                         online = seen
-            items.append(
-                {
-                    "id": item["id"],
-                    "title": item.get("title") or "Устройство",
-                    "platform": item.get("platform") or "",
-                    "client": item.get("client") or "",
-                    "status": status,
-                    "last_online_at": online.isoformat() if hasattr(online, "isoformat") else online,
-                }
-            )
+            return {
+                "id": item["id"],
+                "title": item.get("title") or "Устройство",
+                "platform": item.get("platform") or "",
+                "client": item.get("client") or "",
+                "status": status,
+                "last_online_at": online.isoformat() if hasattr(online, "isoformat") else online,
+            }
+
+        items = list(await asyncio.gather(*[load_row(item) for item in rows]))
     elif local.get("remnawave_id"):
         try:
             panel = await rw.get_user_by_id(int(local["remnawave_id"]))

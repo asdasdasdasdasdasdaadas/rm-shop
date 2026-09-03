@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import secrets
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
@@ -22,6 +23,7 @@ from app.config import ROOT, get_settings
 from app.keyboards import back_profile_keyboard, connect_keyboard, support_url
 from app.referrals import maybe_reward_referrer, trial_grant_days, trial_grant_rub
 from app.remnawave import (
+    PANEL_LEASE_DAYS,
     RemnawaveClient,
     RemnawaveError,
     days_remaining,
@@ -43,6 +45,39 @@ from app.trust import take_trust, trust_info
 
 logger = logging.getLogger("rm-shop.web")
 WEBAPP_DIR = ROOT / "webapp"
+_PHOTO_TTL = 600.0
+_photo_cache: dict[int, tuple[float, str]] = {}
+
+
+def _device_as_panel(item: dict) -> dict:
+    expire = parse_dt(item.get("expire_at"))
+    if expire is None:
+        billed = parse_dt(item.get("last_billed_at"))
+        if billed:
+            expire = billed + timedelta(days=PANEL_LEASE_DAYS)
+    return {
+        "username": "",
+        "subscriptionUrl": item.get("subscription_url") or "",
+        "status": str(item.get("panel_status") or "") or "ACTIVE",
+        "expireAt": expire.isoformat() if expire else None,
+    }
+
+
+async def _avatar_url(bot: Bot, telegram_id: int) -> str:
+    now = time.monotonic()
+    hit = _photo_cache.get(telegram_id)
+    if hit and now - hit[0] < _PHOTO_TTL:
+        return hit[1]
+    photo = ""
+    try:
+        photos = await bot.get_user_profile_photos(telegram_id, limit=1)
+        if photos.total_count and photos.photos:
+            file_id = photos.photos[0][-1].file_id
+            photo = f"/api/avatar?uid={telegram_id}&f={file_id}"
+    except Exception:
+        photo = ""
+    _photo_cache[telegram_id] = (now, photo)
+    return photo
 
 
 def _story_check_state(local, settings) -> dict:
@@ -221,8 +256,8 @@ async def api_me(request: web.Request) -> web.Response:
     tg_user = parsed.user if parsed else None
     if tg_user:
         await db.upsert_user(telegram_id, tg_user.username, tg_user.first_name)
-    panel = await fetch_panel(rw, telegram_id)
     local = await db.get_user(telegram_id)
+    panel = await fetch_panel(rw, telegram_id, local=local)
 
     days = int(local["balance_days"] or 0) if settings.balance_enabled and local else days_remaining(panel)
     balance_rub = int((local or {}).get("balance_rub") or 0) if local else 0
@@ -231,18 +266,14 @@ async def api_me(request: web.Request) -> web.Response:
     if settings.balance_enabled:
         raw_devices = await db.list_devices(telegram_id)
         for item in raw_devices:
-            panel_dev = None
-            if item.get("remnawave_id"):
-                panel_dev = await rw.get_user_by_id(int(item["remnawave_id"]))
-            expire = parse_expire((panel_dev or {}).get("expireAt")) if panel_dev else None
+            panel_dev = _device_as_panel(item)
+            expire = parse_expire(panel_dev.get("expireAt"))
             devices.append(
                 {
                     "id": item["id"],
                     "title": item["title"],
-                    "username": (panel_dev or {}).get("username") or "",
-                    "subscription_url": (panel_dev or {}).get("subscriptionUrl")
-                    or item.get("subscription_url")
-                    or "",
+                    "username": panel_dev.get("username") or "",
+                    "subscription_url": panel_dev.get("subscriptionUrl") or "",
                     "days": days_remaining(panel_dev),
                     "active": is_subscription_active(panel_dev),
                     "expire_at": expire.isoformat() if expire else None,
@@ -251,14 +282,7 @@ async def api_me(request: web.Request) -> web.Response:
                 }
             )
 
-    photo = ""
-    try:
-        photos = await bot.get_user_profile_photos(telegram_id, limit=1)
-        if photos.total_count and photos.photos:
-            file_id = photos.photos[0][-1].file_id
-            photo = f"/api/avatar?uid={telegram_id}&f={file_id}"
-    except Exception:
-        photo = ""
+    photo = await _avatar_url(bot, telegram_id)
 
     name = " ".join(x for x in [tg_user.first_name, tg_user.last_name] if x) if tg_user else ""
     username = f"@{tg_user.username}" if tg_user and tg_user.username else ""
@@ -545,7 +569,7 @@ async def api_add_device(request: web.Request) -> web.Response:
         try:
             user = await rw.create_user(
                 telegram_id=None,
-                expire_at=datetime.now(timezone.utc) + timedelta(days=1),
+                expire_at=datetime.now(timezone.utc) + timedelta(days=PANEL_LEASE_DAYS),
                 tag="DEVICE",
                 username=username,
                 hwid_limit=settings.remnawave_hwid_limit,

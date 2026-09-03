@@ -80,10 +80,17 @@ CREATE INDEX IF NOT EXISTS vpn_reports_created_at_idx ON vpn_reports (created_at
 ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_rub INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS has_paid_topup BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_billed_on DATE;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_billed_at TIMESTAMPTZ;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS platform TEXT;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS client TEXT;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS subscription_url TEXT;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_online_at TIMESTAMPTZ;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS expire_at TIMESTAMPTZ;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS panel_status TEXT;
+
+CREATE INDEX IF NOT EXISTS devices_last_billed_at_idx
+    ON devices (last_billed_at)
+    WHERE remnawave_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS app_flags (
     key TEXT PRIMARY KEY,
@@ -138,6 +145,7 @@ CREATE TABLE IF NOT EXISTS billing_events (
 
 CREATE INDEX IF NOT EXISTS billing_events_created_idx ON billing_events (created_at DESC);
 CREATE INDEX IF NOT EXISTS billing_events_tg_idx ON billing_events (telegram_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS billing_events_device_kind_idx ON billing_events (device_id, kind, created_at DESC);
 CREATE INDEX IF NOT EXISTS users_blocked_at_idx ON users (blocked_at) WHERE blocked_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS users_trial_nudge_idx ON users (created_at)
     WHERE trial_nudge_sent_at IS NULL AND trial_used = FALSE;
@@ -149,4 +157,16 @@ WHERE telegram_id IN (
 OR telegram_id IN (
     SELECT DISTINCT telegram_id FROM payments
 );
+
+UPDATE devices
+SET last_billed_at = timezone('utc', now())
+WHERE last_billed_at IS NULL
+  AND last_billed_on IS NOT NULL
+  AND last_billed_on = (timezone('utc', now()))::date;
+
+UPDATE devices
+SET last_billed_at = (last_billed_on::timestamp AT TIME ZONE 'utc')
+WHERE last_billed_at IS NULL
+  AND last_billed_on IS NOT NULL;
+
 

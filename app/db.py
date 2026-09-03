@@ -418,17 +418,28 @@ async def save_device_subscription(remnawave_id: int, panel: dict | None) -> str
     if not panel:
         return None
     uuid = str(panel.get("uuid") or "") or None
+    expire_raw = panel.get("expireAt")
+    expire_at = None
+    if expire_raw:
+        try:
+            expire_at = datetime.fromisoformat(str(expire_raw).replace("Z", "+00:00"))
+        except ValueError:
+            expire_at = None
     row = await _pool_req().fetchrow(
         """
         UPDATE devices SET
             remnawave_uuid = COALESCE($2, remnawave_uuid),
-            subscription_url = $3
+            subscription_url = $3,
+            expire_at = COALESCE($4, expire_at),
+            panel_status = COALESCE($5, panel_status)
         WHERE remnawave_id = $1
         RETURNING title
         """,
         remnawave_id,
         uuid,
         panel.get("subscriptionUrl") or None,
+        expire_at,
+        str(panel.get("status") or "") or None,
     )
     return str(row["title"]) if row and row.get("title") else None
 
@@ -689,7 +700,7 @@ async def list_panel_ids_for_user(telegram_id: int) -> list[int]:
 
 async def clear_device_billing(telegram_id: int) -> None:
     await _pool_req().execute(
-        "UPDATE devices SET last_billed_on = NULL WHERE telegram_id = $1",
+        "UPDATE devices SET last_billed_on = NULL, last_billed_at = NULL WHERE telegram_id = $1",
         telegram_id,
     )
 
@@ -728,6 +739,38 @@ async def spend_balance_rub(telegram_id: int, amount: int) -> bool:
     return row is not None
 
 
+async def take_device_charges(telegram_id: int, price: int, count: int) -> int:
+    n = max(0, int(count))
+    unit = max(0, int(price))
+    if n < 1:
+        return 0
+    if unit < 1:
+        return n
+    pool = _pool_req()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                SELECT COALESCE(balance_rub, 0) AS bal
+                FROM users
+                WHERE telegram_id = $1
+                FOR UPDATE
+                """,
+                telegram_id,
+            )
+            if not row:
+                return 0
+            paid = min(n, int(row["bal"]) // unit)
+            if paid < 1:
+                return 0
+            await conn.execute(
+                "UPDATE users SET balance_rub = COALESCE(balance_rub, 0) - $2 WHERE telegram_id = $1",
+                telegram_id,
+                paid * unit,
+            )
+            return paid
+
+
 async def spend_balance_day(telegram_id: int) -> bool:
     row = await _pool_req().fetchrow(
         """
@@ -757,8 +800,8 @@ async def add_device(
 ) -> dict:
     row = await _pool_req().fetchrow(
         """
-        INSERT INTO devices (telegram_id, title, remnawave_id, last_billed_on, platform, client)
-        VALUES ($1, $2, $3, (timezone('utc', now()))::date, $4, $5)
+        INSERT INTO devices (telegram_id, title, remnawave_id, last_billed_on, last_billed_at, platform, client)
+        VALUES ($1, $2, $3, (timezone('utc', now()))::date, timezone('utc', now()), $4, $5)
         RETURNING *
         """,
         telegram_id,
@@ -802,7 +845,8 @@ async def devices_due_for_billing() -> list[dict]:
         SELECT id, telegram_id, title, remnawave_id
         FROM devices
         WHERE remnawave_id IS NOT NULL
-          AND (last_billed_on IS NULL OR last_billed_on < (timezone('utc', now()))::date)
+          AND (last_billed_at IS NULL OR last_billed_at <= timezone('utc', now()) - INTERVAL '24 hours')
+          AND (last_billed_at IS NOT NULL OR last_billed_on IS NULL OR last_billed_on < (timezone('utc', now()))::date)
           AND telegram_id NOT IN (SELECT telegram_id FROM users WHERE blocked_at IS NOT NULL)
         ORDER BY id
         """
@@ -842,17 +886,27 @@ async def mark_device_billed(device_id: int) -> None:
     await mark_devices_billed([device_id])
 
 
-async def mark_devices_billed(device_ids: list[int]) -> None:
+async def mark_devices_billed(
+    device_ids: list[int],
+    *,
+    status: str | None = None,
+    expire_at: datetime | None = None,
+) -> None:
     ids = [int(x) for x in device_ids if x is not None]
     if not ids:
         return
     await _pool_req().execute(
         """
         UPDATE devices
-        SET last_billed_on = (timezone('utc', now()))::date
+        SET last_billed_on = (timezone('utc', now()))::date,
+            last_billed_at = timezone('utc', now()),
+            panel_status = COALESCE($2, panel_status),
+            expire_at = COALESCE($3, expire_at)
         WHERE id = ANY($1::bigint[])
         """,
         ids,
+        status,
+        expire_at,
     )
 
 
@@ -1394,6 +1448,36 @@ async def log_billing_event(
         )
     except Exception:
         logging.getLogger("rm-shop.db").exception("Не удалось записать событие биллинга")
+
+
+async def log_billing_events(events: list[dict]) -> None:
+    if not events:
+        return
+    rows = [
+        (
+            int(item["telegram_id"]),
+            str(item.get("kind") or ""),
+            str(item.get("source") or "cron"),
+            int(item.get("amount") or 0),
+            item.get("balance_after"),
+            int(item["device_id"]) if item.get("device_id") is not None else None,
+            (str(item.get("device_title") or "").strip() or None),
+            (str(item.get("note") or "").strip() or None),
+        )
+        for item in events
+    ]
+    try:
+        await _pool_req().executemany(
+            """
+            INSERT INTO billing_events (
+                telegram_id, kind, source, amount, balance_after, device_id, device_title, note
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            """,
+            rows,
+        )
+    except Exception:
+        logging.getLogger("rm-shop.db").exception("Не удалось записать события биллинга")
 
 
 def _admin_billing_filter(

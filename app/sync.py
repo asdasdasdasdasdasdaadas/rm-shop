@@ -24,8 +24,11 @@ def _fresh(local: dict | None) -> bool:
     return False
 
 
-async def fetch_panel(rw: RemnawaveClient, telegram_id: int, *, force: bool = False) -> dict | None:
-    local = await db.get_user(telegram_id)
+async def fetch_panel(
+    rw: RemnawaveClient, telegram_id: int, *, force: bool = False, local: dict | None = None
+) -> dict | None:
+    if local is None:
+        local = await db.get_user(telegram_id)
     if not force and _fresh(local) and (local.get("remnawave_id") or local.get("subscription_url")):
         return {
             "id": local.get("remnawave_id"),

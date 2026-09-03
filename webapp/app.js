@@ -608,6 +608,8 @@ let coachStartTimers = [];
 let coachLayoutRaf = 0;
 let coachViewportTimer = 0;
 let coachHideTimer = 0;
+let coachScrollY = 0;
+let coachScrollLocked = false;
 
 function coachDone() {
   try {
@@ -625,6 +627,35 @@ function markCoachDone() {
 
 function clearCoachPulse() {
   document.querySelectorAll(".coach-pulse").forEach((el) => el.classList.remove("coach-pulse"));
+}
+
+function onCoachScrollGuard(e) {
+  if (!coachVisible && !coachScrollLocked) return;
+  const t = e.target;
+  if (t && t.closest && t.closest("#coachCard")) return;
+  e.preventDefault();
+}
+
+function lockCoachScroll() {
+  if (coachScrollLocked) return;
+  coachScrollLocked = true;
+  coachScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  document.body.classList.add("coach-lock");
+  document.body.style.top = `-${coachScrollY}px`;
+  try {
+    if (typeof tg.disableVerticalSwipes === "function") tg.disableVerticalSwipes();
+  } catch (_e) {}
+}
+
+function unlockCoachScroll() {
+  if (!coachScrollLocked) return;
+  coachScrollLocked = false;
+  document.body.classList.remove("coach-lock");
+  document.body.style.top = "";
+  window.scrollTo(0, coachScrollY);
+  try {
+    if (screen === "home" && typeof tg.enableVerticalSwipes === "function") tg.enableVerticalSwipes();
+  } catch (_e) {}
 }
 
 function hideCoach() {
@@ -649,18 +680,21 @@ function hideCoach() {
   const el = $("coach");
   if (!el || el.classList.contains("hidden")) {
     if (el) el.classList.remove("is-on", "is-out");
+    unlockCoachScroll();
     return;
   }
   el.classList.add("is-out");
   if (reducedMotion()) {
     el.classList.add("hidden");
     el.classList.remove("is-on", "is-out");
+    unlockCoachScroll();
     return;
   }
   coachHideTimer = setTimeout(() => {
     coachHideTimer = 0;
     el.classList.add("hidden");
     el.classList.remove("is-on", "is-out");
+    unlockCoachScroll();
   }, 220);
 }
 
@@ -885,6 +919,7 @@ function maybeStartCoach(force) {
     clearTimeout(coachHideTimer);
     coachHideTimer = 0;
   }
+  lockCoachScroll();
   $("coach").classList.remove("hidden");
   applyCoachCopy();
   pinCoachCard();
@@ -2078,6 +2113,8 @@ $("coachReplay").onclick = () => {
   } catch (_e) {}
   maybeStartCoach(true);
 };
+document.addEventListener("touchmove", onCoachScrollGuard, { passive: false });
+document.addEventListener("wheel", onCoachScrollGuard, { passive: false });
 window.addEventListener("resize", () => {
   if (!coachVisible) return;
   clearTimeout(coachViewportTimer);
