@@ -881,9 +881,10 @@ async def device_count(telegram_id: int) -> int:
 async def devices_due_for_billing() -> list[dict]:
     rows = await _pool_req().fetch(
         """
-        SELECT id, telegram_id, title, remnawave_id
+        SELECT id, telegram_id, title, remnawave_id, remnawave_uuid
         FROM devices
         WHERE remnawave_id IS NOT NULL
+          AND UPPER(COALESCE(panel_status, '')) <> 'DISABLED'
           AND (last_billed_at IS NULL OR last_billed_at <= timezone('utc', now()) - INTERVAL '24 hours')
           AND (last_billed_at IS NOT NULL OR last_billed_on IS NULL OR last_billed_on < (timezone('utc', now()))::date)
           AND telegram_id NOT IN (SELECT telegram_id FROM users WHERE blocked_at IS NOT NULL)
@@ -896,18 +897,13 @@ async def devices_due_for_billing() -> list[dict]:
 async def devices_needing_revive() -> list[dict]:
     rows = await _pool_req().fetch(
         """
-        SELECT d.id, d.telegram_id, d.title, d.remnawave_id
+        SELECT d.id, d.telegram_id, d.title, d.remnawave_id, d.remnawave_uuid
         FROM devices d
         JOIN users u ON u.telegram_id = d.telegram_id
         WHERE d.remnawave_id IS NOT NULL
           AND u.blocked_at IS NULL
           AND d.last_billed_at IS NOT NULL
           AND d.last_billed_at > timezone('utc', now()) - INTERVAL '24 hours'
-          AND (
-            UPPER(COALESCE(d.panel_status, '')) IN ('DISABLED', 'EXPIRED')
-            OR d.expire_at IS NULL
-            OR d.expire_at <= timezone('utc', now()) + INTERVAL '12 hours'
-          )
         ORDER BY d.id
         """
     )
@@ -917,9 +913,11 @@ async def devices_needing_revive() -> list[dict]:
 async def devices_to_retry_disable() -> list[dict]:
     rows = await _pool_req().fetch(
         """
-        SELECT d.id, d.telegram_id, d.title, d.remnawave_id
+        SELECT d.id, d.telegram_id, d.title, d.remnawave_id, d.remnawave_uuid
         FROM devices d
         WHERE d.remnawave_id IS NOT NULL
+          AND UPPER(COALESCE(d.panel_status, '')) <> 'DISABLED'
+          AND (d.last_billed_at IS NULL OR d.last_billed_at <= timezone('utc', now()) - INTERVAL '24 hours')
           AND d.telegram_id NOT IN (SELECT telegram_id FROM users WHERE blocked_at IS NOT NULL)
           AND EXISTS (
             SELECT 1
@@ -933,7 +931,7 @@ async def devices_to_retry_disable() -> list[dict]:
             SELECT 1
             FROM billing_events e
             WHERE e.device_id = d.id
-              AND e.kind IN ('disable', 'charge', 'pause')
+              AND e.kind IN ('disable', 'charge', 'pause', 'revive')
               AND e.created_at >= (timezone('utc', now()))::date
           )
         ORDER BY d.id

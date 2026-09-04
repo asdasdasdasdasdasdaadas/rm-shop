@@ -133,7 +133,7 @@ async def _bill_due_device(
             note="Панель не отключила устройство",
         )
         return "error"
-    await db.mark_devices_billed([device_id], status="DISABLED")
+    await db.mark_devices_billed([device_id], status="DISABLED", touch_billed=False)
     await db.log_billing_event(
         tg_id,
         "disable",
@@ -150,6 +150,18 @@ def _chunks(items: list, size: int):
     n = max(1, int(size))
     for i in range(0, len(items), n):
         yield items[i : i + n]
+
+
+def _panel_keys(items: list[dict]) -> tuple[list[int], list[str]]:
+    pids: list[int] = []
+    uuids: list[str] = []
+    for item in items:
+        if item.get("remnawave_id") is not None:
+            pids.append(int(item["remnawave_id"]))
+        raw = str(item.get("remnawave_uuid") or "").strip()
+        if raw:
+            uuids.append(raw)
+    return pids, uuids
 
 
 def _panel_mode(used_bulk: bool, used_one: bool) -> str:
@@ -228,9 +240,9 @@ async def _commit_extends(
     note = "Пауза тарификации, сутки без списания" if paused else "Списание за сутки VPN"
     amount = 0 if paused else -price
     for part in _chunks(items, chunk):
-        pids = [int(x["remnawave_id"]) for x in part]
+        pids, uuids = _panel_keys(part)
         try:
-            await rw.bulk_refresh_lease(pids, PANEL_LEASE_DAYS)
+            await rw.bulk_refresh_lease(pids, PANEL_LEASE_DAYS, uuids=uuids)
             used_bulk = True
         except RemnawaveError:
             logger.warning("Пакетное продление недоступно, иду по одному (%s шт.)", len(part))
@@ -262,7 +274,7 @@ async def _commit_extends(
     return ok, _panel_mode(used_bulk, used_one)
 
 
-async def _commit_revives(
+async def _commit_keepalives(
     rw: RemnawaveClient,
     items: list[dict],
     *,
@@ -275,25 +287,25 @@ async def _commit_revives(
     used_one = False
     until = _lease_until()
     for part in _chunks(items, chunk):
-        pids = [int(x["remnawave_id"]) for x in part]
+        pids, uuids = _panel_keys(part)
         try:
-            await rw.bulk_refresh_lease(pids, PANEL_LEASE_DAYS)
+            await rw.bulk_refresh_lease(pids, PANEL_LEASE_DAYS, uuids=uuids)
             used_bulk = True
         except RemnawaveError:
-            logger.warning("Пакетное включение недоступно, иду по одному (%s шт.)", len(part))
+            logger.warning("Пакетное продление оплаченных устройств недоступно, иду по одному (%s шт.)", len(part))
             used_one = True
             for item in part:
                 try:
                     await rw.enable_panel_user(int(item["remnawave_id"]))
                 except RemnawaveError:
-                    logger.exception("Не удалось включить устройство %s", item["id"])
+                    logger.exception("Не удалось продлить оплаченное устройство %s", item["id"])
                     await db.log_billing_event(
                         int(item["telegram_id"]),
                         "error",
                         source="cron",
                         device_id=int(item["id"]),
                         device_title=str(item.get("title") or ""),
-                        note="Панель не включила уже оплаченное устройство",
+                        note="Панель не продлила уже оплаченное устройство",
                     )
                     continue
                 await db.mark_devices_billed(
@@ -302,14 +314,6 @@ async def _commit_revives(
                     expire_at=until,
                     touch_billed=False,
                 )
-                await db.log_billing_event(
-                    int(item["telegram_id"]),
-                    "revive",
-                    source="cron",
-                    device_id=int(item["id"]),
-                    device_title=str(item.get("title") or ""),
-                    note="Снова включили устройство: срок в панели кончился раньше оплаты",
-                )
                 ok += 1
             continue
         await db.mark_devices_billed(
@@ -317,20 +321,6 @@ async def _commit_revives(
             status="ACTIVE",
             expire_at=until,
             touch_billed=False,
-        )
-        await db.log_billing_events(
-            [
-                {
-                    "telegram_id": int(item["telegram_id"]),
-                    "kind": "revive",
-                    "source": "cron",
-                    "amount": 0,
-                    "device_id": int(item["id"]),
-                    "device_title": str(item.get("title") or ""),
-                    "note": "Снова включили устройство: срок в панели кончился раньше оплаты",
-                }
-                for item in part
-            ]
         )
         ok += len(part)
     return ok, _panel_mode(used_bulk, used_one)
@@ -361,7 +351,7 @@ async def _disable_one(
             note="Панель не отключила устройство",
         )
         return False
-    await db.mark_devices_billed([device_id], status="DISABLED")
+    await db.mark_devices_billed([device_id], status="DISABLED", touch_billed=False)
     await db.log_billing_event(
         tg_id,
         "disable",
@@ -390,9 +380,9 @@ async def _commit_disables(
     used_bulk = False
     used_one = False
     for part in _chunks(items, chunk):
-        pids = [int(x["remnawave_id"]) for x in part]
+        pids, uuids = _panel_keys(part)
         try:
-            await rw.bulk_update_users(pids, {"status": "DISABLED"})
+            await rw.bulk_update_users(pids, {"status": "DISABLED"}, uuids=uuids)
             used_bulk = True
         except RemnawaveError:
             logger.warning("Пакетное отключение недоступно, иду по одному (%s шт.)", len(part))
@@ -404,6 +394,7 @@ async def _commit_disables(
         await db.mark_devices_billed(
             [int(x["id"]) for x in part],
             status="DISABLED",
+            touch_billed=False,
         )
         await db.log_billing_events(
             [
@@ -431,25 +422,26 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
         return
     await collect_due_trusts(bot)
     flags = await db.get_flags()
-    if flags.get("maintenance"):
-        return
+    maintenance = bool(flags.get("maintenance"))
     price = max(1, settings.vpn_day_price_rub)
     paused = bool(flags.get("billing_paused"))
     started = time.monotonic()
     seen: set[int] = set()
     pending: list[dict] = []
-    for item in await db.devices_due_for_billing():
-        seen.add(int(item["id"]))
-        pending.append(item)
-    for item in await db.devices_to_retry_disable():
-        if int(item["id"]) in seen:
-            continue
-        pending.append(item)
+    if not maintenance:
+        for item in await db.devices_due_for_billing():
+            seen.add(int(item["id"]))
+            pending.append(item)
+        for item in await db.devices_to_retry_disable():
+            if int(item["id"]) in seen:
+                continue
+            pending.append(item)
     chunk = max(20, min(200, settings.billing_bulk_chunk))
     extended = 0
     disabled = 0
     extend_mode = "нет"
     disable_mode = "нет"
+    disable_ids: set[int] = set()
     if pending:
         groups: dict[int, list[dict]] = defaultdict(list)
         for item in pending:
@@ -479,22 +471,19 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
         disabled, disable_mode = await _commit_disables(
             rw, disable, bot=bot, price=price, source="cron", chunk=chunk
         )
-        for item in extend:
-            seen.add(int(item["id"]))
-        for item in disable:
-            seen.add(int(item["id"]))
-    revive = [
+        disable_ids = {int(item["id"]) for item in disable}
+    keep = [
         item
         for item in await db.devices_needing_revive()
-        if int(item["id"]) not in seen
+        if int(item["id"]) not in disable_ids
     ]
-    revived, revive_mode = await _commit_revives(rw, revive, chunk=chunk)
+    kept, keep_mode = await _commit_keepalives(rw, keep, chunk=chunk)
     logger.info(
-        "Списание: к оплате %s, продлили %s, отключили %s, включили снова %s",
+        "Списание: к оплате %s, продлили %s, отключили %s, поддержали %s",
         len(pending),
         extended,
         disabled,
-        revived,
+        kept,
     )
     await db.set_job_report(
         "billing",
@@ -502,11 +491,12 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
             "pending": len(pending),
             "extended": extended,
             "disabled": disabled,
-            "revived": revived,
+            "revived": kept,
             "extend_mode": extend_mode,
             "disable_mode": disable_mode,
-            "revive_mode": revive_mode,
+            "revive_mode": keep_mode,
             "paused": paused,
+            "maintenance": maintenance,
             "seconds": round(time.monotonic() - started, 1),
         },
     )

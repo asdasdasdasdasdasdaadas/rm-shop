@@ -439,47 +439,89 @@ class RemnawaveClient:
             timeout=timeout,
         )
 
-    async def _bulk_post(self, path: str, user_ids: list[int], extra: dict[str, Any]) -> None:
-        if not user_ids:
-            return
+    async def _bulk_post(
+        self,
+        path: str,
+        user_ids: list[int],
+        extra: dict[str, Any],
+        uuids: list[str] | None = None,
+    ) -> None:
         timeout = httpx.Timeout(60.0, connect=8.0)
-        try:
-            await self._request("POST", path, json={"userIds": user_ids, **extra}, timeout=timeout)
-            return
-        except RemnawaveError:
-            pass
-        await self._request(
-            "POST",
-            path,
-            json={"uuids": [str(uid) for uid in user_ids], **extra},
-            timeout=timeout,
-        )
+        last: RemnawaveError | None = None
+        ids = [int(x) for x in user_ids if x is not None]
+        if ids:
+            try:
+                await self._request(
+                    "POST",
+                    path,
+                    json={"userIds": ids, **extra},
+                    timeout=timeout,
+                )
+                return
+            except RemnawaveError as exc:
+                last = exc
+        clean_uuids = [
+            str(item).strip()
+            for item in (uuids or [])
+            if item and len(str(item).strip()) >= 32 and "-" in str(item)
+        ]
+        if clean_uuids:
+            try:
+                await self._request(
+                    "POST",
+                    path,
+                    json={"uuids": clean_uuids, **extra},
+                    timeout=timeout,
+                )
+                return
+            except RemnawaveError as exc:
+                last = exc
+        if last:
+            raise last
+        raise RemnawaveError("Нет идентификаторов для пакетного запроса")
 
-    async def bulk_extend_expiration(self, user_ids: list[int], days: int) -> None:
+    async def bulk_extend_expiration(
+        self, user_ids: list[int], days: int, uuids: list[str] | None = None
+    ) -> None:
         if days < 1:
             return
-        await self._bulk_post("/users/bulk/extend-expiration-date", user_ids, {"extendDays": int(days)})
+        await self._bulk_post(
+            "/users/bulk/extend-expiration-date",
+            user_ids,
+            {"extendDays": int(days)},
+            uuids=uuids,
+        )
 
-    async def bulk_refresh_lease(self, user_ids: list[int], days: int = PANEL_LEASE_DAYS) -> None:
+    async def bulk_refresh_lease(
+        self,
+        user_ids: list[int],
+        days: int = PANEL_LEASE_DAYS,
+        uuids: list[str] | None = None,
+    ) -> None:
         expire = iso_expire(panel_lease_until(min_days=days))
+        fields = {"status": "ACTIVE", "expireAt": expire}
         try:
-            await self.bulk_update_users(user_ids, {"status": "ACTIVE", "expireAt": expire})
+            await self.bulk_update_users(user_ids, fields, uuids=uuids)
             return
         except RemnawaveError:
             pass
-        await self.bulk_extend_expiration(user_ids, max(1, int(days)))
         try:
-            await self.bulk_update_users(user_ids, {"status": "ACTIVE", "expireAt": expire})
+            await self.bulk_extend_expiration(user_ids, max(1, int(days)), uuids=uuids)
+            await self.bulk_update_users(user_ids, fields, uuids=uuids)
+            return
         except RemnawaveError:
-            try:
-                await self.bulk_update_users(user_ids, {"status": "ACTIVE"})
-            except RemnawaveError:
-                pass
+            pass
+        raise RemnawaveError("Пакетное продление не удалось")
 
-    async def bulk_update_users(self, user_ids: list[int], fields: dict[str, Any]) -> None:
+    async def bulk_update_users(
+        self,
+        user_ids: list[int],
+        fields: dict[str, Any],
+        uuids: list[str] | None = None,
+    ) -> None:
         if not fields:
             return
-        await self._bulk_post("/users/bulk/update", user_ids, {"fields": fields})
+        await self._bulk_post("/users/bulk/update", user_ids, {"fields": fields}, uuids=uuids)
 
     async def update_user(self, user: dict, patch: dict[str, Any]) -> dict:
         body = dict(patch)
