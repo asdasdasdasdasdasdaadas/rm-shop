@@ -30,6 +30,7 @@ from app.remnawave import (
     is_subscription_active,
     parse_dt,
     parse_expire,
+    panel_lease_until,
     username_taken,
 )
 from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, verify_webhook
@@ -585,7 +586,7 @@ async def api_add_device(request: web.Request) -> web.Response:
         try:
             user = await rw.create_user(
                 telegram_id=None,
-                expire_at=datetime.now(timezone.utc) + timedelta(days=PANEL_LEASE_DAYS),
+                expire_at=panel_lease_until(),
                 tag="DEVICE",
                 username=username,
                 hwid_limit=settings.remnawave_hwid_limit,

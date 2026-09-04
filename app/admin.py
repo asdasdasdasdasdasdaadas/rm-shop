@@ -84,7 +84,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "23"})
+    return web.json_response({"ok": True, "build": "29"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -193,7 +193,18 @@ async def api_users(request: web.Request) -> web.Response:
     q = str(request.query.get("q") or "")
     page = max(1, int(request.query.get("page") or 1))
     limit = min(100, max(1, int(request.query.get("limit") or 30)))
-    extra = _query_extra(request, "status", "trial", "devices", "bal_min", "bal_max", "from", "to")
+    extra = _query_extra(
+        request,
+        "status",
+        "trial",
+        "devices",
+        "online",
+        "bal_sign",
+        "bal_min",
+        "bal_max",
+        "from",
+        "to",
+    )
     items, total = await db.admin_list_users(q, limit, (page - 1) * limit, extra)
     rw: RemnawaveClient = request.app["rw"]
     await _enrich_users_online(rw, items)
@@ -528,8 +539,13 @@ async def api_users_bulk(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Неизвестное действие"}, status=400)
     ids: list[int] = []
     if body.get("all_matching"):
+        extra = {}
+        for key in ("status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to"):
+            val = str(body.get(key) or "").strip()
+            if val:
+                extra[key] = val
         q = str(body.get("q") or "")
-        ids, total = await db.admin_user_ids(q, BULK_MAX + 1)
+        ids, total = await db.admin_user_ids(q, BULK_MAX + 1, extra)
         if total > BULK_MAX:
             return web.json_response(
                 {
@@ -1104,6 +1120,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin", admin_redirect)
     app.router.add_get("/admin/", admin_index)
     app.router.add_get("/admin/stats", admin_index)
+    app.router.add_get("/admin/promo", admin_index)
     app.router.add_get("/admin/app.css", lambda _r: web.FileResponse(ADMIN_DIR / "app.css", headers=_NO_STORE))
     app.router.add_get("/admin/app.js", lambda _r: web.FileResponse(ADMIN_DIR / "app.js", headers=_NO_STORE))
     app.router.add_get("/admin/api/build", api_admin_build)

@@ -347,18 +347,22 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
         UPDATE devices d SET
             remnawave_uuid = COALESCE(v.uuid, d.remnawave_uuid),
             subscription_url = COALESCE(v.sub, d.subscription_url),
+            expire_at = COALESCE(v.expire_at, d.expire_at),
+            panel_status = COALESCE(v.status, d.panel_status),
             last_online_at = CASE
                 WHEN v.online_at IS NULL THEN d.last_online_at
                 WHEN d.last_online_at IS NULL OR v.online_at > d.last_online_at THEN v.online_at
                 ELSE d.last_online_at
             END
         FROM unnest(
-            $1::bigint[], $2::text[], $3::text[], $4::timestamptz[]
-        ) AS v(pid, uuid, sub, online_at)
+            $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[], $6::timestamptz[]
+        ) AS v(pid, uuid, expire_at, status, sub, online_at)
         WHERE d.remnawave_id IS NOT NULL AND d.remnawave_id = v.pid
         """,
         ids,
         uuids,
+        expires,
+        statuses,
         subs,
         onlines,
     )
@@ -889,6 +893,27 @@ async def devices_due_for_billing() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+async def devices_needing_revive() -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT d.id, d.telegram_id, d.title, d.remnawave_id
+        FROM devices d
+        JOIN users u ON u.telegram_id = d.telegram_id
+        WHERE d.remnawave_id IS NOT NULL
+          AND u.blocked_at IS NULL
+          AND d.last_billed_at IS NOT NULL
+          AND d.last_billed_at > timezone('utc', now()) - INTERVAL '24 hours'
+          AND (
+            UPPER(COALESCE(d.panel_status, '')) IN ('DISABLED', 'EXPIRED')
+            OR d.expire_at IS NULL
+            OR d.expire_at <= timezone('utc', now()) + INTERVAL '12 hours'
+          )
+        ORDER BY d.id
+        """
+    )
+    return [dict(r) for r in rows]
+
+
 async def devices_to_retry_disable() -> list[dict]:
     rows = await _pool_req().fetch(
         """
@@ -926,16 +951,30 @@ async def mark_devices_billed(
     *,
     status: str | None = None,
     expire_at: datetime | None = None,
+    touch_billed: bool = True,
 ) -> None:
     ids = [int(x) for x in device_ids if x is not None]
     if not ids:
         return
+    if touch_billed:
+        await _pool_req().execute(
+            """
+            UPDATE devices
+            SET last_billed_on = (timezone('utc', now()))::date,
+                last_billed_at = timezone('utc', now()),
+                panel_status = COALESCE($2, panel_status),
+                expire_at = COALESCE($3, expire_at)
+            WHERE id = ANY($1::bigint[])
+            """,
+            ids,
+            status,
+            expire_at,
+        )
+        return
     await _pool_req().execute(
         """
         UPDATE devices
-        SET last_billed_on = (timezone('utc', now()))::date,
-            last_billed_at = timezone('utc', now()),
-            panel_status = COALESCE($2, panel_status),
+        SET panel_status = COALESCE($2, panel_status),
             expire_at = COALESCE($3, expire_at)
         WHERE id = ANY($1::bigint[])
         """,
@@ -1049,6 +1088,33 @@ async def admin_stats() -> dict:
               AT TIME ZONE 'Europe/Moscow'
         """
     )
+    online = await pool.fetchrow(
+        """
+        WITH seen AS (
+            SELECT telegram_id, MAX(last_online_at) AS last_seen
+            FROM devices
+            WHERE last_online_at IS NOT NULL
+            GROUP BY telegram_id
+        )
+        SELECT
+            COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '1 day')::int AS day,
+            COUNT(*) FILTER (
+                WHERE last_seen >= NOW() - INTERVAL '2 days'
+                  AND last_seen < NOW() - INTERVAL '1 day'
+            )::int AS day_prev,
+            COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '7 days')::int AS week,
+            COUNT(*) FILTER (
+                WHERE last_seen >= NOW() - INTERVAL '14 days'
+                  AND last_seen < NOW() - INTERVAL '7 days'
+            )::int AS week_prev,
+            COUNT(*) FILTER (WHERE last_seen >= NOW() - INTERVAL '30 days')::int AS month,
+            COUNT(*) FILTER (
+                WHERE last_seen >= NOW() - INTERVAL '60 days'
+                  AND last_seen < NOW() - INTERVAL '30 days'
+            )::int AS month_prev
+        FROM seen
+        """
+    )
     broadcast_users = await pool.fetchval(
         "SELECT COUNT(*)::int FROM users WHERE blocked_at IS NULL"
     )
@@ -1070,6 +1136,7 @@ async def admin_stats() -> dict:
         "stars_payments": int(stars or 0),
         "vpn_reports": int(await pool.fetchval("SELECT COUNT(*)::int FROM vpn_reports") or 0),
         "billing_today": dict(billing_today) if billing_today else {},
+        "online": dict(online) if online else {},
         "broadcast_users": int(broadcast_users or 0),
         "clients": [dict(r) for r in client_rows],
     }
@@ -1106,11 +1173,45 @@ def _admin_users_filter(query: str, extra: dict | None = None) -> tuple[str, lis
         clauses.append("EXISTS (SELECT 1 FROM devices d0 WHERE d0.telegram_id = u.telegram_id)")
     elif devices == "no":
         clauses.append("NOT EXISTS (SELECT 1 FROM devices d0 WHERE d0.telegram_id = u.telegram_id)")
+    bal_sign = str(extra.get("bal_sign") or "").strip()
+    if bal_sign == "pos":
+        clauses.append("COALESCE(u.balance_rub, 0) > 0")
+    elif bal_sign == "zero":
+        clauses.append("COALESCE(u.balance_rub, 0) = 0")
+    elif bal_sign == "neg":
+        clauses.append("COALESCE(u.balance_rub, 0) < 0")
     for key, op in (("bal_min", ">="), ("bal_max", "<=")):
         raw = str(extra.get(key) or "").strip()
         if raw.isdigit() or (raw.startswith("-") and raw[1:].isdigit()):
             args.append(int(raw))
             clauses.append(f"COALESCE(u.balance_rub, 0) {op} ${len(args)}")
+    online = str(extra.get("online") or "").strip()
+    online_sql = {
+        "now": "INTERVAL '15 minutes'",
+        "1h": "INTERVAL '1 hour'",
+        "1d": "INTERVAL '1 day'",
+        "7d": "INTERVAL '7 days'",
+        "30d": "INTERVAL '30 days'",
+    }.get(online)
+    if online == "never":
+        clauses.append(
+            """
+            NOT EXISTS (
+                SELECT 1 FROM devices d0
+                WHERE d0.telegram_id = u.telegram_id AND d0.last_online_at IS NOT NULL
+            )
+            """
+        )
+    elif online_sql:
+        clauses.append(
+            f"""
+            EXISTS (
+                SELECT 1 FROM devices d0
+                WHERE d0.telegram_id = u.telegram_id
+                  AND d0.last_online_at >= NOW() - {online_sql}
+            )
+            """
+        )
     from_d = str(extra.get("from") or "").strip()
     to_d = str(extra.get("to") or "").strip()
     if from_d:

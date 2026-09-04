@@ -494,6 +494,14 @@ h3 {
   font-weight: 700;
   letter-spacing: -0.02em;
 }
+.card .delta {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.delta-up { color: var(--mint); }
+.delta-down { color: var(--danger); }
+.delta-flat { color: var(--text-2); }
 
 .card-app {
   display: flex;

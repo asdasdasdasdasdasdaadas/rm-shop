@@ -36,12 +36,13 @@ async def balance_charge_loop(rw: RemnawaveClient, bot: Bot) -> None:
     interval = settings.balance_charge_interval
     if not settings.balance_enabled or interval <= 0:
         return
+    await asyncio.sleep(min(20, interval))
     while True:
-        await asyncio.sleep(interval)
         try:
             await charge_due_devices(rw, bot)
         except Exception:
             logger.exception("Списание за устройства не удалось")
+        await asyncio.sleep(interval)
 
 
 async def panel_sync_loop(rw: RemnawaveClient) -> None:

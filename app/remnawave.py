@@ -136,8 +136,19 @@ def iso_expire(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
-# Запас в панели: сутки в приложении не должны упираться в полночь UTC и обрезку даты.
-PANEL_LEASE_DAYS = 2
+# Запас в панели: Remnawave часто хранит только дату UTC и гасит учётку в полночь.
+# Сутки в приложении не должны упираться в эту обрезку и в задержку крона.
+PANEL_LEASE_DAYS = 3
+
+
+def panel_lease_until(*, min_days: int | None = None) -> datetime:
+    now = datetime.now(timezone.utc)
+    days = max(2, int(min_days if min_days is not None else PANEL_LEASE_DAYS))
+    floor = now + timedelta(days=days)
+    at_noon = floor.replace(hour=12, minute=0, second=0, microsecond=0)
+    if at_noon <= floor:
+        at_noon += timedelta(days=1)
+    return at_noon
 
 
 def gb_to_bytes(gb: int) -> int:
@@ -450,18 +461,20 @@ class RemnawaveClient:
         await self._bulk_post("/users/bulk/extend-expiration-date", user_ids, {"extendDays": int(days)})
 
     async def bulk_refresh_lease(self, user_ids: list[int], days: int = PANEL_LEASE_DAYS) -> None:
-        days = max(1, int(days))
-        expire = iso_expire(datetime.now(timezone.utc) + timedelta(days=days))
+        expire = iso_expire(panel_lease_until(min_days=days))
         try:
             await self.bulk_update_users(user_ids, {"status": "ACTIVE", "expireAt": expire})
             return
         except RemnawaveError:
             pass
-        await self.bulk_extend_expiration(user_ids, days)
+        await self.bulk_extend_expiration(user_ids, max(1, int(days)))
         try:
-            await self.bulk_update_users(user_ids, {"status": "ACTIVE"})
+            await self.bulk_update_users(user_ids, {"status": "ACTIVE", "expireAt": expire})
         except RemnawaveError:
-            pass
+            try:
+                await self.bulk_update_users(user_ids, {"status": "ACTIVE"})
+            except RemnawaveError:
+                pass
 
     async def bulk_update_users(self, user_ids: list[int], fields: dict[str, Any]) -> None:
         if not fields:
@@ -500,10 +513,8 @@ class RemnawaveClient:
         raise RemnawaveError(f"Не удалось выполнить {action}")
 
     async def extend_panel_user(self, panel_user_id: int, days: int) -> dict:
-        now = datetime.now(timezone.utc)
-        days = max(1, int(days))
         patch = {
-            "expireAt": iso_expire(now + timedelta(days=days)),
+            "expireAt": iso_expire(panel_lease_until(min_days=days)),
             "status": "ACTIVE",
         }
         try:
@@ -522,11 +533,13 @@ class RemnawaveClient:
             user = await self._user_action(user, "enable")
         except RemnawaveError:
             user = await self.update_user(user, {"status": "ACTIVE"})
-        now = datetime.now(timezone.utc)
-        current = parse_expire(user.get("expireAt"))
-        if not current or current <= now:
-            user = await self.update_user(user, {"expireAt": iso_expire(now + timedelta(days=PANEL_LEASE_DAYS))})
-        return user
+        return await self.update_user(
+            user,
+            {
+                "status": "ACTIVE",
+                "expireAt": iso_expire(panel_lease_until()),
+            },
+        )
 
     async def disable_panel_user(self, panel_user_id: int) -> None:
         user = {"id": panel_user_id}

@@ -6,9 +6,9 @@ let billPage = 1;
 let currentUser = null;
 let selectedUsers = new Set();
 let lastUserItems = [];
-const TABS = ["overview", "users", "referrals", "orders", "billing", "reports", "broadcast", "backups", "settings"];
+const TABS = ["overview", "users", "referrals", "orders", "billing", "reports", "broadcast", "promo", "backups", "settings"];
 const TAB_KEYS = {
-  users: ["q", "status", "trial", "devices", "bal_min", "bal_max", "from", "to"],
+  users: ["q", "status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to"],
   referrals: ["q", "reward", "from", "to"],
   orders: ["q", "status", "from", "to"],
   billing: ["q", "kind", "source", "from", "to"],
@@ -171,11 +171,30 @@ function collectUserFilters() {
     status: val("userStatus"),
     trial: val("userTrial"),
     devices: val("userDevices"),
+    online: val("userOnline"),
+    bal_sign: val("userBalSign"),
     bal_min: val("userBalMin"),
     bal_max: val("userBalMax"),
     from: val("userFrom"),
     to: val("userTo"),
   };
+}
+
+const USER_FILTER_IDS = {
+  q: "userQ",
+  status: "userStatus",
+  trial: "userTrial",
+  devices: "userDevices",
+  online: "userOnline",
+  bal_sign: "userBalSign",
+  bal_min: "userBalMin",
+  bal_max: "userBalMax",
+  from: "userFrom",
+  to: "userTo",
+};
+
+function applyUserFilters(values) {
+  Object.entries(USER_FILTER_IDS).forEach(([key, id]) => setVal(id, values[key] || ""));
 }
 
 function fillFromParams(map, params) {
@@ -288,19 +307,7 @@ function switchTab(name, opts = {}) {
   const route = parseRoute();
   if (!opts.skipFill) {
     if (name === "users") {
-      fillFromParams(
-        {
-          q: "userQ",
-          status: "userStatus",
-          trial: "userTrial",
-          devices: "userDevices",
-          bal_min: "userBalMin",
-          bal_max: "userBalMax",
-          from: "userFrom",
-          to: "userTo",
-        },
-        route.tab === "users" ? route.params : new URLSearchParams()
-      );
+      fillFromParams(USER_FILTER_IDS, route.tab === "users" ? route.params : new URLSearchParams());
     }
     if (name === "referrals") {
       fillFromParams(
@@ -379,7 +386,7 @@ function switchTab(name, opts = {}) {
   if (name === "billing") loadBilling();
   if (name === "reports") loadReports();
   if (name === "backups") loadBackups();
-  if (name === "settings") loadSettings();
+  if (name === "settings" || name === "promo") loadSettings();
   setNavOpen(false);
 }
 
@@ -420,20 +427,38 @@ function clientCard(item) {
   return el;
 }
 
-function card(label, value, tab) {
+function card(label, value, tab, extra) {
+  extra = extra || {};
   const el = document.createElement("div");
   el.className = tab ? "card card-link" : "card";
-  el.innerHTML = `<div class="l"></div><div class="n"></div>`;
-  el.querySelector(".n").textContent = value;
-  el.querySelector(".l").textContent = label;
+  const l = document.createElement("div");
+  l.className = "l";
+  l.textContent = label;
+  const n = document.createElement("div");
+  n.className = "n";
+  n.textContent = value;
+  el.appendChild(l);
+  el.appendChild(n);
+  if (extra.delta != null) {
+    const d = document.createElement("div");
+    const delta = Number(extra.delta) || 0;
+    d.className = "delta " + (delta > 0 ? "delta-up" : delta < 0 ? "delta-down" : "delta-flat");
+    const arrow = delta > 0 ? "↑ +" : delta < 0 ? "↓ " : "→ ";
+    d.textContent = arrow + delta + (extra.compare || " к прошлому периоду");
+    el.appendChild(d);
+  }
   if (tab) {
     el.tabIndex = 0;
     el.setAttribute("role", "button");
-    el.onclick = () => switchTab(tab);
+    const go = () => {
+      if (extra.filters) applyUserFilters(extra.filters);
+      switchTab(tab, extra.filters ? { skipFill: true } : {});
+    };
+    el.onclick = go;
     el.onkeydown = (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        switchTab(tab);
+        go();
       }
     };
   }
@@ -479,8 +504,10 @@ function paintJobs(jobs) {
       "Устройств в очереди": billing.pending ?? 0,
       Продлили: billing.extended ?? 0,
       Отключили: billing.disabled ?? 0,
+      "Включили снова": billing.revived ?? 0,
       "Как продлевали": billing.extend_mode || "нет",
       "Как отключали": billing.disable_mode || "нет",
+      "Как включали снова": billing.revive_mode || "нет",
       "Пауза тарификации": billing.paused ? "да" : "нет",
       "Секунд": billing.seconds ?? 0,
     });
@@ -582,8 +609,19 @@ async function loadStats() {
       const box = $(id);
       if (!box) return;
       box.innerHTML = "";
-      rows.forEach(([l, v, tab]) => box.appendChild(card(l, v, tab)));
+      rows.forEach(([l, v, tab, extra]) => box.appendChild(card(l, v, tab, extra)));
     };
+    const on = s.online || {};
+    const onlineCard = (label, cur, prev, filter, compare) => {
+      const c = Number(cur) || 0;
+      const p = Number(prev) || 0;
+      return [label, c, "users", { delta: c - p, compare, filters: { online: filter } }];
+    };
+    fill("cardsOnline", [
+      onlineCard("Онлайн за сутки", on.day, on.day_prev, "1d", " к прошлым суткам"),
+      onlineCard("Онлайн за неделю", on.week, on.week_prev, "7d", " к прошлой неделе"),
+      onlineCard("Онлайн за месяц", on.month, on.month_prev, "30d", " к прошлому месяцу"),
+    ]);
     fill("cardsAudience", [
       ["Пользователи", u.users_total || 0, "users"],
       ["Оферта принята", u.legal_ok || 0],
@@ -596,7 +634,7 @@ async function loadStats() {
     ]);
     fill("cardsFinance", [
       ["Оборот, рубли", s.revenue_rub || 0, "orders"],
-      ["Промокоды", s.promo_uses || 0],
+      ["Промокоды", s.promo_uses || 0, "promo"],
       ["Stars-платежи", s.stars_payments || 0],
       ["Реф. награда выдана", u.referral_rewarded || 0, "referrals"],
     ]);
@@ -715,23 +753,21 @@ async function loadUsers(page) {
   if (f.status) chips.push(["status", "Статус: " + (f.status === "block" ? "блок" : "активен")]);
   if (f.trial) chips.push(["trial", "Триал: " + f.trial]);
   if (f.devices) chips.push(["devices", "Устройства: " + f.devices]);
+  if (f.online) {
+    const names = { now: "сейчас", "1h": "час", "1d": "сутки", "7d": "неделя", "30d": "месяц", never: "не было" };
+    chips.push(["online", "Онлайн: " + (names[f.online] || f.online)]);
+  }
+  if (f.bal_sign) {
+    const names = { pos: "больше нуля", zero: "ноль", neg: "минус" };
+    chips.push(["bal_sign", "Баланс: " + (names[f.bal_sign] || f.bal_sign)]);
+  }
   if (f.bal_min) chips.push(["bal_min", "Баланс от " + f.bal_min]);
   if (f.bal_max) chips.push(["bal_max", "Баланс до " + f.bal_max]);
   if (f.from) chips.push(["from", "с " + f.from]);
   if (f.to) chips.push(["to", "по " + f.to]);
   if (f.q) chips.push(["q", "поиск: " + f.q]);
   paintChips("userChips", chips, (key) => {
-    const map = {
-      q: "userQ",
-      status: "userStatus",
-      trial: "userTrial",
-      devices: "userDevices",
-      bal_min: "userBalMin",
-      bal_max: "userBalMax",
-      from: "userFrom",
-      to: "userTo",
-    };
-    setVal(map[key], "");
+    setVal(USER_FILTER_IDS[key], "");
     selectedUsers.clear();
     loadUsers(1);
   });
@@ -1349,6 +1385,16 @@ function collectVpnApps() {
 
 $("shopForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  await saveShopSettings();
+});
+if ($("promoForm")) {
+  $("promoForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await saveShopSettings("promoOut");
+  });
+}
+
+async function saveShopSettings(outId) {
   const num = (id) => Number($(id).value);
   const payload = {
     brand_name: $("setBrand").value,
@@ -1383,16 +1429,19 @@ $("shopForm").addEventListener("submit", async (e) => {
     vpn_apps: collectVpnApps(),
     notices: collectNotices(),
   };
-  $("shopOut").textContent = "Сохраняю...";
+  const out = $(outId || "shopOut");
+  const other = outId === "promoOut" ? $("shopOut") : $("promoOut");
+  if (out) out.textContent = "Сохраняю...";
   try {
     await api("/admin/api/settings", { method: "POST", body: JSON.stringify(payload) });
-    $("shopOut").textContent = "Сохранено. Кабинет и бот уже берут новые значения.";
+    if (out) out.textContent = "Сохранено. Кабинет и бот уже берут новые значения.";
+    if (other) other.textContent = "";
     toast("Настройки сохранены");
     await loadSettings();
   } catch (err) {
-    $("shopOut").textContent = err.message || "Не удалось сохранить";
+    if (out) out.textContent = err.message || "Не удалось сохранить";
   }
-});
+}
 
 $("vpnAppAdd").onclick = () => {
   const box = $("vpnAppsList");
@@ -1565,7 +1614,7 @@ $("userSearch").onclick = () => {
 };
 if ($("userReset")) {
   $("userReset").onclick = () => {
-    ["userQ", "userStatus", "userTrial", "userDevices", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => setVal(id, ""));
+    ["userQ", "userStatus", "userTrial", "userDevices", "userOnline", "userBalSign", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => setVal(id, ""));
     selectedUsers.clear();
     loadUsers(1);
   };
@@ -1602,7 +1651,7 @@ const userReload = debounce(() => {
   loadUsers(1);
 }, 300);
 $("userQ").oninput = userReload;
-["userStatus", "userTrial", "userDevices", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => {
+["userStatus", "userTrial", "userDevices", "userOnline", "userBalSign", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => {
   const el = $(id);
   if (el) el.onchange = userReload;
 });
@@ -1709,10 +1758,10 @@ $("bulkMsg").onclick = () => {
   );
 };
 $("bulkDeleteMatch").onclick = () => {
-  const q = $("userQ").value.trim();
-  const label = q ? `по поиску «${q}»` : "всех в базе";
+  const f = collectUserFilters();
+  const label = hasAny(f) ? "по текущим фильтрам" : "всех в базе";
   runBulk(
-    { action: "delete", all_matching: true, q },
+    { action: "delete", all_matching: true, ...f },
     `Удалить ${label}? Не больше 500 за раз. Админы пропускаются.`
   );
 };

@@ -10,7 +10,7 @@ from aiogram import Bot
 
 from app import db, runtime
 from app.config import get_settings
-from app.remnawave import PANEL_LEASE_DAYS, RemnawaveClient, RemnawaveError
+from app.remnawave import PANEL_LEASE_DAYS, RemnawaveClient, RemnawaveError, is_subscription_active, panel_lease_until
 from app.trust import collect_due_trusts
 from app.notices import notice_text
 from app.texts import rub_text
@@ -23,7 +23,7 @@ BILL_PERIOD = timedelta(hours=24)
 
 
 def _lease_until() -> datetime:
-    return datetime.now(timezone.utc) + timedelta(days=PANEL_LEASE_DAYS)
+    return panel_lease_until()
 
 
 def _billed_recently(last_billed_at, last_billed_on=None) -> bool:
@@ -262,6 +262,80 @@ async def _commit_extends(
     return ok, _panel_mode(used_bulk, used_one)
 
 
+async def _commit_revives(
+    rw: RemnawaveClient,
+    items: list[dict],
+    *,
+    chunk: int,
+) -> tuple[int, str]:
+    if not items:
+        return 0, "нет"
+    ok = 0
+    used_bulk = False
+    used_one = False
+    until = _lease_until()
+    for part in _chunks(items, chunk):
+        pids = [int(x["remnawave_id"]) for x in part]
+        try:
+            await rw.bulk_refresh_lease(pids, PANEL_LEASE_DAYS)
+            used_bulk = True
+        except RemnawaveError:
+            logger.warning("Пакетное включение недоступно, иду по одному (%s шт.)", len(part))
+            used_one = True
+            for item in part:
+                try:
+                    await rw.enable_panel_user(int(item["remnawave_id"]))
+                except RemnawaveError:
+                    logger.exception("Не удалось включить устройство %s", item["id"])
+                    await db.log_billing_event(
+                        int(item["telegram_id"]),
+                        "error",
+                        source="cron",
+                        device_id=int(item["id"]),
+                        device_title=str(item.get("title") or ""),
+                        note="Панель не включила уже оплаченное устройство",
+                    )
+                    continue
+                await db.mark_devices_billed(
+                    [int(item["id"])],
+                    status="ACTIVE",
+                    expire_at=until,
+                    touch_billed=False,
+                )
+                await db.log_billing_event(
+                    int(item["telegram_id"]),
+                    "revive",
+                    source="cron",
+                    device_id=int(item["id"]),
+                    device_title=str(item.get("title") or ""),
+                    note="Снова включили устройство: срок в панели кончился раньше оплаты",
+                )
+                ok += 1
+            continue
+        await db.mark_devices_billed(
+            [int(x["id"]) for x in part],
+            status="ACTIVE",
+            expire_at=until,
+            touch_billed=False,
+        )
+        await db.log_billing_events(
+            [
+                {
+                    "telegram_id": int(item["telegram_id"]),
+                    "kind": "revive",
+                    "source": "cron",
+                    "amount": 0,
+                    "device_id": int(item["id"]),
+                    "device_title": str(item.get("title") or ""),
+                    "note": "Снова включили устройство: срок в панели кончился раньше оплаты",
+                }
+                for item in part
+            ]
+        )
+        ok += len(part)
+    return ok, _panel_mode(used_bulk, used_one)
+
+
 async def _disable_one(
     rw: RemnawaveClient,
     bot: Bot | None,
@@ -371,55 +445,56 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
         if int(item["id"]) in seen:
             continue
         pending.append(item)
-    if not pending:
-        await db.set_job_report(
-            "billing",
-            {
-                "pending": 0,
-                "extended": 0,
-                "disabled": 0,
-                "extend_mode": "нет",
-                "disable_mode": "нет",
-                "paused": paused,
-                "seconds": round(time.monotonic() - started, 1),
-            },
-        )
-        await send_low_balance_cabinet_links(bot)
-        return
-    groups: dict[int, list[dict]] = defaultdict(list)
-    for item in pending:
-        groups[int(item["telegram_id"])].append(item)
-    for rows in groups.values():
-        rows.sort(key=lambda x: int(x["id"]))
-    sem = asyncio.Semaphore(max(1, settings.billing_concurrency))
-
-    async def decide(tg_id: int, devices: list[dict]) -> tuple[list[dict], list[dict]]:
-        async with sem:
-            return await _decide_user_devices(devices, price, paused)
-
-    keys = list(groups.items())
-    decided: list[tuple[list[dict], list[dict]]] = []
-    for part in _chunks(keys, 400):
-        decided.extend(
-            await asyncio.gather(*[decide(tg, rows) for tg, rows in part])
-        )
-    extend: list[dict] = []
-    disable: list[dict] = []
-    for ext, dis in decided:
-        extend.extend(ext)
-        disable.extend(dis)
     chunk = max(20, min(200, settings.billing_bulk_chunk))
-    extended, extend_mode = await _commit_extends(
-        rw, extend, price=price, paused=paused, source="cron", chunk=chunk
-    )
-    disabled, disable_mode = await _commit_disables(
-        rw, disable, bot=bot, price=price, source="cron", chunk=chunk
-    )
+    extended = 0
+    disabled = 0
+    extend_mode = "нет"
+    disable_mode = "нет"
+    if pending:
+        groups: dict[int, list[dict]] = defaultdict(list)
+        for item in pending:
+            groups[int(item["telegram_id"])].append(item)
+        for rows in groups.values():
+            rows.sort(key=lambda x: int(x["id"]))
+        sem = asyncio.Semaphore(max(1, settings.billing_concurrency))
+
+        async def decide(tg_id: int, devices: list[dict]) -> tuple[list[dict], list[dict]]:
+            async with sem:
+                return await _decide_user_devices(devices, price, paused)
+
+        keys = list(groups.items())
+        decided: list[tuple[list[dict], list[dict]]] = []
+        for part in _chunks(keys, 400):
+            decided.extend(
+                await asyncio.gather(*[decide(tg, rows) for tg, rows in part])
+            )
+        extend: list[dict] = []
+        disable: list[dict] = []
+        for ext, dis in decided:
+            extend.extend(ext)
+            disable.extend(dis)
+        extended, extend_mode = await _commit_extends(
+            rw, extend, price=price, paused=paused, source="cron", chunk=chunk
+        )
+        disabled, disable_mode = await _commit_disables(
+            rw, disable, bot=bot, price=price, source="cron", chunk=chunk
+        )
+        for item in extend:
+            seen.add(int(item["id"]))
+        for item in disable:
+            seen.add(int(item["id"]))
+    revive = [
+        item
+        for item in await db.devices_needing_revive()
+        if int(item["id"]) not in seen
+    ]
+    revived, revive_mode = await _commit_revives(rw, revive, chunk=chunk)
     logger.info(
-        "Списание: к оплате %s, продлили %s, отключили %s",
+        "Списание: к оплате %s, продлили %s, отключили %s, включили снова %s",
         len(pending),
         extended,
         disabled,
+        revived,
     )
     await db.set_job_report(
         "billing",
@@ -427,8 +502,10 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
             "pending": len(pending),
             "extended": extended,
             "disabled": disabled,
+            "revived": revived,
             "extend_mode": extend_mode,
             "disable_mode": disable_mode,
+            "revive_mode": revive_mode,
             "paused": paused,
             "seconds": round(time.monotonic() - started, 1),
         },
@@ -467,32 +544,40 @@ async def sync_user_billing(
                 result["disabled"] += 1
             continue
         local_status = str(item.get("panel_status") or "").upper()
-        if local_status and local_status != "DISABLED":
-            continue
+        if local_status not in {"DISABLED", "EXPIRED", ""}:
+            expire = item.get("expire_at")
+            if expire is not None:
+                if getattr(expire, "tzinfo", None) is None:
+                    expire = expire.replace(tzinfo=timezone.utc)
+                if expire > datetime.now(timezone.utc) + timedelta(hours=12):
+                    continue
         try:
             panel = await rw.get_user_by_id(int(item["remnawave_id"]))
         except RemnawaveError:
             logger.exception("Не удалось проверить устройство %s после смены баланса", item["id"])
             continue
-        status = str((panel or {}).get("status") or "").upper()
-        if status == "DISABLED":
-            local = await db.get_user(telegram_id)
-            if int((local or {}).get("balance_rub") or 0) >= price:
-                try:
-                    await rw.enable_panel_user(int(item["remnawave_id"]))
-                    result["revived"] += 1
-                    await db.log_billing_event(
-                        telegram_id,
-                        "revive",
-                        source="admin",
-                        device_id=int(item["id"]),
-                        device_title=str(item.get("title") or ""),
-                        note="Включили устройство после правки баланса",
-                    )
-                except RemnawaveError:
-                    logger.exception("Не удалось включить устройство %s после смены баланса", item["id"])
-            else:
-                result["disabled"] += 1
+        if is_subscription_active(panel):
+            continue
+        try:
+            await rw.enable_panel_user(int(item["remnawave_id"]))
+            result["revived"] += 1
+            await db.mark_devices_billed(
+                [int(item["id"])],
+                status="ACTIVE",
+                expire_at=_lease_until(),
+                touch_billed=False,
+            )
+            await db.log_billing_event(
+                telegram_id,
+                "revive",
+                source="admin",
+                device_id=int(item["id"]),
+                device_title=str(item.get("title") or ""),
+                note="Включили устройство: оплаченные сутки ещё не кончились",
+            )
+        except RemnawaveError:
+            logger.exception("Не удалось включить устройство %s после правки баланса", item["id"])
+            result["disabled"] += 1
     if bot:
         await db.purge_expired_cabinet_tokens()
         await send_cabinet_link_to(bot, telegram_id)
