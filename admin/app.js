@@ -386,6 +386,7 @@ function switchTab(name, opts = {}) {
     loadBroadcastJob();
   }
   if (name === "referrals") {
+    loadSettings();
     loadReferrals();
     loadPayouts();
   }
@@ -1322,10 +1323,10 @@ async function loadSettings() {
   set("setTopStep", v.balance_topup_step);
   set("setRefRub", v.referral_reward_rub);
   set("setRefPayoutMin", v.referral_payout_min);
+  window.__adminBalanceOn = Boolean(s.balance_enabled);
   const refMode = v.referral_mode || (v.referral_payout_enabled ? "payout" : "classic");
   if ($("setRefModeClassic")) $("setRefModeClassic").checked = refMode !== "payout";
   if ($("setRefModePayout")) $("setRefModePayout").checked = refMode === "payout";
-  syncRefModeUi();
   set("setStoryOn", v.story_reward_enabled);
   set("setStoryRub", v.story_reward_rub);
   set("setStoryCheck", v.story_check_minutes);
@@ -1352,12 +1353,25 @@ async function loadSettings() {
   document.querySelectorAll(".shop-plans").forEach((el) => {
     el.classList.toggle("hidden", !!s.balance_enabled);
   });
+  window.__adminBalanceOn = Boolean(s.balance_enabled);
+  syncRefModeUi();
 }
 
 function syncRefModeUi() {
-  const payout = $("setRefModePayout") && $("setRefModePayout").checked;
+  const balanceOn = Boolean(window.__adminBalanceOn);
+  const payoutEl = $("setRefModePayout");
+  if (payoutEl) {
+    payoutEl.disabled = !balanceOn;
+    if (!balanceOn) {
+      payoutEl.checked = false;
+      if ($("setRefModeClassic")) $("setRefModeClassic").checked = true;
+    }
+  }
+  const payout = payoutEl && payoutEl.checked;
   const box = $("refPayoutFields");
   if (box) box.classList.toggle("hidden", !payout);
+  const note = $("refModeBalanceNote");
+  if (note) note.classList.toggle("hidden", balanceOn);
 }
 
 const VPN_PLATS = [
@@ -1491,6 +1505,9 @@ if ($("promoForm")) {
   if (el) el.onchange = syncRefModeUi;
 });
 syncRefModeUi();
+if ($("refModeSave")) {
+  $("refModeSave").onclick = () => saveShopSettings("refModeOut");
+}
 
 async function saveShopSettings(outId) {
   const num = (id) => Number($(id).value);

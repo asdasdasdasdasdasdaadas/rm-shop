@@ -651,6 +651,24 @@ main a { color: var(--mint); }
   cursor: pointer;
 }
 .check-row input { margin-top: 3px; flex-shrink: 0; }
+.ref-mode-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 8px 0 14px;
+}
+.ref-mode-pick .check-row {
+  margin: 0;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+}
+.ref-mode-pick .check-row:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--success-bg);
+}
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -891,7 +909,7 @@ label { font-size: 12px; color: var(--text-2); font-weight: 700; }
   .flag { max-width: 100%; cursor: pointer; }
   .seg { overflow: auto; }
   .settings-nav { position: static; top: auto; }
-  .grid2, .ops-grid, .form-grid { grid-template-columns: 1fr; }
+  .grid2, .ops-grid, .form-grid, .ref-mode-pick { grid-template-columns: 1fr; }
   .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ops-card button,
   .panel.narrow button,

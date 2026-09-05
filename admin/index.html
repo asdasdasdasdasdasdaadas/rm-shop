@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="29">
+  <meta name="admin-build" content="30">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=27">
+  <link rel="stylesheet" href="app.css?v=28">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -33,7 +33,7 @@
       <div class="login-mark" aria-hidden="true">
         <svg viewBox="0 0 48 48" fill="none"><ellipse cx="24" cy="30" rx="11" ry="13" fill="currentColor"/><circle cx="12" cy="14" r="4.4" fill="currentColor"/><circle cx="36" cy="14" r="4.4" fill="currentColor"/><circle cx="20" cy="8" r="3.6" fill="currentColor" opacity=".75"/><circle cx="28" cy="8" r="3.6" fill="currentColor" opacity=".75"/></svg>
       </div>
-      <p class="login-kicker">Админка · сборка 29</p>
+      <p class="login-kicker">Админка · сборка 30</p>
       <h1>Кабинет сервиса</h1>
       <p class="muted">Пользователи, оплаты, биллинг и настройки. Тема переключается кнопкой сверху.</p>
       <label class="field-label" for="password">Пароль</label>
@@ -66,7 +66,7 @@
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.8"/><path d="M4 19c.6-3.2 2.8-5 5-5s4.4 1.8 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="17" cy="9" r="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M16.2 14.2c1.8.4 3.3 1.8 3.8 4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           <span class="nav-text">Пользователи</span>
         </button>
-        <button type="button" data-tab="referrals" data-title="Рефералы" data-lead="Кто пришёл по чьей ссылке">
+        <button type="button" data-tab="referrals" data-title="Рефералы" data-lead="Режим начисления, кто пришёл по ссылке, выводы">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M12 21c-4.4-2.9-8-6.6-8-11a5 5 0 018-4 5 5 0 018 4c0 4.4-3.6 8.1-8 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           <span class="nav-text">Рефералы</span>
         </button>
@@ -310,6 +310,54 @@
         </section>
 
         <section id="tab-referrals" class="hidden">
+          <div class="panel" id="promo-ref">
+            <h3>Режим рефералки</h3>
+            <p class="muted tight" id="refModeHint">Обычная — бонус вам и другу после «Попробовать бесплатно», вывода нет. С выводом — бонус только вам после первой оплаты друга, можно вывести заявкой. Сохраните, чтобы бот и кабинет переключились. Уже выданная награда повторно не приходит.</p>
+            <p class="ops-label">Режим</p>
+            <div class="ref-mode-pick">
+              <label class="check-row">
+                <input id="setRefModeClassic" name="referral_mode" type="radio" value="classic" checked>
+                <span>Обычная</span>
+              </label>
+              <label class="check-row">
+                <input id="setRefModePayout" name="referral_mode" type="radio" value="payout">
+                <span>С выводом</span>
+              </label>
+            </div>
+            <p id="refModeBalanceNote" class="muted tight hidden">Режим с выводом доступен, когда магазин работает с балансом, а не с пакетами дней.</p>
+            <div class="shop-balance" id="refRubFields">
+              <div class="form-grid">
+                <div>
+                  <label class="ops-label" for="setRefRub">Награда за друга, рубли</label>
+                  <input id="setRefRub" name="referral_reward_rub" type="number" min="0" required>
+                </div>
+              </div>
+            </div>
+            <div id="refPayoutFields">
+              <div class="form-grid">
+                <div>
+                  <label class="ops-label" for="setRefPayoutMin">Минимум к выводу, рубли</label>
+                  <input id="setRefPayoutMin" name="referral_payout_min" type="number" min="1">
+                </div>
+              </div>
+            </div>
+            <div class="shop-plans hidden" id="promo-ref-days">
+              <div class="form-grid">
+                <div>
+                  <label class="ops-label" for="setRefDays">Дни пригласившему</label>
+                  <input id="setRefDays" name="referral_reward_days" type="number" min="0">
+                </div>
+                <div>
+                  <label class="ops-label" for="setRefInvitee">Дни другу</label>
+                  <input id="setRefInvitee" name="referral_invitee_days" type="number" min="0">
+                </div>
+              </div>
+            </div>
+            <div class="ops">
+              <button type="button" id="refModeSave">Сохранить рефералку</button>
+              <p id="refModeOut" class="muted"></p>
+            </div>
+          </div>
           <p class="muted intro">Поиск по ID, username или имени любой из сторон.</p>
           <div class="filters">
             <input id="refQ" type="search" placeholder="ID, username, имя">
@@ -708,45 +756,9 @@
                 </div>
               </div>
             </div>
-            <div class="panel shop-balance" id="promo-ref">
+            <div class="panel" id="promo-ref-note">
               <h3>Награда за друга</h3>
-              <p class="muted tight" id="refModeHint">Переключение сразу меняет начисление в боте и кабинете. Уже выданная награда повторно не приходит.</p>
-              <div class="form-grid">
-                <div>
-                  <label class="ops-label" for="setRefRub">Награда за друга, рубли</label>
-                  <input id="setRefRub" name="referral_reward_rub" type="number" min="0" required>
-                </div>
-              </div>
-              <p class="ops-label">Режим</p>
-              <label class="check-row">
-                <input id="setRefModeClassic" name="referral_mode" type="radio" value="classic" checked>
-                <span>Обычная: бонус вам и другу после «Попробовать бесплатно». Вывода нет.</span>
-              </label>
-              <label class="check-row">
-                <input id="setRefModePayout" name="referral_mode" type="radio" value="payout">
-                <span>С выводом: бонус только вам после первой оплаты друга. Можно вывести заявкой.</span>
-              </label>
-              <div id="refPayoutFields">
-                <div class="form-grid">
-                  <div>
-                    <label class="ops-label" for="setRefPayoutMin">Минимум к выводу, рубли</label>
-                    <input id="setRefPayoutMin" name="referral_payout_min" type="number" min="1">
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="panel shop-plans hidden" id="promo-ref-days">
-              <h3>Награда за друга, дни</h3>
-              <div class="form-grid">
-                <div>
-                  <label class="ops-label" for="setRefDays">Дни пригласившему</label>
-                  <input id="setRefDays" name="referral_reward_days" type="number" min="0">
-                </div>
-                <div>
-                  <label class="ops-label" for="setRefInvitee">Дни другу</label>
-                  <input id="setRefInvitee" name="referral_invitee_days" type="number" min="0">
-                </div>
-              </div>
+              <p class="muted tight">Режим (обычная / с выводом) и суммы — в разделе «Рефералы», блок сверху.</p>
             </div>
             <div class="ops sticky-save">
               <button type="submit">Сохранить промо</button>
@@ -759,6 +771,7 @@
     <nav class="bottom-nav" aria-label="Основные разделы">
       <button type="button" data-tab="overview">Обзор</button>
       <button type="button" data-tab="users">Пользователи</button>
+      <button type="button" data-tab="referrals">Рефералы</button>
       <button type="button" data-tab="orders">Оплаты</button>
       <button type="button" data-tab="settings">Настройки</button>
     </nav>
@@ -851,6 +864,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=34"></script>
+  <script src="app.js?v=35"></script>
 </body>
 </html>
