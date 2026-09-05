@@ -31,6 +31,12 @@
   --header: var(--text-tertiary);
   --radius: var(--radius-md);
   --pad: 16px;
+  --glass: rgba(255, 255, 255, 0.08);
+  --glass-strong: rgba(255, 255, 255, 0.14);
+  --glass-tint: rgba(95, 214, 139, 0.16);
+  --glass-border: rgba(255, 255, 255, 0.16);
+  --glass-shine: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --glass-blur: 18px;
 }
 
 * {
@@ -147,9 +153,12 @@ body.coach-lock {
 .icon-btn {
   width: 32px;
   height: 32px;
-  border: 0;
+  border: 1px solid var(--glass-border);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   color: var(--text-secondary);
   display: grid;
   place-items: center;
@@ -217,12 +226,17 @@ body.coach-lock {
   border-radius: 100px;
   font-size: 12px;
   font-weight: 600;
-  background: var(--warning-soft);
+  background: rgba(245, 184, 78, 0.18);
+  border: 1px solid rgba(245, 184, 78, 0.28);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
   color: var(--warning);
 }
 
 .status-pill.on {
-  background: var(--success-soft);
+  background: rgba(127, 224, 112, 0.18);
+  border-color: rgba(127, 224, 112, 0.3);
   color: var(--success);
 }
 
@@ -295,8 +309,11 @@ body.coach-lock {
   bottom: -2px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--bg-app);
-  border: 1px solid var(--divider);
+  background: rgba(13, 22, 17, 0.45);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
   border-radius: 100px;
   padding: 2px 9px;
   font-family: Unbounded, Inter, sans-serif;
@@ -331,19 +348,26 @@ body.coach-lock {
 .btn:active { transform: scale(0.97); }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  background: linear-gradient(160deg, rgba(143, 227, 176, 0.78), rgba(47, 174, 107, 0.52));
   color: #0d1611;
   flex: 1;
   min-height: 56px;
   font-size: 17px;
   font-weight: 700;
-  box-shadow: 0 10px 24px -8px rgba(95, 214, 139, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  box-shadow: var(--glass-shine), 0 10px 24px -10px rgba(95, 214, 139, 0.55);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
 }
 
 .btn-ghost {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass);
   color: var(--text-primary);
   min-height: 56px;
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
 }
 
 .section {
@@ -589,8 +613,11 @@ body.coach-lock {
 
 .promo-inner input {
   flex: 1;
-  background: var(--bg-surface-soft);
-  border: 1px solid var(--divider);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
   border-radius: 100px;
   padding: 11px 16px;
   color: var(--text-primary);
@@ -604,9 +631,12 @@ body.coach-lock {
 .promo-inner input::placeholder { color: var(--text-tertiary); }
 
 .promo-inner button {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--glass-strong);
   color: var(--text-primary);
-  border: none;
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
   border-radius: 100px;
   padding: 0 18px;
   font-size: 13.5px;
@@ -808,10 +838,13 @@ body.coach-lock {
 .plat-card {
   position: relative;
   text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 16px 14px 14px;
-  background: var(--bg-surface);
+  background: var(--glass);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
   color: inherit;
   font: inherit;
   cursor: pointer;
@@ -822,9 +855,9 @@ body.coach-lock {
 .plat-card:active { transform: scale(0.97); }
 
 .plat-card.on {
-  background: var(--bg-surface-raised);
-  border-color: transparent;
-  box-shadow: 0 0 0 1.5px var(--accent), 0 8px 22px -10px rgba(95, 214, 139, 0.35);
+  background: var(--glass-tint);
+  border-color: rgba(95, 214, 139, 0.45);
+  box-shadow: var(--glass-shine), 0 8px 22px -10px rgba(95, 214, 139, 0.35);
 }
 
 .plat-icon {
@@ -1011,16 +1044,19 @@ body.coach-lock {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
   padding: 8px 12px;
   border-radius: 20px;
   cursor: pointer;
 }
 
 .wiz-chip.on {
-  background: var(--accent-soft);
-  border-color: transparent;
+  background: var(--glass-tint);
+  border-color: rgba(95, 214, 139, 0.4);
   color: var(--accent);
 }
 
@@ -1211,7 +1247,11 @@ body.has-main-btn {
     max(16px, env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px))
     calc(12px + var(--tg-safe-area-inset-bottom, 0px))
     max(16px, env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px));
-  background: var(--bg-app);
+  background: rgba(13, 22, 17, 0.42);
+  border-top: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
 }
 
 .app-main-bar .btn {
@@ -1252,8 +1292,11 @@ body.has-main-btn {
   padding: 4px;
   margin-bottom: 16px;
   border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
 }
 
 .pay-tab {
@@ -1271,8 +1314,10 @@ body.has-main-btn {
 
 .pay-tab.on {
   color: var(--text-primary);
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent-soft-border);
+  background: var(--glass-tint);
+  box-shadow: var(--glass-shine), inset 0 0 0 1px var(--accent-soft-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .pay-grid {
@@ -1285,10 +1330,13 @@ body.has-main-btn {
 .pay-card {
   position: relative;
   text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 14px 14px 12px;
-  background: var(--bg-surface);
+  background: var(--glass);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
   color: inherit;
   font: inherit;
   min-height: 108px;
@@ -1303,9 +1351,9 @@ body.has-main-btn {
 .pay-card:active { transform: scale(0.97); }
 
 .pay-card.on {
-  background: var(--bg-surface-raised);
-  border-color: transparent;
-  box-shadow: 0 0 0 1.5px var(--accent), 0 8px 22px -10px rgba(95, 214, 139, 0.35);
+  background: var(--glass-tint);
+  border-color: rgba(95, 214, 139, 0.45);
+  box-shadow: var(--glass-shine), 0 8px 22px -10px rgba(95, 214, 139, 0.35);
 }
 
 .pay-card .pay-amount {
@@ -1548,9 +1596,12 @@ body.has-main-btn {
 .field input {
   width: 100%;
   min-height: 48px;
-  border: 1px solid var(--divider);
+  border: 1px solid var(--glass-border);
   border-radius: 100px;
-  background: var(--bg-surface-soft);
+  background: var(--glass);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
   color: var(--text-primary);
   font: inherit;
   font-size: 16px;
@@ -1592,11 +1643,13 @@ body.has-main-btn {
   top: calc(72px + var(--tg-content-safe-area-inset-top, 0px));
   right: 16px;
   min-width: 230px;
-  background: var(--bg-surface-raised);
+  background: rgba(28, 42, 32, 0.55);
   border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--divider);
+  box-shadow: var(--glass-shine), 0 8px 40px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
 }
 
 .sheet a,
@@ -2280,8 +2333,11 @@ body.has-main-btn {
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
   color: var(--text-primary);
 }
 .dev-lbtn-ico,
@@ -2292,9 +2348,10 @@ body.has-main-btn {
   display: block;
 }
 .dev-lbtn.primary {
-  background: linear-gradient(135deg, #8fe3b0, #b9f0cf);
+  background: linear-gradient(160deg, rgba(143, 227, 176, 0.78), rgba(47, 174, 107, 0.5));
   color: #08130c;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  box-shadow: var(--glass-shine);
   flex: none;
 }
 .dev-lbtn.copied {
@@ -2305,8 +2362,11 @@ body.has-main-btn {
 
 .dev-danger {
   width: 100%;
-  border: 1px solid rgba(255, 143, 122, 0.22);
-  background: rgba(255, 143, 122, 0.05);
+  border: 1px solid rgba(255, 143, 122, 0.28);
+  background: rgba(255, 143, 122, 0.1);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
   border-radius: var(--radius-md);
   padding: 14px 16px;
   display: flex;
@@ -2342,13 +2402,16 @@ body.has-main-btn {
   bottom: calc(24px + var(--tg-safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%) translateY(16px);
-  background: #1a2a1f;
+  background: rgba(26, 42, 31, 0.55);
   color: #8fe3b0;
   font-size: 12.5px;
   font-weight: 700;
   padding: 10px 16px;
   border-radius: 12px;
-  border: 1px solid rgba(143, 227, 176, 0.25);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
   opacity: 0;
   pointer-events: none;
   transition: all 0.25s ease;
@@ -2369,5 +2432,29 @@ body.has-main-btn {
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .icon-btn,
+  .status-pill,
+  .days-badge,
+  .btn-primary,
+  .btn-ghost,
+  .promo-inner input,
+  .promo-inner button,
+  .plat-card,
+  .wiz-chip,
+  .app-main-bar,
+  .pay-tabs,
+  .pay-tab.on,
+  .pay-card,
+  .field input,
+  .sheet,
+  .dev-lbtn,
+  .dev-danger,
+  .app-toast {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }
