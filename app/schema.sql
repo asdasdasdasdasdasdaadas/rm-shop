@@ -92,6 +92,12 @@ CREATE INDEX IF NOT EXISTS devices_last_billed_at_idx
     ON devices (last_billed_at)
     WHERE remnawave_id IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS devices_telegram_id_idx
+    ON devices (telegram_id);
+
+CREATE INDEX IF NOT EXISTS users_last_synced_idx
+    ON users (last_synced_at NULLS FIRST, telegram_id);
+
 CREATE TABLE IF NOT EXISTS app_flags (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

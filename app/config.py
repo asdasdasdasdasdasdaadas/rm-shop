@@ -87,10 +87,12 @@ class Settings(BaseSettings):
     panel_sync_ttl: int = 60
     panel_sync_interval: int = 600
     panel_sync_page_size: int = 250
+    panel_sync_tick_seconds: int = 20
     panel_sync_fallback_batch: int = 200
     panel_sync_concurrency: int = 8
     vpn_report_cooldown_sec: int = 900
     backup_keep_days: int = 14
+    billing_events_keep_days: int = 14
 
     @property
     def admin_id_set(self) -> set[int]:

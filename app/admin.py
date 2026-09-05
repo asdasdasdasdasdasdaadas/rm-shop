@@ -6,11 +6,10 @@ import hmac
 import logging
 import time
 
-from datetime import datetime
 from aiohttp import web
 from aiogram import Bot
 
-from app import db
+from app import db, runtime
 from app.balance import sync_user_billing
 from app.block import blocked_notice
 from app.backup import (
@@ -25,7 +24,7 @@ from app.config import ROOT, get_settings
 from app.shop_config import save_shop_overlay, snapshot as shop_snapshot
 from app.keyboards import blocked_keyboard, cabinet_keyboard
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
-from app.remnawave import RemnawaveClient, RemnawaveError, panel_online_at, parse_dt
+from app.remnawave import RemnawaveClient, RemnawaveError
 from app.vpn_apps import public_vpn_apps
 from app.texts import subscription_reissued_text
 
@@ -206,65 +205,7 @@ async def api_users(request: web.Request) -> web.Response:
         "to",
     )
     items, total = await db.admin_list_users(q, limit, (page - 1) * limit, extra)
-    rw: RemnawaveClient = request.app["rw"]
-    await _enrich_users_online(rw, items)
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
-
-
-def _best_online(*values) -> datetime | None:
-    best = None
-    for raw in values:
-        dt = parse_dt(raw)
-        if dt and (best is None or dt > best):
-            best = dt
-    return best
-
-
-async def _enrich_users_online(rw: RemnawaveClient, items: list[dict]) -> None:
-    if not items:
-        return
-    tgs = [int(u["telegram_id"]) for u in items if u.get("telegram_id") is not None]
-    devices = await db.list_devices_for_users(tgs)
-    by_tg: dict[int, list[dict]] = {}
-    panel_ids: list[int] = []
-    for row in devices:
-        by_tg.setdefault(int(row["telegram_id"]), []).append(row)
-        if row.get("remnawave_id"):
-            panel_ids.append(int(row["remnawave_id"]))
-    for user in items:
-        if user.get("remnawave_id"):
-            panel_ids.append(int(user["remnawave_id"]))
-    unique = list(dict.fromkeys(panel_ids))
-    sem = asyncio.Semaphore(8)
-
-    async def fetch(pid: int):
-        async with sem:
-            try:
-                return pid, await rw.get_user_by_id(pid)
-            except Exception:
-                return pid, None
-
-    panels = {}
-    if unique:
-        for pid, panel in await asyncio.gather(*[fetch(pid) for pid in unique]):
-            panels[pid] = panel
-    for user in items:
-        tg_id = int(user["telegram_id"])
-        best = parse_dt(user.get("last_online_at"))
-        rows = by_tg.get(tg_id) or []
-        for row in rows:
-            pid = int(row["remnawave_id"]) if row.get("remnawave_id") else None
-            panel = panels.get(pid) if pid is not None else None
-            seen = panel_online_at(panel) if panel else None
-            if seen and row.get("id"):
-                try:
-                    await db.set_device_last_online(int(row["id"]), seen)
-                except Exception:
-                    logger.debug("Не удалось сохранить онлайн устройства %s", row.get("id"))
-            best = _best_online(best, seen, row.get("last_online_at"))
-        if user.get("remnawave_id"):
-            best = _best_online(best, panel_online_at(panels.get(int(user["remnawave_id"]))))
-        user["last_online_at"] = best.isoformat() if best else None
 
 
 async def api_user_devices(request: web.Request) -> web.Response:
@@ -278,54 +219,30 @@ async def api_user_devices(request: web.Request) -> web.Response:
     local = await db.get_user(telegram_id)
     if not local:
         return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
-    rw: RemnawaveClient = request.app["rw"]
     rows = await db.list_devices(telegram_id)
     items: list[dict] = []
     if rows:
-        sem = asyncio.Semaphore(8)
-
-        async def load_row(item: dict) -> dict:
+        for item in rows:
             online = item.get("last_online_at")
-            status = str(item.get("panel_status") or "")
-            if item.get("remnawave_id"):
-                async with sem:
-                    try:
-                        panel = await rw.get_user_by_id(int(item["remnawave_id"]))
-                    except Exception:
-                        panel = None
-                if panel:
-                    status = str(panel.get("status") or status)
-                    seen = panel_online_at(panel)
-                    if seen:
-                        try:
-                            await db.set_device_last_online(int(item["id"]), seen)
-                        except Exception:
-                            pass
-                        online = seen
-            return {
-                "id": item["id"],
-                "title": item.get("title") or "Устройство",
-                "platform": item.get("platform") or "",
-                "client": item.get("client") or "",
-                "status": status,
-                "last_online_at": online.isoformat() if hasattr(online, "isoformat") else online,
-            }
-
-        items = list(await asyncio.gather(*[load_row(item) for item in rows]))
+            items.append(
+                {
+                    "id": item["id"],
+                    "title": item.get("title") or "Устройство",
+                    "platform": item.get("platform") or "",
+                    "client": item.get("client") or "",
+                    "status": str(item.get("panel_status") or ""),
+                    "last_online_at": online.isoformat() if hasattr(online, "isoformat") else online,
+                }
+            )
     elif local.get("remnawave_id"):
-        try:
-            panel = await rw.get_user_by_id(int(local["remnawave_id"]))
-        except Exception:
-            panel = None
-        seen = panel_online_at(panel) if panel else None
         items.append(
             {
                 "id": None,
                 "title": "Подписка",
                 "platform": "",
                 "client": "",
-                "status": str((panel or {}).get("status") or local.get("panel_status") or ""),
-                "last_online_at": seen.isoformat() if seen else None,
+                "status": str(local.get("panel_status") or ""),
+                "last_online_at": None,
             }
         )
     return web.json_response({"ok": True, "items": items})
@@ -613,6 +530,11 @@ async def api_users_bulk(request: web.Request) -> web.Response:
             return web.json_response({"ok": False, "error": "Пустой текст"}, status=400)
         if len(text) > 3500:
             return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
+        job = _bc_job(request.app)
+        if job.get("running"):
+            return web.json_response({"ok": False, "error": "Рассылка уже идёт", **job}, status=409)
+        started = _start_broadcast_job(request.app, text, ids)
+        return web.json_response({"ok": True, "queued": True, **started})
     for telegram_id in ids:
         try:
             if action == "delete":
@@ -649,9 +571,7 @@ async def api_users_bulk(request: web.Request) -> web.Response:
                 await _notify_reissued(bot, {telegram_id: links})
                 ok_n += 1
             else:
-                await bot.send_message(telegram_id, text)
-                ok_n += 1
-                await asyncio.sleep(0.035)
+                continue
         except Exception:
             logger.exception("Массовое действие %s не удалось для %s", action, telegram_id)
             failed += 1
@@ -687,32 +607,85 @@ async def api_message(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
-async def _broadcast_all(bot: Bot, text: str) -> tuple[int, int]:
-    sent = 0
-    failed = 0
-    for telegram_id in await db.list_broadcast_ids():
+async def _broadcast_all(bot: Bot, text: str, job: dict, ids: list[int] | None = None) -> None:
+    if ids is None:
+        ids = await db.list_broadcast_ids()
+    job["total"] = len(ids)
+    for telegram_id in ids:
+        if not job.get("running"):
+            break
         try:
             await bot.send_message(telegram_id, text)
-            sent += 1
+            job["sent"] = int(job.get("sent") or 0) + 1
         except Exception:
-            failed += 1
+            job["failed"] = int(job.get("failed") or 0) + 1
         await asyncio.sleep(0.035)
-    return sent, failed
+
+
+async def _run_broadcast_job(app: web.Application, text: str, ids: list[int] | None = None) -> None:
+    job = _bc_job(app)
+    bot: Bot = app["bot"]
+    try:
+        await _broadcast_all(bot, text, job, ids)
+        prefix = "Выбранным. " if job.get("scope") == "selected" else ""
+        job["message"] = f"{prefix}Отправлено: {job.get('sent') or 0}, ошибок: {job.get('failed') or 0}"
+    except Exception as exc:
+        logger.exception("Рассылка не удалась")
+        job["error"] = str(exc)
+        job["message"] = f"Сбой: {exc}"
+    finally:
+        job["running"] = False
+
+
+def _new_bc_job() -> dict:
+    return {
+        "running": False,
+        "scope": "all",
+        "total": 0,
+        "sent": 0,
+        "failed": 0,
+        "error": None,
+        "message": "",
+    }
+
+
+def _bc_job(app: web.Application) -> dict:
+    job = app.get("broadcast_job")
+    if not isinstance(job, dict):
+        job = _new_bc_job()
+        app["broadcast_job"] = job
+    return job
+
+
+def _start_broadcast_job(app: web.Application, text: str, ids: list[int] | None = None) -> dict:
+    job = _bc_job(app)
+    job.update(_new_bc_job())
+    job["running"] = True
+    job["scope"] = "selected" if ids is not None else "all"
+    if ids is not None:
+        job["total"] = len(ids)
+    job["message"] = "Запущено"
+    asyncio.create_task(_run_broadcast_job(app, text, ids))
+    return job
 
 
 async def api_broadcast(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
         return denied
+    job = _bc_job(request.app)
+    if request.method == "GET":
+        return web.json_response({"ok": True, **job})
+    if job.get("running"):
+        return web.json_response({"ok": False, "error": "Рассылка уже идёт", **job}, status=409)
     body = await request.json()
     text = str(body.get("text") or "").strip()
     if not text:
         return web.json_response({"ok": False, "error": "Пустой текст"}, status=400)
     if len(text) > 3500:
         return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
-    bot: Bot = request.app["bot"]
-    sent, failed = await _broadcast_all(bot, text)
-    return web.json_response({"ok": True, "sent": sent, "failed": failed})
+    started = _start_broadcast_job(request.app, text, None)
+    return web.json_response({"ok": True, **started})
 
 
 async def api_settings(request: web.Request) -> web.Response:
@@ -1071,43 +1044,46 @@ async def _run_replace_job(app: web.Application, apply_squads: bool, revoke: boo
     rw: RemnawaveClient = app["rw"]
     squads = get_settings().squad_uuids
     try:
-        accounts = await db.list_panel_accounts()
-        job["total"] = len(accounts)
-        if not accounts:
-            job["message"] = "Нет учёток в панели"
-            return
-        ids = [int(a["remnawave_id"]) for a in accounts if a.get("remnawave_id") is not None]
-        uuid_only = [a for a in accounts if a.get("remnawave_id") is None]
-        bulk_ok = await _try_bulk_ids(rw, ids, apply_squads, revoke, squads)
-        if bulk_ok:
-            job["done"] = len(ids)
-            rest = uuid_only
-        else:
-            rest = accounts
-            job["done"] = 0
-        by_user: dict[int, list[tuple[str, str]]] = {}
-        for account in rest:
-            try:
-                title, url = await _replace_one(rw, account, apply_squads, revoke, squads)
-                job["done"] += 1
-                if revoke:
-                    by_user.setdefault(int(account["telegram_id"]), []).append((title, url))
-            except Exception:
-                job["failed"] += 1
-                logger.exception("Не удалось заменить подписку для %s", account)
-        if revoke:
+        job["message"] = "Жду очередь панели"
+        async with runtime.panel_cron_lock():
+            job["message"] = "Идёт замена"
+            accounts = await db.list_panel_accounts()
+            job["total"] = len(accounts)
+            if not accounts:
+                job["message"] = "Нет учёток в панели"
+                return
+            ids = [int(a["remnawave_id"]) for a in accounts if a.get("remnawave_id") is not None]
+            uuid_only = [a for a in accounts if a.get("remnawave_id") is None]
+            bulk_ok = await _try_bulk_ids(rw, ids, apply_squads, revoke, squads)
             if bulk_ok:
-                synced = await _sync_links_from_panel(rw, [a for a in accounts if a.get("remnawave_id") is not None])
-                for telegram_id, links in synced.items():
-                    by_user.setdefault(telegram_id, []).extend(links)
-            bot: Bot = app["bot"]
-            job["notified"] = await _notify_reissued(bot, by_user)
-        parts = [f"Готово: {job['done']} из {job['total']}"]
-        if job["failed"]:
-            parts.append(f"ошибок {job['failed']}")
-        if revoke:
-            parts.append(f"уведомлений {job['notified']}")
-        job["message"] = ", ".join(parts)
+                job["done"] = len(ids)
+                rest = uuid_only
+            else:
+                rest = accounts
+                job["done"] = 0
+            by_user: dict[int, list[tuple[str, str]]] = {}
+            for account in rest:
+                try:
+                    title, url = await _replace_one(rw, account, apply_squads, revoke, squads)
+                    job["done"] += 1
+                    if revoke:
+                        by_user.setdefault(int(account["telegram_id"]), []).append((title, url))
+                except Exception:
+                    job["failed"] += 1
+                    logger.exception("Не удалось заменить подписку для %s", account)
+            if revoke:
+                if bulk_ok:
+                    synced = await _sync_links_from_panel(rw, [a for a in accounts if a.get("remnawave_id") is not None])
+                    for telegram_id, links in synced.items():
+                        by_user.setdefault(telegram_id, []).extend(links)
+                bot: Bot = app["bot"]
+                job["notified"] = await _notify_reissued(bot, by_user)
+            parts = [f"Готово: {job['done']} из {job['total']}"]
+            if job["failed"]:
+                parts.append(f"ошибок {job['failed']}")
+            if revoke:
+                parts.append(f"уведомлений {job['notified']}")
+            job["message"] = ", ".join(parts)
     except Exception as exc:
         logger.exception("Сбой массовой замены подписок")
         job["error"] = str(exc)
@@ -1183,6 +1159,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/maintenance", api_maintenance_save)
     app.router.add_get("/admin/api/maintenance/photo", api_maintenance_photo)
     app.router.add_delete("/admin/api/maintenance/photo", api_maintenance_photo)
+    app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
     app.router.add_get("/admin/api/backups", api_backups)
     app.router.add_post("/admin/api/backups", api_backup_create)

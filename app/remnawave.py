@@ -139,6 +139,8 @@ def iso_expire(dt: datetime) -> str:
 # Запас в панели: Remnawave часто хранит только дату UTC и гасит учётку в полночь.
 # Сутки в приложении не должны упираться в эту обрезку и в задержку крона.
 PANEL_LEASE_DAYS = 3
+# Пока срок дальше этого окна, крон не переписывает пользователя в панели.
+PANEL_LEASE_REFRESH_HOURS = 36
 
 
 def panel_lease_until(*, min_days: int | None = None) -> datetime:
@@ -255,35 +257,42 @@ class RemnawaveClient:
             return users, start + len(users) < total
         return users, len(users) >= size
 
-    async def iter_user_pages(self, size: int = 250):
-        cursor = None
-        seen_cursors: set[str] = set()
-        stream_ok = False
-        try:
-            while True:
+    async def next_users_page(
+        self, resume: dict | None, size: int
+    ) -> tuple[list[dict], dict]:
+        kind = str((resume or {}).get("kind") or "stream")
+        if kind == "done":
+            resume = None
+            kind = "stream"
+        if kind != "list":
+            cursor = None if not resume else resume.get("cursor")
+            try:
                 users, next_cursor, has_more = await self._users_stream_page(cursor, size)
-                stream_ok = True
-                yield users
-                if next_cursor is None and not has_more:
-                    return
-                if not has_more:
-                    return
+                if not has_more or next_cursor in ("", None):
+                    return users, {"kind": "done"}
                 marker = str(next_cursor)
-                if next_cursor is None or marker in seen_cursors:
-                    return
-                seen_cursors.add(marker)
-                cursor = next_cursor
-            return
-        except RemnawaveError:
-            if stream_ok:
-                return
-        start = 0
+                if cursor is not None and marker == str(cursor):
+                    return users, {"kind": "done"}
+                return users, {"kind": "stream", "cursor": next_cursor}
+            except RemnawaveError:
+                if resume and resume.get("kind") == "stream":
+                    raise
+                kind = "list"
+                resume = {"kind": "list", "start": 0}
+        start = int((resume or {}).get("start") or 0)
+        users, has_more = await self._users_list_page(start, size)
+        if not has_more or not users:
+            return users, {"kind": "done"}
+        return users, {"kind": "list", "start": start + len(users)}
+
+    async def iter_user_pages(self, size: int = 250):
+        resume: dict | None = None
         while True:
-            users, has_more = await self._users_list_page(start, size)
-            yield users
-            if not has_more or not users:
+            users, resume = await self.next_users_page(resume, size)
+            if users:
+                yield users
+            if (resume or {}).get("kind") == "done" or not users:
                 return
-            start += len(users)
 
     async def _request(self, method: str, path: str, **kwargs) -> Any:
         url = f"{self.base}{path}"
@@ -657,13 +666,17 @@ def is_subscription_active(user: dict | None) -> bool:
 
 
 def days_remaining(user: dict | None) -> int:
+    return hours_remaining(user) // 24
+
+
+def hours_remaining(user: dict | None) -> int:
     if not user:
         return 0
     expire = parse_expire(user.get("expireAt"))
     if not expire:
         return 0
     delta = expire - datetime.now(timezone.utc)
-    return max(0, int(delta.total_seconds() // 86400))
+    return max(0, int(delta.total_seconds() // 3600))
 
 
 async def fetch_user_diagnostics(rw: RemnawaveClient, user: dict) -> dict:

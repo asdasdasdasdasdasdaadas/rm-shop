@@ -27,12 +27,6 @@ async def payout_ok(callback: CallbackQuery) -> None:
         return
     result = await finish_referral_payout(callback.bot, pid, "paid", callback.from_user.id)
     await callback.answer(result)
-    if callback.message:
-        try:
-            prev = callback.message.html_text or callback.message.text or ""
-            await callback.message.edit_text(f"{prev}\n\n{result}.", reply_markup=None)
-        except Exception:
-            pass
 
 
 @router.callback_query(F.data.startswith("po_no:"))
@@ -46,9 +40,3 @@ async def payout_no(callback: CallbackQuery) -> None:
         return
     result = await finish_referral_payout(callback.bot, pid, "rejected", callback.from_user.id)
     await callback.answer(result)
-    if callback.message:
-        try:
-            prev = callback.message.html_text or callback.message.text or ""
-            await callback.message.edit_text(f"{prev}\n\n{result}.", reply_markup=None)
-        except Exception:
-            pass

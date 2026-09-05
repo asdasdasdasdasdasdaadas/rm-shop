@@ -29,7 +29,11 @@ def _as_dict(row: asyncpg.Record | None) -> dict | None:
 async def init_db() -> None:
     global _pool
     settings = get_settings()
-    _pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=10)
+    _pool = await asyncpg.create_pool(
+        settings.database_url,
+        min_size=1,
+        max_size=max(20, int(settings.billing_concurrency) + 8),
+    )
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     async with _pool.acquire() as conn:
         for stmt in schema.split(";"):
@@ -165,6 +169,66 @@ async def reject_story_check(telegram_id: int) -> bool:
         telegram_id,
     )
     return bool(row)
+
+
+def _mod_msg_key(kind: str, item_id: int) -> str:
+    prefix = "story_mod" if kind == "story" else f"{kind}_mod"
+    return f"{prefix}:{int(item_id)}"
+
+
+async def set_mod_messages(kind: str, item_id: int, items: list[dict]) -> None:
+    payload = json.dumps(items, ensure_ascii=False) if items else ""
+    await set_kv(_mod_msg_key(kind, item_id), payload)
+
+
+async def pop_mod_messages(kind: str, item_id: int) -> list[dict]:
+    key = _mod_msg_key(kind, item_id)
+    pool = _pool_req()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            raw = await conn.fetchval(
+                "SELECT value FROM app_flags WHERE key = $1 FOR UPDATE",
+                key,
+            )
+            await conn.execute(
+                """
+                INSERT INTO app_flags (key, value) VALUES ($1, '')
+                ON CONFLICT (key) DO UPDATE SET value = ''
+                """,
+                key,
+            )
+    text = str(raw or "").strip()
+    if not text:
+        return []
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return []
+    if not isinstance(data, list):
+        return []
+    out: list[dict] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        try:
+            out.append(
+                {
+                    "chat_id": int(item["chat_id"]),
+                    "message_id": int(item["message_id"]),
+                    "html": str(item.get("html") or ""),
+                }
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
+
+
+async def set_story_mod_messages(telegram_id: int, items: list[dict]) -> None:
+    await set_mod_messages("story", telegram_id, items)
+
+
+async def pop_story_mod_messages(telegram_id: int) -> list[dict]:
+    return await pop_mod_messages("story", telegram_id)
 
 
 async def payout_due_story_rewards(minutes: int, amount: int) -> list[dict]:
@@ -1132,7 +1196,8 @@ async def devices_due_for_billing() -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def devices_needing_revive() -> list[dict]:
+async def devices_needing_revive(*, refresh_hours: int = 36) -> list[dict]:
+    hours = max(6, int(refresh_hours))
     rows = await _pool_req().fetch(
         """
         SELECT d.id, d.telegram_id, d.title, d.remnawave_id, d.remnawave_uuid
@@ -1142,8 +1207,14 @@ async def devices_needing_revive() -> list[dict]:
           AND u.blocked_at IS NULL
           AND d.last_billed_at IS NOT NULL
           AND d.last_billed_at > timezone('utc', now()) - INTERVAL '24 hours'
+          AND (
+            d.expire_at IS NULL
+            OR d.expire_at <= timezone('utc', now()) + ($1::int * INTERVAL '1 hour')
+            OR UPPER(COALESCE(d.panel_status, '')) <> 'ACTIVE'
+          )
         ORDER BY d.id
-        """
+        """,
+        hours,
     )
     return [dict(r) for r in rows]
 
@@ -1910,6 +1981,40 @@ async def log_billing_events(events: list[dict]) -> None:
         )
     except Exception:
         logging.getLogger("rm-shop.db").exception("Не удалось записать события биллинга")
+
+
+async def purge_old_billing_events(
+    keep_days: int, *, batch: int = 8000, max_batches: int = 40
+) -> int:
+    days = int(keep_days)
+    if days <= 0:
+        return 0
+    limit = max(500, min(20000, int(batch)))
+    rounds = max(1, min(80, int(max_batches)))
+    deleted = 0
+    pool = _pool_req()
+    for _ in range(rounds):
+        status = await pool.execute(
+            """
+            DELETE FROM billing_events
+            WHERE id IN (
+                SELECT id FROM billing_events
+                WHERE created_at < timezone('utc', now()) - ($1::int * INTERVAL '1 day')
+                ORDER BY id
+                LIMIT $2
+            )
+            """,
+            days,
+            limit,
+        )
+        try:
+            n = int(str(status).split()[-1])
+        except (TypeError, ValueError, IndexError):
+            n = 0
+        deleted += n
+        if n < limit:
+            break
+    return deleted
 
 
 def _admin_billing_filter(

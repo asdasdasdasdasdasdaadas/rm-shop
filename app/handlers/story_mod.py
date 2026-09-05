@@ -5,7 +5,7 @@ from aiogram.types import CallbackQuery
 
 from app.config import get_settings
 from app.remnawave import RemnawaveClient
-from app.story import approve_story, reject_story
+from app.story import approve_story, close_story_admin_messages, reject_story
 
 router = Router()
 
@@ -27,13 +27,8 @@ async def story_ok(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         await callback.answer("Нет пользователя", show_alert=True)
         return
     result = await approve_story(rw, callback.bot, uid)
+    await close_story_admin_messages(callback.bot, uid, result)
     await callback.answer(result)
-    if callback.message:
-        try:
-            prev = callback.message.html_text or callback.message.text or ""
-            await callback.message.edit_text(f"{prev}\n\n{result}.", reply_markup=None)
-        except Exception:
-            pass
 
 
 @router.callback_query(F.data.startswith("st_no:"))
@@ -46,10 +41,5 @@ async def story_no(callback: CallbackQuery) -> None:
         await callback.answer("Нет пользователя", show_alert=True)
         return
     result = await reject_story(callback.bot, uid)
+    await close_story_admin_messages(callback.bot, uid, result)
     await callback.answer(result)
-    if callback.message:
-        try:
-            prev = callback.message.html_text or callback.message.text or ""
-            await callback.message.edit_text(f"{prev}\n\n{result}.", reply_markup=None)
-        except Exception:
-            pass

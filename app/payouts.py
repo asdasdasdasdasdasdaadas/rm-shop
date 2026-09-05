@@ -24,15 +24,50 @@ def payout_admin_text(user: dict, payout: dict) -> str:
     name = escape(str(user.get("first_name") or "без имени"))
     handle = _tg_username(user.get("username"))
     nick = f"@{escape(handle)}" if handle else "нет username"
+    mention = f'<a href="tg://user?id={tid}">{name}</a>'
     details = escape(str(payout.get("details") or "").strip() or "не указаны")
     return (
         "Заявка на вывод реферальных\n"
         f"ID: <code>{tid}</code>\n"
-        f"Имя: {name}\n"
+        f"Имя: {mention}\n"
         f"Telegram: {nick}\n"
         f"Сумма: {escape(rub_text(int(payout.get('amount') or 0)))}\n"
-        f"Реквизиты: {details}"
+        f"Реквизиты: {details}\n"
+        "Нажмите имя, чтобы открыть профиль."
     )
+
+
+async def _edit_payout_posts(bot: Bot, items: list[dict], result: str) -> None:
+    line = escape((result or "").rstrip(".")) + "."
+    for item in items:
+        html = str(item.get("html") or "").strip()
+        text = f"{html}\n\n{line}" if html else line
+        try:
+            await bot.edit_message_text(
+                text,
+                chat_id=int(item["chat_id"]),
+                message_id=int(item["message_id"]),
+                reply_markup=None,
+            )
+        except Exception:
+            try:
+                await bot.edit_message_reply_markup(
+                    chat_id=int(item["chat_id"]),
+                    message_id=int(item["message_id"]),
+                    reply_markup=None,
+                )
+            except Exception:
+                logger.debug(
+                    "Не удалось обновить заявку вывода %s/%s",
+                    item.get("chat_id"),
+                    item.get("message_id"),
+                    exc_info=True,
+                )
+
+
+async def close_payout_admin_messages(bot: Bot, payout_id: int, result: str) -> None:
+    items = await db.pop_mod_messages("payout", payout_id)
+    await _edit_payout_posts(bot, items, result)
 
 
 async def notify_admins_payout(bot: Bot, user: dict, payout: dict) -> None:
@@ -40,13 +75,27 @@ async def notify_admins_payout(bot: Bot, user: dict, payout: dict) -> None:
     if not settings.admin_id_set:
         logger.warning("ADMIN_IDS пуст: уведомление о выводе некуда отправить")
         return
+    payout_id = int(payout["id"])
+    stale = await db.pop_mod_messages("payout", payout_id)
+    if stale:
+        await _edit_payout_posts(bot, stale, "Заявка обновлена")
+    tid = int(user.get("telegram_id") or payout.get("telegram_id") or 0)
     text = payout_admin_text(user, payout)
-    kb = payout_mod_keyboard(int(payout["id"]), user.get("username"), int(user.get("telegram_id") or 0))
+    kb = payout_mod_keyboard(payout_id, user.get("username"), tid)
+    posted: list[dict] = []
     for admin_id in settings.admin_id_set:
         try:
-            await bot.send_message(admin_id, text, reply_markup=kb)
+            msg = await bot.send_message(admin_id, text, reply_markup=kb)
+            posted.append(
+                {
+                    "chat_id": msg.chat.id,
+                    "message_id": msg.message_id,
+                    "html": text,
+                }
+            )
         except Exception:
             logger.debug("Не удалось написать админу %s про вывод", admin_id, exc_info=True)
+    await db.set_mod_messages("payout", payout_id, posted)
 
 
 async def request_referral_payout(bot: Bot, telegram_id: int, details: str) -> tuple[bool, str]:
@@ -83,9 +132,11 @@ async def request_referral_payout(bot: Bot, telegram_id: int, details: str) -> t
 async def finish_referral_payout(bot: Bot, payout_id: int, action: str, admin_id: int | None) -> str:
     payout = await db.get_referral_payout(payout_id)
     if not payout:
+        await close_payout_admin_messages(bot, payout_id, "Заявка не найдена")
         return "Заявка не найдена"
     result = await db.resolve_referral_payout(payout_id, action, admin_id)
     if result != "ok":
+        await close_payout_admin_messages(bot, payout_id, result)
         return result
     telegram_id = int(payout["telegram_id"])
     amount = rub_text(int(payout["amount"] or 0))
@@ -117,4 +168,5 @@ async def finish_referral_payout(bot: Bot, payout_id: int, action: str, admin_id
         await bot.send_message(telegram_id, text)
     except Exception:
         logger.debug("Не удалось написать %s про вывод", telegram_id, exc_info=True)
+    await close_payout_admin_messages(bot, payout_id, label)
     return label

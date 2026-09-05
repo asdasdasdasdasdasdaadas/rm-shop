@@ -381,7 +381,10 @@ function switchTab(name, opts = {}) {
     writeRoute(name, params);
   }
   if (name === "overview") loadStats();
-  if (name === "users") loadUsers();
+  if (name === "users") {
+    loadUsers();
+    loadBroadcastJob();
+  }
   if (name === "referrals") {
     loadReferrals();
     loadPayouts();
@@ -390,6 +393,7 @@ function switchTab(name, opts = {}) {
   if (name === "billing") loadBilling();
   if (name === "reports") loadReports();
   if (name === "backups") loadBackups();
+  if (name === "broadcast") loadBroadcastJob();
   if (name === "settings" || name === "promo") loadSettings();
   setNavOpen(false);
 }
@@ -526,6 +530,7 @@ function paintJobs(jobs) {
     kv($("jobSync"), {
       Когда: jobWhen(sync.at),
       Как: sync.mode || "нет",
+      "За этот цикл": sync.partial ? "часть списка" : "до конца",
       Страниц: sync.pages ?? 0,
       "Учёток в панели": sync.seen ?? 0,
       "Обновлено у нас": sync.applied ?? 0,
@@ -870,6 +875,11 @@ async function runBulk(payload, confirmText) {
       method: "POST",
       body: JSON.stringify(payload),
     });
+    if (payload.action === "message" && (r.queued || r.running)) {
+      $("bulkOut").textContent = "Запущено";
+      loadBroadcastJob();
+      return;
+    }
     $("bulkOut").textContent = bulkSummary(r);
     toast(bulkSummary(r));
     if (payload.action === "delete") {
@@ -1877,6 +1887,44 @@ $("refQ").onkeydown = (e) => {
   if (e.key === "Enter") loadReferrals(1);
 };
 
+let bcPoll = 0;
+
+function paintBroadcastJob(j) {
+  const out = $("broadcastOut");
+  const btn = $("broadcastBtn");
+  const bulkBtn = $("bulkMsg");
+  const bulkOut = $("bulkOut");
+  if (btn) btn.disabled = !!j.running;
+  if (bulkBtn) bulkBtn.disabled = !!j.running;
+  const progress = () => {
+    const total = j.total || 0;
+    return total
+      ? `Идёт: ${j.sent || 0} из ${total}` + (j.failed ? `, ошибок ${j.failed}` : "")
+      : "Запущено, собираю получателей...";
+  };
+  if (out) {
+    if (j.running) out.textContent = progress();
+    else if (j.message) out.textContent = j.message;
+  }
+  if (bulkOut && j.scope === "selected") {
+    if (j.running) bulkOut.textContent = progress();
+    else if (j.message) bulkOut.textContent = j.message;
+  }
+}
+
+async function loadBroadcastJob() {
+  try {
+    const j = await api("/admin/api/broadcast");
+    paintBroadcastJob(j);
+    if (j.running) {
+      if (bcPoll) clearTimeout(bcPoll);
+      bcPoll = setTimeout(loadBroadcastJob, 1000);
+    }
+  } catch (_e) {
+    /* ignore */
+  }
+}
+
 $("broadcastBtn").onclick = async () => {
   const text = $("broadcastText").value.trim();
   if (!text) {
@@ -1884,14 +1932,14 @@ $("broadcastBtn").onclick = async () => {
     return;
   }
   if (!(await confirmAction("Рассылка всем", "Сообщение уйдёт всем незаблокированным пользователям. Отменить рассылку нельзя."))) return;
-  $("broadcastOut").textContent = "Отправка...";
+  $("broadcastOut").textContent = "Запускаю...";
   try {
-    const r = await api("/admin/api/broadcast", {
+    await api("/admin/api/broadcast", {
       method: "POST",
       body: JSON.stringify({ text: $("broadcastText").value }),
     });
-    $("broadcastOut").textContent = `Отправлено: ${r.sent}, ошибок: ${r.failed}`;
-    toast(`Отправлено: ${r.sent}`);
+    toast("Рассылка запущена");
+    loadBroadcastJob();
   } catch (err) {
     $("broadcastOut").textContent = err.message;
   }

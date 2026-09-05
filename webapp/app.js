@@ -316,12 +316,13 @@ function setGauge(pct, tone) {
 
 function paintStatus(me) {
   const n = (me.devices || []).length;
-  const left = me.balance_enabled ? me.days_left : me.days;
+  const hours = remainHours(me);
+  const days = hours / 24;
   const running = me.balance_enabled ? n > 0 : Boolean(me.has_access);
   if (me.balance_enabled) {
     $("balanceLine").innerHTML = `${me.balance_rub} ₽ <span>на счету</span>`;
   } else {
-    $("balanceLine").innerHTML = `${daysLabel(me.days)} <span>подписки</span>`;
+    $("balanceLine").innerHTML = `${remainLabel(me, { running })} <span>подписки</span>`;
   }
   const pill = $("statusPill");
   const badge = $("daysBadge");
@@ -334,28 +335,28 @@ function paintStatus(me) {
     $("statusNote").textContent = me.balance_enabled
       ? "Добавьте устройство — лягушка возьмётся за дело и покажет, на сколько дней хватит баланса."
       : "Оформите доступ — лягушка возьмётся за дело и покажет срок подписки.";
-  } else if (left < 3) {
+  } else if (days < 3) {
     setFrog("worried");
-    setGauge(left / GAUGE_REF_DAYS, "warn");
+    setGauge(days / GAUGE_REF_DAYS, "warn");
     badge.classList.remove("hidden");
-    badge.textContent = daysLabel(left);
+    badge.textContent = remainLabel(me, { running });
     pill.className = "status-pill warn";
     pill.innerHTML = me.balance_enabled
       ? '<span class="dot"></span> Баланс заканчивается'
       : '<span class="dot"></span> Срок заканчивается';
     $("statusNote").textContent = me.balance_enabled
-      ? `При текущем расходе осталось примерно ${daysLabel(left)}.`
-      : `Осталось ${daysLabel(left)} подписки.`;
+      ? `При текущем расходе осталось примерно ${remainLabel(me, { running })}.`
+      : `Осталось ${remainLabel(me, { running })} подписки.`;
   } else {
     setFrog("happy");
-    setGauge(left / GAUGE_REF_DAYS, "ok");
+    setGauge(days / GAUGE_REF_DAYS, "ok");
     badge.classList.remove("hidden");
-    badge.textContent = daysLabel(left);
+    badge.textContent = remainLabel(me, { running });
     pill.className = "status-pill on";
     pill.innerHTML = '<span class="dot"></span> Подключено';
     $("statusNote").textContent = me.balance_enabled
-      ? `При текущем расходе баланса хватит примерно на ${daysLabel(left)}.`
-      : `Подписка действует ещё ${daysLabel(left)}.`;
+      ? `При текущем расходе баланса хватит примерно на ${remainLabel(me, { running })}.`
+      : `Подписка действует ещё ${remainLabel(me, { running })}.`;
   }
   const add = $("ctaAdd");
   const topup = $("topupBtn");
@@ -409,6 +410,34 @@ function daysWord(n) {
 
 function daysLabel(n) {
   return `${n} ${daysWord(n)}`;
+}
+
+function hoursWord(n) {
+  const abs = Math.abs(n);
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod10 === 1 && mod100 !== 11) return "час";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "часа";
+  return "часов";
+}
+
+function hoursLabel(n) {
+  return `${n} ${hoursWord(n)}`;
+}
+
+function remainHours(me) {
+  const raw = Number(me && me.hours_left);
+  if (Number.isFinite(raw) && raw >= 0) return raw;
+  const days = me && me.balance_enabled ? me.days_left : me && me.days;
+  return Math.max(0, Number(days) || 0) * 24;
+}
+
+function remainLabel(me, opts) {
+  const running = Boolean(opts && opts.running);
+  const hours = remainHours(me);
+  if (hours < 1) return running ? "меньше часа" : daysLabel(0);
+  if (hours < 24) return hoursLabel(hours);
+  return daysLabel(Math.floor(hours / 24));
 }
 
 function rublesWord(n) {
@@ -2491,6 +2520,7 @@ function vpnReportContext() {
     me: {
       days: me.days,
       days_left: me.days_left,
+      hours_left: me.hours_left,
       balance_rub: me.balance_rub,
       billing_active: me.billing_active,
       has_access: me.has_access,

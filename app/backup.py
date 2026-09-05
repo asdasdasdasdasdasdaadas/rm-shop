@@ -187,7 +187,19 @@ def seconds_until_msk_0001() -> float:
     return max(1.0, (target - now).total_seconds())
 
 
+async def _prune_billing_events() -> None:
+    days = get_settings().billing_events_keep_days
+    n = await db.purge_old_billing_events(days)
+    if n:
+        logger.info("Удалены старые события биллинга: %s", n)
+
+
 async def backup_loop(_bot: Bot | None = None) -> None:
+    await asyncio.sleep(45)
+    try:
+        await _prune_billing_events()
+    except Exception:
+        logger.exception("Очистка billing_events не удалась")
     while True:
         wait = seconds_until_msk_0001()
         logger.info("Следующий автобэкап через %.0f сек (00:01 МСК)", wait)
@@ -197,6 +209,11 @@ async def backup_loop(_bot: Bot | None = None) -> None:
         except Exception:
             logger.exception("Автобэкап не удался")
             await asyncio.sleep(60)
+            continue
+        try:
+            await _prune_billing_events()
+        except Exception:
+            logger.exception("Очистка billing_events не удалась")
 
 
 MAX_UPLOAD = 80 * 1024 * 1024

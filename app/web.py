@@ -27,6 +27,7 @@ from app.remnawave import (
     RemnawaveClient,
     RemnawaveError,
     days_remaining,
+    hours_remaining,
     is_subscription_active,
     parse_dt,
     parse_expire,
@@ -241,6 +242,18 @@ async def webapp_story(_request: web.Request) -> web.FileResponse:
     )
 
 
+def _hours_until(when) -> int:
+    dt = when if isinstance(when, datetime) else parse_dt(when)
+    if dt is None:
+        return 0
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    sec = (dt - datetime.now(timezone.utc)).total_seconds()
+    return max(0, int(sec // 3600))
+
+
 async def api_me(request: web.Request) -> web.Response:
     settings = get_settings()
     telegram_id, parsed = await _resolve_telegram_id(request)
@@ -270,7 +283,7 @@ async def api_me(request: web.Request) -> web.Response:
     if tg_user:
         await db.upsert_user(telegram_id, tg_user.username, tg_user.first_name)
     local = await db.get_user(telegram_id)
-    panel = await fetch_panel(rw, telegram_id, local=local)
+    panel = await fetch_panel(rw, telegram_id, local=local, allow_stale=True)
 
     days = int(local["balance_days"] or 0) if settings.balance_enabled and local else days_remaining(panel)
     balance_rub = int((local or {}).get("balance_rub") or 0) if local else 0
@@ -303,13 +316,24 @@ async def api_me(request: web.Request) -> web.Response:
         nick = str(local["username"])
         username = nick if nick.startswith("@") else f"@{nick}"
     trust = await trust_info(telegram_id, local, len(devices)) if settings.balance_enabled else None
+    price = max(1, settings.vpn_day_price_rub)
     if settings.balance_enabled and devices:
-        days_left = balance_rub // (max(1, settings.vpn_day_price_rub) * len(devices))
+        hours_money = int(balance_rub) * 24 // (price * len(devices))
+        paid = []
+        for item in raw_devices:
+            billed = parse_dt(item.get("last_billed_at"))
+            if billed:
+                paid.append(_hours_until(billed + timedelta(hours=24)))
+        hours_left = hours_money + (min(paid) if paid else 0)
+        days_left = hours_left // 24
     elif settings.balance_enabled:
-        days_left = balance_rub // max(1, settings.vpn_day_price_rub)
+        hours_left = int(balance_rub) * 24 // price
+        days_left = hours_left // 24
     else:
-        days_left = days
+        hours_left = hours_remaining(panel)
+        days_left = hours_left // 24
     days_left = max(0, int(days_left))
+    hours_left = max(0, int(hours_left))
     wallet = await db.referral_wallet(telegram_id) if settings.balance_enabled else None
 
     return web.json_response(
@@ -329,6 +353,7 @@ async def api_me(request: web.Request) -> web.Response:
             "trial_rub": trial_grant_rub() if settings.balance_enabled else 0,
             "days": days,
             "days_left": days_left,
+            "hours_left": hours_left,
             "billing_active": bool(settings.balance_enabled and devices),
             "balance_rub": balance_rub,
             "vpn_day_price_rub": settings.vpn_day_price_rub,

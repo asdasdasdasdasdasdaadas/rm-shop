@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from aiogram.types import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.config import get_settings, referral_is_payout
@@ -262,8 +262,12 @@ def story_mod_keyboard(telegram_id: int, username: str | None) -> InlineKeyboard
     handle = (username or "").lstrip("@").strip()
     if handle:
         builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"https://t.me/{handle}"))
-    else:
-        builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"tg://user?id={telegram_id}"))
+    builder.row(
+        InlineKeyboardButton(
+            text="Скопировать ID",
+            copy_text=CopyTextButton(text=str(int(telegram_id))),
+        )
+    )
     builder.row(
         InlineKeyboardButton(text="Подтвердить", callback_data=f"st_ok:{telegram_id}"),
         InlineKeyboardButton(text="Отказать", callback_data=f"st_no:{telegram_id}"),
@@ -278,8 +282,12 @@ def payout_mod_keyboard(
     handle = (username or "").lstrip("@").strip()
     if handle:
         builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"https://t.me/{handle}"))
-    else:
-        builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"tg://user?id={telegram_id}"))
+    builder.row(
+        InlineKeyboardButton(
+            text="Скопировать ID",
+            copy_text=CopyTextButton(text=str(int(telegram_id))),
+        )
+    )
     builder.row(
         InlineKeyboardButton(text="Выплачено", callback_data=f"po_ok:{payout_id}"),
         InlineKeyboardButton(text="Отказать", callback_data=f"po_no:{payout_id}"),

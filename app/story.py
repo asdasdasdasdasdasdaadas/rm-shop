@@ -25,13 +25,48 @@ def story_admin_text(user: dict, amount: int) -> str:
     name = escape(str(user.get("first_name") or "без имени"))
     handle = _tg_username(user.get("username"))
     nick = f"@{escape(handle)}" if handle else "нет username"
+    mention = f'<a href="tg://user?id={tid}">{name}</a>'
     return (
         "История на проверку\n"
         f"ID: <code>{tid}</code>\n"
-        f"Имя: {name}\n"
+        f"Имя: {mention}\n"
         f"Telegram: {nick}\n"
-        f"Награда: {escape(rub_text(amount))}"
+        f"Награда: {escape(rub_text(amount))}\n"
+        "Нажмите имя, чтобы открыть профиль."
     )
+
+
+async def _edit_story_posts(bot: Bot, items: list[dict], result: str) -> None:
+    line = escape((result or "").rstrip(".")) + "."
+    for item in items:
+        html = str(item.get("html") or "").strip()
+        text = f"{html}\n\n{line}" if html else line
+        try:
+            await bot.edit_message_text(
+                text,
+                chat_id=int(item["chat_id"]),
+                message_id=int(item["message_id"]),
+                reply_markup=None,
+            )
+        except Exception:
+            try:
+                await bot.edit_message_reply_markup(
+                    chat_id=int(item["chat_id"]),
+                    message_id=int(item["message_id"]),
+                    reply_markup=None,
+                )
+            except Exception:
+                logger.debug(
+                    "Не удалось обновить заявку истории %s/%s",
+                    item.get("chat_id"),
+                    item.get("message_id"),
+                    exc_info=True,
+                )
+
+
+async def close_story_admin_messages(bot: Bot, telegram_id: int, result: str) -> None:
+    items = await db.pop_story_mod_messages(telegram_id)
+    await _edit_story_posts(bot, items, result)
 
 
 async def notify_admins_story(bot: Bot, user: dict, amount: int) -> None:
@@ -40,13 +75,25 @@ async def notify_admins_story(bot: Bot, user: dict, amount: int) -> None:
         logger.warning("ADMIN_IDS пуст: уведомление о истории некуда отправить")
         return
     tid = int(user.get("telegram_id") or 0)
+    stale = await db.pop_story_mod_messages(tid)
+    if stale:
+        await _edit_story_posts(bot, stale, "Заявка обновлена")
     text = story_admin_text(user, amount)
     kb = story_mod_keyboard(tid, user.get("username"))
+    posted: list[dict] = []
     for admin_id in settings.admin_id_set:
         try:
-            await bot.send_message(admin_id, text, reply_markup=kb)
+            msg = await bot.send_message(admin_id, text, reply_markup=kb)
+            posted.append(
+                {
+                    "chat_id": msg.chat.id,
+                    "message_id": msg.message_id,
+                    "html": text,
+                }
+            )
         except Exception:
             logger.debug("Не удалось написать админу %s про историю", admin_id, exc_info=True)
+    await db.set_story_mod_messages(tid, posted)
 
 
 async def approve_story(rw: RemnawaveClient, bot: Bot, telegram_id: int) -> str:

@@ -39,10 +39,17 @@ async def balance_charge_loop(rw: RemnawaveClient, bot: Bot) -> None:
         return
     await asyncio.sleep(min(20, interval))
     while True:
+        async with runtime.panel_cron_lock():
+            try:
+                await charge_due_devices(rw, bot)
+            except Exception:
+                logger.exception("Списание за устройства не удалось")
         try:
-            await charge_due_devices(rw, bot)
+            n = await db.purge_old_billing_events(settings.billing_events_keep_days)
+            if n:
+                logger.info("Удалены старые события биллинга: %s", n)
         except Exception:
-            logger.exception("Списание за устройства не удалось")
+            logger.exception("Очистка billing_events не удалась")
         await asyncio.sleep(interval)
 
 
@@ -50,13 +57,15 @@ async def panel_sync_loop(rw: RemnawaveClient) -> None:
     interval = get_settings().panel_sync_interval
     if interval <= 0:
         return
+    await asyncio.sleep(max(60, interval // 2))
     while True:
+        async with runtime.panel_cron_lock():
+            try:
+                await sync_all(rw)
+                logger.info("Сверка с Remnawave завершена")
+            except Exception:
+                logger.exception("Сверка с Remnawave не удалась")
         await asyncio.sleep(interval)
-        try:
-            await sync_all(rw)
-            logger.info("Сверка с Remnawave завершена")
-        except Exception:
-            logger.exception("Сверка с Remnawave не удалась")
 
 
 def _warn_deploy(settings) -> None:

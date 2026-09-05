@@ -10,7 +10,14 @@ from aiogram import Bot
 
 from app import db, runtime
 from app.config import get_settings
-from app.remnawave import PANEL_LEASE_DAYS, RemnawaveClient, RemnawaveError, is_subscription_active, panel_lease_until
+from app.remnawave import (
+    PANEL_LEASE_DAYS,
+    PANEL_LEASE_REFRESH_HOURS,
+    RemnawaveClient,
+    RemnawaveError,
+    is_subscription_active,
+    panel_lease_until,
+)
 from app.trust import collect_due_trusts
 from app.notices import notice_text
 from app.texts import rub_text
@@ -474,7 +481,7 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
         disable_ids = {int(item["id"]) for item in disable}
     keep = [
         item
-        for item in await db.devices_needing_revive()
+        for item in await db.devices_needing_revive(refresh_hours=PANEL_LEASE_REFRESH_HOURS)
         if int(item["id"]) not in disable_ids
     ]
     kept, keep_mode = await _commit_keepalives(rw, keep, chunk=chunk)
@@ -539,7 +546,7 @@ async def sync_user_billing(
             if expire is not None:
                 if getattr(expire, "tzinfo", None) is None:
                     expire = expire.replace(tzinfo=timezone.utc)
-                if expire > datetime.now(timezone.utc) + timedelta(hours=12):
+                if expire > datetime.now(timezone.utc) + timedelta(hours=PANEL_LEASE_REFRESH_HOURS):
                     continue
         try:
             panel = await rw.get_user_by_id(int(item["remnawave_id"]))
