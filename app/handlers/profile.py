@@ -60,8 +60,18 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         return
     if settings.balance_enabled:
         amount = trial_grant_rub()
-        await db.add_balance_rub(callback.from_user.id, amount)
-        await db.mark_trial_used(callback.from_user.id)
+        after = await db.claim_trial_balance(callback.from_user.id, amount)
+        if after is None:
+            await show_profile(callback, rw)
+            return
+        await db.log_billing_event(
+            callback.from_user.id,
+            "trial",
+            source="user",
+            amount=amount,
+            balance_after=after,
+            note=f"Триал {settings.trial_days} дн.",
+        )
         if not referral_is_payout():
             await maybe_reward_referrer(
                 callback.bot, rw, callback.from_user.id, callback.from_user.first_name

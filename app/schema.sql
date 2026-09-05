@@ -87,6 +87,10 @@ ALTER TABLE devices ADD COLUMN IF NOT EXISTS subscription_url TEXT;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS last_online_at TIMESTAMPTZ;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS expire_at TIMESTAMPTZ;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS panel_status TEXT;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS used_traffic_bytes BIGINT;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS lifetime_traffic_bytes BIGINT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS used_traffic_bytes BIGINT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS lifetime_traffic_bytes BIGINT;
 
 CREATE INDEX IF NOT EXISTS devices_last_billed_at_idx
     ON devices (last_billed_at)

@@ -237,6 +237,22 @@ function fmt(dt) {
   return d.toLocaleString("ru-RU");
 }
 
+function fmtBytes(n) {
+  if (n == null || n === "") return "—";
+  const num = Number(n);
+  if (!Number.isFinite(num) || num < 0) return "—";
+  if (num === 0) return "0 Б";
+  const units = ["Б", "КБ", "МБ", "ГБ", "ТБ"];
+  let value = num;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i += 1;
+  }
+  const shown = value >= 10 || i === 0 ? value.toFixed(0) : value.toFixed(1);
+  return shown.replace(/\.0$/, "") + " " + units[i];
+}
+
 function fmtAgo(dt) {
   if (!dt) return "—";
   const d = new Date(dt);
@@ -787,9 +803,9 @@ async function loadUsers(page) {
   lastUserItems = data.items || [];
   const body = $("userRows");
   body.innerHTML = "";
-  const labels = ["", "Клиент", "Баланс", "Устройства", "Онлайн", "Триал", "До", "Статус", "Пригласил", "Друзей", ""];
+  const labels = ["", "Клиент", "Баланс", "Устройства", "Онлайн", "Трафик", "Триал", "До", "Статус", "Пригласил", "Друзей", ""];
   if (!lastUserItems.length) {
-    body.appendChild(emptyRow(11, hasAny(f) ? "Никого не нашли по фильтрам" : "Пользователей пока нет"));
+    body.appendChild(emptyRow(12, hasAny(f) ? "Никого не нашли по фильтрам" : "Пользователей пока нет"));
   }
   lastUserItems.forEach((u) => {
     const tr = document.createElement("tr");
@@ -823,6 +839,12 @@ async function loadUsers(page) {
     tdDev.title = deviceCell(u);
     tr.appendChild(tdDev);
     tr.appendChild(onlineCell(u.last_online_at));
+    const tdTraffic = tdText(fmtBytes(u.used_traffic_bytes));
+    const life = fmtBytes(u.lifetime_traffic_bytes);
+    tdTraffic.title = life !== "—" && life !== fmtBytes(u.used_traffic_bytes)
+      ? "Сейчас: " + fmtBytes(u.used_traffic_bytes) + ". Всего: " + life
+      : "Из сверки с панелью";
+    tr.appendChild(tdTraffic);
     tr.appendChild(tdText(u.trial_used ? "да" : "нет"));
     tr.appendChild(tdText(fmt(u.expire_at)));
     tr.appendChild(tdPill(u.blocked_at ? "блок" : (u.panel_status || "—")));
@@ -1036,6 +1058,7 @@ const BILL_KIND = {
   disable: "отключение",
   pause: "пауза",
   revive: "включение",
+  trial: "триал",
   admin_balance: "баланс",
   admin_grant: "начисление",
   trust: "обещанный",
@@ -1043,7 +1066,7 @@ const BILL_KIND = {
   device_delete: "удаление",
   error: "ошибка",
 };
-const BILL_SOURCE = { cron: "тарификация", admin: "админка", user: "кабинет" };
+const BILL_SOURCE = { cron: "тарификация", admin: "админка", user: "кабинет", signup: "регистрация" };
 
 function billKindLabel(kind) {
   return BILL_KIND[kind] || kind || "—";
@@ -1175,9 +1198,9 @@ async function loadUserDevices(telegramId) {
   body.innerHTML = "";
   const wait = document.createElement("tr");
   const waitTd = document.createElement("td");
-  waitTd.colSpan = 5;
+  waitTd.colSpan = 6;
   waitTd.className = "muted";
-  waitTd.textContent = "Загружаю из панели...";
+  waitTd.textContent = "Загружаю...";
   wait.appendChild(waitTd);
   body.appendChild(wait);
   try {
@@ -1193,7 +1216,7 @@ async function loadUserDevices(telegramId) {
     if (!items.length) {
       const tr = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = 5;
+      td.colSpan = 6;
       td.className = "muted";
       td.textContent = "Устройств нет";
       tr.appendChild(td);
@@ -1208,6 +1231,10 @@ async function loadUserDevices(telegramId) {
         d.platform || "—",
       ].forEach((t) => tr.appendChild(tdText(t)));
       tr.appendChild(tdPill(d.status || "—"));
+      const tdTraffic = tdText(fmtBytes(d.used_traffic_bytes));
+      const life = fmtBytes(d.lifetime_traffic_bytes);
+      if (life !== "—") tdTraffic.title = "Всего: " + life;
+      tr.appendChild(tdTraffic);
       const tdOn = onlineCell(d.last_online_at);
       tr.appendChild(tdOn);
       body.appendChild(tr);
@@ -1216,7 +1243,7 @@ async function loadUserDevices(telegramId) {
     body.innerHTML = "";
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 5;
+    td.colSpan = 6;
     td.className = "muted";
     td.textContent = "Не удалось загрузить устройства";
     tr.appendChild(td);

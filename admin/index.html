@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="30">
+  <meta name="admin-build" content="32">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -33,7 +33,7 @@
       <div class="login-mark" aria-hidden="true">
         <svg viewBox="0 0 48 48" fill="none"><ellipse cx="24" cy="30" rx="11" ry="13" fill="currentColor"/><circle cx="12" cy="14" r="4.4" fill="currentColor"/><circle cx="36" cy="14" r="4.4" fill="currentColor"/><circle cx="20" cy="8" r="3.6" fill="currentColor" opacity=".75"/><circle cx="28" cy="8" r="3.6" fill="currentColor" opacity=".75"/></svg>
       </div>
-      <p class="login-kicker">Админка · сборка 30</p>
+      <p class="login-kicker">Админка · сборка 32</p>
       <h1>Кабинет сервиса</h1>
       <p class="muted">Пользователи, оплаты, биллинг и настройки. Тема переключается кнопкой сверху.</p>
       <label class="field-label" for="password">Пароль</label>
@@ -295,6 +295,7 @@
                   <th>Баланс</th>
                   <th>Устройства</th>
                   <th>Онлайн</th>
+                  <th>Трафик</th>
                   <th>Триал</th>
                   <th>До</th>
                   <th>Статус</th>
@@ -463,12 +464,14 @@
               <option value="error">ошибка</option>
               <option value="device_delete">удаление</option>
               <option value="trust">обещанный</option>
+              <option value="trial">триал</option>
             </select>
             <select id="billSource" aria-label="Источник">
               <option value="">Источник: все</option>
               <option value="cron">тарификация</option>
               <option value="admin">админка</option>
               <option value="user">кабинет</option>
+              <option value="signup">регистрация</option>
             </select>
             <input id="billFrom" type="date" aria-label="С">
             <input id="billTo" type="date" aria-label="По">
@@ -828,6 +831,7 @@
               <th>Клиент</th>
               <th>Платформа</th>
               <th>Статус</th>
+              <th>Трафик</th>
               <th>Последний онлайн</th>
             </tr>
           </thead>
@@ -864,6 +868,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=35"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>

@@ -232,6 +232,8 @@ async def api_user_devices(request: web.Request) -> web.Response:
                     "client": item.get("client") or "",
                     "status": str(item.get("panel_status") or ""),
                     "last_online_at": online.isoformat() if hasattr(online, "isoformat") else online,
+                    "used_traffic_bytes": item.get("used_traffic_bytes"),
+                    "lifetime_traffic_bytes": item.get("lifetime_traffic_bytes"),
                 }
             )
     elif local.get("remnawave_id"):
@@ -243,6 +245,8 @@ async def api_user_devices(request: web.Request) -> web.Response:
                 "client": "",
                 "status": str(local.get("panel_status") or ""),
                 "last_online_at": None,
+                "used_traffic_bytes": local.get("used_traffic_bytes"),
+                "lifetime_traffic_bytes": local.get("lifetime_traffic_bytes"),
             }
         )
     return web.json_response({"ok": True, "items": items})

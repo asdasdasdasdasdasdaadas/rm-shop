@@ -9,7 +9,7 @@ from aiogram.types import CallbackQuery, Message
 
 from app import db
 from app.access import is_channel_member
-from app.config import get_settings, referral_is_payout
+from app.config import get_settings
 from app.keyboards import (
     channel_keyboard,
     legal_keyboard,
@@ -18,7 +18,7 @@ from app.keyboards import (
     profile_text,
     welcome_text,
 )
-from app.referrals import maybe_reward_referrer, trial_is_available
+from app.referrals import ensure_signup_trial, maybe_reward_referrer, trial_is_available
 from app.remnawave import RemnawaveClient
 from app.sync import fetch_panel, has_access
 
@@ -32,13 +32,9 @@ def _aware(dt: datetime) -> datetime:
 
 
 def is_established_user(local: dict, *, devices: int = 0) -> bool:
-    if local.get("trial_used"):
-        return True
     if local.get("remnawave_id") or local.get("remnawave_uuid"):
         return True
     if local.get("has_paid_topup"):
-        return True
-    if int(local.get("balance_rub") or 0) or int(local.get("balance_days") or 0):
         return True
     if devices > 0:
         return True
@@ -87,18 +83,12 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
     panel = None
     local = None
     if from_user:
+        await ensure_signup_trial(from_user.id)
+        await maybe_reward_referrer(
+            target.bot, rw, from_user.id, from_user.first_name
+        )
         panel = await fetch_panel(rw, from_user.id)
         local = await db.get_user(from_user.id)
-        if (
-            local
-            and local.get("referred_by")
-            and not local.get("referral_rewarded")
-            and not referral_is_payout()
-        ):
-            await maybe_reward_referrer(
-                target.bot, rw, from_user.id, from_user.first_name
-            )
-            local = await db.get_user(from_user.id)
     trial_available = trial_is_available(local)
     access = has_access(local, panel)
     text = profile_text(
@@ -163,6 +153,10 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
         message.from_user.first_name,
         referred_by=ref,
     )
+    await ensure_signup_trial(message.from_user.id)
+    await maybe_reward_referrer(
+        message.bot, rw, message.from_user.id, message.from_user.first_name
+    )
     if not await is_channel_member(message.bot, message.from_user.id):
         await message.answer(welcome_text(), reply_markup=channel_keyboard())
         return
@@ -178,6 +172,10 @@ async def check_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         callback.from_user.id,
         callback.from_user.username,
         callback.from_user.first_name,
+    )
+    await ensure_signup_trial(callback.from_user.id)
+    await maybe_reward_referrer(
+        callback.bot, rw, callback.from_user.id, callback.from_user.first_name
     )
     if not await is_channel_member(callback.bot, callback.from_user.id, force=True):
         await ack(callback, "Подписка не найдена. Подпишитесь и нажмите ещё раз.", alert=True)
@@ -201,6 +199,10 @@ async def accept_legal(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         callback.from_user.first_name,
     )
     await db.accept_legal(callback.from_user.id)
+    await ensure_signup_trial(callback.from_user.id)
+    await maybe_reward_referrer(
+        callback.bot, rw, callback.from_user.id, callback.from_user.first_name
+    )
     await show_profile(callback, rw)
 
 
@@ -216,6 +218,8 @@ async def try_again(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     user = callback.from_user
     await ack(callback)
     await db.upsert_user(user.id, user.username, user.first_name)
+    await ensure_signup_trial(user.id)
+    await maybe_reward_referrer(callback.bot, rw, user.id, user.first_name)
     if not await is_channel_member(callback.bot, user.id):
         await callback.message.answer(welcome_text(), reply_markup=channel_keyboard())
         return

@@ -10,6 +10,7 @@ import secrets
 import asyncpg
 
 from app.config import get_settings
+from app.remnawave import panel_lifetime_traffic_bytes, panel_online_at, panel_used_traffic_bytes
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
@@ -73,11 +74,12 @@ async def upsert_user(
             referred_by = CASE
                 WHEN users.referred_by IS NOT NULL THEN users.referred_by
                 WHEN EXCLUDED.referred_by IS NULL THEN users.referred_by
-                WHEN users.trial_used
+                WHEN users.referral_rewarded
                   OR COALESCE(users.has_paid_topup, FALSE)
-                  OR COALESCE(users.balance_rub, 0) <> 0
                   OR users.remnawave_id IS NOT NULL
-                  OR users.referral_rewarded
+                  OR EXISTS (
+                      SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id
+                  )
                 THEN users.referred_by
                 ELSE EXCLUDED.referred_by
             END
@@ -292,6 +294,37 @@ async def mark_trial_used(telegram_id: int, remnawave_id: int | None = None) -> 
         )
 
 
+async def claim_trial_balance(telegram_id: int, amount: int, *, signup_only: bool = False) -> int | None:
+    if amount < 1:
+        return None
+    extra = ""
+    if signup_only:
+        extra = """
+          AND COALESCE(has_paid_topup, FALSE) = FALSE
+          AND remnawave_id IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id
+          )
+        """
+    row = await _pool_req().fetchrow(
+        f"""
+        UPDATE users SET
+            trial_used = TRUE,
+            balance_rub = COALESCE(balance_rub, 0) + $2,
+            low_balance_notified_at = NULL
+        WHERE telegram_id = $1
+          AND trial_used = FALSE
+          {extra}
+        RETURNING balance_rub
+        """,
+        telegram_id,
+        amount,
+    )
+    if not row:
+        return None
+    return int(row["balance_rub"])
+
+
 async def save_panel_id(telegram_id: int, remnawave_id: int) -> None:
     await _pool_req().execute(
         "UPDATE users SET remnawave_id = $1 WHERE telegram_id = $2",
@@ -323,6 +356,8 @@ async def save_panel_snapshot(telegram_id: int, panel: dict | None) -> None:
             expire_at = datetime.fromisoformat(str(expire_raw).replace("Z", "+00:00"))
         except ValueError:
             expire_at = None
+    used = panel_used_traffic_bytes(panel)
+    life = panel_lifetime_traffic_bytes(panel)
     await _pool_req().execute(
         """
         UPDATE users SET
@@ -331,7 +366,9 @@ async def save_panel_snapshot(telegram_id: int, panel: dict | None) -> None:
             expire_at = $4,
             panel_status = $5,
             subscription_url = $6,
-            last_synced_at = $7
+            last_synced_at = $7,
+            used_traffic_bytes = COALESCE($8, used_traffic_bytes),
+            lifetime_traffic_bytes = COALESCE($9, lifetime_traffic_bytes)
         WHERE telegram_id = $1
         """,
         telegram_id,
@@ -341,7 +378,21 @@ async def save_panel_snapshot(telegram_id: int, panel: dict | None) -> None:
         str(panel.get("status") or "") or None,
         panel.get("subscriptionUrl") or None,
         _utc_now(),
+        used,
+        life,
     )
+    if remnawave_id is not None:
+        await _pool_req().execute(
+            """
+            UPDATE devices SET
+                used_traffic_bytes = COALESCE($2, used_traffic_bytes),
+                lifetime_traffic_bytes = COALESCE($3, lifetime_traffic_bytes)
+            WHERE remnawave_id = $1
+            """,
+            remnawave_id,
+            used,
+            life,
+        )
 
 
 def _panel_sync_tuple(panel: dict) -> tuple | None:
@@ -362,26 +413,12 @@ def _panel_sync_tuple(panel: dict) -> tuple | None:
             expire_at = None
     status = str(panel.get("status") or "") or None
     sub = panel.get("subscriptionUrl") or None
-    online = None
-    traffic = panel.get("userTraffic") if isinstance(panel.get("userTraffic"), dict) else {}
-    nested = panel.get("traffic") if isinstance(panel.get("traffic"), dict) else {}
-    for raw in (
-        traffic.get("onlineAt"),
-        nested.get("onlineAt"),
-        panel.get("onlineAt"),
-        panel.get("lastConnectedAt"),
-        panel.get("lastOnlineAt"),
-    ):
-        if not raw:
-            continue
-        try:
-            online = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
-            break
-        except ValueError:
-            online = None
+    online = panel_online_at(panel)
+    used = panel_used_traffic_bytes(panel)
+    life = panel_lifetime_traffic_bytes(panel)
     if remnawave_id is None and not uuid:
         return None
-    return remnawave_id, uuid, expire_at, status, sub, online
+    return remnawave_id, uuid, expire_at, status, sub, online, used, life
 
 
 async def apply_panel_snapshots(panels: list[dict]) -> int:
@@ -406,6 +443,8 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
     statuses = [r[3] for r in rows]
     subs = [r[4] for r in rows]
     onlines = [r[5] for r in rows]
+    used = [r[6] for r in rows]
+    life = [r[7] for r in rows]
     now = _utc_now()
     pool = _pool_req()
     await pool.execute(
@@ -419,10 +458,13 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
                 WHEN v.online_at IS NULL THEN d.last_online_at
                 WHEN d.last_online_at IS NULL OR v.online_at > d.last_online_at THEN v.online_at
                 ELSE d.last_online_at
-            END
+            END,
+            used_traffic_bytes = COALESCE(v.used_bytes, d.used_traffic_bytes),
+            lifetime_traffic_bytes = COALESCE(v.life_bytes, d.lifetime_traffic_bytes)
         FROM unnest(
-            $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[], $6::timestamptz[]
-        ) AS v(pid, uuid, expire_at, status, sub, online_at)
+            $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[],
+            $6::timestamptz[], $7::bigint[], $8::bigint[]
+        ) AS v(pid, uuid, expire_at, status, sub, online_at, used_bytes, life_bytes)
         WHERE d.remnawave_id IS NOT NULL AND d.remnawave_id = v.pid
         """,
         ids,
@@ -431,6 +473,8 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
         statuses,
         subs,
         onlines,
+        used,
+        life,
     )
     result = await pool.execute(
         """
@@ -439,10 +483,13 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
             expire_at = v.expire_at,
             panel_status = v.status,
             subscription_url = COALESCE(v.sub, u.subscription_url),
-            last_synced_at = $6
+            last_synced_at = $8,
+            used_traffic_bytes = COALESCE(v.used_bytes, u.used_traffic_bytes),
+            lifetime_traffic_bytes = COALESCE(v.life_bytes, u.lifetime_traffic_bytes)
         FROM unnest(
-            $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[]
-        ) AS v(pid, uuid, expire_at, status, sub)
+            $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[],
+            $6::bigint[], $7::bigint[]
+        ) AS v(pid, uuid, expire_at, status, sub, used_bytes, life_bytes)
         WHERE u.remnawave_id IS NOT NULL AND u.remnawave_id = v.pid
         """,
         ids,
@@ -450,6 +497,8 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
         expires,
         statuses,
         subs,
+        used,
+        life,
         now,
     )
     await pool.execute(
@@ -460,10 +509,13 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
             expire_at = v.expire_at,
             panel_status = v.status,
             subscription_url = COALESCE(v.sub, u.subscription_url),
-            last_synced_at = $6
+            last_synced_at = $8,
+            used_traffic_bytes = COALESCE(v.used_bytes, u.used_traffic_bytes),
+            lifetime_traffic_bytes = COALESCE(v.life_bytes, u.lifetime_traffic_bytes)
         FROM unnest(
-            $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[]
-        ) AS v(pid, uuid, expire_at, status, sub)
+            $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[],
+            $6::bigint[], $7::bigint[]
+        ) AS v(pid, uuid, expire_at, status, sub, used_bytes, life_bytes)
         WHERE COALESCE(u.remnawave_uuid, '') <> ''
           AND v.uuid IS NOT NULL
           AND u.remnawave_uuid = v.uuid
@@ -474,6 +526,8 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
         expires,
         statuses,
         subs,
+        used,
+        life,
         now,
     )
     try:
@@ -512,7 +566,9 @@ async def save_device_subscription(remnawave_id: int, panel: dict | None) -> str
             remnawave_uuid = COALESCE($2, remnawave_uuid),
             subscription_url = $3,
             expire_at = COALESCE($4, expire_at),
-            panel_status = COALESCE($5, panel_status)
+            panel_status = COALESCE($5, panel_status),
+            used_traffic_bytes = COALESCE($6, used_traffic_bytes),
+            lifetime_traffic_bytes = COALESCE($7, lifetime_traffic_bytes)
         WHERE remnawave_id = $1
         RETURNING title
         """,
@@ -521,6 +577,8 @@ async def save_device_subscription(remnawave_id: int, panel: dict | None) -> str
         panel.get("subscriptionUrl") or None,
         expire_at,
         str(panel.get("status") or "") or None,
+        panel_used_traffic_bytes(panel),
+        panel_lifetime_traffic_bytes(panel),
     )
     return str(row["title"]) if row and row.get("title") else None
 
@@ -1560,6 +1618,24 @@ async def admin_list_users(
                    FROM devices d
                    WHERE d.telegram_id = u.telegram_id
                ) AS last_online_at,
+               COALESCE(
+                   (
+                       SELECT SUM(d.used_traffic_bytes)::bigint
+                       FROM devices d
+                       WHERE d.telegram_id = u.telegram_id
+                         AND d.used_traffic_bytes IS NOT NULL
+                   ),
+                   u.used_traffic_bytes
+               ) AS used_traffic_bytes,
+               COALESCE(
+                   (
+                       SELECT SUM(d.lifetime_traffic_bytes)::bigint
+                       FROM devices d
+                       WHERE d.telegram_id = u.telegram_id
+                         AND d.lifetime_traffic_bytes IS NOT NULL
+                   ),
+                   u.lifetime_traffic_bytes
+               ) AS lifetime_traffic_bytes,
                (
                    SELECT COUNT(*)::int FROM users inv WHERE inv.referred_by = u.telegram_id
                ) AS invited_count

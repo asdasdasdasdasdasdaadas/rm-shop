@@ -40,6 +40,29 @@ def trial_is_available(local: dict | None) -> bool:
     return not bool(local.get("has_paid_topup") or local.get("remnawave_id"))
 
 
+async def ensure_signup_trial(telegram_id: int) -> int | None:
+    settings = get_settings()
+    if not settings.balance_enabled:
+        return None
+    if not settings.trial_enabled:
+        return None
+    amount = trial_grant_rub()
+    if amount < 1:
+        return None
+    after = await db.claim_trial_balance(telegram_id, amount, signup_only=True)
+    if after is None:
+        return None
+    await db.log_billing_event(
+        telegram_id,
+        "trial",
+        source="signup",
+        amount=amount,
+        balance_after=after,
+        note=f"Триал {settings.trial_days} дн. при регистрации",
+    )
+    return amount
+
+
 def referral_payout_public(wallet: dict | None = None) -> dict:
     settings = get_settings()
     data = wallet or {

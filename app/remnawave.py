@@ -132,6 +132,39 @@ def panel_online_at(user: dict | None) -> datetime | None:
     return None
 
 
+def _traffic_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        n = int(float(value))
+    except (TypeError, ValueError):
+        return None
+    return n if n >= 0 else None
+
+
+def _traffic_from_maps(user: dict, keys: tuple[str, ...]) -> int | None:
+    traffic = user.get("userTraffic") if isinstance(user.get("userTraffic"), dict) else {}
+    nested = user.get("traffic") if isinstance(user.get("traffic"), dict) else {}
+    for source in (traffic, nested, user):
+        for key in keys:
+            n = _traffic_int(source.get(key))
+            if n is not None:
+                return n
+    return None
+
+
+def panel_used_traffic_bytes(user: dict | None) -> int | None:
+    if not user:
+        return None
+    return _traffic_from_maps(user, ("usedTrafficBytes", "usedTraffic"))
+
+
+def panel_lifetime_traffic_bytes(user: dict | None) -> int | None:
+    if not user:
+        return None
+    return _traffic_from_maps(user, ("lifetimeUsedTrafficBytes", "lifetimeUsedTraffic"))
+
+
 def iso_expire(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 

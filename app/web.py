@@ -21,7 +21,7 @@ from app.admin import mount_admin
 from app.billing import fulfill_rollypay_order, subscription_issued_text
 from app.config import ROOT, get_settings, referral_is_payout
 from app.keyboards import back_profile_keyboard, connect_keyboard, support_url
-from app.referrals import maybe_reward_referrer, referral_payout_public, trial_grant_days, trial_grant_rub, trial_is_available
+from app.referrals import ensure_signup_trial, maybe_reward_referrer, referral_payout_public, trial_grant_days, trial_grant_rub, trial_is_available
 from app.remnawave import (
     PANEL_LEASE_DAYS,
     RemnawaveClient,
@@ -282,6 +282,13 @@ async def api_me(request: web.Request) -> web.Response:
     tg_user = parsed.user if parsed else None
     if tg_user:
         await db.upsert_user(telegram_id, tg_user.username, tg_user.first_name)
+    await ensure_signup_trial(telegram_id)
+    await maybe_reward_referrer(
+        bot,
+        rw,
+        telegram_id,
+        tg_user.first_name if tg_user else None,
+    )
     local = await db.get_user(telegram_id)
     panel = await fetch_panel(rw, telegram_id, local=local, allow_stale=True)
 
@@ -441,8 +448,18 @@ async def api_trial(request: web.Request) -> web.Response:
     rw: RemnawaveClient = request.app["rw"]
     try:
         if settings.balance_enabled:
-            await db.add_balance_rub(telegram_id, trial_grant_rub())
-            await db.mark_trial_used(telegram_id)
+            amount = trial_grant_rub()
+            after = await db.claim_trial_balance(telegram_id, amount)
+            if after is None:
+                return json_error("Вы уже пробовали бесплатно")
+            await db.log_billing_event(
+                telegram_id,
+                "trial",
+                source="user",
+                amount=amount,
+                balance_after=after,
+                note=f"Триал {settings.trial_days} дн.",
+            )
         else:
             panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
             user = await rw.extend_subscription(
