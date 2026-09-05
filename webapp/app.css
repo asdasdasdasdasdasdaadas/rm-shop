@@ -16,9 +16,10 @@
   --text-secondary: #9db3a4;
   --text-tertiary: #66796d;
   --divider: rgba(255, 255, 255, 0.06);
-  --radius-lg: 32px;
-  --radius-md: 24px;
-  --radius-sm: 16px;
+  --radius-lg: 36px;
+  --radius-md: 28px;
+  --radius-sm: 22px;
+  --radius-pill: 100px;
 
   --bg: var(--bg-app);
   --section: var(--bg-surface);
@@ -31,12 +32,13 @@
   --header: var(--text-tertiary);
   --radius: var(--radius-md);
   --pad: 16px;
-  --glass: rgba(255, 255, 255, 0.08);
-  --glass-strong: rgba(255, 255, 255, 0.14);
+  --glass: rgba(255, 255, 255, 0.055);
+  --glass-strong: rgba(255, 255, 255, 0.09);
   --glass-tint: rgba(95, 214, 139, 0.16);
-  --glass-border: rgba(255, 255, 255, 0.16);
-  --glass-shine: inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  --glass-blur: 18px;
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shine: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --glass-blur: 20px;
+  --panel: rgba(21, 32, 24, 0.78);
 }
 
 * {
@@ -120,8 +122,12 @@ body.coach-lock {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: var(--radius-md);
-  background: var(--bg-surface-soft);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
 }
 
 .avatar {
@@ -155,10 +161,7 @@ body.coach-lock {
   height: 32px;
   border: 1px solid var(--glass-border);
   border-radius: 50%;
-  background: var(--glass);
-  box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  background: var(--glass-strong);
   color: var(--text-secondary);
   display: grid;
   place-items: center;
@@ -176,9 +179,12 @@ body.coach-lock {
 
 .status-card {
   position: relative;
-  background: linear-gradient(155deg, var(--bg-surface-raised), var(--bg-surface));
+  background: var(--panel);
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
   padding: 22px 20px 20px;
   overflow: hidden;
 }
@@ -223,25 +229,23 @@ body.coach-lock {
   gap: 6px;
   margin-top: 8px;
   padding: 4px 10px 4px 8px;
-  border-radius: 100px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
   font-weight: 600;
-  background: rgba(245, 184, 78, 0.18);
-  border: 1px solid rgba(245, 184, 78, 0.28);
-  box-shadow: var(--glass-shine);
-  backdrop-filter: blur(12px) saturate(1.3);
-  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  background: rgba(245, 184, 78, 0.16);
+  border: 1px solid rgba(245, 184, 78, 0.22);
   color: var(--warning);
 }
 
 .status-pill.on {
-  background: rgba(127, 224, 112, 0.18);
-  border-color: rgba(127, 224, 112, 0.3);
+  background: rgba(127, 224, 112, 0.16);
+  border-color: rgba(127, 224, 112, 0.24);
   color: var(--success);
 }
 
 .status-pill.warn {
-  background: var(--warning-soft);
+  background: rgba(245, 184, 78, 0.16);
+  border-color: rgba(245, 184, 78, 0.22);
   color: var(--warning);
 }
 
@@ -296,7 +300,7 @@ body.coach-lock {
   position: absolute;
   inset: 12px;
   border-radius: 50%;
-  background: var(--bg-surface-soft);
+  background: rgba(13, 22, 17, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -309,12 +313,9 @@ body.coach-lock {
   bottom: -2px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(13, 22, 17, 0.45);
+  background: rgba(13, 22, 17, 0.72);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shine);
-  backdrop-filter: blur(12px) saturate(1.3);
-  -webkit-backdrop-filter: blur(12px) saturate(1.3);
-  border-radius: 100px;
+  border-radius: var(--radius-pill);
   padding: 2px 9px;
   font-family: Unbounded, Inter, sans-serif;
   font-size: 11px;
@@ -333,7 +334,7 @@ body.coach-lock {
   border: none;
   cursor: pointer;
   font-family: Inter, sans-serif;
-  border-radius: 100px;
+  border-radius: var(--radius-pill);
   font-weight: 600;
   font-size: 16px;
   display: flex;
@@ -348,32 +349,30 @@ body.coach-lock {
 .btn:active { transform: scale(0.97); }
 
 .btn-primary {
-  background: linear-gradient(160deg, rgba(143, 227, 176, 0.78), rgba(47, 174, 107, 0.52));
+  background: linear-gradient(160deg, #7ee0a4, #2fae6b);
   color: #0d1611;
   flex: 1;
   min-height: 56px;
   font-size: 17px;
   font-weight: 700;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  box-shadow: var(--glass-shine), 0 10px 24px -10px rgba(95, 214, 139, 0.55);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 10px 22px -12px rgba(47, 174, 107, 0.75);
 }
 
 .btn-ghost {
-  background: var(--glass);
+  background: var(--glass-strong);
   color: var(--text-primary);
   min-height: 56px;
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
 }
 
 .section {
-  background: var(--bg-surface);
+  background: var(--panel);
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
   padding: 16px;
 }
 
@@ -417,6 +416,9 @@ body.coach-lock {
 .empty-devices .glyph {
   width: 60px;
   height: 60px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft-border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -472,7 +474,7 @@ body.coach-lock {
 .device-row .glyph.sm {
   width: 38px;
   height: 38px;
-  border-radius: 11px;
+  border-radius: 50%;
   background: var(--accent-soft);
   border: 1px solid var(--accent-soft-border);
   display: flex;
@@ -517,7 +519,7 @@ body.coach-lock {
 .referral .glyph {
   width: 44px;
   height: 44px;
-  border-radius: 13px;
+  border-radius: 50%;
   background: var(--accent-soft);
   border: 1px solid var(--accent-soft-border);
   display: flex;
@@ -545,7 +547,7 @@ body.coach-lock {
   background: var(--accent-soft);
   color: var(--accent);
   border: 1px solid var(--accent-soft-border);
-  border-radius: 100px;
+  border-radius: var(--radius-pill);
   padding: 9px 14px;
   font-size: 12.5px;
   font-weight: 700;
@@ -613,12 +615,9 @@ body.coach-lock {
 
 .promo-inner input {
   flex: 1;
-  background: var(--glass);
+  background: var(--glass-strong);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shine);
-  backdrop-filter: blur(14px) saturate(1.3);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
-  border-radius: 100px;
+  border-radius: var(--radius-pill);
   padding: 11px 16px;
   color: var(--text-primary);
   font-size: 13.5px;
@@ -634,10 +633,7 @@ body.coach-lock {
   background: var(--glass-strong);
   color: var(--text-primary);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shine);
-  backdrop-filter: blur(14px) saturate(1.3);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
-  border-radius: 100px;
+  border-radius: var(--radius-pill);
   padding: 0 18px;
   font-size: 13.5px;
   font-weight: 600;
@@ -739,7 +735,7 @@ body.coach-lock {
 .check {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
+  border-radius: 50%;
   border: 2px solid var(--text-tertiary);
   flex-shrink: 0;
 }
@@ -758,7 +754,7 @@ body.coach-lock {
 .client-icon {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent);
   display: grid;
@@ -839,12 +835,12 @@ body.coach-lock {
   position: relative;
   text-align: left;
   border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: 16px 14px 14px;
-  background: var(--glass);
+  background: var(--panel);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
   color: inherit;
   font: inherit;
   cursor: pointer;
@@ -856,14 +852,14 @@ body.coach-lock {
 
 .plat-card.on {
   background: var(--glass-tint);
-  border-color: rgba(95, 214, 139, 0.45);
-  box-shadow: var(--glass-shine), 0 8px 22px -10px rgba(95, 214, 139, 0.35);
+  border-color: var(--accent-soft-border);
+  box-shadow: var(--glass-shine);
 }
 
 .plat-icon {
   width: 38px;
   height: 38px;
-  border-radius: 11px;
+  border-radius: 50%;
   background: rgba(255, 255, 255, 0.06);
   display: grid;
   place-items: center;
@@ -929,7 +925,7 @@ body.coach-lock {
 .wiz-app-logo {
   width: 44px;
   height: 44px;
-  border-radius: 13px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
   font-family: Unbounded, Inter, sans-serif;
@@ -995,12 +991,15 @@ body.coach-lock {
   background: var(--accent-soft);
   color: var(--accent);
   padding: 2px 6px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
 }
 
 .wiz-name-box {
-  background: var(--bg-surface);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--panel);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
   border-radius: var(--radius-md);
   padding: 16px;
 }
@@ -1044,26 +1043,23 @@ body.coach-lock {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-secondary);
-  background: var(--glass);
+  background: var(--glass-strong);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shine);
-  backdrop-filter: blur(12px) saturate(1.3);
-  -webkit-backdrop-filter: blur(12px) saturate(1.3);
   padding: 8px 12px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
 }
 
 .wiz-chip.on {
   background: var(--glass-tint);
-  border-color: rgba(95, 214, 139, 0.4);
+  border-color: var(--accent-soft-border);
   color: var(--accent);
 }
 
 .wiz-ok {
   width: 56px;
   height: 56px;
-  border-radius: 18px;
+  border-radius: 50%;
   background: var(--accent-soft);
   display: grid;
   place-items: center;
@@ -1078,7 +1074,7 @@ body.coach-lock {
   align-items: center;
   gap: 10px;
   background: rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
+  border-radius: var(--radius-pill);
   padding: 10px 12px;
   font-size: 12.5px;
   color: var(--text-secondary);
@@ -1130,7 +1126,7 @@ body.coach-lock {
 .wiz-copy {
   flex-shrink: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   padding: 8px 12px;
   font: inherit;
   font-size: 12px;
@@ -1154,7 +1150,7 @@ body.coach-lock {
 .wiz-tile {
   flex: 1;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   padding: 14px 10px;
   background: var(--bg-surface);
   color: inherit;
@@ -1219,7 +1215,7 @@ body.coach-lock {
   width: 100%;
   aspect-ratio: 1;
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 14px;
   margin: 0 auto 14px;
   box-sizing: border-box;
@@ -1291,18 +1287,15 @@ body.has-main-btn {
   gap: 6px;
   padding: 4px;
   margin-bottom: 16px;
-  border-radius: var(--radius-md);
-  background: var(--glass);
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.22);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
 }
 
 .pay-tab {
   flex: 1;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   padding: 10px 8px;
   min-height: 40px;
   font: inherit;
@@ -1315,9 +1308,7 @@ body.has-main-btn {
 .pay-tab.on {
   color: var(--text-primary);
   background: var(--glass-tint);
-  box-shadow: var(--glass-shine), inset 0 0 0 1px var(--accent-soft-border);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 1px var(--accent-soft-border);
 }
 
 .pay-grid {
@@ -1331,12 +1322,12 @@ body.has-main-btn {
   position: relative;
   text-align: left;
   border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: 14px 14px 12px;
-  background: var(--glass);
+  background: var(--panel);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
   color: inherit;
   font: inherit;
   min-height: 108px;
@@ -1352,8 +1343,8 @@ body.has-main-btn {
 
 .pay-card.on {
   background: var(--glass-tint);
-  border-color: rgba(95, 214, 139, 0.45);
-  box-shadow: var(--glass-shine), 0 8px 22px -10px rgba(95, 214, 139, 0.35);
+  border-color: var(--accent-soft-border);
+  box-shadow: var(--glass-shine);
 }
 
 .pay-card .pay-amount {
@@ -1385,7 +1376,7 @@ body.has-main-btn {
   font-weight: 700;
   letter-spacing: 0.02em;
   padding: 3px 7px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   text-transform: uppercase;
 }
 
@@ -1400,8 +1391,11 @@ body.has-main-btn {
 }
 
 .pay-custom-box {
-  background: var(--bg-surface);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--panel);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
   border-radius: var(--radius-lg);
   padding: 22px 18px 18px;
   text-align: center;
@@ -1423,7 +1417,7 @@ body.has-main-btn {
   justify-content: center;
   gap: 8px;
   padding: 8px 12px;
-  border-radius: 16px;
+  border-radius: var(--radius-pill);
   background: rgba(0, 0, 0, 0.22);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -1477,15 +1471,18 @@ body.has-main-btn {
   line-height: 1.4;
   color: var(--accent);
   background: var(--accent-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   padding: 10px 12px;
 }
 
 .group {
-  background: var(--bg-surface);
+  background: var(--panel);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
 }
 
 .cell {
@@ -1597,11 +1594,8 @@ body.has-main-btn {
   width: 100%;
   min-height: 48px;
   border: 1px solid var(--glass-border);
-  border-radius: 100px;
-  background: var(--glass);
-  box-shadow: var(--glass-shine);
-  backdrop-filter: blur(14px) saturate(1.3);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border-radius: var(--radius-pill);
+  background: var(--glass-strong);
   color: var(--text-primary);
   font: inherit;
   font-size: 16px;
@@ -1644,7 +1638,7 @@ body.has-main-btn {
   right: 16px;
   min-width: 230px;
   background: rgba(28, 42, 32, 0.55);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--glass-shine), 0 8px 40px rgba(0, 0, 0, 0.4);
   border: 1px solid var(--glass-border);
@@ -2168,7 +2162,7 @@ body.has-main-btn {
 .dev-icon {
   width: 56px;
   height: 56px;
-  border-radius: 16px;
+  border-radius: 50%;
   background: rgba(143, 227, 176, 0.14);
   display: flex;
   align-items: center;
@@ -2203,7 +2197,7 @@ body.has-main-btn {
   color: #8fe3b0;
   background: rgba(143, 227, 176, 0.12);
   padding: 3px 9px;
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   margin-top: 6px;
 }
 .dev-status .dot {
@@ -2301,7 +2295,7 @@ body.has-main-btn {
   padding: 6px;
   background: #0d1611;
   border: 1px solid rgba(143, 227, 176, 0.16);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   box-sizing: border-box;
 }
 .dev-qr svg,
@@ -2328,16 +2322,13 @@ body.has-main-btn {
   justify-content: center;
   gap: 8px;
   padding: 13px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-pill);
   font-size: 14px;
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
   border: 1px solid var(--glass-border);
-  background: var(--glass);
-  box-shadow: var(--glass-shine);
-  backdrop-filter: blur(14px) saturate(1.3);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  background: var(--glass-strong);
   color: var(--text-primary);
 }
 .dev-lbtn-ico,
@@ -2348,10 +2339,10 @@ body.has-main-btn {
   display: block;
 }
 .dev-lbtn.primary {
-  background: linear-gradient(160deg, rgba(143, 227, 176, 0.78), rgba(47, 174, 107, 0.5));
+  background: linear-gradient(160deg, #7ee0a4, #2fae6b);
   color: #08130c;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  box-shadow: var(--glass-shine);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 18px -12px rgba(47, 174, 107, 0.7);
   flex: none;
 }
 .dev-lbtn.copied {
@@ -2362,12 +2353,9 @@ body.has-main-btn {
 
 .dev-danger {
   width: 100%;
-  border: 1px solid rgba(255, 143, 122, 0.28);
-  background: rgba(255, 143, 122, 0.1);
-  box-shadow: var(--glass-shine);
-  backdrop-filter: blur(14px) saturate(1.3);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
-  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 143, 122, 0.22);
+  background: rgba(255, 143, 122, 0.08);
+  border-radius: var(--radius-pill);
   padding: 14px 16px;
   display: flex;
   align-items: center;
@@ -2383,7 +2371,7 @@ body.has-main-btn {
 .dev-danger .icon-wrap {
   width: 34px;
   height: 34px;
-  border-radius: 10px;
+  border-radius: 50%;
   background: rgba(255, 143, 122, 0.14);
   display: flex;
   align-items: center;
@@ -2407,7 +2395,7 @@ body.has-main-btn {
   font-size: 12.5px;
   font-weight: 700;
   padding: 10px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
   backdrop-filter: blur(18px) saturate(1.4);
@@ -2436,25 +2424,19 @@ body.has-main-btn {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .icon-btn,
-  .status-pill,
-  .days-badge,
-  .btn-primary,
-  .btn-ghost,
-  .promo-inner input,
-  .promo-inner button,
+  .account-row,
+  .status-card,
+  .section,
   .plat-card,
-  .wiz-chip,
+  .wiz-name-box,
   .app-main-bar,
-  .pay-tabs,
-  .pay-tab.on,
   .pay-card,
-  .field input,
+  .pay-custom-box,
+  .group,
   .sheet,
-  .dev-lbtn,
-  .dev-danger,
   .app-toast {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    background: var(--bg-surface);
   }
 }
