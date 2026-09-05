@@ -19,9 +19,9 @@ from aiogram.utils.web_app import safe_parse_webapp_init_data
 from app import db, runtime
 from app.admin import mount_admin
 from app.billing import fulfill_rollypay_order, subscription_issued_text
-from app.config import ROOT, get_settings
+from app.config import ROOT, get_settings, referral_is_payout
 from app.keyboards import back_profile_keyboard, connect_keyboard, support_url
-from app.referrals import maybe_reward_referrer, trial_grant_days, trial_grant_rub, trial_is_available
+from app.referrals import maybe_reward_referrer, referral_payout_public, trial_grant_days, trial_grant_rub, trial_is_available
 from app.remnawave import (
     PANEL_LEASE_DAYS,
     RemnawaveClient,
@@ -310,6 +310,7 @@ async def api_me(request: web.Request) -> web.Response:
     else:
         days_left = days
     days_left = max(0, int(days_left))
+    wallet = await db.referral_wallet(telegram_id) if settings.balance_enabled else None
 
     return web.json_response(
         {
@@ -343,6 +344,7 @@ async def api_me(request: web.Request) -> web.Response:
             "referral_reward_days": settings.referral_reward_days,
             "referral_invitee_days": settings.referral_invitee_days,
             "referral_reward_rub": settings.referral_reward_rub,
+            **referral_payout_public(wallet),
             "story_reward_enabled": bool(
                 settings.balance_enabled
                 and settings.story_reward_enabled
@@ -431,8 +433,9 @@ async def api_trial(request: web.Request) -> web.Response:
     except RemnawaveError as exc:
         return json_error(str(exc), 502)
     bot: Bot = request.app["bot"]
-    friend_name = (local or {}).get("first_name")
-    await maybe_reward_referrer(bot, rw, telegram_id, friend_name)
+    if not referral_is_payout():
+        friend_name = (local or {}).get("first_name")
+        await maybe_reward_referrer(bot, rw, telegram_id, friend_name)
     return web.json_response({"ok": True})
 
 
@@ -477,6 +480,25 @@ async def api_story_share(request: web.Request) -> web.Response:
             "balance_rub": int((local or {}).get("balance_rub") or 0),
         }
     )
+
+
+async def api_referral_payout(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    details = str((body or {}).get("details") or "")
+    bot: Bot = request.app["bot"]
+    from app.payouts import request_referral_payout
+
+    ok, message = await request_referral_payout(bot, telegram_id, details)
+    if not ok:
+        return json_error(message)
+    wallet = await db.referral_wallet(telegram_id)
+    return web.json_response({"ok": True, "message": message, **referral_payout_public(wallet)})
 
 
 async def api_invoice(request: web.Request) -> web.Response:
@@ -769,7 +791,7 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
     bot: Bot = request.app["bot"]
     plan = settings.plan_by_code(order["plan_code"]) or {"title": "пополнение", "days": 0, "topup_rub": 0}
     try:
-        user = await fulfill_rollypay_order(order_id, rw)
+        user = await fulfill_rollypay_order(order_id, rw, bot=bot)
     except RemnawaveError as exc:
         logger.exception("RollyPay fulfill failed: %s", exc)
         return web.Response(status=500, text="fulfill failed")
@@ -823,6 +845,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/trust", api_trust)
         app.router.add_post("/api/vpn-report", api_vpn_report)
         app.router.add_post("/api/story-share", api_story_share)
+        app.router.add_post("/api/referral-payout", api_referral_payout)
         app.router.add_static("/static", WEBAPP_DIR)
     else:
         app.router.add_get("/", health)

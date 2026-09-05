@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=49">
+  <link rel="stylesheet" href="app.css?v=50">
 </head>
 <body>
   <div id="boot" class="state">
@@ -223,6 +223,19 @@
       </div>
       <button type="button" id="invite" class="hidden" tabindex="-1"></button>
 
+      <div id="refPayoutCard" class="section promo-card hidden">
+        <div class="txt">
+          <div id="refPayoutTitle" class="t">Вывод реферальных</div>
+          <div id="refPayoutNote" class="d"></div>
+        </div>
+        <div id="refPayoutForm" class="payout-form hidden">
+          <div class="promo-inner">
+            <input id="refPayoutDetails" type="text" placeholder="Телефон СБП" maxlength="200" autocomplete="tel">
+            <button type="button" id="refPayoutBtn">Вывести</button>
+          </div>
+        </div>
+      </div>
+
       <div id="storyCard" class="section referral hidden">
         <div class="glyph" aria-hidden="true">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="5" y="3" width="14" height="18" rx="3" stroke="#5fd68b" stroke-width="1.6"/><circle cx="12" cy="12" r="3.2" stroke="#5fd68b" stroke-width="1.6"/></svg>
@@ -417,6 +430,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=47"></script>
+  <script src="app.js?v=49"></script>
 </body>
 </html>

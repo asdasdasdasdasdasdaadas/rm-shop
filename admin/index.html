@@ -338,6 +338,35 @@
             </table>
           </div>
           <div id="refPager" class="pager"></div>
+          <h3>Заявки на вывод</h3>
+          <p class="muted intro">Реферальные, которые клиент попросил вывести. Подтвердите после перевода или откажите — сумма вернётся на баланс.</p>
+          <div class="filters">
+            <input id="payQ" type="search" placeholder="ID, username, реквизиты">
+            <select id="payStatus" aria-label="Статус">
+              <option value="">Статус: все</option>
+              <option value="pending">ожидают</option>
+              <option value="paid">выплачены</option>
+              <option value="rejected">отклонены</option>
+            </select>
+            <button type="button" id="paySearch">Найти</button>
+            <button type="button" id="payReset" class="ghost hidden">Сбросить</button>
+          </div>
+          <div class="table-wrap">
+            <table class="table-as-cards">
+              <thead>
+                <tr>
+                  <th>Клиент</th>
+                  <th>Сумма</th>
+                  <th>Реквизиты</th>
+                  <th>Статус</th>
+                  <th>Когда</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="payRows"></tbody>
+            </table>
+          </div>
+          <div id="payPager" class="pager"></div>
         </section>
 
         <section id="tab-orders" class="hidden">
@@ -681,10 +710,28 @@
             </div>
             <div class="panel shop-balance" id="promo-ref">
               <h3>Награда за друга</h3>
+              <p class="muted tight" id="refModeHint">Переключение сразу меняет начисление в боте и кабинете. Уже выданная награда повторно не приходит.</p>
               <div class="form-grid">
                 <div>
                   <label class="ops-label" for="setRefRub">Награда за друга, рубли</label>
                   <input id="setRefRub" name="referral_reward_rub" type="number" min="0" required>
+                </div>
+              </div>
+              <p class="ops-label">Режим</p>
+              <label class="check-row">
+                <input id="setRefModeClassic" name="referral_mode" type="radio" value="classic" checked>
+                <span>Обычная: бонус вам и другу после «Попробовать бесплатно». Вывода нет.</span>
+              </label>
+              <label class="check-row">
+                <input id="setRefModePayout" name="referral_mode" type="radio" value="payout">
+                <span>С выводом: бонус только вам после первой оплаты друга. Можно вывести заявкой.</span>
+              </label>
+              <div id="refPayoutFields">
+                <div class="form-grid">
+                  <div>
+                    <label class="ops-label" for="setRefPayoutMin">Минимум к выводу, рубли</label>
+                    <input id="setRefPayoutMin" name="referral_payout_min" type="number" min="1">
+                  </div>
                 </div>
               </div>
             </div>
@@ -804,6 +851,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=29"></script>
+  <script src="app.js?v=31"></script>
 </body>
 </html>

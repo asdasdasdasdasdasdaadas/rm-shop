@@ -540,6 +540,14 @@ body.coach-lock {
 }
 #storyCard.is-checking .cta { display: none; }
 
+.payout-form {
+  width: 100%;
+  padding: 0 4px 12px;
+}
+.payout-form .promo-inner {
+  padding: 0;
+}
+
 .promo-card { padding: 2px 12px; }
 
 .promo-toggle {

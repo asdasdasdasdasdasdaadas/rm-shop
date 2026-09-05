@@ -6,7 +6,7 @@ import logging
 from aiogram import Bot
 
 from app import db
-from app.config import get_settings
+from app.config import get_settings, referral_is_payout
 from app.keyboards import back_profile_keyboard, share_keyboard, trial_nudge_keyboard
 from app.notices import notice_text
 from app.referrals import trial_grant_rub
@@ -37,7 +37,14 @@ def invite_nudge_text(telegram_id: int, first_name: str | None) -> str:
         reward = rub_text(settings.referral_reward_rub)
     else:
         reward = days_text(settings.referral_reward_days)
-    return notice_text("invite_nudge", name=name, reward=reward, link=link)
+    if referral_is_payout():
+        when = "Когда человек перейдёт по вашей ссылке и первый раз оплатит VPN, бонус придёт вам."
+    else:
+        when = (
+            "Когда человек перейдёт по вашей ссылке и нажмёт «Попробовать бесплатно», "
+            "бонус придёт вам обоим."
+        )
+    return notice_text("invite_nudge", name=name, reward=reward, link=link, when=when)
 
 
 def info_nudge_text() -> str:

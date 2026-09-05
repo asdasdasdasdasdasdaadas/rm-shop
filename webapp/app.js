@@ -1903,6 +1903,37 @@ function paintStoryCard(me, rub) {
   }
 }
 
+function paintPayout(me) {
+  const card = $("refPayoutCard");
+  const form = $("refPayoutForm");
+  const btn = $("refPayoutBtn");
+  if (!card) return;
+  if (!me.balance_enabled || !me.referral_payout_enabled) {
+    card.classList.add("hidden");
+    return;
+  }
+  card.classList.remove("hidden");
+  const min = me.referral_payout_min || 2000;
+  const avail = me.referral_available || 0;
+  const pending = me.referral_pending || 0;
+  const earned = me.referral_earned || 0;
+  $("refPayoutTitle").textContent = "Вывод реферальных";
+  if (pending > 0) {
+    $("refPayoutNote").textContent = `Заявка на ${pending} ₽ на проверке. Пока ждите решения.`;
+    form.classList.add("hidden");
+    return;
+  }
+  $("refPayoutNote").textContent =
+    `Накоплено ${earned} ₽, к выводу сейчас ${avail} ₽. Минимум ${min} ₽. ` +
+    "Выводится только реферальное, которое ещё на балансе.";
+  if (me.referral_payout_can) {
+    form.classList.remove("hidden");
+    if (btn) btn.textContent = `Вывести ${avail} ₽`;
+  } else {
+    form.classList.add("hidden");
+  }
+}
+
 function paint(me) {
   applyVpnApps(me.vpn_apps);
   if (me.brand_name) document.title = me.brand_name;
@@ -1918,8 +1949,13 @@ function paint(me) {
   paintStatus(me);
   if (me.balance_enabled) {
     const rub = me.referral_reward_rub || 50;
-    $("inviteTitle").textContent = `Приведи друга — получи ${rub} ₽`;
-    $("inviteNote").textContent = `Другу тоже начислят ${rub} ₽ на баланс`;
+    if (me.referral_payout_enabled) {
+      $("inviteTitle").textContent = `Приведи друга — получи ${rub} ₽`;
+      $("inviteNote").textContent = `После первой оплаты друга вам начислят ${rub} ₽`;
+    } else {
+      $("inviteTitle").textContent = `Приведи друга — получи ${rub} ₽`;
+      $("inviteNote").textContent = `Другу тоже начислят ${rub} ₽ на баланс`;
+    }
   } else {
     const refDays = me.referral_reward_days || 7;
     const friendDays = me.referral_invitee_days || 5;
@@ -1928,6 +1964,7 @@ function paint(me) {
       `Другу начислят +${daysLabel(friendDays)} к бесплатному периоду`;
   }
   $("invite").textContent = me.invite_url;
+  paintPayout(me);
   const storyCard = $("storyCard");
   if (me.story_reward_enabled) {
     const rub = me.story_reward_rub || 0;
@@ -2223,7 +2260,9 @@ $("shareBtn").onclick = () => {
     if (me && me.balance_enabled) {
       const rub = me.referral_reward_rub || 50;
       text = encodeURIComponent(
-        `Подключайся. Нажми «Попробовать бесплатно» по ссылке — получишь ${rublesLabel(rub)} на баланс, и я тоже.`
+        me.referral_payout_enabled
+          ? `Подключайся по ссылке. После первой оплаты я получу ${rublesLabel(rub)} за приглашение.`
+          : `Подключайся. Нажми «Попробовать бесплатно» по ссылке — получишь ${rublesLabel(rub)} на баланс, и я тоже.`
       );
     } else {
       const days = (me && me.referral_reward_days) || 7;
@@ -2243,6 +2282,24 @@ $("invite").onclick = () => {
   navigator.clipboard.writeText(url);
   tg.showAlert("Ссылка скопирована");
 };
+
+if ($("refPayoutBtn")) {
+  $("refPayoutBtn").onclick = async () => {
+    haptic();
+    const details = ($("refPayoutDetails") && $("refPayoutDetails").value) || "";
+    try {
+      const r = await api("/api/referral-payout", {
+        method: "POST",
+        body: JSON.stringify({ details }),
+      });
+      if ($("refPayoutDetails")) $("refPayoutDetails").value = "";
+      await load();
+      tg.showAlert((r && r.message) ? r.message.replace(/<[^>]+>/g, "") : "Заявка отправлена");
+    } catch (e) {
+      showErr(e);
+    }
+  };
+}
 
 $("promoBtn").onclick = async () => {
   haptic();

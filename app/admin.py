@@ -344,6 +344,37 @@ async def api_referrals(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 
+async def api_payouts(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    q = str(request.query.get("q") or "")
+    page = max(1, int(request.query.get("page") or 1))
+    limit = min(100, max(1, int(request.query.get("limit") or 30)))
+    items, total = await db.admin_list_payouts(
+        q, limit, (page - 1) * limit, _query_extra(request, "status")
+    )
+    return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+
+
+async def api_payout_resolve(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    payout_id = int(request.match_info["payout_id"])
+    body = await request.json()
+    action = str(body.get("action") or "").strip()
+    if action not in {"paid", "rejected"}:
+        return web.json_response({"ok": False, "error": "Нужно paid или rejected"}, status=400)
+    from app.payouts import finish_referral_payout
+
+    bot: Bot = request.app["bot"]
+    result = await finish_referral_payout(bot, payout_id, action, None)
+    if result not in {"Выплачено", "Отказано"}:
+        return web.json_response({"ok": False, "error": result}, status=400)
+    return web.json_response({"ok": True, "result": result})
+
+
 async def api_orders(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -1132,6 +1163,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/users/{telegram_id}/devices", api_user_devices)
     app.router.add_post("/admin/api/users/bulk", api_users_bulk)
     app.router.add_get("/admin/api/referrals", api_referrals)
+    app.router.add_get("/admin/api/payouts", api_payouts)
+    app.router.add_post("/admin/api/payouts/{payout_id}", api_payout_resolve)
     app.router.add_get("/admin/api/orders", api_orders)
     app.router.add_get("/admin/api/reports", api_reports)
     app.router.add_get("/admin/api/billing", api_billing)

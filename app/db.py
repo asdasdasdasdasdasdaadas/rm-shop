@@ -90,14 +90,16 @@ async def get_user(telegram_id: int) -> dict | None:
     return _as_dict(row)
 
 
-async def claim_referral_reward(telegram_id: int) -> int | None:
+async def claim_referral_reward(telegram_id: int, *, require_paid: bool = False) -> int | None:
+    paid_sql = "AND COALESCE(has_paid_topup, FALSE)" if require_paid else ""
     row = await _pool_req().fetchrow(
-        """
+        f"""
         UPDATE users
         SET referral_rewarded = TRUE
         WHERE telegram_id = $1
           AND referred_by IS NOT NULL
           AND referral_rewarded = FALSE
+          {paid_sql}
         RETURNING referred_by
         """,
         telegram_id,
@@ -541,6 +543,241 @@ async def add_balance_days(telegram_id: int, days: int) -> int:
     return int(row["balance_days"]) if row else 0
 
 
+async def credit_referral_rub(telegram_id: int, amount: int) -> int:
+    if amount < 1:
+        local = await get_user(telegram_id)
+        return int((local or {}).get("balance_rub") or 0)
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users SET
+            balance_rub = COALESCE(balance_rub, 0) + $2,
+            referral_earned = COALESCE(referral_earned, 0) + $2,
+            low_balance_notified_at = NULL
+        WHERE telegram_id = $1
+        RETURNING balance_rub
+        """,
+        telegram_id,
+        amount,
+    )
+    return int(row["balance_rub"]) if row else 0
+
+
+async def referral_wallet(telegram_id: int) -> dict:
+    row = await _pool_req().fetchrow(
+        """
+        SELECT
+            COALESCE(u.balance_rub, 0)::int AS balance_rub,
+            COALESCE(u.referral_earned, 0)::int AS referral_earned,
+            COALESCE(u.referral_withdrawn, 0)::int AS referral_withdrawn,
+            COALESCE((
+                SELECT SUM(p.amount)::int
+                FROM referral_payouts p
+                WHERE p.telegram_id = u.telegram_id AND p.status = 'pending'
+            ), 0) AS pending
+        FROM users u
+        WHERE u.telegram_id = $1
+        """,
+        telegram_id,
+    )
+    if not row:
+        return {
+            "balance_rub": 0,
+            "earned": 0,
+            "withdrawn": 0,
+            "pending": 0,
+            "available": 0,
+        }
+    earned = int(row["referral_earned"] or 0)
+    withdrawn = int(row["referral_withdrawn"] or 0)
+    pending = int(row["pending"] or 0)
+    leftover = max(0, earned - withdrawn - pending)
+    balance = int(row["balance_rub"] or 0)
+    return {
+        "balance_rub": balance,
+        "earned": earned,
+        "withdrawn": withdrawn,
+        "pending": pending,
+        "available": min(max(0, balance), leftover),
+    }
+
+
+async def create_referral_payout(telegram_id: int, amount: int, details: str) -> dict | None:
+    if amount < 1:
+        return None
+    note = (details or "").strip()
+    pool = _pool_req()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            user = await conn.fetchrow(
+                """
+                SELECT
+                    COALESCE(balance_rub, 0)::int AS balance_rub,
+                    COALESCE(referral_earned, 0)::int AS referral_earned,
+                    COALESCE(referral_withdrawn, 0)::int AS referral_withdrawn
+                FROM users
+                WHERE telegram_id = $1
+                FOR UPDATE
+                """,
+                telegram_id,
+            )
+            if not user:
+                return None
+            exists = await conn.fetchval(
+                """
+                SELECT 1 FROM referral_payouts
+                WHERE telegram_id = $1 AND status = 'pending'
+                """,
+                telegram_id,
+            )
+            if exists:
+                return None
+            leftover = max(
+                0,
+                int(user["referral_earned"]) - int(user["referral_withdrawn"]),
+            )
+            available = min(int(user["balance_rub"]), leftover)
+            if available < amount:
+                return None
+            spent = await conn.fetchrow(
+                """
+                UPDATE users SET balance_rub = balance_rub - $2
+                WHERE telegram_id = $1 AND COALESCE(balance_rub, 0) >= $2
+                RETURNING balance_rub
+                """,
+                telegram_id,
+                amount,
+            )
+            if not spent:
+                return None
+            row = await conn.fetchrow(
+                """
+                INSERT INTO referral_payouts (telegram_id, amount, details, status)
+                VALUES ($1, $2, $3, 'pending')
+                RETURNING *
+                """,
+                telegram_id,
+                amount,
+                note,
+            )
+    return _jsonable(dict(row)) if row else None
+
+
+async def get_referral_payout(payout_id: int) -> dict | None:
+    row = await _pool_req().fetchrow(
+        "SELECT * FROM referral_payouts WHERE id = $1",
+        payout_id,
+    )
+    return _jsonable(dict(row)) if row else None
+
+
+async def resolve_referral_payout(
+    payout_id: int, action: str, admin_id: int | None = None
+) -> str:
+    if action not in {"paid", "rejected"}:
+        return "Неизвестное действие"
+    pool = _pool_req()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "SELECT * FROM referral_payouts WHERE id = $1 FOR UPDATE",
+                payout_id,
+            )
+            if not row:
+                return "Заявка не найдена"
+            if row["status"] != "pending":
+                return "Заявка уже обработана"
+            telegram_id = int(row["telegram_id"])
+            amount = int(row["amount"])
+            if action == "rejected":
+                await conn.execute(
+                    """
+                    UPDATE users SET
+                        balance_rub = COALESCE(balance_rub, 0) + $2,
+                        low_balance_notified_at = NULL
+                    WHERE telegram_id = $1
+                    """,
+                    telegram_id,
+                    amount,
+                )
+            else:
+                await conn.execute(
+                    """
+                    UPDATE users SET
+                        referral_withdrawn = COALESCE(referral_withdrawn, 0) + $2
+                    WHERE telegram_id = $1
+                    """,
+                    telegram_id,
+                    amount,
+                )
+            await conn.execute(
+                """
+                UPDATE referral_payouts
+                SET status = $2, resolved_at = timezone('utc', now()), resolved_by = $3
+                WHERE id = $1
+                """,
+                payout_id,
+                action,
+                admin_id,
+            )
+    return "ok"
+
+
+async def admin_list_payouts(
+    query: str, limit: int, offset: int, extra: dict | None = None
+) -> tuple[list[dict], int]:
+    pool = _pool_req()
+    extra = extra or {}
+    clauses: list[str] = []
+    args: list = []
+    q = query.strip()
+    if q:
+        args.append(f"%{q}%")
+        n = len(args)
+        clauses.append(
+            f"""(p.telegram_id::text LIKE ${n}
+               OR COALESCE(u.username, '') ILIKE ${n}
+               OR COALESCE(u.first_name, '') ILIKE ${n}
+               OR COALESCE(p.details, '') ILIKE ${n})"""
+        )
+    status = str(extra.get("status") or "").strip()
+    if status:
+        args.append(status)
+        clauses.append(f"p.status = ${len(args)}")
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    total = await pool.fetchval(
+        f"""
+        SELECT COUNT(*)::int
+        FROM referral_payouts p
+        JOIN users u ON u.telegram_id = p.telegram_id
+        {where}
+        """,
+        *args,
+    )
+    n = len(args)
+    rows = await pool.fetch(
+        f"""
+        SELECT
+            p.*,
+            u.username,
+            u.first_name,
+            COALESCE(u.referral_earned, 0)::int AS referral_earned,
+            COALESCE(u.referral_withdrawn, 0)::int AS referral_withdrawn,
+            COALESCE(u.balance_rub, 0)::int AS balance_rub
+        FROM referral_payouts p
+        JOIN users u ON u.telegram_id = p.telegram_id
+        {where}
+        ORDER BY
+            CASE WHEN p.status = 'pending' THEN 0 ELSE 1 END,
+            p.created_at DESC
+        LIMIT ${n + 1} OFFSET ${n + 2}
+        """,
+        *args,
+        limit,
+        offset,
+    )
+    return [_jsonable(dict(r)) for r in rows], int(total or 0)
+
+
 async def add_balance_rub(telegram_id: int, amount: int) -> int:
     if amount == 0:
         local = await get_user(telegram_id)
@@ -758,6 +995,7 @@ async def delete_user(telegram_id: int) -> bool:
             await conn.execute("DELETE FROM rollypay_orders WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM cabinet_tokens WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM billing_events WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM referral_payouts WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM devices WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM users WHERE telegram_id = $1", telegram_id)
     return True
@@ -1060,7 +1298,8 @@ async def admin_stats() -> dict:
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::int AS new_30d,
             COUNT(*) FILTER (WHERE referred_by IS NOT NULL)::int AS referred,
             COUNT(*) FILTER (WHERE referral_rewarded)::int AS referral_rewarded,
-            COUNT(*) FILTER (WHERE blocked_at IS NOT NULL)::int AS blocked
+            COUNT(*) FILTER (WHERE blocked_at IS NOT NULL)::int AS blocked,
+            COALESCE((SELECT COUNT(*)::int FROM referral_payouts WHERE status = 'pending'), 0) AS payouts_pending
         FROM users
         """
     )

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 
+from aiogram import Bot
+
 from app import db
 from app.config import get_settings
 from app.notices import notice_text, sub_block
@@ -29,27 +31,40 @@ def subscription_issued_text(user: dict, title: str) -> str:
     )
 
 
-async def grant_plan(telegram_id: int, plan_code: str, rw: RemnawaveClient) -> dict | None:
+async def grant_plan(
+    telegram_id: int,
+    plan_code: str,
+    rw: RemnawaveClient,
+    bot: Bot | None = None,
+) -> dict | None:
     settings = get_settings()
     plan = settings.plan_by_code(plan_code)
     if not plan:
         raise ValueError("unknown plan")
+    user = None
     if settings.balance_enabled:
         amount = int(plan.get("topup_rub") or 0)
         if amount < 1:
             raise ValueError("unknown plan")
         await db.add_balance_rub(telegram_id, amount)
-        await db.mark_paid_topup(telegram_id)
-        return None
-    local = await db.get_user(telegram_id)
-    panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
-    user = await rw.extend_subscription(
-        telegram_id,
-        plan["days"],
-        tag="PAID",
-        panel_user_id=panel_id,
-    )
-    await db.save_panel_snapshot(telegram_id, user)
+    else:
+        local = await db.get_user(telegram_id)
+        panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
+        user = await rw.extend_subscription(
+            telegram_id,
+            plan["days"],
+            tag="PAID",
+            panel_user_id=panel_id,
+        )
+        await db.save_panel_snapshot(telegram_id, user)
+    await db.mark_paid_topup(telegram_id)
+    if bot:
+        from app.config import referral_is_payout
+        from app.referrals import maybe_reward_referrer
+
+        if referral_is_payout():
+            local = await db.get_user(telegram_id)
+            await maybe_reward_referrer(bot, rw, telegram_id, (local or {}).get("first_name"))
     return user
 
 
@@ -62,7 +77,9 @@ async def _lock_for(order_id: str) -> asyncio.Lock:
         return lock
 
 
-async def fulfill_rollypay_order(order_id: str, rw: RemnawaveClient) -> dict | None:
+async def fulfill_rollypay_order(
+    order_id: str, rw: RemnawaveClient, bot: Bot | None = None
+) -> dict | None:
     lock = await _lock_for(order_id)
     async with lock:
         order = await db.get_rollypay_order(order_id)
@@ -70,6 +87,6 @@ async def fulfill_rollypay_order(order_id: str, rw: RemnawaveClient) -> dict | N
             return None
         if order["status"] == "granted":
             return None
-        user = await grant_plan(int(order["telegram_id"]), order["plan_code"], rw)
+        user = await grant_plan(int(order["telegram_id"]), order["plan_code"], rw, bot=bot)
         await db.mark_rollypay_paid(order_id)
         return user

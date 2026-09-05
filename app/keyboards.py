@@ -5,7 +5,7 @@ from urllib.parse import quote
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from app.config import get_settings
+from app.config import get_settings, referral_is_payout
 from app.notices import notice_text
 from app.texts import days_text, rub_text
 from app import runtime
@@ -223,10 +223,16 @@ def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = F
     settings = get_settings()
     if settings.balance_enabled:
         rub = settings.referral_reward_rub
-        share_text = (
-            f"Подключайся. Нажми «Попробовать бесплатно» по ссылке — "
-            f"получишь {rub_text(rub)} на баланс, и я тоже."
-        )
+        if referral_is_payout():
+            share_text = (
+                f"Подключайся по ссылке. После первой оплаты я получу {rub_text(rub)} "
+                "за приглашение."
+            )
+        else:
+            share_text = (
+                f"Подключайся. Нажми «Попробовать бесплатно» по ссылке — "
+                f"получишь {rub_text(rub)} на баланс, и я тоже."
+            )
     else:
         days = settings.referral_reward_days
         share_text = (
@@ -261,5 +267,21 @@ def story_mod_keyboard(telegram_id: int, username: str | None) -> InlineKeyboard
     builder.row(
         InlineKeyboardButton(text="Подтвердить", callback_data=f"st_ok:{telegram_id}"),
         InlineKeyboardButton(text="Отказать", callback_data=f"st_no:{telegram_id}"),
+    )
+    return builder.as_markup()
+
+
+def payout_mod_keyboard(
+    payout_id: int, username: str | None, telegram_id: int
+) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    handle = (username or "").lstrip("@").strip()
+    if handle:
+        builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"https://t.me/{handle}"))
+    else:
+        builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"tg://user?id={telegram_id}"))
+    builder.row(
+        InlineKeyboardButton(text="Выплачено", callback_data=f"po_ok:{payout_id}"),
+        InlineKeyboardButton(text="Отказать", callback_data=f"po_no:{payout_id}"),
     )
     return builder.as_markup()

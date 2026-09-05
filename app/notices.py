@@ -46,8 +46,7 @@ DEFAULT_NOTICES: dict[str, str] = {
     ),
     "invite_nudge": (
         "{name}, за друга можно получить {reward}.\n\n"
-        "Когда человек перейдёт по вашей ссылке и нажмёт «Попробовать бесплатно», "
-        "бонус придёт вам обоим.\n\n"
+        "{when}\n\n"
         "Ваша ссылка:\n{link}"
     ),
     "info_nudge": (
@@ -68,6 +67,25 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Друг {name} попробовал VPN бесплатно по вашей ссылке.\n"
         "Вам начислено <b>{days}</b> подписки.\n\n"
         "Действует до: <b>{expire}</b>{sub_block}"
+    ),
+    "referral_referrer_paid": (
+        "<b>Поздравляем</b>\n\n"
+        "Друг {name} первый раз оплатил VPN по вашей ссылке.\n"
+        "Вам начислено <b>{amount}</b> на баланс. Это реферальные: их можно вывести при накоплении порога."
+    ),
+    "referral_referrer_paid_days": (
+        "<b>Поздравляем</b>\n\n"
+        "Друг {name} первый раз оплатил VPN по вашей ссылке.\n"
+        "Вам начислено <b>{days}</b> подписки.\n\n"
+        "Действует до: <b>{expire}</b>{sub_block}"
+    ),
+    "referral_payout_submitted": (
+        "Заявка на вывод <b>{amount}</b> принята. "
+        "Администратор переведёт деньги по указанным реквизитам."
+    ),
+    "referral_payout_paid": "Реферальные <b>{amount}</b> выплачены.",
+    "referral_payout_rejected": (
+        "Заявку на вывод <b>{amount}</b> отклонили. Сумма вернулась на баланс."
     ),
     "topup_ok": "Баланс пополнен на {amount}.",
     "subscription_issued": (
@@ -93,11 +111,16 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "cabinet_link", "title": "Ссылка на кабинет без VPN", "hint": "{url}"},
     {"key": "trust_collect", "title": "Списание обещанного платежа", "hint": "{amount}"},
     {"key": "trial_nudge", "title": "Напоминание взять триал", "hint": "{name} {extra}"},
-    {"key": "invite_nudge", "title": "Пригласить друга", "hint": "{name} {reward} {link}"},
+    {"key": "invite_nudge", "title": "Пригласить друга", "hint": "{name} {reward} {when} {link}"},
     {"key": "info_nudge", "title": "Как устроен кабинет", "hint": "{price} {story}"},
-    {"key": "referral_referrer_balance", "title": "Реферал: пригласившему (баланс)", "hint": "{name} {amount}"},
-    {"key": "referral_invitee_balance", "title": "Реферал: другу (баланс)", "hint": "{amount}"},
-    {"key": "referral_referrer_days", "title": "Реферал: пригласившему (дни)", "hint": "{name} {days} {expire} {sub_block}"},
+    {"key": "referral_referrer_balance", "title": "Реферал: пригласившему (триал)", "hint": "{name} {amount}"},
+    {"key": "referral_invitee_balance", "title": "Реферал: другу (триал)", "hint": "{amount}"},
+    {"key": "referral_referrer_days", "title": "Реферал: пригласившему дни (триал)", "hint": "{name} {days} {expire} {sub_block}"},
+    {"key": "referral_referrer_paid", "title": "Реферал: пригласившему (оплата)", "hint": "{name} {amount}"},
+    {"key": "referral_referrer_paid_days", "title": "Реферал: пригласившему дни (оплата)", "hint": "{name} {days} {expire} {sub_block}"},
+    {"key": "referral_payout_submitted", "title": "Реферал: заявка на вывод", "hint": "{amount}"},
+    {"key": "referral_payout_paid", "title": "Реферал: выплата прошла", "hint": "{amount}"},
+    {"key": "referral_payout_rejected", "title": "Реферал: выплата отклонена", "hint": "{amount}"},
     {"key": "topup_ok", "title": "Баланс пополнен", "hint": "{amount}"},
     {"key": "subscription_issued", "title": "Подписка оформлена", "hint": "{title} {expire} {sub_block}"},
     {"key": "sub_reissued", "title": "Ссылка подписки перевыпущена", "hint": "{links}"},

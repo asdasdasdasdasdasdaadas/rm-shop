@@ -176,4 +176,24 @@ SET last_billed_at = (last_billed_on::timestamp AT TIME ZONE 'utc')
 WHERE last_billed_at IS NULL
   AND last_billed_on IS NOT NULL;
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_earned INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_withdrawn INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS referral_payouts (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users (telegram_id),
+    amount INTEGER NOT NULL,
+    details TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ,
+    resolved_by BIGINT
+);
+
+CREATE INDEX IF NOT EXISTS referral_payouts_status_idx
+    ON referral_payouts (status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS referral_payouts_user_idx
+    ON referral_payouts (telegram_id, created_at DESC);
+
 

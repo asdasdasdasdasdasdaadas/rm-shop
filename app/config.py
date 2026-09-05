@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     balance_topup_max: int = 400
     balance_topup_step: int = 50
     referral_reward_rub: int = 50
+    referral_mode: str = "classic"
+    referral_payout_enabled: bool = False
+    referral_payout_min: int = 2000
     story_reward_enabled: bool = True
     story_reward_rub: int = 150
     story_share_text: str = "VPN без границ. Подключайся в боте."
@@ -202,6 +205,9 @@ SHOP_KEYS = frozenset(
         "trial_enabled",
         "trial_days",
         "referral_reward_rub",
+        "referral_mode",
+        "referral_payout_enabled",
+        "referral_payout_min",
         "story_reward_enabled",
         "story_reward_rub",
         "story_share_text",
@@ -253,6 +259,22 @@ def get_settings() -> Settings:
     if "remnawave_hwid_limit" in update:
         raw = update["remnawave_hwid_limit"]
         update["remnawave_hwid_limit"] = None if raw in (0, None, "") else int(raw)
+    if "referral_mode" not in update and "referral_payout_enabled" in update:
+        update["referral_mode"] = "payout" if update.get("referral_payout_enabled") else "classic"
+    mode = str(update.get("referral_mode") or "").strip().lower()
+    if mode in {"classic", "payout"}:
+        update["referral_mode"] = mode
+        update["referral_payout_enabled"] = mode == "payout"
     if hasattr(base, "model_copy"):
         return base.model_copy(update=update)
     return base.copy(update=update)
+
+
+def referral_is_payout() -> bool:
+    settings = get_settings()
+    mode = str(getattr(settings, "referral_mode", "") or "").strip().lower()
+    if mode == "payout":
+        return True
+    if mode == "classic":
+        return False
+    return bool(settings.referral_payout_enabled)

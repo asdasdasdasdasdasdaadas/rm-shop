@@ -9,7 +9,7 @@ from aiogram.types import CallbackQuery, Message
 
 from app import db
 from app.access import is_channel_member
-from app.config import get_settings
+from app.config import get_settings, referral_is_payout
 from app.keyboards import (
     channel_keyboard,
     legal_keyboard,
@@ -89,7 +89,12 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
     if from_user:
         panel = await fetch_panel(rw, from_user.id)
         local = await db.get_user(from_user.id)
-        if local and local.get("referred_by") and not local.get("referral_rewarded"):
+        if (
+            local
+            and local.get("referred_by")
+            and not local.get("referral_rewarded")
+            and not referral_is_payout()
+        ):
             await maybe_reward_referrer(
                 target.bot, rw, from_user.id, from_user.first_name
             )

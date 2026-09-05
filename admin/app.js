@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 let userPage = 1;
 let orderPage = 1;
 let refPage = 1;
+let payPage = 1;
 let billPage = 1;
 let currentUser = null;
 let selectedUsers = new Set();
@@ -381,7 +382,10 @@ function switchTab(name, opts = {}) {
   }
   if (name === "overview") loadStats();
   if (name === "users") loadUsers();
-  if (name === "referrals") loadReferrals();
+  if (name === "referrals") {
+    loadReferrals();
+    loadPayouts();
+  }
   if (name === "orders") loadOrders();
   if (name === "billing") loadBilling();
   if (name === "reports") loadReports();
@@ -637,6 +641,7 @@ async function loadStats() {
       ["Промокоды", s.promo_uses || 0, "promo"],
       ["Stars-платежи", s.stars_payments || 0],
       ["Реф. награда выдана", u.referral_rewarded || 0, "referrals"],
+      ["Заявки на вывод", u.payouts_pending || 0, "referrals"],
     ]);
     fill("cardsIssues", [
       ["Жалобы VPN", s.vpn_reports || 0, "reports"],
@@ -911,6 +916,73 @@ async function loadReferrals(page) {
     body.appendChild(tr);
   });
   pager($("refPager"), data.page, data.total, data.limit, loadReferrals);
+}
+
+async function loadPayouts(page) {
+  if (page) payPage = page;
+  const f = { q: val("payQ"), status: val("payStatus") };
+  const reset = $("payReset");
+  if (reset) reset.classList.toggle("hidden", !hasAny(f));
+  const data = await api(`/admin/api/payouts?${queryString({ ...f, page: payPage })}`);
+  const body = $("payRows");
+  if (!body) return;
+  body.innerHTML = "";
+  const labels = ["Клиент", "Сумма", "Реквизиты", "Статус", "Когда", ""];
+  const stMap = { pending: "ожидает", paid: "выплачено", rejected: "отклонено" };
+  if (!data.items.length) {
+    body.appendChild(emptyRow(6, hasAny(f) ? "Ничего не нашли" : "Заявок на вывод нет"));
+  }
+  data.items.forEach((row) => {
+    const tr = document.createElement("tr");
+    tr.appendChild(tdText(whoLabel(row.telegram_id, row.username, row.first_name)));
+    tr.appendChild(tdText(String(row.amount || 0) + " ₽"));
+    tr.appendChild(tdText(row.details || "—"));
+    tr.appendChild(tdPill(stMap[row.status] || row.status || "—"));
+    tr.appendChild(tdText(fmt(row.created_at)));
+    const td = document.createElement("td");
+    if (row.status === "pending") {
+      const ok = document.createElement("button");
+      ok.type = "button";
+      ok.textContent = "Выплачено";
+      ok.onclick = (e) => {
+        e.stopPropagation();
+        resolvePayout(row.id, "paid");
+      };
+      const no = document.createElement("button");
+      no.type = "button";
+      no.className = "ghost";
+      no.textContent = "Отказать";
+      no.onclick = (e) => {
+        e.stopPropagation();
+        resolvePayout(row.id, "rejected");
+      };
+      td.appendChild(ok);
+      td.appendChild(no);
+    }
+    tr.appendChild(td);
+    labelRow(tr, labels);
+    body.appendChild(tr);
+  });
+  pager($("payPager"), data.page, data.total, data.limit, loadPayouts);
+}
+
+async function resolvePayout(id, action) {
+  const title = action === "paid" ? "Подтвердить выплату" : "Отклонить заявку";
+  const text =
+    action === "paid"
+      ? "Отметить, что деньги уже перевели клиенту?"
+      : "Вернуть сумму на баланс клиента?";
+  if (!(await confirmAction(title, text))) return;
+  try {
+    const r = await api(`/admin/api/payouts/${id}`, {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    });
+    toast(r.result || "Готово");
+    await loadPayouts();
+  } catch (err) {
+    toast(err.message || "Не удалось обработать");
+  }
 }
 
 async function loadOrders(page) {
@@ -1239,6 +1311,11 @@ async function loadSettings() {
   set("setTopMax", v.balance_topup_max);
   set("setTopStep", v.balance_topup_step);
   set("setRefRub", v.referral_reward_rub);
+  set("setRefPayoutMin", v.referral_payout_min);
+  const refMode = v.referral_mode || (v.referral_payout_enabled ? "payout" : "classic");
+  if ($("setRefModeClassic")) $("setRefModeClassic").checked = refMode !== "payout";
+  if ($("setRefModePayout")) $("setRefModePayout").checked = refMode === "payout";
+  syncRefModeUi();
   set("setStoryOn", v.story_reward_enabled);
   set("setStoryRub", v.story_reward_rub);
   set("setStoryCheck", v.story_check_minutes);
@@ -1265,6 +1342,12 @@ async function loadSettings() {
   document.querySelectorAll(".shop-plans").forEach((el) => {
     el.classList.toggle("hidden", !!s.balance_enabled);
   });
+}
+
+function syncRefModeUi() {
+  const payout = $("setRefModePayout") && $("setRefModePayout").checked;
+  const box = $("refPayoutFields");
+  if (box) box.classList.toggle("hidden", !payout);
 }
 
 const VPN_PLATS = [
@@ -1393,6 +1476,11 @@ if ($("promoForm")) {
     await saveShopSettings("promoOut");
   });
 }
+["setRefModeClassic", "setRefModePayout"].forEach((id) => {
+  const el = $(id);
+  if (el) el.onchange = syncRefModeUi;
+});
+syncRefModeUi();
 
 async function saveShopSettings(outId) {
   const num = (id) => Number($(id).value);
@@ -1408,6 +1496,11 @@ async function saveShopSettings(outId) {
     balance_topup_max: num("setTopMax"),
     balance_topup_step: num("setTopStep"),
     referral_reward_rub: num("setRefRub"),
+    referral_mode: $("setRefModePayout") && $("setRefModePayout").checked ? "payout" : "classic",
+    referral_payout_enabled: Boolean($("setRefModePayout") && $("setRefModePayout").checked),
+    referral_payout_min: $("setRefPayoutMin") && $("setRefPayoutMin").value
+      ? num("setRefPayoutMin")
+      : 2000,
     story_reward_enabled: $("setStoryOn").checked,
     story_reward_rub: num("setStoryRub"),
     story_check_minutes: num("setStoryCheck"),
@@ -1640,6 +1733,15 @@ if ($("refReset")) {
     loadReferrals(1);
   };
 }
+if ($("paySearch")) $("paySearch").onclick = () => loadPayouts(1);
+if ($("payReset")) {
+  $("payReset").onclick = () => {
+    ["payQ", "payStatus"].forEach((id) => setVal(id, ""));
+    loadPayouts(1);
+  };
+}
+if ($("payQ")) $("payQ").oninput = debounce(() => loadPayouts(1), 300);
+if ($("payStatus")) $("payStatus").onchange = () => loadPayouts(1);
 if ($("reportReset")) {
   $("reportReset").onclick = () => {
     ["reportStatus", "reportFrom", "reportTo"].forEach((id) => setVal(id, ""));

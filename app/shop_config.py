@@ -57,6 +57,14 @@ def validate_shop(body: dict) -> dict:
     out["trial_enabled"] = bool(body.get("trial_enabled"))
     out["trial_days"] = _as_int(body.get("trial_days"), 1, 90, "Дни триала")
     out["referral_reward_rub"] = _as_int(body.get("referral_reward_rub"), 0, 100000, "Реф. в рублях")
+    mode = str(body.get("referral_mode") or "").strip().lower()
+    if not mode:
+        mode = "payout" if body.get("referral_payout_enabled") else "classic"
+    if mode not in {"classic", "payout"}:
+        raise ValueError("Режим рефералки: classic или payout")
+    out["referral_mode"] = mode
+    out["referral_payout_enabled"] = mode == "payout"
+    out["referral_payout_min"] = _as_int(body.get("referral_payout_min"), 1, 1000000, "Мин. вывод реферальных")
     out["story_reward_enabled"] = bool(body.get("story_reward_enabled"))
     out["story_reward_rub"] = _as_int(body.get("story_reward_rub"), 0, 100000, "Награда за историю")
     caption = str(body.get("story_share_text") or "").strip()
@@ -107,6 +115,11 @@ def snapshot() -> dict:
             "trial_enabled": s.trial_enabled,
             "trial_days": s.trial_days,
             "referral_reward_rub": s.referral_reward_rub,
+            "referral_mode": s.referral_mode if s.referral_mode in ("classic", "payout") else (
+                "payout" if s.referral_payout_enabled else "classic"
+            ),
+            "referral_payout_enabled": s.referral_payout_enabled,
+            "referral_payout_min": s.referral_payout_min,
             "story_reward_enabled": s.story_reward_enabled,
             "story_reward_rub": s.story_reward_rub,
             "story_share_text": s.story_share_text,
