@@ -375,9 +375,9 @@ function paintStatus(me) {
 applyTheme();
 if (tg.onEvent) tg.onEvent("themeChanged", applyTheme);
 
-function haptic() {
+function haptic(kind) {
   try {
-    tg.HapticFeedback.impactOccurred("light");
+    tg.HapticFeedback.impactOccurred(kind || "light");
   } catch (_e) {}
 }
 
@@ -460,16 +460,32 @@ function showErr(err) {
   tg.showAlert(err.message || String(err));
 }
 
-const INTRO_KEY = "way_intro_v2";
+const INTRO_KEY = "way_intro_v3";
 let introTimer = 0;
+let introHapticTimer = 0;
+let introHapticLoop = 0;
 let introShown = false;
 
-function hideIntro() {
+function clearIntroTimers() {
   if (introTimer) {
     clearTimeout(introTimer);
     introTimer = 0;
   }
-  $("intro").classList.add("hidden");
+  if (introHapticTimer) {
+    clearTimeout(introHapticTimer);
+    introHapticTimer = 0;
+  }
+  if (introHapticLoop) {
+    clearInterval(introHapticLoop);
+    introHapticLoop = 0;
+  }
+}
+
+function hideIntro() {
+  clearIntroTimers();
+  const el = $("intro");
+  el.classList.remove("intro-catch", "intro-go");
+  el.classList.add("hidden");
 }
 
 function showBoot() {
@@ -533,11 +549,19 @@ function markIntroSeen() {
   } catch (_e) {}
 }
 
+function pulseIntroCatch() {
+  const el = $("intro");
+  if (!el || el.classList.contains("hidden") || el.classList.contains("intro-go")) return;
+  haptic("medium");
+  try {
+    tg.HapticFeedback.notificationOccurred("success");
+  } catch (_e) {}
+  el.classList.add("intro-catch");
+  setTimeout(() => el.classList.remove("intro-catch"), 280);
+}
+
 function finishIntro() {
-  if (introTimer) {
-    clearTimeout(introTimer);
-    introTimer = 0;
-  }
+  clearIntroTimers();
   markIntroSeen();
   showApp();
 }
@@ -575,10 +599,14 @@ function showIntro(me) {
   $("fail").classList.add("hidden");
   $("maint").classList.add("hidden");
   $("app").classList.add("hidden");
-  $("intro").classList.remove("hidden");
-  try {
-    tg.HapticFeedback.impactOccurred("light");
-  } catch (_e) {}
+  $("intro").classList.remove("hidden", "intro-catch", "intro-go");
+  haptic("light");
+  if (!reducedMotion()) {
+    introHapticTimer = setTimeout(() => {
+      pulseIntroCatch();
+      introHapticLoop = setInterval(pulseIntroCatch, 5200);
+    }, Math.round(5200 * 0.34));
+  }
   introTimer = setTimeout(finishIntro, reducedMotion() ? 400 : 5600);
 }
 
@@ -2579,7 +2607,16 @@ $("supportBtn").onclick = () => {
   if (url) tg.openTelegramLink(url);
 };
 
-$("intro").onclick = () => finishIntro();
+$("intro").onclick = () => {
+  const el = $("intro");
+  if (el.classList.contains("intro-go")) return;
+  haptic("heavy");
+  try {
+    tg.HapticFeedback.notificationOccurred("success");
+  } catch (_e) {}
+  el.classList.add("intro-go");
+  setTimeout(finishIntro, reducedMotion() ? 0 : 240);
+};
 
 $("qrClose").onclick = () => hideQr();
 $("qrScrim").onclick = () => hideQr();

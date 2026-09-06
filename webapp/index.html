@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=56">
+  <link rel="stylesheet" href="app.css?v=57">
 </head>
 <body>
   <div id="boot" class="state">
@@ -89,10 +89,21 @@
           <path d="M298 128l8 3 8-3"/>
         </g>
         <path fill="#4a2048" opacity=".55" d="M-30 330c50-28 96-12 140 4 48 16 88-18 140-8 40 8 72 22 120 6v48H-30z"/>
+        <g class="intro-pines" fill="#140c22">
+          <path d="M42 338l18-46 18 46z"/>
+          <path d="M86 344l14-34 14 34z"/>
+          <path d="M292 336l16-40 16 40z"/>
+          <path d="M322 342l12-28 12 28z"/>
+        </g>
         <path fill="#2a1838" d="M-40 356c56-24 108-6 152 8 52 16 86-12 138-4 44 8 78 24 130 10v52H-40z"/>
         <path fill="#1a1228" d="M-20 382c60-18 110 2 158 10 46 8 90-10 132 2 38 10 70 16 110 6v40H-20z"/>
         <rect y="392" width="360" height="248" fill="url(#introWater)"/>
         <ellipse class="intro-sun-ref" cx="196" cy="412" rx="70" ry="18" fill="#ffd27a" opacity=".38"/>
+        <g class="intro-rays" stroke="#ffd98a" stroke-opacity=".12" stroke-width="10" stroke-linecap="round">
+          <path d="M196 360v44"/>
+          <path d="M168 368v28"/>
+          <path d="M224 368v28"/>
+        </g>
         <g class="intro-shimmer" fill="none" stroke="#ffe0a0" stroke-linecap="round">
           <path d="M40 428h70" stroke-width="1.6" opacity=".22"/>
           <path d="M150 444h90" stroke-width="2" opacity=".3"/>
@@ -118,33 +129,50 @@
           <circle class="intro-bug c" cx="88" cy="500" r="1.2"/>
           <circle class="intro-bug d" cx="328" cy="512" r="1.5"/>
         </g>
-        <ellipse cx="128" cy="522" rx="68" ry="16" fill="#0e2a1c" opacity=".7"/>
-        <ellipse cx="128" cy="516" rx="58" ry="13" fill="#1c5a38"/>
-        <ellipse cx="128" cy="514" rx="46" ry="9" fill="#2f7a4e"/>
-        <ellipse cx="148" cy="512" rx="18" ry="5" fill="#ffe0a8" opacity=".18"/>
-        <g class="intro-frog">
-          <ellipse cx="100" cy="512" rx="12" ry="6" fill="#246844"/>
-          <ellipse cx="156" cy="512" rx="12" ry="6" fill="#246844"/>
-          <ellipse cx="128" cy="488" rx="34" ry="24" fill="url(#introFrogLit)"/>
-          <ellipse cx="148" cy="484" rx="16" ry="14" fill="#ffe7b0" opacity=".22"/>
-          <ellipse cx="112" cy="494" rx="8" ry="5" fill="#ffb4b4" opacity=".45"/>
-          <ellipse cx="146" cy="492" rx="8" ry="5" fill="#ffb4b4" opacity=".45"/>
-          <g class="intro-eyes">
-            <circle cx="112" cy="468" r="13" fill="#6bd98a"/>
-            <circle cx="148" cy="466" r="13" fill="#6bd98a"/>
-            <circle cx="148" cy="466" r="13" fill="#ffb45a" opacity=".18"/>
-            <circle cx="112" cy="468" r="7.2" fill="#fff"/>
-            <circle cx="148" cy="466" r="7.2" fill="#fff"/>
-            <g class="intro-pupils">
-              <circle cx="116" cy="468" r="3" fill="#173321"/>
-              <circle cx="152" cy="466" r="3" fill="#173321"/>
-              <circle cx="117.2" cy="466.8" r=".8" fill="#fff"/>
-              <circle cx="153.2" cy="464.8" r=".8" fill="#fff"/>
-            </g>
-          </g>
-          <path d="M116 498q16 10 32-2" stroke="#173321" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <path class="intro-tongue" d="M158 496 Q 228 430 272 392" fill="none" stroke="url(#introTongue)" stroke-width="8" stroke-linecap="round"/>
+        <ellipse cx="232" cy="528" rx="28" ry="7" fill="#1c5a38" opacity=".7"/>
+        <ellipse cx="128" cy="526" rx="72" ry="16" fill="#0e2a1c" opacity=".75"/>
+        <ellipse cx="128" cy="520" rx="60" ry="13" fill="#1c5a38"/>
+        <ellipse cx="128" cy="518" rx="48" ry="9" fill="#2f7a4e"/>
+        <ellipse cx="150" cy="516" rx="16" ry="4.5" fill="#ffe0a8" opacity=".2"/>
+        <g class="intro-splash" fill="none" stroke="#ffe9c4" stroke-linecap="round">
+          <circle class="intro-ring a" cx="168" cy="518" r="8"/>
+          <circle class="intro-ring b" cx="168" cy="518" r="8"/>
+          <circle class="intro-ring c" cx="168" cy="518" r="8"/>
         </g>
+        <g class="intro-frog">
+          <ellipse cx="96" cy="518" rx="16" ry="7" fill="#1f5a3a"/>
+          <ellipse cx="158" cy="518" rx="15" ry="7" fill="#1f5a3a"/>
+          <path d="M86 518q6 6 16 4" stroke="#173321" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+          <path d="M168 518q-6 6-14 4" stroke="#173321" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+          <ellipse cx="126" cy="500" rx="38" ry="26" fill="url(#introFrogLit)"/>
+          <ellipse cx="116" cy="506" rx="9" ry="6" fill="#3aa86a" opacity=".55"/>
+          <ellipse cx="142" cy="502" rx="7" ry="5" fill="#3aa86a" opacity=".45"/>
+          <ellipse cx="148" cy="492" rx="18" ry="14" fill="#ffe7b0" opacity=".22"/>
+          <ellipse cx="108" cy="504" rx="8" ry="5" fill="#ffb4b4" opacity=".4"/>
+          <ellipse cx="146" cy="502" rx="8" ry="5" fill="#ffb4b4" opacity=".4"/>
+          <g class="intro-head">
+            <ellipse cx="132" cy="478" rx="32" ry="24" fill="url(#introFrogLit)"/>
+            <ellipse cx="148" cy="474" rx="14" ry="12" fill="#ffe7b0" opacity=".2"/>
+            <ellipse cx="126" cy="480" rx="2.2" ry="1.4" fill="#173321" opacity=".55"/>
+            <ellipse cx="140" cy="479" rx="2.2" ry="1.4" fill="#173321" opacity=".55"/>
+            <g class="intro-eyes">
+              <circle cx="116" cy="458" r="15" fill="#7ee39a"/>
+              <circle cx="150" cy="456" r="15" fill="#7ee39a"/>
+              <circle cx="150" cy="456" r="15" fill="#ffb45a" opacity=".16"/>
+              <circle cx="116" cy="458" r="8" fill="#fff"/>
+              <circle cx="150" cy="456" r="8" fill="#fff"/>
+              <g class="intro-pupils">
+                <circle cx="120" cy="458" r="3.4" fill="#173321"/>
+                <circle cx="154" cy="456" r="3.4" fill="#173321"/>
+                <circle cx="121.4" cy="456.6" r="1" fill="#fff"/>
+                <circle cx="155.4" cy="454.6" r="1" fill="#fff"/>
+              </g>
+            </g>
+            <path class="intro-smile" d="M124 490q16 8 30 0" stroke="#173321" stroke-width="2.8" stroke-linecap="round" fill="none"/>
+            <ellipse class="intro-maw" cx="146" cy="494" rx="11" ry="6" fill="#4a1830"/>
+          </g>
+        </g>
+        <path class="intro-tongue" d="M156 494 L 258 400" fill="none" stroke="url(#introTongue)" stroke-width="7.5" stroke-linecap="round"/>
         <g class="intro-fly">
           <circle class="intro-fly-glow" cx="0" cy="0" r="10" fill="#ffe9a8" opacity=".35"/>
           <g class="intro-wings">
@@ -542,6 +570,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=52"></script>
+  <script src="app.js?v=53"></script>
 </body>
 </html>

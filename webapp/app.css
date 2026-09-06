@@ -1869,6 +1869,21 @@ body.has-main-btn {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  transform-origin: 50% 62%;
+  transition: transform 0.22s cubic-bezier(0.32, 0.72, 0, 1), filter 0.22s ease;
+}
+
+.intro:active:not(.intro-go) .intro-scene {
+  transform: scale(1.018);
+}
+
+.intro.intro-catch .intro-scene {
+  filter: brightness(1.14) saturate(1.12);
+}
+
+.intro.intro-go .intro-scene {
+  transform: scale(1.06);
+  filter: brightness(1.22) saturate(1.08);
 }
 
 .intro-land {
@@ -1936,10 +1951,40 @@ body.has-main-btn {
 .intro-bug.c { animation: intro-bug 4.6s ease-in-out 1.4s infinite; }
 .intro-bug.d { animation: intro-bug 5.8s ease-in-out 0.3s infinite; }
 
+.intro-pines {
+  transform-origin: 180px 344px;
+  animation: intro-reeds 7.4s ease-in-out infinite;
+}
+
+.intro-rays {
+  animation: intro-ref 6s ease-in-out infinite;
+}
+
 .intro-frog {
-  transform-origin: 128px 516px;
+  transform-origin: 126px 518px;
   animation: intro-lean 5.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
 }
+
+.intro-smile {
+  animation: intro-smile 5.2s ease-in-out infinite;
+}
+
+.intro-maw {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: intro-maw 5.2s ease-in-out infinite;
+}
+
+.intro-splash .intro-ring {
+  transform-origin: 168px 518px;
+  stroke-width: 2;
+  opacity: 0;
+}
+
+.intro-splash .intro-ring.a { animation: intro-splash 5.2s ease-out infinite; }
+.intro-splash .intro-ring.b { animation: intro-splash 5.2s ease-out 0.05s infinite; }
+.intro-splash .intro-ring.c { animation: intro-splash 5.2s ease-out 0.1s infinite; }
 
 .intro-eyes {
   transform-box: fill-box;
@@ -1952,7 +1997,7 @@ body.has-main-btn {
 }
 
 .intro-tongue {
-  stroke-dasharray: 0 280;
+  stroke-dasharray: 0 160;
   filter: drop-shadow(0 0 4px rgba(255, 120, 140, 0.45));
   animation: intro-lick 5.2s cubic-bezier(0.16, 0.9, 0.2, 1) infinite;
 }
@@ -2083,8 +2128,25 @@ body.has-main-btn {
 }
 
 @keyframes intro-lean {
-  0%, 26%, 60%, 100% { transform: rotate(0deg); }
-  34%, 46% { transform: rotate(-8deg); }
+  0%, 28%, 58%, 100% { transform: none; }
+  34% { transform: scale(1.05, 0.92) translate(1px, 3px); }
+  40% { transform: scale(0.97, 1.05); }
+}
+
+@keyframes intro-smile {
+  0%, 28%, 56%, 100% { opacity: 1; }
+  32%, 50% { opacity: 0; }
+}
+
+@keyframes intro-maw {
+  0%, 28%, 56%, 100% { opacity: 0; transform: scale(0.2); }
+  34%, 46% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes intro-splash {
+  0%, 44%, 64%, 100% { opacity: 0; transform: scale(0.4); }
+  48% { opacity: 0.85; transform: scale(1.4); }
+  58% { opacity: 0; transform: scale(3.2); }
 }
 
 @keyframes intro-look {
@@ -2094,18 +2156,18 @@ body.has-main-btn {
 }
 
 @keyframes intro-lick {
-  0%, 28% { stroke-dasharray: 0 280; }
-  34%, 46% { stroke-dasharray: 188 280; }
-  56%, 100% { stroke-dasharray: 0 280; }
+  0%, 28% { stroke-dasharray: 0 160; }
+  34%, 46% { stroke-dasharray: 139 160; }
+  56%, 100% { stroke-dasharray: 0 160; }
 }
 
 @keyframes intro-buzz {
   0% { transform: translate(300px, 250px); opacity: 1; }
   16% { transform: translate(248px, 318px); opacity: 1; }
-  28% { transform: translate(272px, 392px); opacity: 1; }
-  34% { transform: translate(272px, 392px); opacity: 1; }
-  46% { transform: translate(162px, 490px); opacity: 1; }
-  52% { transform: translate(162px, 490px); opacity: 0; }
+  28% { transform: translate(258px, 400px); opacity: 1; }
+  34% { transform: translate(258px, 400px); opacity: 1; }
+  46% { transform: translate(156px, 494px); opacity: 1; }
+  52% { transform: translate(156px, 494px); opacity: 0; }
   64% { transform: translate(318px, 210px); opacity: 0; }
   72% { transform: translate(318px, 210px); opacity: 1; }
   100% { transform: translate(300px, 250px); opacity: 1; }
@@ -2148,16 +2210,22 @@ body.has-main-btn {
   .intro-reeds-l,
   .intro-reeds-r,
   .intro-bug,
+  .intro-pines,
+  .intro-rays,
   .intro-frog,
   .intro-pupils,
+  .intro-smile,
+  .intro-maw,
+  .intro-splash .intro-ring,
   .intro-tongue,
   .intro-fly,
   .intro-fly-glow,
   .intro-wings {
     animation: none !important;
   }
-  .intro-tongue { stroke-dasharray: 0 280; }
-  .intro-fly { transform: translate(272px, 392px); }
+  .intro-tongue { stroke-dasharray: 0 160; }
+  .intro-maw { opacity: 0; }
+  .intro-fly { transform: translate(258px, 400px); }
 }
 
 .coach {
