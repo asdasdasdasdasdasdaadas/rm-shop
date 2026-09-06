@@ -31,7 +31,7 @@
   --sep: var(--divider);
   --header: var(--text-tertiary);
   --radius: var(--radius-md);
-  --pad: 16px;
+  --pad: 20px;
   --glass: rgba(255, 255, 255, 0.055);
   --glass-strong: rgba(255, 255, 255, 0.09);
   --glass-tint: rgba(95, 214, 139, 0.16);
@@ -62,16 +62,16 @@ html, body {
 
 body {
   padding:
-    calc(10px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, 0px)))
+    calc(12px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, 0px)))
     max(
-      16px,
+      var(--pad),
       env(safe-area-inset-right, 0px),
       var(--tg-safe-area-inset-right, 0px),
       var(--tg-content-safe-area-inset-right, 0px)
     )
     calc(24px + var(--tg-safe-area-inset-bottom, 0px))
     max(
-      16px,
+      var(--pad),
       env(safe-area-inset-left, 0px),
       var(--tg-safe-area-inset-left, 0px),
       var(--tg-content-safe-area-inset-left, 0px)
@@ -121,7 +121,7 @@ body.coach-lock {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 12px 16px;
   border-radius: var(--radius-lg);
   background: var(--panel);
   border: 1px solid var(--glass-border);
@@ -373,7 +373,7 @@ body.coach-lock {
   box-shadow: var(--glass-shine);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  padding: 16px;
+  padding: 18px 20px;
 }
 
 .section-head {
@@ -410,7 +410,7 @@ body.coach-lock {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 18px 10px 6px;
+  padding: 18px 8px 6px;
 }
 
 .empty-devices .glyph {
@@ -458,7 +458,7 @@ body.coach-lock {
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 10px 4px;
+  padding: 10px 2px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -568,7 +568,7 @@ body.coach-lock {
 
 .payout-form {
   width: 100%;
-  padding: 0 4px 12px;
+  padding: 0 2px 12px;
 }
 .payout-form .promo-inner {
   padding: 0;
@@ -580,7 +580,7 @@ body.coach-lock {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 4px;
+  padding: 14px 2px;
   cursor: pointer;
 }
 
@@ -610,7 +610,7 @@ body.coach-lock {
 .promo-inner {
   display: flex;
   gap: 8px;
-  padding: 0 4px 14px;
+  padding: 0 2px 14px;
 }
 
 .promo-inner input {
@@ -647,7 +647,7 @@ body.coach-lock {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 2px 6px 8px;
+  padding: 2px 8px 8px;
 }
 
 .help-list {
@@ -661,7 +661,7 @@ body.coach-lock {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 13px 2px;
+  padding: 13px 4px;
   color: var(--text-secondary);
   font-size: 13.5px;
   font-weight: 500;
@@ -780,7 +780,7 @@ body.coach-lock {
 }
 
 .wiz-kicker {
-  margin: 8px 4px 0;
+  margin: 8px 8px 0;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.6px;
@@ -789,7 +789,7 @@ body.coach-lock {
 }
 
 .wiz-title {
-  margin: 6px 4px 16px;
+  margin: 6px 8px 16px;
   font-family: Unbounded, Inter, sans-serif;
   font-size: 26px;
   font-weight: 600;
@@ -801,7 +801,7 @@ body.coach-lock {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 4px 4px 8px;
+  margin: 4px 8px 8px;
 }
 
 .wiz-progress.hidden { display: none !important; }
@@ -836,7 +836,7 @@ body.coach-lock {
   text-align: left;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  padding: 16px 14px 14px;
+  padding: 16px 16px 14px;
   background: var(--panel);
   box-shadow: var(--glass-shine);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
@@ -1240,9 +1240,9 @@ body.has-main-btn {
   bottom: 0;
   z-index: 15;
   padding: 12px
-    max(16px, env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px))
+    max(var(--pad), env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px))
     calc(12px + var(--tg-safe-area-inset-bottom, 0px))
-    max(16px, env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px));
+    max(var(--pad), env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px));
   background: rgba(13, 22, 17, 0.42);
   border-top: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
@@ -1262,21 +1262,21 @@ body.has-main-btn {
 }
 
 .section-title {
-  margin: 18px 4px 6px;
+  margin: 18px 8px 6px;
   font-size: 13px;
   font-weight: 400;
   color: var(--text-tertiary);
 }
 
 .section-note {
-  margin: 0 4px 8px;
+  margin: 0 8px 8px;
   font-size: 13px;
   line-height: 1.35;
   color: var(--text-secondary);
 }
 
 .topup-hint {
-  margin: 0 4px 16px;
+  margin: 0 8px 16px;
   max-width: 32ch;
   font-size: 13.5px;
   line-height: 1.4;
@@ -1323,7 +1323,7 @@ body.has-main-btn {
   text-align: left;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  padding: 14px 14px 12px;
+  padding: 14px 16px 12px;
   background: var(--panel);
   box-shadow: var(--glass-shine);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
@@ -1570,7 +1570,7 @@ body.has-main-btn {
 
 .muted {
   margin: 0;
-  padding: 14px 4px;
+  padding: 14px 8px;
   color: var(--text-secondary);
   font-size: 15px;
   line-height: 1.35;
@@ -1635,7 +1635,7 @@ body.has-main-btn {
   position: fixed;
   z-index: 21;
   top: calc(72px + var(--tg-content-safe-area-inset-top, 0px));
-  right: 16px;
+  right: var(--pad);
   min-width: 230px;
   background: rgba(28, 42, 32, 0.55);
   border-radius: var(--radius-lg);
@@ -1768,7 +1768,7 @@ body.has-main-btn {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 12px 8px 32px;
+  padding: 16px 16px 32px;
 }
 
 #maint.hidden { display: none !important; }
@@ -2246,7 +2246,7 @@ body.has-main-btn {
   font-weight: 700;
   text-transform: uppercase;
   color: var(--text-tertiary);
-  margin: 4px 2px 8px;
+  margin: 4px 8px 8px;
   position: relative;
   z-index: 2;
 }
