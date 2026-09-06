@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=57">
+  <link rel="stylesheet" href="app.css?v=58">
 </head>
 <body>
   <div id="boot" class="state">
@@ -321,6 +321,14 @@
         <button type="button" id="trialHomeBtn" class="cell action hidden"></button>
       </div>
 
+      <div id="trialNotice" class="trial-notice hidden" role="status">
+        <button type="button" id="trialNoticeClose" class="trial-notice-close" aria-label="Закрыть"></button>
+        <div class="trial-notice-kicker">Тестовый баланс</div>
+        <div id="trialNoticeTitle" class="trial-notice-title"></div>
+        <p id="trialNoticeText" class="trial-notice-text"></p>
+        <button type="button" id="trialNoticeAct" class="btn btn-primary">Получить</button>
+      </div>
+
       <div id="devicesBlock" class="section">
         <div class="section-head">
           <span class="h">Устройства <span id="deviceCount" class="count">· 0</span></span>
@@ -570,6 +578,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=53"></script>
+  <script src="app.js?v=54"></script>
 </body>
 </html>

@@ -852,12 +852,14 @@ function buildCoachSteps(me) {
   if (!me) return steps;
   if (me.balance_enabled) {
     const n = (me.devices || []).length;
-    if (me.trial_available && coachElReady("trialHomeBtn")) {
+    if (me.trial_available && (coachElReady("trialNotice") || coachElReady("trialHomeBtn"))) {
       steps.push({
-        id: "trialHomeBtn",
+        id: coachElReady("trialNotice") ? "trialNotice" : "trialHomeBtn",
         required: true,
         title: "Начните бесплатно",
-        text: "Нажмите сюда — пробные рубли сразу на баланс. Без устройства деньги не списываются.",
+        text: coachElReady("trialNotice")
+          ? "Вам доступен тестовый баланс. Нажмите на плашку, чтобы получить пробные рубли. Без устройства деньги не списываются."
+          : "Нажмите сюда — пробные рубли сразу на баланс. Без устройства деньги не списываются.",
       });
     } else if ((me.balance_rub || 0) < 1 && coachElReady("topupBtn")) {
       steps.push({
@@ -1991,6 +1993,55 @@ function paintPayout(me) {
   }
 }
 
+const TRIAL_NOTICE_KEY = "way_trial_notice_v1";
+
+function trialNoticeDismissed(kind) {
+  try {
+    return localStorage.getItem(TRIAL_NOTICE_KEY) === String(kind || "");
+  } catch (_e) {
+    return false;
+  }
+}
+
+function dismissTrialNotice(kind) {
+  try {
+    localStorage.setItem(TRIAL_NOTICE_KEY, String(kind || "1"));
+  } catch (_e) {}
+  const el = $("trialNotice");
+  if (el) el.classList.add("hidden");
+}
+
+function paintTrialNotice(me) {
+  const el = $("trialNotice");
+  const act = $("trialNoticeAct");
+  const notice = me && me.trial_notice;
+  if (!el || !act) return;
+  if (!notice || !notice.kind || trialNoticeDismissed(notice.kind)) {
+    el.classList.add("hidden");
+    return;
+  }
+  const rub = rublesLabel(notice.rub);
+  const days = daysLabel(notice.days);
+  if (notice.kind === "claim") {
+    $("trialNoticeTitle").textContent = me.balance_enabled
+      ? "Вам доступен тестовый баланс"
+      : "Вам доступен бесплатный период";
+    $("trialNoticeText").textContent = me.balance_enabled
+      ? `Можно взять ${rub} на пробу — примерно на ${days} одного устройства. Списываться начнут только после подключения.`
+      : `Можно подключить VPN на ${days} без оплаты.`;
+    act.textContent = me.balance_enabled ? `Получить ${rub}` : "Получить";
+    act.classList.remove("hidden");
+  } else {
+    $("trialNoticeTitle").textContent = "Тестовый баланс уже на счёте";
+    $("trialNoticeText").textContent = notice.days > 0
+      ? `Начислено ${rub} — примерно на ${days} одного устройства. Добавьте устройство, чтобы включить VPN. Пока устройств нет, деньги не списываются.`
+      : `Начислено ${rub}. Добавьте устройство, чтобы включить VPN. Пока устройств нет, деньги не списываются.`;
+    act.textContent = "Добавить устройство";
+    act.classList.remove("hidden");
+  }
+  el.classList.remove("hidden");
+}
+
 function paint(me) {
   applyVpnApps(me.vpn_apps);
   if (me.brand_name) document.title = me.brand_name;
@@ -2004,6 +2055,7 @@ function paint(me) {
     avatar.removeAttribute("src");
   }
   paintStatus(me);
+  paintTrialNotice(me);
   if (me.balance_enabled) {
     const rub = me.referral_reward_rub || 50;
     if (me.referral_payout_enabled) {
@@ -2067,7 +2119,13 @@ function paint(me) {
       : `Обещанный платёж · ${daysLabel(t.days)}`;
   }
   const trialHome = $("trialHomeBtn");
-  if (me.trial_available) {
+  const claimOnPlaque = Boolean(
+    me.trial_available
+    && me.trial_notice
+    && me.trial_notice.kind === "claim"
+    && !trialNoticeDismissed("claim")
+  );
+  if (me.trial_available && !claimOnPlaque) {
     trialHome.classList.remove("hidden");
     trialHome.textContent = me.balance_enabled
       ? `Попробовать бесплатно · ${rublesLabel(me.trial_rub)}`
@@ -2217,14 +2275,36 @@ $("topupAmount").onkeydown = (e) => {
   }
 };
 
-$("trialHomeBtn").onclick = async () => {
+async function claimTrial() {
   haptic();
   try {
     await api("/api/trial", { method: "POST", body: "{}" });
+    showToast("Тестовый баланс начислен");
     await load();
   } catch (e) {
     showErr(e);
   }
+}
+
+$("trialHomeBtn").onclick = () => claimTrial();
+
+$("trialNoticeClose").onclick = (e) => {
+  e.stopPropagation();
+  haptic();
+  const kind = window.__me && window.__me.trial_notice && window.__me.trial_notice.kind;
+  dismissTrialNotice(kind);
+  if (window.__me) paint(window.__me);
+};
+
+$("trialNoticeAct").onclick = () => {
+  const notice = window.__me && window.__me.trial_notice;
+  if (!notice) return;
+  if (notice.kind === "claim") {
+    claimTrial();
+    return;
+  }
+  haptic();
+  startWizard();
 };
 
 $("trustBtn").onclick = () => openTrust();

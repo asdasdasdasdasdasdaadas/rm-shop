@@ -200,6 +200,78 @@ body.coach-lock {
   pointer-events: none;
 }
 
+.trial-notice {
+  position: relative;
+  padding: 18px 20px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--glass-tint);
+  border: 1px solid var(--accent-soft-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+}
+
+.trial-notice.hidden { display: none !important; }
+
+.trial-notice-kicker {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding-right: 36px;
+}
+
+.trial-notice-title {
+  margin-top: 6px;
+  padding-right: 36px;
+  color: var(--text-primary);
+  font-family: Unbounded, Inter, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.trial-notice-text {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.trial-notice .btn {
+  width: 100%;
+  margin-top: 14px;
+  min-height: 48px;
+}
+
+.trial-notice-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--glass-strong);
+  cursor: pointer;
+}
+
+.trial-notice-close::before,
+.trial-notice-close::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 1.6px;
+  border-radius: 2px;
+  background: var(--text-secondary);
+}
+
+.trial-notice-close::before { transform: translate(-50%, -50%) rotate(45deg); }
+.trial-notice-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
+
 .status-top {
   display: flex;
   align-items: center;
@@ -2674,6 +2746,7 @@ body.has-main-btn {
 @media (prefers-reduced-transparency: reduce) {
   .account-row,
   .status-card,
+  .trial-notice,
   .section,
   .plat-card,
   .wiz-name-box,

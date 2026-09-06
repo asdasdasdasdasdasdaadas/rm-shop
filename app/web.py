@@ -254,6 +254,36 @@ def _hours_until(when) -> int:
     return max(0, int(sec // 3600))
 
 
+def _trial_notice(
+    local: dict | None,
+    *,
+    devices: list,
+    balance_rub: int,
+    days_left: int,
+) -> dict | None:
+    settings = get_settings()
+    if trial_is_available(local):
+        return {
+            "kind": "claim",
+            "rub": trial_grant_rub() if settings.balance_enabled else 0,
+            "days": trial_grant_days(local) if not settings.balance_enabled else settings.trial_days,
+        }
+    if (
+        settings.balance_enabled
+        and local
+        and local.get("trial_used")
+        and not local.get("has_paid_topup")
+        and not devices
+        and int(balance_rub or 0) > 0
+    ):
+        return {
+            "kind": "granted",
+            "rub": int(balance_rub),
+            "days": max(0, int(days_left or 0)),
+        }
+    return None
+
+
 async def api_me(request: web.Request) -> web.Response:
     settings = get_settings()
     telegram_id, parsed = await _resolve_telegram_id(request)
@@ -358,6 +388,12 @@ async def api_me(request: web.Request) -> web.Response:
             "trial_available": trial_is_available(local),
             "trial_days": trial_grant_days(local) if not settings.balance_enabled else settings.trial_days,
             "trial_rub": trial_grant_rub() if settings.balance_enabled else 0,
+            "trial_notice": _trial_notice(
+                local,
+                devices=devices,
+                balance_rub=balance_rub,
+                days_left=days_left,
+            ),
             "days": days,
             "days_left": days_left,
             "hours_left": hours_left,
