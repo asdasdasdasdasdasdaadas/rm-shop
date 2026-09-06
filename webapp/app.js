@@ -579,7 +579,7 @@ function showIntro(me) {
   try {
     tg.HapticFeedback.impactOccurred("light");
   } catch (_e) {}
-  introTimer = setTimeout(finishIntro, reducedMotion() ? 400 : 2400);
+  introTimer = setTimeout(finishIntro, reducedMotion() ? 400 : 5200);
 }
 
 let mainFn = null;

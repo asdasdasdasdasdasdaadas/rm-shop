@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=54">
+  <link rel="stylesheet" href="app.css?v=55">
 </head>
 <body>
   <div id="boot" class="state">
@@ -27,23 +27,74 @@
   </div>
 
   <div id="intro" class="intro hidden" role="button" tabindex="0" aria-label="Продолжить">
-    <div class="intro-glow" aria-hidden="true"></div>
-    <div class="intro-frog-wrap" aria-hidden="true">
-      <svg class="intro-frog" viewBox="0 0 64 64" fill="none">
-        <ellipse cx="32" cy="38" rx="20" ry="16" fill="#6bd98a"/>
-        <g class="intro-eyes">
-          <circle cx="18" cy="22" r="9" fill="#6bd98a"/>
-          <circle cx="46" cy="22" r="9" fill="#6bd98a"/>
-          <circle cx="18" cy="22" r="5.2" fill="#fff"/>
-          <circle cx="46" cy="22" r="5.2" fill="#fff"/>
-          <circle cx="18" cy="23" r="2.3" fill="#173321"/>
-          <circle cx="46" cy="23" r="2.3" fill="#173321"/>
+    <div class="intro-scene" aria-hidden="true">
+      <svg class="intro-land" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="introSky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1b1240"/>
+            <stop offset="38%" stop-color="#c43b4a"/>
+            <stop offset="62%" stop-color="#f0783a"/>
+            <stop offset="82%" stop-color="#ffc56a"/>
+            <stop offset="100%" stop-color="#f6d48a"/>
+          </linearGradient>
+          <linearGradient id="introWater" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#c45a3a"/>
+            <stop offset="35%" stop-color="#6b3a4a"/>
+            <stop offset="100%" stop-color="#1c2430"/>
+          </linearGradient>
+          <radialGradient id="introSunGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#ffe9a8" stop-opacity="1"/>
+            <stop offset="45%" stop-color="#ffb45a" stop-opacity=".55"/>
+            <stop offset="100%" stop-color="#ff7a3a" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="introHill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#3a2248"/>
+            <stop offset="100%" stop-color="#1a1428"/>
+          </linearGradient>
+        </defs>
+        <rect width="400" height="300" fill="url(#introSky)"/>
+        <circle class="intro-sun-glow" cx="268" cy="118" r="78" fill="url(#introSunGlow)"/>
+        <circle class="intro-sun" cx="268" cy="122" r="34" fill="#ffd27a"/>
+        <path fill="#2a1838" opacity=".55" d="M-10 168c42-28 78-18 112-8 40 12 70-22 118-16 36 4 62 22 90 14 28-8 58-6 100 18v24H-10z"/>
+        <path fill="url(#introHill)" d="M-20 188c48-22 90-8 128 2 44 12 72-14 120-6 38 6 70 20 112 8 32-8 50 4 80 16v32H-20z"/>
+        <rect y="198" width="400" height="102" fill="url(#introWater)"/>
+        <ellipse class="intro-sun-ref" cx="268" cy="214" rx="40" ry="10" fill="#ffd27a" opacity=".28"/>
+        <path fill="none" stroke="#ffd07a" stroke-opacity=".18" stroke-width="2" d="M40 214h80M160 228h70M300 220h50"/>
+        <g class="intro-reeds" fill="#173321">
+          <path d="M48 250c2-28 8-52 6-72 8 18 6 44 8 72z"/>
+          <path d="M62 252c-1-32 6-58 2-78 10 20 8 48 10 78z"/>
+          <path d="M338 248c2-24 7-48 4-66 8 16 6 40 8 66z"/>
+          <path d="M352 250c0-30 8-54 3-74 10 18 8 46 11 74z"/>
         </g>
-        <path d="M20 40q12 10 24 0" stroke="#173321" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-        <ellipse cx="22" cy="45" rx="4.4" ry="2.6" fill="#ffb4b4" opacity=".55"/>
-        <ellipse cx="42" cy="45" rx="4.4" ry="2.6" fill="#ffb4b4" opacity=".55"/>
-        <ellipse cx="18" cy="52" rx="6" ry="3.2" fill="#3f9e63"/>
-        <ellipse cx="46" cy="52" rx="6" ry="3.2" fill="#3f9e63"/>
+        <ellipse cx="132" cy="236" rx="54" ry="14" fill="#1e4a32"/>
+        <ellipse cx="132" cy="234" rx="46" ry="10" fill="#2f7a4e"/>
+        <g class="intro-frog">
+          <ellipse cx="108" cy="232" rx="10" ry="5" fill="#2f7a4e"/>
+          <ellipse cx="156" cy="232" rx="10" ry="5" fill="#2f7a4e"/>
+          <ellipse cx="132" cy="214" rx="28" ry="20" fill="#6bd98a"/>
+          <ellipse cx="118" cy="218" rx="7" ry="4" fill="#ffb4b4" opacity=".5"/>
+          <ellipse cx="148" cy="218" rx="7" ry="4" fill="#ffb4b4" opacity=".5"/>
+          <g class="intro-eyes">
+            <circle cx="118" cy="198" r="11" fill="#6bd98a"/>
+            <circle cx="150" cy="196" r="11" fill="#6bd98a"/>
+            <circle cx="118" cy="198" r="6.2" fill="#fff"/>
+            <circle cx="150" cy="196" r="6.2" fill="#fff"/>
+            <g class="intro-pupils">
+              <circle cx="121" cy="198" r="2.6" fill="#173321"/>
+              <circle cx="153" cy="196" r="2.6" fill="#173321"/>
+            </g>
+          </g>
+          <path d="M122 222q14 8 28-2" stroke="#173321" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+          <path class="intro-tongue" d="M156 220 Q 208 168 252 142" fill="none" stroke="#ff6b8a" stroke-width="7" stroke-linecap="round"/>
+        </g>
+        <g class="intro-fly">
+          <g class="intro-wings">
+            <ellipse cx="-6" cy="-2" rx="7" ry="3.2" fill="#e8f0ff" opacity=".85"/>
+            <ellipse cx="6" cy="-2" rx="7" ry="3.2" fill="#e8f0ff" opacity=".85"/>
+          </g>
+          <ellipse cx="0" cy="1" rx="4.2" ry="2.6" fill="#1a1a1a"/>
+          <circle cx="3.4" cy="0" r="1.1" fill="#3a3a3a"/>
+        </g>
       </svg>
     </div>
     <div class="intro-who">
@@ -430,6 +481,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=50"></script>
+  <script src="app.js?v=51"></script>
 </body>
 </html>
