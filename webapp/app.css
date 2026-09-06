@@ -54,37 +54,65 @@ html, body {
   color: var(--text-primary);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
   overscroll-behavior: none;
 }
 
-body::before,
-body::after {
-  content: "";
+html { overflow-x: hidden; }
+
+.app-bg {
   position: fixed;
-  pointer-events: none;
-  z-index: 0;
-}
-
-body::before {
-  inset: -28% -18%;
-  background:
-    radial-gradient(ellipse 46% 34% at 16% 10%, rgba(95, 214, 139, 0.16), transparent 68%),
-    radial-gradient(ellipse 38% 30% at 92% 22%, rgba(47, 174, 107, 0.1), transparent 70%),
-    radial-gradient(ellipse 42% 28% at 62% 96%, rgba(95, 214, 139, 0.09), transparent 72%);
-  animation: app-bg-drift 32s ease-in-out infinite;
-}
-
-body::after {
   inset: 0;
-  background:
-    radial-gradient(ellipse 80% 36% at 50% 108%, rgba(6, 12, 9, 0.42), transparent 58%);
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-@keyframes app-bg-drift {
+.app-bg-orb {
+  position: absolute;
+  width: min(78vw, 340px);
+  height: min(78vw, 340px);
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.app-bg-orb.a {
+  top: -8%;
+  left: -16%;
+  background: radial-gradient(circle, rgba(95, 214, 139, 0.34) 0%, rgba(95, 214, 139, 0.08) 42%, transparent 70%);
+  animation: app-bg-orb-a 16s ease-in-out infinite;
+}
+
+.app-bg-orb.b {
+  top: 6%;
+  right: -22%;
+  width: min(64vw, 280px);
+  height: min(64vw, 280px);
+  background: radial-gradient(circle, rgba(47, 174, 107, 0.26) 0%, rgba(47, 174, 107, 0.06) 46%, transparent 72%);
+  animation: app-bg-orb-b 20s ease-in-out infinite;
+}
+
+.app-bg-orb.c {
+  bottom: -14%;
+  left: 18%;
+  width: min(86vw, 380px);
+  height: min(86vw, 380px);
+  background: radial-gradient(circle, rgba(95, 214, 139, 0.18) 0%, transparent 68%);
+  animation: app-bg-orb-c 22s ease-in-out infinite;
+}
+
+@keyframes app-bg-orb-a {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  35% { transform: translate3d(2.4%, 1.6%, 0) scale(1.05); }
-  68% { transform: translate3d(-2.2%, 1.1%, 0) scale(1.03); }
+  50% { transform: translate3d(22%, 14%, 0) scale(1.12); }
+}
+
+@keyframes app-bg-orb-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-20%, 18%, 0) scale(1.08); }
+}
+
+@keyframes app-bg-orb-c {
+  0%, 100% { transform: translate3d(0, 8%, 0) scale(1); }
+  50% { transform: translate3d(16%, -12%, 0) scale(1.14); }
 }
 
 body {
@@ -2766,6 +2794,9 @@ body.has-main-btn {
 .app-toast svg { width: 14px; height: 14px; }
 
 @media (prefers-reduced-motion: reduce) {
+  .app-bg-orb {
+    animation: none !important;
+  }
   *,
   *::before,
   *::after {
@@ -2775,8 +2806,7 @@ body.has-main-btn {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  body::before,
-  body::after {
+  .app-bg {
     display: none;
   }
   .account-row,

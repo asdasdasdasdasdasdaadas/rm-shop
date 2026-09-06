@@ -2096,7 +2096,13 @@ function paint(me) {
   const trustHelp = $("trustHelp");
   const menuTrust = $("menuTrust");
   const t = me.trust;
-  const showTrust = Boolean(me.balance_enabled && t && t.enabled !== false);
+  const daysLeft = Number(me.days_left) || 0;
+  const showTrust = Boolean(
+    me.balance_enabled
+    && t
+    && t.enabled !== false
+    && (t.open || daysLeft < 3)
+  );
   if (trustHelp) trustHelp.classList.toggle("hidden", !showTrust);
   if (menuTrust) menuTrust.classList.toggle("hidden", !showTrust);
   if (!showTrust) {
