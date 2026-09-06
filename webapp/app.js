@@ -460,7 +460,7 @@ function showErr(err) {
   tg.showAlert(err.message || String(err));
 }
 
-const INTRO_KEY = "way_intro_v1";
+const INTRO_KEY = "way_intro_v2";
 let introTimer = 0;
 let introShown = false;
 
@@ -579,7 +579,7 @@ function showIntro(me) {
   try {
     tg.HapticFeedback.impactOccurred("light");
   } catch (_e) {}
-  introTimer = setTimeout(finishIntro, reducedMotion() ? 400 : 5200);
+  introTimer = setTimeout(finishIntro, reducedMotion() ? 400 : 5600);
 }
 
 let mainFn = null;

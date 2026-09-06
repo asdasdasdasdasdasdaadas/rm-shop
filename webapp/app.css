@@ -1858,7 +1858,7 @@ body.has-main-btn {
     calc(24px + var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, 0px)))
     24px
     calc(32px + var(--tg-safe-area-inset-bottom, 0px));
-  background: #1b1240;
+  background: #0a0618;
   cursor: pointer;
   overflow: hidden;
 }
@@ -1877,49 +1877,98 @@ body.has-main-btn {
   display: block;
 }
 
+.intro-haze {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 42% at 54% 46%, rgba(255, 176, 90, 0.28), transparent 62%),
+    radial-gradient(ellipse 80% 36% at 50% 100%, rgba(8, 6, 18, 0.62), transparent 58%),
+    linear-gradient(180deg, rgba(10, 6, 24, 0.18) 0%, transparent 22%, transparent 62%, rgba(8, 6, 16, 0.5) 100%);
+}
+
+.intro-vignette {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 120px 28px rgba(6, 4, 16, 0.55);
+}
+
 .intro-sun,
 .intro-sun-glow {
-  transform-origin: 268px 122px;
-  animation: intro-sun 5.2s ease-in-out infinite;
+  transform-origin: 196px 304px;
+  animation: intro-sun 6s ease-in-out infinite;
 }
 
 .intro-sun-ref {
-  animation: intro-ref 5.2s ease-in-out infinite;
+  animation: intro-ref 6s ease-in-out infinite;
 }
 
-.intro-reeds {
-  transform-origin: 200px 250px;
-  animation: intro-reeds 3.6s ease-in-out infinite;
+.intro-stars circle:nth-child(odd) { animation: intro-twinkle 3.4s ease-in-out infinite; }
+.intro-stars circle:nth-child(even) { animation: intro-twinkle 4.2s ease-in-out 0.6s infinite; }
+
+.intro-clouds {
+  animation: intro-drift 18s linear infinite;
 }
+
+.intro-birds {
+  animation: intro-birds 14s linear infinite;
+}
+
+.intro-shimmer {
+  animation: intro-shimmer 3.8s ease-in-out infinite;
+}
+
+.intro-mist {
+  animation: intro-mist 7s ease-in-out infinite;
+}
+
+.intro-reeds-l {
+  transform-origin: 46px 560px;
+  animation: intro-reeds 4.2s ease-in-out infinite;
+}
+
+.intro-reeds-r {
+  transform-origin: 322px 560px;
+  animation: intro-reeds 4.8s ease-in-out 0.4s infinite;
+}
+
+.intro-bug.a { animation: intro-bug 5.2s ease-in-out infinite; }
+.intro-bug.b { animation: intro-bug 6.1s ease-in-out 0.8s infinite; }
+.intro-bug.c { animation: intro-bug 4.6s ease-in-out 1.4s infinite; }
+.intro-bug.d { animation: intro-bug 5.8s ease-in-out 0.3s infinite; }
 
 .intro-frog {
-  transform-origin: 132px 234px;
-  animation: intro-lean 4.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+  transform-origin: 128px 516px;
+  animation: intro-lean 5.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
 }
 
 .intro-eyes {
   transform-box: fill-box;
   transform-origin: center;
-  animation: intro-blink 3.2s ease-in-out infinite;
+  animation: intro-blink 3.6s ease-in-out infinite;
 }
 
 .intro-pupils {
-  animation: intro-look 4.8s ease-in-out infinite;
+  animation: intro-look 5.2s ease-in-out infinite;
 }
 
 .intro-tongue {
-  stroke-dasharray: 0 220;
-  animation: intro-lick 4.8s cubic-bezier(0.18, 0.9, 0.22, 1) infinite;
+  stroke-dasharray: 0 280;
+  filter: drop-shadow(0 0 4px rgba(255, 120, 140, 0.45));
+  animation: intro-lick 5.2s cubic-bezier(0.16, 0.9, 0.2, 1) infinite;
 }
 
 .intro-fly {
   transform-origin: 0 0;
-  animation: intro-buzz 4.8s ease-in-out infinite;
+  animation: intro-buzz 5.2s ease-in-out infinite;
+}
+
+.intro-fly-glow {
+  animation: intro-fly-glow 1.2s ease-in-out infinite;
 }
 
 .intro-wings {
   transform-origin: 0px 0px;
-  animation: intro-wing 0.12s ease-in-out infinite;
+  animation: intro-wing 0.11s ease-in-out infinite;
 }
 
 .intro-who {
@@ -1931,11 +1980,12 @@ body.has-main-btn {
   max-width: 100%;
   padding: 14px 16px;
   border-radius: var(--radius-lg);
-  background: rgba(12, 10, 22, 0.42);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  animation: intro-who-in 0.5s cubic-bezier(0.32, 0.72, 0, 1) both;
+  background: rgba(18, 10, 22, 0.48);
+  border: 1px solid rgba(255, 210, 150, 0.18);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  animation: intro-who-in 0.7s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 .intro-avatar {
@@ -1944,7 +1994,7 @@ body.has-main-btn {
   border-radius: 50%;
   object-fit: cover;
   background: rgba(95, 214, 139, 0.16);
-  border: 2px solid rgba(95, 214, 139, 0.35);
+  border: 2px solid rgba(255, 210, 150, 0.4);
   flex-shrink: 0;
 }
 
@@ -1961,14 +2011,14 @@ body.has-main-btn {
 .intro-fallback.hidden { display: none !important; }
 
 .intro-hello {
-  color: var(--text-secondary);
+  color: rgba(255, 230, 200, 0.72);
   font-size: 15px;
   font-weight: 500;
 }
 
 .intro-name {
   font-family: Unbounded, Inter, sans-serif;
-  color: var(--text-primary);
+  color: #fff6ea;
   font-size: 22px;
   font-weight: 600;
   line-height: 1.2;
@@ -1979,58 +2029,96 @@ body.has-main-btn {
 }
 
 .intro-nick {
-  color: var(--text-tertiary);
+  color: rgba(255, 214, 170, 0.55);
   font-size: 13px;
   margin-top: 2px;
 }
 
 @keyframes intro-sun {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); }
+  50% { transform: scale(1.05); }
 }
 
 @keyframes intro-ref {
-  0%, 100% { opacity: 0.22; transform: scaleX(1); }
-  50% { opacity: 0.38; transform: scaleX(1.08); }
+  0%, 100% { opacity: 0.28; transform: scaleX(1); }
+  50% { opacity: 0.48; transform: scaleX(1.1); }
+}
+
+@keyframes intro-twinkle {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.9; }
+}
+
+@keyframes intro-drift {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(10px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes intro-birds {
+  0% { transform: translateX(0); opacity: 0.7; }
+  50% { transform: translateX(-18px); opacity: 1; }
+  100% { transform: translateX(0); opacity: 0.7; }
+}
+
+@keyframes intro-shimmer {
+  0%, 100% { opacity: 0.55; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(8px); }
+}
+
+@keyframes intro-mist {
+  0%, 100% { opacity: 0.1; transform: translateX(0); }
+  50% { opacity: 0.2; transform: translateX(12px); }
 }
 
 @keyframes intro-reeds {
   0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(2.2deg); }
+  50% { transform: rotate(2.6deg); }
+}
+
+@keyframes intro-bug {
+  0%, 100% { opacity: 0.15; transform: translate(0, 0); }
+  40% { opacity: 0.95; transform: translate(6px, -10px); }
+  70% { opacity: 0.35; transform: translate(-4px, -4px); }
 }
 
 @keyframes intro-lean {
-  0%, 28%, 62%, 100% { transform: rotate(0deg); }
-  36%, 48% { transform: rotate(-7deg); }
+  0%, 26%, 60%, 100% { transform: rotate(0deg); }
+  34%, 46% { transform: rotate(-8deg); }
 }
 
 @keyframes intro-look {
-  0%, 22% { transform: translate(0, 0); }
-  30%, 50% { transform: translate(2.4px, -1.4px); }
+  0%, 20% { transform: translate(0, 0); }
+  28%, 48% { transform: translate(2.6px, -1.6px); }
   58%, 100% { transform: translate(0, 0); }
 }
 
 @keyframes intro-lick {
-  0%, 30% { stroke-dasharray: 0 220; }
-  36%, 46% { stroke-dasharray: 148 220; }
-  56%, 100% { stroke-dasharray: 0 220; }
+  0%, 28% { stroke-dasharray: 0 280; }
+  34%, 46% { stroke-dasharray: 188 280; }
+  56%, 100% { stroke-dasharray: 0 280; }
 }
 
 @keyframes intro-buzz {
-  0% { transform: translate(290px, 88px); opacity: 1; }
-  18% { transform: translate(250px, 118px); opacity: 1; }
-  30% { transform: translate(252px, 142px); opacity: 1; }
-  36% { transform: translate(252px, 142px); opacity: 1; }
-  46% { transform: translate(168px, 214px); opacity: 1; }
-  52% { transform: translate(168px, 214px); opacity: 0; }
-  62% { transform: translate(310px, 70px); opacity: 0; }
-  70% { transform: translate(310px, 70px); opacity: 1; }
-  100% { transform: translate(290px, 88px); opacity: 1; }
+  0% { transform: translate(300px, 250px); opacity: 1; }
+  16% { transform: translate(248px, 318px); opacity: 1; }
+  28% { transform: translate(272px, 392px); opacity: 1; }
+  34% { transform: translate(272px, 392px); opacity: 1; }
+  46% { transform: translate(162px, 490px); opacity: 1; }
+  52% { transform: translate(162px, 490px); opacity: 0; }
+  64% { transform: translate(318px, 210px); opacity: 0; }
+  72% { transform: translate(318px, 210px); opacity: 1; }
+  100% { transform: translate(300px, 250px); opacity: 1; }
+}
+
+@keyframes intro-fly-glow {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.25); }
 }
 
 @keyframes intro-wing {
   0%, 100% { transform: scaleY(1) rotate(-8deg); }
-  50% { transform: scaleY(0.35) rotate(10deg); }
+  50% { transform: scaleY(0.32) rotate(12deg); }
 }
 
 @keyframes intro-blink {
@@ -2044,7 +2132,7 @@ body.has-main-btn {
 }
 
 @keyframes intro-who-in {
-  from { opacity: 0.35; transform: translateY(10px); }
+  from { opacity: 0.2; transform: translateY(14px); }
   to { opacity: 1; transform: none; }
 }
 
@@ -2052,16 +2140,24 @@ body.has-main-btn {
   .intro-sun,
   .intro-sun-glow,
   .intro-sun-ref,
-  .intro-reeds,
+  .intro-stars circle,
+  .intro-clouds,
+  .intro-birds,
+  .intro-shimmer,
+  .intro-mist,
+  .intro-reeds-l,
+  .intro-reeds-r,
+  .intro-bug,
   .intro-frog,
   .intro-pupils,
   .intro-tongue,
   .intro-fly,
+  .intro-fly-glow,
   .intro-wings {
     animation: none !important;
   }
-  .intro-tongue { stroke-dasharray: 0 220; }
-  .intro-fly { transform: translate(252px, 142px); }
+  .intro-tongue { stroke-dasharray: 0 280; }
+  .intro-fly { transform: translate(272px, 392px); }
 }
 
 .coach {
