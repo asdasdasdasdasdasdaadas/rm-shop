@@ -86,7 +86,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "29"})
+    return web.json_response({"ok": True, "build": "30"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -338,6 +338,60 @@ async def api_messages(request: web.Request) -> web.Response:
         _query_extra(request, "channel", "source", "kind", "from", "to"),
     )
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+
+
+async def api_tickets(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    q = str(request.query.get("q") or "")
+    page = max(1, int(request.query.get("page") or 1))
+    limit = min(100, max(1, int(request.query.get("limit") or 40)))
+    items, total = await db.admin_list_tickets(
+        q,
+        limit,
+        (page - 1) * limit,
+        _query_extra(request, "status", "from", "to"),
+    )
+    return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+
+
+async def api_ticket_one(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    ticket_id = int(request.match_info["ticket_id"])
+    ticket = await db.get_ticket(ticket_id)
+    if not ticket:
+        return web.json_response({"ok": False, "error": "Тикет не найден"}, status=404)
+    messages = await db.list_ticket_messages(ticket_id)
+    return web.json_response({"ok": True, "ticket": ticket, "messages": messages})
+
+
+async def api_ticket_act(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    ticket_id = int(request.match_info["ticket_id"])
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    action = str((body or {}).get("action") or "reply").strip()
+    bot: Bot = request.app["bot"]
+    from app.tickets import close_ticket, receive_admin_reply
+
+    try:
+        if action == "close":
+            ticket = await close_ticket(bot, ticket_id)
+        else:
+            ticket = await receive_admin_reply(bot, ticket_id, str(body.get("text") or ""))
+    except KeyError:
+        return web.json_response({"ok": False, "error": "Тикет не найден"}, status=404)
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    messages = await db.list_ticket_messages(ticket_id)
+    return web.json_response({"ok": True, "ticket": ticket, "messages": messages})
 
 
 async def api_billing(request: web.Request) -> web.Response:
@@ -1311,6 +1365,9 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/orders", api_orders)
     app.router.add_get("/admin/api/reports", api_reports)
     app.router.add_get("/admin/api/messages", api_messages)
+    app.router.add_get("/admin/api/tickets", api_tickets)
+    app.router.add_get("/admin/api/tickets/{ticket_id}", api_ticket_one)
+    app.router.add_post("/admin/api/tickets/{ticket_id}", api_ticket_act)
     app.router.add_get("/admin/api/billing", api_billing)
     app.router.add_get("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/settings", api_settings)

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=60">
+  <link rel="stylesheet" href="app.css?v=61">
 </head>
 <body>
   <div class="app-bg" aria-hidden="true">
@@ -426,6 +426,17 @@
       </div>
     </div>
 
+    <div id="view-support" class="view hidden">
+      <p class="wiz-kicker">Поддержка</p>
+      <h1 class="wiz-title">Тикет</h1>
+      <p id="supportStatus" class="section-note topup-hint">Напишите, что случилось. Ответ придёт сюда и в чат бота.</p>
+      <div id="supportThread" class="support-thread"></div>
+      <div class="support-compose">
+        <textarea id="supportText" rows="3" maxlength="2000" placeholder="Сообщение"></textarea>
+        <button type="button" id="supportSend" class="btn btn-primary">Отправить</button>
+      </div>
+    </div>
+
     <div id="view-topup" class="view hidden">
       <p class="wiz-kicker">Пополнение</p>
       <h1 class="wiz-title">Сколько зальём?</h1>
@@ -552,7 +563,7 @@
     <button type="button" id="menuTrust" class="hidden" role="menuitem">Обещанный платёж</button>
     <a id="offerLink" href="#" target="_blank" rel="noopener">Оферта</a>
     <a id="privacyLink" href="#" target="_blank" rel="noopener">Политика конфиденциальности</a>
-    <a id="supportLink" href="#" target="_blank" rel="noopener">Поддержка</a>
+    <button type="button" id="supportLink">Поддержка</button>
   </div>
   <div id="menuScrim" class="scrim hidden"></div>
 
@@ -583,6 +594,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=55"></script>
+  <script src="app.js?v=56"></script>
 </body>
 </html>

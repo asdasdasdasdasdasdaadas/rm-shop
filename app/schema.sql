@@ -225,4 +225,31 @@ CREATE INDEX IF NOT EXISTS message_log_kind_idx ON message_log (kind, created_at
 CREATE INDEX IF NOT EXISTS message_log_tg_idx ON message_log (telegram_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS message_log_source_idx ON message_log (source, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS tickets (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users (telegram_id) ON DELETE CASCADE,
+    username TEXT,
+    first_name TEXT,
+    status TEXT NOT NULL DEFAULT 'open',
+    last_message_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    closed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS tickets_status_idx ON tickets (status, last_message_at DESC);
+CREATE INDEX IF NOT EXISTS tickets_user_idx ON tickets (telegram_id, last_message_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS tickets_one_open_idx
+    ON tickets (telegram_id)
+    WHERE status <> 'closed';
+
+CREATE TABLE IF NOT EXISTS ticket_messages (
+    id BIGSERIAL PRIMARY KEY,
+    ticket_id BIGINT NOT NULL REFERENCES tickets (id) ON DELETE CASCADE,
+    author TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
+);
+
+CREATE INDEX IF NOT EXISTS ticket_messages_ticket_idx ON ticket_messages (ticket_id, id);
+
 

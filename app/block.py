@@ -55,6 +55,25 @@ class BlockedMiddleware(BaseMiddleware):
         if not await db.user_is_blocked(user.id):
             return await handler(event, data)
         bot: Bot | None = data.get("bot")
+        if isinstance(inner, Message):
+            body = (inner.text or inner.caption or "").strip()
+            if body and not body.startswith("/") and bot:
+                from app.tickets import receive_user_message
+
+                try:
+                    await receive_user_message(
+                        bot,
+                        telegram_id=user.id,
+                        username=getattr(user, "username", None),
+                        first_name=getattr(user, "first_name", None),
+                        body=body,
+                        source="bot",
+                    )
+                except ValueError:
+                    pass
+                return None
+        if isinstance(inner, CallbackQuery) and (inner.data or "") == "support_ticket":
+            return await handler(event, data)
         if isinstance(inner, CallbackQuery):
             try:
                 await inner.answer("Доступ ограничен", show_alert=True)

@@ -7,13 +7,14 @@ let billPage = 1;
 let currentUser = null;
 let selectedUsers = new Set();
 let lastUserItems = [];
-const TABS = ["overview", "users", "referrals", "orders", "billing", "reports", "messages", "broadcast", "promo", "backups", "settings"];
+const TABS = ["overview", "users", "referrals", "orders", "billing", "reports", "tickets", "messages", "broadcast", "promo", "backups", "settings"];
 const TAB_KEYS = {
   users: ["q", "status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to"],
   referrals: ["q", "reward", "from", "to"],
   orders: ["q", "status", "from", "to"],
   billing: ["q", "kind", "source", "from", "to"],
   reports: ["status", "from", "to"],
+  tickets: ["q", "status", "from", "to"],
   messages: ["q", "channel", "source", "kind", "from", "to"],
 };
 const MSG_KIND_LABEL = {
@@ -37,6 +38,8 @@ const MSG_FILTER_IDS = {
   from: "msgFrom",
   to: "msgTo",
 };
+const TICKET_STATUS_LABEL = { open: "ждёт ответа", pending: "есть ответ", closed: "закрыт" };
+const TICKET_FILTER_IDS = { q: "ticketQ", status: "ticketStatus", from: "ticketFrom", to: "ticketTo" };
 let toastTimer = 0;
 let pageLimit = Number(localStorage.getItem("way-admin-limit") || 25);
 if (![25, 50, 100].includes(pageLimit)) pageLimit = 25;
@@ -372,6 +375,9 @@ function switchTab(name, opts = {}) {
         route.tab === "reports" ? route.params : new URLSearchParams()
       );
     }
+    if (name === "tickets") {
+      fillFromParams(TICKET_FILTER_IDS, route.tab === "tickets" ? route.params : new URLSearchParams());
+    }
     if (name === "messages") {
       fillFromParams(MSG_FILTER_IDS, route.tab === "messages" ? route.params : new URLSearchParams());
     }
@@ -419,6 +425,9 @@ function switchTab(name, opts = {}) {
         if (v) params.set(k, v);
       });
     }
+    if (name === "tickets") {
+      Object.entries(collectTicketFilters()).forEach(([k, v]) => v && params.set(k, v));
+    }
     if (name === "messages") {
       Object.entries(collectMsgFilters()).forEach(([k, v]) => v && params.set(k, v));
     }
@@ -437,6 +446,7 @@ function switchTab(name, opts = {}) {
   if (name === "orders") loadOrders();
   if (name === "billing") loadBilling();
   if (name === "reports") loadReports();
+  if (name === "tickets") loadTickets();
   if (name === "messages") loadMessages();
   if (name === "backups") loadBackups();
   if (name === "broadcast") loadBroadcastJob();
@@ -695,6 +705,7 @@ async function loadStats() {
       ["Заявки на вывод", u.payouts_pending || 0, "referrals"],
     ]);
     fill("cardsIssues", [
+      ["Открытые тикеты", s.tickets_open || 0, "tickets"],
       ["Жалобы VPN", s.vpn_reports || 0, "reports"],
       ["Заблокированы", u.blocked || 0, "users"],
     ]);
@@ -1358,6 +1369,126 @@ async function loadReports(page) {
   pager($("reportPager"), data.page, data.total, data.limit, loadReports);
 }
 
+function collectTicketFilters() {
+  return {
+    q: val("ticketQ"),
+    status: val("ticketStatus"),
+    from: val("ticketFrom"),
+    to: val("ticketTo"),
+  };
+}
+
+function ticketWho(r) {
+  return `${r.telegram_id}` + (r.username ? ` @${r.username}` : "") + (r.first_name ? ` · ${r.first_name}` : "");
+}
+
+function paintTicketThread(messages) {
+  const box = $("ticketThread");
+  if (!box) return;
+  box.innerHTML = "";
+  if (!messages || !messages.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "Сообщений пока нет";
+    box.appendChild(empty);
+    return;
+  }
+  messages.forEach((m) => {
+    const wrap = document.createElement("div");
+    wrap.className = "ticket-bubble " + (m.author === "admin" ? "admin" : "user");
+    const meta = document.createElement("div");
+    meta.className = "ticket-bubble-meta";
+    meta.textContent = (m.author === "admin" ? "Поддержка" : "Клиент") + " · " + fmt(m.created_at);
+    const body = document.createElement("div");
+    body.className = "ticket-bubble-body";
+    body.textContent = m.body || "";
+    wrap.appendChild(meta);
+    wrap.appendChild(body);
+    box.appendChild(wrap);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+let ticketPage = 1;
+let selectedTicketId = 0;
+
+async function loadTicket(id) {
+  selectedTicketId = Number(id) || 0;
+  const head = $("ticketHead");
+  const meta = $("ticketMeta");
+  if (!selectedTicketId) {
+    if (head) head.textContent = "Выберите тикет";
+    if (meta) meta.textContent = "Ответ появится в чате бота и в кабинете.";
+    paintTicketThread([]);
+    return;
+  }
+  let data;
+  try {
+    data = await api(`/admin/api/tickets/${selectedTicketId}`);
+  } catch (_e) {
+    if (head) head.textContent = "Не удалось открыть тикет";
+    return;
+  }
+  const t = data.ticket || {};
+  if (head) head.textContent = `Тикет #${t.id} · ${TICKET_STATUS_LABEL[t.status] || t.status || ""}`;
+  if (meta) meta.textContent = ticketWho(t);
+  paintTicketThread(data.messages || []);
+  document.querySelectorAll("#ticketRows tr").forEach((tr) => {
+    tr.classList.toggle("is-selected", Number(tr.dataset.id) === selectedTicketId);
+  });
+}
+
+async function loadTickets(page) {
+  if (page) ticketPage = page;
+  const f = collectTicketFilters();
+  const reset = $("ticketReset");
+  if (reset) reset.classList.toggle("hidden", !hasAny(f));
+  const chips = [];
+  if (f.status) chips.push(["status", TICKET_STATUS_LABEL[f.status] || f.status]);
+  if (f.q) chips.push(["q", f.q]);
+  if (f.from) chips.push(["from", "с " + f.from]);
+  if (f.to) chips.push(["to", "по " + f.to]);
+  paintChips("ticketChips", chips, (key) => {
+    setVal(TICKET_FILTER_IDS[key], "");
+    loadTickets(1);
+  });
+  writeRoute("tickets", new URLSearchParams(Object.entries(f).filter(([, v]) => v)));
+  const body = $("ticketRows");
+  if (!body) return;
+  body.innerHTML = "";
+  const labels = ["Номер", "Обновлён", "Пользователь", "Статус", "Последнее"];
+  let data;
+  try {
+    data = await api(`/admin/api/tickets?${queryString({ ...f, page: ticketPage })}`);
+  } catch (_e) {
+    body.appendChild(emptyRow(5, "Не удалось загрузить тикеты"));
+    return;
+  }
+  if (!data.items.length) {
+    body.appendChild(emptyRow(5, hasAny(f) ? "Тикетов не нашли" : "Тикетов пока нет"));
+  }
+  data.items.forEach((r) => {
+    const tr = document.createElement("tr");
+    tr.dataset.id = String(r.id);
+    tr.style.cursor = "pointer";
+    if (Number(r.id) === selectedTicketId) tr.classList.add("is-selected");
+    ["#" + r.id, fmt(r.last_message_at || r.created_at), ticketWho(r), TICKET_STATUS_LABEL[r.status] || r.status || "—", msgPreview(r.last_body)].forEach((t) => {
+      const td = document.createElement("td");
+      td.textContent = t;
+      tr.appendChild(td);
+    });
+    labelRow(tr, labels);
+    tr.onclick = () => loadTicket(r.id);
+    body.appendChild(tr);
+  });
+  pager($("ticketPager"), data.page, data.total, data.limit, loadTickets);
+  if (selectedTicketId && data.items.some((r) => Number(r.id) === selectedTicketId)) {
+    loadTicket(selectedTicketId);
+  } else if (!selectedTicketId && data.items.length) {
+    loadTicket(data.items[0].id);
+  }
+}
+
 function collectMsgFilters() {
   return {
     q: val("msgQ"),
@@ -1853,7 +1984,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey && tag !== "INPUT" && tag !== "TEXTAREA") {
     e.preventDefault();
     const tab = tabFromHash();
-    const map = { users: "userQ", referrals: "refQ", orders: "orderQ", billing: "billQ" };
+    const map = { users: "userQ", referrals: "refQ", orders: "orderQ", billing: "billQ", tickets: "ticketQ" };
     const id = map[tab];
     if (id && $(id)) $(id).focus();
   }
@@ -1940,6 +2071,59 @@ $("refQ").oninput = debounce(() => loadReferrals(1), 300);
   const el = $(id);
   if (el) el.onchange = () => loadReports(1);
 });
+if ($("ticketSearch")) $("ticketSearch").onclick = () => loadTickets(1);
+if ($("ticketReset")) {
+  $("ticketReset").onclick = () => {
+    Object.values(TICKET_FILTER_IDS).forEach((id) => setVal(id, ""));
+    loadTickets(1);
+  };
+}
+if ($("ticketQ")) {
+  $("ticketQ").oninput = debounce(() => loadTickets(1), 300);
+  $("ticketQ").onkeydown = (e) => {
+    if (e.key === "Enter") loadTickets(1);
+  };
+}
+["ticketStatus", "ticketFrom", "ticketTo"].forEach((id) => {
+  const el = $(id);
+  if (el) el.onchange = () => loadTickets(1);
+});
+if ($("ticketSend")) {
+  $("ticketSend").onclick = async () => {
+    if (!selectedTicketId) return;
+    const text = val("ticketReply");
+    try {
+      await api(`/admin/api/tickets/${selectedTicketId}`, {
+        method: "POST",
+        body: JSON.stringify({ action: "reply", text }),
+      });
+      $("ticketReply").value = "";
+      toast("Ответ отправлен");
+      await loadTickets();
+      await loadTicket(selectedTicketId);
+    } catch (err) {
+      toast(err.message || "Не удалось ответить");
+    }
+  };
+}
+if ($("ticketClose")) {
+  $("ticketClose").onclick = async () => {
+    if (!selectedTicketId) return;
+    const ok = await confirmAction("Закрыть тикет", "Пользователь получит сообщение, что тикет закрыт.", false);
+    if (!ok) return;
+    try {
+      await api(`/admin/api/tickets/${selectedTicketId}`, {
+        method: "POST",
+        body: JSON.stringify({ action: "close" }),
+      });
+      toast("Тикет закрыт");
+      await loadTickets();
+      await loadTicket(selectedTicketId);
+    } catch (err) {
+      toast(err.message || "Не удалось закрыть");
+    }
+  };
+}
 if ($("msgSearch")) $("msgSearch").onclick = () => loadMessages(1);
 if ($("msgReset")) {
   $("msgReset").onclick = () => {

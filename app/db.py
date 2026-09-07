@@ -1549,6 +1549,9 @@ async def admin_stats() -> dict:
         "promo_uses": int(promo or 0),
         "stars_payments": int(stars or 0),
         "vpn_reports": int(await pool.fetchval("SELECT COUNT(*)::int FROM vpn_reports") or 0),
+        "tickets_open": int(
+            await pool.fetchval("SELECT COUNT(*)::int FROM tickets WHERE status = 'open'") or 0
+        ),
         "billing_today": dict(billing_today) if billing_today else {},
         "online": dict(online) if online else {},
         "broadcast_users": int(broadcast_users or 0),
@@ -2347,6 +2350,199 @@ async def admin_list_messages(
         SELECT * FROM message_log
         {where}
         ORDER BY created_at DESC, id DESC
+        LIMIT ${n + 1} OFFSET ${n + 2}
+        """,
+        *args,
+        limit,
+        offset,
+    )
+    return [_jsonable(dict(r)) for r in rows], int(total or 0)
+
+
+async def open_or_get_ticket(
+    telegram_id: int,
+    username: str | None = None,
+    first_name: str | None = None,
+) -> tuple[dict, bool]:
+    pool = _pool_req()
+    row = await pool.fetchrow(
+        """
+        SELECT * FROM tickets
+        WHERE telegram_id = $1 AND status <> 'closed'
+        ORDER BY last_message_at DESC, id DESC
+        LIMIT 1
+        """,
+        int(telegram_id),
+    )
+    if row:
+        await pool.execute(
+            """
+            UPDATE tickets
+            SET username = COALESCE($2, username), first_name = COALESCE($3, first_name)
+            WHERE id = $1
+            """,
+            int(row["id"]),
+            (username or "")[:64] or None,
+            (first_name or "")[:128] or None,
+        )
+        fresh = await pool.fetchrow("SELECT * FROM tickets WHERE id = $1", int(row["id"]))
+        return _jsonable(dict(fresh)), False
+    try:
+        new = await pool.fetchrow(
+            """
+            INSERT INTO tickets (telegram_id, username, first_name, status)
+            VALUES ($1, $2, $3, 'open')
+            RETURNING *
+            """,
+            int(telegram_id),
+            (username or "")[:64] or None,
+            (first_name or "")[:128] or None,
+        )
+    except asyncpg.UniqueViolationError:
+        return await open_or_get_ticket(telegram_id, username, first_name)
+    return _jsonable(dict(new)), True
+
+
+async def add_ticket_message(
+    ticket_id: int,
+    author: str,
+    body: str,
+    *,
+    user_waiting: bool | None = None,
+) -> dict:
+    pool = _pool_req()
+    who = "admin" if author == "admin" else "user"
+    if user_waiting is None:
+        status = "open" if who == "user" else "pending"
+    else:
+        status = "open" if user_waiting else "pending"
+    row = await pool.fetchrow(
+        """
+        INSERT INTO ticket_messages (ticket_id, author, body)
+        VALUES ($1, $2, $3)
+        RETURNING *
+        """,
+        int(ticket_id),
+        who,
+        str(body or "")[:2000],
+    )
+    await pool.execute(
+        """
+        UPDATE tickets
+        SET status = $2,
+            last_message_at = timezone('utc', now()),
+            closed_at = NULL
+        WHERE id = $1
+        """,
+        int(ticket_id),
+        status,
+    )
+    return _jsonable(dict(row))
+
+
+async def set_ticket_status(ticket_id: int, status: str) -> None:
+    st = str(status or "open")
+    if st not in {"open", "pending", "closed"}:
+        st = "open"
+    closed_sql = "timezone('utc', now())" if st == "closed" else "NULL"
+    await _pool_req().execute(
+        f"""
+        UPDATE tickets
+        SET status = $2, closed_at = {closed_sql}
+        WHERE id = $1
+        """,
+        int(ticket_id),
+        st,
+    )
+
+
+async def get_ticket(ticket_id: int) -> dict | None:
+    row = await _pool_req().fetchrow("SELECT * FROM tickets WHERE id = $1", int(ticket_id))
+    return _jsonable(dict(row)) if row else None
+
+
+async def list_ticket_messages(ticket_id: int) -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT * FROM ticket_messages
+        WHERE ticket_id = $1
+        ORDER BY id ASC
+        """,
+        int(ticket_id),
+    )
+    return [_jsonable(dict(r)) for r in rows]
+
+
+async def user_list_tickets(telegram_id: int, limit: int = 20) -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT t.*,
+            (
+                SELECT tm.body FROM ticket_messages tm
+                WHERE tm.ticket_id = t.id
+                ORDER BY tm.id DESC LIMIT 1
+            ) AS last_body
+        FROM tickets t
+        WHERE t.telegram_id = $1
+        ORDER BY t.last_message_at DESC, t.id DESC
+        LIMIT $2
+        """,
+        int(telegram_id),
+        int(limit),
+    )
+    return [_jsonable(dict(r)) for r in rows]
+
+
+async def admin_list_tickets(
+    query: str,
+    limit: int,
+    offset: int,
+    extra: dict | None = None,
+) -> tuple[list[dict], int]:
+    pool = _pool_req()
+    extra = extra or {}
+    clauses: list[str] = []
+    args: list = []
+    status = str(extra.get("status") or "").strip()
+    if status in {"open", "pending", "closed"}:
+        args.append(status)
+        clauses.append(f"status = ${len(args)}")
+    q = (query or "").strip()
+    if q:
+        args.append(f"%{q}%")
+        n = len(args)
+        clauses.append(
+            f"""(
+            COALESCE(username, '') ILIKE ${n}
+            OR COALESCE(first_name, '') ILIKE ${n}
+            OR telegram_id::text LIKE ${n}
+            OR id::text LIKE ${n}
+            )"""
+        )
+    from_d = str(extra.get("from") or "").strip()
+    to_d = str(extra.get("to") or "").strip()
+    if from_d:
+        args.append(from_d)
+        clauses.append(f"last_message_at >= ${len(args)}::date")
+    if to_d:
+        args.append(to_d)
+        clauses.append(f"last_message_at < (${len(args)}::date + INTERVAL '1 day')")
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    total = await pool.fetchval(f"SELECT COUNT(*)::int FROM tickets {where}", *args)
+    n = len(args)
+    rows = await pool.fetch(
+        f"""
+        SELECT t.*,
+            (
+                SELECT tm.body FROM ticket_messages tm
+                WHERE tm.ticket_id = t.id
+                ORDER BY tm.id DESC LIMIT 1
+            ) AS last_body
+        FROM tickets t
+        {where}
+        ORDER BY
+            CASE t.status WHEN 'open' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+            t.last_message_at DESC, t.id DESC
         LIMIT ${n + 1} OFFSET ${n + 2}
         """,
         *args,

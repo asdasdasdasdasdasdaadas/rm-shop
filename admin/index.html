@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="35">
+  <meta name="admin-build" content="36">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=31">
+  <link rel="stylesheet" href="app.css?v=32">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -33,7 +33,7 @@
       <div class="login-mark" aria-hidden="true">
         <svg viewBox="0 0 48 48" fill="none"><ellipse cx="24" cy="30" rx="11" ry="13" fill="currentColor"/><circle cx="12" cy="14" r="4.4" fill="currentColor"/><circle cx="36" cy="14" r="4.4" fill="currentColor"/><circle cx="20" cy="8" r="3.6" fill="currentColor" opacity=".75"/><circle cx="28" cy="8" r="3.6" fill="currentColor" opacity=".75"/></svg>
       </div>
-      <p class="login-kicker">Админка · сборка 35</p>
+      <p class="login-kicker">Админка · сборка 36</p>
       <h1>Кабинет сервиса</h1>
       <p class="muted">Пользователи, оплаты, биллинг и настройки. Тема переключается кнопкой сверху.</p>
       <label class="field-label" for="password">Пароль</label>
@@ -81,6 +81,10 @@
         <button type="button" data-tab="reports" data-title="Жалобы VPN" data-lead="Сообщения «VPN не работает»">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M12 8v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16.2" r="1" fill="currentColor"/><path d="M11.1 4.8L3.6 18.2A2 2 0 005.4 21h13.2a2 2 0 001.8-2.8L12.9 4.8a1 1 0 00-1.8 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           <span class="nav-text">Жалобы VPN</span>
+        </button>
+        <button type="button" data-tab="tickets" data-title="Тикеты" data-lead="Обращения в поддержку из бота и кабинета">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M5 6h14v10H8l-3 3V6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          <span class="nav-text">Тикеты</span>
         </button>
         <div class="nav-label">Сервис</div>
         <button type="button" data-tab="broadcast" data-title="Рассылка" data-lead="Шаблоны по аудитории или свой текст">
@@ -545,6 +549,51 @@
           </div>
         </section>
 
+        <section id="tab-tickets" class="hidden">
+          <p class="muted intro">Обращения из бота и кабинета. Ответ уходит пользователю в Telegram и в тред кабинета.</p>
+          <div class="filters">
+            <select id="ticketStatus" aria-label="Статус">
+              <option value="">Статус: все</option>
+              <option value="open">Ждёт ответа</option>
+              <option value="pending">Есть ответ</option>
+              <option value="closed">Закрыт</option>
+            </select>
+            <input id="ticketQ" type="search" placeholder="Поиск по имени, ID, номеру" aria-label="Поиск">
+            <input id="ticketFrom" type="date" aria-label="С">
+            <input id="ticketTo" type="date" aria-label="По">
+            <button type="button" id="ticketSearch">Найти</button>
+            <button type="button" id="ticketReset" class="ghost hidden">Сбросить фильтры</button>
+          </div>
+          <div id="ticketChips" class="filter-chips"></div>
+          <div class="table-wrap">
+            <table class="table-as-cards">
+              <thead>
+                <tr>
+                  <th>Номер</th>
+                  <th>Обновлён</th>
+                  <th>Пользователь</th>
+                  <th>Статус</th>
+                  <th>Последнее</th>
+                </tr>
+              </thead>
+              <tbody id="ticketRows"></tbody>
+            </table>
+          </div>
+          <div id="ticketPager" class="pager"></div>
+          <div class="panel ticket-desk">
+            <div class="ticket-desk-head">
+              <h3 id="ticketHead">Выберите тикет</h3>
+              <p id="ticketMeta" class="muted">Ответ появится в чате бота и в кабинете.</p>
+            </div>
+            <div id="ticketThread" class="ticket-thread"></div>
+            <textarea id="ticketReply" rows="4" maxlength="2000" placeholder="Ответ пользователю"></textarea>
+            <div class="ops ticket-desk-ops">
+              <button type="button" id="ticketSend">Ответить</button>
+              <button type="button" id="ticketClose" class="ghost">Закрыть тикет</button>
+            </div>
+          </div>
+        </section>
+
         <section id="tab-messages" class="hidden">
           <p class="muted intro">Журнал исходящих объявлений и попыток открыть бота, пока включены техработы.</p>
           <div class="filters">
@@ -968,6 +1017,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=39"></script>
+  <script src="app.js?v=40"></script>
 </body>
 </html>

@@ -134,7 +134,7 @@ def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bo
     if story_btn:
         builder.row(story_btn)
     builder.row(InlineKeyboardButton(text="VPN не работает", callback_data="vpn_down"))
-    builder.row(InlineKeyboardButton(text="Поддержка", url=support_url()))
+    builder.row(InlineKeyboardButton(text="Поддержка", callback_data="support_ticket"))
     add_cabinet_row(builder)
     return builder.as_markup()
 
@@ -147,7 +147,7 @@ def cabinet_keyboard() -> InlineKeyboardMarkup:
 
 def blocked_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="Поддержка", url=support_url()))
+    builder.row(InlineKeyboardButton(text="Поддержка", callback_data="support_ticket"))
     return builder.as_markup()
 
 

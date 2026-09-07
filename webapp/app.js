@@ -653,7 +653,7 @@ function replayAnim(el, cls) {
 
 function switchView(id, motion) {
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
-  ["view-home", "view-topup", "view-wizard", "view-device"].forEach((vid) => {
+  ["view-home", "view-topup", "view-wizard", "view-device", "view-support"].forEach((vid) => {
     const el = $(vid);
     const on = vid === id;
     el.classList.toggle("hidden", !on);
@@ -1268,11 +1268,17 @@ function onBack() {
   }
   if (screen === "topup") {
     openHome();
+    return;
+  }
+  if (screen === "support") {
+    stopSupportPoll();
+    openHome();
   }
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device" || screen === "topup";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "support";
+  stopSupportPoll();
   screen = "home";
   openDevice = null;
   switchView("view-home", fromStack ? "pop" : "fade");
@@ -1296,6 +1302,101 @@ function openTopup() {
   } catch (_e) {}
   syncWebBack();
   renderTopup(me);
+}
+
+const SUPPORT_STATUS = { open: "Ждём ответ", pending: "Есть ответ", closed: "Закрыт" };
+let supportPoll = 0;
+
+function stopSupportPoll() {
+  if (supportPoll) {
+    clearInterval(supportPoll);
+    supportPoll = 0;
+  }
+}
+
+function paintSupportThread(current) {
+  const box = $("supportThread");
+  const status = $("supportStatus");
+  if (!box) return;
+  box.innerHTML = "";
+  const messages = (current && current.messages) || [];
+  if (status) {
+    status.textContent = current
+      ? `Тикет #${current.id} · ${SUPPORT_STATUS[current.status] || current.status}`
+      : "Напишите, что случилось. Ответ придёт сюда и в чат бота.";
+  }
+  if (!messages.length) {
+    const empty = document.createElement("div");
+    empty.className = "support-empty";
+    empty.textContent = current && current.status === "closed"
+      ? "Тикет закрыт. Новое сообщение откроет следующий."
+      : "Пока пусто. Опишите проблему — откроем тикет.";
+    box.appendChild(empty);
+    return;
+  }
+  messages.forEach((m) => {
+    const wrap = document.createElement("div");
+    wrap.className = "support-bubble " + (m.author === "admin" ? "admin" : "user");
+    const meta = document.createElement("div");
+    meta.className = "support-bubble-meta";
+    const when = m.created_at ? new Date(m.created_at) : null;
+    const time = when && !Number.isNaN(when.getTime()) ? when.toLocaleString("ru-RU") : "";
+    meta.textContent = (m.author === "admin" ? "Поддержка" : "Вы") + (time ? " · " + time : "");
+    const body = document.createElement("div");
+    body.className = "support-bubble-body";
+    body.textContent = m.body || "";
+    wrap.appendChild(meta);
+    wrap.appendChild(body);
+    box.appendChild(wrap);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+async function loadSupport(silent) {
+  try {
+    const data = await api("/api/tickets");
+    paintSupportThread(data.current);
+  } catch (e) {
+    if (!silent) showErr(e);
+  }
+}
+
+function openSupport() {
+  screen = "support";
+  switchView("view-support", "push");
+  setMain("");
+  try {
+    tg.BackButton.show();
+  } catch (_e) {}
+  syncWebBack();
+  loadSupport();
+  stopSupportPoll();
+  supportPoll = setInterval(() => {
+    if (screen === "support") loadSupport(true);
+  }, 8000);
+}
+
+async function sendSupport() {
+  const el = $("supportText");
+  const text = (el && el.value || "").trim();
+  if (!text) {
+    tg.showAlert("Напишите сообщение");
+    return;
+  }
+  const btn = $("supportSend");
+  if (btn) btn.disabled = true;
+  try {
+    const data = await api("/api/tickets", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    });
+    if (el) el.value = "";
+    paintSupportThread(data.current);
+  } catch (e) {
+    showErr(e);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function payPlan(plan) {
@@ -2085,7 +2186,6 @@ function paint(me) {
   }
   $("offerLink").href = me.legal.offer;
   $("privacyLink").href = me.legal.privacy;
-  $("supportLink").href = me.legal.support;
   if (me.promo_enabled) {
     $("promoCard").classList.remove("hidden");
   } else {
@@ -2319,6 +2419,12 @@ $("menuTrust").onclick = () => {
   closeMenu();
   openTrust();
 };
+if ($("supportLink")) {
+  $("supportLink").onclick = () => {
+    closeMenu();
+    openSupport();
+  };
+}
 
 function openTrust() {
   const me = window.__me;
@@ -2689,9 +2795,9 @@ $("vpnDown").onclick = async () => {
 
 $("supportBtn").onclick = () => {
   haptic();
-  const url = (window.__me && window.__me.legal && window.__me.legal.support) || $("supportLink").href;
-  if (url) tg.openTelegramLink(url);
+  openSupport();
 };
+if ($("supportSend")) $("supportSend").onclick = () => sendSupport();
 
 $("intro").onclick = () => {
   const el = $("intro");

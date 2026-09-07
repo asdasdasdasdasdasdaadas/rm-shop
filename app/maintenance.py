@@ -204,6 +204,12 @@ class MaintenanceMiddleware(BaseMiddleware):
             return await handler(event, data)
         if not await db.flag_on("maintenance"):
             return await handler(event, data)
+        if isinstance(inner, CallbackQuery) and (inner.data or "") == "support_ticket":
+            return await handler(event, data)
+        if isinstance(inner, Message):
+            body = (inner.text or inner.caption or "").strip()
+            if body and not body.startswith("/"):
+                return await handler(event, data)
         bot: Bot | None = data.get("bot")
         chat_id = _chat_id(inner)
         if isinstance(inner, CallbackQuery):

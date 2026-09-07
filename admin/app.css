@@ -1283,6 +1283,48 @@ html.sidebar-collapsed nav button.active::before { display: none; }
   font-weight: 650;
 }
 .job-lines .kv:first-child { padding-top: 0; }
+.ticket-desk-head h3 { margin: 0 0 4px; }
+.ticket-desk-ops { display: flex; gap: 8px; flex-wrap: wrap; }
+.ticket-thread {
+  min-height: 180px;
+  max-height: 420px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  margin: 12px 0;
+  border-radius: 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+}
+.ticket-bubble {
+  max-width: 86%;
+  padding: 10px 12px;
+  border-radius: 16px;
+}
+.ticket-bubble.user {
+  align-self: flex-start;
+  background: var(--bg-elevated);
+}
+.ticket-bubble.admin {
+  align-self: flex-end;
+  background: var(--accent-soft);
+}
+.ticket-bubble-meta {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+.ticket-bubble-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+}
+#ticketRows tr.is-selected td {
+  background: var(--accent-soft);
+}
 
 @media (max-width: 767px) {
   .bottom-nav {

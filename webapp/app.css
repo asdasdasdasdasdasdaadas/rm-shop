@@ -807,6 +807,72 @@ body.coach-lock {
 
 .help-list .arrow { color: var(--text-tertiary); }
 
+.support-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 220px;
+  max-height: 46vh;
+  overflow: auto;
+  padding: 14px 12px;
+  margin: 0 0 12px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+}
+.support-empty {
+  color: var(--text-tertiary);
+  font-size: 14px;
+  line-height: 1.45;
+  padding: 8px 4px;
+}
+.support-bubble {
+  max-width: 86%;
+  padding: 10px 12px;
+  border-radius: 16px;
+}
+.support-bubble.user {
+  align-self: flex-end;
+  background: rgba(143, 227, 176, 0.16);
+}
+.support-bubble.admin {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.06);
+}
+.support-bubble-meta {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+.support-bubble-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14.5px;
+  line-height: 1.4;
+}
+.support-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.support-compose textarea {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  background: var(--panel);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 15px;
+  padding: 12px 14px;
+}
+.support-compose .btn {
+  width: 100%;
+}
+
 .status-card > .cell {
   margin-top: 8px;
   padding-left: 0;

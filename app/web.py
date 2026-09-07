@@ -823,6 +823,61 @@ async def api_vpn_report(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def _require_tickets(request: web.Request) -> tuple[int | None, web.Response | None]:
+    telegram_id, _parsed = await _resolve_telegram_id(request)
+    if not telegram_id:
+        return None, json_error("Ссылка недействительна или истекла", 401)
+    denied = await _if_blocked(telegram_id)
+    if denied:
+        return None, denied
+    return telegram_id, None
+
+
+async def api_tickets(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tickets(request)
+    if denied:
+        return denied
+    items = await db.user_list_tickets(telegram_id)
+    current = None
+    row = next((i for i in items if i.get("status") != "closed"), None)
+    if row is None and items:
+        row = items[0]
+    if row:
+        tid = int(row["id"])
+        current = {**row, "messages": await db.list_ticket_messages(tid)}
+    return web.json_response({"ok": True, "items": items, "current": current})
+
+
+async def api_ticket_send(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tickets(request)
+    if denied:
+        return denied
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    text = str((body or {}).get("text") or "").strip()
+    local = await db.get_user(telegram_id)
+    bot: Bot = request.app["bot"]
+    from app.tickets import receive_user_message
+
+    try:
+        ticket = await receive_user_message(
+            bot,
+            telegram_id=telegram_id,
+            username=(local or {}).get("username"),
+            first_name=(local or {}).get("first_name"),
+            body=text,
+            source="app",
+            ack_user=False,
+        )
+    except ValueError as exc:
+        return json_error(str(exc), 400)
+    messages = await db.list_ticket_messages(int(ticket["id"]))
+    items = await db.user_list_tickets(telegram_id)
+    return web.json_response({"ok": True, "current": {**ticket, "messages": messages}, "items": items})
+
+
 async def api_trust(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tg(request)
     if denied:
@@ -922,6 +977,8 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/subscription/reissue", api_reissue_subscription)
         app.router.add_post("/api/trust", api_trust)
         app.router.add_post("/api/vpn-report", api_vpn_report)
+        app.router.add_get("/api/tickets", api_tickets)
+        app.router.add_post("/api/tickets", api_ticket_send)
         app.router.add_post("/api/story-share", api_story_share)
         app.router.add_post("/api/referral-payout", api_referral_payout)
         app.router.add_static("/static", WEBAPP_DIR)
