@@ -709,6 +709,9 @@ async def api_add_device(request: web.Request) -> web.Response:
     await db.save_device_subscription(rw_id, user)
     if was_first:
         await db.mark_first_device_thanks_pending(telegram_id)
+        from app.nudge import send_story_offer_now
+
+        await send_story_offer_now(request.app.get("bot"), telegram_id)
     return web.json_response(
         {
             "ok": True,

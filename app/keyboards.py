@@ -51,12 +51,17 @@ def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> s
     return notice_text("profile_days", name=name)
 
 
+def mini_app_url() -> str:
+    return (runtime.webapp_url or (get_settings().webapp_public_url or "").rstrip("/")).rstrip("/")
+
+
 def cabinet_button() -> InlineKeyboardButton | None:
-    if not runtime.webapp_url:
+    url = mini_app_url()
+    if not url:
         return None
     return InlineKeyboardButton(
         text=_btn("⊞", "Открыть кабинет"),
-        web_app=WebAppInfo(url=runtime.webapp_url),
+        web_app=WebAppInfo(url=url),
         style="success",
     )
 
@@ -109,17 +114,18 @@ def legal_keyboard() -> InlineKeyboardMarkup:
 
 def story_webapp_button(*, story_offer: bool) -> InlineKeyboardButton | None:
     settings = get_settings()
+    url = mini_app_url()
     if (
         not story_offer
         or not settings.balance_enabled
         or not settings.story_reward_enabled
         or settings.story_reward_rub <= 0
-        or not runtime.webapp_url
+        or not url
     ):
         return None
     return InlineKeyboardButton(
         text=_btn("▭", f"История — {rub_text(settings.story_reward_rub)}"),
-        web_app=WebAppInfo(url=runtime.webapp_url),
+        web_app=WebAppInfo(url=url),
     )
 
 
@@ -165,6 +171,15 @@ def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bo
 
 def cabinet_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    add_cabinet_row(builder)
+    return builder.as_markup()
+
+
+def story_nudge_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    story_btn = story_webapp_button(story_offer=True)
+    if story_btn:
+        builder.row(story_btn)
     add_cabinet_row(builder)
     return builder.as_markup()
 

@@ -110,7 +110,8 @@ CREATE TABLE IF NOT EXISTS app_flags (
 INSERT INTO app_flags (key, value) VALUES
     ('trial_nudge', '1'),
     ('invite_nudge', '1'),
-    ('info_nudge', '1')
+    ('info_nudge', '1'),
+    ('story_nudge', '1')
 ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS trust_loans (
@@ -137,6 +138,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_nudge_sent_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_nudge_sent_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS info_nudge_sent_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS story_nudge_sent_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS low_balance_notified_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_device_thanks_pending BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_device_thanks_sent_at TIMESTAMPTZ;
@@ -197,6 +199,8 @@ CREATE INDEX IF NOT EXISTS users_invite_nudge_idx ON users (created_at)
     WHERE invite_nudge_sent_at IS NULL;
 CREATE INDEX IF NOT EXISTS users_info_nudge_idx ON users (created_at)
     WHERE info_nudge_sent_at IS NULL;
+CREATE INDEX IF NOT EXISTS users_story_nudge_idx ON users (telegram_id)
+    WHERE story_nudge_sent_at IS NULL AND story_rewarded_at IS NULL;
 
 UPDATE users SET has_paid_topup = TRUE
 WHERE telegram_id IN (

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="38">
+  <meta name="admin-build" content="42">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -138,6 +138,7 @@
             <span id="flagNudge" class="flag flag-off">Триал: выкл</span>
             <span id="flagInvite" class="flag flag-off">Друзья: выкл</span>
             <span id="flagInfo" class="flag flag-off">Справка: выкл</span>
+            <span id="flagStory" class="flag flag-off">История: выкл</span>
             <div class="admin-chip">
               <span class="admin-chip-ava" aria-hidden="true">
                 <svg viewBox="0 0 48 48" fill="none"><ellipse cx="24" cy="30" rx="11" ry="13" fill="currentColor"/><circle cx="12" cy="14" r="4.4" fill="currentColor"/><circle cx="36" cy="14" r="4.4" fill="currentColor"/><circle cx="20" cy="8" r="3.6" fill="currentColor" opacity=".75"/><circle cx="28" cy="8" r="3.6" fill="currentColor" opacity=".75"/></svg>
@@ -262,6 +263,17 @@
               </div>
               <p class="muted tight">Через четверо суток уйдёт короткое объяснение кабинета, списания и истории.</p>
             </div>
+            <div class="panel ops-card">
+              <div class="ops-kicker">Сообщения</div>
+              <div class="ops-head">
+                <strong>Выложить историю</strong>
+                <button type="button" id="storyNudgeBtn" class="switch is-off" role="switch" aria-checked="false">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                  <span class="switch-state">Выкл</span>
+                </button>
+              </div>
+              <p class="muted tight">Как только появилось первое устройство, сразу уйдёт предложение выложить историю за награду. Если не дошло — бот повторит, пока не отправится.</p>
+            </div>
           </div>
 
           <details class="panel fold">
@@ -349,6 +361,7 @@
             <button type="button" id="bulkTrial" class="ghost">Сбросить триал</button>
             <button type="button" id="bulkReissue" class="ghost">Перевыпустить ссылки</button>
             <button type="button" id="bulkMsg" class="ghost">Написать</button>
+            <button type="button" id="bulkLkLink" class="ghost">Ссылка на кабинет</button>
           </div>
           <p id="bulkOut" class="muted"></p>
           <details class="fold danger-fold">
@@ -711,9 +724,11 @@
               <option value="nudge_trial">Напоминание: триал</option>
               <option value="nudge_invite">Напоминание: друзья</option>
               <option value="nudge_info">Напоминание: кабинет</option>
+              <option value="nudge_story">Напоминание: история</option>
               <option value="nudge_device">Напоминание: устройство</option>
               <option value="first_device_thanks">После первого устройства</option>
               <option value="low_balance">Мало баланса</option>
+              <option value="cabinet_link">Ссылка на кабинет</option>
               <option value="maintenance_hit">Обращение при техработах</option>
               <option value="maintenance_out">Ответ техработ</option>
             </select>
@@ -1089,7 +1104,10 @@
         </div>
         <label>Сообщение в Telegram</label>
         <textarea id="msgText" rows="4"></textarea>
-        <button type="button" id="msgBtn">Отправить</button>
+        <div class="modal-actions">
+          <button type="button" id="msgBtn">Отправить</button>
+          <button type="button" id="lkLinkBtn" class="ghost">Ссылка на кабинет</button>
+        </div>
         <button type="button" id="delBtn" class="danger">Удалить пользователя</button>
       </div>
       </div>
@@ -1140,6 +1158,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=46"></script>
+  <script src="app.js?v=50"></script>
 </body>
 </html>

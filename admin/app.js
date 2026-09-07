@@ -23,8 +23,10 @@ const MSG_KIND_LABEL = {
   nudge_trial: "Напоминание: триал",
   nudge_invite: "Напоминание: друзья",
   nudge_info: "Напоминание: кабинет",
+  nudge_story: "Напоминание: история",
   nudge_device: "Напоминание: устройство",
   first_device_thanks: "После первого устройства",
+  cabinet_link: "Ссылка на кабинет",
   low_balance: "Мало баланса",
   maintenance_hit: "Обращение при техработах",
   maintenance_out: "Ответ техработ",
@@ -590,11 +592,13 @@ function paintFlags(f) {
   const n = !!f.trial_nudge;
   const inv = !!f.invite_nudge;
   const inf = !!f.info_nudge;
+  const st = !!f.story_nudge;
   paintSwitch("maintBtn", m, { alert: m, onText: "Вкл", offText: "Выкл" });
   paintSwitch("billBtn", !p, { onText: "Идёт", offText: "Пауза" });
   paintSwitch("nudgeBtn", n);
   paintSwitch("inviteNudgeBtn", inv);
   paintSwitch("infoNudgeBtn", inf);
+  paintSwitch("storyNudgeBtn", st);
   if (typeof f.maintenance_notice === "string") {
     $("maintNotice").value = f.maintenance_notice;
     const phone = $("maintPhonePreview");
@@ -620,6 +624,7 @@ function paintFlags(f) {
   paintFlag("flagNudge", n, "Триал: вкл", "Триал: выкл", false);
   paintFlag("flagInvite", inv, "Друзья: вкл", "Друзья: выкл", false);
   paintFlag("flagInfo", inf, "Справка: вкл", "Справка: выкл", false);
+  paintFlag("flagStory", st, "История: вкл", "История: выкл", false);
 }
 
 async function loadFlags() {
@@ -2211,7 +2216,7 @@ if ($("setNavSelect")) {
 document.querySelectorAll("#modalTabs [data-pane]").forEach((b) => {
   b.onclick = () => setModalPane(b.dataset.pane);
 });
-["flagMaint", "flagBill", "flagNudge", "flagInvite", "flagInfo"].forEach((id) => {
+["flagMaint", "flagBill", "flagNudge", "flagInvite", "flagInfo", "flagStory"].forEach((id) => {
   const el = $(id);
   if (el) el.onclick = () => switchTab("overview");
 });
@@ -2533,6 +2538,19 @@ $("bulkMsg").onclick = () => {
     `Отправить сообщение ${ids.length} пользователям?`
   );
 };
+if ($("bulkLkLink")) {
+  $("bulkLkLink").onclick = () => {
+    const ids = [...selectedUsers];
+    if (!ids.length) {
+      $("bulkOut").textContent = "Никого не выбрано";
+      return;
+    }
+    runBulk(
+      { action: "cabinet_link", ids },
+      `Отправить ссылку на кабинет в браузере ${ids.length} пользователям? Старый токен перестанет действовать.`
+    );
+  };
+}
 $("bulkDeleteMatch").onclick = () => {
   const f = collectUserFilters();
   const label = hasAny(f) ? "по текущим фильтрам" : "всех в базе";
@@ -2834,6 +2852,28 @@ $("msgBtn").onclick = async () => {
   $("msgText").value = "";
   toast("Сообщение отправлено");
 };
+if ($("lkLinkBtn")) {
+  $("lkLinkBtn").onclick = async () => {
+    if (!currentUser) return;
+    if (
+      !(await confirmAction(
+        "Ссылка на кабинет",
+        "Отправить ссылку на кабинет в браузере? Действует 10 дней. Старый токен перестанет работать."
+      ))
+    ) {
+      return;
+    }
+    try {
+      await api(`/admin/api/users/${currentUser.telegram_id}/cabinet-link`, {
+        method: "POST",
+        body: "{}",
+      });
+      toast("Ссылка отправлена");
+    } catch (err) {
+      toast(err.message || "Не удалось отправить ссылку");
+    }
+  };
+}
 $("modalClose").onclick = closeModal;
 $("modal").onclick = (e) => {
   if (e.target === $("modal")) closeModal();
@@ -2961,6 +3001,23 @@ $("infoNudgeBtn").onclick = async () => {
   }
   paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ info_nudge: next }) }));
 };
+
+if ($("storyNudgeBtn")) {
+  $("storyNudgeBtn").onclick = async () => {
+    const f = await api("/admin/api/flags");
+    const next = !f.story_nudge;
+    if (
+      next &&
+      !(await confirmAction(
+        "Выложить историю",
+        "Тем, у кого есть устройство и награда за историю ещё не получена, сразу уйдёт предложение выложить историю. Если сообщение не дошло, бот отправит его снова."
+      ))
+    ) {
+      return;
+    }
+    paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ story_nudge: next }) }));
+  };
+}
 
 let subPoll = null;
 

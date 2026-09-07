@@ -53,11 +53,28 @@ async def close_db() -> None:
 
 
 async def _ensure_nudge_defaults() -> None:
-    if (await get_kv("nudge_defaults_v2")) == "1":
-        return
-    for key in ("trial_nudge", "invite_nudge", "info_nudge"):
-        await set_flag(key, True)
-    await set_kv("nudge_defaults_v2", "1")
+    if (await get_kv("nudge_defaults_v2")) != "1":
+        for key in ("trial_nudge", "invite_nudge", "info_nudge"):
+            await set_flag(key, True)
+        await set_kv("nudge_defaults_v2", "1")
+    if (await get_kv("nudge_defaults_v4")) != "1":
+        await set_flag("story_nudge", True)
+        await _pool_req().execute(
+            """
+            UPDATE users u
+            SET story_nudge_sent_at = NULL
+            WHERE u.story_nudge_sent_at IS NOT NULL
+              AND u.story_rewarded_at IS NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM message_log m
+                  WHERE m.telegram_id = u.telegram_id
+                    AND m.kind = 'nudge_story'
+                    AND m.status = 'sent'
+              )
+            """
+        )
+        await set_kv("nudge_defaults_v4", "1")
+        await set_kv("nudge_defaults_v3", "1")
 
 
 def _pool_req() -> asyncpg.Pool:
@@ -1072,9 +1089,11 @@ async def mark_paid_topup(telegram_id: int) -> None:
     )
 
 
-async def flag_on(key: str) -> bool:
+async def flag_on(key: str, *, default: bool = False) -> bool:
     val = await _pool_req().fetchval("SELECT value FROM app_flags WHERE key = $1", key)
-    return str(val or "").lower() in {"1", "true", "on", "yes"}
+    if val is None or str(val).strip() == "":
+        return default
+    return str(val).lower() in {"1", "true", "on", "yes"}
 
 
 async def set_flag(key: str, on: bool) -> None:
@@ -1110,6 +1129,7 @@ async def get_flags() -> dict:
         "trial_nudge": _on("trial_nudge"),
         "invite_nudge": _on("invite_nudge"),
         "info_nudge": _on("info_nudge"),
+        "story_nudge": _on("story_nudge"),
         "maintenance_notice": data.get("maintenance_notice") or "",
     }
 
@@ -2146,11 +2166,36 @@ async def list_due_info_nudges(limit: int = 80, skip_ids: list[int] | None = Non
     return [dict(r) for r in rows]
 
 
+async def list_due_story_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
+    skip = [int(x) for x in (skip_ids or [])]
+    rows = await _pool_req().fetch(
+        """
+        SELECT u.telegram_id, u.first_name
+        FROM users u
+        WHERE u.story_nudge_sent_at IS NULL
+          AND u.blocked_at IS NULL
+          AND u.story_rewarded_at IS NULL
+          AND u.story_pending_at IS NULL
+          AND EXISTS (
+              SELECT 1 FROM devices d
+              WHERE d.telegram_id = u.telegram_id
+          )
+          AND NOT (u.telegram_id = ANY($2::bigint[]))
+        ORDER BY u.created_at
+        LIMIT $1
+        """,
+        int(limit),
+        skip,
+    )
+    return [dict(r) for r in rows]
+
+
 async def mark_nudge_sent(telegram_id: int, kind: str) -> None:
     col = {
         "trial": "trial_nudge_sent_at",
         "invite": "invite_nudge_sent_at",
         "info": "info_nudge_sent_at",
+        "story": "story_nudge_sent_at",
     }.get(kind)
     if not col:
         return
@@ -2159,6 +2204,35 @@ async def mark_nudge_sent(telegram_id: int, kind: str) -> None:
         UPDATE users
         SET {col} = timezone('utc', now())
         WHERE telegram_id = $1 AND {col} IS NULL
+        """,
+        int(telegram_id),
+    )
+
+
+async def take_story_nudge(telegram_id: int) -> dict | None:
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users
+        SET story_nudge_sent_at = timezone('utc', now())
+        WHERE telegram_id = $1
+          AND story_nudge_sent_at IS NULL
+          AND blocked_at IS NULL
+          AND story_rewarded_at IS NULL
+          AND story_pending_at IS NULL
+        RETURNING telegram_id, first_name
+        """,
+        int(telegram_id),
+    )
+    return dict(row) if row else None
+
+
+async def restore_story_nudge(telegram_id: int) -> None:
+    await _pool_req().execute(
+        """
+        UPDATE users
+        SET story_nudge_sent_at = NULL
+        WHERE telegram_id = $1
+          AND story_rewarded_at IS NULL
         """,
         int(telegram_id),
     )
@@ -2355,13 +2429,15 @@ def _cabinet_token_hash(raw: str) -> str:
 async def issue_cabinet_token(telegram_id: int, days: int = 10) -> str:
     raw = secrets.token_urlsafe(32)
     expires = _utc_now() + timedelta(days=max(1, days))
-    await _pool_req().execute(
+    pool = _pool_req()
+    await pool.execute("DELETE FROM cabinet_tokens WHERE telegram_id = $1", int(telegram_id))
+    await pool.execute(
         """
         INSERT INTO cabinet_tokens (token_hash, telegram_id, expires_at)
         VALUES ($1, $2, $3)
         """,
         _cabinet_token_hash(raw),
-        telegram_id,
+        int(telegram_id),
         expires,
     )
     return raw
@@ -2381,7 +2457,7 @@ async def get_cabinet_token_user(raw: str) -> int | None:
     row = await _pool_req().fetchrow(
         """
         SELECT telegram_id FROM cabinet_tokens
-        WHERE token_hash = $1 AND expires_at > NOW()
+        WHERE token_hash = $1 AND expires_at > timezone('utc', now())
         """,
         _cabinet_token_hash(token),
     )
@@ -2391,7 +2467,7 @@ async def get_cabinet_token_user(raw: str) -> int | None:
 
 
 async def purge_expired_cabinet_tokens() -> None:
-    await _pool_req().execute("DELETE FROM cabinet_tokens WHERE expires_at <= NOW()")
+    await _pool_req().execute("DELETE FROM cabinet_tokens WHERE expires_at <= timezone('utc', now())")
 
 
 async def users_needing_cabinet_link(day_price: int) -> list[int]:
@@ -2406,9 +2482,11 @@ async def users_needing_cabinet_link(day_price: int) -> list[int]:
         HAVING COUNT(d.id) > 0
            AND COALESCE(u.balance_rub, 0) < (2 * $1 * COUNT(d.id))
            AND NOT EXISTS (
-               SELECT 1 FROM cabinet_tokens t
-               WHERE t.telegram_id = u.telegram_id
-                 AND t.expires_at > NOW()
+               SELECT 1 FROM message_log m
+               WHERE m.telegram_id = u.telegram_id
+                 AND m.kind = 'cabinet_link'
+                 AND m.status = 'sent'
+                 AND m.created_at > timezone('utc', now()) - INTERVAL '10 days'
            )
         ORDER BY u.telegram_id
         """,

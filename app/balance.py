@@ -6,7 +6,11 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
+from html import escape
+
 from aiogram import Bot
+from aiogram.enums import ParseMode
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions
 
 from app import db, runtime
 from app.config import get_settings
@@ -53,30 +57,29 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
     if not bot or tg_id in warned:
         return
     warned.add(tg_id)
-    if not await db.claim_low_balance_notice(tg_id):
-        return
-    try:
-        await bot.send_message(
-            tg_id,
-            notice_text("low_balance", price=rub_text(price)),
-        )
-        await db.log_bot_message(
-            kind="low_balance",
-            source="auto",
-            telegram_id=tg_id,
-            title="Мало баланса",
-            body=notice_text("low_balance", price=rub_text(price)),
-            status="sent",
-        )
-    except Exception:
-        await db.log_bot_message(
-            kind="low_balance",
-            source="auto",
-            telegram_id=tg_id,
-            title="Мало баланса",
-            body=notice_text("low_balance", price=rub_text(price)),
-            status="failed",
-        )
+    if await db.claim_low_balance_notice(tg_id):
+        body = notice_text("low_balance", price=rub_text(price))
+        try:
+            await bot.send_message(tg_id, body)
+            await db.log_bot_message(
+                kind="low_balance",
+                source="auto",
+                telegram_id=tg_id,
+                title="Мало баланса",
+                body=body,
+                status="sent",
+            )
+        except Exception:
+            logger.warning("Не удалось отправить «мало баланса» %s", tg_id, exc_info=True)
+            await db.log_bot_message(
+                kind="low_balance",
+                source="auto",
+                telegram_id=tg_id,
+                title="Мало баланса",
+                body=body,
+                status="failed",
+            )
+    await send_cabinet_link_to(bot, tg_id, force=True)
 
 
 async def _bill_due_device(
@@ -596,20 +599,27 @@ async def sync_user_billing(
     return result
 
 
-async def send_cabinet_link_to(bot: Bot, telegram_id: int) -> bool:
+async def send_cabinet_link_to(
+    bot: Bot,
+    telegram_id: int,
+    *,
+    force: bool = False,
+    source: str = "auto",
+) -> bool:
     settings = get_settings()
-    if not settings.balance_enabled or not settings.webapp_enabled:
+    if not settings.balance_enabled:
         return False
-    price = max(1, settings.vpn_day_price_rub)
-    if telegram_id not in await db.users_needing_cabinet_link(price):
-        return False
-    sent = await _issue_and_send_cabinet_link(bot, telegram_id)
+    if not force:
+        price = max(1, settings.vpn_day_price_rub)
+        if telegram_id not in await db.users_needing_cabinet_link(price):
+            return False
+    sent = await _issue_and_send_cabinet_link(bot, telegram_id, source=source)
     return sent > 0
 
 
 async def send_low_balance_cabinet_links(bot: Bot | None) -> int:
     settings = get_settings()
-    if not bot or not settings.balance_enabled or not settings.webapp_enabled:
+    if not bot or not settings.balance_enabled:
         return 0
     await db.purge_expired_cabinet_tokens()
     price = max(1, settings.vpn_day_price_rub)
@@ -628,18 +638,54 @@ async def send_low_balance_cabinet_links(bot: Bot | None) -> int:
     return sent
 
 
-async def _issue_and_send_cabinet_link(bot: Bot, telegram_id: int) -> int:
+def _cabinet_public_base() -> str:
     settings = get_settings()
-    base = (settings.webapp_public_url or runtime.webapp_url or "").rstrip("/")
-    if not base.startswith("http"):
+    return (settings.webapp_public_url or runtime.webapp_url or "").rstrip("/")
+
+
+async def _issue_and_send_cabinet_link(bot: Bot, telegram_id: int, *, source: str = "auto") -> int:
+    base = _cabinet_public_base()
+    if not base.startswith("https://"):
+        logger.warning(
+            "Ссылку на кабинет не отправить %s: нужен HTTPS в WEBAPP_PUBLIC_URL",
+            telegram_id,
+        )
+        if source == "manual":
+            raise ValueError("Нужен HTTPS в WEBAPP_PUBLIC_URL")
         return 0
     token = await db.issue_cabinet_token(telegram_id, CABINET_LINK_DAYS)
     url = f"{base}/?t={token}"
-    text = notice_text("cabinet_link", url=url)
+    text = notice_text("cabinet_link", url=escape(url, quote=True))
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="Открыть кабинет", url=url)]]
+    )
+    origin = "manual" if source == "manual" else "auto"
     try:
-        await bot.send_message(telegram_id, text)
+        await bot.send_message(
+            telegram_id,
+            text,
+            reply_markup=kb,
+            parse_mode=ParseMode.HTML,
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
+        )
+        await db.log_bot_message(
+            kind="cabinet_link",
+            source=origin,
+            telegram_id=telegram_id,
+            title="Ссылка на кабинет",
+            body=text,
+            status="sent",
+        )
         return 1
     except Exception:
         await db.delete_cabinet_token(token)
-        logger.debug("Ссылка на кабинет не ушла %s", telegram_id, exc_info=True)
+        logger.warning("Ссылка на кабинет не ушла %s", telegram_id, exc_info=True)
+        await db.log_bot_message(
+            kind="cabinet_link",
+            source=origin,
+            telegram_id=telegram_id,
+            title="Ссылка на кабинет",
+            body=text,
+            status="failed",
+        )
         return 0

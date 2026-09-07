@@ -593,7 +593,7 @@ async def api_users_bulk(request: web.Request) -> web.Response:
         return denied
     body = await request.json()
     action = str(body.get("action") or "").strip()
-    if action not in {"delete", "trial_reset", "message", "block", "unblock", "reissue"}:
+    if action not in {"delete", "trial_reset", "message", "block", "unblock", "reissue", "cabinet_link"}:
         return web.json_response({"ok": False, "error": "Неизвестное действие"}, status=400)
     ids: list[int] = []
     if body.get("all_matching"):
@@ -629,6 +629,14 @@ async def api_users_bulk(request: web.Request) -> web.Response:
             )
     if not ids:
         return web.json_response({"ok": False, "error": "Никого не выбрано"}, status=400)
+    if action == "cabinet_link":
+        from app.balance import _cabinet_public_base
+
+        if not _cabinet_public_base().startswith("https://"):
+            return web.json_response(
+                {"ok": False, "error": "Нужен HTTPS в WEBAPP_PUBLIC_URL"},
+                status=400,
+            )
     ok_n = 0
     skipped = 0
     failed = 0
@@ -680,6 +688,13 @@ async def api_users_bulk(request: web.Request) -> web.Response:
                 links = await _reissue_user_subscriptions(rw, telegram_id)
                 await _notify_reissued(bot, {telegram_id: links})
                 ok_n += 1
+            elif action == "cabinet_link":
+                from app.balance import send_cabinet_link_to
+
+                if await send_cabinet_link_to(bot, telegram_id, force=True, source="manual"):
+                    ok_n += 1
+                else:
+                    failed += 1
             else:
                 continue
         except Exception:
@@ -730,6 +745,27 @@ async def api_message(request: web.Request) -> web.Response:
         body=text,
         status="sent",
     )
+    return web.json_response({"ok": True})
+
+
+async def api_cabinet_link(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    telegram_id = int(request.match_info["telegram_id"])
+    from app.balance import send_cabinet_link_to
+
+    try:
+        ok = await send_cabinet_link_to(
+            request.app["bot"],
+            telegram_id,
+            force=True,
+            source="manual",
+        )
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    if not ok:
+        return web.json_response({"ok": False, "error": "Не удалось отправить ссылку"}, status=502)
     return web.json_response({"ok": True})
 
 
@@ -994,6 +1030,8 @@ async def api_flags(request: web.Request) -> web.Response:
         await db.set_flag("invite_nudge", bool(body.get("invite_nudge")))
     if "info_nudge" in body:
         await db.set_flag("info_nudge", bool(body.get("info_nudge")))
+    if "story_nudge" in body:
+        await db.set_flag("story_nudge", bool(body.get("story_nudge")))
     flags = await db.get_flags()
     return web.json_response({"ok": True, **flags, "maintenance_has_photo": has_photo()})
 
@@ -1412,6 +1450,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/users/{telegram_id}/balance", api_balance)
     app.router.add_post("/admin/api/users/{telegram_id}/trial-reset", api_trial_reset)
     app.router.add_post("/admin/api/users/{telegram_id}/message", api_message)
+    app.router.add_post("/admin/api/users/{telegram_id}/cabinet-link", api_cabinet_link)
     app.router.add_post("/admin/api/users/{telegram_id}/delete", api_delete_user)
     app.router.add_post("/admin/api/users/{telegram_id}/block", api_block_user)
     app.router.add_get("/admin/api/flags", api_flags)

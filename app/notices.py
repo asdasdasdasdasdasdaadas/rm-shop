@@ -66,6 +66,10 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Кабинет всегда можно открыть из бота, даже если VPN вдруг отключится."
         "{story}"
     ),
+    "story_nudge": (
+        "VPN уже работает. Выложите историю в Telegram — за это начислим {amount} на баланс.\n\n"
+        "Кнопка откроет кабинет, оттуда можно сразу выложить. Награда один раз, после проверки."
+    ),
     "first_device_thanks": (
         "Все готово. Спасибо, что решили попробовать.\n\n"
         "Если что-то не заработает — напишите в поддержку из кабинета."
@@ -142,6 +146,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "broadcast_invite", "title": "Рассылка: пользуются VPN", "hint": "{reward} {link}"},
     {"key": "broadcast_unused", "title": "Рассылка: не подключались", "hint": ""},
     {"key": "info_nudge", "title": "Как устроен кабинет", "hint": "{price} {story}"},
+    {"key": "story_nudge", "title": "Выложить историю", "hint": "{amount}"},
     {"key": "first_device_thanks", "title": "После первого устройства", "hint": ""},
     {"key": "device_nudge_1", "title": "Нет устройства: 30 минут", "hint": ""},
     {"key": "device_nudge_2", "title": "Нет устройства: сутки после первого", "hint": ""},
