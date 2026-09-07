@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="42">
+  <meta name="admin-build" content="43">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=36">
+  <link rel="stylesheet" href="app.css?v=37">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -1112,22 +1112,9 @@
       </div>
       </div>
       <div id="pane-dev" class="modal-pane hidden">
-      <div class="section-label">Устройства</div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Название</th>
-              <th>Клиент</th>
-              <th>Платформа</th>
-              <th>Статус</th>
-              <th>Трафик</th>
-              <th>Последний онлайн</th>
-            </tr>
-          </thead>
-          <tbody id="userDeviceRows"></tbody>
-        </table>
-      </div>
+      <div class="section-label">Устройства и сеть</div>
+      <p class="muted tight">Каждое устройство магазина отдельно: трафик, когда выходило и через какой клиент. HWID — физические сессии в панели Remnawave.</p>
+      <div id="userDeviceList"></div>
       </div>
       <div id="pane-bill" class="modal-pane hidden">
       <div class="section-label">История биллинга</div>
@@ -1158,6 +1145,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=50"></script>
+  <script src="app.js?v=51"></script>
 </body>
 </html>

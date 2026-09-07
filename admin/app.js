@@ -326,11 +326,33 @@ function paintModalOnline(dt) {
   el.textContent = "Онлайн: " + fmtAgo(dt) + " · " + fmt(dt);
 }
 
-function deviceCell(u) {
-  const n = Number(u.device_count) || 0;
-  const titles = String(u.device_titles || "").trim();
-  if (n < 1) return u.remnawave_id ? "подписка" : "—";
-  return titles ? n + " · " + titles : String(n);
+function deviceBreakdownCell(u) {
+  const td = document.createElement("td");
+  td.className = "wrap device-break";
+  const list = Array.isArray(u.devices) ? u.devices : [];
+  if (!list.length) {
+    td.textContent = u.remnawave_id ? "подписка" : "—";
+    return td;
+  }
+  list.forEach((d) => {
+    const row = document.createElement("div");
+    row.className = "dev-break-row";
+    const title = document.createElement("div");
+    title.className = "dev-break-title";
+    title.textContent = d.title || "Устройство";
+    const meta = document.createElement("div");
+    meta.className = "who-sub";
+    const how = [d.client, d.platform].filter(Boolean).join(" · ") || "клиент не указан";
+    const when = fmtAgo(d.last_online_at);
+    const traffic = fmtBytes(d.used_traffic_bytes);
+    meta.textContent = how + " · " + when + " · " + traffic;
+    row.appendChild(title);
+    row.appendChild(meta);
+    td.appendChild(row);
+  });
+  const n = Number(u.device_count) || list.length;
+  td.title = n + " устройств. Трафик в строке — сумма по всем.";
+  return td;
 }
 
 function setNavOpen(open) {
@@ -1017,10 +1039,7 @@ async function loadUsers(page) {
     tdWho.appendChild(nameLine);
     tr.appendChild(tdWho);
     tr.appendChild(tdText(u.balance_rub == null ? "—" : String(u.balance_rub)));
-    const tdDev = tdText(deviceCell(u));
-    tdDev.className = "wrap";
-    tdDev.title = deviceCell(u);
-    tr.appendChild(tdDev);
+    tr.appendChild(deviceBreakdownCell(u));
     tr.appendChild(onlineCell(u.last_online_at));
     const tdTraffic = tdText(fmtBytes(u.used_traffic_bytes));
     const life = fmtBytes(u.lifetime_traffic_bytes);
@@ -1437,16 +1456,95 @@ async function loadBilling(page) {
   pager($("billPager"), data.page, data.total, data.limit, loadBilling);
 }
 
+function kvLine(label, value) {
+  const row = document.createElement("div");
+  row.className = "dev-kv";
+  const k = document.createElement("span");
+  k.textContent = label;
+  const v = document.createElement("span");
+  v.textContent = value || "—";
+  row.appendChild(k);
+  row.appendChild(v);
+  return row;
+}
+
+function nodeLine(node) {
+  if (!node || typeof node !== "object") return "—";
+  const parts = [node.name, node.address].filter(Boolean);
+  return parts.join(" · ") || node.uuid || "—";
+}
+
+function paintDeviceCard(d) {
+  const card = document.createElement("article");
+  card.className = "dev-card";
+  const head = document.createElement("div");
+  head.className = "dev-card-head";
+  const title = document.createElement("div");
+  title.className = "dev-card-title";
+  title.textContent = d.title || "Устройство";
+  head.appendChild(title);
+  const pill = document.createElement("span");
+  const kind = pillKind(d.status || "—");
+  pill.className = kind ? `pill pill-${kind}` : "pill";
+  pill.textContent = d.status || "—";
+  head.appendChild(pill);
+  card.appendChild(head);
+  const how = [d.client, d.platform].filter(Boolean).join(" · ");
+  card.appendChild(kvLine("Клиент", how || "не указан в кабинете"));
+  card.appendChild(kvLine("Сейчас", fmtBytes(d.used_traffic_bytes)));
+  const life = fmtBytes(d.lifetime_traffic_bytes);
+  card.appendChild(kvLine("Всего", life === "—" ? fmtBytes(d.used_traffic_bytes) : life));
+  const last = d.last_online_at
+    ? fmtAgo(d.last_online_at) + " · " + fmt(d.last_online_at)
+    : "нет данных";
+  card.appendChild(kvLine("Последний выход", last));
+  card.appendChild(
+    kvLine(
+      "Первый коннект",
+      d.first_connected_at ? fmt(d.first_connected_at) + " · " + fmtAgo(d.first_connected_at) : "нет"
+    )
+  );
+  card.appendChild(kvLine("Нода", nodeLine(d.node)));
+  card.appendChild(kvLine("User-agent", d.user_agent || "нет"));
+  if (d.sub_last_opened_at) {
+    card.appendChild(
+      kvLine("Подписка открыта", fmtAgo(d.sub_last_opened_at) + " · " + fmt(d.sub_last_opened_at))
+    );
+  }
+  const sessions = Array.isArray(d.sessions) ? d.sessions : [];
+  const sessTitle = document.createElement("div");
+  sessTitle.className = "dev-sess-title";
+  sessTitle.textContent = sessions.length
+    ? "Выходы в сеть (HWID): " + sessions.length
+    : "HWID-сессий панель не отдала";
+  card.appendChild(sessTitle);
+  sessions.forEach((s) => {
+    const row = document.createElement("div");
+    row.className = "hwid-row";
+    const main = document.createElement("div");
+    main.textContent = [s.platform, s.model].filter(Boolean).join(" · ") || s.hwid || "устройство";
+    row.appendChild(main);
+    const sub = document.createElement("div");
+    sub.className = "who-sub";
+    const parts = [];
+    if (s.hwid) parts.push(s.hwid);
+    if (s.user_agent) parts.push(s.user_agent);
+    const seen = s.last_seen_at || s.created_at;
+    if (seen) parts.push(fmtAgo(seen) + " · " + fmt(seen));
+    sub.textContent = parts.join(" · ") || "без деталей";
+    row.appendChild(sub);
+    card.appendChild(row);
+  });
+  return card;
+}
+
 async function loadUserDevices(telegramId) {
-  const body = $("userDeviceRows");
+  const body = $("userDeviceList");
   if (!body) return;
   body.innerHTML = "";
-  const wait = document.createElement("tr");
-  const waitTd = document.createElement("td");
-  waitTd.colSpan = 6;
-  waitTd.className = "muted";
-  waitTd.textContent = "Загружаю...";
-  wait.appendChild(waitTd);
+  const wait = document.createElement("p");
+  wait.className = "muted";
+  wait.textContent = "Загружаю устройства и выходы в сеть...";
   body.appendChild(wait);
   try {
     const data = await api(`/admin/api/users/${encodeURIComponent(String(telegramId))}/devices`);
@@ -1459,40 +1557,19 @@ async function loadUserDevices(telegramId) {
     });
     paintModalOnline(latest ? latest.raw : null);
     if (!items.length) {
-      const tr = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 6;
-      td.className = "muted";
-      td.textContent = "Устройств нет";
-      tr.appendChild(td);
-      body.appendChild(tr);
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "Устройств нет";
+      body.appendChild(empty);
       return;
     }
-    items.forEach((d) => {
-      const tr = document.createElement("tr");
-      [
-        d.title || "Устройство",
-        d.client || "—",
-        d.platform || "—",
-      ].forEach((t) => tr.appendChild(tdText(t)));
-      tr.appendChild(tdPill(d.status || "—"));
-      const tdTraffic = tdText(fmtBytes(d.used_traffic_bytes));
-      const life = fmtBytes(d.lifetime_traffic_bytes);
-      if (life !== "—") tdTraffic.title = "Всего: " + life;
-      tr.appendChild(tdTraffic);
-      const tdOn = onlineCell(d.last_online_at);
-      tr.appendChild(tdOn);
-      body.appendChild(tr);
-    });
+    items.forEach((d) => body.appendChild(paintDeviceCard(d)));
   } catch (_e) {
     body.innerHTML = "";
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 6;
-    td.className = "muted";
-    td.textContent = "Не удалось загрузить устройства";
-    tr.appendChild(td);
-    body.appendChild(tr);
+    const err = document.createElement("p");
+    err.className = "muted";
+    err.textContent = "Не удалось загрузить устройства";
+    body.appendChild(err);
   }
 }
 

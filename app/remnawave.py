@@ -165,6 +165,164 @@ def panel_lifetime_traffic_bytes(user: dict | None) -> int | None:
     return _traffic_from_maps(user, ("lifetimeUsedTrafficBytes", "lifetimeUsedTraffic"))
 
 
+def panel_first_connected_at(user: dict | None) -> datetime | None:
+    if not user:
+        return None
+    traffic = user.get("userTraffic") if isinstance(user.get("userTraffic"), dict) else {}
+    nested = user.get("traffic") if isinstance(user.get("traffic"), dict) else {}
+    for raw in (
+        traffic.get("firstConnectedAt"),
+        nested.get("firstConnectedAt"),
+        user.get("firstConnectedAt"),
+        user.get("firstConnected"),
+    ):
+        dt = parse_dt(raw)
+        if dt:
+            return dt
+    return None
+
+
+def panel_last_node_uuid(user: dict | None) -> str:
+    if not user:
+        return ""
+    traffic = user.get("userTraffic") if isinstance(user.get("userTraffic"), dict) else {}
+    nested = user.get("traffic") if isinstance(user.get("traffic"), dict) else {}
+    return str(
+        traffic.get("lastConnectedNodeUuid")
+        or nested.get("lastConnectedNodeUuid")
+        or user.get("lastConnectedNodeUuid")
+        or ""
+    ).strip()
+
+
+def panel_user_agent(user: dict | None) -> str:
+    if not user:
+        return ""
+    return str(
+        user.get("subLastUserAgent") or user.get("lastUserAgent") or user.get("userAgent") or ""
+    ).strip()
+
+
+def panel_sub_opened_at(user: dict | None) -> datetime | None:
+    if not user:
+        return None
+    return parse_dt(user.get("subLastOpenedAt") or user.get("subLastOpened"))
+
+
+def _dt_iso(value: Any) -> str | None:
+    dt = parse_dt(value)
+    if not dt:
+        return None
+    return dt.astimezone(timezone.utc).isoformat()
+
+
+def panel_hwid_devices(payload: Any) -> list[dict]:
+    if payload is None or (isinstance(payload, dict) and payload.get("_error")):
+        return []
+    data = _unwrap(payload)
+    items: list[dict] = []
+    if isinstance(data, list):
+        items = [x for x in data if isinstance(x, dict)]
+    elif isinstance(data, dict):
+        for key in ("devices", "hwidDevices", "users", "items", "history", "data"):
+            val = data.get(key)
+            if isinstance(val, list):
+                items = [x for x in val if isinstance(x, dict)]
+                break
+        if not items and any(
+            k in data for k in ("hwid", "fingerprint", "userAgent", "platform")
+        ):
+            items = [data]
+    out: list[dict] = []
+    for item in items:
+        hwid = str(item.get("hwid") or item.get("fingerprint") or item.get("id") or "").strip()
+        platform = str(item.get("platform") or item.get("os") or "").strip()
+        model = str(
+            item.get("deviceModel")
+            or item.get("deviceName")
+            or item.get("model")
+            or item.get("deviceOs")
+            or ""
+        ).strip()
+        ua = str(item.get("userAgent") or item.get("ua") or "").strip()
+        last_seen = (
+            _dt_iso(item.get("updatedAt"))
+            or _dt_iso(item.get("lastSeenAt"))
+            or _dt_iso(item.get("onlineAt"))
+            or _dt_iso(item.get("createdAt"))
+        )
+        out.append(
+            {
+                "hwid": hwid,
+                "platform": platform,
+                "model": model,
+                "user_agent": ua,
+                "created_at": _dt_iso(item.get("createdAt")),
+                "last_seen_at": last_seen,
+            }
+        )
+    return out
+
+
+def panel_node_summary(payload: Any) -> dict | None:
+    if payload is None or (isinstance(payload, dict) and payload.get("_error")):
+        return None
+    data = _unwrap(payload)
+    if isinstance(data, dict) and isinstance(data.get("node"), dict):
+        data = data["node"]
+    if not isinstance(data, dict):
+        return None
+    name = str(data.get("name") or "").strip()
+    uuid = str(data.get("uuid") or "").strip()
+    address = str(data.get("address") or data.get("host") or "").strip()
+    if not name and not uuid and not address:
+        return None
+    return {
+        "name": name or uuid,
+        "uuid": uuid,
+        "address": address,
+        "status": str(data.get("status") or ""),
+        "connected": data.get("isConnected"),
+    }
+
+
+async def fetch_device_network(
+    rw: RemnawaveClient,
+    *,
+    remnawave_id: int | None = None,
+    uuid: str | None = None,
+) -> dict:
+    panel = None
+    if remnawave_id is not None:
+        panel = await rw.get_user_by_id(remnawave_id)
+    ident = str(uuid or "").strip()
+    if not panel and ident:
+        panel = await rw.get_user_by_id(ident)
+    hwid: list[dict] = []
+    node = None
+    if panel:
+        uid = panel_user_key(panel)
+        numeric = panel.get("id")
+        hwid_raw = None
+        if uid:
+            hwid_raw = await rw.safe_get(f"/hwid/devices/{uid}")
+            if isinstance(hwid_raw, dict) and hwid_raw.get("_error") and numeric is not None:
+                hwid_raw = await rw.safe_get(f"/hwid/devices/{numeric}")
+        hwid = panel_hwid_devices(hwid_raw)
+        node_uuid = panel_last_node_uuid(panel)
+        if node_uuid:
+            node = panel_node_summary(await rw.safe_get(f"/nodes/{node_uuid}"))
+            if not node:
+                node = {
+                    "name": node_uuid,
+                    "uuid": node_uuid,
+                    "address": "",
+                    "status": "",
+                    "connected": None,
+                }
+    return {"panel": panel, "hwid": hwid, "node": node}
+
+
 def iso_expire(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 

@@ -27,7 +27,17 @@ from app.shop_config import save_shop_overlay, snapshot as shop_snapshot
 from app.keyboards import blocked_keyboard, cabinet_keyboard, share_keyboard
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
 from app.notices import notice_text
-from app.remnawave import RemnawaveClient, RemnawaveError
+from app.remnawave import (
+    RemnawaveClient,
+    RemnawaveError,
+    fetch_device_network,
+    panel_first_connected_at,
+    panel_lifetime_traffic_bytes,
+    panel_online_at,
+    panel_sub_opened_at,
+    panel_used_traffic_bytes,
+    panel_user_agent,
+)
 from app.texts import days_text, rub_text, subscription_reissued_text
 
 logger = logging.getLogger("rm-shop.admin")
@@ -85,7 +95,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "37"})
+    return web.json_response({"ok": True, "build": "43"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -180,6 +190,76 @@ async def api_users(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 
+def _iso_value(value) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    text = str(value).strip()
+    return text or None
+
+
+def _device_base(item: dict) -> dict:
+    return {
+        "id": item.get("id"),
+        "title": item.get("title") or "Устройство",
+        "platform": item.get("platform") or "",
+        "client": item.get("client") or "",
+        "status": str(item.get("panel_status") or item.get("status") or ""),
+        "last_online_at": _iso_value(item.get("last_online_at")),
+        "first_connected_at": None,
+        "used_traffic_bytes": item.get("used_traffic_bytes"),
+        "lifetime_traffic_bytes": item.get("lifetime_traffic_bytes"),
+        "user_agent": "",
+        "sub_last_opened_at": None,
+        "node": None,
+        "sessions": [],
+    }
+
+
+async def _enrich_device_network(rw: RemnawaveClient, item: dict) -> dict:
+    out = _device_base(item)
+    remnawave_id = item.get("remnawave_id")
+    try:
+        panel_id = int(remnawave_id) if remnawave_id is not None else None
+    except (TypeError, ValueError):
+        panel_id = None
+    uuid = str(item.get("remnawave_uuid") or "").strip() or None
+    try:
+        extra = await fetch_device_network(rw, remnawave_id=panel_id, uuid=uuid)
+    except Exception:
+        logger.exception("device network telegram=%s device=%s", item.get("telegram_id"), item.get("id"))
+        return out
+    panel = extra.get("panel") if isinstance(extra.get("panel"), dict) else None
+    if panel:
+        online = panel_online_at(panel)
+        first = panel_first_connected_at(panel)
+        used = panel_used_traffic_bytes(panel)
+        life = panel_lifetime_traffic_bytes(panel)
+        status = str(panel.get("status") or "").strip()
+        if online:
+            out["last_online_at"] = online.isoformat()
+        if first:
+            out["first_connected_at"] = first.isoformat()
+        if used is not None:
+            out["used_traffic_bytes"] = used
+        if life is not None:
+            out["lifetime_traffic_bytes"] = life
+        if status:
+            out["status"] = status
+        out["user_agent"] = panel_user_agent(panel)
+        opened = panel_sub_opened_at(panel)
+        if opened:
+            out["sub_last_opened_at"] = opened.isoformat()
+    node = extra.get("node")
+    if isinstance(node, dict):
+        out["node"] = node
+    sessions = extra.get("hwid")
+    if isinstance(sessions, list):
+        out["sessions"] = sessions
+    return out
+
+
 async def api_user_devices(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -192,36 +272,31 @@ async def api_user_devices(request: web.Request) -> web.Response:
     if not local:
         return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
     rows = await db.list_devices(telegram_id)
-    items: list[dict] = []
-    if rows:
-        for item in rows:
-            online = item.get("last_online_at")
-            items.append(
-                {
-                    "id": item["id"],
-                    "title": item.get("title") or "Устройство",
-                    "platform": item.get("platform") or "",
-                    "client": item.get("client") or "",
-                    "status": str(item.get("panel_status") or ""),
-                    "last_online_at": online.isoformat() if hasattr(online, "isoformat") else online,
-                    "used_traffic_bytes": item.get("used_traffic_bytes"),
-                    "lifetime_traffic_bytes": item.get("lifetime_traffic_bytes"),
-                }
-            )
-    elif local.get("remnawave_id"):
-        items.append(
+    if not rows and local.get("remnawave_id"):
+        rows = [
             {
                 "id": None,
                 "title": "Подписка",
                 "platform": "",
                 "client": "",
-                "status": str(local.get("panel_status") or ""),
+                "panel_status": str(local.get("panel_status") or ""),
                 "last_online_at": None,
                 "used_traffic_bytes": local.get("used_traffic_bytes"),
                 "lifetime_traffic_bytes": local.get("lifetime_traffic_bytes"),
+                "remnawave_id": local.get("remnawave_id"),
+                "remnawave_uuid": local.get("remnawave_uuid"),
+                "telegram_id": telegram_id,
             }
-        )
-    return web.json_response({"ok": True, "items": items})
+        ]
+    rw: RemnawaveClient = request.app["rw"]
+    sem = asyncio.Semaphore(4)
+
+    async def one(row: dict) -> dict:
+        async with sem:
+            return await _enrich_device_network(rw, row)
+
+    items = await asyncio.gather(*(one(row) for row in rows)) if rows else []
+    return web.json_response({"ok": True, "items": list(items)})
 
 
 async def api_referrals(request: web.Request) -> web.Response:

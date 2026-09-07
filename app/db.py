@@ -1553,6 +1553,27 @@ async def use_promo(telegram_id: int, code: str) -> bool:
 def _jsonable(row: dict) -> dict:
     out = {}
     for key, value in row.items():
+        if key == "devices":
+            items = value
+            if isinstance(items, str):
+                try:
+                    items = json.loads(items)
+                except ValueError:
+                    items = []
+            if not isinstance(items, list):
+                items = []
+            cleaned = []
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                cleaned.append(
+                    {
+                        k: v.isoformat() if hasattr(v, "isoformat") else v
+                        for k, v in item.items()
+                    }
+                )
+            out[key] = cleaned
+            continue
         if hasattr(value, "isoformat"):
             out[key] = value.isoformat()
         else:
@@ -1931,6 +1952,26 @@ async def admin_list_users(
                    FROM devices d
                    WHERE d.telegram_id = u.telegram_id
                ) AS device_titles,
+               (
+                   SELECT COALESCE(
+                       json_agg(
+                           json_build_object(
+                               'id', d.id,
+                               'title', COALESCE(NULLIF(d.title, ''), 'Устройство'),
+                               'platform', COALESCE(d.platform, ''),
+                               'client', COALESCE(d.client, ''),
+                               'status', COALESCE(d.panel_status, ''),
+                               'last_online_at', d.last_online_at,
+                               'used_traffic_bytes', d.used_traffic_bytes,
+                               'lifetime_traffic_bytes', d.lifetime_traffic_bytes
+                           )
+                           ORDER BY d.id
+                       ),
+                       '[]'::json
+                   )
+                   FROM devices d
+                   WHERE d.telegram_id = u.telegram_id
+               ) AS devices,
                (
                    SELECT MAX(d.last_online_at)
                    FROM devices d
