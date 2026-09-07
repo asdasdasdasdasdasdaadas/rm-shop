@@ -6,6 +6,8 @@ import hmac
 import logging
 import time
 
+from html import escape
+
 from aiohttp import web
 from aiogram import Bot
 
@@ -22,11 +24,12 @@ from app.backup import (
 )
 from app.config import ROOT, get_settings
 from app.shop_config import save_shop_overlay, snapshot as shop_snapshot
-from app.keyboards import blocked_keyboard, cabinet_keyboard
+from app.keyboards import blocked_keyboard, cabinet_keyboard, share_keyboard
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
+from app.notices import notice_text
 from app.remnawave import RemnawaveClient, RemnawaveError
 from app.vpn_apps import public_vpn_apps
-from app.texts import subscription_reissued_text
+from app.texts import days_text, rub_text, subscription_reissued_text
 
 logger = logging.getLogger("rm-shop.admin")
 ADMIN_DIR = ROOT / "admin"
@@ -321,6 +324,22 @@ async def api_reports(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 
+async def api_messages(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    q = str(request.query.get("q") or "")
+    page = max(1, int(request.query.get("page") or 1))
+    limit = min(100, max(1, int(request.query.get("limit") or 40)))
+    items, total = await db.admin_list_messages(
+        q,
+        limit,
+        (page - 1) * limit,
+        _query_extra(request, "channel", "source", "kind", "from", "to"),
+    )
+    return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+
+
 async def api_billing(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -607,30 +626,126 @@ async def api_message(request: web.Request) -> web.Response:
     try:
         await bot.send_message(telegram_id, text)
     except Exception as exc:
+        await db.log_bot_message(
+            kind="admin_dm",
+            source="manual",
+            telegram_id=telegram_id,
+            title="Сообщение из админки",
+            body=text,
+            status="failed",
+        )
         return web.json_response({"ok": False, "error": str(exc)}, status=502)
+    await db.log_bot_message(
+        kind="admin_dm",
+        source="manual",
+        telegram_id=telegram_id,
+        title="Сообщение из админки",
+        body=text,
+        status="sent",
+    )
     return web.json_response({"ok": True})
 
 
-async def _broadcast_all(bot: Bot, text: str, job: dict, ids: list[int] | None = None) -> None:
-    if ids is None:
-        ids = await db.list_broadcast_ids()
-    job["total"] = len(ids)
-    for telegram_id in ids:
+async def _broadcast_all(
+    bot: Bot,
+    text: str,
+    job: dict,
+    ids: list[int] | None = None,
+    template: str | None = None,
+) -> None:
+    tpl = str(template or "").strip()
+    if tpl in {"invite", "unused"}:
+        audience = "using" if tpl == "invite" else "unused"
+        targets = await db.list_broadcast_targets(audience)
+    elif ids is not None:
+        targets = [{"telegram_id": int(item), "first_name": None} for item in ids]
+    else:
+        targets = await db.list_broadcast_targets("all")
+    job["total"] = len(targets)
+    settings = get_settings()
+    for row in targets:
         if not job.get("running"):
             break
+        telegram_id = int(row["telegram_id"])
+        body, markup = _broadcast_payload(tpl, text, telegram_id, row.get("first_name"), settings)
         try:
-            await bot.send_message(telegram_id, text)
+            await bot.send_message(telegram_id, body, reply_markup=markup)
             job["sent"] = int(job.get("sent") or 0) + 1
+            await db.log_bot_message(
+                kind="broadcast",
+                source="manual",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title=_broadcast_title(tpl),
+                body=body,
+                status="sent",
+                extra={"template": tpl or "custom"},
+            )
         except Exception:
             job["failed"] = int(job.get("failed") or 0) + 1
+            await db.log_bot_message(
+                kind="broadcast",
+                source="manual",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title=_broadcast_title(tpl),
+                body=body,
+                status="failed",
+                extra={"template": tpl or "custom"},
+            )
         await asyncio.sleep(0.035)
 
 
-async def _run_broadcast_job(app: web.Application, text: str, ids: list[int] | None = None) -> None:
+def _broadcast_title(template: str) -> str:
+    if template == "invite":
+        return "Рассылка: пользуются VPN"
+    if template == "unused":
+        return "Рассылка: не подключались"
+    return "Рассылка"
+
+
+def _referral_reward_label() -> str:
+    settings = get_settings()
+    if settings.balance_enabled:
+        return rub_text(settings.referral_reward_rub)
+    return days_text(settings.referral_reward_days)
+
+
+def _broadcast_payload(
+    template: str,
+    text: str,
+    telegram_id: int,
+    first_name: str | None,
+    settings,
+) -> tuple[str, object]:
+    if template == "invite":
+        link = f"https://t.me/{settings.bot_username}?start=ref_{telegram_id}"
+        body = notice_text(
+            "broadcast_invite",
+            reward=_referral_reward_label(),
+            link=link,
+            name=escape(str(first_name or "друг")),
+        )
+        return body, share_keyboard(settings.bot_username, telegram_id)
+    if template == "unused":
+        body = notice_text(
+            "broadcast_unused",
+            name=escape(str(first_name or "друг")),
+        )
+        return body, cabinet_keyboard()
+    return text, None
+
+
+async def _run_broadcast_job(
+    app: web.Application,
+    text: str,
+    ids: list[int] | None = None,
+    template: str | None = None,
+) -> None:
     job = _bc_job(app)
     bot: Bot = app["bot"]
     try:
-        await _broadcast_all(bot, text, job, ids)
+        await _broadcast_all(bot, text, job, ids, template)
         prefix = "Выбранным. " if job.get("scope") == "selected" else ""
         job["message"] = f"{prefix}Отправлено: {job.get('sent') or 0}, ошибок: {job.get('failed') or 0}"
     except Exception as exc:
@@ -645,6 +760,7 @@ def _new_bc_job() -> dict:
     return {
         "running": False,
         "scope": "all",
+        "template": "",
         "total": 0,
         "sent": 0,
         "failed": 0,
@@ -661,16 +777,37 @@ def _bc_job(app: web.Application) -> dict:
     return job
 
 
-def _start_broadcast_job(app: web.Application, text: str, ids: list[int] | None = None) -> dict:
+def _start_broadcast_job(
+    app: web.Application,
+    text: str,
+    ids: list[int] | None = None,
+    template: str | None = None,
+) -> dict:
     job = _bc_job(app)
     job.update(_new_bc_job())
     job["running"] = True
     job["scope"] = "selected" if ids is not None else "all"
+    job["template"] = str(template or "")
     if ids is not None:
         job["total"] = len(ids)
     job["message"] = "Запущено"
-    asyncio.create_task(_run_broadcast_job(app, text, ids))
+    asyncio.create_task(_run_broadcast_job(app, text, ids, template))
     return job
+
+
+def _broadcast_template_preview(template: str) -> str:
+    settings = get_settings()
+    if template == "invite":
+        link = f"https://t.me/{settings.bot_username}?start=ref_…"
+        return notice_text(
+            "broadcast_invite",
+            reward=_referral_reward_label(),
+            link=link,
+            name="друг",
+        )
+    if template == "unused":
+        return notice_text("broadcast_unused", name="друг")
+    return ""
 
 
 async def api_broadcast(request: web.Request) -> web.Response:
@@ -678,18 +815,44 @@ async def api_broadcast(request: web.Request) -> web.Response:
     if denied:
         return denied
     job = _bc_job(request.app)
+    audiences = {}
+    if request.method == "GET" or not job.get("running"):
+        audiences = await db.broadcast_audience_counts()
     if request.method == "GET":
-        return web.json_response({"ok": True, **job})
+        extra = {"audiences": audiences} if audiences else {}
+        if not job.get("running"):
+            extra["previews"] = {
+                "invite": _broadcast_template_preview("invite"),
+                "unused": _broadcast_template_preview("unused"),
+            }
+        return web.json_response({"ok": True, **job, **extra})
     if job.get("running"):
         return web.json_response({"ok": False, "error": "Рассылка уже идёт", **job}, status=409)
     body = await request.json()
+    template = str(body.get("template") or "").strip()
+    if template not in {"", "invite", "unused"}:
+        return web.json_response({"ok": False, "error": "Неизвестный шаблон"}, status=400)
     text = str(body.get("text") or "").strip()
+    if template in {"invite", "unused"}:
+        text = _broadcast_template_preview(template)
+        audience = "using" if template == "invite" else "unused"
+        ids = await db.list_broadcast_ids(audience)
+        if not ids:
+            return web.json_response({"ok": False, "error": "Нет получателей для этого шаблона"}, status=400)
+        started = _start_broadcast_job(request.app, text, ids, template)
+        return web.json_response({"ok": True, **started, "audiences": audiences})
     if not text:
         return web.json_response({"ok": False, "error": "Пустой текст"}, status=400)
     if len(text) > 3500:
         return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
-    started = _start_broadcast_job(request.app, text, None)
-    return web.json_response({"ok": True, **started})
+    audience = str(body.get("audience") or "all").strip() or "all"
+    if audience not in {"all", "using", "unused"}:
+        return web.json_response({"ok": False, "error": "Неизвестная аудитория"}, status=400)
+    ids = None if audience == "all" else await db.list_broadcast_ids(audience)
+    if ids is not None and not ids:
+        return web.json_response({"ok": False, "error": "Нет получателей"}, status=400)
+    started = _start_broadcast_job(request.app, text, ids, None)
+    return web.json_response({"ok": True, **started, "audiences": audiences})
 
 
 async def api_settings(request: web.Request) -> web.Response:
@@ -1147,6 +1310,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/payouts/{payout_id}", api_payout_resolve)
     app.router.add_get("/admin/api/orders", api_orders)
     app.router.add_get("/admin/api/reports", api_reports)
+    app.router.add_get("/admin/api/messages", api_messages)
     app.router.add_get("/admin/api/billing", api_billing)
     app.router.add_get("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/settings", api_settings)

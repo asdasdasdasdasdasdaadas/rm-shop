@@ -7,13 +7,35 @@ let billPage = 1;
 let currentUser = null;
 let selectedUsers = new Set();
 let lastUserItems = [];
-const TABS = ["overview", "users", "referrals", "orders", "billing", "reports", "broadcast", "promo", "backups", "settings"];
+const TABS = ["overview", "users", "referrals", "orders", "billing", "reports", "messages", "broadcast", "promo", "backups", "settings"];
 const TAB_KEYS = {
   users: ["q", "status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to"],
   referrals: ["q", "reward", "from", "to"],
   orders: ["q", "status", "from", "to"],
   billing: ["q", "kind", "source", "from", "to"],
   reports: ["status", "from", "to"],
+  messages: ["q", "channel", "source", "kind", "from", "to"],
+};
+const MSG_KIND_LABEL = {
+  broadcast: "Рассылка",
+  admin_dm: "Сообщение из админки",
+  nudge_trial: "Напоминание: триал",
+  nudge_invite: "Напоминание: друзья",
+  nudge_info: "Напоминание: кабинет",
+  low_balance: "Мало баланса",
+  maintenance_hit: "Обращение при техработах",
+  maintenance_out: "Ответ техработ",
+};
+const MSG_STATUS_LABEL = { sent: "ушло", failed: "ошибка", hit: "обращение" };
+const MSG_SOURCE_LABEL = { auto: "авто", manual: "вручную" };
+const MSG_CHANNEL_LABEL = { announce: "объявления", maint: "техработы" };
+const MSG_FILTER_IDS = {
+  q: "msgQ",
+  channel: "msgChannel",
+  source: "msgSource",
+  kind: "msgKind",
+  from: "msgFrom",
+  to: "msgTo",
 };
 let toastTimer = 0;
 let pageLimit = Number(localStorage.getItem("way-admin-limit") || 25);
@@ -350,6 +372,9 @@ function switchTab(name, opts = {}) {
         route.tab === "reports" ? route.params : new URLSearchParams()
       );
     }
+    if (name === "messages") {
+      fillFromParams(MSG_FILTER_IDS, route.tab === "messages" ? route.params : new URLSearchParams());
+    }
   }
   document.querySelectorAll("nav [data-tab], .bottom-nav [data-tab]").forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === name);
@@ -394,6 +419,9 @@ function switchTab(name, opts = {}) {
         if (v) params.set(k, v);
       });
     }
+    if (name === "messages") {
+      Object.entries(collectMsgFilters()).forEach(([k, v]) => v && params.set(k, v));
+    }
     writeRoute(name, params);
   }
   if (name === "overview") loadStats();
@@ -409,6 +437,7 @@ function switchTab(name, opts = {}) {
   if (name === "orders") loadOrders();
   if (name === "billing") loadBilling();
   if (name === "reports") loadReports();
+  if (name === "messages") loadMessages();
   if (name === "backups") loadBackups();
   if (name === "broadcast") loadBroadcastJob();
   if (name === "settings" || name === "promo") loadSettings();
@@ -693,7 +722,7 @@ async function loadStats() {
         (today.credited || 0) +
         " ₽ начислено";
     }
-    if ($("broadcastCount")) {
+    if ($("broadcastCount") && !document.querySelector('input[name="bcTpl"]:checked')) {
       $("broadcastCount").textContent = "Уйдёт примерно " + (s.broadcast_users || 0) + " пользователям (без заблокированных).";
     }
   } catch (e) {
@@ -1329,6 +1358,87 @@ async function loadReports(page) {
   pager($("reportPager"), data.page, data.total, data.limit, loadReports);
 }
 
+function collectMsgFilters() {
+  return {
+    q: val("msgQ"),
+    channel: val("msgChannel"),
+    source: val("msgSource"),
+    kind: val("msgKind"),
+    from: val("msgFrom"),
+    to: val("msgTo"),
+  };
+}
+
+function msgPreview(text) {
+  const s = String(text || "").replace(/\s+/g, " ").trim();
+  if (!s) return "—";
+  return s.length > 90 ? s.slice(0, 90) + "…" : s;
+}
+
+function msgWho(r) {
+  if (!r.telegram_id) return "—";
+  return `${r.telegram_id}` + (r.username ? ` @${r.username}` : "") + (r.first_name ? ` · ${r.first_name}` : "");
+}
+
+let msgPage = 1;
+async function loadMessages(page) {
+  if (page) msgPage = page;
+  const f = collectMsgFilters();
+  const reset = $("msgReset");
+  if (reset) reset.classList.toggle("hidden", !hasAny(f));
+  const chips = [];
+  if (f.channel) chips.push(["channel", MSG_CHANNEL_LABEL[f.channel] || f.channel]);
+  if (f.source) chips.push(["source", MSG_SOURCE_LABEL[f.source] || f.source]);
+  if (f.kind) chips.push(["kind", MSG_KIND_LABEL[f.kind] || f.kind]);
+  if (f.q) chips.push(["q", f.q]);
+  if (f.from) chips.push(["from", "с " + f.from]);
+  if (f.to) chips.push(["to", "по " + f.to]);
+  paintChips("msgChips", chips, (key) => {
+    setVal(MSG_FILTER_IDS[key], "");
+    loadMessages(1);
+  });
+  writeRoute("messages", new URLSearchParams(Object.entries(f).filter(([, v]) => v)));
+  const body = $("msgRows");
+  if (!body) return;
+  body.innerHTML = "";
+  const labels = ["Время", "Тип", "Источник", "Пользователь", "Статус", "Текст"];
+  let data;
+  try {
+    data = await api(`/admin/api/messages?${queryString({ ...f, page: msgPage })}`);
+  } catch (_e) {
+    body.appendChild(emptyRow(6, "Не удалось загрузить журнал"));
+    return;
+  }
+  if (!data.items.length) {
+    body.appendChild(emptyRow(6, hasAny(f) ? "Сообщений не нашли" : "Журнал пока пуст"));
+  }
+  data.items.forEach((r) => {
+    const tr = document.createElement("tr");
+    tr.style.cursor = "pointer";
+    [
+      fmt(r.created_at),
+      MSG_KIND_LABEL[r.kind] || r.kind || "—",
+      MSG_SOURCE_LABEL[r.source] || r.source || "—",
+      msgWho(r),
+      MSG_STATUS_LABEL[r.status] || r.status || "—",
+      msgPreview(r.body || r.title),
+    ].forEach((t) => {
+      const td = document.createElement("td");
+      td.textContent = t;
+      tr.appendChild(td);
+    });
+    labelRow(tr, labels);
+    tr.onclick = () => {
+      const extra = r.extra && typeof r.extra === "object" && Object.keys(r.extra).length
+        ? "\n\n" + JSON.stringify(r.extra, null, 2)
+        : "";
+      $("msgDetail").textContent = `${r.title || MSG_KIND_LABEL[r.kind] || "Сообщение"}\n${msgWho(r)}\n\n${r.body || "—"}${extra}`;
+    };
+    body.appendChild(tr);
+  });
+  pager($("msgPager"), data.page, data.total, data.limit, loadMessages);
+}
+
 async function loadSettings() {
   const s = await api("/admin/api/settings");
   const v = s.values || {};
@@ -1830,6 +1940,23 @@ $("refQ").oninput = debounce(() => loadReferrals(1), 300);
   const el = $(id);
   if (el) el.onchange = () => loadReports(1);
 });
+if ($("msgSearch")) $("msgSearch").onclick = () => loadMessages(1);
+if ($("msgReset")) {
+  $("msgReset").onclick = () => {
+    Object.values(MSG_FILTER_IDS).forEach((id) => setVal(id, ""));
+    loadMessages(1);
+  };
+}
+if ($("msgQ")) {
+  $("msgQ").oninput = debounce(() => loadMessages(1), 300);
+  $("msgQ").onkeydown = (e) => {
+    if (e.key === "Enter") loadMessages(1);
+  };
+}
+["msgChannel", "msgSource", "msgKind", "msgFrom", "msgTo"].forEach((id) => {
+  const el = $(id);
+  if (el) el.onchange = () => loadMessages(1);
+});
 $("userQ").onkeydown = (e) => {
   if (e.key === "Enter") {
     selectedUsers.clear();
@@ -1932,6 +2059,48 @@ $("refQ").onkeydown = (e) => {
 };
 
 let bcPoll = 0;
+let bcPreviews = { invite: "", unused: "" };
+let bcAudiences = { all: 0, using: 0, unused: 0 };
+
+function bcTpl() {
+  const el = document.querySelector('input[name="bcTpl"]:checked');
+  return (el && el.value) || "custom";
+}
+
+function paintBroadcastAudience() {
+  const tpl = bcTpl();
+  const wrap = $("bcAudienceWrap");
+  const ta = $("broadcastText");
+  if (wrap) wrap.classList.toggle("hidden", tpl !== "custom");
+  const audience = tpl === "invite"
+    ? "using"
+    : tpl === "unused"
+      ? "unused"
+      : (($("bcAudience") && $("bcAudience").value) || "all");
+  const n = Number(bcAudiences[audience] || 0);
+  const labels = {
+    all: "всем незаблокированным",
+    using: "тем, у кого есть устройство",
+    unused: "тем, у кого нет устройств",
+  };
+  if ($("broadcastCount")) {
+    $("broadcastCount").textContent = `Уйдёт ${n} пользователям (${labels[audience] || "выбранным"}).`;
+  }
+  if ($("bcCountInvite")) $("bcCountInvite").textContent = "Получатели: " + (bcAudiences.using || 0);
+  if ($("bcCountUnused")) $("bcCountUnused").textContent = "Получатели: " + (bcAudiences.unused || 0);
+  if ($("bcCountCustom")) $("bcCountCustom").textContent = "Получатели: " + (bcAudiences[($("bcAudience") && $("bcAudience").value) || "all"] || 0);
+  if (ta) {
+    if (tpl === "invite" || tpl === "unused") {
+      ta.value = bcPreviews[tpl] || "";
+      ta.readOnly = true;
+    } else {
+      ta.readOnly = false;
+    }
+  }
+  if ($("broadcastPreview")) {
+    $("broadcastPreview").textContent = (ta && ta.value.trim()) || "Превью сообщения";
+  }
+}
 
 function paintBroadcastJob(j) {
   const out = $("broadcastOut");
@@ -1940,6 +2109,8 @@ function paintBroadcastJob(j) {
   const bulkOut = $("bulkOut");
   if (btn) btn.disabled = !!j.running;
   if (bulkBtn) bulkBtn.disabled = !!j.running;
+  if (j.audiences) bcAudiences = j.audiences;
+  if (j.previews) bcPreviews = { ...bcPreviews, ...j.previews };
   const progress = () => {
     const total = j.total || 0;
     return total
@@ -1950,10 +2121,11 @@ function paintBroadcastJob(j) {
     if (j.running) out.textContent = progress();
     else if (j.message) out.textContent = j.message;
   }
-  if (bulkOut && j.scope === "selected") {
+  if (bulkOut && j.scope === "selected" && !j.template) {
     if (j.running) bulkOut.textContent = progress();
     else if (j.message) bulkOut.textContent = j.message;
   }
+  paintBroadcastAudience();
 }
 
 async function loadBroadcastJob() {
@@ -1970,17 +2142,32 @@ async function loadBroadcastJob() {
 }
 
 $("broadcastBtn").onclick = async () => {
-  const text = $("broadcastText").value.trim();
-  if (!text) {
-    $("broadcastOut").textContent = "Введите текст";
-    return;
+  const tpl = bcTpl();
+  let payload;
+  let title = "Рассылка";
+  let lead = "";
+  if (tpl === "invite" || tpl === "unused") {
+    const n = tpl === "invite" ? bcAudiences.using : bcAudiences.unused;
+    payload = { template: tpl };
+    title = tpl === "invite" ? "Пользуются VPN" : "Не подключались";
+    lead = `Сообщение уйдёт ${n || 0} пользователям. Отменить рассылку нельзя.`;
+  } else {
+    const text = $("broadcastText").value.trim();
+    if (!text) {
+      $("broadcastOut").textContent = "Введите текст";
+      return;
+    }
+    const audience = ($("bcAudience") && $("bcAudience").value) || "all";
+    payload = { text, audience };
+    const n = bcAudiences[audience] || 0;
+    lead = `Сообщение уйдёт ${n} пользователям. Отменить рассылку нельзя.`;
   }
-  if (!(await confirmAction("Рассылка всем", "Сообщение уйдёт всем незаблокированным пользователям. Отменить рассылку нельзя."))) return;
+  if (!(await confirmAction(title, lead))) return;
   $("broadcastOut").textContent = "Запускаю...";
   try {
     await api("/admin/api/broadcast", {
       method: "POST",
-      body: JSON.stringify({ text: $("broadcastText").value }),
+      body: JSON.stringify(payload),
     });
     toast("Рассылка запущена");
     loadBroadcastJob();
@@ -2344,6 +2531,10 @@ $("subReplaceBtn").onclick = async () => {
     $("broadcastText").oninput = () => {
       $("broadcastPreview").textContent = $("broadcastText").value.trim() || "Превью сообщения";
     };
+    document.querySelectorAll('input[name="bcTpl"]').forEach((el) => {
+      el.onchange = () => paintBroadcastAudience();
+    });
+    if ($("bcAudience")) $("bcAudience").onchange = () => paintBroadcastAudience();
   }
   if ($("maintNotice") && $("maintPhonePreview")) {
     $("maintNotice").oninput = () => {

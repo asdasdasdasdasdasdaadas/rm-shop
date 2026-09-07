@@ -168,6 +168,20 @@ def _chat_id(event: TelegramObject) -> int | None:
     return None
 
 
+def _hit_preview(inner: TelegramObject) -> str:
+    if isinstance(inner, Message):
+        text = (inner.text or inner.caption or "").strip()
+        if text:
+            return text[:500]
+        return str(getattr(inner, "content_type", "") or "сообщение")
+    if isinstance(inner, CallbackQuery):
+        data = str(inner.data or "").strip()
+        return f"кнопка: {data}"[:500] if data else "кнопка"
+    if isinstance(inner, MessageReactionUpdated):
+        return "реакция"
+    return type(inner).__name__
+
+
 class MaintenanceMiddleware(BaseMiddleware):
     async def __call__(
         self,
@@ -199,7 +213,29 @@ class MaintenanceMiddleware(BaseMiddleware):
                 logger.debug("Не удалось ответить на callback при техработах", exc_info=True)
         if bot and chat_id:
             force = isinstance(inner, CallbackQuery) and inner.data == "try_again"
-            await notify_user(bot, chat_id, force=force)
+            replied = await notify_user(bot, chat_id, force=force)
+            await db.log_bot_message(
+                kind="maintenance_hit",
+                source="auto",
+                telegram_id=int(user.id) if user else int(chat_id),
+                username=getattr(user, "username", None),
+                first_name=getattr(user, "first_name", None),
+                title="Попытка во время техработ",
+                body=_hit_preview(inner),
+                status="hit",
+                extra={"replied": bool(replied), "chat_id": int(chat_id)},
+            )
+            if replied:
+                await db.log_bot_message(
+                    kind="maintenance_out",
+                    source="auto",
+                    telegram_id=int(user.id) if user else int(chat_id),
+                    username=getattr(user, "username", None),
+                    first_name=getattr(user, "first_name", None),
+                    title="Ответ техработ",
+                    body=await current_text(),
+                    status="sent",
+                )
         elif chat_id is None:
             logger.warning("Техработы: нет chat_id для %s", type(inner).__name__)
         return None

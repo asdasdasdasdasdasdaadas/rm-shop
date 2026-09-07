@@ -78,9 +78,27 @@ async def send_due_trial_nudges(bot: Bot) -> int:
                 trial_nudge_text(row.get("first_name")),
                 reply_markup=trial_nudge_keyboard(),
             )
+            await db.log_bot_message(
+                kind="nudge_trial",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title="Напоминание: триал",
+                body=trial_nudge_text(row.get("first_name")),
+                status="sent",
+            )
             sent += 1
         except Exception:
             logger.debug("Напоминание о триале не ушло %s", telegram_id, exc_info=True)
+            await db.log_bot_message(
+                kind="nudge_trial",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title="Напоминание: триал",
+                body=trial_nudge_text(row.get("first_name")),
+                status="failed",
+            )
         await asyncio.sleep(0.035)
     return sent
 
@@ -99,9 +117,27 @@ async def send_due_invite_nudges(bot: Bot) -> int:
                 invite_nudge_text(telegram_id, row.get("first_name")),
                 reply_markup=share_keyboard(get_settings().bot_username, telegram_id),
             )
+            await db.log_bot_message(
+                kind="nudge_invite",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title="Напоминание: пригласить друга",
+                body=invite_nudge_text(telegram_id, row.get("first_name")),
+                status="sent",
+            )
             sent += 1
         except Exception:
             logger.debug("Напоминание пригласить друга не ушло %s", telegram_id, exc_info=True)
+            await db.log_bot_message(
+                kind="nudge_invite",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title="Напоминание: пригласить друга",
+                body=invite_nudge_text(telegram_id, row.get("first_name")),
+                status="failed",
+            )
         await asyncio.sleep(0.035)
     return sent
 
@@ -121,9 +157,27 @@ async def send_due_info_nudges(bot: Bot) -> int:
                 info_nudge_text(),
                 reply_markup=kb,
             )
+            await db.log_bot_message(
+                kind="nudge_info",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title="Напоминание: как устроен кабинет",
+                body=info_nudge_text(),
+                status="sent",
+            )
             sent += 1
         except Exception:
             logger.debug("Справка о кабинете не ушла %s", telegram_id, exc_info=True)
+            await db.log_bot_message(
+                kind="nudge_info",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title="Напоминание: как устроен кабинет",
+                body=info_nudge_text(),
+                status="failed",
+            )
         await asyncio.sleep(0.035)
     return sent
 

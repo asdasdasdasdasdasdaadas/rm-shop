@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="32">
+  <meta name="admin-build" content="33">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=28">
+  <link rel="stylesheet" href="app.css?v=29">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -33,7 +33,7 @@
       <div class="login-mark" aria-hidden="true">
         <svg viewBox="0 0 48 48" fill="none"><ellipse cx="24" cy="30" rx="11" ry="13" fill="currentColor"/><circle cx="12" cy="14" r="4.4" fill="currentColor"/><circle cx="36" cy="14" r="4.4" fill="currentColor"/><circle cx="20" cy="8" r="3.6" fill="currentColor" opacity=".75"/><circle cx="28" cy="8" r="3.6" fill="currentColor" opacity=".75"/></svg>
       </div>
-      <p class="login-kicker">Админка · сборка 32</p>
+      <p class="login-kicker">Админка · сборка 33</p>
       <h1>Кабинет сервиса</h1>
       <p class="muted">Пользователи, оплаты, биллинг и настройки. Тема переключается кнопкой сверху.</p>
       <label class="field-label" for="password">Пароль</label>
@@ -83,9 +83,13 @@
           <span class="nav-text">Жалобы VPN</span>
         </button>
         <div class="nav-label">Сервис</div>
-        <button type="button" data-tab="broadcast" data-title="Рассылка" data-lead="Сообщение всем, кто запускал бота">
+        <button type="button" data-tab="broadcast" data-title="Рассылка" data-lead="Шаблоны по аудитории или свой текст">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 11l16-6-6 16-2.5-6.5L4 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           <span class="nav-text">Рассылка</span>
+        </button>
+        <button type="button" data-tab="messages" data-title="Сообщения" data-lead="Рассылки, напоминания и обращения во время техработ">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M5 6h14v10H8l-3 3V6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          <span class="nav-text">Сообщения</span>
         </button>
         <button type="button" data-tab="promo" data-title="Промо" data-lead="Триал, промокоды, истории и награды за друзей">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 9h16v11H4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9V4.8A1.8 1.8 0 0113.8 3h.2A2 2 0 0116 5v4M12 9V4.8A1.8 1.8 0 0010.2 3h-.2A2 2 0 008 5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 13h16" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -532,10 +536,97 @@
           </div>
         </section>
 
+        <section id="tab-messages" class="hidden">
+          <p class="muted intro">Журнал исходящих объявлений и попыток открыть бота, пока включены техработы.</p>
+          <div class="filters">
+            <select id="msgChannel" aria-label="Раздел">
+              <option value="">Все записи</option>
+              <option value="announce">Объявления</option>
+              <option value="maint">Техработы</option>
+            </select>
+            <select id="msgSource" aria-label="Источник">
+              <option value="">Источник: все</option>
+              <option value="manual">Вручную</option>
+              <option value="auto">Автоматически</option>
+            </select>
+            <select id="msgKind" aria-label="Тип">
+              <option value="">Тип: все</option>
+              <option value="broadcast">Рассылка</option>
+              <option value="admin_dm">Сообщение из админки</option>
+              <option value="nudge_trial">Напоминание: триал</option>
+              <option value="nudge_invite">Напоминание: друзья</option>
+              <option value="nudge_info">Напоминание: кабинет</option>
+              <option value="low_balance">Мало баланса</option>
+              <option value="maintenance_hit">Обращение при техработах</option>
+              <option value="maintenance_out">Ответ техработ</option>
+            </select>
+            <input id="msgQ" type="search" placeholder="Поиск по тексту, имени, ID" aria-label="Поиск">
+            <input id="msgFrom" type="date" aria-label="С">
+            <input id="msgTo" type="date" aria-label="По">
+            <button type="button" id="msgSearch">Найти</button>
+            <button type="button" id="msgReset" class="ghost hidden">Сбросить фильтры</button>
+          </div>
+          <div id="msgChips" class="filter-chips"></div>
+          <div class="table-wrap">
+            <table class="table-as-cards">
+              <thead>
+                <tr>
+                  <th>Время</th>
+                  <th>Тип</th>
+                  <th>Источник</th>
+                  <th>Пользователь</th>
+                  <th>Статус</th>
+                  <th>Текст</th>
+                </tr>
+              </thead>
+              <tbody id="msgRows"></tbody>
+            </table>
+          </div>
+          <div id="msgPager" class="pager"></div>
+          <div class="panel">
+            <h3>Текст сообщения</h3>
+            <pre id="msgDetail">Выберите строку</pre>
+          </div>
+        </section>
+
         <section id="tab-broadcast" class="hidden">
           <div class="panel narrow">
-            <h3>Новое сообщение</h3>
-            <p class="muted">Уйдёт всем, кто когда-либо запускал бота. Заблокированные не получают рассылку.</p>
+            <h3>Кому отправить</h3>
+            <p class="muted">Выберите шаблон — уйдёт только подходящим незаблокированным пользователям. Тексты можно поправить в Настройки / Тексты.</p>
+            <div class="bc-choices" role="radiogroup" aria-label="Шаблон рассылки">
+              <label class="bc-choice">
+                <input type="radio" name="bcTpl" value="invite">
+                <span>
+                  <strong>Пользуются VPN</strong>
+                  <span class="muted tight">Пригласите друзей и получите баланс. Только у кого уже есть устройство.</span>
+                  <span id="bcCountInvite" class="bc-count">Получатели: —</span>
+                </span>
+              </label>
+              <label class="bc-choice">
+                <input type="radio" name="bcTpl" value="unused">
+                <span>
+                  <strong>Не подключались</strong>
+                  <span class="muted tight">Так и не воспользовались VPN, может дадите нам шанс. Без устройств.</span>
+                  <span id="bcCountUnused" class="bc-count">Получатели: —</span>
+                </span>
+              </label>
+              <label class="bc-choice">
+                <input type="radio" name="bcTpl" value="custom" checked>
+                <span>
+                  <strong>Свой текст</strong>
+                  <span class="muted tight">Произвольное сообщение. Можно сузить аудиторию ниже.</span>
+                  <span id="bcCountCustom" class="bc-count">Получатели: —</span>
+                </span>
+              </label>
+            </div>
+            <label class="bc-audience hidden" id="bcAudienceWrap">
+              <span class="muted tight">Аудитория для своего текста</span>
+              <select id="bcAudience" aria-label="Аудитория">
+                <option value="all">Все, кто запускал бота</option>
+                <option value="using">Только с устройствами</option>
+                <option value="unused">Только без устройств</option>
+              </select>
+            </label>
             <textarea id="broadcastText" rows="8" placeholder="Текст сообщения"></textarea>
             <p id="broadcastCount" class="muted">Получатели: после входа покажем оценку по базе</p>
             <div class="chat-preview" id="broadcastPreview">Превью сообщения</div>
@@ -868,6 +959,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=37"></script>
+  <script src="app.js?v=39"></script>
 </body>
 </html>

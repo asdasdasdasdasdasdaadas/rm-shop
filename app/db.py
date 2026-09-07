@@ -1413,6 +1413,40 @@ def _jsonable(row: dict) -> dict:
     return out
 
 
+async def log_bot_message(
+    *,
+    kind: str,
+    source: str = "auto",
+    telegram_id: int | None = None,
+    username: str | None = None,
+    first_name: str | None = None,
+    title: str = "",
+    body: str = "",
+    status: str = "sent",
+    extra: dict | None = None,
+) -> None:
+    try:
+        await _pool_req().execute(
+            """
+            INSERT INTO message_log (
+                kind, source, telegram_id, username, first_name, title, body, status, extra
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+            """,
+            str(kind or "")[:40],
+            "manual" if source == "manual" else "auto",
+            int(telegram_id) if telegram_id else None,
+            (username or "")[:64] or None,
+            (first_name or "")[:128] or None,
+            str(title or "")[:160],
+            str(body or "")[:3500],
+            str(status or "sent")[:20],
+            json.dumps(extra or {}, ensure_ascii=False, default=str),
+        )
+    except Exception:
+        logging.getLogger("rm-shop.db").debug("Не удалось записать журнал сообщений", exc_info=True)
+
+
 async def admin_stats() -> dict:
     pool = _pool_req()
     users = await pool.fetchrow(
@@ -1484,6 +1518,20 @@ async def admin_stats() -> dict:
     broadcast_users = await pool.fetchval(
         "SELECT COUNT(*)::int FROM users WHERE blocked_at IS NULL"
     )
+    broadcast_using = await pool.fetchval(
+        """
+        SELECT COUNT(*)::int FROM users u
+        WHERE u.blocked_at IS NULL
+          AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)
+        """
+    )
+    broadcast_unused = await pool.fetchval(
+        """
+        SELECT COUNT(*)::int FROM users u
+        WHERE u.blocked_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)
+        """
+    )
     client_rows = await pool.fetch(
         """
         SELECT COALESCE(NULLIF(TRIM(client), ''), '') AS client_id,
@@ -1504,6 +1552,8 @@ async def admin_stats() -> dict:
         "billing_today": dict(billing_today) if billing_today else {},
         "online": dict(online) if online else {},
         "broadcast_users": int(broadcast_users or 0),
+        "broadcast_using": int(broadcast_using or 0),
+        "broadcast_unused": int(broadcast_unused or 0),
         "clients": [dict(r) for r in client_rows],
     }
 
@@ -1866,11 +1916,50 @@ async def claim_info_nudge_batch(limit: int = 40) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def list_broadcast_ids() -> list[int]:
-    rows = await _pool_req().fetch(
-        "SELECT telegram_id FROM users WHERE blocked_at IS NULL ORDER BY telegram_id"
+async def broadcast_audience_counts() -> dict:
+    row = await _pool_req().fetchrow(
+        """
+        SELECT
+            COUNT(*) FILTER (WHERE blocked_at IS NULL)::int AS all_n,
+            COUNT(*) FILTER (
+                WHERE blocked_at IS NULL
+                  AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)
+            )::int AS using_n,
+            COUNT(*) FILTER (
+                WHERE blocked_at IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)
+            )::int AS unused_n
+        FROM users
+        """
     )
-    return [int(r["telegram_id"]) for r in rows]
+    return {
+        "all": int((row and row["all_n"]) or 0),
+        "using": int((row and row["using_n"]) or 0),
+        "unused": int((row and row["unused_n"]) or 0),
+    }
+
+
+async def list_broadcast_targets(audience: str = "all") -> list[dict]:
+    extra = ""
+    kind = str(audience or "all").strip()
+    if kind == "using":
+        extra = "AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)"
+    elif kind == "unused":
+        extra = "AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)"
+    rows = await _pool_req().fetch(
+        f"""
+        SELECT telegram_id, first_name
+        FROM users
+        WHERE blocked_at IS NULL
+        {extra}
+        ORDER BY telegram_id
+        """
+    )
+    return [dict(r) for r in rows]
+
+
+async def list_broadcast_ids(audience: str = "all") -> list[int]:
+    return [int(r["telegram_id"]) for r in await list_broadcast_targets(audience)]
 
 
 async def last_vpn_report_at(telegram_id: int):
@@ -2199,6 +2288,67 @@ async def admin_list_reports(
     n = len(args)
     rows = await pool.fetch(
         f"SELECT * FROM vpn_reports {where} ORDER BY created_at DESC LIMIT ${n + 1} OFFSET ${n + 2}",
+        *args,
+        limit,
+        offset,
+    )
+    return [_jsonable(dict(r)) for r in rows], int(total or 0)
+
+
+async def admin_list_messages(
+    query: str,
+    limit: int,
+    offset: int,
+    extra: dict | None = None,
+) -> tuple[list[dict], int]:
+    pool = _pool_req()
+    extra = extra or {}
+    clauses: list[str] = []
+    args: list = []
+    channel = str(extra.get("channel") or "").strip()
+    if channel == "announce":
+        clauses.append("kind NOT IN ('maintenance_hit', 'maintenance_out')")
+    elif channel == "maint":
+        clauses.append("kind IN ('maintenance_hit', 'maintenance_out')")
+    source = str(extra.get("source") or "").strip()
+    if source in {"auto", "manual"}:
+        args.append(source)
+        clauses.append(f"source = ${len(args)}")
+    kind = str(extra.get("kind") or "").strip()
+    if kind:
+        args.append(kind)
+        clauses.append(f"kind = ${len(args)}")
+    q = (query or "").strip()
+    if q:
+        args.append(f"%{q}%")
+        n = len(args)
+        clauses.append(
+            f"""(
+            COALESCE(username, '') ILIKE ${n}
+            OR COALESCE(first_name, '') ILIKE ${n}
+            OR COALESCE(title, '') ILIKE ${n}
+            OR COALESCE(body, '') ILIKE ${n}
+            OR telegram_id::text LIKE ${n}
+            )"""
+        )
+    from_d = str(extra.get("from") or "").strip()
+    to_d = str(extra.get("to") or "").strip()
+    if from_d:
+        args.append(from_d)
+        clauses.append(f"created_at >= ${len(args)}::date")
+    if to_d:
+        args.append(to_d)
+        clauses.append(f"created_at < (${len(args)}::date + INTERVAL '1 day')")
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    total = await pool.fetchval(f"SELECT COUNT(*)::int FROM message_log {where}", *args)
+    n = len(args)
+    rows = await pool.fetch(
+        f"""
+        SELECT * FROM message_log
+        {where}
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${n + 1} OFFSET ${n + 2}
+        """,
         *args,
         limit,
         offset,

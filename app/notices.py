@@ -49,6 +49,16 @@ DEFAULT_NOTICES: dict[str, str] = {
         "{when}\n\n"
         "Ваша ссылка:\n{link}"
     ),
+    "broadcast_invite": (
+        "Вы пользуетесь VPN. Пригласите друзей и получите баланс.\n\n"
+        "За каждого, кто придёт по вашей ссылке, начислим {reward}.\n\n"
+        "Ваша ссылка:\n{link}"
+    ),
+    "broadcast_unused": (
+        "Вы так и не воспользовались VPN.\n\n"
+        "Может, дадите нам шанс? Откройте кабинет и добавьте устройство. "
+        "Пока устройств нет, баланс не списывается."
+    ),
     "info_nudge": (
         "Как устроен кабинет.\n\n"
         "Сутки VPN списываются только с добавленных устройств, по {price} за каждое в день. "
@@ -112,6 +122,8 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "trust_collect", "title": "Списание обещанного платежа", "hint": "{amount}"},
     {"key": "trial_nudge", "title": "Напоминание взять триал", "hint": "{name} {extra}"},
     {"key": "invite_nudge", "title": "Пригласить друга", "hint": "{name} {reward} {when} {link}"},
+    {"key": "broadcast_invite", "title": "Рассылка: пользуются VPN", "hint": "{reward} {link}"},
+    {"key": "broadcast_unused", "title": "Рассылка: не подключались", "hint": ""},
     {"key": "info_nudge", "title": "Как устроен кабинет", "hint": "{price} {story}"},
     {"key": "referral_referrer_balance", "title": "Реферал: пригласившему (триал)", "hint": "{name} {amount}"},
     {"key": "referral_invitee_balance", "title": "Реферал: другу (триал)", "hint": "{amount}"},

@@ -60,8 +60,23 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
             tg_id,
             notice_text("low_balance", price=rub_text(price)),
         )
+        await db.log_bot_message(
+            kind="low_balance",
+            source="auto",
+            telegram_id=tg_id,
+            title="Мало баланса",
+            body=notice_text("low_balance", price=rub_text(price)),
+            status="sent",
+        )
     except Exception:
-        pass
+        await db.log_bot_message(
+            kind="low_balance",
+            source="auto",
+            telegram_id=tg_id,
+            title="Мало баланса",
+            body=notice_text("low_balance", price=rub_text(price)),
+            status="failed",
+        )
 
 
 async def _bill_due_device(

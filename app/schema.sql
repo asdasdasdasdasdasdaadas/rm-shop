@@ -206,4 +206,23 @@ CREATE INDEX IF NOT EXISTS referral_payouts_status_idx
 CREATE INDEX IF NOT EXISTS referral_payouts_user_idx
     ON referral_payouts (telegram_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS message_log (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    kind TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'auto',
+    telegram_id BIGINT,
+    username TEXT,
+    first_name TEXT,
+    title TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'sent',
+    extra JSONB
+);
+
+CREATE INDEX IF NOT EXISTS message_log_created_idx ON message_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS message_log_kind_idx ON message_log (kind, created_at DESC);
+CREATE INDEX IF NOT EXISTS message_log_tg_idx ON message_log (telegram_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS message_log_source_idx ON message_log (source, created_at DESC);
+
 
