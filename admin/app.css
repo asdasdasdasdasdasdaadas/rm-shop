@@ -1552,6 +1552,40 @@ html.sidebar-collapsed nav button.active::before { display: none; }
   word-break: break-word;
   line-height: 1.4;
 }
+.ticket-atts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ticket-att-img {
+  display: block;
+  max-width: 240px;
+  max-height: 180px;
+  border-radius: 12px;
+  margin-top: 8px;
+}
+.ticket-att-file {
+  display: inline-block;
+  margin-top: 8px;
+  font-weight: 650;
+}
+.ticket-attach-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.ticket-attach-chip {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-1);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
 #ticketRows tr.is-selected td {
   background: var(--accent-soft);
 }

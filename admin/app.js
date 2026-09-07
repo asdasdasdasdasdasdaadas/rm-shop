@@ -243,10 +243,14 @@ function hasAny(obj) {
 }
 
 async function api(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  if (!(opts.body instanceof FormData) && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
   const res = await fetch(path, {
     credentials: "same-origin",
     ...opts,
-    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+    headers,
   });
   const data = await res.json().catch(() => ({ ok: false, error: "Ошибка ответа" }));
   if (!res.ok || data.ok === false) {
@@ -455,43 +459,6 @@ function switchTab(name, opts = {}) {
   if (name === "broadcast") loadBroadcastJob();
   if (name === "settings" || name === "promo") loadSettings();
   setNavOpen(false);
-}
-
-function clientCard(item) {
-  const el = document.createElement("div");
-  el.className = "card card-app";
-  const ico = document.createElement("div");
-  ico.className = "app-ico";
-  if (item.icon) {
-    const img = document.createElement("img");
-    img.alt = "";
-    img.src = item.icon;
-    img.onerror = () => {
-      ico.classList.add("is-mark");
-      ico.textContent = (item.name || "?").slice(0, 2);
-      img.remove();
-    };
-    ico.appendChild(img);
-  } else {
-    ico.classList.add("is-mark");
-    ico.textContent = (item.name || "?").slice(0, 2);
-  }
-  const body = document.createElement("div");
-  const l = document.createElement("div");
-  l.className = "l";
-  l.textContent = item.name || item.id || "Приложение";
-  const n = document.createElement("div");
-  n.className = "n";
-  n.textContent = item.devices || 0;
-  const s = document.createElement("div");
-  s.className = "s";
-  s.textContent = (item.users || 0) + " польз.";
-  body.appendChild(l);
-  body.appendChild(n);
-  body.appendChild(s);
-  el.appendChild(ico);
-  el.appendChild(body);
-  return el;
 }
 
 function card(label, value, tab, extra) {
@@ -889,16 +856,6 @@ async function loadStats() {
       ["Жалобы VPN", s.vpn_reports || 0, "reports"],
       ["Заблокированы", u.blocked || 0, "users"],
     ]);
-    const appsBox = $("cardsClients");
-    if (appsBox) {
-      appsBox.innerHTML = "";
-      const clients = s.clients || [];
-      if (!clients.length) {
-        appsBox.appendChild(card("Устройств с клиентом", 0));
-      } else {
-        clients.forEach((item) => appsBox.appendChild(clientCard(item)));
-      }
-    }
     kv($("orderStats"), s.orders, "Заказов пока нет");
     kv($("planStats"), s.plans, "Оплаченных тарифов нет");
     paintFunnel(s.funnel);
@@ -1625,6 +1582,56 @@ function ticketWho(r) {
   return `${r.telegram_id}` + (r.username ? ` @${r.username}` : "") + (r.first_name ? ` · ${r.first_name}` : "");
 }
 
+function isTicketImage(att) {
+  return (att && att.kind === "photo") || String((att && att.mime) || "").startsWith("image/");
+}
+
+function paintTicketAttachments(wrap, atts) {
+  if (!wrap || !atts || !atts.length) return;
+  const box = document.createElement("div");
+  box.className = "ticket-atts";
+  atts.forEach((a) => {
+    if (isTicketImage(a) && a.url) {
+      const link = document.createElement("a");
+      link.href = a.url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      const img = document.createElement("img");
+      img.className = "ticket-att-img";
+      img.alt = a.original_name || "Фото";
+      img.src = a.url;
+      link.appendChild(img);
+      box.appendChild(link);
+    } else {
+      const link = document.createElement("a");
+      link.className = "ticket-att-file";
+      link.href = a.url || "#";
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = a.original_name || "Файл";
+      box.appendChild(link);
+    }
+  });
+  wrap.appendChild(box);
+}
+
+function paintTicketPending() {
+  const box = $("ticketAttachList");
+  if (!box) return;
+  box.innerHTML = "";
+  ticketPending.forEach((file, i) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "ticket-attach-chip";
+    chip.textContent = file.name || "Файл";
+    chip.onclick = () => {
+      ticketPending.splice(i, 1);
+      paintTicketPending();
+    };
+    box.appendChild(chip);
+  });
+}
+
 function paintTicketThread(messages) {
   const box = $("ticketThread");
   if (!box) return;
@@ -1642,11 +1649,14 @@ function paintTicketThread(messages) {
     const meta = document.createElement("div");
     meta.className = "ticket-bubble-meta";
     meta.textContent = (m.author === "admin" ? "Поддержка" : "Клиент") + " · " + fmt(m.created_at);
-    const body = document.createElement("div");
-    body.className = "ticket-bubble-body";
-    body.textContent = m.body || "";
     wrap.appendChild(meta);
-    wrap.appendChild(body);
+    if (m.body) {
+      const body = document.createElement("div");
+      body.className = "ticket-bubble-body";
+      body.textContent = m.body;
+      wrap.appendChild(body);
+    }
+    paintTicketAttachments(wrap, m.attachments);
     box.appendChild(wrap);
   });
   box.scrollTop = box.scrollHeight;
@@ -1654,9 +1664,12 @@ function paintTicketThread(messages) {
 
 let ticketPage = 1;
 let selectedTicketId = 0;
+let ticketPending = [];
 
 async function loadTicket(id) {
   selectedTicketId = Number(id) || 0;
+  ticketPending = [];
+  paintTicketPending();
   const head = $("ticketHead");
   const meta = $("ticketMeta");
   if (!selectedTicketId) {
@@ -2364,16 +2377,36 @@ if ($("ticketQ")) {
   const el = $(id);
   if (el) el.onchange = () => loadTickets(1);
 });
+if ($("ticketFiles")) {
+  $("ticketFiles").onchange = (e) => {
+    Array.from(e.target.files || []).forEach((file) => {
+      if (ticketPending.length >= 5) return;
+      ticketPending.push(file);
+    });
+    paintTicketPending();
+    e.target.value = "";
+  };
+}
 if ($("ticketSend")) {
   $("ticketSend").onclick = async () => {
     if (!selectedTicketId) return;
     const text = val("ticketReply");
+    if (!text && !ticketPending.length) {
+      toast("Напишите ответ или прикрепите файл");
+      return;
+    }
     try {
+      const fd = new FormData();
+      fd.append("action", "reply");
+      fd.append("text", text);
+      ticketPending.forEach((file) => fd.append("files", file, file.name));
       await api(`/admin/api/tickets/${selectedTicketId}`, {
         method: "POST",
-        body: JSON.stringify({ action: "reply", text }),
+        body: fd,
       });
       $("ticketReply").value = "";
+      ticketPending = [];
+      paintTicketPending();
       toast("Ответ отправлен");
       await loadTickets();
       await loadTicket(selectedTicketId);

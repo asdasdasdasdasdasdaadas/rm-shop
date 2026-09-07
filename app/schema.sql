@@ -283,4 +283,17 @@ CREATE TABLE IF NOT EXISTS ticket_messages (
 
 CREATE INDEX IF NOT EXISTS ticket_messages_ticket_idx ON ticket_messages (ticket_id, id);
 
+CREATE TABLE IF NOT EXISTS ticket_attachments (
+    id BIGSERIAL PRIMARY KEY,
+    message_id BIGINT NOT NULL REFERENCES ticket_messages (id) ON DELETE CASCADE,
+    stored_name TEXT NOT NULL,
+    original_name TEXT NOT NULL DEFAULT '',
+    mime TEXT NOT NULL DEFAULT 'application/octet-stream',
+    kind TEXT NOT NULL DEFAULT 'file',
+    size_bytes INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
+);
+
+CREATE INDEX IF NOT EXISTS ticket_attachments_msg_idx ON ticket_attachments (message_id, id);
+
 

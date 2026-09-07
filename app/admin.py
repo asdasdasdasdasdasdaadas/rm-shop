@@ -28,7 +28,6 @@ from app.keyboards import blocked_keyboard, cabinet_keyboard, share_keyboard
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
 from app.notices import notice_text
 from app.remnawave import RemnawaveClient, RemnawaveError
-from app.vpn_apps import public_vpn_apps
 from app.texts import days_text, rub_text, subscription_reissued_text
 
 logger = logging.getLogger("rm-shop.admin")
@@ -136,40 +135,10 @@ async def api_stats(request: web.Request) -> web.Response:
         plan = settings.plan_by_code(code) or settings.plans.get(code)
         if plan:
             revenue += float(plan["rub"]) * int(count)
-    apps = {a["id"]: a for a in public_vpn_apps()}
-    seen: set[str] = set()
-    clients = []
-    for row in raw.pop("clients", []) or []:
-        cid = str(row.get("client_id") or "")
-        meta = apps.get(cid) or {}
-        key = cid or "unknown"
-        seen.add(key)
-        clients.append(
-            {
-                "id": key,
-                "name": meta.get("name") or cid or "Без клиента",
-                "icon": meta.get("icon") or "",
-                "devices": int(row.get("devices") or 0),
-                "users": int(row.get("users") or 0),
-            }
-        )
-    for app in public_vpn_apps():
-        if app["id"] in seen:
-            continue
-        clients.append(
-            {
-                "id": app["id"],
-                "name": app.get("name") or app["id"],
-                "icon": app.get("icon") or "",
-                "devices": 0,
-                "users": 0,
-            }
-        )
     return web.json_response(
         {
             "ok": True,
             **raw,
-            "clients": clients,
             "revenue_rub": round(revenue, 2),
             "jobs": {
                 "billing": await db.get_job_report("billing"),
@@ -414,7 +383,9 @@ async def api_ticket_one(request: web.Request) -> web.Response:
     ticket = await db.get_ticket(ticket_id)
     if not ticket:
         return web.json_response({"ok": False, "error": "Тикет не найден"}, status=404)
-    messages = await db.list_ticket_messages(ticket_id)
+    from app.tickets import serialize_messages
+
+    messages = serialize_messages(await db.list_ticket_messages(ticket_id), for_admin=True)
     return web.json_response({"ok": True, "ticket": ticket, "messages": messages})
 
 
@@ -423,25 +394,37 @@ async def api_ticket_act(request: web.Request) -> web.Response:
     if denied:
         return denied
     ticket_id = int(request.match_info["ticket_id"])
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    action = str((body or {}).get("action") or "reply").strip()
-    bot: Bot = request.app["bot"]
-    from app.tickets import close_ticket, receive_admin_reply
+    from app.tickets import close_ticket, parse_ticket_request, receive_admin_reply, serialize_messages
 
+    text, action, files = await parse_ticket_request(request)
+    bot: Bot = request.app["bot"]
     try:
         if action == "close":
             ticket = await close_ticket(bot, ticket_id)
         else:
-            ticket = await receive_admin_reply(bot, ticket_id, str(body.get("text") or ""))
+            ticket = await receive_admin_reply(bot, ticket_id, text, attachments=files)
     except KeyError:
         return web.json_response({"ok": False, "error": "Тикет не найден"}, status=404)
     except ValueError as exc:
         return web.json_response({"ok": False, "error": str(exc)}, status=400)
-    messages = await db.list_ticket_messages(ticket_id)
+    messages = serialize_messages(await db.list_ticket_messages(ticket_id), for_admin=True)
     return web.json_response({"ok": True, "ticket": ticket, "messages": messages})
+
+
+async def api_ticket_file(request: web.Request) -> web.StreamResponse:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app.tickets import http_file_response
+
+    try:
+        att_id = int(request.match_info["att_id"])
+    except (KeyError, ValueError, TypeError):
+        return web.json_response({"ok": False, "error": "Файл не найден"}, status=404)
+    row = await db.get_ticket_attachment(att_id)
+    if not row:
+        return web.json_response({"ok": False, "error": "Файл не найден"}, status=404)
+    return http_file_response(row)
 
 
 async def api_billing(request: web.Request) -> web.Response:
@@ -1419,6 +1402,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/reports", api_reports)
     app.router.add_get("/admin/api/messages", api_messages)
     app.router.add_get("/admin/api/tickets", api_tickets)
+    app.router.add_get("/admin/api/tickets/files/{att_id}", api_ticket_file)
     app.router.add_get("/admin/api/tickets/{ticket_id}", api_ticket_one)
     app.router.add_post("/admin/api/tickets/{ticket_id}", api_ticket_act)
     app.router.add_get("/admin/api/billing", api_billing)

@@ -1659,16 +1659,6 @@ async def admin_stats() -> dict:
           AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)
         """
     )
-    client_rows = await pool.fetch(
-        """
-        SELECT COALESCE(NULLIF(TRIM(client), ''), '') AS client_id,
-               COUNT(*)::int AS devices,
-               COUNT(DISTINCT telegram_id)::int AS users
-        FROM devices
-        GROUP BY 1
-        ORDER BY devices DESC, client_id
-        """
-    )
     return {
         "users": dict(users) if users else {},
         "orders": {r["status"]: r["n"] for r in orders},
@@ -1684,7 +1674,6 @@ async def admin_stats() -> dict:
         "broadcast_users": int(broadcast_users or 0),
         "broadcast_using": int(broadcast_using or 0),
         "broadcast_unused": int(broadcast_unused or 0),
-        "clients": [dict(r) for r in client_rows],
         "funnel": await admin_funnel(),
     }
 
@@ -2746,6 +2735,25 @@ async def open_or_get_ticket(
     return _jsonable(dict(new)), True
 
 
+_TICKET_LAST_BODY = """
+            COALESCE(
+                NULLIF(tm.body, ''),
+                (
+                    SELECT CASE ta.kind
+                        WHEN 'photo' THEN 'Фото'
+                        WHEN 'video' THEN 'Видео'
+                        ELSE COALESCE(NULLIF(ta.original_name, ''), 'Файл')
+                    END
+                    FROM ticket_attachments ta
+                    WHERE ta.message_id = tm.id
+                    ORDER BY ta.id
+                    LIMIT 1
+                ),
+                ''
+            )
+"""
+
+
 async def add_ticket_message(
     ticket_id: int,
     author: str,
@@ -2783,6 +2791,39 @@ async def add_ticket_message(
     return _jsonable(dict(row))
 
 
+async def add_ticket_attachment(message_id: int, meta: dict) -> dict:
+    row = await _pool_req().fetchrow(
+        """
+        INSERT INTO ticket_attachments (
+            message_id, stored_name, original_name, mime, kind, size_bytes
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+        """,
+        int(message_id),
+        str(meta.get("stored_name") or ""),
+        str(meta.get("original_name") or "")[:120],
+        str(meta.get("mime") or "application/octet-stream")[:120],
+        str(meta.get("kind") or "file")[:16],
+        int(meta.get("size_bytes") or 0),
+    )
+    return _jsonable(dict(row))
+
+
+async def get_ticket_attachment(att_id: int) -> dict | None:
+    row = await _pool_req().fetchrow(
+        """
+        SELECT ta.*, t.id AS ticket_id, t.telegram_id
+        FROM ticket_attachments ta
+        JOIN ticket_messages tm ON tm.id = ta.message_id
+        JOIN tickets t ON t.id = tm.ticket_id
+        WHERE ta.id = $1
+        """,
+        int(att_id),
+    )
+    return _jsonable(dict(row)) if row else None
+
+
 async def set_ticket_status(ticket_id: int, status: str) -> None:
     st = str(status or "open")
     if st not in {"open", "pending", "closed"}:
@@ -2805,7 +2846,8 @@ async def get_ticket(ticket_id: int) -> dict | None:
 
 
 async def list_ticket_messages(ticket_id: int) -> list[dict]:
-    rows = await _pool_req().fetch(
+    pool = _pool_req()
+    rows = await pool.fetch(
         """
         SELECT * FROM ticket_messages
         WHERE ticket_id = $1
@@ -2813,15 +2855,33 @@ async def list_ticket_messages(ticket_id: int) -> list[dict]:
         """,
         int(ticket_id),
     )
-    return [_jsonable(dict(r)) for r in rows]
+    messages = [_jsonable(dict(r)) for r in rows]
+    if not messages:
+        return messages
+    atts = await pool.fetch(
+        """
+        SELECT * FROM ticket_attachments
+        WHERE message_id = ANY($1::bigint[])
+        ORDER BY id ASC
+        """,
+        [int(m["id"]) for m in messages],
+    )
+    by_msg: dict[int, list[dict]] = {}
+    for row in atts:
+        item = _jsonable(dict(row))
+        by_msg.setdefault(int(row["message_id"]), []).append(item)
+    for msg in messages:
+        msg["attachments"] = by_msg.get(int(msg["id"]), [])
+    return messages
 
 
 async def user_list_tickets(telegram_id: int, limit: int = 20) -> list[dict]:
     rows = await _pool_req().fetch(
-        """
+        f"""
         SELECT t.*,
             (
-                SELECT tm.body FROM ticket_messages tm
+                SELECT {_TICKET_LAST_BODY}
+                FROM ticket_messages tm
                 WHERE tm.ticket_id = t.id
                 ORDER BY tm.id DESC LIMIT 1
             ) AS last_body
@@ -2877,7 +2937,8 @@ async def admin_list_tickets(
         f"""
         SELECT t.*,
             (
-                SELECT tm.body FROM ticket_messages tm
+                SELECT {_TICKET_LAST_BODY}
+                FROM ticket_messages tm
                 WHERE tm.ticket_id = t.id
                 ORDER BY tm.id DESC LIMIT 1
             ) AS last_body

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="37">
+  <meta name="admin-build" content="38">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=35">
+  <link rel="stylesheet" href="app.css?v=36">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -180,8 +180,6 @@
           <div id="cardsFinance" class="cards cards-snap"></div>
           <div class="section-label">Проблемы</div>
           <div id="cardsIssues" class="cards cards-snap"></div>
-          <div class="section-label">Приложения</div>
-          <div id="cardsClients" class="cards cards-apps"></div>
           <div class="grid2">
             <div class="panel">
               <h3>Заказы по статусу</h3>
@@ -647,7 +645,7 @@
         </section>
 
         <section id="tab-tickets" class="hidden">
-          <p class="muted intro">Обращения из бота и кабинета. Ответ уходит пользователю в Telegram и в тред кабинета.</p>
+          <p class="muted intro">Обращения из бота и кабинета. Можно смотреть скриншоты и отвечать с файлами. Ответ уходит пользователю в Telegram и в тред кабинета.</p>
           <div class="filters">
             <select id="ticketStatus" aria-label="Статус">
               <option value="">Статус: все</option>
@@ -683,8 +681,10 @@
               <p id="ticketMeta" class="muted">Ответ появится в чате бота и в кабинете.</p>
             </div>
             <div id="ticketThread" class="ticket-thread"></div>
+            <div id="ticketAttachList" class="ticket-attach-list"></div>
             <textarea id="ticketReply" rows="4" maxlength="2000" placeholder="Ответ пользователю"></textarea>
             <div class="ops ticket-desk-ops">
+              <input id="ticketFiles" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.zip,.txt,.mp4,.mov,.webm" aria-label="Вложение">
               <button type="button" id="ticketSend">Ответить</button>
               <button type="button" id="ticketClose" class="ghost">Закрыть тикет</button>
             </div>
@@ -1140,6 +1140,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=44"></script>
+  <script src="app.js?v=46"></script>
 </body>
 </html>

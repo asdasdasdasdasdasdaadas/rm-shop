@@ -977,7 +977,44 @@ body.coach-lock {
   padding: 12px 14px;
 }
 .support-compose .btn {
-  width: 100%;
+  width: auto;
+  flex: 1;
+}
+.support-compose-ops {
+  display: flex;
+  gap: 10px;
+}
+.support-attach-list,
+.support-atts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.support-attach-chip {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-strong);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+}
+.support-att-img {
+  display: block;
+  max-width: 220px;
+  max-height: 180px;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+  margin-top: 8px;
+}
+.support-att-file {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--accent);
+  font-weight: 650;
+  font-size: 13px;
 }
 
 .status-card > .cell {

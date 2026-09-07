@@ -850,8 +850,13 @@ async def api_tickets(request: web.Request) -> web.Response:
     if row is None and items:
         row = items[0]
     if row:
+        from app.tickets import serialize_messages
+
         tid = int(row["id"])
-        current = {**row, "messages": await db.list_ticket_messages(tid)}
+        current = {
+            **row,
+            "messages": serialize_messages(await db.list_ticket_messages(tid), for_admin=False),
+        }
     return web.json_response({"ok": True, "items": items, "current": current})
 
 
@@ -859,14 +864,11 @@ async def api_ticket_send(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tickets(request)
     if denied:
         return denied
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    text = str((body or {}).get("text") or "").strip()
+    from app.tickets import parse_ticket_request, receive_user_message, serialize_messages
+
+    text, _action, files = await parse_ticket_request(request)
     local = await db.get_user(telegram_id)
     bot: Bot = request.app["bot"]
-    from app.tickets import receive_user_message
 
     try:
         ticket = await receive_user_message(
@@ -877,12 +879,32 @@ async def api_ticket_send(request: web.Request) -> web.Response:
             body=text,
             source="app",
             ack_user=False,
+            attachments=files,
         )
     except ValueError as exc:
         return json_error(str(exc), 400)
-    messages = await db.list_ticket_messages(int(ticket["id"]))
+    messages = serialize_messages(await db.list_ticket_messages(int(ticket["id"])), for_admin=False)
     items = await db.user_list_tickets(telegram_id)
     return web.json_response({"ok": True, "current": {**ticket, "messages": messages}, "items": items})
+
+
+async def api_ticket_file(request: web.Request) -> web.StreamResponse:
+    from app.ticket_files import file_token_ok
+    from app.tickets import http_file_response
+
+    try:
+        att_id = int(request.match_info["att_id"])
+    except (KeyError, ValueError, TypeError):
+        raise web.HTTPNotFound()
+    row = await db.get_ticket_attachment(att_id)
+    if not row:
+        raise web.HTTPNotFound()
+    token = str(request.query.get("t") or "")
+    if not file_token_ok(att_id, token):
+        telegram_id, denied = await _require_tickets(request)
+        if denied or telegram_id != int(row["telegram_id"]):
+            raise web.HTTPForbidden()
+    return http_file_response(row)
 
 
 async def api_cabinet_leave(request: web.Request) -> web.Response:
@@ -996,6 +1018,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/vpn-report", api_vpn_report)
         app.router.add_get("/api/tickets", api_tickets)
         app.router.add_post("/api/tickets", api_ticket_send)
+        app.router.add_get("/api/tickets/files/{att_id}", api_ticket_file)
         app.router.add_post("/api/cabinet-leave", api_cabinet_leave)
         app.router.add_post("/api/story-share", api_story_share)
         app.router.add_post("/api/referral-payout", api_referral_payout)

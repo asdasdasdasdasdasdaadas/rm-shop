@@ -383,11 +383,13 @@ function haptic(kind) {
 
 async function api(path, opts = {}) {
   const headers = {
-    "Content-Type": "application/json",
     "X-Init-Data": tg.initData || "",
     ...(opts.headers || {}),
   };
   if (lkToken) headers["X-Lk-Token"] = lkToken;
+  if (!(opts.body instanceof FormData) && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
   const res = await fetch(path, {
     ...opts,
     headers,
@@ -1362,13 +1364,74 @@ function openTopup() {
 }
 
 const SUPPORT_STATUS = { open: "Ждём ответ", pending: "Есть ответ", closed: "Закрыт" };
+const SUPPORT_MAX_FILES = 5;
 let supportPoll = 0;
+let supportPending = [];
 
 function stopSupportPoll() {
   if (supportPoll) {
     clearInterval(supportPoll);
     supportPoll = 0;
   }
+}
+
+function isTicketImage(att) {
+  return (att && att.kind === "photo") || String((att && att.mime) || "").startsWith("image/");
+}
+
+function paintTicketAttachments(wrap, atts) {
+  if (!wrap || !atts || !atts.length) return;
+  const box = document.createElement("div");
+  box.className = "support-atts";
+  atts.forEach((a) => {
+    if (isTicketImage(a) && a.url) {
+      const link = document.createElement("a");
+      link.href = a.url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      const img = document.createElement("img");
+      img.className = "support-att-img";
+      img.alt = a.original_name || "Фото";
+      img.src = a.url;
+      link.appendChild(img);
+      box.appendChild(link);
+    } else {
+      const link = document.createElement("a");
+      link.className = "support-att-file";
+      link.href = a.url || "#";
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = a.original_name || "Файл";
+      box.appendChild(link);
+    }
+  });
+  wrap.appendChild(box);
+}
+
+function paintSupportPending() {
+  const box = $("supportAttachList");
+  if (!box) return;
+  box.innerHTML = "";
+  supportPending.forEach((file, i) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "support-attach-chip";
+    chip.textContent = file.name || "Файл";
+    chip.onclick = () => {
+      supportPending.splice(i, 1);
+      paintSupportPending();
+    };
+    box.appendChild(chip);
+  });
+}
+
+function addSupportFiles(list) {
+  const incoming = Array.from(list || []);
+  incoming.forEach((file) => {
+    if (supportPending.length >= SUPPORT_MAX_FILES) return;
+    supportPending.push(file);
+  });
+  paintSupportPending();
 }
 
 function paintSupportThread(current) {
@@ -1380,7 +1443,7 @@ function paintSupportThread(current) {
   if (status) {
     status.textContent = current
       ? `Тикет #${current.id} · ${SUPPORT_STATUS[current.status] || current.status}`
-      : "Напишите, что случилось. Ответ придёт сюда и в чат бота.";
+      : "Напишите, что случилось. Можно прикрепить скриншот. Ответ придёт сюда и в чат бота.";
   }
   if (!messages.length) {
     const empty = document.createElement("div");
@@ -1399,11 +1462,14 @@ function paintSupportThread(current) {
     const when = m.created_at ? new Date(m.created_at) : null;
     const time = when && !Number.isNaN(when.getTime()) ? when.toLocaleString("ru-RU") : "";
     meta.textContent = (m.author === "admin" ? "Поддержка" : "Вы") + (time ? " · " + time : "");
-    const body = document.createElement("div");
-    body.className = "support-bubble-body";
-    body.textContent = m.body || "";
     wrap.appendChild(meta);
-    wrap.appendChild(body);
+    if (m.body) {
+      const body = document.createElement("div");
+      body.className = "support-bubble-body";
+      body.textContent = m.body;
+      wrap.appendChild(body);
+    }
+    paintTicketAttachments(wrap, m.attachments);
     box.appendChild(wrap);
   });
   box.scrollTop = box.scrollHeight;
@@ -1436,18 +1502,25 @@ function openSupport() {
 async function sendSupport() {
   const el = $("supportText");
   const text = (el && el.value || "").trim();
-  if (!text) {
-    tg.showAlert("Напишите сообщение");
+  if (!text && !supportPending.length) {
+    tg.showAlert("Напишите сообщение или прикрепите файл");
     return;
   }
   const btn = $("supportSend");
   if (btn) btn.disabled = true;
   try {
+    const fd = new FormData();
+    fd.append("text", text);
+    supportPending.forEach((file) => fd.append("files", file, file.name));
     const data = await api("/api/tickets", {
       method: "POST",
-      body: JSON.stringify({ text }),
+      body: fd,
     });
     if (el) el.value = "";
+    supportPending = [];
+    paintSupportPending();
+    const input = $("supportFiles");
+    if (input) input.value = "";
     paintSupportThread(data.current);
   } catch (e) {
     showErr(e);
@@ -2901,6 +2974,18 @@ $("supportBtn").onclick = () => {
 };
 if ($("offerTry")) $("offerTry").onclick = () => startOfferTry();
 if ($("supportSend")) $("supportSend").onclick = () => sendSupport();
+if ($("supportAttach")) {
+  $("supportAttach").onclick = () => {
+    const input = $("supportFiles");
+    if (input) input.click();
+  };
+}
+if ($("supportFiles")) {
+  $("supportFiles").onchange = (e) => {
+    addSupportFiles(e.target.files);
+    e.target.value = "";
+  };
+}
 
 $("intro").onclick = () => {
   const el = $("intro");

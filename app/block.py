@@ -57,9 +57,16 @@ class BlockedMiddleware(BaseMiddleware):
         bot: Bot | None = data.get("bot")
         if isinstance(inner, Message):
             body = (inner.text or inner.caption or "").strip()
-            if body and not body.startswith("/") and bot:
-                from app.tickets import receive_user_message
+            has_file = bool(inner.photo or inner.document or inner.video or inner.animation)
+            if (body or has_file) and not body.startswith("/") and bot:
+                from app.tickets import attachments_from_message, receive_user_message
 
+                files = []
+                try:
+                    if has_file:
+                        files = await attachments_from_message(bot, inner)
+                except Exception:
+                    files = []
                 try:
                     await receive_user_message(
                         bot,
@@ -68,6 +75,7 @@ class BlockedMiddleware(BaseMiddleware):
                         first_name=getattr(user, "first_name", None),
                         body=body,
                         source="bot",
+                        attachments=files,
                     )
                 except ValueError:
                     pass
