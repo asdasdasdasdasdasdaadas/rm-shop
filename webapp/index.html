@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=64">
+  <link rel="stylesheet" href="app.css?v=65">
 </head>
 <body>
   <div class="app-bg" aria-hidden="true">
@@ -442,6 +442,13 @@
       </div>
     </div>
 
+    <div id="view-billing" class="view hidden">
+      <p class="wiz-kicker">Кабинет</p>
+      <h1 class="wiz-title">История списаний</h1>
+      <p id="billingHint" class="section-note topup-hint">Операции за последние 7 дней: списания за устройства, пополнения и отключения.</p>
+      <div id="billingList" class="bill-list"></div>
+    </div>
+
     <div id="view-offer" class="view hidden">
       <p class="offer-kicker">Попробуйте бесплатно</p>
       <div class="offer-card">
@@ -592,6 +599,7 @@
   </div>
 
   <div id="menu" class="sheet hidden" role="menu">
+    <button type="button" id="menuBilling" class="hidden" role="menuitem">История списаний</button>
     <button type="button" id="menuTrust" class="hidden" role="menuitem">Обещанный платёж</button>
     <a id="offerLink" href="#" target="_blank" rel="noopener">Оферта</a>
     <a id="privacyLink" href="#" target="_blank" rel="noopener">Политика конфиденциальности</a>
@@ -626,6 +634,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=60"></script>
+  <script src="app.js?v=61"></script>
 </body>
 </html>

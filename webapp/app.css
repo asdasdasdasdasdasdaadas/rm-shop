@@ -914,6 +914,53 @@ body.coach-lock {
 
 .help-list .arrow { color: var(--text-tertiary); }
 
+.bill-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 2px 24px;
+}
+.bill-day {
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 16px 8px 8px;
+}
+.bill-day:first-child { padding-top: 4px; }
+.bill-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 10px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 1px solid var(--glass-border);
+  margin-bottom: 8px;
+}
+.bill-item-main { min-width: 0; flex: 1; }
+.bill-item-title {
+  color: var(--text-primary);
+  font-size: 14.5px;
+  font-weight: 650;
+}
+.bill-item-sub {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+.bill-item-amt {
+  flex: none;
+  font-size: 14.5px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.bill-item-amt.neg { color: var(--warning); }
+.bill-item-amt.pos { color: var(--success); }
+
 .support-thread {
   display: flex;
   flex-direction: column;

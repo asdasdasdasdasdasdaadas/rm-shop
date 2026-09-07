@@ -2716,6 +2716,42 @@ async def admin_list_billing(
     return [_jsonable(dict(r)) for r in rows], int(total or 0)
 
 
+_USER_BILLING_KINDS = (
+    "charge",
+    "pause",
+    "disable",
+    "revive",
+    "trial",
+    "admin_balance",
+    "admin_grant",
+    "trust",
+    "trust_collect",
+    "device_delete",
+    "referral",
+    "referral_payout",
+    "story",
+)
+
+
+async def user_billing_history(telegram_id: int, *, days: int = 7) -> list[dict]:
+    window = max(1, min(31, int(days)))
+    rows = await _pool_req().fetch(
+        """
+        SELECT id, kind, amount, balance_after, device_title, note, created_at
+        FROM billing_events
+        WHERE telegram_id = $1
+          AND created_at >= timezone('utc', now()) - ($2::int * INTERVAL '1 day')
+          AND kind = ANY($3::text[])
+        ORDER BY created_at DESC, id DESC
+        LIMIT 200
+        """,
+        int(telegram_id),
+        window,
+        list(_USER_BILLING_KINDS),
+    )
+    return [_jsonable(dict(r)) for r in rows]
+
+
 async def admin_list_reports(
     limit: int, offset: int, extra: dict | None = None
 ) -> tuple[list[dict], int]:

@@ -682,7 +682,7 @@ function replayAnim(el, cls) {
 
 function switchView(id, motion) {
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
-  ["view-home", "view-topup", "view-wizard", "view-device", "view-support", "view-offer"].forEach((vid) => {
+  ["view-home", "view-topup", "view-wizard", "view-device", "view-support", "view-billing", "view-offer"].forEach((vid) => {
     const el = $(vid);
     const on = vid === id;
     el.classList.toggle("hidden", !on);
@@ -1329,6 +1329,10 @@ function onBack() {
     openHome();
     return;
   }
+  if (screen === "billing") {
+    openHome();
+    return;
+  }
   if (screen === "offer") {
     skipOffer();
     openHome();
@@ -1336,7 +1340,7 @@ function onBack() {
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "offer";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "billing" || screen === "offer";
   stopSupportPoll();
   screen = "home";
   openDevice = null;
@@ -1497,6 +1501,148 @@ function openSupport() {
   supportPoll = setInterval(() => {
     if (screen === "support") loadSupport(true);
   }, 8000);
+}
+
+const BILL_KIND = {
+  charge: "Списание",
+  pause: "Пауза тарификации",
+  disable: "Отключение",
+  revive: "Включение",
+  trial: "Бесплатный период",
+  admin_balance: "Баланс",
+  admin_grant: "Начисление",
+  trust: "Обещанный платёж",
+  trust_collect: "Возврат обещанного",
+  device_delete: "Удаление устройства",
+  referral: "Бонус за друга",
+  referral_payout: "Вывод рефералки",
+  story: "Награда за историю",
+};
+
+function billKindLabel(kind) {
+  return BILL_KIND[kind] || "Операция";
+}
+
+function billAmountText(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v === 0) return "";
+  return (v > 0 ? "+" : "") + v + " ₽";
+}
+
+function billDayKey(dt) {
+  const d = new Date(dt);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function billDayLabel(dt) {
+  const d = new Date(dt);
+  if (Number.isNaN(d.getTime())) return "";
+  const start = (x) => Date.UTC(x.getFullYear(), x.getMonth(), x.getDate());
+  const now = new Date();
+  const diff = Math.round((start(now) - start(d)) / 86400000);
+  if (diff === 0) return "Сегодня";
+  if (diff === 1) return "Вчера";
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+}
+
+function paintBilling(data) {
+  const box = $("billingList");
+  const hint = $("billingHint");
+  if (!box) return;
+  box.innerHTML = "";
+  const charged = Number(data && data.charged_rub) || 0;
+  if (hint) {
+    hint.textContent = charged > 0
+      ? `За 7 дней с устройств списано ${charged} ₽. Ниже все операции за этот срок.`
+      : "Операции за последние 7 дней: списания за устройства, пополнения и отключения.";
+  }
+  const items = (data && data.items) || [];
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "support-empty";
+    empty.textContent = "За 7 дней списаний не было";
+    box.appendChild(empty);
+    return;
+  }
+  let lastDay = "";
+  items.forEach((e) => {
+    const day = billDayKey(e.created_at);
+    if (day && day !== lastDay) {
+      lastDay = day;
+      const head = document.createElement("div");
+      head.className = "bill-day";
+      head.textContent = billDayLabel(e.created_at);
+      box.appendChild(head);
+    }
+    const row = document.createElement("div");
+    row.className = "bill-item";
+    const main = document.createElement("div");
+    main.className = "bill-item-main";
+    const title = document.createElement("div");
+    title.className = "bill-item-title";
+    title.textContent = billKindLabel(e.kind);
+    main.appendChild(title);
+    const subParts = [];
+    if (e.device_title) subParts.push(e.device_title);
+    if (e.note) subParts.push(e.note);
+    const when = e.created_at ? new Date(e.created_at) : null;
+    if (when && !Number.isNaN(when.getTime())) {
+      subParts.push(when.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }));
+    }
+    if (e.balance_after != null) subParts.push("остаток " + e.balance_after + " ₽");
+    if (subParts.length) {
+      const sub = document.createElement("div");
+      sub.className = "bill-item-sub";
+      sub.textContent = subParts.join(" · ");
+      main.appendChild(sub);
+    }
+    row.appendChild(main);
+    const amt = billAmountText(e.amount);
+    if (amt) {
+      const money = document.createElement("div");
+      const v = Number(e.amount);
+      money.className = "bill-item-amt" + (v < 0 ? " neg" : " pos");
+      money.textContent = amt;
+      row.appendChild(money);
+    }
+    box.appendChild(row);
+  });
+}
+
+async function loadBilling() {
+  const box = $("billingList");
+  if (box) {
+    box.innerHTML = "";
+    const wait = document.createElement("p");
+    wait.className = "support-empty";
+    wait.textContent = "Загружаю...";
+    box.appendChild(wait);
+  }
+  try {
+    paintBilling(await api("/api/billing"));
+  } catch (e) {
+    if (box) {
+      box.innerHTML = "";
+      const err = document.createElement("p");
+      err.className = "support-empty";
+      err.textContent = e.message || "Не удалось загрузить историю";
+      box.appendChild(err);
+    } else {
+      showErr(e);
+    }
+  }
+}
+
+function openBilling() {
+  screen = "billing";
+  switchView("view-billing", "push");
+  setMain("");
+  try {
+    tg.BackButton.show();
+  } catch (_e) {}
+  syncWebBack();
+  loadBilling();
 }
 
 async function sendSupport() {
@@ -2368,6 +2514,8 @@ function paint(me) {
   }
   $("offerLink").href = me.legal.offer;
   $("privacyLink").href = me.legal.privacy;
+  const menuBilling = $("menuBilling");
+  if (menuBilling) menuBilling.classList.toggle("hidden", !me.balance_enabled);
   if (me.promo_enabled) {
     $("promoCard").classList.remove("hidden");
   } else {
@@ -2597,6 +2745,12 @@ if ($("supportLink")) {
   $("supportLink").onclick = () => {
     closeMenu();
     openSupport();
+  };
+}
+if ($("menuBilling")) {
+  $("menuBilling").onclick = () => {
+    closeMenu();
+    openBilling();
   };
 }
 

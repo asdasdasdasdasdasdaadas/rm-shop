@@ -932,6 +932,27 @@ async def api_trust(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "loan": loan})
 
 
+async def api_billing_history(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    settings = get_settings()
+    if not settings.balance_enabled:
+        return json_error("История доступна в режиме баланса", 404)
+    items = await db.user_billing_history(telegram_id, days=7)
+    charged = 0
+    for item in items:
+        if item.get("kind") != "charge":
+            continue
+        try:
+            amount = int(item.get("amount") or 0)
+        except (TypeError, ValueError):
+            amount = 0
+        if amount < 0:
+            charged += -amount
+    return web.json_response({"ok": True, "days": 7, "charged_rub": charged, "items": items})
+
+
 async def health(_request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
@@ -1018,6 +1039,7 @@ def build_web_app() -> web.Application:
         app.router.add_delete("/api/devices/{device_id}", api_delete_device)
         app.router.add_post("/api/subscription/reissue", api_reissue_subscription)
         app.router.add_post("/api/trust", api_trust)
+        app.router.add_get("/api/billing", api_billing_history)
         app.router.add_post("/api/vpn-report", api_vpn_report)
         app.router.add_get("/api/tickets", api_tickets)
         app.router.add_post("/api/tickets", api_ticket_send)
