@@ -7,7 +7,7 @@ let billPage = 1;
 let currentUser = null;
 let selectedUsers = new Set();
 let lastUserItems = [];
-const TABS = ["overview", "users", "referrals", "orders", "billing", "reports", "tickets", "messages", "broadcast", "promo", "backups", "settings"];
+const TABS = ["overview", "users", "referrals", "ads", "orders", "billing", "reports", "tickets", "messages", "broadcast", "promo", "backups", "settings"];
 const TAB_KEYS = {
   users: ["q", "status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to"],
   referrals: ["q", "reward", "from", "to"],
@@ -445,6 +445,7 @@ function switchTab(name, opts = {}) {
     loadReferrals();
     loadPayouts();
   }
+  if (name === "ads") loadAds();
   if (name === "orders") loadOrders();
   if (name === "billing") loadBilling();
   if (name === "reports") loadReports();
@@ -1169,6 +1170,68 @@ async function loadReferrals(page) {
     body.appendChild(tr);
   });
   pager($("refPager"), data.page, data.total, data.limit, loadReferrals);
+}
+
+async function loadAds() {
+  const body = $("adRows");
+  if (!body) return;
+  const archived = $("adShowArchived") && $("adShowArchived").checked;
+  const data = await api("/admin/api/ads" + (archived ? "?archived=1" : ""));
+  body.innerHTML = "";
+  const labels = ["Название", "Ссылка", "Клики", "Пришли", "Триал", "Оплатили", "Создана", ""];
+  if (!data.items.length) {
+    body.appendChild(emptyRow(8, archived ? "Скрытых ссылок нет" : "Пока нет рекламных ссылок"));
+  }
+  data.items.forEach((row) => {
+    const tr = document.createElement("tr");
+    if (row.archived) tr.classList.add("is-muted");
+    tr.appendChild(tdText(row.title + (row.archived ? " (скрыта)" : "")));
+    const linkTd = document.createElement("td");
+    const code = document.createElement("code");
+    code.textContent = "ad_" + row.slug;
+    linkTd.appendChild(code);
+    tr.appendChild(linkTd);
+    tr.appendChild(tdText(String(row.clicks || 0)));
+    tr.appendChild(tdText(String(row.users || 0)));
+    tr.appendChild(tdText(String(row.trial || 0)));
+    tr.appendChild(tdText(String(row.paid || 0)));
+    tr.appendChild(tdText(fmt(row.created_at)));
+    const td = document.createElement("td");
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "ghost";
+    copyBtn.textContent = "Копировать";
+    copyBtn.onclick = async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(row.url);
+        toast("Ссылка скопирована");
+      } catch (_e) {
+        toast(row.url);
+      }
+    };
+    td.appendChild(copyBtn);
+    if (!row.archived) {
+      const hideBtn = document.createElement("button");
+      hideBtn.type = "button";
+      hideBtn.className = "ghost";
+      hideBtn.textContent = "Скрыть";
+      hideBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (!(await confirmAction("Скрыть ссылку", "Из списка пропадёт, по старой ссылке люди всё ещё смогут зайти."))) return;
+        try {
+          await api(`/admin/api/ads/${row.id}/archive`, { method: "POST", body: "{}" });
+          loadAds();
+        } catch (err) {
+          toast(err.message || "Не удалось скрыть");
+        }
+      };
+      td.appendChild(hideBtn);
+    }
+    tr.appendChild(td);
+    labelRow(tr, labels);
+    body.appendChild(tr);
+  });
 }
 
 async function loadPayouts(page) {
@@ -2211,6 +2274,30 @@ if ($("billReset")) {
   };
 }
 $("refSearch").onclick = () => loadReferrals(1);
+if ($("adCreate")) {
+  $("adCreate").onclick = async () => {
+    const out = $("adOut");
+    try {
+      const data = await api("/admin/api/ads", {
+        method: "POST",
+        body: JSON.stringify({ title: val("adTitle"), slug: val("adSlug") }),
+      });
+      setVal("adTitle", "");
+      setVal("adSlug", "");
+      if (out) out.textContent = "Готово. Ссылка скопирована.";
+      try {
+        await navigator.clipboard.writeText(data.item.url);
+      } catch (_e) {
+        if (out) out.textContent = data.item.url;
+      }
+      toast("Ссылка скопирована");
+      loadAds();
+    } catch (err) {
+      if (out) out.textContent = err.message || "Не удалось создать";
+    }
+  };
+}
+if ($("adShowArchived")) $("adShowArchived").onchange = () => loadAds();
 if ($("refReset")) {
   $("refReset").onclick = () => {
     ["refQ", "refReward", "refFrom", "refTo"].forEach((id) => setVal(id, ""));

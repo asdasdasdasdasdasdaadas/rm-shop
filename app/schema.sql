@@ -147,6 +147,23 @@ CREATE INDEX IF NOT EXISTS users_device_nudge_idx
     ON users (device_nudge_count, created_at)
     WHERE blocked_at IS NULL AND device_nudge_count < 3;
 
+CREATE TABLE IF NOT EXISTS ad_links (
+    id BIGSERIAL PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    clicks INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    archived_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS ad_links_created_idx ON ad_links (created_at DESC);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_link_id BIGINT REFERENCES ad_links (id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS users_ad_link_idx
+    ON users (ad_link_id)
+    WHERE ad_link_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS cabinet_tokens (
     token_hash TEXT PRIMARY KEY,
     telegram_id BIGINT NOT NULL REFERENCES users (telegram_id),

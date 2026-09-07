@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 
 from aiogram import F, Router
@@ -76,6 +77,19 @@ def _parse_ref(payload: str | None) -> int | None:
     return None
 
 
+def _parse_ad(payload: str | None) -> str | None:
+    raw = (payload or "").strip()
+    if raw.startswith("/start"):
+        parts = raw.split(maxsplit=1)
+        raw = parts[1] if len(parts) > 1 else ""
+    if not raw.startswith("ad_"):
+        return None
+    slug = raw[3:].strip().lower()
+    if re.fullmatch(r"[a-z0-9]+(?:_[a-z0-9]+)*", slug) and 2 <= len(slug) <= 32:
+        return slug
+    return None
+
+
 async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> None:
     message = target.message if isinstance(target, CallbackQuery) else target
     from_user = target.from_user
@@ -146,12 +160,18 @@ async def gate_or_continue(event: Message | CallbackQuery) -> bool:
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObject) -> None:
-    ref = _parse_ref(command.args) or _parse_ref(message.text)
+    payload = command.args or message.text
+    ref = _parse_ref(payload)
+    ad_id = None
+    slug = _parse_ad(payload)
+    if slug:
+        ad_id = await db.touch_ad_link(slug)
     await db.upsert_user(
         message.from_user.id,
         message.from_user.username,
         message.from_user.first_name,
         referred_by=ref,
+        ad_link_id=ad_id,
     )
     await ensure_signup_trial(message.from_user.id)
     await maybe_reward_referrer(

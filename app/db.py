@@ -5,6 +5,7 @@ from pathlib import Path
 import hashlib
 import json
 import logging
+import re
 import secrets
 
 import asyncpg
@@ -70,13 +71,15 @@ async def upsert_user(
     username: str | None,
     first_name: str | None,
     referred_by: int | None = None,
+    ad_link_id: int | None = None,
 ) -> None:
     pool = _pool_req()
     ref = referred_by if referred_by and referred_by != telegram_id else None
+    ad_id = int(ad_link_id) if ad_link_id else None
     await pool.execute(
         """
-        INSERT INTO users (telegram_id, username, first_name, referred_by)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO users (telegram_id, username, first_name, referred_by, ad_link_id)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (telegram_id) DO UPDATE SET
             username = EXCLUDED.username,
             first_name = EXCLUDED.first_name,
@@ -91,18 +94,133 @@ async def upsert_user(
                   )
                 THEN users.referred_by
                 ELSE EXCLUDED.referred_by
-            END
+            END,
+            ad_link_id = COALESCE(users.ad_link_id, EXCLUDED.ad_link_id)
         """,
         telegram_id,
         username,
         first_name,
         ref,
+        ad_id,
     )
 
 
 async def get_user(telegram_id: int) -> dict | None:
     row = await _pool_req().fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
     return _as_dict(row)
+
+
+_AD_SLUG_RE = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
+_AD_RU = str.maketrans(
+    {
+        "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh",
+        "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o",
+        "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f", "х": "h", "ц": "c",
+        "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu",
+        "я": "ya",
+    }
+)
+
+
+def normalize_ad_slug(raw: str, *, title: str = "") -> str:
+    text = (raw or "").strip().lower().replace(" ", "_")
+    if text.startswith("ad_"):
+        text = text[3:]
+    if not text:
+        text = (title or "").strip().lower().translate(_AD_RU)
+        text = re.sub(r"[^a-z0-9]+", "_", text).strip("_")
+    if not text or not _AD_SLUG_RE.fullmatch(text) or len(text) > 32:
+        text = "ad" + secrets.token_hex(3)
+    return text[:32]
+
+
+async def touch_ad_link(slug: str) -> int | None:
+    clean = (slug or "").strip().lower()
+    if not _AD_SLUG_RE.fullmatch(clean):
+        return None
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE ad_links
+        SET clicks = COALESCE(clicks, 0) + 1
+        WHERE slug = $1
+        RETURNING id
+        """,
+        clean,
+    )
+    return int(row["id"]) if row else None
+
+
+async def create_ad_link(title: str, slug: str = "") -> dict:
+    name = str(title or "").strip()
+    if len(name) < 2:
+        raise ValueError("Укажите название ссылки")
+    if len(name) > 80:
+        raise ValueError("Название слишком длинное")
+    raw_slug = str(slug or "").strip()
+    if raw_slug:
+        candidate = raw_slug.lower()
+        if candidate.startswith("ad_"):
+            candidate = candidate[3:]
+        candidate = candidate.replace(" ", "_")
+        if not _AD_SLUG_RE.fullmatch(candidate) or not (2 <= len(candidate) <= 32):
+            raise ValueError("Код: латиница, цифры и подчёркивание, от 2 до 32 знаков")
+        base = candidate
+    else:
+        base = normalize_ad_slug("", title=name)
+    pool = _pool_req()
+    for i in range(8):
+        candidate = base if i == 0 else f"{base[:24]}_{secrets.token_hex(2)}"
+        try:
+            row = await pool.fetchrow(
+                """
+                INSERT INTO ad_links (slug, title)
+                VALUES ($1, $2)
+                RETURNING id, slug, title, clicks, created_at, archived_at
+                """,
+                candidate,
+                name,
+            )
+            return dict(row)
+        except asyncpg.exceptions.UniqueViolationError:
+            continue
+    raise ValueError("Не удалось подобрать код ссылки, задайте другой")
+
+
+async def archive_ad_link(link_id: int) -> bool:
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE ad_links
+        SET archived_at = timezone('utc', now())
+        WHERE id = $1 AND archived_at IS NULL
+        RETURNING id
+        """,
+        int(link_id),
+    )
+    return bool(row)
+
+
+async def list_ad_links(*, include_archived: bool = False) -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT
+            l.id,
+            l.slug,
+            l.title,
+            COALESCE(l.clicks, 0)::int AS clicks,
+            l.created_at,
+            l.archived_at,
+            COUNT(u.telegram_id)::int AS users,
+            COUNT(u.telegram_id) FILTER (WHERE u.trial_used)::int AS trial,
+            COUNT(u.telegram_id) FILTER (WHERE COALESCE(u.has_paid_topup, FALSE))::int AS paid
+        FROM ad_links l
+        LEFT JOIN users u ON u.ad_link_id = l.id
+        WHERE ($1::bool OR l.archived_at IS NULL)
+        GROUP BY l.id
+        ORDER BY l.created_at DESC, l.id DESC
+        """,
+        bool(include_archived),
+    )
+    return [dict(r) for r in rows]
 
 
 async def claim_referral_reward(telegram_id: int, *, require_paid: bool = False) -> int | None:

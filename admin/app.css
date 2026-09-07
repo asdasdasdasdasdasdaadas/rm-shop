@@ -932,6 +932,14 @@ th {
 tbody tr { transition: background 0.12s ease; }
 tbody tr:hover td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 tbody tr:last-child td { border-bottom: 0; }
+tbody tr.is-muted td { opacity: 0.55; }
+td code {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-1);
+}
+.table-wrap td button { min-height: 34px; margin: 0 6px 0 0; }
 td.wrap {
   white-space: normal;
   max-width: 260px;

@@ -86,7 +86,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "30"})
+    return web.json_response({"ok": True, "build": "37"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -266,6 +266,56 @@ async def api_referrals(request: web.Request) -> web.Response:
         q, limit, (page - 1) * limit, _query_extra(request, "reward", "from", "to")
     )
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+
+
+def _ad_public(row: dict) -> dict:
+    settings = get_settings()
+    slug = str(row.get("slug") or "")
+    return {
+        "id": int(row["id"]),
+        "slug": slug,
+        "title": row.get("title") or "",
+        "url": f"https://t.me/{settings.bot_username}?start=ad_{slug}",
+        "clicks": int(row.get("clicks") or 0),
+        "users": int(row.get("users") or 0),
+        "trial": int(row.get("trial") or 0),
+        "paid": int(row.get("paid") or 0),
+        "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+        "archived": bool(row.get("archived_at")),
+    }
+
+
+async def api_ad_links(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    if request.method == "GET":
+        archived = str(request.query.get("archived") or "") in {"1", "true", "yes"}
+        items = [_ad_public(r) for r in await db.list_ad_links(include_archived=archived)]
+        return web.json_response({"ok": True, "items": items})
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        row = await db.create_ad_link(str(body.get("title") or ""), str(body.get("slug") or ""))
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    item = _ad_public({**row, "users": 0, "trial": 0, "paid": 0, "clicks": int(row.get("clicks") or 0)})
+    return web.json_response({"ok": True, "item": item})
+
+
+async def api_ad_link_archive(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        link_id = int(request.match_info["link_id"])
+    except (KeyError, TypeError, ValueError):
+        return web.json_response({"ok": False, "error": "Ссылка не найдена"}, status=404)
+    if not await db.archive_ad_link(link_id):
+        return web.json_response({"ok": False, "error": "Ссылка уже скрыта или не найдена"}, status=404)
+    return web.json_response({"ok": True})
 
 
 async def api_payouts(request: web.Request) -> web.Response:
@@ -1360,6 +1410,9 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/users/{telegram_id}/devices", api_user_devices)
     app.router.add_post("/admin/api/users/bulk", api_users_bulk)
     app.router.add_get("/admin/api/referrals", api_referrals)
+    app.router.add_get("/admin/api/ads", api_ad_links)
+    app.router.add_post("/admin/api/ads", api_ad_links)
+    app.router.add_post("/admin/api/ads/{link_id}/archive", api_ad_link_archive)
     app.router.add_get("/admin/api/payouts", api_payouts)
     app.router.add_post("/admin/api/payouts/{payout_id}", api_payout_resolve)
     app.router.add_get("/admin/api/orders", api_orders)
