@@ -123,7 +123,7 @@ async def main() -> None:
         if runtime.webapp_url:
             await bot.set_chat_menu_button(
                 menu_button=MenuButtonWebApp(
-                    text="Кабинет",
+                    text="⊞\uFE0E  Кабинет",
                     web_app=WebAppInfo(url=runtime.webapp_url),
                 )
             )

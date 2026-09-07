@@ -400,6 +400,7 @@ async def api_me(request: web.Request) -> web.Response:
             "billing_active": bool(settings.balance_enabled and devices),
             "balance_rub": balance_rub,
             "vpn_day_price_rub": settings.vpn_day_price_rub,
+            "traffic_limit_gb": int(settings.remnawave_traffic_limit_gb or 0),
             "max_devices": settings.max_devices,
             "has_access": bool(
                 (settings.balance_enabled and (balance_rub > 0 or devices))
@@ -452,6 +453,7 @@ async def api_me(request: web.Request) -> web.Response:
             "devices": devices,
             "trust": trust,
             "vpn_apps": public_vpn_apps(),
+            "first_device_thanks_pending": bool((local or {}).get("first_device_thanks_pending")),
         }
     )
 
@@ -673,7 +675,9 @@ async def api_add_device(request: web.Request) -> web.Response:
     platform = str(body.get("platform") or "").strip()[:32] or None
     client = str(body.get("client") or "").strip()[:32] or None
     cap = int(settings.max_devices or 0)
-    if cap > 0 and await db.device_count(telegram_id) >= cap:
+    device_n = await db.device_count(telegram_id)
+    was_first = device_n == 0
+    if cap > 0 and device_n >= cap:
         return json_error(f"Можно подключить не больше {cap} устройств")
     price = max(1, settings.vpn_day_price_rub)
     if not await db.spend_balance_rub(telegram_id, price):
@@ -703,9 +707,12 @@ async def api_add_device(request: web.Request) -> web.Response:
     rw_id = int(user["id"])
     await db.add_device(telegram_id, title, rw_id, platform, client)
     await db.save_device_subscription(rw_id, user)
+    if was_first:
+        await db.mark_first_device_thanks_pending(telegram_id)
     return web.json_response(
         {
             "ok": True,
+            "first_device": was_first,
             "subscription_url": user.get("subscriptionUrl") or "",
             "title": title,
             "platform": platform or "",
@@ -878,6 +885,16 @@ async def api_ticket_send(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "current": {**ticket, "messages": messages}, "items": items})
 
 
+async def api_cabinet_leave(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tickets(request)
+    if denied:
+        return denied
+    from app.nudge import send_first_device_thanks
+
+    await send_first_device_thanks(request.app.get("bot"), telegram_id)
+    return web.json_response({"ok": True})
+
+
 async def api_trust(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tg(request)
     if denied:
@@ -979,6 +996,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/vpn-report", api_vpn_report)
         app.router.add_get("/api/tickets", api_tickets)
         app.router.add_post("/api/tickets", api_ticket_send)
+        app.router.add_post("/api/cabinet-leave", api_cabinet_leave)
         app.router.add_post("/api/story-share", api_story_share)
         app.router.add_post("/api/referral-payout", api_referral_payout)
         app.router.add_static("/static", WEBAPP_DIR)

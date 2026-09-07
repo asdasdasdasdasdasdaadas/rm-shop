@@ -399,6 +399,32 @@ async function api(path, opts = {}) {
   return data;
 }
 
+let thanksArmed = false;
+let thanksFlushing = false;
+
+function armThanksOnClose() {
+  thanksArmed = true;
+}
+
+function flushThanksOnClose() {
+  if (!thanksArmed || thanksFlushing) return;
+  thanksArmed = false;
+  thanksFlushing = true;
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Init-Data": tg.initData || "",
+  };
+  if (lkToken) headers["X-Lk-Token"] = lkToken;
+  try {
+    fetch("/api/cabinet-leave", {
+      method: "POST",
+      headers,
+      body: "{}",
+      keepalive: true,
+    });
+  } catch (_e) {}
+}
+
 function daysWord(n) {
   const abs = Math.abs(n);
   const mod10 = abs % 10;
@@ -564,6 +590,7 @@ function finishIntro() {
   clearIntroTimers();
   markIntroSeen();
   showApp();
+  maybeOpenOffer(window.__me);
 }
 
 function reducedMotion() {
@@ -653,7 +680,7 @@ function replayAnim(el, cls) {
 
 function switchView(id, motion) {
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
-  ["view-home", "view-topup", "view-wizard", "view-device", "view-support"].forEach((vid) => {
+  ["view-home", "view-topup", "view-wizard", "view-device", "view-support", "view-offer"].forEach((vid) => {
     const el = $(vid);
     const on = vid === id;
     el.classList.toggle("hidden", !on);
@@ -668,6 +695,7 @@ const wiz = {
   client: "incy",
   title: "",
   url: "",
+  fromOffer: false,
 };
 
 let screen = "home";
@@ -681,6 +709,7 @@ let topupCustomRub = 0;
 const COACH_KEY = "way_home_coach_v2";
 const WIZ_COACH_KEY = "way_wiz_coach_v1";
 const ONBOARD_KEY = "way_onboard_v1";
+const OFFER_SKIP_KEY = "way_offer_skip_v1";
 let coachIndex = 0;
 let coachList = [];
 let coachVisible = false;
@@ -712,10 +741,34 @@ function markOnboardDone() {
   try {
     localStorage.setItem(ONBOARD_KEY, "1");
     localStorage.setItem(COACH_KEY, "1");
+    localStorage.setItem(OFFER_SKIP_KEY, "1");
   } catch (_e) {}
   try {
     localStorage.setItem(WIZ_COACH_KEY, JSON.stringify({ 1: 1, 2: 1, 3: 1, 4: 1, done: 1 }));
   } catch (_e) {}
+}
+
+function offerSkipped() {
+  try {
+    return localStorage.getItem(OFFER_SKIP_KEY) === "1";
+  } catch (_e) {
+    return false;
+  }
+}
+
+function skipOffer() {
+  try {
+    localStorage.setItem(OFFER_SKIP_KEY, "1");
+  } catch (_e) {}
+}
+
+function shouldShowOffer(me) {
+  if (!me) return false;
+  if ((me.devices || []).length) return false;
+  if (onboardDone() || offerSkipped()) return false;
+  if (me.trial_available) return true;
+  const kind = me.trial_notice && me.trial_notice.kind;
+  return kind === "claim" || kind === "granted";
 }
 
 function markCoachDone() {
@@ -852,14 +905,12 @@ function buildCoachSteps(me) {
   if (!me) return steps;
   if (me.balance_enabled) {
     const n = (me.devices || []).length;
-    if (me.trial_available && (coachElReady("trialNotice") || coachElReady("trialHomeBtn"))) {
+    if (me.trial_available && coachElReady("trialHomeBtn") && offerSkipped()) {
       steps.push({
-        id: coachElReady("trialNotice") ? "trialNotice" : "trialHomeBtn",
+        id: "trialHomeBtn",
         required: true,
         title: "Начните бесплатно",
-        text: coachElReady("trialNotice")
-          ? "Вам доступен тестовый баланс. Нажмите на плашку, чтобы получить пробные рубли. Без устройства деньги не списываются."
-          : "Нажмите сюда — пробные рубли сразу на баланс. Без устройства деньги не списываются.",
+        text: "Нажмите сюда — пробные рубли сразу на баланс. Без устройства деньги не списываются.",
       });
     } else if ((me.balance_rub || 0) < 1 && coachElReady("topupBtn")) {
       steps.push({
@@ -979,6 +1030,7 @@ function buildWizCoachSteps() {
 let wizCoachTimer = 0;
 
 function queueWizCoach() {
+  if (wiz.fromOffer) return;
   if (wizCoachTimer) clearTimeout(wizCoachTimer);
   wizCoachTimer = setTimeout(() => {
     wizCoachTimer = 0;
@@ -1121,7 +1173,7 @@ function scheduleCoach() {
 }
 
 function maybeStartCoach(force) {
-  if (screen === "wizard") return;
+  if (screen === "wizard" || screen === "offer") return;
   if (!coachCanRun()) return;
   if (!force && coachDone()) return;
   if (coachVisible && !force) {
@@ -1273,11 +1325,16 @@ function onBack() {
   if (screen === "support") {
     stopSupportPoll();
     openHome();
+    return;
+  }
+  if (screen === "offer") {
+    skipOffer();
+    openHome();
   }
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "support";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "offer";
   stopSupportPoll();
   screen = "home";
   openDevice = null;
@@ -1399,6 +1456,85 @@ async function sendSupport() {
   }
 }
 
+function monthPriceLabel(me) {
+  if (me.balance_enabled) {
+    const n = Math.max(1, Number(me.vpn_day_price_rub) || 1) * 30;
+    return `${n} ₽ месяц`;
+  }
+  const plan = (me.plans || []).find((p) => p.code === "1m") || (me.plans || [])[0];
+  if (!plan) return "—";
+  const n = Number(plan.topup_rub || plan.rub);
+  if (!Number.isFinite(n) || n <= 0) return "—";
+  return `${Math.round(n)} ₽ месяц`;
+}
+
+function paintOffer(me) {
+  if (!me) return;
+  const days = Number((me.trial_notice && me.trial_notice.days) || me.trial_days) || 3;
+  $("offerDays").textContent = String(days);
+  $("offerPrice").textContent = monthPriceLabel(me);
+  const gb = Number(me.traffic_limit_gb) || 0;
+  $("offerTraffic").textContent = gb > 0 ? `${gb} ГБ` : "Безлимит";
+  const note = $("offerNote");
+  if (gb > 0) {
+    note.textContent = `*В пробный период доступно ${gb} ГБ`;
+    note.classList.remove("hidden");
+  } else {
+    note.textContent = "";
+    note.classList.add("hidden");
+  }
+}
+
+function openOffer() {
+  const me = window.__me;
+  if (!me) return;
+  hideCoach();
+  screen = "offer";
+  switchView("view-offer", "push");
+  setMain("");
+  paintOffer(me);
+  try {
+    tg.BackButton.show();
+  } catch (_e) {}
+  syncWebBack();
+}
+
+function maybeOpenOffer(me) {
+  if (!me) return;
+  if (screen === "wizard" || screen === "device" || screen === "topup" || screen === "support") return;
+  if (screen === "offer") {
+    paintOffer(me);
+    return;
+  }
+  if (!shouldShowOffer(me)) return;
+  openOffer();
+}
+
+async function startOfferTry() {
+  const me = window.__me;
+  if (!me) return;
+  haptic();
+  const btn = $("offerTry");
+  if (btn) btn.disabled = true;
+  try {
+    if (me.trial_available) {
+      await api("/api/trial", { method: "POST", body: "{}" });
+      await load();
+    }
+    const next = window.__me || me;
+    if (next.balance_enabled) {
+      startWizard({ fromOffer: true });
+      return;
+    }
+    markOnboardDone();
+    openHome();
+  } catch (e) {
+    showErr(e);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function payPlan(plan) {
   const inv = await api("/api/invoice", {
     method: "POST",
@@ -1483,14 +1619,20 @@ function renderTopup(me) {
 }
 
 function closeWizard() {
+  const toOffer = wiz.fromOffer && !wiz.url && shouldShowOffer(window.__me);
   if (wiz.url) markOnboardDone();
   hideQr();
   wiz.step = 1;
   wiz.url = "";
+  wiz.fromOffer = false;
+  if (toOffer) {
+    openOffer();
+    return;
+  }
   openHome();
 }
 
-function startWizard() {
+function startWizard(opts) {
   const me = window.__me;
   if (!me || !me.balance_enabled) return;
   const cap = Number(me.max_devices) || 0;
@@ -1507,6 +1649,7 @@ function startWizard() {
   wiz.client = first ? first.id : "";
   wiz.title = "";
   wiz.url = "";
+  wiz.fromOffer = Boolean(opts && opts.fromOffer);
   screen = "wizard";
   switchView("view-wizard", "push");
   try {
@@ -1531,30 +1674,21 @@ function renderWizard() {
 
   if (wiz.step === 1) {
     $("wizStep").textContent = "Шаг 1 из 3";
-    $("wizTitle").textContent = "На чём подключаемся?";
-    lead.textContent = "Выберите устройство — настроим ссылку и подсказки именно под него.";
-    const grid = document.createElement("div");
-    grid.id = "wizPlatGrid";
-    grid.className = "plat-grid";
+    $("wizTitle").textContent = "Выбор устройства";
+    lead.textContent = "";
+    const list = document.createElement("div");
+    list.id = "wizPlatGrid";
+    list.className = "wiz-radio";
     PLATFORMS.forEach((p) => {
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "plat-card" + (wiz.platform === p.id ? " on" : "");
-      const check = document.createElement("span");
-      check.className = "plat-check";
-      const icon = document.createElement("div");
-      icon.className = "plat-icon";
-      icon.innerHTML = platIconSvg(p.id);
-      const name = document.createElement("div");
-      name.className = "plat-name";
-      name.textContent = p.title;
-      const sub = document.createElement("div");
-      sub.className = "plat-sub";
-      sub.textContent = p.sub || "";
-      b.appendChild(check);
-      b.appendChild(icon);
+      b.className = "wiz-radio-row" + (wiz.platform === p.id ? " on" : "");
+      const name = document.createElement("span");
+      name.textContent = p.hint || p.title;
+      const mark = document.createElement("span");
+      mark.className = "radio" + (wiz.platform === p.id ? " on" : "");
       b.appendChild(name);
-      b.appendChild(sub);
+      b.appendChild(mark);
       b.onclick = () => {
         haptic();
         wiz.platform = p.id;
@@ -1563,9 +1697,9 @@ function renderWizard() {
         wiz.title = "";
         renderWizard();
       };
-      grid.appendChild(b);
+      list.appendChild(b);
     });
-    body.appendChild(grid);
+    body.appendChild(list);
     replayAnim(body, "wiz-swap");
     setMain("Продолжить", () => {
       haptic();
@@ -1724,6 +1858,7 @@ function renderWizard() {
         wiz.title = title;
         wiz.url = created.subscription_url || "";
         wiz.step = 4;
+        if (created.first_device) armThanksOnClose();
         await load();
         renderWizard();
       } catch (e) {
@@ -2114,33 +2249,7 @@ function dismissTrialNotice(kind) {
 
 function paintTrialNotice(me) {
   const el = $("trialNotice");
-  const act = $("trialNoticeAct");
-  const notice = me && me.trial_notice;
-  if (!el || !act) return;
-  if (!notice || !notice.kind || trialNoticeDismissed(notice.kind)) {
-    el.classList.add("hidden");
-    return;
-  }
-  const rub = rublesLabel(notice.rub);
-  const days = daysLabel(notice.days);
-  if (notice.kind === "claim") {
-    $("trialNoticeTitle").textContent = me.balance_enabled
-      ? "Вам доступен тестовый баланс"
-      : "Вам доступен бесплатный период";
-    $("trialNoticeText").textContent = me.balance_enabled
-      ? `Можно взять ${rub} на пробу — примерно на ${days} одного устройства. Списываться начнут только после подключения.`
-      : `Можно подключить VPN на ${days} без оплаты.`;
-    act.textContent = me.balance_enabled ? `Получить ${rub}` : "Получить";
-    act.classList.remove("hidden");
-  } else {
-    $("trialNoticeTitle").textContent = "Тестовый баланс уже на счёте";
-    $("trialNoticeText").textContent = notice.days > 0
-      ? `Начислено ${rub} — примерно на ${days} одного устройства. Добавьте устройство, чтобы включить VPN. Пока устройств нет, деньги не списываются.`
-      : `Начислено ${rub}. Добавьте устройство, чтобы включить VPN. Пока устройств нет, деньги не списываются.`;
-    act.textContent = "Добавить устройство";
-    act.classList.remove("hidden");
-  }
-  el.classList.remove("hidden");
+  if (el) el.classList.add("hidden");
 }
 
 function paint(me) {
@@ -2224,14 +2333,7 @@ function paint(me) {
         : `Обещанный платёж · ${daysLabel(t.days)}`
       : `Обещанный платёж · ${daysLabel(t.days)}`;
   }
-  const trialHome = $("trialHomeBtn");
-  const claimOnPlaque = Boolean(
-    me.trial_available
-    && me.trial_notice
-    && me.trial_notice.kind === "claim"
-    && !trialNoticeDismissed("claim")
-  );
-  if (me.trial_available && !claimOnPlaque) {
+  if (me.trial_available && offerSkipped()) {
     trialHome.classList.remove("hidden");
     trialHome.textContent = me.balance_enabled
       ? `Попробовать бесплатно · ${rublesLabel(me.trial_rub)}`
@@ -2242,6 +2344,7 @@ function paint(me) {
   renderConnect(me);
   renderDevices(me);
   window.__me = me;
+  if (me.first_device_thanks_pending) armThanksOnClose();
   if (screen === "device" && openDevice) {
     const fresh = me.devices.find((x) => x.id === openDevice.id);
     if (fresh) {
@@ -2258,8 +2361,11 @@ function paint(me) {
   if (screen === "topup") renderTopup(me);
   if (!$("intro").classList.contains("hidden")) return;
   if (shouldShowIntro()) showIntro(me);
-  else showApp();
-  syncCoach(me);
+  else {
+    showApp();
+    maybeOpenOffer(me);
+  }
+  if (screen !== "offer") syncCoach(me);
 }
 
 function syncCoach(me) {
@@ -2403,12 +2509,6 @@ $("trialNoticeClose").onclick = (e) => {
 };
 
 $("trialNoticeAct").onclick = () => {
-  const notice = window.__me && window.__me.trial_notice;
-  if (!notice) return;
-  if (notice.kind === "claim") {
-    claimTrial();
-    return;
-  }
   haptic();
   startWizard();
 };
@@ -2592,6 +2692,7 @@ $("coachReplay").onclick = () => {
     localStorage.removeItem(COACH_KEY);
     localStorage.removeItem(WIZ_COACH_KEY);
     localStorage.removeItem(ONBOARD_KEY);
+    localStorage.removeItem(OFFER_SKIP_KEY);
   } catch (_e) {}
   maybeStartCoach(true);
 };
@@ -2797,6 +2898,7 @@ $("supportBtn").onclick = () => {
   haptic();
   openSupport();
 };
+if ($("offerTry")) $("offerTry").onclick = () => startOfferTry();
 if ($("supportSend")) $("supportSend").onclick = () => sendSupport();
 
 $("intro").onclick = () => {
@@ -2839,5 +2941,7 @@ document.addEventListener("visibilitychange", () => {
   clearTimeout(visTimer);
   visTimer = setTimeout(() => load().catch(() => {}), 400);
 });
+window.addEventListener("pagehide", flushThanksOnClose);
+window.addEventListener("beforeunload", flushThanksOnClose);
 
 load().catch((err) => showFail(err.message || "Не удалось загрузить данные"));

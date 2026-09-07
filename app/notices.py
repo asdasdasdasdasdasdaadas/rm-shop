@@ -66,6 +66,23 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Кабинет всегда можно открыть из бота, даже если VPN вдруг отключится."
         "{story}"
     ),
+    "first_device_thanks": (
+        "Все готово. Спасибо, что решили попробовать.\n\n"
+        "Если что-то не заработает — напишите в поддержку из кабинета."
+    ),
+    "device_nudge_1": (
+        "Вы заглянули к нам, но устройство ещё не создано. "
+        "Без него VPN не включится. Откройте кабинет — займёт меньше минуты."
+    ),
+    "device_nudge_2": (
+        "Напоминаем: устройство всё ещё не добавлено. "
+        "Пока его нет, VPN не работает, баланс не списывается. "
+        "Откройте кабинет и подключитесь."
+    ),
+    "device_nudge_3": (
+        "Последнее напоминание: без устройства VPN не запустится. "
+        "Откройте кабинет, когда будете готовы."
+    ),
     "referral_referrer_balance": (
         "<b>Поздравляем</b>\n\n"
         "Друг {name} попробовал VPN бесплатно по вашей ссылке.\n"
@@ -125,6 +142,10 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "broadcast_invite", "title": "Рассылка: пользуются VPN", "hint": "{reward} {link}"},
     {"key": "broadcast_unused", "title": "Рассылка: не подключались", "hint": ""},
     {"key": "info_nudge", "title": "Как устроен кабинет", "hint": "{price} {story}"},
+    {"key": "first_device_thanks", "title": "После первого устройства", "hint": ""},
+    {"key": "device_nudge_1", "title": "Нет устройства: 30 минут", "hint": ""},
+    {"key": "device_nudge_2", "title": "Нет устройства: сутки после первого", "hint": ""},
+    {"key": "device_nudge_3", "title": "Нет устройства: ещё сутки", "hint": ""},
     {"key": "referral_referrer_balance", "title": "Реферал: пригласившему (триал)", "hint": "{name} {amount}"},
     {"key": "referral_invitee_balance", "title": "Реферал: другу (триал)", "hint": "{amount}"},
     {"key": "referral_referrer_days", "title": "Реферал: пригласившему дни (триал)", "hint": "{name} {days} {expire} {sub_block}"},

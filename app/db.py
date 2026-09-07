@@ -41,6 +41,7 @@ async def init_db() -> None:
             chunk = stmt.strip()
             if chunk:
                 await conn.execute(chunk)
+    await _ensure_nudge_defaults()
 
 
 async def close_db() -> None:
@@ -48,6 +49,14 @@ async def close_db() -> None:
     if _pool is not None:
         await _pool.close()
         _pool = None
+
+
+async def _ensure_nudge_defaults() -> None:
+    if (await get_kv("nudge_defaults_v2")) == "1":
+        return
+    for key in ("trial_nudge", "invite_nudge", "info_nudge"):
+        await set_flag(key, True)
+    await set_kv("nudge_defaults_v2", "1")
 
 
 def _pool_req() -> asyncpg.Pool:
@@ -1840,83 +1849,170 @@ async def reset_trial(telegram_id: int) -> bool:
     return result == "UPDATE 1"
 
 
-async def claim_trial_nudge_batch(limit: int = 40) -> list[dict]:
+async def list_due_trial_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
+    skip = [int(x) for x in (skip_ids or [])]
     rows = await _pool_req().fetch(
         """
-        WITH due AS (
-            SELECT u.telegram_id
-            FROM users u
-            WHERE u.trial_nudge_sent_at IS NULL
-              AND u.trial_used = FALSE
-              AND u.blocked_at IS NULL
-              AND u.remnawave_id IS NULL
-              AND COALESCE(u.has_paid_topup, FALSE) = FALSE
-              AND COALESCE(u.balance_rub, 0) = 0
-              AND u.created_at <= timezone('utc', now()) - INTERVAL '24 hours'
-              AND NOT EXISTS (
-                  SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
-              )
-            ORDER BY u.created_at
-            LIMIT $1
-        )
-        UPDATE users AS u
-        SET trial_nudge_sent_at = timezone('utc', now())
-        FROM due
-        WHERE u.telegram_id = due.telegram_id
-          AND u.trial_nudge_sent_at IS NULL
-        RETURNING u.telegram_id, u.first_name
+        SELECT u.telegram_id, u.first_name, u.trial_used, u.balance_rub
+        FROM users u
+        WHERE u.trial_nudge_sent_at IS NULL
+          AND u.blocked_at IS NULL
+          AND COALESCE(u.has_paid_topup, FALSE) = FALSE
+          AND u.created_at <= timezone('utc', now()) - INTERVAL '24 hours'
+          AND EXISTS (
+              SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
+          )
+          AND NOT (u.telegram_id = ANY($2::bigint[]))
+        ORDER BY u.created_at
+        LIMIT $1
         """,
-        limit,
+        int(limit),
+        skip,
     )
     return [dict(r) for r in rows]
 
 
-async def claim_invite_nudge_batch(limit: int = 40) -> list[dict]:
+async def list_due_invite_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
+    skip = [int(x) for x in (skip_ids or [])]
     rows = await _pool_req().fetch(
         """
-        WITH due AS (
-            SELECT u.telegram_id
-            FROM users u
-            WHERE u.invite_nudge_sent_at IS NULL
-              AND u.blocked_at IS NULL
-              AND u.created_at <= timezone('utc', now()) - INTERVAL '48 hours'
-            ORDER BY u.created_at
-            LIMIT $1
-        )
-        UPDATE users AS u
-        SET invite_nudge_sent_at = timezone('utc', now())
-        FROM due
-        WHERE u.telegram_id = due.telegram_id
-          AND u.invite_nudge_sent_at IS NULL
-        RETURNING u.telegram_id, u.first_name
+        SELECT u.telegram_id, u.first_name
+        FROM users u
+        WHERE u.invite_nudge_sent_at IS NULL
+          AND u.blocked_at IS NULL
+          AND u.created_at <= timezone('utc', now()) - INTERVAL '48 hours'
+          AND NOT (u.telegram_id = ANY($2::bigint[]))
+        ORDER BY u.created_at
+        LIMIT $1
         """,
-        limit,
+        int(limit),
+        skip,
     )
     return [dict(r) for r in rows]
 
 
-async def claim_info_nudge_batch(limit: int = 40) -> list[dict]:
+async def list_due_info_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
+    skip = [int(x) for x in (skip_ids or [])]
     rows = await _pool_req().fetch(
         """
-        WITH due AS (
-            SELECT u.telegram_id
-            FROM users u
-            WHERE u.info_nudge_sent_at IS NULL
-              AND u.blocked_at IS NULL
-              AND u.created_at <= timezone('utc', now()) - INTERVAL '96 hours'
-            ORDER BY u.created_at
-            LIMIT $1
-        )
-        UPDATE users AS u
-        SET info_nudge_sent_at = timezone('utc', now())
-        FROM due
-        WHERE u.telegram_id = due.telegram_id
-          AND u.info_nudge_sent_at IS NULL
-        RETURNING u.telegram_id, u.first_name
+        SELECT u.telegram_id, u.first_name
+        FROM users u
+        WHERE u.info_nudge_sent_at IS NULL
+          AND u.blocked_at IS NULL
+          AND u.created_at <= timezone('utc', now()) - INTERVAL '96 hours'
+          AND NOT (u.telegram_id = ANY($2::bigint[]))
+        ORDER BY u.created_at
+        LIMIT $1
         """,
-        limit,
+        int(limit),
+        skip,
     )
     return [dict(r) for r in rows]
+
+
+async def mark_nudge_sent(telegram_id: int, kind: str) -> None:
+    col = {
+        "trial": "trial_nudge_sent_at",
+        "invite": "invite_nudge_sent_at",
+        "info": "info_nudge_sent_at",
+    }.get(kind)
+    if not col:
+        return
+    await _pool_req().execute(
+        f"""
+        UPDATE users
+        SET {col} = timezone('utc', now())
+        WHERE telegram_id = $1 AND {col} IS NULL
+        """,
+        int(telegram_id),
+    )
+
+
+async def mark_first_device_thanks_pending(telegram_id: int) -> None:
+    await _pool_req().execute(
+        """
+        UPDATE users
+        SET first_device_thanks_pending = TRUE,
+            device_nudge_count = GREATEST(COALESCE(device_nudge_count, 0), 3)
+        WHERE telegram_id = $1
+          AND first_device_thanks_sent_at IS NULL
+        """,
+        int(telegram_id),
+    )
+
+
+async def take_first_device_thanks(telegram_id: int) -> bool:
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users
+        SET first_device_thanks_pending = FALSE,
+            first_device_thanks_sent_at = timezone('utc', now())
+        WHERE telegram_id = $1
+          AND first_device_thanks_pending = TRUE
+          AND first_device_thanks_sent_at IS NULL
+        RETURNING telegram_id
+        """,
+        int(telegram_id),
+    )
+    return bool(row)
+
+
+async def restore_first_device_thanks(telegram_id: int) -> None:
+    await _pool_req().execute(
+        """
+        UPDATE users
+        SET first_device_thanks_pending = TRUE,
+            first_device_thanks_sent_at = NULL
+        WHERE telegram_id = $1
+          AND first_device_thanks_sent_at IS NOT NULL
+        """,
+        int(telegram_id),
+    )
+
+
+async def list_due_device_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
+    skip = [int(x) for x in (skip_ids or [])]
+    rows = await _pool_req().fetch(
+        """
+        SELECT u.telegram_id, u.first_name, COALESCE(u.device_nudge_count, 0) AS device_nudge_count
+        FROM users u
+        WHERE u.blocked_at IS NULL
+          AND COALESCE(u.device_nudge_count, 0) < 3
+          AND NOT EXISTS (
+              SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
+          )
+          AND NOT (u.telegram_id = ANY($2::bigint[]))
+          AND (
+            (
+              COALESCE(u.device_nudge_count, 0) = 0
+              AND u.created_at <= timezone('utc', now()) - INTERVAL '30 minutes'
+              AND u.created_at > timezone('utc', now()) - INTERVAL '36 hours'
+            )
+            OR (
+              COALESCE(u.device_nudge_count, 0) IN (1, 2)
+              AND u.device_nudge_at IS NOT NULL
+              AND u.device_nudge_at <= timezone('utc', now()) - INTERVAL '24 hours'
+            )
+          )
+        ORDER BY u.created_at
+        LIMIT $1
+        """,
+        int(limit),
+        skip,
+    )
+    return [dict(r) for r in rows]
+
+
+async def mark_device_nudge_sent(telegram_id: int) -> None:
+    await _pool_req().execute(
+        """
+        UPDATE users
+        SET device_nudge_count = LEAST(COALESCE(device_nudge_count, 0) + 1, 3),
+            device_nudge_at = timezone('utc', now())
+        WHERE telegram_id = $1
+        """,
+        int(telegram_id),
+    )
 
 
 async def broadcast_audience_counts() -> dict:

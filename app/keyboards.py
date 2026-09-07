@@ -10,6 +10,14 @@ from app.notices import notice_text
 from app.texts import days_text, rub_text
 from app import runtime
 
+# Текстовые знаки (не эмодзи). VS15 держит текстовый вид, если клиент умеет подменять символ картинкой.
+_VS15 = "\uFE0E"
+
+
+def _btn(icon: str, title: str) -> str:
+    mark = icon if icon.isascii() else f"{icon}{_VS15}"
+    return f"{mark}  {title}"
+
 
 def support_url() -> str:
     raw = (get_settings().support_username or "").strip()
@@ -47,7 +55,7 @@ def cabinet_button() -> InlineKeyboardButton | None:
     if not runtime.webapp_url:
         return None
     return InlineKeyboardButton(
-        text="Открыть кабинет",
+        text=_btn("⊞", "Открыть кабинет"),
         web_app=WebAppInfo(url=runtime.webapp_url),
         style="success",
     )
@@ -64,14 +72,14 @@ def channel_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="Подписаться на канал",
+            text=_btn("▷", "Подписаться на канал"),
             url=settings.required_channel_url,
             style="primary",
         )
     )
     builder.row(
         InlineKeyboardButton(
-            text="Проверить подписку",
+            text=_btn("✓", "Проверить подписку"),
             callback_data="check_sub",
             style="success",
         )
@@ -82,10 +90,19 @@ def channel_keyboard() -> InlineKeyboardMarkup:
 def legal_keyboard() -> InlineKeyboardMarkup:
     settings = get_settings()
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="Оферта", url=settings.legal_offer_url))
-    builder.row(InlineKeyboardButton(text="Политика конфиденциальности", url=settings.legal_privacy_url))
+    builder.row(InlineKeyboardButton(text=_btn("≡", "Оферта"), url=settings.legal_offer_url))
     builder.row(
-        InlineKeyboardButton(text="Принимаю", callback_data="accept_legal", style="success")
+        InlineKeyboardButton(
+            text=_btn("◯", "Политика конфиденциальности"),
+            url=settings.legal_privacy_url,
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=_btn("✓", "Принимаю"),
+            callback_data="accept_legal",
+            style="success",
+        )
     )
     return builder.as_markup()
 
@@ -101,7 +118,7 @@ def story_webapp_button(*, story_offer: bool) -> InlineKeyboardButton | None:
     ):
         return None
     return InlineKeyboardButton(
-        text=f"История — {rub_text(settings.story_reward_rub)}",
+        text=_btn("▭", f"История — {rub_text(settings.story_reward_rub)}"),
         web_app=WebAppInfo(url=runtime.webapp_url),
     )
 
@@ -110,31 +127,38 @@ def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bo
     settings = get_settings()
     builder = InlineKeyboardBuilder()
     if trial_available:
-        builder.row(InlineKeyboardButton(text="Попробовать бесплатно", callback_data="trial"))
+        builder.row(
+            InlineKeyboardButton(text=_btn("✦", "Попробовать бесплатно"), callback_data="trial")
+        )
     if settings.balance_enabled:
         builder.row(
             InlineKeyboardButton(
-                text="Пополнить баланс",
+                text=_btn("+", "Пополнить баланс"),
                 callback_data="buy",
                 style="success",
             ),
             InlineKeyboardButton(
-                text="Приведи друга",
+                text=_btn("⚭", "Приведи друга"),
                 callback_data="share",
             ),
         )
     else:
-        builder.row(InlineKeyboardButton(text="Купить подписку", callback_data="buy"))
+        builder.row(InlineKeyboardButton(text=_btn("+", "Купить подписку"), callback_data="buy"))
         days = settings.referral_reward_days
-        builder.row(InlineKeyboardButton(text=f"Приведи друга — {days_text(days)}", callback_data="share"))
+        builder.row(
+            InlineKeyboardButton(
+                text=_btn("⚭", f"Приведи друга — {days_text(days)}"),
+                callback_data="share",
+            )
+        )
         if has_access:
-            builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_sub"))
-            builder.row(InlineKeyboardButton(text="Подключиться", callback_data="connect"))
+            builder.row(InlineKeyboardButton(text=_btn("◉", "Моя подписка"), callback_data="my_sub"))
+            builder.row(InlineKeyboardButton(text=_btn("▷", "Подключиться"), callback_data="connect"))
     story_btn = story_webapp_button(story_offer=story_offer)
     if story_btn:
         builder.row(story_btn)
-    builder.row(InlineKeyboardButton(text="VPN не работает", callback_data="vpn_down"))
-    builder.row(InlineKeyboardButton(text="Поддержка", callback_data="support_ticket"))
+    builder.row(InlineKeyboardButton(text=_btn("△", "VPN не работает"), callback_data="vpn_down"))
+    builder.row(InlineKeyboardButton(text=_btn("✎", "Поддержка"), callback_data="support_ticket"))
     add_cabinet_row(builder)
     return builder.as_markup()
 
@@ -147,28 +171,33 @@ def cabinet_keyboard() -> InlineKeyboardMarkup:
 
 def blocked_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="Поддержка", callback_data="support_ticket"))
+    builder.row(InlineKeyboardButton(text=_btn("✎", "Поддержка"), callback_data="support_ticket"))
     return builder.as_markup()
 
 
 def try_again_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="Попробовать ещё раз", callback_data="try_again"))
+    builder.row(InlineKeyboardButton(text=_btn("↻", "Попробовать ещё раз"), callback_data="try_again"))
     return builder.as_markup()
 
 
-def trial_nudge_keyboard() -> InlineKeyboardMarkup:
+def trial_nudge_keyboard(*, trial_available: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="Попробовать бесплатно", callback_data="trial", style="success")
-    )
+    if trial_available:
+        builder.row(
+            InlineKeyboardButton(
+                text=_btn("✦", "Попробовать бесплатно"),
+                callback_data="trial",
+                style="success",
+            )
+        )
     add_cabinet_row(builder)
     return builder.as_markup()
 
 
 def back_profile_keyboard(*, cabinet: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+    builder.row(InlineKeyboardButton(text=_btn("‹", "В профиль"), callback_data="profile"))
     if cabinet:
         add_cabinet_row(builder)
     return builder.as_markup()
@@ -177,12 +206,12 @@ def back_profile_keyboard(*, cabinet: bool = False) -> InlineKeyboardMarkup:
 def connect_keyboard(sub_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if sub_url.startswith("http://") or sub_url.startswith("https://"):
-        builder.row(InlineKeyboardButton(text="Открыть ссылку подписки", url=sub_url))
+        builder.row(InlineKeyboardButton(text=_btn("⧉", "Открыть ссылку подписки"), url=sub_url))
     buy_title = "Пополнить баланс" if get_settings().balance_enabled else "Купить подписку"
-    builder.row(InlineKeyboardButton(text="Перевыпустить ссылку", callback_data="reissue_sub"))
-    builder.row(InlineKeyboardButton(text=buy_title, callback_data="buy"))
-    builder.row(InlineKeyboardButton(text="VPN не работает", callback_data="vpn_down"))
-    builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+    builder.row(InlineKeyboardButton(text=_btn("↻", "Перевыпустить ссылку"), callback_data="reissue_sub"))
+    builder.row(InlineKeyboardButton(text=_btn("+", buy_title), callback_data="buy"))
+    builder.row(InlineKeyboardButton(text=_btn("△", "VPN не работает"), callback_data="vpn_down"))
+    builder.row(InlineKeyboardButton(text=_btn("‹", "В профиль"), callback_data="profile"))
     return builder.as_markup()
 
 
@@ -192,12 +221,12 @@ def buy_keyboard() -> InlineKeyboardMarkup:
     if settings.balance_enabled and runtime.webapp_url:
         builder.row(
             InlineKeyboardButton(
-                text="Пополнить",
+                text=_btn("+", "Пополнить"),
                 web_app=WebAppInfo(url=runtime.webapp_url),
                 style="success",
             )
         )
-        builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+        builder.row(InlineKeyboardButton(text=_btn("‹", "В профиль"), callback_data="profile"))
         return builder.as_markup()
     for code, plan in settings.shop_plans.items():
         if settings.rollypay_configured:
@@ -206,16 +235,16 @@ def buy_keyboard() -> InlineKeyboardMarkup:
             label = f"{plan['title']} — {plan['stars']} звёзд"
         else:
             label = plan["title"]
-        builder.row(InlineKeyboardButton(text=label, callback_data=f"buy:{code}"))
-    builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+        builder.row(InlineKeyboardButton(text=_btn("▸", label), callback_data=f"buy:{code}"))
+    builder.row(InlineKeyboardButton(text=_btn("‹", "В профиль"), callback_data="profile"))
     return builder.as_markup()
 
 
 def pay_keyboard(pay_url: str, order_id: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="Оплатить", url=pay_url))
-    builder.row(InlineKeyboardButton(text="Проверить оплату", callback_data=f"rpc:{order_id}"))
-    builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+    builder.row(InlineKeyboardButton(text=_btn("▸", "Оплатить"), url=pay_url, style="success"))
+    builder.row(InlineKeyboardButton(text=_btn("↻", "Проверить оплату"), callback_data=f"rpc:{order_id}"))
+    builder.row(InlineKeyboardButton(text=_btn("‹", "В профиль"), callback_data="profile"))
     return builder.as_markup()
 
 
@@ -248,12 +277,12 @@ def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = F
     )
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="Отправить другу", url=share_url, style="success")
+        InlineKeyboardButton(text=_btn("»", "Отправить другу"), url=share_url, style="success")
     )
     story_btn = story_webapp_button(story_offer=story_offer)
     if story_btn:
         builder.row(story_btn)
-    builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+    builder.row(InlineKeyboardButton(text=_btn("‹", "В профиль"), callback_data="profile"))
     return builder.as_markup()
 
 
@@ -261,16 +290,24 @@ def story_mod_keyboard(telegram_id: int, username: str | None) -> InlineKeyboard
     builder = InlineKeyboardBuilder()
     handle = (username or "").lstrip("@").strip()
     if handle:
-        builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"https://t.me/{handle}"))
+        builder.row(InlineKeyboardButton(text=_btn("▷", "Открыть Telegram"), url=f"https://t.me/{handle}"))
     builder.row(
         InlineKeyboardButton(
-            text="Скопировать ID",
+            text=_btn("⎘", "Скопировать ID"),
             copy_text=CopyTextButton(text=str(int(telegram_id))),
         )
     )
     builder.row(
-        InlineKeyboardButton(text="Подтвердить", callback_data=f"st_ok:{telegram_id}"),
-        InlineKeyboardButton(text="Отказать", callback_data=f"st_no:{telegram_id}"),
+        InlineKeyboardButton(
+            text=_btn("✓", "Подтвердить"),
+            callback_data=f"st_ok:{telegram_id}",
+            style="success",
+        ),
+        InlineKeyboardButton(
+            text=_btn("✕", "Отказать"),
+            callback_data=f"st_no:{telegram_id}",
+            style="danger",
+        ),
     )
     return builder.as_markup()
 
@@ -281,15 +318,23 @@ def payout_mod_keyboard(
     builder = InlineKeyboardBuilder()
     handle = (username or "").lstrip("@").strip()
     if handle:
-        builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"https://t.me/{handle}"))
+        builder.row(InlineKeyboardButton(text=_btn("▷", "Открыть Telegram"), url=f"https://t.me/{handle}"))
     builder.row(
         InlineKeyboardButton(
-            text="Скопировать ID",
+            text=_btn("⎘", "Скопировать ID"),
             copy_text=CopyTextButton(text=str(int(telegram_id))),
         )
     )
     builder.row(
-        InlineKeyboardButton(text="Выплачено", callback_data=f"po_ok:{payout_id}"),
-        InlineKeyboardButton(text="Отказать", callback_data=f"po_no:{payout_id}"),
+        InlineKeyboardButton(
+            text=_btn("✓", "Выплачено"),
+            callback_data=f"po_ok:{payout_id}",
+            style="success",
+        ),
+        InlineKeyboardButton(
+            text=_btn("✕", "Отказать"),
+            callback_data=f"po_no:{payout_id}",
+            style="danger",
+        ),
     )
     return builder.as_markup()

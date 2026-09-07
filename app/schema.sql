@@ -107,6 +107,12 @@ CREATE TABLE IF NOT EXISTS app_flags (
     value TEXT NOT NULL
 );
 
+INSERT INTO app_flags (key, value) VALUES
+    ('trial_nudge', '1'),
+    ('invite_nudge', '1'),
+    ('info_nudge', '1')
+ON CONFLICT (key) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS trust_loans (
     id BIGSERIAL PRIMARY KEY,
     telegram_id BIGINT NOT NULL REFERENCES users (telegram_id),
@@ -132,6 +138,14 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_nudge_sent_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_nudge_sent_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS info_nudge_sent_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS low_balance_notified_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_device_thanks_pending BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_device_thanks_sent_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS device_nudge_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS device_nudge_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS users_device_nudge_idx
+    ON users (device_nudge_count, created_at)
+    WHERE blocked_at IS NULL AND device_nudge_count < 3;
 
 CREATE TABLE IF NOT EXISTS cabinet_tokens (
     token_hash TEXT PRIMARY KEY,

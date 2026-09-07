@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=61">
+  <link rel="stylesheet" href="app.css?v=62">
 </head>
 <body>
   <div class="app-bg" aria-hidden="true">
@@ -437,6 +437,33 @@
       </div>
     </div>
 
+    <div id="view-offer" class="view hidden">
+      <p class="offer-kicker">Попробуйте бесплатно</p>
+      <div class="offer-card">
+        <div class="offer-top">
+          <div>
+            <div class="offer-gift-label">Дарим</div>
+            <div class="offer-gift-days"><span id="offerDays">3</span> дня</div>
+          </div>
+          <div class="offer-gift" aria-hidden="true">
+            <svg viewBox="0 0 72 72" fill="none">
+              <rect x="12" y="30" width="48" height="32" rx="6" fill="#f3c15c"/>
+              <rect x="12" y="22" width="48" height="12" rx="4" fill="#e8a63a"/>
+              <rect x="32" y="22" width="8" height="40" fill="#e24b4b"/>
+              <path d="M36 22c-8-12-20-8-20 0 8-2 16 0 20 8 4-8 12-10 20-8 0-8-12-12-20 0z" fill="#e24b4b"/>
+            </svg>
+          </div>
+        </div>
+        <div class="offer-rows">
+          <div class="offer-row"><span id="offerPrice">—</span><span class="k">Цена</span></div>
+          <div class="offer-row"><span>Серверы в разных странах</span><span class="k">Локации</span></div>
+          <div class="offer-row"><span id="offerTraffic">Безлимит</span><span class="k">Трафик</span></div>
+        </div>
+        <button type="button" id="offerTry" class="btn btn-primary">Попробовать</button>
+      </div>
+      <p id="offerNote" class="offer-note hidden"></p>
+    </div>
+
     <div id="view-topup" class="view hidden">
       <p class="wiz-kicker">Пополнение</p>
       <h1 class="wiz-title">Сколько зальём?</h1>
@@ -594,6 +621,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=56"></script>
+  <script src="app.js?v=58"></script>
 </body>
 </html>
