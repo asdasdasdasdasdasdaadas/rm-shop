@@ -2334,12 +2334,13 @@ function paint(me) {
       : `Обещанный платёж · ${daysLabel(t.days)}`;
   }
   if (me.trial_available && offerSkipped()) {
-    trialHome.classList.remove("hidden");
-    trialHome.textContent = me.balance_enabled
+    const trialHomeBtn = $("trialHomeBtn");
+    trialHomeBtn.classList.remove("hidden");
+    trialHomeBtn.textContent = me.balance_enabled
       ? `Попробовать бесплатно · ${rublesLabel(me.trial_rub)}`
       : `Попробовать бесплатно · ${daysLabel(me.trial_days)}`;
   } else {
-    trialHome.classList.add("hidden");
+    $("trialHomeBtn").classList.add("hidden");
   }
   renderConnect(me);
   renderDevices(me);
