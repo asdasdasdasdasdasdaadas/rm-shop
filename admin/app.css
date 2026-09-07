@@ -441,6 +441,7 @@ nav button.active .nav-ico { opacity: 1; color: var(--accent); }
 }
 .flag-ok { color: var(--success); background: var(--success-bg); border-color: transparent; }
 .flag-warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
+.flag-off { color: var(--text-2); background: var(--bg-hover); border-color: transparent; }
 
 .card-link { cursor: pointer; }
 .card-link:hover { border-color: var(--acc-border); background: var(--panel-hi); }
@@ -555,6 +556,85 @@ h3 {
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+.funnel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 6px;
+}
+.funnel-toolbar .section-label { margin: 0; }
+.funnel-seg { margin: 0; }
+.funnel-insight {
+  margin: 0 2px 12px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-1);
+  min-height: 1.4em;
+}
+.funnel-insight strong.drop { color: var(--danger); }
+.funnel-insight strong.up { color: var(--success); }
+.funnel-panel { margin-bottom: 14px; }
+.funnel-panel h3 { margin: 0 0 4px; }
+.funnel-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.1fr) minmax(0, 2fr) minmax(168px, auto);
+  gap: 12px 16px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.funnel-row:last-child { border-bottom: 0; }
+.funnel-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-0);
+}
+.funnel-meta {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-2);
+  font-weight: 650;
+}
+.funnel-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+.funnel-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  width: 0;
+  min-width: 0;
+}
+.funnel-row.is-drop .funnel-fill { background: var(--danger); }
+.funnel-row.is-up .funnel-fill { background: var(--success); }
+.funnel-nums {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.funnel-count {
+  font-size: 18px;
+  font-weight: 750;
+  color: var(--text-0);
+}
+.funnel-conv { font-size: 12px; font-weight: 750; color: var(--text-1); }
+.funnel-delta {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.funnel-delta.up { color: var(--success); }
+.funnel-delta.down { color: var(--danger); }
+.funnel-delta.flat { color: var(--text-2); }
+.funnel-empty { color: var(--text-2); font-size: 13px; padding: 8px 0; }
 
 .cards {
   display: grid;
@@ -650,7 +730,147 @@ h3 {
   text-transform: uppercase;
   color: var(--mint-dim);
 }
+.ops-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+.ops-head strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-0);
+  line-height: 1.25;
+}
 .ops-card button { margin-top: 12px; width: 100%; min-height: 44px; }
+.ops-card button.switch {
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  flex: none;
+}
+
+button.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  box-shadow: none;
+}
+button.switch:hover { background: transparent; filter: none; }
+button.switch:active { transform: none; }
+.switch-track {
+  position: relative;
+  display: block;
+  width: 48px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  border: 1px solid var(--line-strong);
+  flex: none;
+}
+.switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text-2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+button.switch.is-on .switch-track,
+.switch-ui:has(input:checked) .switch-track {
+  background: var(--success);
+  border-color: transparent;
+}
+button.switch.is-on .switch-knob,
+.switch-ui:has(input:checked) .switch-knob {
+  transform: translateX(20px);
+  background: #fff;
+}
+button.switch.is-alert.is-on .switch-track {
+  background: var(--warning);
+}
+.switch-state {
+  min-width: 3.4em;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+button.switch.is-on .switch-state { color: var(--success); }
+button.switch.is-alert.is-on .switch-state { color: var(--warning); }
+button.switch.is-off .switch-state { color: var(--text-2); }
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 12px 0;
+  cursor: pointer;
+}
+.switch-row > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.switch-row strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-0);
+}
+.switch-row-state {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.switch-row-state::after { content: attr(data-off); }
+.switch-row:has(input:checked) .switch-row-state { color: var(--success); }
+.switch-row:has(input:checked) .switch-row-state::after { content: attr(data-on); }
+.switch-ui {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  flex: none;
+}
+.switch-ui input[type="checkbox"] {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: 999px;
+}
+.switch-ui input[type="checkbox"]:checked {
+  background: none;
+  border: 0;
+}
+.switch-ui input[type="checkbox"]:checked::after { content: none; display: none; }
+.switch-ui .switch-track {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+}
 .kv {
   display: flex;
   justify-content: space-between;
@@ -1022,7 +1242,9 @@ label { font-size: 12px; color: var(--text-2); font-weight: 700; }
   .settings-nav { position: static; top: auto; }
   .grid2, .ops-grid, .form-grid, .ref-mode-pick { grid-template-columns: 1fr; }
   .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ops-card button,
+  .funnel-row { grid-template-columns: 1fr; gap: 8px; }
+  .funnel-nums { justify-content: flex-start; }
+  .ops-card button:not(.switch),
   .panel.narrow button,
   #broadcastBtn { width: 100%; }
   .row { flex-direction: column; }

@@ -597,28 +597,36 @@ function paintJobs(jobs) {
   }
 }
 
+function paintSwitch(id, on, opts = {}) {
+  const el = $(id);
+  if (!el) return;
+  const alertOn = !!opts.alert;
+  el.classList.toggle("is-on", on);
+  el.classList.toggle("is-off", !on);
+  el.classList.toggle("is-alert", alertOn);
+  el.setAttribute("aria-checked", on ? "true" : "false");
+  const state = el.querySelector(".switch-state");
+  if (state) state.textContent = on ? (opts.onText || "Вкл") : (opts.offText || "Выкл");
+}
+
+function paintFlag(id, on, onText, offText, warnOn) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = on ? onText : offText;
+  el.className = "flag " + (warnOn ? "flag-warn" : on ? "flag-ok" : "flag-off");
+}
+
 function paintFlags(f) {
   const m = !!f.maintenance;
   const p = !!f.billing_paused;
   const n = !!f.trial_nudge;
   const inv = !!f.invite_nudge;
   const inf = !!f.info_nudge;
-  $("maintBtn").textContent = m ? "Тех. работы: вкл" : "Тех. работы: выкл";
-  $("maintBtn").classList.toggle("warn", m);
-  $("billBtn").textContent = p ? "Тарификация: стоп" : "Тарификация: идёт";
-  $("billBtn").classList.toggle("warn", p);
-  if ($("nudgeBtn")) {
-    $("nudgeBtn").textContent = n ? "Напоминание: вкл" : "Напоминание: выкл";
-    $("nudgeBtn").classList.toggle("warn", n);
-  }
-  if ($("inviteNudgeBtn")) {
-    $("inviteNudgeBtn").textContent = inv ? "Приглашение: вкл" : "Приглашение: выкл";
-    $("inviteNudgeBtn").classList.toggle("warn", inv);
-  }
-  if ($("infoNudgeBtn")) {
-    $("infoNudgeBtn").textContent = inf ? "Справка: вкл" : "Справка: выкл";
-    $("infoNudgeBtn").classList.toggle("warn", inf);
-  }
+  paintSwitch("maintBtn", m, { alert: m, onText: "Вкл", offText: "Выкл" });
+  paintSwitch("billBtn", !p, { onText: "Идёт", offText: "Пауза" });
+  paintSwitch("nudgeBtn", n);
+  paintSwitch("inviteNudgeBtn", inv);
+  paintSwitch("infoNudgeBtn", inf);
   if (typeof f.maintenance_notice === "string") {
     $("maintNotice").value = f.maintenance_notice;
     const phone = $("maintPhonePreview");
@@ -635,30 +643,199 @@ function paintFlags(f) {
     $("maintPhotoHint").textContent = "Загрузите картинку и нажмите «Сохранить».";
   }
   $("opsHint").textContent = m
-    ? "Тех. работы включены: на любое действие в боте уходят сохранённые текст и картинка."
+    ? "Техработы включены: на любое действие в боте уходят сохранённые текст и картинка."
     : p
-      ? "Устройства продлеваются, плата не списывается."
+      ? "Тарификация на паузе: устройства продлеваются, плата не списывается."
       : "";
-  const fm = $("flagMaint");
-  const fb = $("flagBill");
-  const fn = $("flagNudge");
-  if (fm) {
-    fm.textContent = m ? "Техработы" : "Сервис работает";
-    fm.className = "flag " + (m ? "flag-warn" : "flag-ok");
-  }
-  if (fb) {
-    fb.textContent = p ? "Тарификация на паузе" : "Тарификация идёт";
-    fb.className = "flag " + (p ? "flag-warn" : "flag-ok");
-  }
-  if (fn) {
-    fn.textContent = n ? "Напоминание о триале" : "Напоминание о триале выкл";
-    fn.className = "flag " + (n ? "flag-warn" : "flag-ok");
-  }
+  paintFlag("flagMaint", m, "Техработы: вкл", "Техработы: выкл", m);
+  paintFlag("flagBill", !p, "Тарификация: идёт", "Тарификация: пауза", p);
+  paintFlag("flagNudge", n, "Триал: вкл", "Триал: выкл", false);
+  paintFlag("flagInvite", inv, "Друзья: вкл", "Друзья: выкл", false);
+  paintFlag("flagInfo", inf, "Справка: вкл", "Справка: выкл", false);
 }
 
 async function loadFlags() {
   const f = await api("/admin/api/flags");
   paintFlags(f);
+}
+
+const FUNNEL_MAIN = [
+  ["entered", "Зашли в бота", "регистрация"],
+  ["trial", "Получили триал", "от зашедших"],
+  ["used", "Пользовались VPN", "создали устройство"],
+  ["paid", "Остались и оплатили", "от тех, кто пользовался"],
+  ["referred", "Привели людей", "из оплативших"],
+];
+const FUNNEL_INV = [
+  ["inv_entered", "Пришли по ссылке", "приглашённые"],
+  ["inv_trial", "Получили триал", "от пришедших"],
+  ["inv_used", "Пользовались VPN", "создали устройство"],
+  ["inv_paid", "Оплатили", "повтор воронки"],
+];
+
+let funnelCache = null;
+let funnelPeriod = localStorage.getItem("way-funnel-period") || "30d";
+if (!["7d", "30d", "all"].includes(funnelPeriod)) funnelPeriod = "30d";
+
+function funnelPct(n, d) {
+  if (!d) return null;
+  return Math.round((1000 * Number(n || 0)) / Number(d)) / 10;
+}
+
+function funnelPctText(v) {
+  if (v == null || Number.isNaN(v)) return "—";
+  return String(v).replace(".", ",") + "%";
+}
+
+function mapFunnelSteps(spec, row) {
+  return spec.map(([key, title, hint]) => ({
+    key,
+    title,
+    hint,
+    n: Number((row && row[key]) || 0),
+  }));
+}
+
+function paintFunnelRows(boxId, steps, prevSteps, compareLabel) {
+  const box = $(boxId);
+  if (!box) return;
+  box.innerHTML = "";
+  if (!steps.some((s) => s.n > 0)) {
+    box.innerHTML = '<p class="funnel-empty">За этот период никого нет.</p>';
+    return;
+  }
+  const convs = steps.map((s, i) => (i === 0 ? 100 : funnelPct(s.n, steps[i - 1].n)));
+  const prevConvs = (prevSteps || []).map((s, i) => (i === 0 ? 100 : funnelPct(s.n, prevSteps[i - 1].n)));
+  let worst = -1;
+  let worstV = 101;
+  convs.forEach((c, i) => {
+    if (i && c != null && c < worstV) {
+      worstV = c;
+      worst = i;
+    }
+  });
+  const maxN = Math.max(...steps.map((s) => s.n), 1);
+  steps.forEach((s, i) => {
+    const row = document.createElement("div");
+    const conv = convs[i];
+    const prevC = prevConvs[i];
+    let deltaCls = "flat";
+    let deltaTxt = "";
+    if (i && compareLabel && conv != null && prevC != null) {
+      const d = Math.round((conv - prevC) * 10) / 10;
+      if (d > 0.4) {
+        deltaCls = "up";
+        deltaTxt = "+" + String(d).replace(".", ",") + " п.п. " + compareLabel;
+      } else if (d < -0.4) {
+        deltaCls = "down";
+        deltaTxt = String(d).replace(".", ",") + " п.п. " + compareLabel;
+      } else {
+        deltaTxt = "без сдвига " + compareLabel;
+      }
+    }
+    row.className = "funnel-row" + (i === worst ? " is-drop" : deltaCls === "up" ? " is-up" : "");
+    const share = Math.max(4, Math.round((100 * s.n) / maxN));
+    const convLine = i === 0
+      ? "старт когорты"
+      : "доходит " + funnelPctText(conv) + " · " + (s.hint || "");
+    row.innerHTML =
+      '<div><div class="funnel-name"></div><div class="funnel-meta"></div></div>' +
+      '<div class="funnel-track"><div class="funnel-fill"></div></div>' +
+      '<div class="funnel-nums"><span class="funnel-count"></span><span class="funnel-conv"></span>' +
+      (deltaTxt ? '<span class="funnel-delta"></span>' : "") +
+      "</div>";
+    row.querySelector(".funnel-name").textContent = s.title;
+    row.querySelector(".funnel-meta").textContent = convLine;
+    row.querySelector(".funnel-fill").style.width = share + "%";
+    row.querySelector(".funnel-count").textContent = String(s.n);
+    row.querySelector(".funnel-conv").textContent = i === 0 ? "100%" : funnelPctText(conv);
+    if (deltaTxt) {
+      const dEl = row.querySelector(".funnel-delta");
+      dEl.textContent = deltaTxt;
+      dEl.classList.add(deltaCls);
+    }
+    box.appendChild(row);
+  });
+  return { convs, worst };
+}
+
+function paintFunnelInsight(pack, main, convs, worst) {
+  const el = $("funnelInsight");
+  if (!el) return;
+  el.textContent = "";
+  if (!main.some((s) => s.n > 0)) {
+    el.textContent = "Выберите период, в котором уже есть регистрации.";
+    return;
+  }
+  const bits = [];
+  if (worst > 0 && convs[worst] != null) {
+    const from = main[worst - 1].title.toLowerCase();
+    const to = main[worst].title.toLowerCase();
+    const strong = document.createElement("strong");
+    strong.className = "drop";
+    strong.textContent = "Просадка: " + from + " → " + to + ", доходит " + funnelPctText(convs[worst]) + ".";
+    bits.push(strong);
+  }
+  const prev = pack.previous;
+  const compare = pack.compare;
+  if (prev && compare && convs.length) {
+    let bestI = -1;
+    let bestD = 0;
+    convs.forEach((c, i) => {
+      if (!i || c == null) return;
+      const pc = funnelPct(prev[FUNNEL_MAIN[i][0]], prev[FUNNEL_MAIN[i - 1][0]]);
+      if (pc == null) return;
+      const d = c - pc;
+      if (d > bestD) {
+        bestD = d;
+        bestI = i;
+      }
+    });
+    if (bestI > 0 && bestD > 0.4) {
+      const strong = document.createElement("strong");
+      strong.className = "up";
+      strong.textContent =
+        " Рост: «" +
+        main[bestI].title +
+        "» +" +
+        String(Math.round(bestD * 10) / 10).replace(".", ",") +
+        " п.п. " +
+        compare +
+        ".";
+      bits.push(document.createTextNode(" "));
+      bits.push(strong);
+    }
+  }
+  if (!bits.length) {
+    el.textContent = "Конверсии по шагам. Красная полоса — самое узкое место.";
+    return;
+  }
+  bits.forEach((n) => el.appendChild(n));
+}
+
+function paintFunnel(data) {
+  funnelCache = data || funnelCache;
+  const pack = funnelCache && funnelCache[funnelPeriod];
+  document.querySelectorAll("#funnelPeriod [data-funnel]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.funnel === funnelPeriod);
+  });
+  if (!pack || !pack.current) {
+    paintFunnelRows("funnelMain", [], null, "");
+    paintFunnelRows("funnelInvite", [], null, "");
+    const insight = $("funnelInsight");
+    if (insight) insight.textContent = "";
+    return;
+  }
+  const main = mapFunnelSteps(FUNNEL_MAIN, pack.current);
+  const prevMain = pack.previous ? mapFunnelSteps(FUNNEL_MAIN, pack.previous) : null;
+  const painted = paintFunnelRows("funnelMain", main, prevMain, pack.compare || "");
+  paintFunnelRows(
+    "funnelInvite",
+    mapFunnelSteps(FUNNEL_INV, pack.current),
+    pack.previous ? mapFunnelSteps(FUNNEL_INV, pack.previous) : null,
+    pack.compare || ""
+  );
+  paintFunnelInsight(pack, main, (painted && painted.convs) || [], painted ? painted.worst : -1);
 }
 
 async function loadStats() {
@@ -723,6 +900,7 @@ async function loadStats() {
     }
     kv($("orderStats"), s.orders, "Заказов пока нет");
     kv($("planStats"), s.plans, "Оплаченных тарифов нет");
+    paintFunnel(s.funnel);
     paintJobs(s.jobs || {});
     const today = s.billing_today || {};
     if ($("billToday")) {
@@ -1957,10 +2135,19 @@ if ($("setNavSelect")) {
 document.querySelectorAll("#modalTabs [data-pane]").forEach((b) => {
   b.onclick = () => setModalPane(b.dataset.pane);
 });
-["flagMaint", "flagBill", "flagNudge"].forEach((id) => {
+["flagMaint", "flagBill", "flagNudge", "flagInvite", "flagInfo"].forEach((id) => {
   const el = $(id);
   if (el) el.onclick = () => switchTab("overview");
 });
+if ($("funnelPeriod")) {
+  $("funnelPeriod").querySelectorAll("[data-funnel]").forEach((b) => {
+    b.onclick = () => {
+      funnelPeriod = b.dataset.funnel;
+      localStorage.setItem("way-funnel-period", funnelPeriod);
+      paintFunnel(funnelCache);
+    };
+  });
+}
 $("navToggle").onclick = () => setNavOpen(!document.body.classList.contains("nav-open"));
 $("navScrim").onclick = () => setNavOpen(false);
 if ($("themeToggle")) $("themeToggle").onclick = toggleTheme;

@@ -1567,6 +1567,135 @@ async def admin_stats() -> dict:
         "broadcast_using": int(broadcast_using or 0),
         "broadcast_unused": int(broadcast_unused or 0),
         "clients": [dict(r) for r in client_rows],
+        "funnel": await admin_funnel(),
+    }
+
+
+_FUNNEL_SQL = """
+WITH cohort AS (
+    SELECT u.telegram_id, u.trial_used, COALESCE(u.has_paid_topup, FALSE) AS has_paid
+    FROM users u
+    WHERE ($1::timestamptz IS NULL OR u.created_at >= $1)
+      AND ($2::timestamptz IS NULL OR u.created_at < $2)
+),
+flags AS (
+    SELECT
+        c.telegram_id,
+        COALESCE(c.trial_used, FALSE) AS got_trial,
+        EXISTS (
+            SELECT 1 FROM devices d
+            WHERE d.telegram_id = c.telegram_id
+        ) AS used_vpn,
+        (
+            c.has_paid
+            OR EXISTS (
+                SELECT 1 FROM rollypay_orders o
+                WHERE o.telegram_id = c.telegram_id AND o.status = 'granted'
+            )
+            OR EXISTS (
+                SELECT 1 FROM payments p WHERE p.telegram_id = c.telegram_id
+            )
+        ) AS paid
+    FROM cohort c
+),
+step AS (
+    SELECT
+        telegram_id,
+        got_trial,
+        got_trial AND used_vpn AS used,
+        got_trial AND used_vpn AND paid AS paid
+    FROM flags
+),
+referrers AS (
+    SELECT s.telegram_id
+    FROM step s
+    WHERE s.paid
+      AND EXISTS (SELECT 1 FROM users inv WHERE inv.referred_by = s.telegram_id)
+),
+invitees AS (
+    SELECT
+        u.telegram_id,
+        COALESCE(u.trial_used, FALSE) AS got_trial,
+        EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id) AS used_vpn,
+        (
+            COALESCE(u.has_paid_topup, FALSE)
+            OR EXISTS (
+                SELECT 1 FROM rollypay_orders o
+                WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
+            )
+            OR EXISTS (
+                SELECT 1 FROM payments p WHERE p.telegram_id = u.telegram_id
+            )
+        ) AS paid
+    FROM users u
+    WHERE u.referred_by IN (SELECT telegram_id FROM referrers)
+)
+SELECT
+    (SELECT COUNT(*) FROM step)::int AS entered,
+    (SELECT COUNT(*) FROM step WHERE got_trial)::int AS trial,
+    (SELECT COUNT(*) FROM step WHERE used)::int AS used,
+    (SELECT COUNT(*) FROM step WHERE paid)::int AS paid,
+    (SELECT COUNT(*) FROM referrers)::int AS referred,
+    (SELECT COUNT(*) FROM invitees)::int AS inv_entered,
+    (SELECT COUNT(*) FROM invitees WHERE got_trial)::int AS inv_trial,
+    (SELECT COUNT(*) FROM invitees WHERE got_trial AND used_vpn)::int AS inv_used,
+    (SELECT COUNT(*) FROM invitees WHERE got_trial AND used_vpn AND paid)::int AS inv_paid
+"""
+
+
+def _funnel_row(row) -> dict:
+    if not row:
+        return {
+            "entered": 0,
+            "trial": 0,
+            "used": 0,
+            "paid": 0,
+            "referred": 0,
+            "inv_entered": 0,
+            "inv_trial": 0,
+            "inv_used": 0,
+            "inv_paid": 0,
+        }
+    return {k: int(row[k] or 0) for k in (
+        "entered", "trial", "used", "paid", "referred",
+        "inv_entered", "inv_trial", "inv_used", "inv_paid",
+    )}
+
+
+async def admin_funnel() -> dict:
+    pool = _pool_req()
+    now = await pool.fetchval("SELECT timezone('utc', now())")
+
+    async def window(start, end):
+        row = await pool.fetchrow(_FUNNEL_SQL, start, end)
+        return _funnel_row(row)
+
+    d7 = timedelta(days=7)
+    d30 = timedelta(days=30)
+    all_cur = await window(None, None)
+    cur7 = await window(now - d7, now)
+    prev7 = await window(now - d7 - d7, now - d7)
+    cur30 = await window(now - d30, now)
+    prev30 = await window(now - d30 - d30, now - d30)
+    return {
+        "7d": {
+            "label": "7 дней",
+            "compare": "к прошлым 7 дням",
+            "current": cur7,
+            "previous": prev7,
+        },
+        "30d": {
+            "label": "30 дней",
+            "compare": "к прошлым 30 дням",
+            "current": cur30,
+            "previous": prev30,
+        },
+        "all": {
+            "label": "всё время",
+            "compare": "",
+            "current": all_cur,
+            "previous": None,
+        },
     }
 
 

@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=32">
+  <link rel="stylesheet" href="app.css?v=34">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -129,9 +129,11 @@
             <svg class="theme-icon-moon hidden" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 4.5A8 8 0 108 19.5 7 7 0 0016 4.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           </button>
           <div class="top-flags">
-            <span id="flagMaint" class="flag flag-ok">Сервис работает</span>
-            <span id="flagBill" class="flag flag-ok">Тарификация идёт</span>
-            <span id="flagNudge" class="flag flag-ok">Напоминание о триале выкл</span>
+            <span id="flagMaint" class="flag flag-ok">Техработы: выкл</span>
+            <span id="flagBill" class="flag flag-ok">Тарификация: идёт</span>
+            <span id="flagNudge" class="flag flag-off">Триал: выкл</span>
+            <span id="flagInvite" class="flag flag-off">Друзья: выкл</span>
+            <span id="flagInfo" class="flag flag-off">Справка: выкл</span>
             <div class="admin-chip">
               <span class="admin-chip-ava" aria-hidden="true">
                 <svg viewBox="0 0 48 48" fill="none"><ellipse cx="24" cy="30" rx="11" ry="13" fill="currentColor"/><circle cx="12" cy="14" r="4.4" fill="currentColor"/><circle cx="36" cy="14" r="4.4" fill="currentColor"/><circle cx="20" cy="8" r="3.6" fill="currentColor" opacity=".75"/><circle cx="28" cy="8" r="3.6" fill="currentColor" opacity=".75"/></svg>
@@ -147,6 +149,25 @@
       <main>
         <section id="tab-overview">
           <div id="statsErr" class="banner-error hidden"></div>
+          <div class="funnel-toolbar">
+            <div class="section-label funnel-title">Воронка</div>
+            <div class="seg funnel-seg" id="funnelPeriod" role="group" aria-label="Период воронки">
+              <button type="button" data-funnel="7d">7 дней</button>
+              <button type="button" data-funnel="30d" class="active">30 дней</button>
+              <button type="button" data-funnel="all">Всё время</button>
+            </div>
+          </div>
+          <p id="funnelInsight" class="funnel-insight"></p>
+          <div class="panel funnel-panel">
+            <h3>Новые пользователи</h3>
+            <p class="muted tight">Когорта по дате входа в бота. Каждый шаг — доля от предыдущего.</p>
+            <div id="funnelMain"></div>
+          </div>
+          <div class="panel funnel-panel">
+            <h3>Кого привели оплатившие</h3>
+            <p class="muted tight">Люди по ссылке тех, кто в этой когорте дошёл до оплаты и кого-то пригласил. Повтор той же воронки.</p>
+            <div id="funnelInvite"></div>
+          </div>
           <div class="section-label">Онлайн</div>
           <div id="cardsOnline" class="cards cards-snap"></div>
           <div class="section-label">Аудитория</div>
@@ -186,27 +207,57 @@
           <div class="ops-grid">
             <div class="panel ops-card">
               <div class="ops-kicker">Режим сервиса</div>
-              <button type="button" id="maintBtn">Тех. работы: выкл</button>
+              <div class="ops-head">
+                <strong>Техработы</strong>
+                <button type="button" id="maintBtn" class="switch is-off" role="switch" aria-checked="false">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                  <span class="switch-state">Выкл</span>
+                </button>
+              </div>
               <p class="muted tight">На любое действие в боте уйдут сохранённые текст и картинка.</p>
             </div>
             <div class="panel ops-card">
               <div class="ops-kicker">Списание</div>
-              <button type="button" id="billBtn">Тарификация: идёт</button>
-              <p class="muted tight">Пауза продлевает устройства без списания с баланса.</p>
+              <div class="ops-head">
+                <strong>Тарификация</strong>
+                <button type="button" id="billBtn" class="switch is-on" role="switch" aria-checked="true">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                  <span class="switch-state">Идёт</span>
+                </button>
+              </div>
+              <p class="muted tight">Выкл — устройства живут дальше, плата с баланса не списывается.</p>
             </div>
             <div class="panel ops-card">
-              <div class="ops-kicker">Триал</div>
-              <button type="button" id="nudgeBtn">Напоминание: выкл</button>
-              <p class="muted tight">Через сутки тем, кто запустил бота и ещё не добавил устройство, уйдёт сообщение «давайте попробуем».</p>
+              <div class="ops-kicker">Сообщения</div>
+              <div class="ops-head">
+                <strong>Напоминание про устройство</strong>
+                <button type="button" id="nudgeBtn" class="switch is-off" role="switch" aria-checked="false">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                  <span class="switch-state">Выкл</span>
+                </button>
+              </div>
+              <p class="muted tight">Если устройства нет: через 30 минут, потом ещё раз через сутки и ещё раз через сутки.</p>
             </div>
             <div class="panel ops-card">
-              <div class="ops-kicker">Друзья</div>
-              <button type="button" id="inviteNudgeBtn">Приглашение: выкл</button>
+              <div class="ops-kicker">Сообщения</div>
+              <div class="ops-head">
+                <strong>Пригласить друга</strong>
+                <button type="button" id="inviteNudgeBtn" class="switch is-off" role="switch" aria-checked="false">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                  <span class="switch-state">Выкл</span>
+                </button>
+              </div>
               <p class="muted tight">Через двое суток после запуска бота уйдёт ссылка «приведи друга» и кнопка отправки.</p>
             </div>
             <div class="panel ops-card">
-              <div class="ops-kicker">Справка</div>
-              <button type="button" id="infoNudgeBtn">Справка: выкл</button>
+              <div class="ops-kicker">Сообщения</div>
+              <div class="ops-head">
+                <strong>Справка о кабинете</strong>
+                <button type="button" id="infoNudgeBtn" class="switch is-off" role="switch" aria-checked="false">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                  <span class="switch-state">Выкл</span>
+                </button>
+              </div>
               <p class="muted tight">Через четверо суток уйдёт короткое объяснение кабинета, списания и истории.</p>
             </div>
           </div>
@@ -815,9 +866,15 @@
             <div class="panel shop-balance">
               <h3>Обещанный платёж</h3>
               <p class="muted tight">Начисляет баланс на указанное число суток одного устройства. Через этот срок списывается начисленное плюс комиссия.</p>
-              <label class="check-row">
-                <input id="setTrustOn" name="trust_enabled" type="checkbox">
-                <span>Обещанный платёж включён</span>
+              <label class="switch-row">
+                <span>
+                  <strong>Обещанный платёж</strong>
+                  <span class="switch-row-state" data-on="Вкл" data-off="Выкл"></span>
+                </span>
+                <span class="switch-ui">
+                  <input id="setTrustOn" name="trust_enabled" type="checkbox">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                </span>
               </label>
               <div class="form-grid">
                 <div>
@@ -868,9 +925,15 @@
           <form id="promoForm">
             <div class="panel" id="promo-trial">
               <h3>Триал</h3>
-              <label class="check-row">
-                <input id="setTrialOn" name="trial_enabled" type="checkbox">
-                <span>Пробный период включён</span>
+              <label class="switch-row">
+                <span>
+                  <strong>Пробный период</strong>
+                  <span class="switch-row-state" data-on="Вкл" data-off="Выкл"></span>
+                </span>
+                <span class="switch-ui">
+                  <input id="setTrialOn" name="trial_enabled" type="checkbox">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                </span>
               </label>
               <div class="form-grid">
                 <div>
@@ -881,9 +944,15 @@
             </div>
             <div class="panel" id="promo-codes">
               <h3>Промокоды</h3>
-              <label class="check-row">
-                <input id="setPromoOn" name="promo_enabled" type="checkbox">
-                <span>Промокоды включены</span>
+              <label class="switch-row">
+                <span>
+                  <strong>Промокоды</strong>
+                  <span class="switch-row-state" data-on="Вкл" data-off="Выкл"></span>
+                </span>
+                <span class="switch-ui">
+                  <input id="setPromoOn" name="promo_enabled" type="checkbox">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                </span>
               </label>
               <label class="ops-label" for="setPromo">Коды (КОД:дни через запятую)</label>
               <input id="setPromo" name="promo_codes" type="text" maxlength="2000">
@@ -891,9 +960,15 @@
             <div class="panel shop-balance" id="promo-story">
               <h3>История в Telegram</h3>
               <p class="muted tight">Кнопка в кабинете открывает редактор истории. Админам в бот приходит заявка со ссылкой в Telegram и кнопками «Подтвердить» / «Отказать». Награда один раз. Пауза ниже только для таймера в кабинете.</p>
-              <label class="check-row">
-                <input id="setStoryOn" name="story_reward_enabled" type="checkbox">
-                <span>Награда за историю включена</span>
+              <label class="switch-row">
+                <span>
+                  <strong>Награда за историю</strong>
+                  <span class="switch-row-state" data-on="Вкл" data-off="Выкл"></span>
+                </span>
+                <span class="switch-ui">
+                  <input id="setStoryOn" name="story_reward_enabled" type="checkbox">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                </span>
               </label>
               <div class="form-grid">
                 <div>
@@ -1019,6 +1094,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=41"></script>
+  <script src="app.js?v=43"></script>
 </body>
 </html>
