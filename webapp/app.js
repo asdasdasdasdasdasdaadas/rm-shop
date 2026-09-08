@@ -589,10 +589,18 @@ function pulseIntroCatch() {
 }
 
 function finishIntro() {
+  const el = $("intro");
+  if (el.classList.contains("hidden") || el.classList.contains("intro-go")) return;
   clearIntroTimers();
   markIntroSeen();
-  showApp();
-  maybeOpenOffer(window.__me);
+  $("app").classList.remove("hidden");
+  $("app").inert = true;
+  el.classList.add("intro-go");
+  introTimer = setTimeout(() => {
+    $("app").inert = false;
+    showApp();
+    maybeOpenOffer(window.__me);
+  }, reducedMotion() ? 0 : 800);
 }
 
 function reducedMotion() {
@@ -604,39 +612,13 @@ function shouldShowIntro() {
 }
 
 function showIntro(me) {
-  const user = me.user || {};
-  const name = (user.name || "").trim() || "друг";
-  const nick = (user.username || "").trim();
-  $("introHello").textContent = "Привет";
-  $("introName").textContent = name;
-  const nickEl = $("introNick");
-  nickEl.textContent = nick;
-  nickEl.classList.toggle("hidden", !nick);
-  const av = $("introAvatar");
-  const fb = $("introFallback");
-  if (user.photo) {
-    av.src = user.photo;
-    av.classList.remove("hidden");
-    fb.classList.add("hidden");
-  } else {
-    av.removeAttribute("src");
-    av.classList.add("hidden");
-    fb.textContent = (name.charAt(0) || "?").toUpperCase();
-    fb.classList.remove("hidden");
-  }
   $("boot").classList.add("hidden");
   $("fail").classList.add("hidden");
   $("maint").classList.add("hidden");
   $("app").classList.add("hidden");
   $("intro").classList.remove("hidden", "intro-catch", "intro-go");
-  haptic("light");
-  if (!reducedMotion()) {
-    introHapticTimer = setTimeout(() => {
-      pulseIntroCatch();
-      introHapticLoop = setInterval(pulseIntroCatch, 5200);
-    }, Math.round(5200 * 0.34));
-  }
-  introTimer = setTimeout(finishIntro, reducedMotion() ? 400 : 5600);
+  clearIntroTimers();
+  introTimer = setTimeout(finishIntro, reducedMotion() ? 1000 : 4200);
 }
 
 let mainFn = null;
@@ -3206,15 +3188,12 @@ if ($("supportFiles")) {
   };
 }
 
-$("intro").onclick = () => {
-  const el = $("intro");
-  if (el.classList.contains("intro-go")) return;
-  haptic("heavy");
-  try {
-    tg.HapticFeedback.notificationOccurred("success");
-  } catch (_e) {}
-  el.classList.add("intro-go");
-  setTimeout(finishIntro, reducedMotion() ? 0 : 240);
+$("intro").onclick = finishIntro;
+$("intro").onkeydown = (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    finishIntro();
+  }
 };
 
 $("qrClose").onclick = () => hideQr();

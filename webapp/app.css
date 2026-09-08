@@ -3192,3 +3192,26 @@ body.has-main-btn {
     background: var(--bg-surface);
   }
 }
+
+/* Quiet woodland lake introduction. */
+.intro { background: #081f23; transition: opacity 800ms ease; animation: lake-enter 900ms ease both; }
+.intro-scene { transition: transform 1200ms ease; }
+.intro:active:not(.intro-go) .intro-scene { transform: none; }
+.intro.intro-go { opacity: 0; pointer-events: none; animation: none; }
+.intro.intro-go .intro-scene { transform: scale(1.025); filter: none; }
+.intro-haze { background: radial-gradient(ellipse at 55% 48%, #b5dd9b14, transparent 65%), linear-gradient(0deg, #071d2466, transparent 40%, #071d2422); }
+.intro-vignette { box-shadow: inset 0 0 100px 10px #061b2433; }
+.intro-frog { animation: lake-breathe 6s ease-in-out infinite; }
+.intro-smile { animation: none; opacity: 1; }
+.intro-maw, .intro-tongue, .intro-fly, .intro-rays { display: none; }
+.intro-pupils { animation: none; }
+.intro-splash .intro-ring { animation: lake-ripple 5s ease-out infinite; stroke-width: 1; }
+.intro-splash .intro-ring.b { animation-delay: 1.5s; }
+.intro-splash .intro-ring.c { animation-delay: 3s; }
+.intro-sun, .intro-sun-glow { animation-duration: 12s; }
+@keyframes lake-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lake-breathe { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes lake-ripple { from { opacity: .35; transform: scale(1,.35); } to { opacity: 0; transform: scale(6,1.6); } }
+@media (prefers-reduced-motion: reduce) {
+  .intro, .intro * { animation: none !important; transition: none !important; }
+}
