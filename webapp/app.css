@@ -162,6 +162,49 @@ body.coach-lock {
   cursor: pointer;
 }
 
+.web-back:not(.hidden) {
+  position: sticky;
+  top: 0;
+  z-index: 14;
+  margin: 0 -8px 6px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--bg-app) 86%, transparent);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+}
+
+.view-head {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  margin: -4px -12px 0;
+  padding: 8px 12px 10px;
+  background: color-mix(in srgb, var(--bg-app) 88%, transparent);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+}
+body:has(#webBack:not(.hidden)) .view-head {
+  top: 44px;
+}
+.view-head .wiz-kicker { margin-top: 0; }
+.view-head .wiz-title { margin-bottom: 0; }
+
+#view-home .account-row {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+}
+#devicesBlock .section-head {
+  position: sticky;
+  top: 62px;
+  z-index: 8;
+  margin: 0 -20px;
+  padding: 10px 20px 8px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
 .web-back.hidden {
   display: none !important;
 }
@@ -984,7 +1027,17 @@ body.coach-lock {
   padding: 10px 8px 8px;
 }
 .bill-group .section-head {
-  padding: 4px 12px 6px;
+  position: sticky;
+  top: 64px;
+  z-index: 6;
+  margin: 0 -8px;
+  padding: 10px 20px 8px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+body:has(#webBack:not(.hidden)) .bill-group .section-head {
+  top: 108px;
 }
 .bill-item {
   display: flex;

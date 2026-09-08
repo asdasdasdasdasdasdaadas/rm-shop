@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=72">
+  <link rel="stylesheet" href="app.css?v=73">
 </head>
 <body>
   <div class="app-bg" aria-hidden="true">
@@ -413,8 +413,10 @@
     </div>
 
     <div id="view-support" class="view hidden">
-      <p class="wiz-kicker">Поддержка</p>
-      <h1 class="wiz-title">Тикет</h1>
+      <div class="view-head">
+        <p class="wiz-kicker">Поддержка</p>
+        <h1 class="wiz-title">Тикет</h1>
+      </div>
       <p id="supportStatus" class="section-note topup-hint">Напишите, что случилось. Можно прикрепить скриншот. Ответ придёт сюда и в чат бота.</p>
       <div id="supportThread" class="support-thread"></div>
       <div class="support-compose">
@@ -429,15 +431,19 @@
     </div>
 
     <div id="view-billing" class="view hidden">
-      <p class="wiz-kicker">7 дней</p>
-      <h1 class="wiz-title">История</h1>
+      <div class="view-head">
+        <p class="wiz-kicker">7 дней</p>
+        <h1 class="wiz-title">История</h1>
+      </div>
       <div id="billingSummary" class="bill-summary hidden"></div>
       <div id="billingList" class="bill-feed"></div>
     </div>
 
     <div id="view-referrals" class="view hidden">
-      <p class="wiz-kicker">Рефералы</p>
-      <h1 class="wiz-title">Друзья</h1>
+      <div class="view-head">
+        <p class="wiz-kicker">Рефералы</p>
+        <h1 class="wiz-title">Друзья</h1>
+      </div>
       <div class="ref-stats">
         <div class="ref-stat">
           <div id="refCountValue" class="ref-stat-value">0</div>
@@ -514,8 +520,10 @@
     </div>
 
     <div id="view-topup" class="view hidden">
-      <p class="wiz-kicker">Пополнение</p>
-      <h1 class="wiz-title">Сколько зальём?</h1>
+      <div class="view-head">
+        <p class="wiz-kicker">Пополнение</p>
+        <h1 class="wiz-title">Сколько зальём?</h1>
+      </div>
       <p id="topupHint" class="section-note topup-hint">С каждого устройства списывается фиксированная сумма в сутки. Карточки показывают, на сколько дней хватит при одном устройстве.</p>
       <div id="topupTabs" class="pay-tabs hidden">
         <button type="button" id="tabFast" class="pay-tab on">Быстрый выбор</button>
@@ -539,13 +547,15 @@
     </div>
 
     <div id="view-wizard" class="view hidden">
-      <div id="wizProgress" class="wiz-progress">
-        <div class="wiz-seg"><i id="wizPf1"></i></div>
-        <div class="wiz-seg"><i id="wizPf2"></i></div>
-        <div class="wiz-seg"><i id="wizPf3"></i></div>
+      <div class="view-head">
+        <div id="wizProgress" class="wiz-progress">
+          <div class="wiz-seg"><i id="wizPf1"></i></div>
+          <div class="wiz-seg"><i id="wizPf2"></i></div>
+          <div class="wiz-seg"><i id="wizPf3"></i></div>
+        </div>
+        <p id="wizStep" class="wiz-kicker">Шаг 1 из 3</p>
+        <h1 id="wizTitle" class="wiz-title">На чём подключаемся?</h1>
       </div>
-      <p id="wizStep" class="wiz-kicker">Шаг 1 из 3</p>
-      <h1 id="wizTitle" class="wiz-title">На чём подключаемся?</h1>
       <p id="wizLead" class="topup-hint"></p>
       <div id="wizBody"></div>
       <p id="wizHint" class="section-note"></p>
@@ -672,6 +682,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=68"></script>
+  <script src="app.js?v=69"></script>
 </body>
 </html>
