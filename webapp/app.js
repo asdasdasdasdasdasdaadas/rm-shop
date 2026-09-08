@@ -589,10 +589,18 @@ function pulseIntroCatch() {
 }
 
 function finishIntro() {
+  const el = $("intro");
+  if (el.classList.contains("hidden") || el.classList.contains("intro-go")) return;
   clearIntroTimers();
   markIntroSeen();
-  showApp();
-  maybeOpenOffer(window.__me);
+  $("app").classList.remove("hidden");
+  $("app").inert = true;
+  el.classList.add("intro-go");
+  introTimer = setTimeout(() => {
+    $("app").inert = false;
+    showApp();
+    maybeOpenOffer(window.__me);
+  }, reducedMotion() ? 0 : 650);
 }
 
 function reducedMotion() {
@@ -629,14 +637,8 @@ function showIntro(me) {
   $("maint").classList.add("hidden");
   $("app").classList.add("hidden");
   $("intro").classList.remove("hidden", "intro-catch", "intro-go");
-  haptic("light");
-  if (!reducedMotion()) {
-    introHapticTimer = setTimeout(() => {
-      pulseIntroCatch();
-      introHapticLoop = setInterval(pulseIntroCatch, 5200);
-    }, Math.round(5200 * 0.34));
-  }
-  introTimer = setTimeout(finishIntro, reducedMotion() ? 400 : 5600);
+  clearIntroTimers();
+  introTimer = setTimeout(finishIntro, reducedMotion() ? 1000 : 3600);
 }
 
 let mainFn = null;
@@ -3206,16 +3208,7 @@ if ($("supportFiles")) {
   };
 }
 
-$("intro").onclick = () => {
-  const el = $("intro");
-  if (el.classList.contains("intro-go")) return;
-  haptic("heavy");
-  try {
-    tg.HapticFeedback.notificationOccurred("success");
-  } catch (_e) {}
-  el.classList.add("intro-go");
-  setTimeout(finishIntro, reducedMotion() ? 0 : 240);
-};
+$("intro").onclick = finishIntro;
 
 $("qrClose").onclick = () => hideQr();
 $("qrScrim").onclick = () => hideQr();
