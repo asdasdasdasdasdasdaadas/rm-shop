@@ -612,6 +612,26 @@ function shouldShowIntro() {
 }
 
 function showIntro(me) {
+  const user = me.user || {};
+  const username = String(user.username || "").trim().replace(/^@+/, "");
+  const nick = $("introNick");
+  nick.textContent = username ? `@${username}` : "";
+  nick.classList.toggle("hidden", !username);
+  const avatar = $("introAvatar");
+  const fallback = $("introFallback");
+  fallback.textContent = String(user.name || username || "?").charAt(0).toUpperCase();
+  fallback.classList.remove("hidden");
+  avatar.classList.add("hidden");
+  avatar.onload = () => {
+    avatar.classList.remove("hidden");
+    fallback.classList.add("hidden");
+  };
+  avatar.onerror = () => {
+    avatar.classList.add("hidden");
+    fallback.classList.remove("hidden");
+  };
+  if (user.photo) avatar.src = user.photo;
+  else avatar.removeAttribute("src");
   $("boot").classList.add("hidden");
   $("fail").classList.add("hidden");
   $("maint").classList.add("hidden");

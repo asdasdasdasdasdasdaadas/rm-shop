@@ -3215,3 +3215,15 @@ body.has-main-btn {
 @media (prefers-reduced-motion: reduce) {
   .intro, .intro * { animation: none !important; transition: none !important; }
 }
+
+.intro-who {
+  width: min(100%, 400px);
+  box-sizing: border-box;
+  align-self: center;
+  background: rgba(12, 36, 29, .55);
+  border-color: rgba(200, 233, 206, .18);
+}
+.intro-identity { min-width: 0; }
+.intro-who .intro-avatar { border-color: rgba(200, 233, 206, .3); }
+.intro-who .intro-hello { color: #e5f2e5; font-size: 20px; }
+.intro-who .intro-nick { color: #bad2c2; font-size: 15px; overflow-wrap: anywhere; margin-top: 4px; }

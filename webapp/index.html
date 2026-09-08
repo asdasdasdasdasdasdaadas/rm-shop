@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=69">
+  <link rel="stylesheet" href="app.css?v=70">
 </head>
 <body>
   <div class="app-bg" aria-hidden="true">
@@ -192,6 +192,14 @@
       </svg>
       <div class="intro-haze"></div>
       <div class="intro-vignette"></div>
+    </div>
+    <div class="intro-who">
+      <img id="introAvatar" class="intro-avatar hidden" alt="Аватар Telegram">
+      <div id="introFallback" class="intro-avatar intro-fallback" aria-hidden="true"></div>
+      <div class="intro-identity">
+        <div class="intro-hello">Привет</div>
+        <div id="introNick" class="intro-nick"></div>
+      </div>
     </div>
   </div>
 
@@ -627,6 +635,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=65"></script>
+  <script src="app.js?v=66"></script>
 </body>
 </html>
