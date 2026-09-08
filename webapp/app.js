@@ -1546,72 +1546,136 @@ function billDayLabel(dt) {
   return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }
 
+function billTone(kind, amount) {
+  const v = Number(amount);
+  if (Number.isFinite(v) && v < 0) return "neg";
+  if (Number.isFinite(v) && v > 0) return "pos";
+  if (kind === "disable" || kind === "device_delete" || kind === "referral_payout") return "neg";
+  if (kind === "revive" || kind === "trial" || kind === "trust" || kind === "referral" || kind === "story") return "pos";
+  return "mute";
+}
+
+function billMarkSvg(tone) {
+  if (tone === "pos") {
+    return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  }
+  if (tone === "neg") {
+    return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 7v10M16 7v10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+}
+
+function billOpsWord(n) {
+  const abs = Math.abs(n);
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod10 === 1 && mod100 !== 11) return "операция";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "операции";
+  return "операций";
+}
+
 function paintBilling(data) {
   const box = $("billingList");
-  const hint = $("billingHint");
+  const summary = $("billingSummary");
   if (!box) return;
   box.innerHTML = "";
-  const charged = Number(data && data.charged_rub) || 0;
-  if (hint) {
-    hint.textContent = charged > 0
-      ? `За 7 дней с устройств списано ${charged} ₽. Ниже все операции за этот срок.`
-      : "Операции за последние 7 дней: списания за устройства, пополнения и отключения.";
-  }
   const items = (data && data.items) || [];
+  const charged = Number(data && data.charged_rub) || 0;
+  if (summary) {
+    summary.classList.remove("hidden");
+    summary.innerHTML = "";
+    const kicker = document.createElement("div");
+    kicker.className = "bill-summary-kicker";
+    kicker.textContent = "Списано за 7 дней";
+    const value = document.createElement("div");
+    value.className = "bill-summary-value";
+    value.textContent = charged + " ₽";
+    const note = document.createElement("div");
+    note.className = "bill-summary-note";
+    note.textContent = items.length
+      ? items.length + " " + billOpsWord(items.length) + " по балансу и устройствам"
+      : "Пока не было списаний и начислений";
+    summary.appendChild(kicker);
+    summary.appendChild(value);
+    summary.appendChild(note);
+  }
   if (!items.length) {
-    const empty = document.createElement("p");
-    empty.className = "support-empty";
-    empty.textContent = "За 7 дней списаний не было";
+    const empty = document.createElement("div");
+    empty.className = "section bill-empty";
+    empty.innerHTML = '<div class="t">Пусто</div><div class="d">Когда спишется сутки VPN или придёт пополнение, запись появится здесь.</div>';
     box.appendChild(empty);
     return;
   }
-  let lastDay = "";
+  const groups = [];
   items.forEach((e) => {
-    const day = billDayKey(e.created_at);
-    if (day && day !== lastDay) {
-      lastDay = day;
-      const head = document.createElement("div");
-      head.className = "bill-day";
-      head.textContent = billDayLabel(e.created_at);
-      box.appendChild(head);
+    const key = billDayKey(e.created_at) || "other";
+    let group = groups[groups.length - 1];
+    if (!group || group.key !== key) {
+      group = { key, label: billDayLabel(e.created_at) || "Ранее", items: [] };
+      groups.push(group);
     }
-    const row = document.createElement("div");
-    row.className = "bill-item";
-    const main = document.createElement("div");
-    main.className = "bill-item-main";
-    const title = document.createElement("div");
-    title.className = "bill-item-title";
-    title.textContent = billKindLabel(e.kind);
-    main.appendChild(title);
-    const subParts = [];
-    if (e.device_title) subParts.push(e.device_title);
-    if (e.note) subParts.push(e.note);
-    const when = e.created_at ? new Date(e.created_at) : null;
-    if (when && !Number.isNaN(when.getTime())) {
-      subParts.push(when.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }));
-    }
-    if (e.balance_after != null) subParts.push("остаток " + e.balance_after + " ₽");
-    if (subParts.length) {
-      const sub = document.createElement("div");
-      sub.className = "bill-item-sub";
-      sub.textContent = subParts.join(" · ");
-      main.appendChild(sub);
-    }
-    row.appendChild(main);
-    const amt = billAmountText(e.amount);
-    if (amt) {
-      const money = document.createElement("div");
-      const v = Number(e.amount);
-      money.className = "bill-item-amt" + (v < 0 ? " neg" : " pos");
-      money.textContent = amt;
-      row.appendChild(money);
-    }
-    box.appendChild(row);
+    group.items.push(e);
+  });
+  groups.forEach((group) => {
+    const wrap = document.createElement("div");
+    wrap.className = "section bill-group";
+    const head = document.createElement("div");
+    head.className = "section-head";
+    const h = document.createElement("span");
+    h.className = "h";
+    h.textContent = group.label;
+    head.appendChild(h);
+    wrap.appendChild(head);
+    group.items.forEach((e) => {
+      const tone = billTone(e.kind, e.amount);
+      const row = document.createElement("div");
+      row.className = "bill-item";
+      const mark = document.createElement("div");
+      mark.className = "bill-mark " + tone;
+      mark.innerHTML = billMarkSvg(tone);
+      row.appendChild(mark);
+      const main = document.createElement("div");
+      main.className = "bill-item-main";
+      const title = document.createElement("div");
+      title.className = "bill-item-title";
+      title.textContent = billKindLabel(e.kind);
+      main.appendChild(title);
+      const subBits = [e.device_title, e.note].filter(Boolean);
+      if (e.balance_after != null) subBits.push("остаток " + e.balance_after + " ₽");
+      if (subBits.length) {
+        const sub = document.createElement("div");
+        sub.className = "bill-item-sub";
+        sub.textContent = subBits.join(" · ");
+        main.appendChild(sub);
+      }
+      row.appendChild(main);
+      const side = document.createElement("div");
+      side.className = "bill-item-side";
+      const amt = billAmountText(e.amount);
+      if (amt) {
+        const money = document.createElement("div");
+        money.className = "bill-item-amt " + tone;
+        money.textContent = amt;
+        side.appendChild(money);
+      }
+      const when = e.created_at ? new Date(e.created_at) : null;
+      if (when && !Number.isNaN(when.getTime())) {
+        const time = document.createElement("div");
+        time.className = "bill-item-time";
+        time.textContent = when.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+        side.appendChild(time);
+      }
+      row.appendChild(side);
+      wrap.appendChild(row);
+    });
+    box.appendChild(wrap);
   });
 }
 
 async function loadBilling() {
   const box = $("billingList");
+  const summary = $("billingSummary");
+  if (summary) summary.classList.add("hidden");
   if (box) {
     box.innerHTML = "";
     const wait = document.createElement("p");
@@ -1622,6 +1686,7 @@ async function loadBilling() {
   try {
     paintBilling(await api("/api/billing"));
   } catch (e) {
+    if (summary) summary.classList.add("hidden");
     if (box) {
       box.innerHTML = "";
       const err = document.createElement("p");
