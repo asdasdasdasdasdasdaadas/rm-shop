@@ -373,6 +373,14 @@ async def api_me(request: web.Request) -> web.Response:
     hours_left = max(0, int(hours_left))
     wallet = await db.referral_wallet(telegram_id) if settings.balance_enabled else None
     refs = await db.referral_stats(telegram_id)
+    ref_view = referral_payout_public(wallet)
+    if settings.balance_enabled:
+        from_events = await db.referral_credit_sum(telegram_id)
+        implied = int(refs.get("rewarded") or 0) * max(0, int(settings.referral_reward_rub or 0))
+        earned = max(int(ref_view.get("referral_earned") or 0), from_events, implied)
+        if earned > int(ref_view.get("referral_earned") or 0):
+            await db.ensure_referral_earned(telegram_id, earned)
+        ref_view["referral_earned"] = earned
 
     return web.json_response(
         {
@@ -416,7 +424,7 @@ async def api_me(request: web.Request) -> web.Response:
             "referral_reward_days": settings.referral_reward_days,
             "referral_invitee_days": settings.referral_invitee_days,
             "referral_reward_rub": settings.referral_reward_rub,
-            **referral_payout_public(wallet),
+            **ref_view,
             "story_reward_enabled": bool(
                 settings.balance_enabled
                 and settings.story_reward_enabled

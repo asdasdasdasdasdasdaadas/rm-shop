@@ -1118,6 +1118,12 @@ body.coach-lock {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+.ref-stats-note {
+  margin: -4px 8px 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+}
 .ref-actions {
   display: flex;
   flex-direction: column;

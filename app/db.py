@@ -828,6 +828,39 @@ async def credit_referral_rub(telegram_id: int, amount: int) -> int:
     return int(row["balance_rub"]) if row else 0
 
 
+async def ensure_referral_earned(telegram_id: int, amount: int) -> int:
+    need = max(0, int(amount or 0))
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users
+        SET referral_earned = $2
+        WHERE telegram_id = $1
+          AND COALESCE(referral_earned, 0) < $2
+        RETURNING referral_earned
+        """,
+        int(telegram_id),
+        need,
+    )
+    if row:
+        return int(row["referral_earned"] or 0)
+    local = await get_user(telegram_id)
+    return int((local or {}).get("referral_earned") or 0)
+
+
+async def referral_credit_sum(telegram_id: int) -> int:
+    val = await _pool_req().fetchval(
+        """
+        SELECT COALESCE(SUM(amount), 0)::int
+        FROM billing_events
+        WHERE telegram_id = $1
+          AND kind = 'referral'
+          AND amount > 0
+        """,
+        int(telegram_id),
+    )
+    return int(val or 0)
+
+
 async def referral_wallet(telegram_id: int) -> dict:
     row = await _pool_req().fetchrow(
         """

@@ -1744,6 +1744,20 @@ function paintReferrals(me) {
     if (earnEl) earnEl.textContent = String(days);
     if (earnLabel) earnLabel.textContent = daysWord(days);
   }
+  const note = $("refStatsNote");
+  if (note) {
+    if (me.balance_enabled && me.referral_payout_enabled && invited > rewarded) {
+      note.textContent = earned > 0
+        ? "Начислено за " + rewarded + " " + friendsWord(rewarded) + " с оплатой. Остальные ещё не оплатили."
+        : "Деньги придут после первой оплаты друга. Пока бонус не начислен.";
+    } else if (invited > 0 && rewarded === 0 && earned === 0) {
+      note.textContent = me.balance_enabled
+        ? "Друзья пришли, но бонус ещё не начислен."
+        : "Друзья пришли, начисление дней ещё впереди.";
+    } else {
+      note.textContent = "";
+    }
+  }
   const when = $("refFaqWhen");
   const how = $("refFaqHow");
   const payWrap = $("refFaqPayoutWrap");

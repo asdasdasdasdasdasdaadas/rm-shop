@@ -118,8 +118,16 @@ async def maybe_reward_referrer(
             except Exception:
                 pass
             return
-        await db.add_balance_rub(referrer_id, amount)
+        total = await db.credit_referral_rub(referrer_id, amount)
         await db.add_balance_rub(new_user_id, amount)
+        await db.log_billing_event(
+            referrer_id,
+            "referral",
+            source="signup",
+            amount=amount,
+            balance_after=total,
+            note=f"Награда за приглашение {new_user_id}",
+        )
         ref_text = notice_text("referral_referrer_balance", name=name, amount=rub_text(amount))
         friend_text = notice_text("referral_invitee_balance", amount=rub_text(amount))
         try:
