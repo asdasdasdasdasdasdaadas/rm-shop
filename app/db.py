@@ -867,6 +867,25 @@ async def referral_wallet(telegram_id: int) -> dict:
     }
 
 
+async def referral_stats(telegram_id: int) -> dict:
+    row = await _pool_req().fetchrow(
+        """
+        SELECT
+            COUNT(*)::int AS invited,
+            COUNT(*) FILTER (WHERE referral_rewarded)::int AS rewarded
+        FROM users
+        WHERE referred_by = $1
+        """,
+        int(telegram_id),
+    )
+    if not row:
+        return {"invited": 0, "rewarded": 0}
+    return {
+        "invited": int(row["invited"] or 0),
+        "rewarded": int(row["rewarded"] or 0),
+    }
+
+
 async def create_referral_payout(telegram_id: int, amount: int, details: str) -> dict | None:
     if amount < 1:
         return None

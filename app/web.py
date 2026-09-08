@@ -372,6 +372,7 @@ async def api_me(request: web.Request) -> web.Response:
     days_left = max(0, int(days_left))
     hours_left = max(0, int(hours_left))
     wallet = await db.referral_wallet(telegram_id) if settings.balance_enabled else None
+    refs = await db.referral_stats(telegram_id)
 
     return web.json_response(
         {
@@ -410,6 +411,8 @@ async def api_me(request: web.Request) -> web.Response:
             ),
             "subscription_url": sub_url if not settings.balance_enabled else "",
             "invite_url": f"https://t.me/{settings.bot_username}?start=ref_{telegram_id}",
+            "invited_count": int(refs.get("invited") or 0),
+            "referral_rewarded_count": int(refs.get("rewarded") or 0),
             "referral_reward_days": settings.referral_reward_days,
             "referral_invitee_days": settings.referral_invitee_days,
             "referral_reward_rub": settings.referral_reward_rub,

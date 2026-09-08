@@ -752,6 +752,16 @@ body.coach-lock {
   gap: 12px;
 }
 
+#refHomeCard {
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+#refHomeCard .chev {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
 .referral .glyph {
   width: 44px;
   height: 44px;
@@ -1068,6 +1078,87 @@ body.coach-lock {
   margin-top: 6px;
   line-height: 1.45;
   max-width: 260px;
+}
+
+#view-referrals.view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+#view-referrals .wiz-title { margin-bottom: 2px; }
+.ref-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.ref-stat {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 16px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+}
+.ref-stat-value {
+  font-family: Unbounded, Inter, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+.ref-stat-label {
+  margin-top: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ref-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ref-actions .btn { width: 100%; min-height: 50px; }
+.ref-faq {
+  padding: 4px 16px 8px;
+}
+.ref-faq details {
+  border-top: 1px solid var(--divider);
+}
+.ref-faq details:first-child { border-top: 0; }
+.ref-faq summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 13px 2px;
+  color: var(--text-primary);
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.ref-faq summary::-webkit-details-marker { display: none; }
+.ref-faq summary::after {
+  content: "";
+  float: right;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-right: 1.8px solid var(--text-tertiary);
+  border-bottom: 1.8px solid var(--text-tertiary);
+  transform: rotate(45deg);
+}
+.ref-faq details[open] summary::after {
+  transform: rotate(-135deg);
+  margin-top: 8px;
+}
+.ref-faq p {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .support-thread {
