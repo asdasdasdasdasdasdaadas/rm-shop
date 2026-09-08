@@ -700,6 +700,7 @@ function switchView(id, motion) {
     el.classList.remove("view-in-fade", "view-in-push", "view-in-pop");
     if (on) replayAnim(el, "view-in-" + (motion || "fade"));
   });
+  window.scrollTo(0, 0);
 }
 
 const wiz = {

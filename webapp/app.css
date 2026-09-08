@@ -55,6 +55,7 @@ html, body {
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 html { overflow-x: hidden; }
@@ -167,10 +168,15 @@ body.coach-lock {
   top: 0;
   z-index: 14;
   margin: 0 -8px 6px;
-  padding: 8px;
-  background: color-mix(in srgb, var(--bg-app) 86%, transparent);
-  backdrop-filter: blur(16px) saturate(1.15);
-  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  padding: 8px 8px 18px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg-app) 94%, transparent) 0%,
+    color-mix(in srgb, var(--bg-app) 82%, transparent) 62%,
+    transparent 100%
+  );
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
 }
 
 .view-head {
@@ -178,10 +184,15 @@ body.coach-lock {
   top: 0;
   z-index: 12;
   margin: -4px -12px 0;
-  padding: 8px 12px 10px;
-  background: color-mix(in srgb, var(--bg-app) 88%, transparent);
-  backdrop-filter: blur(16px) saturate(1.15);
-  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  padding: 8px 12px 22px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg-app) 96%, transparent) 0%,
+    color-mix(in srgb, var(--bg-app) 78%, transparent) 58%,
+    transparent 100%
+  );
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
 }
 body:has(#webBack:not(.hidden)) .view-head {
   top: 44px;
@@ -194,15 +205,38 @@ body:has(#webBack:not(.hidden)) .view-head {
   top: 0;
   z-index: 12;
 }
+#view-home .account-row::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  right: -20px;
+  top: -10px;
+  height: calc(100% + 36px);
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg-app) 96%, transparent) 0%,
+    color-mix(in srgb, var(--bg-app) 70%, transparent) 62%,
+    transparent 100%
+  );
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+}
 #devicesBlock .section-head {
   position: sticky;
   top: 62px;
   z-index: 8;
   margin: 0 -20px;
-  padding: 10px 20px 8px;
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  padding: 10px 20px 18px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--panel) 96%, transparent) 0%,
+    color-mix(in srgb, var(--panel) 72%, transparent) 58%,
+    transparent 100%
+  );
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
 }
 
 .web-back.hidden {
@@ -218,6 +252,7 @@ body:has(#webBack:not(.hidden)) .view-head {
 .view.hidden { display: none !important; }
 
 .account-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1031,10 +1066,15 @@ body:has(#webBack:not(.hidden)) .view-head {
   top: 64px;
   z-index: 6;
   margin: 0 -8px;
-  padding: 10px 20px 8px;
-  background: color-mix(in srgb, var(--panel) 94%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  padding: 10px 20px 18px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--panel) 96%, transparent) 0%,
+    color-mix(in srgb, var(--panel) 72%, transparent) 58%,
+    transparent 100%
+  );
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
 }
 body:has(#webBack:not(.hidden)) .bill-group .section-head {
   top: 108px;
@@ -2336,9 +2376,9 @@ body.has-main-btn {
   to { opacity: 1; transform: none; }
 }
 
-.view-in-fade { animation: view-fade 0.28s cubic-bezier(0.32, 0.72, 0, 1) both; }
-.view-in-push { animation: view-push 0.34s cubic-bezier(0.32, 0.72, 0, 1) both; }
-.view-in-pop { animation: view-pop 0.34s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.view-in-fade { animation: view-fade 0.44s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.view-in-push { animation: view-push 0.52s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.view-in-pop { animation: view-pop 0.52s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 @keyframes view-fade {
   from { opacity: 0; }
@@ -2346,12 +2386,12 @@ body.has-main-btn {
 }
 
 @keyframes view-push {
-  from { opacity: 0; transform: translateX(28px); }
+  from { opacity: 0; transform: translateX(14px); }
   to { opacity: 1; transform: none; }
 }
 
 @keyframes view-pop {
-  from { opacity: 0; transform: translateX(-22px); }
+  from { opacity: 0; transform: translateX(-12px); }
   to { opacity: 1; transform: none; }
 }
 
