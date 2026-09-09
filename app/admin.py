@@ -40,6 +40,7 @@ from app.remnawave import (
     panel_user_agent,
 )
 from app.texts import days_text, rub_text, subscription_reissued_text
+from app.tg_err import fail_extra
 
 logger = logging.getLogger("rm-shop.admin")
 ADMIN_DIR = ROOT / "admin"
@@ -820,6 +821,7 @@ async def api_message(request: web.Request) -> web.Response:
             title="Сообщение из админки",
             body=text,
             status="failed",
+            extra=fail_extra(exc),
         )
         return web.json_response({"ok": False, "error": str(exc)}, status=502)
     await db.log_bot_message(
@@ -889,7 +891,7 @@ async def _broadcast_all(
                 status="sent",
                 extra={"template": tpl or "custom"},
             )
-        except Exception:
+        except Exception as exc:
             job["failed"] = int(job.get("failed") or 0) + 1
             await db.log_bot_message(
                 kind="broadcast",
@@ -899,7 +901,7 @@ async def _broadcast_all(
                 title=_broadcast_title(tpl),
                 body=body,
                 status="failed",
-                extra={"template": tpl or "custom"},
+                extra=fail_extra(exc, {"template": tpl or "custom"}),
             )
         await asyncio.sleep(0.035)
 

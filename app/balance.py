@@ -25,6 +25,7 @@ from app.remnawave import (
 from app.trust import collect_due_trusts
 from app.notices import notice_text
 from app.texts import rub_text
+from app.tg_err import fail_extra
 
 logger = logging.getLogger("rm-shop.balance")
 CABINET_LINK_DAYS = 10
@@ -69,7 +70,7 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
                 body=body,
                 status="sent",
             )
-        except Exception:
+        except Exception as exc:
             logger.warning("Не удалось отправить «мало баланса» %s", tg_id, exc_info=True)
             await db.log_bot_message(
                 kind="low_balance",
@@ -78,6 +79,7 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
                 title="Мало баланса",
                 body=body,
                 status="failed",
+                extra=fail_extra(exc),
             )
     await send_cabinet_link_to(bot, tg_id, force=True)
 
@@ -677,7 +679,7 @@ async def _issue_and_send_cabinet_link(bot: Bot, telegram_id: int, *, source: st
             status="sent",
         )
         return 1
-    except Exception:
+    except Exception as exc:
         await db.delete_cabinet_token(token)
         logger.warning("Ссылка на кабинет не ушла %s", telegram_id, exc_info=True)
         await db.log_bot_message(
@@ -687,5 +689,6 @@ async def _issue_and_send_cabinet_link(bot: Bot, telegram_id: int, *, source: st
             title="Ссылка на кабинет",
             body=text,
             status="failed",
+            extra=fail_extra(exc),
         )
         return 0

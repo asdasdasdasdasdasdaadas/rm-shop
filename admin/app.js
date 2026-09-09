@@ -2014,6 +2014,20 @@ function msgPreview(text) {
   return s.length > 90 ? s.slice(0, 90) + "…" : s;
 }
 
+function msgError(r) {
+  if (r && r.error) return String(r.error);
+  const extra = r && r.extra;
+  if (extra && typeof extra === "object") return String(extra.error || extra.error_raw || "");
+  return "";
+}
+
+function msgLine(r) {
+  if (r.status === "failed") {
+    return msgError(r) || "Telegram не принял сообщение. Причина в старых записях не сохранялась.";
+  }
+  return msgPreview(r.body || r.title);
+}
+
 function msgWho(r) {
   if (!r.telegram_id) return "—";
   return `${r.telegram_id}` + (r.username ? ` @${r.username}` : "") + (r.first_name ? ` · ${r.first_name}` : "");
@@ -2040,7 +2054,7 @@ async function loadMessages(page) {
   const body = $("msgRows");
   if (!body) return;
   body.innerHTML = "";
-  const labels = ["Время", "Тип", "Источник", "Пользователь", "Статус", "Текст"];
+  const labels = ["Время", "Тип", "Источник", "Пользователь", "Статус", "Текст / причина"];
   let data;
   try {
     data = await api(`/admin/api/messages?${queryString({ ...f, page: msgPage })}`);
@@ -2060,18 +2074,23 @@ async function loadMessages(page) {
       MSG_SOURCE_LABEL[r.source] || r.source || "—",
       msgWho(r),
       MSG_STATUS_LABEL[r.status] || r.status || "—",
-      msgPreview(r.body || r.title),
-    ].forEach((t) => {
+      msgLine(r),
+    ].forEach((t, i) => {
       const td = document.createElement("td");
       td.textContent = t;
+      if (i === 5 && r.status === "failed") td.title = t;
       tr.appendChild(td);
     });
     labelRow(tr, labels);
     tr.onclick = () => {
+      const reason = r.status === "failed"
+        ? "Почему не ушло: " + msgLine(r) + "\n\n"
+        : "";
       const extra = r.extra && typeof r.extra === "object" && Object.keys(r.extra).length
         ? "\n\n" + JSON.stringify(r.extra, null, 2)
         : "";
-      $("msgDetail").textContent = `${r.title || MSG_KIND_LABEL[r.kind] || "Сообщение"}\n${msgWho(r)}\n\n${r.body || "—"}${extra}`;
+      $("msgDetail").textContent =
+        `${r.title || MSG_KIND_LABEL[r.kind] || "Сообщение"}\n${msgWho(r)}\n\n${reason}${r.body || "—"}${extra}`;
     };
     body.appendChild(tr);
   });

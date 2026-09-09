@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="46">
+  <meta name="admin-build" content="47">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -742,7 +742,7 @@
         </section>
 
         <section id="tab-messages" class="hidden">
-          <p class="muted intro">Журнал исходящих объявлений и попыток открыть бота, пока включены техработы.</p>
+          <p class="muted intro">Журнал исходящих. Если статус «ошибка», в последней колонке причина от Telegram, а не текст письма.</p>
           <div class="filters">
             <select id="msgChannel" aria-label="Раздел">
               <option value="">Все записи</option>
@@ -785,7 +785,7 @@
                   <th>Источник</th>
                   <th>Пользователь</th>
                   <th>Статус</th>
-                  <th>Текст</th>
+                  <th>Текст / причина</th>
                 </tr>
               </thead>
               <tbody id="msgRows"></tbody>
@@ -1183,6 +1183,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=54"></script>
+  <script src="app.js?v=55"></script>
 </body>
 </html>

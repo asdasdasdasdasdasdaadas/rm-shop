@@ -11,6 +11,7 @@ from app.keyboards import cabinet_keyboard, share_keyboard, story_nudge_keyboard
 from app.notices import notice_text
 from app.referrals import trial_grant_rub
 from app.texts import days_text, rub_text
+from app.tg_err import fail_extra
 
 
 def _story_reward_on() -> bool:
@@ -93,7 +94,7 @@ async def _deliver(
             status="sent",
         )
         ok = True
-    except Exception:
+    except Exception as exc:
         logger.debug("Напоминание %s не ушло %s", kind, telegram_id, exc_info=True)
         await db.log_bot_message(
             kind=kind,
@@ -103,6 +104,7 @@ async def _deliver(
             title=title,
             body=body,
             status="failed",
+            extra=fail_extra(exc),
         )
         ok = False
     mark = {
@@ -225,7 +227,7 @@ async def send_story_offer_now(bot: Bot | None, telegram_id: int) -> bool:
         )
         logger.info("Предложение выложить историю отправлено %s", telegram_id)
         return True
-    except Exception:
+    except Exception as exc:
         logger.warning("Не удалось отправить предложение истории %s", telegram_id, exc_info=True)
         await db.restore_story_nudge(telegram_id)
         await db.log_bot_message(
@@ -236,6 +238,7 @@ async def send_story_offer_now(bot: Bot | None, telegram_id: int) -> bool:
             title="Напоминание: история",
             body=body,
             status="failed",
+            extra=fail_extra(exc),
         )
         return False
 
@@ -280,7 +283,7 @@ async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
                 extra={"step": step},
             )
             ok = True
-        except Exception:
+        except Exception as exc:
             logger.debug("Напоминание про устройство не ушло %s", telegram_id, exc_info=True)
             await db.log_bot_message(
                 kind="nudge_device",
@@ -290,7 +293,7 @@ async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
                 title=f"Напоминание: устройство {step}/3",
                 body=body,
                 status="failed",
-                extra={"step": step},
+                extra=fail_extra(exc, {"step": step}),
             )
             ok = False
         await db.mark_device_nudge_sent(telegram_id)
@@ -322,7 +325,7 @@ async def send_first_device_thanks(bot: Bot | None, telegram_id: int) -> bool:
         )
         await send_story_offer_now(bot, telegram_id)
         return True
-    except Exception:
+    except Exception as exc:
         logger.debug("Не удалось отправить благодарность %s", telegram_id, exc_info=True)
         await db.restore_first_device_thanks(telegram_id)
         await db.log_bot_message(
@@ -332,6 +335,7 @@ async def send_first_device_thanks(bot: Bot | None, telegram_id: int) -> bool:
             title="После первого устройства",
             body=body,
             status="failed",
+            extra=fail_extra(exc),
         )
         return False
 

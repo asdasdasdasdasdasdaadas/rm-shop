@@ -1633,6 +1633,31 @@ def _jsonable(row: dict) -> dict:
     return out
 
 
+def _msg_error(extra) -> str:
+    data = extra
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except ValueError:
+            return ""
+    if not isinstance(data, dict):
+        return ""
+    return str(data.get("error") or data.get("error_raw") or "").strip()
+
+
+def _msg_row(row: dict) -> dict:
+    item = _jsonable(row)
+    extra = item.get("extra")
+    if isinstance(extra, str):
+        try:
+            extra = json.loads(extra)
+            item["extra"] = extra
+        except ValueError:
+            extra = {}
+    item["error"] = _msg_error(extra)
+    return item
+
+
 async def log_bot_message(
     *,
     kind: str,
@@ -2767,7 +2792,6 @@ async def users_needing_cabinet_link(day_price: int) -> list[int]:
                SELECT 1 FROM message_log m
                WHERE m.telegram_id = u.telegram_id
                  AND m.kind = 'cabinet_link'
-                 AND m.status = 'sent'
                  AND m.created_at > timezone('utc', now()) - INTERVAL '10 days'
            )
         ORDER BY u.telegram_id
@@ -3084,7 +3108,7 @@ async def admin_list_messages(
         limit,
         offset,
     )
-    return [_jsonable(dict(r)) for r in rows], int(total or 0)
+    return [_msg_row(dict(r)) for r in rows], int(total or 0)
 
 
 async def open_or_get_ticket(
