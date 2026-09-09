@@ -14,35 +14,68 @@ def _unwrap(payload: Any) -> Any:
     return payload
 
 
+_TRAFFIC_COPY_KEYS = (
+    "onlineAt",
+    "lastConnectedAt",
+    "firstConnectedAt",
+    "subLastOpenedAt",
+    "subLastOpened",
+    "lastConnectedNodeUuid",
+    "usedTrafficBytes",
+    "lifetimeUsedTrafficBytes",
+    "usedTraffic",
+    "lifetimeUsedTraffic",
+    "used_traffic_bytes",
+    "lifetime_used_traffic_bytes",
+)
+
+
+def _flatten_panel_user(user: dict) -> dict:
+    out = dict(user)
+    for extra in (user.get("userTraffic"), user.get("traffic")):
+        if not isinstance(extra, dict):
+            continue
+        if extra is user.get("userTraffic") and not isinstance(out.get("userTraffic"), dict):
+            out["userTraffic"] = extra
+        for key in _TRAFFIC_COPY_KEYS:
+            if key not in extra:
+                continue
+            val = extra.get(key)
+            if val in (None, ""):
+                continue
+            cur = out.get(key)
+            if cur in (None, "", 0):
+                out[key] = val
+    return out
+
+
 def _as_users(data: Any) -> list[dict]:
     data = _unwrap(data)
+    users: list[dict] = []
     if not data:
         return []
     if isinstance(data, list):
-        return [u for u in data if isinstance(u, dict)]
-    if isinstance(data, dict):
+        users = [u for u in data if isinstance(u, dict)]
+    elif isinstance(data, dict):
         if isinstance(data.get("users"), list):
-            return [u for u in data["users"] if isinstance(u, dict)]
-        nested = data.get("user")
-        if isinstance(nested, dict):
-            merged = dict(nested)
-            traffic = data.get("userTraffic")
-            if isinstance(traffic, dict) and not isinstance(merged.get("userTraffic"), dict):
-                merged["userTraffic"] = traffic
-            for key in (
-                "onlineAt",
-                "lastConnectedAt",
-                "firstConnectedAt",
-                "subLastOpenedAt",
-                "subLastOpened",
-                "usedTrafficBytes",
-            ):
-                if key in data and merged.get(key) in (None, ""):
-                    merged[key] = data[key]
-            return [merged]
-        if "username" in data or "id" in data or "uuid" in data or "shortUuid" in data:
-            return [data]
-    return []
+            users = [u for u in data["users"] if isinstance(u, dict)]
+        else:
+            nested = data.get("user")
+            if isinstance(nested, dict):
+                merged = dict(nested)
+                traffic = data.get("userTraffic")
+                if isinstance(traffic, dict):
+                    if isinstance(merged.get("userTraffic"), dict):
+                        merged["userTraffic"] = {**traffic, **merged["userTraffic"]}
+                    else:
+                        merged["userTraffic"] = traffic
+                for key in _TRAFFIC_COPY_KEYS:
+                    if key in data and merged.get(key) in (None, "", 0):
+                        merged[key] = data[key]
+                users = [merged]
+            elif "username" in data or "id" in data or "uuid" in data or "shortUuid" in data:
+                users = [data]
+    return [_flatten_panel_user(u) for u in users]
 
 
 def panel_user_key(user: dict | None) -> str:
@@ -133,36 +166,106 @@ def panel_online_at(user: dict | None) -> datetime | None:
 
 
 def _traffic_int(value: Any) -> int | None:
-    if value is None or value == "":
+    if value is None or value == "" or isinstance(value, bool):
         return None
+    if isinstance(value, dict):
+        for key in (
+            "usedTrafficBytes",
+            "lifetimeUsedTrafficBytes",
+            "used_traffic_bytes",
+            "lifetime_used_traffic_bytes",
+            "bytes",
+            "value",
+            "$numberLong",
+        ):
+            if key in value:
+                n = _traffic_int(value.get(key))
+                if n is not None:
+                    return n
+        return None
+    if isinstance(value, (list, tuple)) and value:
+        return _traffic_int(value[0])
+    if isinstance(value, str):
+        value = value.strip().replace(" ", "").replace(",", "").replace("_", "")
+        if not value or value.lower() in {"none", "null"}:
+            return None
     try:
-        n = int(float(value))
-    except (TypeError, ValueError):
+        if isinstance(value, int):
+            n = value
+        elif isinstance(value, str) and value.lstrip("-").isdigit():
+            n = int(value)
+        else:
+            n = int(float(value))
+    except (TypeError, ValueError, OverflowError):
         return None
     return n if n >= 0 else None
+
+
+def _traffic_keys(key: str) -> tuple[str, ...]:
+    snake = []
+    buf = []
+    for ch in key:
+        if ch.isupper() and buf:
+            snake.append("".join(buf).lower())
+            buf = [ch]
+        else:
+            buf.append(ch)
+    if buf:
+        snake.append("".join(buf).lower())
+    alt = "_".join(snake)
+    return (key, alt) if alt != key else (key,)
+
+
+def _pick_traffic(source: dict, keys: tuple[str, ...], *, allow_zero: bool) -> int | None:
+    found = None
+    for key in keys:
+        for name in _traffic_keys(key):
+            if name not in source:
+                continue
+            n = _traffic_int(source.get(name))
+            if n is None:
+                continue
+            if n > 0:
+                return n
+            if allow_zero and found is None:
+                found = n
+    return found
 
 
 def _traffic_from_maps(user: dict, keys: tuple[str, ...]) -> int | None:
     traffic = user.get("userTraffic") if isinstance(user.get("userTraffic"), dict) else {}
     nested = user.get("traffic") if isinstance(user.get("traffic"), dict) else {}
-    for source in (traffic, nested, user):
-        for key in keys:
-            n = _traffic_int(source.get(key))
+    for source in (traffic, nested):
+        if source:
+            n = _pick_traffic(source, keys, allow_zero=True)
             if n is not None:
                 return n
-    return None
+    # Корневое usedTrafficBytes: 0 часто заглушка, если userTraffic не пришёл.
+    return _pick_traffic(user, keys, allow_zero=bool(traffic or nested))
 
 
 def panel_used_traffic_bytes(user: dict | None) -> int | None:
     if not user:
         return None
-    return _traffic_from_maps(user, ("usedTrafficBytes", "usedTraffic"))
+    return _traffic_from_maps(user, ("usedTrafficBytes", "usedTraffic", "used_traffic_bytes"))
 
 
 def panel_lifetime_traffic_bytes(user: dict | None) -> int | None:
     if not user:
         return None
-    return _traffic_from_maps(user, ("lifetimeUsedTrafficBytes", "lifetimeUsedTraffic"))
+    return _traffic_from_maps(
+        user,
+        ("lifetimeUsedTrafficBytes", "lifetimeUsedTraffic", "lifetime_used_traffic_bytes"),
+    )
+
+
+def panel_display_traffic_bytes(user: dict | None) -> int | None:
+    used = panel_used_traffic_bytes(user)
+    life = panel_lifetime_traffic_bytes(user)
+    nums = [n for n in (used, life) if n]
+    if nums:
+        return max(nums)
+    return used if used is not None else life
 
 
 def panel_first_connected_at(user: dict | None) -> datetime | None:
@@ -442,7 +545,7 @@ class RemnawaveClient:
         inner = self._page_inner(data)
         users = _as_users(inner if inner else data)
         if isinstance(inner.get("data"), list) and not users:
-            users = [u for u in inner["data"] if isinstance(u, dict)]
+            users = [_flatten_panel_user(u) for u in inner["data"] if isinstance(u, dict)]
         total = inner.get("total")
         if isinstance(total, int):
             return users, start + len(users) < total

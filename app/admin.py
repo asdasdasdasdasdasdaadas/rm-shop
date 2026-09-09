@@ -31,6 +31,7 @@ from app.remnawave import (
     RemnawaveClient,
     RemnawaveError,
     fetch_device_network,
+    panel_display_traffic_bytes,
     panel_first_connected_at,
     panel_lifetime_traffic_bytes,
     panel_online_at,
@@ -140,15 +141,18 @@ async def api_stats(request: web.Request) -> web.Response:
         return denied
     settings = get_settings()
     raw = await db.admin_stats()
-    revenue = 0.0
-    for code, count in (raw.get("plans") or {}).items():
-        plan = settings.plan_by_code(code) or settings.plans.get(code)
-        if plan:
-            revenue += float(plan["rub"]) * int(count)
+    topups = await db.admin_topup_summary()
+    revenue = float(topups.get("amount_rub") or 0)
+    if not revenue:
+        for code, count in (raw.get("plans") or {}).items():
+            plan = settings.plan_by_code(code) or settings.plans.get(code)
+            if plan:
+                revenue += float(plan["rub"]) * int(count)
     return web.json_response(
         {
             "ok": True,
             **raw,
+            "topups": topups,
             "revenue_rub": round(revenue, 2),
             "jobs": {
                 "billing": await db.get_job_report("billing"),
@@ -185,6 +189,7 @@ async def api_users(request: web.Request) -> web.Response:
         "bal_max",
         "from",
         "to",
+        "paid",
     )
     items, total = await db.admin_list_users(q, limit, (page - 1) * limit, extra)
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
@@ -236,15 +241,20 @@ async def _enrich_device_network(rw: RemnawaveClient, item: dict) -> dict:
         first = panel_first_connected_at(panel)
         used = panel_used_traffic_bytes(panel)
         life = panel_lifetime_traffic_bytes(panel)
+        shown = panel_display_traffic_bytes(panel)
         status = str(panel.get("status") or "").strip()
         if online:
             out["last_online_at"] = online.isoformat()
         if first:
             out["first_connected_at"] = first.isoformat()
-        if used is not None:
+        if shown is not None:
+            out["used_traffic_bytes"] = shown
+        elif used is not None:
             out["used_traffic_bytes"] = used
         if life is not None:
             out["lifetime_traffic_bytes"] = life
+        elif shown is not None:
+            out["lifetime_traffic_bytes"] = shown
         if status:
             out["status"] = status
         out["user_agent"] = panel_user_agent(panel)

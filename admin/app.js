@@ -9,7 +9,7 @@ let selectedUsers = new Set();
 let lastUserItems = [];
 const TABS = ["overview", "users", "referrals", "ads", "orders", "billing", "reports", "tickets", "messages", "broadcast", "promo", "backups", "settings"];
 const TAB_KEYS = {
-  users: ["q", "status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to"],
+  users: ["q", "status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to", "paid"],
   referrals: ["q", "reward", "from", "to"],
   orders: ["q", "status", "from", "to"],
   billing: ["q", "kind", "source", "from", "to"],
@@ -207,6 +207,7 @@ function collectUserFilters() {
     bal_max: val("userBalMax"),
     from: val("userFrom"),
     to: val("userTo"),
+    paid: val("userPaid"),
   };
 }
 
@@ -221,6 +222,7 @@ const USER_FILTER_IDS = {
   bal_max: "userBalMax",
   from: "userFrom",
   to: "userTo",
+  paid: "userPaid",
 };
 
 function applyUserFilters(values) {
@@ -286,6 +288,20 @@ function fmtBytes(n) {
   return shown.replace(/\.0$/, "") + " " + units[i];
 }
 
+function trafficBytes(used, life) {
+  const a = Number(used);
+  const b = Number(life);
+  const nums = [a, b].filter((n) => Number.isFinite(n) && n > 0);
+  if (nums.length) return Math.max(...nums);
+  if (Number.isFinite(a) && a >= 0) return a;
+  if (Number.isFinite(b) && b >= 0) return b;
+  return null;
+}
+
+function fmtTraffic(used, life) {
+  return fmtBytes(trafficBytes(used, life));
+}
+
 function fmtAgo(dt) {
   if (!dt) return "—";
   const d = new Date(dt);
@@ -344,7 +360,7 @@ function deviceBreakdownCell(u) {
     meta.className = "who-sub";
     const how = [d.client, d.platform].filter(Boolean).join(" · ") || "клиент не указан";
     const when = fmtAgo(d.last_online_at);
-    const traffic = fmtBytes(d.used_traffic_bytes);
+    const traffic = fmtTraffic(d.used_traffic_bytes, d.lifetime_traffic_bytes);
     meta.textContent = how + " · " + when + " · " + traffic;
     row.appendChild(title);
     row.appendChild(meta);
@@ -509,8 +525,11 @@ function card(label, value, tab, extra) {
     el.tabIndex = 0;
     el.setAttribute("role", "button");
     const go = () => {
-      if (extra.filters) applyUserFilters(extra.filters);
-      switchTab(tab, extra.filters ? { skipFill: true } : {});
+      if (extra.filters) {
+        if (tab === "users") applyUserFilters(extra.filters);
+        if (tab === "orders" && extra.filters.status) setVal("orderStatus", extra.filters.status);
+      }
+      switchTab(tab, extra.filters && tab === "users" ? { skipFill: true } : {});
     };
     el.onclick = go;
     el.onkeydown = (e) => {
@@ -833,6 +852,56 @@ function paintFunnel(data) {
   paintFunnelInsight(pack, main, (painted && painted.convs) || [], painted ? painted.worst : -1);
 }
 
+function paidLine(u) {
+  const n = Number(u && u.paid_topup_count) || 0;
+  const sum = Number(u && u.paid_topup_rub) || 0;
+  if (!n && !sum) return "нет";
+  return sum + " ₽ · " + n + (n === 1 ? " раз" : " раз");
+}
+
+function paintModalPaid(u) {
+  const el = $("modalPaid");
+  if (!el) return;
+  const n = Number(u && u.paid_topup_count) || 0;
+  const sum = Number(u && u.paid_topup_rub) || 0;
+  if (!n && !sum) {
+    el.textContent = "Пополнения: не было успешных оплат кассы";
+    return;
+  }
+  el.textContent =
+    "Пополнил: " +
+    sum +
+    " ₽ · " +
+    n +
+    " платеж(ей)" +
+    (u.last_paid_at ? " · последний " + fmtAgo(u.last_paid_at) + " · " + fmt(u.last_paid_at) : "");
+}
+
+function paintTopupPayers(items) {
+  const body = $("topupPayerRows");
+  if (!body) return;
+  body.innerHTML = "";
+  const labels = ["Клиент", "Платежей", "Сумма", "Последний"];
+  if (!items.length) {
+    body.appendChild(emptyRow(4, "Успешных пополнений пока нет"));
+    return;
+  }
+  items.forEach((row) => {
+    const tr = document.createElement("tr");
+    tr.className = "row-link";
+    tr.appendChild(tdText(whoLabel(row.telegram_id, row.username, row.first_name)));
+    tr.appendChild(tdText(String(row.payments || 0)));
+    tr.appendChild(tdText((Number(row.amount_rub) || 0) + " ₽"));
+    tr.appendChild(tdText(row.last_paid_at ? fmtAgo(row.last_paid_at) + " · " + fmt(row.last_paid_at) : "—"));
+    labelRow(tr, labels);
+    tr.onclick = () => {
+      applyUserFilters({ q: String(row.telegram_id), paid: "yes" });
+      switchTab("users", { skipFill: true });
+    };
+    body.appendChild(tr);
+  });
+}
+
 async function loadStats() {
   const err = $("statsErr");
   if (err) {
@@ -878,6 +947,13 @@ async function loadStats() {
       ["Реф. награда выдана", u.referral_rewarded || 0, "referrals"],
       ["Заявки на вывод", u.payouts_pending || 0, "referrals"],
     ]);
+    const top = s.topups || {};
+    fill("cardsTopup", [
+      ["Плативших", top.payers || 0, "users", { filters: { paid: "yes" } }],
+      ["Платежей", top.payments || 0, "orders", { filters: { status: "granted" } }],
+      ["Сумма пополнений, ₽", top.amount_rub || 0, "orders", { filters: { status: "granted" } }],
+    ]);
+    paintTopupPayers(top.items || []);
     fill("cardsIssues", [
       ["Открытые тикеты", s.tickets_open || 0, "tickets"],
       ["Жалобы VPN", s.vpn_reports || 0, "reports"],
@@ -985,6 +1061,7 @@ async function loadUsers(page) {
   if (f.status) chips.push(["status", "Статус: " + (f.status === "block" ? "блок" : "активен")]);
   if (f.trial) chips.push(["trial", "Триал: " + f.trial]);
   if (f.devices) chips.push(["devices", "Устройства: " + f.devices]);
+  if (f.paid) chips.push(["paid", f.paid === "yes" ? "были оплаты" : "без оплат"]);
   if (f.online) {
     const names = { now: "сейчас", "1h": "час", "1d": "сутки", "7d": "неделя", "30d": "месяц", never: "не было" };
     chips.push(["online", "Онлайн: " + (names[f.online] || f.online)]);
@@ -1008,9 +1085,9 @@ async function loadUsers(page) {
   lastUserItems = data.items || [];
   const body = $("userRows");
   body.innerHTML = "";
-  const labels = ["", "Клиент", "Баланс", "Устройства", "Онлайн", "Трафик", "Триал", "До", "Статус", "Пригласил", "Друзей", ""];
+  const labels = ["", "Клиент", "Баланс", "Пополнил", "Устройства", "Онлайн", "Трафик", "Триал", "До", "Статус", "Пригласил", "Друзей", ""];
   if (!lastUserItems.length) {
-    body.appendChild(emptyRow(12, hasAny(f) ? "Никого не нашли по фильтрам" : "Пользователей пока нет"));
+    body.appendChild(emptyRow(13, hasAny(f) ? "Никого не нашли по фильтрам" : "Пользователей пока нет"));
   }
   lastUserItems.forEach((u) => {
     const tr = document.createElement("tr");
@@ -1039,13 +1116,13 @@ async function loadUsers(page) {
     tdWho.appendChild(nameLine);
     tr.appendChild(tdWho);
     tr.appendChild(tdText(u.balance_rub == null ? "—" : String(u.balance_rub)));
+    const tdPaid = tdText(paidLine(u));
+    if (u.last_paid_at) tdPaid.title = fmt(u.last_paid_at);
+    tr.appendChild(tdPaid);
     tr.appendChild(deviceBreakdownCell(u));
     tr.appendChild(onlineCell(u.last_online_at));
-    const tdTraffic = tdText(fmtBytes(u.used_traffic_bytes));
-    const life = fmtBytes(u.lifetime_traffic_bytes);
-    tdTraffic.title = life !== "—" && life !== fmtBytes(u.used_traffic_bytes)
-      ? "Сейчас: " + fmtBytes(u.used_traffic_bytes) + ". Всего: " + life
-      : "Из сверки с панелью";
+    const tdTraffic = tdText(fmtTraffic(u.used_traffic_bytes, u.lifetime_traffic_bytes));
+    tdTraffic.title = "Сейчас: " + fmtBytes(u.used_traffic_bytes) + ". Всего: " + fmtBytes(u.lifetime_traffic_bytes);
     tr.appendChild(tdTraffic);
     tr.appendChild(tdText(u.trial_used ? "да" : "нет"));
     tr.appendChild(tdText(fmt(u.expire_at)));
@@ -1300,18 +1377,24 @@ async function loadOrders(page) {
   const data = await api(`/admin/api/orders?${queryString({ ...f, page: orderPage })}`);
   const body = $("orderRows");
   body.innerHTML = "";
-  const labels = ["Заказ", "Пользователь", "Тариф", "Статус", "Создан"];
+  const labels = ["Заказ", "Пользователь", "Сумма", "Тариф", "Статус", "Создан"];
   if (!data.items.length) {
-    body.appendChild(emptyRow(5, hasAny(f) ? "Заказов не нашли" : "Заказов пока нет"));
+    body.appendChild(emptyRow(6, hasAny(f) ? "Заказов не нашли" : "Заказов пока нет"));
   }
   data.items.forEach((o) => {
     const tr = document.createElement("tr");
+    tr.className = "row-link";
     tr.appendChild(tdText(o.order_id));
-    tr.appendChild(tdText(o.telegram_id));
+    tr.appendChild(tdText(whoLabel(o.telegram_id, o.username, o.first_name)));
+    tr.appendChild(tdText(o.status === "granted" || o.amount_rub ? (Number(o.amount_rub) || 0) + " ₽" : "—"));
     tr.appendChild(tdText(o.plan_code));
     tr.appendChild(tdPill(o.status));
     tr.appendChild(tdText(fmt(o.created_at)));
     labelRow(tr, labels);
+    tr.onclick = () => {
+      applyUserFilters({ q: String(o.telegram_id) });
+      switchTab("users", { skipFill: true });
+    };
     body.appendChild(tr);
   });
   pager($("orderPager"), data.page, data.total, data.limit, loadOrders);
@@ -1325,6 +1408,7 @@ const BILL_KIND = {
   trial: "триал",
   admin_balance: "баланс",
   admin_grant: "начисление",
+  topup: "пополнение",
   trust: "обещанный",
   trust_collect: "возврат обещанного",
   device_delete: "удаление",
@@ -1491,9 +1575,9 @@ function paintDeviceCard(d) {
   card.appendChild(head);
   const how = [d.client, d.platform].filter(Boolean).join(" · ");
   card.appendChild(kvLine("Клиент", how || "не указан в кабинете"));
-  card.appendChild(kvLine("Сейчас", fmtBytes(d.used_traffic_bytes)));
-  const life = fmtBytes(d.lifetime_traffic_bytes);
-  card.appendChild(kvLine("Всего", life === "—" ? fmtBytes(d.used_traffic_bytes) : life));
+  card.appendChild(kvLine("Сейчас", fmtTraffic(d.used_traffic_bytes, d.lifetime_traffic_bytes)));
+  const life = fmtTraffic(d.lifetime_traffic_bytes, d.used_traffic_bytes);
+  card.appendChild(kvLine("Всего", life));
   const last = d.last_online_at
     ? fmtAgo(d.last_online_at) + " · " + fmt(d.last_online_at)
     : "нет данных";
@@ -2220,6 +2304,7 @@ function openUser(u) {
       : " · пришёл без рефссылки") +
     ` · пригласил друзей: ${u.invited_count || 0}` +
     (u.blocked_at ? " · заблокирован" : "");
+  paintModalPaid(u);
   $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
   $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
   paintModalOnline(u.last_online_at);
@@ -2245,6 +2330,7 @@ async function refreshOpenUser() {
       : " · пришёл без рефссылки") +
     ` · пригласил друзей: ${u.invited_count || 0}` +
     (u.blocked_at ? " · заблокирован" : "");
+  paintModalPaid(u);
   $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
   $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
   paintModalOnline(u.last_online_at);
@@ -2349,7 +2435,7 @@ $("userSearch").onclick = () => {
 };
 if ($("userReset")) {
   $("userReset").onclick = () => {
-    ["userQ", "userStatus", "userTrial", "userDevices", "userOnline", "userBalSign", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => setVal(id, ""));
+    ["userQ", "userStatus", "userTrial", "userDevices", "userOnline", "userPaid", "userBalSign", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => setVal(id, ""));
     selectedUsers.clear();
     loadUsers(1);
   };
@@ -2419,7 +2505,7 @@ const userReload = debounce(() => {
   loadUsers(1);
 }, 300);
 $("userQ").oninput = userReload;
-["userStatus", "userTrial", "userDevices", "userOnline", "userBalSign", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => {
+["userStatus", "userTrial", "userDevices", "userOnline", "userPaid", "userBalSign", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => {
   const el = $(id);
   if (el) el.onchange = userReload;
 });

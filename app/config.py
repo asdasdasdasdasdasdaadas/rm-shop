@@ -182,6 +182,23 @@ class Settings(BaseSettings):
             "topup_rub": amount,
         }
 
+    def topup_rub_for_code(self, code: str | None) -> int:
+        key = str(code or "").strip()
+        if not key:
+            return 0
+        plan = self.plan_by_code(key) or self.plans.get(key)
+        if plan:
+            raw = plan.get("topup_rub")
+            if raw in (None, ""):
+                raw = plan.get("rub")
+            try:
+                return int(round(float(raw or 0)))
+            except (TypeError, ValueError):
+                return 0
+        if key.startswith("b") and key[1:].isdigit():
+            return int(key[1:])
+        return 0
+
     @property
     def promo_map(self) -> dict[str, int]:
         result: dict[str, int] = {}

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="43">
+  <meta name="admin-build" content="45">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -179,6 +179,22 @@
           <div id="cardsAudience" class="cards cards-snap"></div>
           <div class="section-label">Финансы</div>
           <div id="cardsFinance" class="cards cards-snap"></div>
+          <div class="section-label">Реальные пополнения</div>
+          <p class="muted tight">Только успешные оплаты кассы. Начисления из админки, триал и рефералка сюда не входят.</p>
+          <div id="cardsTopup" class="cards cards-snap"></div>
+          <div class="table-wrap">
+            <table class="table-as-cards">
+              <thead>
+                <tr>
+                  <th>Клиент</th>
+                  <th>Платежей</th>
+                  <th>Сумма</th>
+                  <th>Последний</th>
+                </tr>
+              </thead>
+              <tbody id="topupPayerRows"></tbody>
+            </table>
+          </div>
           <div class="section-label">Проблемы</div>
           <div id="cardsIssues" class="cards cards-snap"></div>
           <div class="grid2">
@@ -347,6 +363,11 @@
             </select>
             <input id="userBalMin" type="number" placeholder="Баланс от" step="1">
             <input id="userBalMax" type="number" placeholder="Баланс до" step="1">
+            <select id="userPaid" aria-label="Пополнения">
+              <option value="">Пополнения: все</option>
+              <option value="yes">Были оплаты</option>
+              <option value="no">Без оплат</option>
+            </select>
             <input id="userFrom" type="date" aria-label="Регистрация с">
             <input id="userTo" type="date" aria-label="Регистрация по">
             <button type="button" id="userSearch">Найти</button>
@@ -376,6 +397,7 @@
                   <th class="check-col"><input id="userSelectAll" type="checkbox" aria-label="Выбрать страницу"></th>
                   <th>Клиент</th>
                   <th>Баланс</th>
+                  <th>Пополнил</th>
                   <th>Устройства</th>
                   <th>Онлайн</th>
                   <th>Трафик</th>
@@ -565,6 +587,7 @@
                 <tr>
                   <th>Заказ</th>
                   <th>Пользователь</th>
+                  <th>Сумма</th>
                   <th>Тариф</th>
                   <th>Статус</th>
                   <th>Создан</th>
@@ -1074,6 +1097,7 @@
           <h3 id="modalTitle">Пользователь</h3>
           <p id="modalMeta" class="muted"></p>
           <p id="modalOnline" class="muted"></p>
+          <p id="modalPaid" class="muted"></p>
         </div>
         <button type="button" id="modalClose" class="ghost">Закрыть</button>
       </div>
@@ -1145,6 +1169,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=51"></script>
+  <script src="app.js?v=53"></script>
 </body>
 </html>

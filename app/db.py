@@ -512,7 +512,7 @@ async def save_panel_snapshot(telegram_id: int, panel: dict | None) -> None:
             subscription_url = $6,
             last_synced_at = $7,
             used_traffic_bytes = COALESCE($8, used_traffic_bytes),
-            lifetime_traffic_bytes = COALESCE($9, lifetime_traffic_bytes)
+            lifetime_traffic_bytes = GREATEST(COALESCE($9, 0), COALESCE(lifetime_traffic_bytes, 0))
         WHERE telegram_id = $1
         """,
         telegram_id,
@@ -530,7 +530,7 @@ async def save_panel_snapshot(telegram_id: int, panel: dict | None) -> None:
             """
             UPDATE devices SET
                 used_traffic_bytes = COALESCE($2, used_traffic_bytes),
-                lifetime_traffic_bytes = COALESCE($3, lifetime_traffic_bytes)
+                lifetime_traffic_bytes = GREATEST(COALESCE($3, 0), COALESCE(lifetime_traffic_bytes, 0))
             WHERE remnawave_id = $1
             """,
             remnawave_id,
@@ -604,7 +604,7 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
                 ELSE d.last_online_at
             END,
             used_traffic_bytes = COALESCE(v.used_bytes, d.used_traffic_bytes),
-            lifetime_traffic_bytes = COALESCE(v.life_bytes, d.lifetime_traffic_bytes)
+            lifetime_traffic_bytes = GREATEST(COALESCE(v.life_bytes, 0), COALESCE(d.lifetime_traffic_bytes, 0))
         FROM unnest(
             $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[],
             $6::timestamptz[], $7::bigint[], $8::bigint[]
@@ -629,7 +629,7 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
             subscription_url = COALESCE(v.sub, u.subscription_url),
             last_synced_at = $8,
             used_traffic_bytes = COALESCE(v.used_bytes, u.used_traffic_bytes),
-            lifetime_traffic_bytes = COALESCE(v.life_bytes, u.lifetime_traffic_bytes)
+            lifetime_traffic_bytes = GREATEST(COALESCE(v.life_bytes, 0), COALESCE(u.lifetime_traffic_bytes, 0))
         FROM unnest(
             $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[],
             $6::bigint[], $7::bigint[]
@@ -655,7 +655,7 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
             subscription_url = COALESCE(v.sub, u.subscription_url),
             last_synced_at = $8,
             used_traffic_bytes = COALESCE(v.used_bytes, u.used_traffic_bytes),
-            lifetime_traffic_bytes = COALESCE(v.life_bytes, u.lifetime_traffic_bytes)
+            lifetime_traffic_bytes = GREATEST(COALESCE(v.life_bytes, 0), COALESCE(u.lifetime_traffic_bytes, 0))
         FROM unnest(
             $1::bigint[], $2::text[], $3::timestamptz[], $4::text[], $5::text[],
             $6::bigint[], $7::bigint[]
@@ -712,7 +712,7 @@ async def save_device_subscription(remnawave_id: int, panel: dict | None) -> str
             expire_at = COALESCE($4, expire_at),
             panel_status = COALESCE($5, panel_status),
             used_traffic_bytes = COALESCE($6, used_traffic_bytes),
-            lifetime_traffic_bytes = COALESCE($7, lifetime_traffic_bytes)
+            lifetime_traffic_bytes = GREATEST(COALESCE($7, 0), COALESCE(lifetime_traffic_bytes, 0))
         WHERE remnawave_id = $1
         RETURNING title
         """,
@@ -1930,6 +1930,21 @@ def _admin_users_filter(query: str, extra: dict | None = None) -> tuple[str, lis
         clauses.append("EXISTS (SELECT 1 FROM devices d0 WHERE d0.telegram_id = u.telegram_id)")
     elif devices == "no":
         clauses.append("NOT EXISTS (SELECT 1 FROM devices d0 WHERE d0.telegram_id = u.telegram_id)")
+    paid = str(extra.get("paid") or "").strip()
+    if paid == "yes":
+        clauses.append(
+            """EXISTS (
+                SELECT 1 FROM rollypay_orders o
+                WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
+            )"""
+        )
+    elif paid == "no":
+        clauses.append(
+            """NOT EXISTS (
+                SELECT 1 FROM rollypay_orders o
+                WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
+            )"""
+        )
     bal_sign = str(extra.get("bal_sign") or "").strip()
     if bal_sign == "pos":
         clauses.append("COALESCE(u.balance_rub, 0) > 0")
@@ -2014,8 +2029,14 @@ async def admin_list_users(
                                'client', COALESCE(d.client, ''),
                                'status', COALESCE(d.panel_status, ''),
                                'last_online_at', d.last_online_at,
-                               'used_traffic_bytes', d.used_traffic_bytes,
-                               'lifetime_traffic_bytes', d.lifetime_traffic_bytes
+                               'used_traffic_bytes', GREATEST(
+                                   COALESCE(d.used_traffic_bytes, 0),
+                                   COALESCE(d.lifetime_traffic_bytes, 0)
+                               ),
+                               'lifetime_traffic_bytes', GREATEST(
+                                   COALESCE(d.lifetime_traffic_bytes, 0),
+                                   COALESCE(d.used_traffic_bytes, 0)
+                               )
                            )
                            ORDER BY d.id
                        ),
@@ -2029,27 +2050,58 @@ async def admin_list_users(
                    FROM devices d
                    WHERE d.telegram_id = u.telegram_id
                ) AS last_online_at,
-               COALESCE(
-                   (
-                       SELECT SUM(d.used_traffic_bytes)::bigint
-                       FROM devices d
-                       WHERE d.telegram_id = u.telegram_id
-                         AND d.used_traffic_bytes IS NOT NULL
+               GREATEST(
+                   COALESCE(
+                       (
+                           SELECT SUM(
+                               GREATEST(
+                                   COALESCE(d.used_traffic_bytes, 0),
+                                   COALESCE(d.lifetime_traffic_bytes, 0)
+                               )
+                           )::bigint
+                           FROM devices d
+                           WHERE d.telegram_id = u.telegram_id
+                       ),
+                       0
                    ),
-                   u.used_traffic_bytes
+                   COALESCE(u.used_traffic_bytes, 0),
+                   COALESCE(u.lifetime_traffic_bytes, 0)
                ) AS used_traffic_bytes,
-               COALESCE(
-                   (
-                       SELECT SUM(d.lifetime_traffic_bytes)::bigint
-                       FROM devices d
-                       WHERE d.telegram_id = u.telegram_id
-                         AND d.lifetime_traffic_bytes IS NOT NULL
+               GREATEST(
+                   COALESCE(
+                       (
+                           SELECT SUM(
+                               GREATEST(
+                                   COALESCE(d.lifetime_traffic_bytes, 0),
+                                   COALESCE(d.used_traffic_bytes, 0)
+                               )
+                           )::bigint
+                           FROM devices d
+                           WHERE d.telegram_id = u.telegram_id
+                       ),
+                       0
                    ),
-                   u.lifetime_traffic_bytes
+                   COALESCE(u.lifetime_traffic_bytes, 0),
+                   COALESCE(u.used_traffic_bytes, 0)
                ) AS lifetime_traffic_bytes,
                (
                    SELECT COUNT(*)::int FROM users inv WHERE inv.referred_by = u.telegram_id
-               ) AS invited_count
+               ) AS invited_count,
+               (
+                   SELECT COUNT(*)::int
+                   FROM rollypay_orders o
+                   WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
+               ) AS paid_topup_count,
+               (
+                   SELECT MAX(o.created_at)
+                   FROM rollypay_orders o
+                   WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
+               ) AS last_paid_at,
+               (
+                   SELECT COALESCE(json_agg(o.plan_code), '[]'::json)
+                   FROM rollypay_orders o
+                   WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
+               ) AS paid_plan_codes
         FROM users u
         LEFT JOIN users ref ON ref.telegram_id = u.referred_by
         {where}
@@ -2058,7 +2110,21 @@ async def admin_list_users(
     """
     total = await pool.fetchval(total_sql, *args)
     rows = await pool.fetch(list_sql, *args, limit, offset)
-    return [_jsonable(dict(r)) for r in rows], int(total or 0)
+    settings = get_settings()
+    items = []
+    for r in rows:
+        item = _jsonable(dict(r))
+        codes = item.pop("paid_plan_codes", None) or []
+        if isinstance(codes, str):
+            try:
+                codes = json.loads(codes)
+            except ValueError:
+                codes = []
+        if not isinstance(codes, list):
+            codes = []
+        item["paid_topup_rub"] = sum(settings.topup_rub_for_code(c) for c in codes)
+        items.append(item)
+    return items, int(total or 0)
 
 
 async def admin_user_ids(query: str, limit: int, extra: dict | None = None) -> tuple[list[int], int]:
@@ -2162,32 +2228,97 @@ async def admin_list_orders(
         args.append(f"%{q}%")
         n = len(args)
         clauses.append(
-            f"""(order_id ILIKE ${n} OR COALESCE(payment_id, '') ILIKE ${n}
-               OR telegram_id::text LIKE ${n} OR status ILIKE ${n}
-               OR COALESCE(plan_code, '') ILIKE ${n})"""
+            f"""(o.order_id ILIKE ${n} OR COALESCE(o.payment_id, '') ILIKE ${n}
+               OR o.telegram_id::text LIKE ${n} OR o.status ILIKE ${n}
+               OR COALESCE(o.plan_code, '') ILIKE ${n}
+               OR COALESCE(u.username, '') ILIKE ${n}
+               OR COALESCE(u.first_name, '') ILIKE ${n})"""
         )
     status = str(extra.get("status") or "").strip()
     if status:
         args.append(status)
-        clauses.append(f"status = ${len(args)}")
+        clauses.append(f"o.status = ${len(args)}")
     from_d = str(extra.get("from") or "").strip()
     to_d = str(extra.get("to") or "").strip()
     if from_d:
         args.append(from_d)
-        clauses.append(f"created_at >= ${len(args)}::date")
+        clauses.append(f"o.created_at >= ${len(args)}::date")
     if to_d:
         args.append(to_d)
-        clauses.append(f"created_at < (${len(args)}::date + INTERVAL '1 day')")
+        clauses.append(f"o.created_at < (${len(args)}::date + INTERVAL '1 day')")
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
-    total = await pool.fetchval(f"SELECT COUNT(*)::int FROM rollypay_orders {where}", *args)
+    total = await pool.fetchval(
+        f"""
+        SELECT COUNT(*)::int FROM rollypay_orders o
+        LEFT JOIN users u ON u.telegram_id = o.telegram_id
+        {where}
+        """,
+        *args,
+    )
     n = len(args)
     rows = await pool.fetch(
-        f"SELECT * FROM rollypay_orders {where} ORDER BY created_at DESC LIMIT ${n + 1} OFFSET ${n + 2}",
+        f"""
+        SELECT o.*, u.username, u.first_name
+        FROM rollypay_orders o
+        LEFT JOIN users u ON u.telegram_id = o.telegram_id
+        {where}
+        ORDER BY o.created_at DESC
+        LIMIT ${n + 1} OFFSET ${n + 2}
+        """,
         *args,
         limit,
         offset,
     )
-    return [_jsonable(dict(r)) for r in rows], int(total or 0)
+    settings = get_settings()
+    items = []
+    for r in rows:
+        item = _jsonable(dict(r))
+        item["amount_rub"] = settings.topup_rub_for_code(item.get("plan_code"))
+        items.append(item)
+    return items, int(total or 0)
+
+
+async def admin_topup_summary(limit: int = 50) -> dict:
+    pool = _pool_req()
+    rows = await pool.fetch(
+        """
+        SELECT o.telegram_id, u.username, u.first_name, o.plan_code,
+               COUNT(*)::int AS n, MAX(o.created_at) AS last_paid_at
+        FROM rollypay_orders o
+        LEFT JOIN users u ON u.telegram_id = o.telegram_id
+        WHERE o.status = 'granted'
+        GROUP BY o.telegram_id, u.username, u.first_name, o.plan_code
+        """
+    )
+    settings = get_settings()
+    by_user: dict[int, dict] = {}
+    for r in rows:
+        tid = int(r["telegram_id"])
+        rec = by_user.setdefault(
+            tid,
+            {
+                "telegram_id": tid,
+                "username": r["username"],
+                "first_name": r["first_name"],
+                "payments": 0,
+                "amount_rub": 0,
+                "last_paid_at": None,
+            },
+        )
+        n = int(r["n"] or 0)
+        rec["payments"] += n
+        rec["amount_rub"] += settings.topup_rub_for_code(r["plan_code"]) * n
+        ts = r["last_paid_at"]
+        if ts and (rec["last_paid_at"] is None or ts > rec["last_paid_at"]):
+            rec["last_paid_at"] = ts
+    items = sorted(by_user.values(), key=lambda x: (-int(x["amount_rub"]), x["telegram_id"]))
+    cap = max(1, min(200, int(limit)))
+    return {
+        "payers": len(items),
+        "payments": sum(int(x["payments"]) for x in items),
+        "amount_rub": sum(int(x["amount_rub"]) for x in items),
+        "items": [_jsonable(x) for x in items[:cap]],
+    }
 
 
 async def reset_trial(telegram_id: int) -> bool:
