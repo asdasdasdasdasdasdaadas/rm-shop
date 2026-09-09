@@ -795,6 +795,56 @@ async def api_delete_user(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def api_purge_bot_blockers(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    ids, total = await db.list_idle_bot_blockers(200)
+    bot: Bot = request.app["bot"]
+    rw: RemnawaveClient = request.app["rw"]
+    deleted = 0
+    clawed = 0
+    skipped = 0
+    for telegram_id in ids:
+        if telegram_id in get_settings().admin_id_set:
+            skipped += 1
+            continue
+        result = await db.clawback_idle_referral(telegram_id)
+        if result:
+            clawed += 1
+            name = escape(str(result.get("invitee_name") or "друг"))
+            text = notice_text(
+                "referral_clawback",
+                name=name,
+                amount=rub_text(int(result["amount"])),
+            )
+            try:
+                await bot.send_message(int(result["referrer_id"]), text)
+            except Exception:
+                logger.debug(
+                    "Не удалось написать о возврате рефералки %s",
+                    result["referrer_id"],
+                    exc_info=True,
+                )
+        status = await _purge_user(rw, telegram_id)
+        if status == "ok":
+            deleted += 1
+        else:
+            skipped += 1
+        await asyncio.sleep(0.02)
+    remaining = max(0, int(total) - deleted)
+    return web.json_response(
+        {
+            "ok": True,
+            "deleted": deleted,
+            "clawed": clawed,
+            "skipped": skipped,
+            "total": total,
+            "remaining": remaining,
+        }
+    )
+
+
 async def api_block_user(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -1682,6 +1732,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/billing", api_billing)
     app.router.add_get("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/settings", api_settings)
+    app.router.add_post("/admin/api/users/purge-bot-blockers", api_purge_bot_blockers)
     app.router.add_post("/admin/api/users/{telegram_id}/grant", api_grant)
     app.router.add_post("/admin/api/users/{telegram_id}/balance", api_balance)
     app.router.add_post("/admin/api/users/{telegram_id}/trial-reset", api_trial_reset)

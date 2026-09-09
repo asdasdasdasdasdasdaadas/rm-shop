@@ -135,6 +135,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS story_rewarded_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS story_pending_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_blocked_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_clawback_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_nudge_sent_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_nudge_sent_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS info_nudge_sent_at TIMESTAMPTZ;
@@ -193,6 +195,7 @@ CREATE INDEX IF NOT EXISTS billing_events_created_idx ON billing_events (created
 CREATE INDEX IF NOT EXISTS billing_events_tg_idx ON billing_events (telegram_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS billing_events_device_kind_idx ON billing_events (device_id, kind, created_at DESC);
 CREATE INDEX IF NOT EXISTS users_blocked_at_idx ON users (blocked_at) WHERE blocked_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS users_bot_blocked_idx ON users (bot_blocked_at) WHERE bot_blocked_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS users_trial_nudge_idx ON users (created_at)
     WHERE trial_nudge_sent_at IS NULL AND trial_used = FALSE;
 CREATE INDEX IF NOT EXISTS users_invite_nudge_idx ON users (created_at)
@@ -259,6 +262,22 @@ CREATE INDEX IF NOT EXISTS message_log_created_idx ON message_log (created_at DE
 CREATE INDEX IF NOT EXISTS message_log_kind_idx ON message_log (kind, created_at DESC);
 CREATE INDEX IF NOT EXISTS message_log_tg_idx ON message_log (telegram_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS message_log_source_idx ON message_log (source, created_at DESC);
+
+UPDATE users u
+SET bot_blocked_at = m.first_at
+FROM (
+    SELECT telegram_id, MIN(created_at) AS first_at
+    FROM message_log
+    WHERE status = 'failed'
+      AND telegram_id IS NOT NULL
+      AND (
+        extra->>'error' = 'пользователь заблокировал бота'
+        OR COALESCE(extra->>'error_raw', '') ILIKE '%blocked by the user%'
+      )
+    GROUP BY telegram_id
+) m
+WHERE u.telegram_id = m.telegram_id
+  AND u.bot_blocked_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS tickets (
     id BIGSERIAL PRIMARY KEY,

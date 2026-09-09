@@ -11,6 +11,7 @@ import secrets
 import asyncpg
 
 from app.config import get_settings
+from app.tg_err import is_user_blocked_bot
 from app.remnawave import panel_lifetime_traffic_bytes, panel_online_at, panel_used_traffic_bytes
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
@@ -112,7 +113,8 @@ async def upsert_user(
                 THEN users.referred_by
                 ELSE EXCLUDED.referred_by
             END,
-            ad_link_id = COALESCE(users.ad_link_id, EXCLUDED.ad_link_id)
+            ad_link_id = COALESCE(users.ad_link_id, EXCLUDED.ad_link_id),
+            bot_blocked_at = NULL
         """,
         telegram_id,
         username,
@@ -1282,6 +1284,120 @@ async def set_user_blocked(telegram_id: int, blocked: bool, reason: str | None =
     return result == "UPDATE 1"
 
 
+async def mark_bot_blocked(telegram_id: int) -> bool:
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users
+        SET bot_blocked_at = COALESCE(bot_blocked_at, $2)
+        WHERE telegram_id = $1
+        RETURNING telegram_id
+        """,
+        int(telegram_id),
+        _utc_now(),
+    )
+    if not row:
+        return False
+    await clawback_idle_referral(int(telegram_id))
+    return True
+
+
+async def clawback_idle_referral(invitee_id: int) -> dict | None:
+    settings = get_settings()
+    if not settings.balance_enabled:
+        return None
+    amount = int(settings.referral_reward_rub or 0)
+    if amount < 1:
+        return None
+    pool = _pool_req()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            invitee = await conn.fetchrow(
+                """
+                SELECT telegram_id, referred_by, trial_used, has_paid_topup,
+                       referral_rewarded, referral_clawback_at, first_name
+                FROM users
+                WHERE telegram_id = $1
+                FOR UPDATE
+                """,
+                int(invitee_id),
+            )
+            if not invitee:
+                return None
+            if invitee["trial_used"] or invitee["has_paid_topup"]:
+                return None
+            if not invitee["referral_rewarded"] or invitee["referral_clawback_at"]:
+                return None
+            referrer_id = invitee["referred_by"]
+            if not referrer_id:
+                return None
+            referrer_id = int(referrer_id)
+            await conn.execute(
+                """
+                UPDATE users
+                SET referral_rewarded = FALSE,
+                    referral_clawback_at = timezone('utc', now())
+                WHERE telegram_id = $1
+                """,
+                int(invitee_id),
+            )
+            after = await conn.fetchrow(
+                """
+                UPDATE users
+                SET balance_rub = COALESCE(balance_rub, 0) - $2,
+                    referral_earned = GREATEST(0, COALESCE(referral_earned, 0) - $2)
+                WHERE telegram_id = $1
+                RETURNING balance_rub
+                """,
+                referrer_id,
+                amount,
+            )
+            if not after:
+                return None
+            balance_after = int(after["balance_rub"] or 0)
+            invitee_name = invitee["first_name"]
+    await log_billing_event(
+        referrer_id,
+        "referral_revoke",
+        source="auto",
+        amount=-amount,
+        balance_after=balance_after,
+        note=f"Возврат за друга {invitee_id}: заблокировал бота без триала",
+    )
+    return {
+        "referrer_id": referrer_id,
+        "invitee_id": int(invitee_id),
+        "amount": amount,
+        "balance_after": balance_after,
+        "invitee_name": invitee_name,
+    }
+
+
+async def list_idle_bot_blockers(limit: int) -> tuple[list[int], int]:
+    cap = max(1, min(500, int(limit)))
+    pool = _pool_req()
+    total = await pool.fetchval(
+        """
+        SELECT COUNT(*)::int FROM users
+        WHERE bot_blocked_at IS NOT NULL
+          AND NOT trial_used
+          AND NOT COALESCE(has_paid_topup, FALSE)
+        """
+    )
+    rows = await pool.fetch(
+        """
+        SELECT telegram_id
+        FROM users
+        WHERE bot_blocked_at IS NOT NULL
+          AND NOT trial_used
+          AND NOT COALESCE(has_paid_topup, FALSE)
+        ORDER BY bot_blocked_at ASC, telegram_id
+        LIMIT $1
+        """,
+        cap,
+    )
+    return [int(r["telegram_id"]) for r in rows], int(total or 0)
+
+
 async def list_panel_ids_for_user(telegram_id: int) -> list[int]:
     local = await get_user(telegram_id)
     if not local:
@@ -1317,6 +1433,7 @@ async def delete_user(telegram_id: int) -> bool:
             await conn.execute("DELETE FROM cabinet_tokens WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM billing_events WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM referral_payouts WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM message_log WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM devices WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM users WHERE telegram_id = $1", telegram_id)
     return True
@@ -1690,6 +1807,12 @@ async def log_bot_message(
         )
     except Exception:
         logging.getLogger("rm-shop.db").debug("Не удалось записать журнал сообщений", exc_info=True)
+        return
+    if str(status or "") == "failed" and telegram_id and is_user_blocked_bot(extra=extra or {}):
+        try:
+            await mark_bot_blocked(int(telegram_id))
+        except Exception:
+            logging.getLogger("rm-shop.db").debug("Не удалось отметить блок бота %s", telegram_id, exc_info=True)
 
 
 async def admin_stats() -> dict:
@@ -1707,6 +1830,12 @@ async def admin_stats() -> dict:
             COUNT(*) FILTER (WHERE referred_by IS NOT NULL)::int AS referred,
             COUNT(*) FILTER (WHERE referral_rewarded)::int AS referral_rewarded,
             COUNT(*) FILTER (WHERE blocked_at IS NOT NULL)::int AS blocked,
+            COUNT(*) FILTER (WHERE bot_blocked_at IS NOT NULL)::int AS bot_blocked,
+            COUNT(*) FILTER (
+                WHERE bot_blocked_at IS NOT NULL
+                  AND NOT trial_used
+                  AND NOT COALESCE(has_paid_topup, FALSE)
+            )::int AS bot_blocked_idle,
             COALESCE((SELECT COUNT(*)::int FROM referral_payouts WHERE status = 'pending'), 0) AS payouts_pending
         FROM users
         """
@@ -2001,8 +2130,10 @@ def _admin_users_filter(query: str, extra: dict | None = None) -> tuple[str, lis
     status = str(extra.get("status") or "").strip()
     if status == "block":
         clauses.append("u.blocked_at IS NOT NULL")
+    elif status == "bot_block":
+        clauses.append("u.bot_blocked_at IS NOT NULL")
     elif status == "ok":
-        clauses.append("u.blocked_at IS NULL")
+        clauses.append("u.blocked_at IS NULL AND u.bot_blocked_at IS NULL")
     trial = str(extra.get("trial") or "").strip()
     if trial == "yes":
         clauses.append("u.trial_used")
@@ -2994,6 +3125,7 @@ _USER_BILLING_KINDS = (
     "device_delete",
     "referral",
     "referral_payout",
+    "referral_revoke",
     "story",
 )
 

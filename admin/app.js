@@ -1043,7 +1043,9 @@ async function loadStats() {
     fill("cardsIssues", [
       ["Открытые тикеты", s.tickets_open || 0, "tickets"],
       ["Жалобы VPN", s.vpn_reports || 0, "reports"],
-      ["Заблокированы", u.blocked || 0, "users"],
+      ["Заблокированы в магазине", u.blocked || 0, "users", { filters: { status: "block" } }],
+      ["Заблокировали бота", u.bot_blocked || 0, "users", { filters: { status: "bot_block" } }],
+      ["Блок бота без триала", u.bot_blocked_idle || 0, "users", { filters: { status: "bot_block", trial: "no", paid: "no" } }],
     ]);
     kv($("orderStats"), s.orders, "Заказов пока нет");
     kv($("planStats"), s.plans, "Оплаченных тарифов нет");
@@ -1144,7 +1146,7 @@ async function loadUsers(page) {
   const reset = $("userReset");
   if (reset) reset.classList.toggle("hidden", !hasAny(f));
   const chips = [];
-  if (f.status) chips.push(["status", "Статус: " + (f.status === "block" ? "блок" : "активен")]);
+  if (f.status) chips.push(["status", "Статус: " + ({ ok: "активен", block: "блок в магазине", bot_block: "блок бота" }[f.status] || f.status)]);
   if (f.trial) chips.push(["trial", "Триал: " + f.trial]);
   if (f.devices) chips.push(["devices", "Устройства: " + f.devices]);
   if (f.paid) chips.push(["paid", f.paid === "yes" ? "были оплаты" : "без оплат"]);
@@ -1177,7 +1179,7 @@ async function loadUsers(page) {
   }
   lastUserItems.forEach((u) => {
     const tr = document.createElement("tr");
-    tr.className = "row-link" + (u.blocked_at ? " is-blocked" : "");
+    tr.className = "row-link" + (u.blocked_at || u.bot_blocked_at ? " is-blocked" : "");
     const tdCheck = document.createElement("td");
     tdCheck.className = "check-col";
     const cb = document.createElement("input");
@@ -1212,7 +1214,7 @@ async function loadUsers(page) {
     tr.appendChild(tdTraffic);
     tr.appendChild(tdText(u.trial_used ? "да" : "нет"));
     tr.appendChild(tdText(fmt(u.expire_at)));
-    tr.appendChild(tdPill(u.blocked_at ? "блок" : (u.panel_status || "—")));
+    tr.appendChild(tdPill(u.blocked_at ? "блок" : (u.bot_blocked_at ? "блок бота" : (u.panel_status || "—"))));
     tr.appendChild(tdText(
       u.referred_by
         ? whoLabel(u.referred_by, u.referrer_username, u.referrer_name)
@@ -1494,7 +1496,9 @@ const BILL_KIND = {
   trial: "триал",
   admin_balance: "баланс",
   admin_grant: "начисление",
-  topup: "пополнение",
+  referral: "реферал",
+  referral_payout: "вывод рефералки",
+  referral_revoke: "возврат рефералки",
   trust: "обещанный",
   trust_collect: "возврат обещанного",
   device_delete: "удаление",
@@ -2435,7 +2439,8 @@ function openUser(u) {
       ? ` · пригласил ${whoLabel(u.referred_by, u.referrer_username, u.referrer_name)}`
       : " · пришёл без рефссылки") +
     ` · пригласил друзей: ${u.invited_count || 0}` +
-    (u.blocked_at ? " · заблокирован" : "");
+    (u.blocked_at ? " · заблокирован в магазине" : "") +
+    (u.bot_blocked_at ? " · заблокировал бота" : "");
   paintModalPaid(u);
   $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
   $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
@@ -2461,7 +2466,8 @@ async function refreshOpenUser() {
       ? ` · пригласил ${whoLabel(u.referred_by, u.referrer_username, u.referrer_name)}`
       : " · пришёл без рефссылки") +
     ` · пригласил друзей: ${u.invited_count || 0}` +
-    (u.blocked_at ? " · заблокирован" : "");
+    (u.blocked_at ? " · заблокирован в магазине" : "") +
+    (u.bot_blocked_at ? " · заблокировал бота" : "");
   paintModalPaid(u);
   $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
   $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
@@ -2895,6 +2901,27 @@ $("bulkDeleteMatch").onclick = () => {
     `Удалить ${label}? Не больше 500 за раз. Админы пропускаются.`
   );
 };
+if ($("purgeBotBlockers")) {
+  $("purgeBotBlockers").onclick = async () => {
+    if (
+      !(await confirmAction(
+        "Удалить блок бота без триала",
+        "Удалит пользователей, которые заблокировали бота и не взяли триал. Если за них уже выплатили рефералку, сумма спишется у пригласившего. За раз не больше 200."
+      ))
+    ) {
+      return;
+    }
+    try {
+      const r = await api("/admin/api/users/purge-bot-blockers", { method: "POST", body: "{}" });
+      const extra = r.remaining ? `. Осталось ${r.remaining}, нажмите ещё раз.` : "";
+      toast(`Удалено ${r.deleted}, возвратов ${r.clawed}${extra}`);
+      loadStats();
+      loadUsers();
+    } catch (err) {
+      toast(err.message || "Не удалось удалить");
+    }
+  };
+}
 $("orderQ").onkeydown = (e) => {
   if (e.key === "Enter") loadOrders(1);
 };

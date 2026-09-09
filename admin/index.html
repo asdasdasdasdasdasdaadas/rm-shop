@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="48">
+  <meta name="admin-build" content="49">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=39">
+  <link rel="stylesheet" href="app.css?v=40">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -211,6 +211,10 @@
           </div>
           <div class="section-label">Проблемы</div>
           <div id="cardsIssues" class="cards cards-snap"></div>
+          <p class="muted tight">«Заблокировали бота» — те, кому Telegram ответил, что чат закрыт. Без триала можно удалить и вернуть реферальную награду пригласившему.</p>
+          <div class="ops">
+            <button type="button" id="purgeBotBlockers" class="danger">Удалить блок бота без триала</button>
+          </div>
           <div class="grid2">
             <div class="panel">
               <h3>Заказы по статусу</h3>
@@ -348,7 +352,8 @@
             <select id="userStatus" aria-label="Статус">
               <option value="">Статус: все</option>
               <option value="ok">Активен</option>
-              <option value="block">Блок</option>
+              <option value="block">Блок в магазине</option>
+              <option value="bot_block">Заблокировал бота</option>
             </select>
             <select id="userTrial" aria-label="Триал">
               <option value="">Триал: все</option>
@@ -626,7 +631,8 @@
               <option value="error">ошибка</option>
               <option value="device_delete">удаление</option>
               <option value="trust">обещанный</option>
-              <option value="trial">триал</option>
+              <option value="referral">реферал</option>
+              <option value="referral_revoke">возврат рефералки</option>
             </select>
             <select id="billSource" aria-label="Источник">
               <option value="">Источник: все</option>
@@ -1187,6 +1193,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=56"></script>
+  <script src="app.js?v=57"></script>
 </body>
 </html>

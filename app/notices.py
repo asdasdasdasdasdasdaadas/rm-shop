@@ -118,6 +118,10 @@ DEFAULT_NOTICES: dict[str, str] = {
     "referral_payout_rejected": (
         "Заявку на вывод <b>{amount}</b> отклонили. Сумма вернулась на баланс."
     ),
+    "referral_clawback": (
+        "Друг {name} заблокировал бота и не взял бесплатный период. "
+        "С баланса списано <b>{amount}</b>."
+    ),
     "topup_ok": "Баланс пополнен на {amount}.",
     "subscription_issued": (
         "<b>{title}</b>\n\n"
@@ -159,6 +163,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "referral_payout_submitted", "title": "Реферал: заявка на вывод", "hint": "{amount}"},
     {"key": "referral_payout_paid", "title": "Реферал: выплата прошла", "hint": "{amount}"},
     {"key": "referral_payout_rejected", "title": "Реферал: выплата отклонена", "hint": "{amount}"},
+    {"key": "referral_clawback", "title": "Реферал: возврат за блок бота", "hint": "{name} {amount}"},
     {"key": "topup_ok", "title": "Баланс пополнен", "hint": "{amount}"},
     {"key": "subscription_issued", "title": "Подписка оформлена", "hint": "{title} {expire} {sub_block}"},
     {"key": "sub_reissued", "title": "Ссылка подписки перевыпущена", "hint": "{links}"},

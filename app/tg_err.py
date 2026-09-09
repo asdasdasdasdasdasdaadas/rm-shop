@@ -3,6 +3,17 @@ from __future__ import annotations
 from typing import Any
 
 
+def is_user_blocked_bot(exc: BaseException | None = None, extra: dict | None = None) -> bool:
+    parts: list[str] = []
+    if exc is not None:
+        parts.append(str(exc))
+    if isinstance(extra, dict):
+        parts.append(str(extra.get("error") or ""))
+        parts.append(str(extra.get("error_raw") or ""))
+    blob = " ".join(parts).lower()
+    return "blocked by the user" in blob or "пользователь заблокировал бота" in blob
+
+
 def telegram_fail_reason(exc: BaseException) -> str:
     raw = " ".join(str(exc).strip().split())
     low = raw.lower()

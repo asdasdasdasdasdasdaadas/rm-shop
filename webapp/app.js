@@ -1532,6 +1532,7 @@ const BILL_KIND = {
   device_delete: "Удаление устройства",
   referral: "Бонус за друга",
   referral_payout: "Вывод рефералки",
+  referral_revoke: "Возврат за друга",
   story: "Награда за историю",
 };
 
