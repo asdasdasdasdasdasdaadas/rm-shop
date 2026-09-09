@@ -24,7 +24,13 @@ from app.backup import (
 )
 from app.config import ROOT, get_settings
 from app.shop_config import save_shop_overlay, snapshot as shop_snapshot
-from app.keyboards import blocked_keyboard, cabinet_keyboard, share_keyboard
+from app.keyboards import (
+    blocked_keyboard,
+    cabinet_keyboard,
+    share_keyboard,
+    story_nudge_keyboard,
+    trial_nudge_keyboard,
+)
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
 from app.notices import notice_text
 from app.remnawave import (
@@ -40,7 +46,7 @@ from app.remnawave import (
     panel_user_agent,
 )
 from app.texts import days_text, rub_text, subscription_reissued_text
-from app.tg_err import fail_extra
+from app.tg_err import fail_extra, telegram_fail_reason
 
 logger = logging.getLogger("rm-shop.admin")
 ADMIN_DIR = ROOT / "admin"
@@ -443,6 +449,147 @@ async def api_messages(request: web.Request) -> web.Response:
         _query_extra(request, "channel", "source", "kind", "from", "to"),
     )
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+
+
+MSG_RETRY_MAX = 80
+_MSG_RETRY_SKIP = {"maintenance_hit"}
+
+
+async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
+    extra = extra if isinstance(extra, dict) else {}
+    settings = get_settings()
+    if kind == "broadcast":
+        tpl = str(extra.get("template") or "")
+        if tpl == "invite":
+            return share_keyboard(settings.bot_username, telegram_id)
+        if tpl == "unused":
+            return cabinet_keyboard()
+        return None
+    if kind == "nudge_invite":
+        return share_keyboard(settings.bot_username, telegram_id)
+    if kind == "nudge_trial":
+        user = await db.get_user(telegram_id)
+        already = bool(user and (user.get("trial_used") or int(user.get("balance_rub") or 0) > 0))
+        return trial_nudge_keyboard(trial_available=not already)
+    if kind == "nudge_story":
+        return story_nudge_keyboard()
+    if kind == "first_device_thanks":
+        story = bool(settings.balance_enabled and settings.story_reward_enabled and settings.story_reward_rub > 0)
+        return story_nudge_keyboard() if story else cabinet_keyboard()
+    if kind in {"nudge_info", "nudge_device", "low_balance"}:
+        return cabinet_keyboard()
+    return None
+
+
+async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
+    kind = str(row.get("kind") or "")
+    telegram_id = row.get("telegram_id")
+    if kind in _MSG_RETRY_SKIP:
+        return False, "Это входящее обращение, его нельзя отправить"
+    if not telegram_id:
+        return False, "Нет получателя"
+    telegram_id = int(telegram_id)
+    if await db.user_is_blocked(telegram_id):
+        return False, "Пользователь заблокирован в магазине"
+    extra = row.get("extra") if isinstance(row.get("extra"), dict) else {}
+    origin = "manual"
+    if kind == "cabinet_link":
+        from app.balance import send_cabinet_link_to
+
+        try:
+            ok = await send_cabinet_link_to(bot, telegram_id, force=True, source="manual")
+        except ValueError as exc:
+            return False, str(exc)
+        return (True, "") if ok else (False, "Не удалось отправить ссылку")
+    body = str(row.get("body") or "").strip()
+    if not body:
+        return False, "Пустой текст"
+    markup = await _retry_markup(kind, telegram_id, extra)
+    title = str(row.get("title") or "")[:160]
+    log_extra = {"retry_of": int(row["id"])}
+    if extra.get("template"):
+        log_extra["template"] = extra.get("template")
+    if extra.get("step") is not None:
+        log_extra["step"] = extra.get("step")
+    try:
+        await bot.send_message(telegram_id, body, reply_markup=markup)
+    except Exception as exc:
+        await db.log_bot_message(
+            kind=kind,
+            source=origin,
+            telegram_id=telegram_id,
+            username=row.get("username"),
+            first_name=row.get("first_name"),
+            title=title,
+            body=body,
+            status="failed",
+            extra=fail_extra(exc, log_extra),
+        )
+        return False, telegram_fail_reason(exc)
+    await db.log_bot_message(
+        kind=kind,
+        source=origin,
+        telegram_id=telegram_id,
+        username=row.get("username"),
+        first_name=row.get("first_name"),
+        title=title,
+        body=body,
+        status="sent",
+        extra=log_extra,
+    )
+    return True, ""
+
+
+async def api_message_retry(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        row = await db.get_message_log(int(request.match_info["msg_id"]))
+    except (TypeError, ValueError):
+        return web.json_response({"ok": False, "error": "Запись не найдена"}, status=404)
+    if not row:
+        return web.json_response({"ok": False, "error": "Запись не найдена"}, status=404)
+    if str(row.get("status") or "") != "failed":
+        return web.json_response({"ok": False, "error": "Повторить можно только ошибку"}, status=400)
+    ok, err = await retry_logged_message(request.app["bot"], row)
+    if not ok:
+        return web.json_response({"ok": False, "error": err or "Не удалось отправить"}, status=502)
+    return web.json_response({"ok": True})
+
+
+async def api_messages_retry_failed(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    q = str(request.query.get("q") or "")
+    extra = _query_extra(request, "channel", "source", "kind", "from", "to")
+    items, total = await db.admin_list_failed_messages(q, MSG_RETRY_MAX, extra)
+    if not items:
+        return web.json_response({"ok": False, "error": "Ошибок по фильтру нет"}, status=400)
+    sent = 0
+    failed = 0
+    last_error = ""
+    bot: Bot = request.app["bot"]
+    for row in items:
+        ok, err = await retry_logged_message(bot, row)
+        if ok:
+            sent += 1
+        else:
+            failed += 1
+            last_error = err or last_error
+        await asyncio.sleep(0.035)
+    return web.json_response(
+        {
+            "ok": True,
+            "sent": sent,
+            "failed": failed,
+            "tried": len(items),
+            "total": total,
+            "capped": total > len(items),
+            "error": last_error or None,
+        }
+    )
 
 
 async def api_tickets(request: web.Request) -> web.Response:
@@ -1526,6 +1673,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/orders", api_orders)
     app.router.add_get("/admin/api/reports", api_reports)
     app.router.add_get("/admin/api/messages", api_messages)
+    app.router.add_post("/admin/api/messages/retry-failed", api_messages_retry_failed)
+    app.router.add_post("/admin/api/messages/{msg_id}/retry", api_message_retry)
     app.router.add_get("/admin/api/tickets", api_tickets)
     app.router.add_get("/admin/api/tickets/files/{att_id}", api_ticket_file)
     app.router.add_get("/admin/api/tickets/{ticket_id}", api_ticket_one)

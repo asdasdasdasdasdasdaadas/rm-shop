@@ -2034,6 +2034,30 @@ function msgWho(r) {
 }
 
 let msgPage = 1;
+let selectedMsg = null;
+
+function msgCanRetry(r) {
+  return Boolean(r && r.status === "failed" && r.telegram_id && r.kind !== "maintenance_hit");
+}
+
+function paintMsgDetail(r) {
+  selectedMsg = r || null;
+  const btn = $("msgRetry");
+  if (btn) btn.disabled = !msgCanRetry(r);
+  if (!r) {
+    $("msgDetail").textContent = "Выберите строку";
+    return;
+  }
+  const reason = r.status === "failed"
+    ? "Почему не ушло: " + msgLine(r) + "\n\n"
+    : "";
+  const extra = r.extra && typeof r.extra === "object" && Object.keys(r.extra).length
+    ? "\n\n" + JSON.stringify(r.extra, null, 2)
+    : "";
+  $("msgDetail").textContent =
+    `${r.title || MSG_KIND_LABEL[r.kind] || "Сообщение"}\n${msgWho(r)}\n\n${reason}${r.body || "—"}${extra}`;
+}
+
 async function loadMessages(page) {
   if (page) msgPage = page;
   const f = collectMsgFilters();
@@ -2068,6 +2092,8 @@ async function loadMessages(page) {
   data.items.forEach((r) => {
     const tr = document.createElement("tr");
     tr.style.cursor = "pointer";
+    tr.dataset.id = String(r.id);
+    if (selectedMsg && Number(selectedMsg.id) === Number(r.id)) tr.classList.add("is-selected");
     [
       fmt(r.created_at),
       MSG_KIND_LABEL[r.kind] || r.kind || "—",
@@ -2083,17 +2109,18 @@ async function loadMessages(page) {
     });
     labelRow(tr, labels);
     tr.onclick = () => {
-      const reason = r.status === "failed"
-        ? "Почему не ушло: " + msgLine(r) + "\n\n"
-        : "";
-      const extra = r.extra && typeof r.extra === "object" && Object.keys(r.extra).length
-        ? "\n\n" + JSON.stringify(r.extra, null, 2)
-        : "";
-      $("msgDetail").textContent =
-        `${r.title || MSG_KIND_LABEL[r.kind] || "Сообщение"}\n${msgWho(r)}\n\n${reason}${r.body || "—"}${extra}`;
+      body.querySelectorAll("tr.is-selected").forEach((el) => el.classList.remove("is-selected"));
+      tr.classList.add("is-selected");
+      paintMsgDetail(r);
     };
     body.appendChild(tr);
   });
+  if (selectedMsg && !data.items.some((r) => Number(r.id) === Number(selectedMsg.id))) {
+    paintMsgDetail(null);
+  } else if (selectedMsg) {
+    const fresh = data.items.find((r) => Number(r.id) === Number(selectedMsg.id));
+    if (fresh) paintMsgDetail(fresh);
+  }
   pager($("msgPager"), data.page, data.total, data.limit, loadMessages);
 }
 
@@ -2723,6 +2750,47 @@ if ($("msgQ")) {
   const el = $(id);
   if (el) el.onchange = () => loadMessages(1);
 });
+if ($("msgRetry")) {
+  $("msgRetry").onclick = async () => {
+    if (!msgCanRetry(selectedMsg)) return;
+    const who = msgWho(selectedMsg);
+    if (!(await confirmAction("Отправить снова", `Отправить сообщение ${who}?`))) return;
+    try {
+      await api(`/admin/api/messages/${selectedMsg.id}/retry`, { method: "POST", body: "{}" });
+      toast("Отправлено");
+      paintMsgDetail(null);
+      await loadMessages();
+    } catch (err) {
+      toast(err.message || "Не удалось отправить");
+      await loadMessages();
+    }
+  };
+}
+if ($("msgRetryFailed")) {
+  $("msgRetryFailed").onclick = async () => {
+    if (
+      !(await confirmAction(
+        "Повторить ошибки",
+        "Отправить снова все ошибки по текущему фильтру? За раз не больше 80."
+      ))
+    ) {
+      return;
+    }
+    try {
+      const r = await api(`/admin/api/messages/retry-failed?${queryString(collectMsgFilters())}`, {
+        method: "POST",
+        body: "{}",
+      });
+      const extra = r.capped ? ` (из ${r.total}, лимит 80)` : "";
+      toast(`Ушло ${r.sent}, ошибок ${r.failed}${extra}`);
+      paintMsgDetail(null);
+      await loadMessages();
+    } catch (err) {
+      toast(err.message || "Не удалось повторить");
+      await loadMessages();
+    }
+  };
+}
 $("userQ").onkeydown = (e) => {
   if (e.key === "Enter") {
     selectedUsers.clear();

@@ -3050,13 +3050,7 @@ async def admin_list_reports(
     return [_jsonable(dict(r)) for r in rows], int(total or 0)
 
 
-async def admin_list_messages(
-    query: str,
-    limit: int,
-    offset: int,
-    extra: dict | None = None,
-) -> tuple[list[dict], int]:
-    pool = _pool_req()
+def _message_log_filters(query: str, extra: dict | None = None) -> tuple[list[str], list]:
     extra = extra or {}
     clauses: list[str] = []
     args: list = []
@@ -3073,6 +3067,10 @@ async def admin_list_messages(
     if kind:
         args.append(kind)
         clauses.append(f"kind = ${len(args)}")
+    status = str(extra.get("status") or "").strip()
+    if status:
+        args.append(status)
+        clauses.append(f"status = ${len(args)}")
     q = (query or "").strip()
     if q:
         args.append(f"%{q}%")
@@ -3094,6 +3092,22 @@ async def admin_list_messages(
     if to_d:
         args.append(to_d)
         clauses.append(f"created_at < (${len(args)}::date + INTERVAL '1 day')")
+    return clauses, args
+
+
+async def get_message_log(msg_id: int) -> dict | None:
+    row = await _pool_req().fetchrow("SELECT * FROM message_log WHERE id = $1", int(msg_id))
+    return _msg_row(dict(row)) if row else None
+
+
+async def admin_list_messages(
+    query: str,
+    limit: int,
+    offset: int,
+    extra: dict | None = None,
+) -> tuple[list[dict], int]:
+    pool = _pool_req()
+    clauses, args = _message_log_filters(query, extra)
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     total = await pool.fetchval(f"SELECT COUNT(*)::int FROM message_log {where}", *args)
     n = len(args)
@@ -3107,6 +3121,33 @@ async def admin_list_messages(
         *args,
         limit,
         offset,
+    )
+    return [_msg_row(dict(r)) for r in rows], int(total or 0)
+
+
+async def admin_list_failed_messages(
+    query: str,
+    limit: int,
+    extra: dict | None = None,
+) -> tuple[list[dict], int]:
+    pool = _pool_req()
+    extra = dict(extra or {})
+    extra["status"] = "failed"
+    clauses, args = _message_log_filters(query, extra)
+    clauses.append("telegram_id IS NOT NULL")
+    clauses.append("kind <> 'maintenance_hit'")
+    where = "WHERE " + " AND ".join(clauses)
+    total = await pool.fetchval(f"SELECT COUNT(*)::int FROM message_log {where}", *args)
+    n = len(args)
+    rows = await pool.fetch(
+        f"""
+        SELECT * FROM message_log
+        {where}
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${n + 1}
+        """,
+        *args,
+        limit,
     )
     return [_msg_row(dict(r)) for r in rows], int(total or 0)
 

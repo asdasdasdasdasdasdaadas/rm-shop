@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="47">
+  <meta name="admin-build" content="48">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=38">
+  <link rel="stylesheet" href="app.css?v=39">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -742,7 +742,7 @@
         </section>
 
         <section id="tab-messages" class="hidden">
-          <p class="muted intro">Журнал исходящих. Если статус «ошибка», в последней колонке причина от Telegram, а не текст письма.</p>
+          <p class="muted intro">Журнал исходящих. Если статус «ошибка», в последней колонке причина от Telegram. Можно отправить снова этому человеку или все ошибки по фильтру.</p>
           <div class="filters">
             <select id="msgChannel" aria-label="Раздел">
               <option value="">Все записи</option>
@@ -774,6 +774,7 @@
             <input id="msgTo" type="date" aria-label="По">
             <button type="button" id="msgSearch">Найти</button>
             <button type="button" id="msgReset" class="ghost hidden">Сбросить фильтры</button>
+            <button type="button" id="msgRetryFailed" class="ghost">Повторить ошибки</button>
           </div>
           <div id="msgChips" class="filter-chips"></div>
           <div class="table-wrap">
@@ -795,6 +796,9 @@
           <div class="panel">
             <h3>Текст сообщения</h3>
             <pre id="msgDetail">Выберите строку</pre>
+            <div class="ops">
+              <button type="button" id="msgRetry" disabled>Отправить снова</button>
+            </div>
           </div>
         </section>
 
@@ -1183,6 +1187,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=55"></script>
+  <script src="app.js?v=56"></script>
 </body>
 </html>
