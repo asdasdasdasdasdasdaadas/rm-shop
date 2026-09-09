@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="45">
+  <meta name="admin-build" content="46">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=37">
+  <link rel="stylesheet" href="app.css?v=38">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -157,20 +157,34 @@
           <div class="funnel-toolbar">
             <div class="section-label funnel-title">Воронка</div>
             <div class="seg funnel-seg" id="funnelPeriod" role="group" aria-label="Период воронки">
+              <button type="button" data-funnel="1d">Сутки</button>
               <button type="button" data-funnel="7d">7 дней</button>
               <button type="button" data-funnel="30d" class="active">30 дней</button>
+              <button type="button" data-funnel="90d">90 дней</button>
               <button type="button" data-funnel="all">Всё время</button>
             </div>
           </div>
           <p id="funnelInsight" class="funnel-insight"></p>
           <div class="panel funnel-panel">
-            <h3>Новые пользователи</h3>
-            <p class="muted tight">Когорта по дате входа в бота. Каждый шаг — доля от предыдущего.</p>
+            <h3>Путь новой когорты</h3>
+            <p class="muted tight">Кто зарегистрировался в выбранном периоде. Шаги независимые: можно оплатить без триала. У каждого шага — доля от предыдущего, доля от старта и сколько отвалилось.</p>
             <div id="funnelMain"></div>
           </div>
+          <div class="funnel-split">
+            <div class="panel funnel-panel">
+              <h3>Откуда пришли</h3>
+              <p class="muted tight">Доля от зашедших в бота. Рефссылка и реклама могут пересекаться, если оба тега есть.</p>
+              <div id="funnelSource"></div>
+            </div>
+            <div class="panel funnel-panel">
+              <h3>Где теряем</h3>
+              <p class="muted tight">Не конверсия вперёд, а ямы: сколько человек застряли на шаге.</p>
+              <div id="funnelLeak"></div>
+            </div>
+          </div>
           <div class="panel funnel-panel">
-            <h3>Кого привели оплатившие</h3>
-            <p class="muted tight">Люди по ссылке тех, кто в этой когорте дошёл до оплаты и кого-то пригласил. Повтор той же воронки.</p>
+            <h3>Кого привела эта когорта</h3>
+            <p class="muted tight">Все, у кого в «пригласил» стоит человек из этой когорты. Та же лестница, что и у новых.</p>
             <div id="funnelInvite"></div>
           </div>
           <div class="section-label">Онлайн</div>
@@ -1169,6 +1183,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=53"></script>
+  <script src="app.js?v=54"></script>
 </body>
 </html>

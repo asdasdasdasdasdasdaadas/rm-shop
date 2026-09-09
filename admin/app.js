@@ -675,21 +675,41 @@ async function loadFlags() {
 
 const FUNNEL_MAIN = [
   ["entered", "Зашли в бота", "регистрация"],
-  ["trial", "Получили триал", "от зашедших"],
-  ["used", "Пользовались VPN", "создали устройство"],
-  ["paid", "Остались и оплатили", "от тех, кто пользовался"],
-  ["referred", "Привели людей", "из оплативших"],
+  ["legal", "Приняли оферту", "обязательный шаг"],
+  ["trial", "Взяли триал", "можно пропустить и сразу платить"],
+  ["device", "Добавили устройство", "создали в кабинете"],
+  ["connected", "Реально подключались", "есть онлайн в панели"],
+  ["checkout", "Начали оплату", "создали заказ в кассе"],
+  ["paid", "Оплатили", "успешный платёж кассы"],
+  ["repeat_paid", "Пополнили ещё раз", "два и больше granted"],
+  ["referred", "Привели друга", "хотя бы один пришёл по ссылке"],
+];
+const FUNNEL_SOURCE = [
+  ["entered", "Всего зашли", "старт"],
+  ["organic", "Сами / без метки", "не реф и не реклама"],
+  ["from_ref", "По рефссылке", "есть пригласивший"],
+  ["from_ad", "По рекламе", "закрепилась ad-ссылка"],
+  ["promo", "Ввели промокод", "хотя бы один код"],
+];
+const FUNNEL_LEAK = [
+  ["no_legal", "Без оферты", "ещё не приняли"],
+  ["device_no_online", "Устройство без онлайна", "создали, но не коннектились"],
+  ["checkout_drop", "Бросили оплату", "заказ есть, granted нет"],
+  ["blocked", "Заблокированы", "из этой когорты"],
 ];
 const FUNNEL_INV = [
-  ["inv_entered", "Пришли по ссылке", "приглашённые"],
-  ["inv_trial", "Получили триал", "от пришедших"],
-  ["inv_used", "Пользовались VPN", "создали устройство"],
-  ["inv_paid", "Оплатили", "повтор воронки"],
+  ["inv_entered", "Пришли по ссылке", "когорта кого-то привела"],
+  ["inv_legal", "Приняли оферту", "от пришедших"],
+  ["inv_trial", "Взяли триал", "можно пропустить"],
+  ["inv_device", "Добавили устройство", "создали в кабинете"],
+  ["inv_connected", "Подключались", "есть онлайн"],
+  ["inv_checkout", "Начали оплату", "заказ в кассе"],
+  ["inv_paid", "Оплатили", "успешный платёж"],
 ];
 
 let funnelCache = null;
 let funnelPeriod = localStorage.getItem("way-funnel-period") || "30d";
-if (!["7d", "30d", "all"].includes(funnelPeriod)) funnelPeriod = "30d";
+if (!["1d", "7d", "30d", "90d", "all"].includes(funnelPeriod)) funnelPeriod = "30d";
 
 function funnelPct(n, d) {
   if (!d) return null;
@@ -710,7 +730,7 @@ function mapFunnelSteps(spec, row) {
   }));
 }
 
-function paintFunnelRows(boxId, steps, prevSteps, compareLabel) {
+function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode) {
   const box = $(boxId);
   if (!box) return;
   box.innerHTML = "";
@@ -718,20 +738,33 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel) {
     box.innerHTML = '<p class="funnel-empty">За этот период никого нет.</p>';
     return;
   }
-  const convs = steps.map((s, i) => (i === 0 ? 100 : funnelPct(s.n, steps[i - 1].n)));
-  const prevConvs = (prevSteps || []).map((s, i) => (i === 0 ? 100 : funnelPct(s.n, prevSteps[i - 1].n)));
+  const share = mode === "share";
+  const startN = steps[0] ? steps[0].n : 0;
+  const convs = steps.map((s, i) => {
+    if (share) return i === 0 ? 100 : funnelPct(s.n, startN);
+    return i === 0 ? 100 : funnelPct(s.n, steps[i - 1].n);
+  });
+  const startShare = steps.map((s, i) => (i === 0 ? 100 : funnelPct(s.n, startN)));
+  const prevConvs = (prevSteps || []).map((s, i) => {
+    if (!prevSteps || !prevSteps.length) return null;
+    if (share) return i === 0 ? 100 : funnelPct(s.n, prevSteps[0].n);
+    return i === 0 ? 100 : funnelPct(s.n, prevSteps[i - 1].n);
+  });
   let worst = -1;
   let worstV = 101;
-  convs.forEach((c, i) => {
-    if (i && c != null && c < worstV) {
-      worstV = c;
-      worst = i;
-    }
-  });
+  if (!share) {
+    convs.forEach((c, i) => {
+      if (i && c != null && c < worstV) {
+        worstV = c;
+        worst = i;
+      }
+    });
+  }
   const maxN = Math.max(...steps.map((s) => s.n), 1);
   steps.forEach((s, i) => {
     const row = document.createElement("div");
     const conv = convs[i];
+    const fromStart = startShare[i];
     const prevC = prevConvs[i];
     let deltaCls = "flat";
     let deltaTxt = "";
@@ -747,11 +780,24 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel) {
         deltaTxt = "без сдвига " + compareLabel;
       }
     }
+    const lost = !share && i ? Math.max(0, steps[i - 1].n - s.n) : 0;
     row.className = "funnel-row" + (i === worst ? " is-drop" : deltaCls === "up" ? " is-up" : "");
-    const share = Math.max(4, Math.round((100 * s.n) / maxN));
-    const convLine = i === 0
-      ? "старт когорты"
-      : "доходит " + funnelPctText(conv) + " · " + (s.hint || "");
+    const bar = Math.max(4, Math.round((100 * s.n) / maxN));
+    let convLine;
+    if (i === 0) {
+      convLine = share ? (s.hint || "старт") : "старт когорты";
+    } else if (share) {
+      convLine = "от зашедших " + funnelPctText(conv) + " · " + (s.hint || "");
+    } else {
+      convLine =
+        "от шага " +
+        funnelPctText(conv) +
+        " · от старта " +
+        funnelPctText(fromStart) +
+        (lost ? " · ушло " + lost : "") +
+        " · " +
+        (s.hint || "");
+    }
     row.innerHTML =
       '<div><div class="funnel-name"></div><div class="funnel-meta"></div></div>' +
       '<div class="funnel-track"><div class="funnel-fill"></div></div>' +
@@ -760,9 +806,9 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel) {
       "</div>";
     row.querySelector(".funnel-name").textContent = s.title;
     row.querySelector(".funnel-meta").textContent = convLine;
-    row.querySelector(".funnel-fill").style.width = share + "%";
+    row.querySelector(".funnel-fill").style.width = bar + "%";
     row.querySelector(".funnel-count").textContent = String(s.n);
-    row.querySelector(".funnel-conv").textContent = i === 0 ? "100%" : funnelPctText(conv);
+    row.querySelector(".funnel-conv").textContent = i === 0 && !share ? "100%" : funnelPctText(conv);
     if (deltaTxt) {
       const dEl = row.querySelector(".funnel-delta");
       dEl.textContent = deltaTxt;
@@ -782,13 +828,36 @@ function paintFunnelInsight(pack, main, convs, worst) {
     return;
   }
   const bits = [];
+  const cur = pack.current || {};
+  const entered = Number(cur.entered) || 0;
+  const paid = Number(cur.paid) || 0;
+  if (entered) {
+    const line = document.createElement("span");
+    line.textContent =
+      "Из " +
+      entered +
+      " зашедших оплатили " +
+      paid +
+      " (" +
+      funnelPctText(funnelPct(paid, entered)) +
+      ").";
+    bits.push(line);
+  }
   if (worst > 0 && convs[worst] != null) {
     const from = main[worst - 1].title.toLowerCase();
     const to = main[worst].title.toLowerCase();
     const strong = document.createElement("strong");
     strong.className = "drop";
-    strong.textContent = "Просадка: " + from + " → " + to + ", доходит " + funnelPctText(convs[worst]) + ".";
+    strong.textContent =
+      " Узкое место: " + from + " → " + to + ", доходит " + funnelPctText(convs[worst]) + ".";
     bits.push(strong);
+  }
+  const leakBits = [];
+  if (cur.checkout_drop) leakBits.push("не дожали оплату: " + cur.checkout_drop);
+  if (cur.device_no_online) leakBits.push("устройство без онлайна: " + cur.device_no_online);
+  if (cur.no_legal) leakBits.push("без оферты: " + cur.no_legal);
+  if (leakBits.length) {
+    bits.push(document.createTextNode(" Потери: " + leakBits.join(", ") + "."));
   }
   const prev = pack.previous;
   const compare = pack.compare;
@@ -821,7 +890,7 @@ function paintFunnelInsight(pack, main, convs, worst) {
     }
   }
   if (!bits.length) {
-    el.textContent = "Конверсии по шагам. Красная полоса — самое узкое место.";
+    el.textContent = "Конверсии по шагам. Красная полоса — самое узкое место между соседними шагами.";
     return;
   }
   bits.forEach((n) => el.appendChild(n));
@@ -835,19 +904,36 @@ function paintFunnel(data) {
   });
   if (!pack || !pack.current) {
     paintFunnelRows("funnelMain", [], null, "");
+    paintFunnelRows("funnelSource", [], null, "", "share");
+    paintFunnelRows("funnelLeak", [], null, "", "share");
     paintFunnelRows("funnelInvite", [], null, "");
     const insight = $("funnelInsight");
     if (insight) insight.textContent = "";
     return;
   }
+  const compare = pack.compare || "";
   const main = mapFunnelSteps(FUNNEL_MAIN, pack.current);
   const prevMain = pack.previous ? mapFunnelSteps(FUNNEL_MAIN, pack.previous) : null;
-  const painted = paintFunnelRows("funnelMain", main, prevMain, pack.compare || "");
+  const painted = paintFunnelRows("funnelMain", main, prevMain, compare);
+  paintFunnelRows(
+    "funnelSource",
+    mapFunnelSteps(FUNNEL_SOURCE, pack.current),
+    pack.previous ? mapFunnelSteps(FUNNEL_SOURCE, pack.previous) : null,
+    compare,
+    "share"
+  );
+  paintFunnelRows(
+    "funnelLeak",
+    mapFunnelSteps([["entered", "Когорта", "база потерь"], ...FUNNEL_LEAK], pack.current),
+    pack.previous ? mapFunnelSteps([["entered", "Когорта", "база потерь"], ...FUNNEL_LEAK], pack.previous) : null,
+    compare,
+    "share"
+  );
   paintFunnelRows(
     "funnelInvite",
     mapFunnelSteps(FUNNEL_INV, pack.current),
     pack.previous ? mapFunnelSteps(FUNNEL_INV, pack.previous) : null,
-    pack.compare || ""
+    compare
   );
   paintFunnelInsight(pack, main, (painted && painted.convs) || [], painted ? painted.worst : -1);
 }

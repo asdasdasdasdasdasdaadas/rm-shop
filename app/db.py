@@ -1773,7 +1773,14 @@ async def admin_stats() -> dict:
 
 _FUNNEL_SQL = """
 WITH cohort AS (
-    SELECT u.telegram_id, u.trial_used, COALESCE(u.has_paid_topup, FALSE) AS has_paid
+    SELECT
+        u.telegram_id,
+        u.trial_used,
+        u.accepted_legal_at,
+        u.referred_by,
+        u.ad_link_id,
+        u.blocked_at,
+        COALESCE(u.has_paid_topup, FALSE) AS has_paid
     FROM users u
     WHERE ($1::timestamptz IS NULL OR u.created_at >= $1)
       AND ($2::timestamptz IS NULL OR u.created_at < $2)
@@ -1781,11 +1788,22 @@ WITH cohort AS (
 flags AS (
     SELECT
         c.telegram_id,
-        COALESCE(c.trial_used, FALSE) AS got_trial,
+        c.referred_by IS NOT NULL AS from_ref,
+        c.ad_link_id IS NOT NULL AS from_ad,
+        c.referred_by IS NULL AND c.ad_link_id IS NULL AS organic,
+        c.accepted_legal_at IS NOT NULL AS legal,
+        COALESCE(c.trial_used, FALSE) AS trial,
+        c.blocked_at IS NOT NULL AS blocked,
+        EXISTS (
+            SELECT 1 FROM devices d WHERE d.telegram_id = c.telegram_id
+        ) AS has_device,
         EXISTS (
             SELECT 1 FROM devices d
-            WHERE d.telegram_id = c.telegram_id
-        ) AS used_vpn,
+            WHERE d.telegram_id = c.telegram_id AND d.last_online_at IS NOT NULL
+        ) AS connected,
+        EXISTS (
+            SELECT 1 FROM rollypay_orders o WHERE o.telegram_id = c.telegram_id
+        ) AS checkout,
         (
             c.has_paid
             OR EXISTS (
@@ -1795,28 +1813,30 @@ flags AS (
             OR EXISTS (
                 SELECT 1 FROM payments p WHERE p.telegram_id = c.telegram_id
             )
-        ) AS paid
+        ) AS paid,
+        (
+            SELECT COUNT(*)::int FROM rollypay_orders o
+            WHERE o.telegram_id = c.telegram_id AND o.status = 'granted'
+        ) >= 2 AS repeat_paid,
+        EXISTS (
+            SELECT 1 FROM users inv WHERE inv.referred_by = c.telegram_id
+        ) AS invited,
+        EXISTS (
+            SELECT 1 FROM promo_uses p WHERE p.telegram_id = c.telegram_id
+        ) AS promo
     FROM cohort c
-),
-step AS (
-    SELECT
-        telegram_id,
-        got_trial,
-        got_trial AND used_vpn AS used,
-        got_trial AND used_vpn AND paid AS paid
-    FROM flags
-),
-referrers AS (
-    SELECT s.telegram_id
-    FROM step s
-    WHERE s.paid
-      AND EXISTS (SELECT 1 FROM users inv WHERE inv.referred_by = s.telegram_id)
 ),
 invitees AS (
     SELECT
         u.telegram_id,
-        COALESCE(u.trial_used, FALSE) AS got_trial,
-        EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id) AS used_vpn,
+        u.accepted_legal_at IS NOT NULL AS legal,
+        COALESCE(u.trial_used, FALSE) AS trial,
+        EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id) AS has_device,
+        EXISTS (
+            SELECT 1 FROM devices d
+            WHERE d.telegram_id = u.telegram_id AND d.last_online_at IS NOT NULL
+        ) AS connected,
+        EXISTS (SELECT 1 FROM rollypay_orders o WHERE o.telegram_id = u.telegram_id) AS checkout,
         (
             COALESCE(u.has_paid_topup, FALSE)
             OR EXISTS (
@@ -1828,38 +1848,67 @@ invitees AS (
             )
         ) AS paid
     FROM users u
-    WHERE u.referred_by IN (SELECT telegram_id FROM referrers)
+    WHERE u.referred_by IN (SELECT telegram_id FROM cohort)
 )
 SELECT
-    (SELECT COUNT(*) FROM step)::int AS entered,
-    (SELECT COUNT(*) FROM step WHERE got_trial)::int AS trial,
-    (SELECT COUNT(*) FROM step WHERE used)::int AS used,
-    (SELECT COUNT(*) FROM step WHERE paid)::int AS paid,
-    (SELECT COUNT(*) FROM referrers)::int AS referred,
+    (SELECT COUNT(*) FROM flags)::int AS entered,
+    (SELECT COUNT(*) FROM flags WHERE from_ref)::int AS from_ref,
+    (SELECT COUNT(*) FROM flags WHERE from_ad)::int AS from_ad,
+    (SELECT COUNT(*) FROM flags WHERE organic)::int AS organic,
+    (SELECT COUNT(*) FROM flags WHERE legal)::int AS legal,
+    (SELECT COUNT(*) FROM flags WHERE trial)::int AS trial,
+    (SELECT COUNT(*) FROM flags WHERE has_device)::int AS device,
+    (SELECT COUNT(*) FROM flags WHERE connected)::int AS connected,
+    (SELECT COUNT(*) FROM flags WHERE checkout OR paid)::int AS checkout,
+    (SELECT COUNT(*) FROM flags WHERE paid)::int AS paid,
+    (SELECT COUNT(*) FROM flags WHERE repeat_paid)::int AS repeat_paid,
+    (SELECT COUNT(*) FROM flags WHERE invited)::int AS referred,
+    (SELECT COUNT(*) FROM flags WHERE promo)::int AS promo,
+    (SELECT COUNT(*) FROM flags WHERE blocked)::int AS blocked,
+    (SELECT COUNT(*) FROM flags WHERE has_device AND NOT connected)::int AS device_no_online,
+    (SELECT COUNT(*) FROM flags WHERE (checkout OR paid) AND NOT paid)::int AS checkout_drop,
+    (SELECT COUNT(*) FROM flags WHERE NOT legal)::int AS no_legal,
     (SELECT COUNT(*) FROM invitees)::int AS inv_entered,
-    (SELECT COUNT(*) FROM invitees WHERE got_trial)::int AS inv_trial,
-    (SELECT COUNT(*) FROM invitees WHERE got_trial AND used_vpn)::int AS inv_used,
-    (SELECT COUNT(*) FROM invitees WHERE got_trial AND used_vpn AND paid)::int AS inv_paid
+    (SELECT COUNT(*) FROM invitees WHERE legal)::int AS inv_legal,
+    (SELECT COUNT(*) FROM invitees WHERE trial)::int AS inv_trial,
+    (SELECT COUNT(*) FROM invitees WHERE has_device)::int AS inv_device,
+    (SELECT COUNT(*) FROM invitees WHERE connected)::int AS inv_connected,
+    (SELECT COUNT(*) FROM invitees WHERE checkout OR paid)::int AS inv_checkout,
+    (SELECT COUNT(*) FROM invitees WHERE paid)::int AS inv_paid
 """
+
+_FUNNEL_KEYS = (
+    "entered",
+    "from_ref",
+    "from_ad",
+    "organic",
+    "legal",
+    "trial",
+    "device",
+    "connected",
+    "checkout",
+    "paid",
+    "repeat_paid",
+    "referred",
+    "promo",
+    "blocked",
+    "device_no_online",
+    "checkout_drop",
+    "no_legal",
+    "inv_entered",
+    "inv_legal",
+    "inv_trial",
+    "inv_device",
+    "inv_connected",
+    "inv_checkout",
+    "inv_paid",
+)
 
 
 def _funnel_row(row) -> dict:
     if not row:
-        return {
-            "entered": 0,
-            "trial": 0,
-            "used": 0,
-            "paid": 0,
-            "referred": 0,
-            "inv_entered": 0,
-            "inv_trial": 0,
-            "inv_used": 0,
-            "inv_paid": 0,
-        }
-    return {k: int(row[k] or 0) for k in (
-        "entered", "trial", "used", "paid", "referred",
-        "inv_entered", "inv_trial", "inv_used", "inv_paid",
-    )}
+        return {k: 0 for k in _FUNNEL_KEYS}
+    return {k: int(row[k] or 0) for k in _FUNNEL_KEYS}
 
 
 async def admin_funnel() -> dict:
@@ -1870,30 +1919,39 @@ async def admin_funnel() -> dict:
         row = await pool.fetchrow(_FUNNEL_SQL, start, end)
         return _funnel_row(row)
 
+    d1 = timedelta(days=1)
     d7 = timedelta(days=7)
     d30 = timedelta(days=30)
-    all_cur = await window(None, None)
-    cur7 = await window(now - d7, now)
-    prev7 = await window(now - d7 - d7, now - d7)
-    cur30 = await window(now - d30, now)
-    prev30 = await window(now - d30 - d30, now - d30)
+    d90 = timedelta(days=90)
     return {
+        "1d": {
+            "label": "сутки",
+            "compare": "к предыдущим суткам",
+            "current": await window(now - d1, now),
+            "previous": await window(now - d1 - d1, now - d1),
+        },
         "7d": {
             "label": "7 дней",
             "compare": "к прошлым 7 дням",
-            "current": cur7,
-            "previous": prev7,
+            "current": await window(now - d7, now),
+            "previous": await window(now - d7 - d7, now - d7),
         },
         "30d": {
             "label": "30 дней",
             "compare": "к прошлым 30 дням",
-            "current": cur30,
-            "previous": prev30,
+            "current": await window(now - d30, now),
+            "previous": await window(now - d30 - d30, now - d30),
+        },
+        "90d": {
+            "label": "90 дней",
+            "compare": "к прошлым 90 дням",
+            "current": await window(now - d90, now),
+            "previous": await window(now - d90 - d90, now - d90),
         },
         "all": {
             "label": "всё время",
             "compare": "",
-            "current": all_cur,
+            "current": await window(None, None),
             "previous": None,
         },
     }
