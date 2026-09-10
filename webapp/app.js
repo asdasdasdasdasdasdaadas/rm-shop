@@ -658,13 +658,17 @@ function finishIntro() {
   if (el.classList.contains("hidden") || el.classList.contains("intro-go")) return;
   clearIntroTimers();
   markIntroSeen();
+  maybeOpenFirstRun(window.__me);
+  $("boot").classList.add("hidden");
+  $("fail").classList.add("hidden");
+  $("maint").classList.add("hidden");
   $("app").classList.remove("hidden");
   $("app").inert = true;
   el.classList.add("intro-go");
   introTimer = setTimeout(() => {
     $("app").inert = false;
-    showApp();
-    maybeOpenFirstRun(window.__me);
+    hideIntro();
+    if (screen === "home") scheduleCoach();
   }, reducedMotion() ? 0 : 800);
 }
 
@@ -757,7 +761,9 @@ function switchView(id, motion) {
     const on = vid === id;
     el.classList.toggle("hidden", !on);
     el.classList.remove("view-in-fade", "view-in-push", "view-in-pop");
-    if (on) replayAnim(el, "view-in-" + (motion || "fade"));
+    if (on && !$("app").classList.contains("hidden")) {
+      replayAnim(el, "view-in-" + (motion || "fade"));
+    }
   });
   window.scrollTo(0, 0);
   document.documentElement.classList.remove("is-scrolled");
@@ -867,10 +873,10 @@ function maybeOpenFirstRun(me) {
     return;
   }
   if (shouldShowOffer(me)) {
-    openOffer();
+    openOffer({ instant: true });
     return;
   }
-  if (me.balance_enabled) startWizard({ fromOffer: false });
+  if (me.balance_enabled) startWizard({ fromOffer: false, instant: true });
 }
 
 function markCoachDone() {
@@ -2042,12 +2048,12 @@ function paintOffer(me) {
   }
 }
 
-function openOffer() {
+function openOffer(opts) {
   const me = window.__me;
   if (!me) return;
   hideCoach();
   screen = "offer";
-  switchView("view-offer", "push");
+  switchView("view-offer", opts && opts.instant ? "fade" : "push");
   setMain("");
   paintOffer(me);
   try {
@@ -2217,7 +2223,7 @@ function startWizard(opts) {
     tg.showAlert("Можно подключить не больше " + cap + " устройств");
     return;
   }
-  haptic();
+  if (!(opts && opts.instant)) haptic();
   hideCoach();
   wiz.step = 1;
   wiz.platform = "ios";
@@ -2227,7 +2233,7 @@ function startWizard(opts) {
   wiz.url = "";
   wiz.fromOffer = Boolean(opts && opts.fromOffer);
   screen = "wizard";
-  switchView("view-wizard", "push");
+  switchView("view-wizard", opts && opts.instant ? "fade" : "push");
   try {
     tg.BackButton.show();
   } catch (_e) {}
@@ -2936,8 +2942,8 @@ function paint(me) {
   if (!$("intro").classList.contains("hidden")) return;
   if (shouldShowIntro()) showIntro(me);
   else {
-    showApp();
     maybeOpenFirstRun(me);
+    showApp();
   }
   if (screen !== "offer" && screen !== "wizard") syncCoach(me);
 }
