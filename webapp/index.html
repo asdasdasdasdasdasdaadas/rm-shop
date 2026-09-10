@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=97">
+  <link rel="stylesheet" href="app.css?v=98">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -365,7 +365,7 @@
             </svg>
           </div>
           <div class="t">Устройств пока нет</div>
-          <div class="d">Баланс не списывается, пока не подключено ни одно устройство. Добавьте первое — займёт меньше минуты.</div>
+          <div class="d">Здесь сутки идут только с добавленных устройств, не «на всех сразу». Добавьте первое — займёт меньше минуты.</div>
           <button type="button" id="addDeviceEmpty" class="btn btn-primary">+ Добавить устройство</button>
           <button type="button" id="coachReplay" class="coach-replay">Как это работает?</button>
         </div>
@@ -454,7 +454,11 @@
             </svg>
           </button>
           <textarea id="supportText" rows="1" maxlength="2000" placeholder="Написать"></textarea>
-          <button type="button" id="supportSend" class="support-send">Отправить</button>
+          <button type="button" id="supportSend" class="support-send" aria-label="Отправить">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+              <path d="M3.2 20.6 21.1 12.8c.8-.35.8-1.5 0-1.85L3.2 3.15c-.74-.32-1.48.4-1.2 1.14L4.7 11c.1.28.1.58 0 .86l-2.7 6.7c-.28.74.46 1.46 1.2 1.14z"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -464,7 +468,7 @@
         <p class="wiz-kicker">Помощь</p>
         <h1 class="wiz-title">Частые вопросы</h1>
       </div>
-      <p class="section-note topup-hint">Коротко про подключение и баланс — чтобы не отвалиться в простой момент.</p>
+      <p class="section-note topup-hint">Подключение, баланс и чем этот кабинет удобнее чужого ключа из чата.</p>
       <div id="faqList" class="faq-list"></div>
     </div>
 
