@@ -1443,6 +1443,7 @@ html.is-scrolled .view-head.home-nav .account-row {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
   min-height: calc(var(--app-svh, var(--tg-viewport-stable-height, 100dvh)) - 28px - var(--app-safe-bottom, 0px));
 }
 
@@ -1541,6 +1542,7 @@ html.is-scrolled .view-head.home-nav .account-row {
   flex-direction: column;
   gap: 8px;
   flex: 1;
+  min-width: 0;
   min-height: 160px;
   overflow: auto;
   padding: 4px 2px 8px;
@@ -1570,7 +1572,7 @@ html.is-scrolled .view-head.home-nav .account-row {
 }
 
 .support-bubble {
-  max-width: 86%;
+  max-width: min(86%, 28rem);
   padding: 10px 14px 8px;
   border-radius: 20px;
 }
@@ -1621,6 +1623,7 @@ html.is-scrolled .view-head.home-nav .account-row {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
   position: sticky;
   bottom: 0;
   z-index: 6;
@@ -1645,6 +1648,7 @@ html.is-scrolled .view-head.home-nav .account-row {
   display: flex;
   align-items: flex-end;
   gap: 8px;
+  min-width: 0;
   padding: 8px 8px 8px 6px;
   border-radius: var(--radius-lg);
   background: var(--panel);
@@ -1656,7 +1660,8 @@ html.is-scrolled .view-head.home-nav .account-row {
 
 .support-compose textarea {
   flex: 1;
-  width: auto;
+  min-width: 0;
+  width: 100%;
   min-height: 44px;
   max-height: 140px;
   resize: none;

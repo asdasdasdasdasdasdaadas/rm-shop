@@ -1773,11 +1773,7 @@ function paintSupportChrome(current) {
   if (note) {
     note.classList.toggle("hidden", !(current && current.status === "closed"));
   }
-  if (input) {
-    input.placeholder = current && current.status === "closed"
-      ? "Новое сообщение откроет тикет"
-      : "Написать";
-  }
+  if (input) input.placeholder = "Написать";
 }
 
 function resizeSupportText() {
