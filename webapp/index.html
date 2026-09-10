@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=78">
+  <link rel="stylesheet" href="app.css?v=79">
 </head>
 <body>
   <div class="app-bg" aria-hidden="true">
@@ -239,6 +239,7 @@
   <div id="app" class="hidden">
     <button type="button" id="webBack" class="web-back hidden">Назад</button>
     <div id="view-home" class="view">
+      <div class="view-head home-nav">
       <div class="account-row">
         <img id="avatar" class="avatar" alt="">
         <div class="who">
@@ -248,6 +249,7 @@
         <button type="button" id="menuBtn" class="icon-btn" aria-label="Меню">
           <span class="more"></span>
         </button>
+      </div>
       </div>
 
       <div class="status-card">
@@ -406,7 +408,6 @@
         <div class="section-title-plain">Помощь</div>
         <div class="section help-list">
           <button type="button" id="faqBtn">Частые вопросы <span class="arrow">›</span></button>
-          <button type="button" id="vpnDown">VPN не работает <span class="arrow">›</span></button>
           <button type="button" id="trustHelp">Обещанный платёж <span class="arrow">›</span></button>
           <button type="button" id="supportBtn">Поддержка <span class="arrow">›</span></button>
         </div>
@@ -504,7 +505,9 @@
     </div>
 
     <div id="view-offer" class="view hidden">
+      <div class="view-head">
       <p class="offer-kicker">Попробуйте бесплатно</p>
+      </div>
       <div class="offer-card">
         <div class="offer-top">
           <div>
@@ -577,6 +580,7 @@
     </div>
 
     <div id="view-device" class="view hidden">
+      <div class="view-head">
       <div class="dev-hero">
         <div class="dev-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg>
@@ -586,6 +590,7 @@
           <h1 id="devTitle">Устройство</h1>
           <div id="devStatus" class="dev-status"><span class="dot"></span><span id="devStatusText">Активно</span></div>
         </div>
+      </div>
       </div>
 
       <div class="dev-info">
@@ -698,6 +703,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=73"></script>
+  <script src="app.js?v=76"></script>
 </body>
 </html>

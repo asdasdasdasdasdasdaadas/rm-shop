@@ -7,14 +7,13 @@ let billPage = 1;
 let currentUser = null;
 let selectedUsers = new Set();
 let lastUserItems = [];
-const TABS = ["overview", "users", "referrals", "ads", "orders", "billing", "reports", "tickets", "messages", "broadcast", "promo", "backups", "settings"];
+const TABS = ["overview", "users", "referrals", "ads", "orders", "billing", "tickets", "messages", "broadcast", "promo", "backups", "settings"];
 const TAB_KEYS = {
   overview: ["dash", "fp", "fs", "fl", "fi", "step"],
   users: ["q", "status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to", "paid"],
   referrals: ["q", "reward", "from", "to"],
   orders: ["q", "status", "from", "to"],
   billing: ["q", "kind", "source", "from", "to"],
-  reports: ["status", "from", "to"],
   tickets: ["q", "status", "from", "to"],
   messages: ["q", "channel", "source", "kind", "from", "to"],
 };
@@ -420,12 +419,6 @@ function switchTab(name, opts = {}) {
         route.tab === "billing" ? route.params : new URLSearchParams()
       );
     }
-    if (name === "reports") {
-      fillFromParams(
-        { status: "reportStatus", from: "reportFrom", to: "reportTo" },
-        route.tab === "reports" ? route.params : new URLSearchParams()
-      );
-    }
     if (name === "tickets") {
       fillFromParams(TICKET_FILTER_IDS, route.tab === "tickets" ? route.params : new URLSearchParams());
     }
@@ -470,12 +463,6 @@ function switchTab(name, opts = {}) {
         if (v) params.set(k, v);
       });
     }
-    if (name === "reports") {
-      [["status", "reportStatus"], ["from", "reportFrom"], ["to", "reportTo"]].forEach(([k, id]) => {
-        const v = val(id);
-        if (v) params.set(k, v);
-      });
-    }
     if (name === "tickets") {
       Object.entries(collectTicketFilters()).forEach(([k, v]) => v && params.set(k, v));
     }
@@ -500,7 +487,6 @@ function switchTab(name, opts = {}) {
   if (name === "ads") loadAds();
   if (name === "orders") loadOrders();
   if (name === "billing") loadBilling();
-  if (name === "reports") loadReports();
   if (name === "tickets") loadTickets();
   if (name === "messages") loadMessages();
   if (name === "backups") loadBackups();
@@ -1142,7 +1128,7 @@ function paintKpiStrip(s) {
 function paintProblemsBadge(s) {
   const el = $("problemsBadge");
   if (!el) return;
-  const n = (Number(s.tickets_open) || 0) + (Number(s.vpn_reports) || 0);
+  const n = Number(s.tickets_open) || 0;
   if (!n) {
     el.classList.add("hidden");
     el.classList.remove("has-fire");
@@ -1167,12 +1153,8 @@ function paintStatusAlert(s) {
   if (!el) return;
   const lines = [];
   const tickets = Number(s.tickets_open) || 0;
-  const reports = Number(s.vpn_reports) || 0;
-  if (tickets || reports) {
-    const bits = [];
-    if (tickets) bits.push(tickets + " тикет" + (tickets === 1 ? "" : "ов"));
-    if (reports) bits.push(reports + " жалоб VPN");
-    lines.push("Есть открытые обращения: " + bits.join(", ") + ".");
+  if (tickets) {
+    lines.push("Есть открытые обращения: " + tickets + " тикет" + (tickets === 1 ? "" : "ов") + ".");
   }
   const pack = s.funnel && s.funnel[funnelPeriods.main];
   const cur = pack && pack.current;
@@ -1203,7 +1185,7 @@ function paintStatusAlert(s) {
     return;
   }
   el.classList.remove("hidden");
-  el.classList.toggle("is-danger", tickets + reports > 0);
+  el.classList.toggle("is-danger", tickets > 0);
   el.innerHTML = shown.map((t) => "<p></p>").join("");
   Array.from(el.querySelectorAll("p")).forEach((p, i) => {
     p.textContent = shown[i];
@@ -1393,7 +1375,6 @@ async function loadStats() {
     paintTopupPayers(top.items || []);
     fill("cardsIssues", [
       ["Открытые тикеты", s.tickets_open || 0, "tickets"],
-      ["Жалобы VPN", s.vpn_reports || 0, "reports"],
       ["Заблокированы в магазине", u.blocked || 0, "users", { filters: { status: "block" } }],
       ["Заблокировали бота", u.bot_blocked || 0, "users", { filters: { status: "bot_block" } }],
       ["Блок бота без триала", u.bot_blocked_idle || 0, "users", { filters: { status: "bot_block", trial: "no", paid: "no" } }],
@@ -2137,48 +2118,6 @@ async function loadUserBilling(telegramId) {
   }
 }
 
-let reportPage = 1;
-async function loadReports(page) {
-  if (page) reportPage = page;
-  const f = { status: val("reportStatus"), from: val("reportFrom"), to: val("reportTo") };
-  const reset = $("reportReset");
-  if (reset) reset.classList.toggle("hidden", !hasAny(f));
-  const chips = [];
-  if (f.status) chips.push(["status", f.status === "empty" ? "без статуса" : f.status]);
-  if (f.from) chips.push(["from", "с " + f.from]);
-  if (f.to) chips.push(["to", "по " + f.to]);
-  paintChips("reportChips", chips, (key) => {
-    setVal({ status: "reportStatus", from: "reportFrom", to: "reportTo" }[key], "");
-    loadReports(1);
-  });
-  writeRoute("reports", new URLSearchParams(Object.entries(f).filter(([, v]) => v)));
-  const data = await api(`/admin/api/reports?${queryString({ ...f, page: reportPage })}`);
-  const body = $("reportRows");
-  body.innerHTML = "";
-  const labels = ["Время", "Пользователь", "Подписка до", "Статус", "Гипотеза"];
-  if (!data.items.length) {
-    body.appendChild(emptyRow(5, hasAny(f) ? "Жалоб не нашли" : "Жалоб пока нет"));
-  }
-  data.items.forEach((r) => {
-    const tr = document.createElement("tr");
-    tr.style.cursor = "pointer";
-    const who = `${r.telegram_id}` + (r.username ? ` @${r.username}` : "") + (r.first_name ? ` · ${r.first_name}` : "");
-    const why = Array.isArray(r.payload && r.payload.why) ? (r.payload.why[0] || "—") : "—";
-    const st = r.panel_status || "не решено";
-    [fmt(r.created_at), who, fmt(r.expire_at), st, why].forEach((t) => {
-      const td = document.createElement("td");
-      td.textContent = t;
-      tr.appendChild(td);
-    });
-    labelRow(tr, labels);
-    tr.onclick = () => {
-      $("reportDetail").textContent = JSON.stringify(r.payload || r, null, 2);
-    };
-    body.appendChild(tr);
-  });
-  pager($("reportPager"), data.page, data.total, data.limit, loadReports);
-}
-
 function collectTicketFilters() {
   return {
     q: val("ticketQ"),
@@ -2545,7 +2484,6 @@ async function loadSettings() {
   set("setRefInvitee", v.referral_invitee_days);
   set("setTrialOn", v.trial_enabled);
   set("setTrialDays", v.trial_days);
-  set("setReportCd", v.vpn_report_cooldown_sec);
   set("setPromoOn", v.promo_enabled);
   set("setPromo", v.promo_codes);
   renderVpnApps(Array.isArray(v.vpn_apps) ? v.vpn_apps : []);
@@ -2748,7 +2686,6 @@ async function saveShopSettings(outId) {
     referral_invitee_days: num("setRefInvitee"),
     trial_enabled: $("setTrialOn").checked,
     trial_days: num("setTrialDays"),
-    vpn_report_cooldown_sec: num("setReportCd"),
     promo_enabled: $("setPromoOn").checked,
     promo_codes: $("setPromo").value,
     vpn_apps: collectVpnApps(),
@@ -3036,12 +2973,6 @@ if ($("payReset")) {
 }
 if ($("payQ")) $("payQ").oninput = debounce(() => loadPayouts(1), 300);
 if ($("payStatus")) $("payStatus").onchange = () => loadPayouts(1);
-if ($("reportReset")) {
-  $("reportReset").onclick = () => {
-    ["reportStatus", "reportFrom", "reportTo"].forEach((id) => setVal(id, ""));
-    loadReports(1);
-  };
-}
 const userReload = debounce(() => {
   selectedUsers.clear();
   loadUsers(1);
@@ -3065,10 +2996,6 @@ $("refQ").oninput = debounce(() => loadReferrals(1), 300);
 ["refReward", "refFrom", "refTo"].forEach((id) => {
   const el = $(id);
   if (el) el.onchange = () => loadReferrals(1);
-});
-["reportStatus", "reportFrom", "reportTo"].forEach((id) => {
-  const el = $(id);
-  if (el) el.onchange = () => loadReports(1);
 });
 if ($("ticketSearch")) $("ticketSearch").onclick = () => loadTickets(1);
 if ($("ticketReset")) {

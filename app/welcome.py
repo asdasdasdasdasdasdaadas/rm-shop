@@ -122,9 +122,15 @@ async def send_welcome_intro(
     chat_id = message.chat.id
     local = await db.get_user(user.id)
     hello = notice_text("welcome_intro_hello", name=name, brand=brand)
-    hi = notice_text("welcome_intro_hi", name=name)
-    if settings.balance_enabled and settings.trial_enabled and settings.trial_days > 0:
-        try_body = notice_text("welcome_intro_try", days=days_text(trial_grant_days(local)))
+    trial_on = settings.trial_enabled and settings.trial_days > 0
+    days = days_text(trial_grant_days(local) if trial_on else settings.trial_days)
+    hi = (
+        notice_text("welcome_intro_hi", name=name, days=days)
+        if trial_on
+        else notice_text("welcome_intro_hi_plain", name=name)
+    )
+    if settings.balance_enabled and trial_on:
+        try_body = notice_text("welcome_intro_try", days=days)
     else:
         try_body = notice_text("welcome_intro_try_no_trial")
     if not in_channel:

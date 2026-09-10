@@ -43,21 +43,39 @@ if (typeof tg.disableVerticalSwipes === "function") {
   } catch (_e) {}
 }
 
+function applyTheme() {
+  const bg = "#0d1611";
+  try {
+    tg.setHeaderColor(bg);
+    tg.setBackgroundColor(bg);
+    if (typeof tg.setBottomBarColor === "function") tg.setBottomBarColor(bg);
+    if (tg.MainButton && tg.MainButton.hide) tg.MainButton.hide();
+  } catch (_e) {}
+}
+
 function applyViewport() {
   const root = document.documentElement;
   const h = Number(tg.viewportHeight) || window.innerHeight;
   const sh = Number(tg.viewportStableHeight) || h;
   const sa = tg.safeAreaInset || {};
   const ca = tg.contentSafeAreaInset || {};
-  const top = (Number(sa.top) || 0) + (Number(ca.top) || 0);
-  const bottom = (Number(sa.bottom) || 0) + (Number(ca.bottom) || 0);
-  const left = (Number(sa.left) || 0) + (Number(ca.left) || 0);
-  const right = (Number(sa.right) || 0) + (Number(ca.right) || 0);
+  const saTop = Number(sa.top) || 0;
+  const caTop = Number(ca.top) || 0;
+  const saBottom = Number(sa.bottom) || 0;
+  const caBottom = Number(ca.bottom) || 0;
+  const saLeft = Number(sa.left) || 0;
+  const caLeft = Number(ca.left) || 0;
+  const saRight = Number(sa.right) || 0;
+  const caRight = Number(ca.right) || 0;
   const fs = Boolean(tg.isFullscreen);
+  const top = fs ? Math.max(saTop, caTop) : saTop + caTop;
+  const bottom = fs ? Math.max(saBottom, caBottom) : saBottom + caBottom;
+  const left = fs ? saLeft : saLeft + caLeft;
+  const right = fs ? saRight : saRight + caRight;
   root.classList.toggle("is-fullscreen", fs);
   root.style.setProperty("--app-vh", h + "px");
   root.style.setProperty("--app-svh", sh + "px");
-  root.style.setProperty("--app-safe-top", (fs && top < 20 ? 48 : top) + "px");
+  root.style.setProperty("--app-safe-top", top + "px");
   root.style.setProperty("--app-safe-bottom", bottom + "px");
   root.style.setProperty("--app-safe-left", left + "px");
   root.style.setProperty("--app-safe-right", right + "px");
@@ -74,6 +92,7 @@ function requestMiniAppFullscreen() {
   } catch (_e) {}
 }
 
+applyTheme();
 applyViewport();
 requestMiniAppFullscreen();
 
@@ -326,16 +345,6 @@ function showQr(url) {
   box.appendChild(svg);
   $("qrSheet").classList.remove("hidden");
   $("qrScrim").classList.remove("hidden");
-}
-
-function applyTheme() {
-  const bg = "#0d1611";
-  try {
-    tg.setHeaderColor(bg);
-    tg.setBackgroundColor(bg);
-    if (typeof tg.setBottomBarColor === "function") tg.setBottomBarColor(bg);
-    if (tg.MainButton && tg.MainButton.hide) tg.MainButton.hide();
-  } catch (_e) {}
 }
 
 const GAUGE_C = 2 * Math.PI * 46;
@@ -764,7 +773,6 @@ let loadSeq = 0;
 let lastConnectUrl = null;
 let openDevice = null;
 let topupMode = "fast";
-let wizardAutoOpened = false;
 let faqFrom = "home";
 let topupCode = "";
 let topupCustomRub = 0;
@@ -829,16 +837,9 @@ function shouldShowOffer(me) {
   if (!me) return false;
   if ((me.devices || []).length) return false;
   if (onboardDone() || offerSkipped()) return false;
-  return Boolean(me.trial_available);
-}
-
-function shouldStartDeviceWizard(me) {
-  if (!me || !me.balance_enabled) return false;
-  if ((me.devices || []).length) return false;
-  if (onboardDone() || offerSkipped()) return false;
-  if (screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "faq") return false;
-  if (screen === "billing" || screen === "referrals" || screen === "offer") return false;
-  return (Number(me.balance_rub) || 0) > 0;
+  if (me.trial_available) return true;
+  const kind = me.trial_notice && me.trial_notice.kind;
+  return kind === "claim" || kind === "granted";
 }
 
 function maybeOpenOffer(me) {
@@ -846,11 +847,6 @@ function maybeOpenOffer(me) {
   if (screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "faq") return;
   if (screen === "offer") {
     paintOffer(me);
-    return;
-  }
-  if (shouldStartDeviceWizard(me) && !wizardAutoOpened) {
-    wizardAutoOpened = true;
-    startWizard({ fromOffer: true });
     return;
   }
   if (!shouldShowOffer(me)) return;
@@ -2173,7 +2169,6 @@ function renderTopup(me) {
 }
 
 function closeWizard() {
-  skipOffer();
   const toOffer = wiz.fromOffer && !wiz.url && shouldShowOffer(window.__me);
   if (wiz.url) markOnboardDone();
   hideQr();
@@ -3430,83 +3425,6 @@ async function deleteDevice() {
 }
 
 $("devDelete").onclick = () => deleteDevice();
-
-function vpnReportContext() {
-  const me = window.__me || {};
-  const plat = tg.platform || "";
-  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  const tgUser = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
-  const devices = Array.isArray(me.devices) ? me.devices : [];
-  return {
-    source: "webapp",
-    view: screen,
-    wizard_step: screen === "wizard" ? wiz.step : null,
-    platform: (openDevice && openDevice.platform) || wiz.platform || plat,
-    client: (openDevice && openDevice.client) || wiz.client || "",
-    device: openDevice
-      ? {
-          id: openDevice.id,
-          title: openDevice.title,
-          client: openDevice.client,
-          platform: openDevice.platform,
-          active: openDevice.active,
-        }
-      : null,
-    me: {
-      days: me.days,
-      days_left: me.days_left,
-      hours_left: me.hours_left,
-      balance_rub: me.balance_rub,
-      billing_active: me.billing_active,
-      has_access: me.has_access,
-      device_count: devices.length,
-      devices: devices.map((d) => ({
-        id: d.id,
-        title: d.title,
-        client: d.client,
-        platform: d.platform,
-        active: d.active,
-      })),
-    },
-    telegram: {
-      platform: plat,
-      version: tg.version || "",
-      colorScheme: tg.colorScheme || "",
-      isExpanded: !!tg.isExpanded,
-      viewportHeight: tg.viewportHeight || window.innerHeight,
-      viewportStableHeight: tg.viewportStableHeight || window.innerHeight,
-      language: tgUser.language_code || navigator.language || "",
-      isPremium: !!tgUser.is_premium,
-    },
-    browser: {
-      userAgent: navigator.userAgent || "",
-      language: navigator.language || "",
-      languages: navigator.languages || [],
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
-      timezoneOffset: new Date().getTimezoneOffset(),
-      online: navigator.onLine,
-      connection: conn
-        ? { type: conn.effectiveType || conn.type || "", downlink: conn.downlink, rtt: conn.rtt }
-        : null,
-      screen: { w: window.screen && screen.width, h: window.screen && screen.height, dpr: window.devicePixelRatio },
-    },
-    page: { href: location.href, hidden: document.hidden },
-    now: new Date().toISOString(),
-  };
-}
-
-$("vpnDown").onclick = async () => {
-  haptic();
-  try {
-    await api("/api/vpn-report", {
-      method: "POST",
-      body: JSON.stringify({ context: vpnReportContext() }),
-    });
-    tg.showAlert("Принято. Мы уже смотрим.");
-  } catch (e) {
-    showErr(e);
-  }
-};
 
 $("supportBtn").onclick = () => {
   haptic();

@@ -97,7 +97,10 @@ def validate_shop(body: dict) -> dict:
     out["plan_3m_rub"] = _as_float(body.get("plan_3m_rub"), 1, 100000, "Тариф 3 месяца")
     out["plan_6m_rub"] = _as_float(body.get("plan_6m_rub"), 1, 100000, "Тариф 6 месяцев")
     out["plan_12m_rub"] = _as_float(body.get("plan_12m_rub"), 1, 100000, "Тариф 12 месяцев")
-    out["vpn_report_cooldown_sec"] = _as_int(body.get("vpn_report_cooldown_sec"), 0, 86400, "Пауза жалобы VPN")
+    if "vpn_report_cooldown_sec" in body:
+        out["vpn_report_cooldown_sec"] = _as_int(body.get("vpn_report_cooldown_sec"), 0, 86400, "Пауза жалобы VPN")
+    else:
+        out["vpn_report_cooldown_sec"] = int(get_settings().vpn_report_cooldown_sec or 0)
     if "admin_live_chat_id" in body:
         out["admin_live_chat_id"] = _as_live_chat(body.get("admin_live_chat_id"))
     else:

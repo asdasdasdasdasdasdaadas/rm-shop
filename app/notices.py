@@ -9,9 +9,13 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Добро пожаловать в <b>{brand}</b>.\n\n"
         "Чтобы пользоваться ботом, подпишитесь на канал и нажмите «Проверить подписку»."
     ),
-    "welcome_intro_hi": "Привет, {name}.",
+    "welcome_intro_hi": (
+        "Привет, {name}.\n\n"
+        "Вот вам {days} бесплатно."
+    ),
+    "welcome_intro_hi_plain": "Привет, {name}.",
     "welcome_intro_hello": (
-        "Это <b>{brand}</b>. Держим YouTube, Instagram, банки и всё, что без VPN не открывается. "
+        "Это <b>{brand}</b>. Держим YouTube, Instagram и всё, что без VPN не открывается. "
         "Без резких обрывов и без возни с настройками."
     ),
     "welcome_intro_try": (
@@ -170,7 +174,8 @@ DEFAULT_NOTICES: dict[str, str] = {
 
 NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "welcome", "title": "Приветствие: нет подписки на канал", "hint": "{brand}"},
-    {"key": "welcome_intro_hi", "title": "Первый запуск: привет", "hint": "{name}"},
+    {"key": "welcome_intro_hi", "title": "Первый запуск: привет", "hint": "{name} {days}"},
+    {"key": "welcome_intro_hi_plain", "title": "Первый запуск: привет без триала", "hint": "{name}"},
     {"key": "welcome_intro_hello", "title": "Первый запуск: кто мы", "hint": "{brand}"},
     {"key": "welcome_intro_try", "title": "Первый запуск: попробуй", "hint": "{days}"},
     {"key": "welcome_intro_try_no_trial", "title": "Первый запуск: попробуй без триала", "hint": ""},

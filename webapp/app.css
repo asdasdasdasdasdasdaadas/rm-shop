@@ -32,6 +32,10 @@
   --header: var(--text-tertiary);
   --radius: var(--radius-md);
   --pad: 20px;
+  --app-safe-top: 0px;
+  --app-safe-bottom: 0px;
+  --app-safe-left: 0px;
+  --app-safe-right: 0px;
   --glass: rgba(255, 255, 255, 0.055);
   --glass-strong: rgba(255, 255, 255, 0.09);
   --glass-tint: rgba(95, 214, 139, 0.16);
@@ -59,7 +63,7 @@ html, body {
   -webkit-overflow-scrolling: touch;
 }
 
-html { overflow-x: hidden; }
+html { overflow-x: clip; }
 
 .app-bg {
   position: fixed;
@@ -118,23 +122,24 @@ html { overflow-x: hidden; }
 }
 
 body {
-  padding:
-    calc(12px + var(--app-safe-top, var(--tg-content-safe-area-inset-top, var(--tg-safe-area-inset-top, 0px))))
-    max(
-      var(--pad),
-      env(safe-area-inset-right, 0px),
-      var(--app-safe-right, 0px),
-      var(--tg-safe-area-inset-right, 0px),
-      var(--tg-content-safe-area-inset-right, 0px)
-    )
-    calc(24px + var(--app-safe-bottom, var(--tg-safe-area-inset-bottom, 0px)))
-    max(
-      var(--pad),
-      env(safe-area-inset-left, 0px),
-      var(--app-safe-left, 0px),
-      var(--tg-safe-area-inset-left, 0px),
-      var(--tg-content-safe-area-inset-left, 0px)
-    );
+  --edge-left: max(var(--pad), env(safe-area-inset-left, 0px), var(--app-safe-left, 0px));
+  --edge-right: max(var(--pad), env(safe-area-inset-right, 0px), var(--app-safe-right, 0px));
+  padding: 0 0 calc(24px + var(--app-safe-bottom, var(--tg-safe-area-inset-bottom, 0px)));
+}
+
+html.is-fullscreen body {
+  --edge-left: max(env(safe-area-inset-left, 0px), var(--app-safe-left, 0px));
+  --edge-right: max(env(safe-area-inset-right, 0px), var(--app-safe-right, 0px));
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+  margin: 0 auto;
+  overflow-x: visible;
+  padding-left: var(--edge-left);
+  padding-right: var(--edge-right);
 }
 
 body.coach-lock {
@@ -145,13 +150,6 @@ body.coach-lock {
   overflow: hidden;
 }
 
-#app {
-  position: relative;
-  z-index: 1;
-  max-width: 520px;
-  margin: 0 auto;
-  overflow-x: visible;
-}
 
 .web-back {
   display: inline-flex;
@@ -170,35 +168,25 @@ body.coach-lock {
   position: sticky;
   top: 0;
   z-index: 14;
-  margin: 0 -8px 6px;
-  padding: 8px 8px 18px;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--bg-app) 94%, transparent) 0%,
-    color-mix(in srgb, var(--bg-app) 82%, transparent) 62%,
-    transparent 100%
-  );
-  backdrop-filter: blur(22px) saturate(1.2);
-  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  margin: 0 calc(-1 * var(--edge-right)) 6px calc(-1 * var(--edge-left));
+  padding: var(--app-safe-top, 0px) var(--edge-right) 14px var(--edge-left);
+  background: var(--bg-app);
 }
 
 .view-head {
   position: sticky;
   top: 0;
   z-index: 12;
-  margin: -4px -12px 0;
-  padding: 8px 12px 22px;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--bg-app) 96%, transparent) 0%,
-    color-mix(in srgb, var(--bg-app) 78%, transparent) 58%,
-    transparent 100%
-  );
-  backdrop-filter: blur(22px) saturate(1.2);
-  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  margin: 0 calc(-1 * var(--edge-right)) 0 calc(-1 * var(--edge-left));
+  padding: var(--app-safe-top, 0px) var(--edge-right) 16px var(--edge-left);
+  background: var(--bg-app);
 }
 body:has(#webBack:not(.hidden)) .view-head {
-  top: 44px;
+  top: calc(var(--app-safe-top, 0px) + 44px);
+  padding-top: 8px;
+}
+.view-head.home-nav {
+  padding-bottom: 12px;
 }
 .view-head .wiz-kicker { margin-top: 0; }
 .view-head .wiz-title { margin-bottom: 0; }
@@ -1949,10 +1937,7 @@ body.has-main-btn {
   right: 0;
   bottom: 0;
   z-index: 15;
-  padding: 12px
-    max(var(--pad), env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px))
-    calc(12px + var(--app-safe-bottom, var(--tg-safe-area-inset-bottom, 0px)))
-    max(var(--pad), env(safe-area-inset-left, 0px), var(--app-safe-left, 0px), var(--tg-safe-area-inset-left, 0px));
+  padding: 12px var(--edge-right) calc(12px + var(--app-safe-bottom, var(--tg-safe-area-inset-bottom, 0px))) var(--edge-left);
   background: rgba(13, 22, 17, 0.42);
   border-top: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
@@ -2404,7 +2389,7 @@ body.has-main-btn {
   margin: 0 auto;
 }
 
-.app-in .view:not(.hidden) > * {
+.app-in .view:not(.hidden) > *:not(.view-head):not(.web-back) {
   animation: rise-in 0.42s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
@@ -2415,27 +2400,17 @@ body.has-main-btn {
 .app-in .view:not(.hidden) > *:nth-child(5) { animation-delay: 0.22s; }
 
 @keyframes rise-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: none; }
-}
-
-.view-in-fade { animation: view-fade 0.44s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.view-in-push { animation: view-push 0.52s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.view-in-pop { animation: view-pop 0.52s cubic-bezier(0.22, 1, 0.36, 1) both; }
-
-@keyframes view-fade {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes view-push {
-  from { opacity: 0; transform: translateX(14px); }
-  to { opacity: 1; transform: none; }
-}
+.view-in-fade,
+.view-in-push,
+.view-in-pop { animation: view-fade 0.44s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-@keyframes view-pop {
-  from { opacity: 0; transform: translateX(-12px); }
-  to { opacity: 1; transform: none; }
+@keyframes view-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .title-in { animation: title-in 0.32s cubic-bezier(0.32, 0.72, 0, 1) both; }

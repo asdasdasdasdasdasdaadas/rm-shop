@@ -423,18 +423,6 @@ async def api_orders(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 
-async def api_reports(request: web.Request) -> web.Response:
-    denied = _need_auth(request)
-    if denied:
-        return denied
-    page = max(1, int(request.query.get("page") or 1))
-    limit = min(100, max(1, int(request.query.get("limit") or 30)))
-    items, total = await db.admin_list_reports(
-        limit, (page - 1) * limit, _query_extra(request, "status", "from", "to")
-    )
-    return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
-
-
 async def api_messages(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -1727,7 +1715,6 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/payouts", api_payouts)
     app.router.add_post("/admin/api/payouts/{payout_id}", api_payout_resolve)
     app.router.add_get("/admin/api/orders", api_orders)
-    app.router.add_get("/admin/api/reports", api_reports)
     app.router.add_get("/admin/api/messages", api_messages)
     app.router.add_post("/admin/api/messages/retry-failed", api_messages_retry_failed)
     app.router.add_post("/admin/api/messages/{msg_id}/retry", api_message_retry)
