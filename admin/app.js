@@ -2492,6 +2492,7 @@ async function loadSettings() {
   set("setSupport", v.support_username);
   set("setOffer", v.legal_offer_url);
   set("setPrivacy", v.legal_privacy_url);
+  set("setLiveChat", v.admin_live_chat_id);
   set("setMaxDev", v.max_devices);
   set("setHwid", v.remnawave_hwid_limit);
   set("setDayPrice", v.vpn_day_price_rub);
@@ -2693,6 +2694,7 @@ async function saveShopSettings(outId) {
     support_username: $("setSupport").value,
     legal_offer_url: $("setOffer").value,
     legal_privacy_url: $("setPrivacy").value,
+    admin_live_chat_id: $("setLiveChat") ? $("setLiveChat").value : "",
     max_devices: num("setMaxDev"),
     remnawave_hwid_limit: num("setHwid"),
     vpn_day_price_rub: num("setDayPrice"),

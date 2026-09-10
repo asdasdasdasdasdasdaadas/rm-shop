@@ -247,6 +247,7 @@ SHOP_KEYS = frozenset(
         "plan_6m_rub",
         "plan_12m_rub",
         "vpn_report_cooldown_sec",
+        "admin_live_chat_id",
         "vpn_apps",
         "notices",
     }

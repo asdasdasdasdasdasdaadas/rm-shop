@@ -45,6 +45,25 @@ def _as_url(value: Any, name: str) -> str:
     return text
 
 
+def _as_live_chat(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if len(text) > 80:
+        raise ValueError("Живой канал: до 80 символов")
+    if text.startswith("https://t.me/"):
+        text = "@" + text.rstrip("/").rsplit("/", 1)[-1]
+    elif text.startswith("http://t.me/"):
+        text = "@" + text.rstrip("/").rsplit("/", 1)[-1]
+    elif text.startswith("t.me/"):
+        text = "@" + text.rstrip("/").split("/", 1)[-1]
+    if text.lstrip("-").isdigit():
+        return text
+    if text.startswith("@") and len(text) > 1:
+        return text
+    raise ValueError("Живой канал: @username или id вида -100...")
+
+
 def validate_shop(body: dict) -> dict:
     out: dict[str, Any] = {}
     out["brand_name"] = _as_str(body.get("brand_name"), 1, 64, "Название")
@@ -92,6 +111,10 @@ def validate_shop(body: dict) -> dict:
     out["plan_6m_rub"] = _as_float(body.get("plan_6m_rub"), 1, 100000, "Тариф 6 месяцев")
     out["plan_12m_rub"] = _as_float(body.get("plan_12m_rub"), 1, 100000, "Тариф 12 месяцев")
     out["vpn_report_cooldown_sec"] = _as_int(body.get("vpn_report_cooldown_sec"), 0, 86400, "Пауза жалобы VPN")
+    if "admin_live_chat_id" in body:
+        out["admin_live_chat_id"] = _as_live_chat(body.get("admin_live_chat_id"))
+    else:
+        out["admin_live_chat_id"] = _as_live_chat(get_settings().admin_live_chat_id)
     out["vpn_apps"] = validate_vpn_apps(body.get("vpn_apps"))
     out["notices"] = validate_notices(body.get("notices"))
     return {k: out[k] for k in SHOP_KEYS}
@@ -139,6 +162,7 @@ def snapshot() -> dict:
             "plan_6m_rub": s.plan_6m_rub,
             "plan_12m_rub": s.plan_12m_rub,
             "vpn_report_cooldown_sec": s.vpn_report_cooldown_sec,
+            "admin_live_chat_id": s.admin_live_chat_id,
             "vpn_apps": public_vpn_apps(),
             "notices": public_notices(),
         },
