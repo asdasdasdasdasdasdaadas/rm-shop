@@ -294,9 +294,16 @@ body:has(#webBack:not(.hidden)) .view-head {
   padding-top: 8px;
 }
 .view-head.home-nav {
+  width: 100%;
+  max-width: 100%;
+  align-self: stretch;
+  justify-self: stretch;
   padding-bottom: 12px;
 }
 .view-head.home-nav .account-row {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   transition:
     transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.32s ease,
@@ -337,7 +344,8 @@ html.is-scrolled .view-head.home-nav .account-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  width: 100%;
+  padding: 12px 20px;
   border-radius: var(--radius-lg);
   background: var(--panel);
   border: 1px solid var(--glass-border);
@@ -1079,9 +1087,9 @@ html.is-scrolled .view-head.home-nav .account-row {
 }
 
 #devicesBlock {
-  align-self: start;
+  width: 100%;
   height: auto;
-  padding: 16px 16px 12px;
+  padding: 16px 20px 12px;
 }
 
 #devicesBlock .section-head {
@@ -4360,6 +4368,9 @@ html.is-pc #view-home .view-head,
 html.is-pc #view-home .status-card,
 html.is-pc #view-home .trial-notice {
   grid-column: 1 / -1;
+  justify-self: stretch;
+  width: 100%;
+  max-width: none;
 }
 html.is-pc .home-col {
   display: flex;
