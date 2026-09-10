@@ -43,8 +43,13 @@ if (typeof tg.disableVerticalSwipes === "function") {
   } catch (_e) {}
 }
 
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
 function applyTheme() {
-  const bg = "#0d1611";
+  const bg = cssVar("--bg-app", "#0d1611");
   try {
     tg.setHeaderColor(bg);
     tg.setBackgroundColor(bg);
@@ -52,6 +57,41 @@ function applyTheme() {
     if (tg.MainButton && tg.MainButton.hide) tg.MainButton.hide();
   } catch (_e) {}
 }
+
+const THEME_KEY = "way_theme_v1";
+const APP_THEMES = ["green", "black", "pink", "purple", "orange", "yellow"];
+
+function currentTheme() {
+  const t = document.documentElement.getAttribute("data-theme") || "green";
+  return APP_THEMES.indexOf(t) >= 0 ? t : "green";
+}
+
+function paintThemePicker() {
+  const on = currentTheme();
+  document.querySelectorAll(".theme-swatch").forEach((btn) => {
+    btn.classList.toggle("is-on", btn.getAttribute("data-theme-id") === on);
+  });
+}
+
+function setAppTheme(id) {
+  const theme = APP_THEMES.indexOf(id) >= 0 ? id : "green";
+  document.documentElement.setAttribute("data-theme", theme);
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch (_e) {}
+  applyTheme();
+  paintThemePicker();
+}
+
+function initAppTheme() {
+  let t = "green";
+  try {
+    t = localStorage.getItem(THEME_KEY) || "green";
+  } catch (_e) {}
+  setAppTheme(t);
+}
+
+initAppTheme();
 
 function applyViewport() {
   const root = document.documentElement;
@@ -324,10 +364,12 @@ function makeQrSvg(url, className) {
   const bg = document.createElementNS(ns, "rect");
   bg.setAttribute("width", String(dim));
   bg.setAttribute("height", String(dim));
-  bg.setAttribute("fill", dark ? "#0d1611" : "#ffffff");
+  const appBg = cssVar("--bg-app", "#0d1611");
+  const accent = cssVar("--accent", "#5fd68b");
+  bg.setAttribute("fill", dark ? appBg : "#ffffff");
   const path = document.createElementNS(ns, "path");
   path.setAttribute("d", d);
-  path.setAttribute("fill", dark ? "#5fd68b" : "#0d1611");
+  path.setAttribute("fill", dark ? accent : appBg);
   svg.appendChild(bg);
   svg.appendChild(path);
   return svg;
@@ -756,7 +798,7 @@ function replayAnim(el, cls) {
 
 function switchView(id, motion) {
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
-  ["view-home", "view-topup", "view-wizard", "view-device", "view-support", "view-faq", "view-billing", "view-referrals", "view-offer"].forEach((vid) => {
+  ["view-home", "view-topup", "view-wizard", "view-device", "view-support", "view-faq", "view-billing", "view-referrals", "view-offer", "view-settings"].forEach((vid) => {
     const el = $(vid);
     const on = vid === id;
     el.classList.toggle("hidden", !on);
@@ -864,7 +906,8 @@ function maybeOpenFirstRun(me) {
     screen === "topup" ||
     screen === "support" ||
     screen === "faq" ||
-    screen === "billing"
+    screen === "billing" ||
+    screen === "settings"
   ) {
     return;
   }
@@ -1483,6 +1526,10 @@ function onBack() {
     openHome();
     return;
   }
+  if (screen === "settings") {
+    openHome();
+    return;
+  }
   if (screen === "offer") {
     const me = window.__me;
     if (me && me.balance_enabled && !(me.devices || []).length) {
@@ -1494,7 +1541,7 @@ function onBack() {
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "faq" || screen === "billing" || screen === "referrals" || screen === "offer";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "faq" || screen === "billing" || screen === "referrals" || screen === "offer" || screen === "settings";
   stopSupportPoll();
   screen = "home";
   openDevice = null;
@@ -1702,6 +1749,19 @@ function openFaq(from) {
   } catch (_e) {}
   syncWebBack();
   paintFaq(me);
+}
+
+function openSettings() {
+  hideCoach();
+  stopSupportPoll();
+  screen = "settings";
+  switchView("view-settings", "push");
+  setMain("");
+  paintThemePicker();
+  try {
+    tg.BackButton.show();
+  } catch (_e) {}
+  syncWebBack();
 }
 
 const BILL_KIND = {
@@ -2056,6 +2116,7 @@ function openOffer(opts) {
   switchView("view-offer", opts && opts.instant ? "fade" : "push");
   setMain("");
   paintOffer(me);
+  replayAnim($("view-offer"), "offer-play");
   try {
     tg.BackButton.show();
   } catch (_e) {}
@@ -2700,7 +2761,7 @@ function renderDevices(me) {
     el.className = "device-row";
     el.innerHTML =
       '<div class="glyph sm" aria-hidden="true">' +
-      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="2.5" stroke="#5fd68b" stroke-width="1.6"/><circle cx="12" cy="18" r="0.8" fill="#5fd68b"/></svg>' +
+      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="2.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="18" r="0.8" fill="currentColor"/></svg>' +
       "</div>";
     const meta = document.createElement("div");
     meta.className = "meta";
@@ -3480,6 +3541,21 @@ if ($("menuFaq")) {
     closeMenu();
     haptic();
     openFaq("home");
+  };
+}
+if ($("menuSettings")) {
+  $("menuSettings").onclick = () => {
+    closeMenu();
+    haptic();
+    openSettings();
+  };
+}
+if ($("themeList")) {
+  $("themeList").onclick = (e) => {
+    const btn = e.target.closest(".theme-swatch");
+    if (!btn) return;
+    haptic();
+    setAppTheme(btn.getAttribute("data-theme-id"));
   };
 }
 if ($("offerTry")) $("offerTry").onclick = () => startOfferTry();
