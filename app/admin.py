@@ -474,9 +474,8 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
     if kind == "nudge_story":
         return story_nudge_keyboard()
     if kind == "first_device_thanks":
-        story = bool(settings.balance_enabled and settings.story_reward_enabled and settings.story_reward_rub > 0)
-        return story_nudge_keyboard() if story else cabinet_keyboard()
-    if kind in {"nudge_info", "nudge_device", "low_balance"}:
+        return cabinet_keyboard()
+    if kind in {"nudge_info", "nudge_device", "low_balance", "nudge_first_online", "nudge_trial_end", "welcome_intro"}:
         return cabinet_keyboard()
     return None
 

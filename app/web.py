@@ -425,10 +425,21 @@ async def api_me(request: web.Request) -> web.Response:
             "referral_invitee_days": settings.referral_invitee_days,
             "referral_reward_rub": settings.referral_reward_rub,
             **ref_view,
+            "has_paid_topup": bool((local or {}).get("has_paid_topup")),
+            "first_online_at": (
+                local.get("first_online_at").isoformat()
+                if local and local.get("first_online_at") and hasattr(local.get("first_online_at"), "isoformat")
+                else (str(local.get("first_online_at")) if local and local.get("first_online_at") else None)
+            ),
             "story_reward_enabled": bool(
                 settings.balance_enabled
                 and settings.story_reward_enabled
                 and settings.story_reward_rub > 0
+                and (
+                    (local or {}).get("first_online_at")
+                    or (local or {}).get("story_rewarded_at")
+                    or (local or {}).get("story_pending_at")
+                )
             ),
             "story_reward_rub": settings.story_reward_rub if settings.balance_enabled else 0,
             **_story_check_state(local, settings),
@@ -542,6 +553,8 @@ async def api_story_share(request: web.Request) -> web.Response:
     local = await db.get_user(telegram_id)
     if not local:
         return json_error("Пользователь не найден")
+    if not local.get("first_online_at") and not local.get("story_rewarded_at") and not local.get("story_pending_at"):
+        return json_error("Сначала подключите VPN. Награда за историю — после первого онлайна")
     if local.get("story_rewarded_at"):
         return web.json_response({"ok": True, "already": True, "balance_rub": int(local.get("balance_rub") or 0)})
     pending_at = parse_dt(local.get("story_pending_at"))
@@ -720,9 +733,6 @@ async def api_add_device(request: web.Request) -> web.Response:
     await db.save_device_subscription(rw_id, user)
     if was_first:
         await db.mark_first_device_thanks_pending(telegram_id)
-        from app.nudge import send_story_offer_now
-
-        await send_story_offer_now(request.app.get("bot"), telegram_id)
     return web.json_response(
         {
             "ok": True,

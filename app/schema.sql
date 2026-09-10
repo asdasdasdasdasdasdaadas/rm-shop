@@ -146,6 +146,9 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS first_device_thanks_pending BOOLEAN N
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_device_thanks_sent_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS device_nudge_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS device_nudge_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_online_nudge_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_end_nudge_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS welcome_intro_sent_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS users_device_nudge_idx
     ON users (device_nudge_count, created_at)
@@ -227,6 +230,14 @@ WHERE last_billed_at IS NULL
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_earned INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_withdrawn INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_online_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS users_first_online_nudge_idx ON users (first_online_at)
+    WHERE first_online_nudge_at IS NULL
+      AND blocked_at IS NULL
+      AND COALESCE(has_paid_topup, FALSE) = FALSE;
+CREATE INDEX IF NOT EXISTS users_trial_end_nudge_idx ON users (trial_end_nudge_at, balance_rub)
+    WHERE trial_end_nudge_at IS NULL
+      AND blocked_at IS NULL
+      AND COALESCE(has_paid_topup, FALSE) = FALSE;
 
 UPDATE users u
 SET first_online_at = s.seen

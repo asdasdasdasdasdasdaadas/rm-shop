@@ -102,6 +102,10 @@ def validate_shop(body: dict) -> dict:
         out["admin_live_chat_id"] = _as_live_chat(body.get("admin_live_chat_id"))
     else:
         out["admin_live_chat_id"] = _as_live_chat(get_settings().admin_live_chat_id)
+    sticker = str(body.get("welcome_sticker_file_id") or "").strip()
+    if len(sticker) > 256:
+        raise ValueError("Стикер приветствия: слишком длинный id")
+    out["welcome_sticker_file_id"] = sticker
     out["vpn_apps"] = validate_vpn_apps(body.get("vpn_apps"))
     out["notices"] = validate_notices(body.get("notices"))
     return {k: out[k] for k in SHOP_KEYS}
@@ -150,6 +154,7 @@ def snapshot() -> dict:
             "plan_12m_rub": s.plan_12m_rub,
             "vpn_report_cooldown_sec": s.vpn_report_cooldown_sec,
             "admin_live_chat_id": s.admin_live_chat_id,
+            "welcome_sticker_file_id": s.welcome_sticker_file_id,
             "vpn_apps": public_vpn_apps(),
             "notices": public_notices(),
         },
@@ -178,5 +183,6 @@ async def save_shop_overlay(body: dict) -> dict:
     cleaned = validate_shop(body)
     await verify_live_chat(cleaned.get("admin_live_chat_id") or "")
     await db.set_kv(KV_KEY, json.dumps(cleaned, ensure_ascii=False))
+    await db.set_welcome_sticker_file_id(str(cleaned.get("welcome_sticker_file_id") or ""))
     set_shop_overlay(cleaned)
     return snapshot()

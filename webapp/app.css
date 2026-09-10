@@ -1962,6 +1962,24 @@ body.has-main-btn {
   padding: 3px;
 }
 
+.pay-first {
+  width: 100%;
+  min-height: 124px;
+}
+
+.pay-other {
+  display: block;
+  width: 100%;
+  margin: 12px 0 0;
+  padding: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 14px;
+  text-align: center;
+}
+
 .pay-card {
   position: relative;
   text-align: left;

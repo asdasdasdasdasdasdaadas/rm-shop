@@ -26,6 +26,9 @@ const MSG_KIND_LABEL = {
   nudge_info: "Напоминание: кабинет",
   nudge_story: "Напоминание: история",
   nudge_device: "Напоминание: устройство",
+  nudge_first_online: "Напоминание: после онлайна",
+  nudge_trial_end: "Напоминание: сутки до отключения",
+  welcome_intro: "Первый запуск",
   first_device_thanks: "После первого устройства",
   cabinet_link: "Ссылка на кабинет",
   low_balance: "Мало баланса",
@@ -2493,6 +2496,7 @@ async function loadSettings() {
   set("setOffer", v.legal_offer_url);
   set("setPrivacy", v.legal_privacy_url);
   set("setLiveChat", v.admin_live_chat_id);
+  set("setWelcomeSticker", v.welcome_sticker_file_id);
   const hint = s.live_chat_hint;
   const hintEl = $("liveChatHint");
   const hintBtn = $("liveChatUseHint");
@@ -2716,6 +2720,7 @@ async function saveShopSettings(outId) {
     legal_offer_url: $("setOffer").value,
     legal_privacy_url: $("setPrivacy").value,
     admin_live_chat_id: $("setLiveChat") ? $("setLiveChat").value : "",
+    welcome_sticker_file_id: $("setWelcomeSticker") ? $("setWelcomeSticker").value : "",
     max_devices: num("setMaxDev"),
     remnawave_hwid_limit: num("setHwid"),
     vpn_day_price_rub: num("setDayPrice"),

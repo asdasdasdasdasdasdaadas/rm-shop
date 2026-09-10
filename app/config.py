@@ -81,6 +81,9 @@ class Settings(BaseSettings):
     webapp_port: int = 8080
     webapp_public_url: str = ""
 
+    welcome_sticker_file_id: str = (
+        "CAACAgIAAxkBAAEGvvRqovc3xHWk_tb7oHrXUIDKdJ8H2AACCAEAAjDUnRGbJRzV9mdkhT0E"
+    )
     brand_name: str = "RM Shop"
     support_username: str = "@way_proxy_support"
     admin_password: str = ""
@@ -215,6 +218,7 @@ class Settings(BaseSettings):
 
 SHOP_KEYS = frozenset(
     {
+        "welcome_sticker_file_id",
         "brand_name",
         "support_username",
         "legal_offer_url",

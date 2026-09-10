@@ -304,6 +304,100 @@ async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
     return sent, touched
 
 
+def _days_left_from_row(row: dict) -> int:
+    price = max(1, int(get_settings().vpn_day_price_rub or 1))
+    n = max(1, int(row.get("device_count") or 0))
+    bal = max(0, int(row.get("balance_rub") or 0))
+    return max(0, bal // (price * n))
+
+
+async def send_due_first_online_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
+    touched: list[int] = []
+    if not get_settings().balance_enabled:
+        return 0, touched
+    if await db.flag_on("maintenance"):
+        return 0, touched
+    sent = 0
+    for row in await db.list_due_first_online_nudges(NUDGE_BATCH, skip_ids):
+        telegram_id = int(row["telegram_id"])
+        body = notice_text("first_online_nudge", days=days_text(_days_left_from_row(row)))
+        try:
+            await bot.send_message(telegram_id, body, reply_markup=cabinet_keyboard())
+            await db.log_bot_message(
+                kind="nudge_first_online",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title="Напоминание: после первого онлайна",
+                body=body,
+                status="sent",
+            )
+            ok = True
+        except Exception as exc:
+            logger.debug("Напоминание после онлайна не ушло %s", telegram_id, exc_info=True)
+            await db.log_bot_message(
+                kind="nudge_first_online",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title="Напоминание: после первого онлайна",
+                body=body,
+                status="failed",
+                extra=fail_extra(exc),
+            )
+            ok = False
+        await db.mark_first_online_nudge_sent(telegram_id)
+        await asyncio.sleep(0.035)
+        touched.append(telegram_id)
+        if ok:
+            sent += 1
+    return sent, touched
+
+
+async def send_due_trial_end_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
+    touched: list[int] = []
+    settings = get_settings()
+    if not settings.balance_enabled:
+        return 0, touched
+    if await db.flag_on("maintenance"):
+        return 0, touched
+    sent = 0
+    for row in await db.list_due_trial_end_nudges(settings.vpn_day_price_rub, NUDGE_BATCH, skip_ids):
+        telegram_id = int(row["telegram_id"])
+        body = notice_text("trial_end_nudge")
+        try:
+            await bot.send_message(telegram_id, body, reply_markup=cabinet_keyboard())
+            await db.log_bot_message(
+                kind="nudge_trial_end",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title="Напоминание: сутки до отключения",
+                body=body,
+                status="sent",
+            )
+            ok = True
+        except Exception as exc:
+            logger.debug("Напоминание за сутки до нуля не ушло %s", telegram_id, exc_info=True)
+            await db.log_bot_message(
+                kind="nudge_trial_end",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title="Напоминание: сутки до отключения",
+                body=body,
+                status="failed",
+                extra=fail_extra(exc),
+            )
+            ok = False
+        await db.mark_trial_end_nudge_sent(telegram_id)
+        await asyncio.sleep(0.035)
+        touched.append(telegram_id)
+        if ok:
+            sent += 1
+    return sent, touched
+
+
 async def send_first_device_thanks(bot: Bot | None, telegram_id: int) -> bool:
     if not bot:
         return False
@@ -312,7 +406,7 @@ async def send_first_device_thanks(bot: Bot | None, telegram_id: int) -> bool:
     if not await db.take_first_device_thanks(telegram_id):
         return False
     body = notice_text("first_device_thanks")
-    kb = story_nudge_keyboard() if _story_reward_on() else cabinet_keyboard()
+    kb = cabinet_keyboard()
     try:
         await bot.send_message(telegram_id, body, reply_markup=kb)
         await db.log_bot_message(
@@ -323,7 +417,6 @@ async def send_first_device_thanks(bot: Bot | None, telegram_id: int) -> bool:
             body=body,
             status="sent",
         )
-        await send_story_offer_now(bot, telegram_id)
         return True
     except Exception as exc:
         logger.debug("Не удалось отправить благодарность %s", telegram_id, exc_info=True)
@@ -349,6 +442,14 @@ async def trial_nudge_loop(bot: Bot) -> None:
             skip.extend(ids)
             if n:
                 logger.info("Напоминание добавить устройство: %s", n)
+            n, ids = await send_due_first_online_nudges(bot, skip)
+            skip.extend(ids)
+            if n:
+                logger.info("Напоминание после первого онлайна: %s", n)
+            n, ids = await send_due_trial_end_nudges(bot, skip)
+            skip.extend(ids)
+            if n:
+                logger.info("Напоминание за сутки до отключения: %s", n)
             n, ids = await send_due_story_nudges(bot, skip)
             skip.extend(ids)
             if n:

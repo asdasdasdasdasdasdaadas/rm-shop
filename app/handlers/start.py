@@ -21,6 +21,7 @@ from app.keyboards import (
     welcome_text,
 )
 from app.referrals import ensure_signup_trial, maybe_reward_referrer, trial_is_available
+from app.welcome import send_welcome_intro
 from app.remnawave import RemnawaveClient
 from app.sync import fetch_panel, has_access
 
@@ -125,6 +126,7 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
             and settings.story_reward_enabled
             and settings.story_reward_rub > 0
             and local
+            and local.get("first_online_at")
             and not local.get("story_rewarded_at")
             and not local.get("story_pending_at")
         ),
@@ -186,10 +188,20 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
     await maybe_reward_referrer(
         message.bot, rw, message.from_user.id, message.from_user.first_name
     )
-    if not await is_channel_member(message.bot, message.from_user.id):
+    in_channel = await is_channel_member(message.bot, message.from_user.id)
+    passed_legal = await user_passed_legal(message.from_user.id) if in_channel else False
+    if await db.claim_welcome_intro(message.from_user.id):
+        ok = await send_welcome_intro(
+            message,
+            in_channel=in_channel,
+            passed_legal=passed_legal,
+        )
+        if ok:
+            return
+    if not in_channel:
         await message.answer(welcome_text(), reply_markup=channel_keyboard())
         return
-    if not await user_passed_legal(message.from_user.id):
+    if not passed_legal:
         await message.answer(legal_text(), reply_markup=legal_keyboard())
         return
     await show_profile(message, rw)
@@ -254,6 +266,26 @@ async def try_again(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         return
     await user_passed_legal(user.id)
     await show_profile(callback, rw)
+
+
+@router.message(Command("welcome_sticker"))
+async def cmd_welcome_sticker(message: Message) -> None:
+    settings = get_settings()
+    if message.from_user.id not in settings.admin_id_set:
+        return
+    sticker = None
+    replied = message.reply_to_message
+    if replied and replied.sticker:
+        sticker = replied.sticker
+    elif message.sticker:
+        sticker = message.sticker
+    if not sticker:
+        await message.answer(
+            "Ответьте командой /welcome_sticker на стикер — его покажем при первом запуске бота."
+        )
+        return
+    await db.set_welcome_sticker_file_id(sticker.file_id)
+    await message.answer("Стикер для первого запуска сохранён.")
 
 
 @router.message(Command("admin"))

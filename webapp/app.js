@@ -764,6 +764,7 @@ let loadSeq = 0;
 let lastConnectUrl = null;
 let openDevice = null;
 let topupMode = "fast";
+let wizardAutoOpened = false;
 let topupCode = "";
 let topupCustomRub = 0;
 
@@ -827,9 +828,32 @@ function shouldShowOffer(me) {
   if (!me) return false;
   if ((me.devices || []).length) return false;
   if (onboardDone() || offerSkipped()) return false;
-  if (me.trial_available) return true;
-  const kind = me.trial_notice && me.trial_notice.kind;
-  return kind === "claim" || kind === "granted";
+  return Boolean(me.trial_available);
+}
+
+function shouldStartDeviceWizard(me) {
+  if (!me || !me.balance_enabled) return false;
+  if ((me.devices || []).length) return false;
+  if (onboardDone() || offerSkipped()) return false;
+  if (screen === "wizard" || screen === "device" || screen === "topup" || screen === "support") return false;
+  if (screen === "billing" || screen === "referrals" || screen === "offer") return false;
+  return (Number(me.balance_rub) || 0) > 0;
+}
+
+function maybeOpenOffer(me) {
+  if (!me) return;
+  if (screen === "wizard" || screen === "device" || screen === "topup" || screen === "support") return;
+  if (screen === "offer") {
+    paintOffer(me);
+    return;
+  }
+  if (shouldStartDeviceWizard(me) && !wizardAutoOpened) {
+    wizardAutoOpened = true;
+    startWizard({ fromOffer: true });
+    return;
+  }
+  if (!shouldShowOffer(me)) return;
+  openOffer();
 }
 
 function markCoachDone() {
@@ -1290,7 +1314,29 @@ function topupDaysFor(me, amount) {
   return Math.max(0, Math.floor(amount / topupDayPrice(me)));
 }
 
+function monthTopupRub(me) {
+  const n = Math.max(1, Number(me.vpn_day_price_rub) || 1) * 30;
+  const min = Number(me.topup_min) || 1;
+  const max = Number(me.topup_max) || n;
+  return Math.min(max, Math.max(min, n));
+}
+
+function firstTopup(me) {
+  return Boolean(me && me.balance_enabled && !me.has_paid_topup);
+}
+
+function monthTopupPlan(me) {
+  const n = monthTopupRub(me);
+  return {
+    code: "b" + n,
+    title: n + " рублей",
+    topup_rub: n,
+    rub: n,
+  };
+}
+
 function currentTopupPlan(me) {
+  if (topupMode === "first") return monthTopupPlan(me);
   if (topupMode === "custom") {
     const min = Number(me.topup_min) || 1;
     const max = Number(me.topup_max) || min;
@@ -1308,17 +1354,25 @@ function currentTopupPlan(me) {
 }
 
 function ensureTopupCode(me) {
+  if (topupMode === "first") {
+    topupCode = monthTopupPlan(me).code;
+    return;
+  }
   const plans = me.plans || [];
   if (plans.some((p) => p.code === topupCode)) return;
-  const hit = plans.find((p) => planRub(p) === 100);
+  const month = monthTopupRub(me);
+  const hit = plans.find((p) => planRub(p) === month) || plans.find((p) => planRub(p) === 100);
   topupCode = (hit || plans[0] || {}).code || "";
 }
 
 function applyTopupMode() {
+  const first = topupMode === "first";
   const custom = topupMode === "custom";
+  const firstEl = $("topupFirst");
+  if (firstEl) firstEl.classList.toggle("hidden", !first);
   $("tabFast").classList.toggle("on", !custom);
   $("tabCustom").classList.toggle("on", custom);
-  $("fastPanel").classList.toggle("hidden", custom);
+  $("fastPanel").classList.toggle("hidden", custom || first);
   $("customPanel").classList.toggle("hidden", !custom);
 }
 
@@ -1332,9 +1386,14 @@ function updateTopupCta(me) {
     return;
   }
   const amount = planRub(plan);
-  const label = me.balance_enabled
-    ? `Пополнить на ${amount} ₽`
-    : `Оплатить · ${plan.title}`;
+  let label;
+  if (topupMode === "first") {
+    label = `Месяц за ${amount} ₽`;
+  } else if (me.balance_enabled) {
+    label = `Пополнить на ${amount} ₽`;
+  } else {
+    label = `Оплатить · ${plan.title}`;
+  }
   setMain(label, async () => {
     haptic();
     setMainBusy(true);
@@ -1421,7 +1480,7 @@ function openTopup() {
   const me = window.__me;
   if (!me) return;
   screen = "topup";
-  topupMode = "fast";
+  topupMode = firstTopup(me) ? "first" : "fast";
   switchView("view-topup", "push");
   try {
     tg.BackButton.show();
@@ -1924,17 +1983,6 @@ function openOffer() {
   syncWebBack();
 }
 
-function maybeOpenOffer(me) {
-  if (!me) return;
-  if (screen === "wizard" || screen === "device" || screen === "topup" || screen === "support") return;
-  if (screen === "offer") {
-    paintOffer(me);
-    return;
-  }
-  if (!shouldShowOffer(me)) return;
-  openOffer();
-}
-
 async function startOfferTry() {
   const me = window.__me;
   if (!me) return;
@@ -1976,15 +2024,40 @@ async function payPlan(plan) {
 
 function renderTopup(me) {
   if (!me) return;
+  const first = firstTopup(me) && topupMode !== "custom";
+  if (first) topupMode = "first";
   ensureTopupCode(me);
   const plans = me.plans || [];
   const canCustom = Boolean(me.balance_enabled);
-  $("topupTabs").classList.toggle("hidden", !canCustom);
-  if (!canCustom) topupMode = "fast";
+  $("topupTabs").classList.toggle("hidden", !canCustom || topupMode === "first");
+  if (!canCustom && topupMode !== "first") topupMode = "fast";
   applyTopupMode();
+  const titleEl = document.querySelector("#view-topup .wiz-title");
+  if (titleEl) {
+    titleEl.textContent = topupMode === "first" ? "Месяц, чтобы не думать" : "Сколько зальём?";
+  }
   $("topupHint").textContent = me.balance_enabled
-    ? `С каждого устройства списывается ${me.vpn_day_price_rub} ₽ в сутки. Карточки показывают, на сколько дней хватит суммы при одном устройстве.`
+    ? topupMode === "first"
+      ? `Один платёж на ~30 суток одного устройства. С каждого устройства списывается ${me.vpn_day_price_rub} ₽ в сутки.`
+      : `С каждого устройства списывается ${me.vpn_day_price_rub} ₽ в сутки. Карточки показывают, на сколько дней хватит суммы при одном устройстве.`
     : "Выберите срок подписки.";
+  if (topupMode === "first") {
+    const amount = monthTopupRub(me);
+    const btn = $("topupMonthBtn");
+    if (btn) {
+      btn.innerHTML = "";
+      const amt = document.createElement("div");
+      amt.className = "pay-amount";
+      amt.textContent = `${amount} ₽`;
+      const days = document.createElement("div");
+      days.className = "pay-days";
+      days.textContent = "месяц · одно устройство";
+      btn.appendChild(amt);
+      btn.appendChild(days);
+    }
+    updateTopupCta(me);
+    return;
+  }
   const amounts = plans.map(planRub).filter((n) => n > 0);
   const hitAmt = amounts.includes(100) ? 100 : (amounts[1] || 0);
   const grid = $("topupGrid");
@@ -2029,7 +2102,10 @@ function renderTopup(me) {
     const min = Number(me.topup_min) || amounts[0] || 50;
     const max = Number(me.topup_max) || amounts[amounts.length - 1] || min;
     if (!topupCustomRub) {
-      const hit = amounts.includes(100) ? 100 : (planRub(currentTopupPlan(me)) || min);
+      const month = monthTopupRub(me);
+      const hit = firstTopup(me)
+        ? month
+        : (amounts.includes(100) ? 100 : (planRub(currentTopupPlan(me)) || min));
       topupCustomRub = Math.min(max, Math.max(min, hit));
     }
     const inp = $("topupAmount");
@@ -2044,6 +2120,7 @@ function renderTopup(me) {
 }
 
 function closeWizard() {
+  skipOffer();
   const toOffer = wiz.fromOffer && !wiz.url && shouldShowOffer(window.__me);
   if (wiz.url) markOnboardDone();
   hideQr();
@@ -2727,12 +2804,11 @@ function paint(me) {
   const trustHelp = $("trustHelp");
   const menuTrust = $("menuTrust");
   const t = me.trust;
-  const daysLeft = Number(me.days_left) || 0;
   const showTrust = Boolean(
     me.balance_enabled
     && t
     && t.enabled !== false
-    && (t.open || daysLeft < 3)
+    && (t.open || t.available || ((Number(me.days_left) || 0) < 3 && me.has_paid_topup))
   );
   if (trustHelp) trustHelp.classList.toggle("hidden", !showTrust);
   if (menuTrust) menuTrust.classList.toggle("hidden", !showTrust);
@@ -2860,8 +2936,9 @@ $("topupBtn").onclick = () => {
 
 $("tabFast").onclick = () => {
   haptic();
-  topupMode = "fast";
-  if (window.__me) renderTopup(window.__me);
+  const me = window.__me;
+  topupMode = firstTopup(me) ? "first" : "fast";
+  if (me) renderTopup(me);
 };
 
 $("tabCustom").onclick = () => {
@@ -2871,6 +2948,27 @@ $("tabCustom").onclick = () => {
   const inp = $("topupAmount");
   if (inp) setTimeout(() => inp.focus(), 50);
 };
+
+if ($("topupOtherBtn")) {
+  $("topupOtherBtn").onclick = () => {
+    haptic();
+    topupMode = "custom";
+    if (window.__me) renderTopup(window.__me);
+    const inp = $("topupAmount");
+    if (inp) setTimeout(() => inp.focus(), 50);
+  };
+}
+
+if ($("topupMonthBtn")) {
+  $("topupMonthBtn").onclick = () => {
+    const me = window.__me;
+    if (!me) return;
+    haptic();
+    const plan = monthTopupPlan(me);
+    setMainBusy(true);
+    payPlan(plan).catch(showErr).finally(() => setMainBusy(false));
+  };
+}
 
 function paintCustomTopup(me) {
   const min = Number(me.topup_min) || 1;

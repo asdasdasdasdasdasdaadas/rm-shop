@@ -846,6 +846,9 @@
               <option value="nudge_info">Напоминание: кабинет</option>
               <option value="nudge_story">Напоминание: история</option>
               <option value="nudge_device">Напоминание: устройство</option>
+              <option value="nudge_first_online">Напоминание: после онлайна</option>
+              <option value="nudge_trial_end">Напоминание: сутки до отключения</option>
+              <option value="welcome_intro">Первый запуск</option>
               <option value="first_device_thanks">После первого устройства</option>
               <option value="low_balance">Мало баланса</option>
               <option value="cabinet_link">Ссылка на кабинет</option>
@@ -1008,6 +1011,11 @@
                   <div class="ops">
                     <button type="button" id="liveChatUseHint" class="ghost hidden">Подставить id приватного канала</button>
                   </div>
+                </div>
+                <div>
+                  <label class="ops-label" for="setWelcomeSticker">Стикер первого запуска (file_id)</label>
+                  <input id="setWelcomeSticker" name="welcome_sticker_file_id" type="text" maxlength="256" placeholder="file_id стикера">
+                  <p class="muted tight">Показывается один раз, при первом /start. Другой стикер: вставьте file_id или ответьте боту /welcome_sticker на стикер.</p>
                 </div>
               </div>
             </div>
