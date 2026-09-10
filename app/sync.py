@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 from app import db
 from app.config import get_settings
+from app.live import note_first_online_from_panels, note_panel_online
 from app.remnawave import RemnawaveClient, RemnawaveError, is_subscription_active
 
 logger = logging.getLogger("rm-shop.sync")
@@ -76,6 +77,10 @@ async def fetch_panel(
     except RemnawaveError:
         panel = None
     await db.save_panel_snapshot(telegram_id, panel)
+    try:
+        await note_panel_online(telegram_id, panel)
+    except Exception:
+        logger.debug("Живой канал: первое подключение %s", telegram_id, exc_info=True)
     return panel
 
 
@@ -159,6 +164,10 @@ async def sync_all(rw: RemnawaveClient) -> None:
             seen += len(users)
             if users:
                 applied += await db.apply_panel_snapshots(users)
+                try:
+                    await note_first_online_from_panels(users)
+                except Exception:
+                    logger.debug("Живой канал: пакет первых подключений", exc_info=True)
             if (pending or {}).get("kind") == "done":
                 break
             if not users:

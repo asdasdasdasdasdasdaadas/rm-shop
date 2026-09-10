@@ -90,31 +90,45 @@ async def upsert_user(
     first_name: str | None,
     referred_by: int | None = None,
     ad_link_id: int | None = None,
-) -> None:
+) -> dict | None:
     pool = _pool_req()
     ref = referred_by if referred_by and referred_by != telegram_id else None
     ad_id = int(ad_link_id) if ad_link_id else None
-    await pool.execute(
+    row = await pool.fetchrow(
         """
-        INSERT INTO users (telegram_id, username, first_name, referred_by, ad_link_id)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (telegram_id) DO UPDATE SET
-            username = EXCLUDED.username,
-            first_name = EXCLUDED.first_name,
-            referred_by = CASE
-                WHEN users.referred_by IS NOT NULL THEN users.referred_by
-                WHEN EXCLUDED.referred_by IS NULL THEN users.referred_by
-                WHEN users.referral_rewarded
-                  OR COALESCE(users.has_paid_topup, FALSE)
-                  OR users.remnawave_id IS NOT NULL
-                  OR EXISTS (
-                      SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id
-                  )
-                THEN users.referred_by
-                ELSE EXCLUDED.referred_by
-            END,
-            ad_link_id = COALESCE(users.ad_link_id, EXCLUDED.ad_link_id),
-            bot_blocked_at = NULL
+        WITH before AS (
+            SELECT referred_by FROM users WHERE telegram_id = $1
+        ),
+        upsert AS (
+            INSERT INTO users (telegram_id, username, first_name, referred_by, ad_link_id)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (telegram_id) DO UPDATE SET
+                username = EXCLUDED.username,
+                first_name = EXCLUDED.first_name,
+                referred_by = CASE
+                    WHEN users.referred_by IS NOT NULL THEN users.referred_by
+                    WHEN EXCLUDED.referred_by IS NULL THEN users.referred_by
+                    WHEN users.referral_rewarded
+                      OR COALESCE(users.has_paid_topup, FALSE)
+                      OR users.remnawave_id IS NOT NULL
+                      OR EXISTS (
+                          SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id
+                      )
+                    THEN users.referred_by
+                    ELSE EXCLUDED.referred_by
+                END,
+                ad_link_id = COALESCE(users.ad_link_id, EXCLUDED.ad_link_id),
+                bot_blocked_at = NULL
+            RETURNING telegram_id, username, first_name, referred_by
+        )
+        SELECT
+            u.telegram_id,
+            u.username,
+            u.first_name,
+            u.referred_by,
+            (b.referred_by IS NULL AND u.referred_by IS NOT NULL) AS referral_attached
+        FROM upsert u
+        LEFT JOIN before b ON TRUE
         """,
         telegram_id,
         username,
@@ -122,11 +136,51 @@ async def upsert_user(
         ref,
         ad_id,
     )
+    return _as_dict(row)
 
 
 async def get_user(telegram_id: int) -> dict | None:
     row = await _pool_req().fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
     return _as_dict(row)
+
+
+async def claim_first_online(telegram_id: int) -> dict | None:
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users
+        SET first_online_at = timezone('utc', now())
+        WHERE telegram_id = $1
+          AND first_online_at IS NULL
+        RETURNING telegram_id, username, first_name
+        """,
+        telegram_id,
+    )
+    return _as_dict(row)
+
+
+async def claim_first_online_for_panel_ids(panel_ids: list[int]) -> list[dict]:
+    if not panel_ids:
+        return []
+    rows = await _pool_req().fetch(
+        """
+        UPDATE users u
+        SET first_online_at = timezone('utc', now())
+        WHERE u.first_online_at IS NULL
+          AND (
+              u.remnawave_id = ANY($1::bigint[])
+              OR EXISTS (
+                  SELECT 1
+                  FROM devices d
+                  WHERE d.telegram_id = u.telegram_id
+                    AND d.remnawave_id = ANY($1::bigint[])
+                    AND d.last_online_at IS NOT NULL
+              )
+          )
+        RETURNING u.telegram_id, u.username, u.first_name
+        """,
+        panel_ids,
+    )
+    return [dict(r) for r in rows]
 
 
 _AD_SLUG_RE = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")

@@ -226,6 +226,23 @@ WHERE last_billed_at IS NULL
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_earned INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_withdrawn INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_online_at TIMESTAMPTZ;
+
+UPDATE users u
+SET first_online_at = s.seen
+FROM (
+    SELECT telegram_id, MIN(last_online_at) AS seen
+    FROM devices
+    WHERE last_online_at IS NOT NULL
+    GROUP BY telegram_id
+) s
+WHERE u.telegram_id = s.telegram_id
+  AND u.first_online_at IS NULL;
+
+UPDATE users
+SET first_online_at = COALESCE(last_synced_at, timezone('utc', now()))
+WHERE first_online_at IS NULL
+  AND COALESCE(lifetime_traffic_bytes, 0) > 0;
 
 CREATE TABLE IF NOT EXISTS referral_payouts (
     id BIGSERIAL PRIMARY KEY,

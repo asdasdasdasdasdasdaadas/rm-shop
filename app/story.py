@@ -70,6 +70,9 @@ async def close_story_admin_messages(bot: Bot, telegram_id: int, result: str) ->
 
 
 async def notify_admins_story(bot: Bot, user: dict, amount: int) -> None:
+    from app.live import story_posted
+
+    story_posted(user)
     settings = get_settings()
     if not settings.admin_id_set:
         logger.warning("ADMIN_IDS пуст: уведомление о истории некуда отправить")

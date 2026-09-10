@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     required_channel_id: str
     required_channel_url: str
     admin_ids: str = ""
+    admin_live_chat_id: str = ""
 
     remnawave_base_url: str
     remnawave_token: str

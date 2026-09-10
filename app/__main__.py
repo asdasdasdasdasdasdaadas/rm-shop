@@ -88,6 +88,9 @@ async def main() -> None:
     rw = RemnawaveClient()
     rp = RollyPayClient() if settings.rollypay_configured else None
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    runtime.bot = bot
+    if not str(settings.admin_live_chat_id or "").strip():
+        logger.warning("ADMIN_LIVE_CHAT_ID пуст: живые события в канал не пойдут")
     runner = await start_http(bot, rw, rp)
     if settings.webapp_enabled and settings.webapp_public_url:
         runtime.webapp_url = settings.webapp_public_url.rstrip("/")

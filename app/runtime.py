@@ -4,6 +4,7 @@ import asyncio
 
 webapp_url = ""
 tunnel_proc = None
+bot = None
 _panel_cron: asyncio.Lock | None = None
 
 

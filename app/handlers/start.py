@@ -11,6 +11,7 @@ from aiogram.types import CallbackQuery, Message
 from app import db
 from app.access import is_channel_member
 from app.config import get_settings
+from app.live import invited as live_invited
 from app.keyboards import (
     channel_keyboard,
     legal_keyboard,
@@ -22,6 +23,13 @@ from app.keyboards import (
 from app.referrals import ensure_signup_trial, maybe_reward_referrer, trial_is_available
 from app.remnawave import RemnawaveClient
 from app.sync import fetch_panel, has_access
+
+async def _maybe_live_invite(row: dict | None) -> None:
+    if not row or not row.get("referral_attached") or not row.get("referred_by"):
+        return
+    referrer = await db.get_user(int(row["referred_by"]))
+    live_invited(referrer, row)
+
 
 router = Router()
 
@@ -166,13 +174,14 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
     slug = _parse_ad(payload)
     if slug:
         ad_id = await db.touch_ad_link(slug)
-    await db.upsert_user(
+    row = await db.upsert_user(
         message.from_user.id,
         message.from_user.username,
         message.from_user.first_name,
         referred_by=ref,
         ad_link_id=ad_id,
     )
+    await _maybe_live_invite(row)
     await ensure_signup_trial(message.from_user.id)
     await maybe_reward_referrer(
         message.bot, rw, message.from_user.id, message.from_user.first_name

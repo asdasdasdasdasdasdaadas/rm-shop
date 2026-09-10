@@ -32,8 +32,9 @@ Telegram-бот магазина VPN на [Remnawave](https://docs.rw/). Пол�
 4. Оплата тарифов 1 / 3 / 6 / 12 месяцев через RollyPay (вебхук + кнопка «Проверить оплату»).
 5. Рефералка: пригласивший получает дни после того, как друг нажмёт «Попробовать бесплатно»; другу добавляются дни к бесплатному периоду.
 6. Жалоба «VPN не работает» пишется в БД и уходит в Telegram админам из `ADMIN_IDS`.
-7. Веб-админка: пользователи, начисление дней, сброс бесплатного периода, сообщения, оплаты, жалобы, рассылка.
-8. Опциональный личный кабинет (Telegram Mini App) по HTTPS.
+7. Живой канал `ADMIN_LIVE_CHAT_ID`: оплатил, пригласил, продлил, выложил историю, подключился первый раз.
+8. Веб-админка: пользователи, начисление дней, сброс бесплатного периода, сообщения, оплаты, жалобы, рассылка.
+9. Опциональный личный кабинет (Telegram Mini App) по HTTPS.
 
 Режим `BALANCE_ENABLED=true` включает баланс в рублях: сутки VPN на одно устройство стоят `VPN_DAY_PRICE_RUB` (по умолчанию 6), пополнение шагом 50 рублей (50–400). Реферал: по `REFERRAL_REWARD_RUB` (50) пригласившему и другу. По умолчанию режим выключен.
 
@@ -64,7 +65,7 @@ cp .env.example .env
 nano .env
 ```
 
-В `.env` обязательно заполните: `BOT_TOKEN`, `BOT_USERNAME`, `REQUIRED_CHANNEL_ID`, `REQUIRED_CHANNEL_URL`, `REMNAWAVE_BASE_URL`, `REMNAWAVE_TOKEN`, `LEGAL_OFFER_URL`, `LEGAL_PRIVACY_URL`. Имеет смысл сразу задать `ADMIN_PASSWORD`, `ADMIN_IDS`, `REMNAWAVE_SQUAD_UUIDS`, `POSTGRES_PASSWORD`.
+В `.env` обязательно заполните: `BOT_TOKEN`, `BOT_USERNAME`, `REQUIRED_CHANNEL_ID`, `REQUIRED_CHANNEL_URL`, `REMNAWAVE_BASE_URL`, `REMNAWAVE_TOKEN`, `LEGAL_OFFER_URL`, `LEGAL_PRIVACY_URL`. Имеет смысл сразу задать `ADMIN_PASSWORD`, `ADMIN_IDS`, `ADMIN_LIVE_CHAT_ID`, `REMNAWAVE_SQUAD_UUIDS`, `POSTGRES_PASSWORD`.
 
 Дальше одна команда: скрипт соберёт образы, поднимет Postgres и бота, проверит `/health`.
 
@@ -226,6 +227,7 @@ cp .env.example .env
 | --- | --- |
 | `ADMIN_PASSWORD` | Пароль `/admin` |
 | `ADMIN_IDS` | Telegram ID админов через запятую (жалобы VPN, `/admin` в боте) |
+| `ADMIN_LIVE_CHAT_ID` | Канал живых событий: оплата, приглашение, продление, история, первое подключение. Бот должен быть админом канала. `@channel` или `-100...` |
 | `REMNAWAVE_SQUAD_UUIDS` | UUID Internal Squads через запятую |
 | `POSTGRES_PASSWORD` | Пароль БД, не оставляйте `rmshop` |
 | `ROLLYPAY_API_KEY` | Ключ кассы |
@@ -348,6 +350,7 @@ Dockerfile
 - Пользователь в панели: `tg{telegram_id}`.
 - Фоновая сверка раз в `PANEL_SYNC_INTERVAL` секунд тянет сроки из Remnawave в таблицу `users`.
 - Жалоба VPN: не чаще чем раз в `VPN_REPORT_COOLDOWN_SEC`. Нужны непустые `ADMIN_IDS`, иначе в Telegram никто не получит алерт (запись в БД всё равно будет).
+- Живой канал: бот — администратор канала из `ADMIN_LIVE_CHAT_ID`, иначе посты не дойдут. Кто уже был в онлайне до включения, в канал не пишется.
 - Рассылка и сообщения из админки идут от имени бота.
 - Бэкап БД: каждый день в 00:01 МСК и вручную из админки. Файлы — в `backups/`.
 
@@ -356,6 +359,8 @@ Dockerfile
 **Бот не стартует, ошибка подключения к Postgres.** Поднимите `docker compose up -d postgres`. Для `python -m app` в `DATABASE_URL` должен быть `127.0.0.1`. В контейнере бота хост всегда `postgres`.
 
 **«Сначала подпишитесь на канал», хотя подписка есть.** Бот не админ канала или неверный `REQUIRED_CHANNEL_ID`.
+
+**В живой канал ничего не пишется.** Задайте `ADMIN_LIVE_CHAT_ID` (`@channel` или `-100...`), добавьте бота админом канала, перезапустите. Проверка заявок на историю по-прежнему уходит в `ADMIN_IDS`.
 
 **«Попробовать бесплатно» / оплата: ошибка Remnawave.** Проверьте `REMNAWAVE_BASE_URL` (без `/api`), токен, UUID сквада, доступ с сервера до панели.
 

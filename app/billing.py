@@ -41,6 +41,8 @@ async def grant_plan(
     plan = settings.plan_by_code(plan_code)
     if not plan:
         raise ValueError("unknown plan")
+    local = await db.get_user(telegram_id)
+    repeat = bool(local and local.get("has_paid_topup"))
     user = None
     if settings.balance_enabled:
         amount = int(plan.get("topup_rub") or 0)
@@ -55,7 +57,11 @@ async def grant_plan(
             note=plan_code,
         )
     else:
-        local = await db.get_user(telegram_id)
+        amount = 0
+        try:
+            amount = int(round(float(plan.get("rub") or 0)))
+        except (TypeError, ValueError):
+            amount = 0
         panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
         user = await rw.extend_subscription(
             telegram_id,
@@ -65,6 +71,16 @@ async def grant_plan(
         )
         await db.save_panel_snapshot(telegram_id, user)
     await db.mark_paid_topup(telegram_id)
+    from app.live import paid as live_paid
+
+    who = dict(local or {})
+    who.setdefault("telegram_id", telegram_id)
+    live_paid(
+        who,
+        amount=amount,
+        title=str(plan.get("title") or plan_code),
+        repeat=repeat,
+    )
     if bot:
         from app.config import referral_is_payout
         from app.referrals import maybe_reward_referrer
