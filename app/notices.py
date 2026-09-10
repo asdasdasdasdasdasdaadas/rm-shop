@@ -16,7 +16,7 @@ DEFAULT_NOTICES: dict[str, str] = {
     "welcome_intro_hi_plain": "Привет, {name}.",
     "welcome_intro_hello": (
         "Это <b>{brand}</b>. Кабинет в Telegram: добавил устройство — "
-        "и YouTube, Instagram и то, что без VPN не открывается. "
+        "открываются YouTube, Instagram и то, что без VPN не грузится. "
         "Без отдельного сайта и без возни с настройками."
     ),
     "welcome_intro_try": (
