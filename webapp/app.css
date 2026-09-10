@@ -36,13 +36,14 @@
   --app-safe-bottom: 0px;
   --app-safe-left: 0px;
   --app-safe-right: 0px;
-  --glass: rgba(255, 255, 255, 0.055);
-  --glass-strong: rgba(255, 255, 255, 0.09);
-  --glass-tint: rgba(95, 214, 139, 0.16);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-shine: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  --glass-blur: 20px;
-  --panel: rgba(21, 32, 24, 0.78);
+  --glass: rgba(255, 255, 255, 0.1);
+  --glass-strong: rgba(255, 255, 255, 0.16);
+  --glass-tint: rgba(95, 214, 139, 0.2);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-shine: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --glass-blur: 32px;
+  --glass-sat: 1.65;
+  --panel: rgba(20, 36, 26, 0.36);
 }
 
 * {
@@ -192,9 +193,9 @@ body:has(#webBack:not(.hidden)) .view-head {
 }
 html.is-scrolled .view-head.home-nav .account-row {
   transform: translate3d(0, 0, 0);
-  background: rgba(21, 32, 24, 0.88);
-  border-color: rgba(255, 255, 255, 0.14);
-  box-shadow: var(--glass-shine), 0 12px 32px rgba(0, 0, 0, 0.28);
+  background: rgba(20, 36, 26, 0.5);
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: var(--glass-shine), 0 12px 32px rgba(0, 0, 0, 0.22);
 }
 .view-head .wiz-kicker { margin-top: 0; }
 .view-head .wiz-title { margin-bottom: 0; }
@@ -222,8 +223,8 @@ html.is-scrolled .view-head.home-nav .account-row {
   background: var(--panel);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 
 .avatar {
@@ -263,6 +264,9 @@ html.is-scrolled .view-head.home-nav .account-row {
   place-items: center;
   flex-shrink: 0;
   padding: 0;
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 
 .more {
@@ -279,8 +283,8 @@ html.is-scrolled .view-head.home-nav .account-row {
   border-radius: var(--radius-lg);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   padding: 22px 20px 20px;
   overflow: hidden;
 }
@@ -303,8 +307,8 @@ html.is-scrolled .view-head.home-nav .account-row {
   background: var(--glass-tint);
   border: 1px solid var(--accent-soft-border);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 
 .trial-notice.hidden { display: none !important; }
@@ -382,8 +386,8 @@ html.is-scrolled .view-head.home-nav .account-row {
   background: var(--panel, var(--glass));
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 .offer-top {
   display: flex;
@@ -452,6 +456,9 @@ html.is-scrolled .view-head.home-nav .account-row {
   background: var(--panel, var(--glass));
   border: 1px solid var(--glass-border);
   overflow: hidden;
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 .wiz-radio-row {
   display: flex;
@@ -622,21 +629,26 @@ html.is-scrolled .view-head.home-nav .account-row {
 .btn:active { transform: scale(0.97); }
 
 .btn-primary {
-  background: linear-gradient(160deg, #7ee0a4, #2fae6b);
+  background: linear-gradient(160deg, rgba(126, 224, 164, 0.92), rgba(47, 174, 107, 0.82));
   color: #0d1611;
   flex: 1;
   min-height: 56px;
   font-size: 17px;
   font-weight: 700;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 10px 22px -12px rgba(47, 174, 107, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: var(--glass-shine), 0 10px 22px -12px rgba(47, 174, 107, 0.55);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
 }
 
 .btn-ghost {
-  background: var(--glass-strong);
+  background: var(--glass);
   color: var(--text-primary);
   min-height: 56px;
   border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 
 .section {
@@ -644,8 +656,8 @@ html.is-scrolled .view-head.home-nav .account-row {
   border-radius: var(--radius-lg);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   padding: 18px 20px;
 }
 
@@ -986,6 +998,9 @@ html.is-scrolled .view-head.home-nav .account-row {
   border-radius: var(--radius-lg);
   background: var(--panel);
   overflow: hidden;
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 
 .faq-item button {
@@ -1041,8 +1056,8 @@ html.is-scrolled .view-head.home-nav .account-row {
   background: var(--panel);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 .bill-summary.hidden { display: none !important; }
 .bill-summary::before {
@@ -1210,8 +1225,8 @@ html.is-scrolled .view-head.home-nav .account-row {
   background: var(--panel);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 .ref-stat-value {
   font-family: Unbounded, Inter, sans-serif;
@@ -1544,8 +1559,8 @@ html.is-scrolled .view-head.home-nav .account-row {
   padding: 16px 16px 14px;
   background: var(--panel);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   color: inherit;
   font: inherit;
   cursor: pointer;
@@ -1609,22 +1624,25 @@ html.is-scrolled .view-head.home-nav .account-row {
   gap: 12px;
   width: 100%;
   text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 14px;
   margin-bottom: 10px;
-  background: var(--bg-surface);
+  background: var(--panel);
   color: inherit;
   font: inherit;
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 
 .wiz-app.on {
-  background: var(--bg-surface-raised);
-  border-color: transparent;
-  box-shadow: 0 0 0 1.5px var(--accent), 0 8px 22px -10px rgba(95, 214, 139, 0.35);
+  background: var(--glass-tint);
+  border-color: var(--accent-soft-border);
+  box-shadow: var(--glass-shine), 0 0 0 1.5px var(--accent);
 }
 
 .wiz-app-logo {
@@ -1703,8 +1721,8 @@ html.is-scrolled .view-head.home-nav .account-row {
   background: var(--panel);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   border-radius: var(--radius-md);
   padding: 16px;
 }
@@ -1945,11 +1963,11 @@ body.has-main-btn {
   bottom: 0;
   z-index: 15;
   padding: 12px var(--edge-right) calc(12px + var(--app-safe-bottom, var(--tg-safe-area-inset-bottom, 0px))) var(--edge-left);
-  background: rgba(13, 22, 17, 0.42);
+  background: rgba(13, 22, 17, 0.28);
   border-top: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(22px) saturate(1.4);
-  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  backdrop-filter: blur(28px) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(28px) saturate(var(--glass-sat));
 }
 
 .app-main-bar .btn {
@@ -2046,8 +2064,8 @@ body.has-main-btn {
   padding: 14px 16px 12px;
   background: var(--panel);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   color: inherit;
   font: inherit;
   min-height: 108px;
@@ -2114,8 +2132,8 @@ body.has-main-btn {
   background: var(--panel);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   border-radius: var(--radius-lg);
   padding: 22px 18px 18px;
   text-align: center;
@@ -2201,8 +2219,8 @@ body.has-main-btn {
   overflow: hidden;
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shine);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.15);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 
 .cell {
@@ -2357,13 +2375,13 @@ body.has-main-btn {
   top: calc(72px + var(--app-safe-top, var(--tg-content-safe-area-inset-top, 0px)));
   right: var(--pad);
   min-width: 230px;
-  background: rgba(28, 42, 32, 0.55);
+  background: rgba(22, 38, 28, 0.4);
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--glass-shine), 0 8px 40px rgba(0, 0, 0, 0.4);
   border: 1px solid var(--glass-border);
-  backdrop-filter: blur(22px) saturate(1.4);
-  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  backdrop-filter: blur(28px) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(28px) saturate(var(--glass-sat));
 }
 
 .sheet a,
@@ -3400,6 +3418,11 @@ body.has-main-btn {
   .section,
   .plat-card,
   .wiz-name-box,
+  .wiz-app,
+  .wiz-radio,
+  .faq-item,
+  .btn-ghost,
+  .icon-btn,
   .app-main-bar,
   .pay-card,
   .pay-custom-box,
