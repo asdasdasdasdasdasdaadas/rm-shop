@@ -268,18 +268,18 @@ def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = F
         rub = settings.referral_reward_rub
         if referral_is_payout():
             share_text = (
-                f"Подключайся по ссылке. После первой оплаты я получу {rub_text(rub)} "
-                "за приглашение."
+                f"Кабинет в Telegram, сутки за свои устройства. "
+                f"Подключайся по ссылке. После первой оплаты я получу {rub_text(rub)}."
             )
         else:
             share_text = (
-                f"Подключайся. Нажми «Попробовать бесплатно» по ссылке — "
-                f"получишь {rub_text(rub)} на баланс, и я тоже."
+                f"Кабинет в Telegram, сутки только за свои устройства. "
+                f"Нажми «Попробовать бесплатно» — получишь {rub_text(rub)} на баланс, и я тоже."
             )
     else:
         days = settings.referral_reward_days
         share_text = (
-            f"Подключайся. Нажми «Попробовать бесплатно» по ссылке — получишь "
+            f"Кабинет в Telegram. Нажми «Попробовать бесплатно» — получишь "
             f"+{days_text(settings.referral_invitee_days)}, а я получу {days_text(days)} VPN."
         )
     link = f"https://t.me/{bot_username}?start=ref_{telegram_id}"

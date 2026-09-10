@@ -1696,15 +1696,15 @@ html.is-scrolled .view-head.home-nav .account-row {
 
 .support-send {
   flex-shrink: 0;
+  width: 44px;
   height: 44px;
-  padding: 0 16px;
-  border-radius: var(--radius-pill);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: linear-gradient(160deg, var(--accent), var(--accent-strong));
   color: var(--btn-text);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
   cursor: pointer;
   box-shadow: var(--glass-shine);
 }

@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     referral_payout_min: int = 2000
     story_reward_enabled: bool = True
     story_reward_rub: int = 150
-    story_share_text: str = "VPN без границ. Подключайся в боте."
+    story_share_text: str = "Кабинет в Telegram, сутки за свои устройства. Подключайся в боте."
     story_check_minutes: int = 30
     trust_enabled: bool = True
     trust_days: int = 3
