@@ -507,7 +507,7 @@ function paintStatus(me) {
     pill.className = "status-pill";
     pill.innerHTML = '<span class="dot"></span> Тариф не запущен';
     $("statusNote").textContent = me.balance_enabled
-      ? "Добавьте устройство — лягушка возьмётся за дело и покажет, на сколько дней хватит баланса."
+      ? "Добавьте устройство в кабинете — без него VPN не стартует, деньги лежат. Сутки только за то, что сами добавите."
       : "Оформите доступ — лягушка возьмётся за дело и покажет срок подписки.";
   } else if (days < 3) {
     setFrog("worried");
@@ -1137,7 +1137,7 @@ function buildCoachSteps(me) {
         id: "trialHomeBtn",
         required: true,
         title: "Начните бесплатно",
-        text: "Нажмите сюда — пробные рубли сразу на баланс. Без устройства деньги не списываются.",
+        text: "Пробные рубли сразу на баланс. Пока устройства нет — ничего не спишется. Так можно спокойно проверить, держит ли.",
       });
     } else if ((me.balance_rub || 0) < 1 && coachElReady("topupBtn")) {
       steps.push({
@@ -1154,7 +1154,7 @@ function buildCoachSteps(me) {
         id: addId,
         required: true,
         title: "Добавьте устройство",
-        text: "Без устройства VPN не заработает и баланс не начнёт тратиться. Нажмите кнопку и пройдите три коротких шага.",
+        text: "Без устройства VPN не заработает и баланс не начнёт тратиться. Три коротких шага — и это уже ваше устройство в кабинете, не общий ключ.",
         action: "wizard",
       });
     }
@@ -1212,7 +1212,7 @@ function buildWizCoachSteps() {
         wiz: true,
         required: true,
         title: "Выберите устройство",
-        text: "Телефон, компьютер или телевизор. От выбора зависят приложение и подсказки.",
+        text: "Телефон, компьютер или телевизор. Каждое — свои сутки, добавляйте только то, чем пользуетесь.",
       },
     ];
   }
@@ -1247,7 +1247,7 @@ function buildWizCoachSteps() {
         wiz: true,
         required: true,
         title: "Откройте в приложении",
-        text: "Нажмите «Открыть» или вставьте ссылку вручную. После этого VPN заработает.",
+        text: "Нажмите «Открыть» или вставьте ссылку вручную. После этого VPN заработает. Если что — поддержка в том же кабинете.",
       },
     ];
   }
@@ -2337,8 +2337,8 @@ function renderTopup(me) {
   const titleEl = document.querySelector("#view-topup .wiz-title");
   if (titleEl) titleEl.textContent = "Сколько зальём?";
   $("topupHint").textContent = me.balance_enabled
-    ? `С каждого устройства списывается ${me.vpn_day_price_rub} ₽ в сутки. Карточки — на 1, 3, 6 месяцев и год при одном устройстве.`
-    : "Выберите срок подписки.";
+    ? `С каждого устройства списывается ${me.vpn_day_price_rub} ₽ в сутки. Карточки — на 1, 3, 6 месяцев и год при одном устройстве. Лишние устройства лучше не держать.`
+    : "Выберите срок подписки. Кабинет останется в Telegram, даже если VPN потом отключится.";
   const grid = $("topupGrid");
   grid.innerHTML = "";
   plans.forEach((plan) => {
@@ -2448,7 +2448,7 @@ function renderWizard() {
   if (wiz.step === 1) {
     $("wizStep").textContent = "Шаг 1 из 3";
     $("wizTitle").textContent = "Выбор устройства";
-    lead.textContent = "";
+    lead.textContent = "Каждое устройство — свои сутки. Добавляйте только то, чем пользуетесь.";
     const list = document.createElement("div");
     list.id = "wizPlatGrid";
     list.className = "wiz-radio";
