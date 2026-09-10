@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=77">
+  <link rel="stylesheet" href="app.css?v=78">
 </head>
 <body>
   <div class="app-bg" aria-hidden="true">
@@ -405,6 +405,7 @@
       <div>
         <div class="section-title-plain">Помощь</div>
         <div class="section help-list">
+          <button type="button" id="faqBtn">Частые вопросы <span class="arrow">›</span></button>
           <button type="button" id="vpnDown">VPN не работает <span class="arrow">›</span></button>
           <button type="button" id="trustHelp">Обещанный платёж <span class="arrow">›</span></button>
           <button type="button" id="supportBtn">Поддержка <span class="arrow">›</span></button>
@@ -418,6 +419,7 @@
         <h1 class="wiz-title">Тикет</h1>
       </div>
       <p id="supportStatus" class="section-note topup-hint">Напишите, что случилось. Можно прикрепить скриншот. Ответ придёт сюда и в чат бота.</p>
+      <button type="button" id="supportFaqBtn" class="faq-inline">Сначала загляните в частые вопросы</button>
       <div id="supportThread" class="support-thread"></div>
       <div class="support-compose">
         <div id="supportAttachList" class="support-attach-list"></div>
@@ -428,6 +430,15 @@
           <button type="button" id="supportSend" class="btn btn-primary">Отправить</button>
         </div>
       </div>
+    </div>
+
+    <div id="view-faq" class="view hidden">
+      <div class="view-head">
+        <p class="wiz-kicker">Помощь</p>
+        <h1 class="wiz-title">Частые вопросы</h1>
+      </div>
+      <p class="section-note topup-hint">Коротко про подключение и баланс — чтобы не отвалиться в простой момент.</p>
+      <div id="faqList" class="faq-list"></div>
     </div>
 
     <div id="view-billing" class="view hidden">
@@ -650,6 +661,7 @@
   </div>
 
   <div id="menu" class="sheet hidden" role="menu">
+    <button type="button" id="menuFaq" role="menuitem">Частые вопросы</button>
     <button type="button" id="menuReferrals" role="menuitem">Рефералы</button>
     <button type="button" id="menuBilling" class="hidden" role="menuitem">История списаний</button>
     <button type="button" id="menuTrust" class="hidden" role="menuitem">Обещанный платёж</button>
@@ -686,6 +698,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=72"></script>
+  <script src="app.js?v=73"></script>
 </body>
 </html>

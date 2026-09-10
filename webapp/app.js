@@ -740,7 +740,7 @@ function replayAnim(el, cls) {
 
 function switchView(id, motion) {
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
-  ["view-home", "view-topup", "view-wizard", "view-device", "view-support", "view-billing", "view-referrals", "view-offer"].forEach((vid) => {
+  ["view-home", "view-topup", "view-wizard", "view-device", "view-support", "view-faq", "view-billing", "view-referrals", "view-offer"].forEach((vid) => {
     const el = $(vid);
     const on = vid === id;
     el.classList.toggle("hidden", !on);
@@ -765,6 +765,7 @@ let lastConnectUrl = null;
 let openDevice = null;
 let topupMode = "fast";
 let wizardAutoOpened = false;
+let faqFrom = "home";
 let topupCode = "";
 let topupCustomRub = 0;
 
@@ -835,14 +836,14 @@ function shouldStartDeviceWizard(me) {
   if (!me || !me.balance_enabled) return false;
   if ((me.devices || []).length) return false;
   if (onboardDone() || offerSkipped()) return false;
-  if (screen === "wizard" || screen === "device" || screen === "topup" || screen === "support") return false;
+  if (screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "faq") return false;
   if (screen === "billing" || screen === "referrals" || screen === "offer") return false;
   return (Number(me.balance_rub) || 0) > 0;
 }
 
 function maybeOpenOffer(me) {
   if (!me) return;
-  if (screen === "wizard" || screen === "device" || screen === "topup" || screen === "support") return;
+  if (screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "faq") return;
   if (screen === "offer") {
     paintOffer(me);
     return;
@@ -1447,6 +1448,11 @@ function onBack() {
     openHome();
     return;
   }
+  if (screen === "faq") {
+    if (faqFrom === "support") openSupport();
+    else openHome();
+    return;
+  }
   if (screen === "billing") {
     openHome();
     return;
@@ -1462,7 +1468,7 @@ function onBack() {
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "billing" || screen === "referrals" || screen === "offer";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "faq" || screen === "billing" || screen === "referrals" || screen === "offer";
   stopSupportPoll();
   screen = "home";
   openDevice = null;
@@ -1623,6 +1629,53 @@ function openSupport() {
   supportPoll = setInterval(() => {
     if (screen === "support") loadSupport(true);
   }, 8000);
+}
+
+function paintFaq(me) {
+  const box = $("faqList");
+  if (!box) return;
+  box.innerHTML = "";
+  const items = (me && me.faq) || [];
+  items.forEach((item, i) => {
+    const wrap = document.createElement("div");
+    wrap.className = "faq-item" + (i === 0 ? " on" : "");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    const title = document.createElement("span");
+    title.textContent = item.q || "";
+    const arrow = document.createElement("span");
+    arrow.className = "arrow";
+    arrow.textContent = "›";
+    btn.appendChild(title);
+    btn.appendChild(arrow);
+    const ans = document.createElement("div");
+    ans.className = "faq-a";
+    ans.textContent = item.a || "";
+    btn.onclick = () => {
+      haptic();
+      const open = wrap.classList.contains("on");
+      box.querySelectorAll(".faq-item").forEach((el) => el.classList.remove("on"));
+      if (!open) wrap.classList.add("on");
+    };
+    wrap.appendChild(btn);
+    wrap.appendChild(ans);
+    box.appendChild(wrap);
+  });
+}
+
+function openFaq(from) {
+  const me = window.__me;
+  if (!me) return;
+  faqFrom = from === "support" ? "support" : "home";
+  stopSupportPoll();
+  screen = "faq";
+  switchView("view-faq", "push");
+  setMain("");
+  try {
+    tg.BackButton.show();
+  } catch (_e) {}
+  syncWebBack();
+  paintFaq(me);
 }
 
 const BILL_KIND = {
@@ -3459,6 +3512,25 @@ $("supportBtn").onclick = () => {
   haptic();
   openSupport();
 };
+if ($("faqBtn")) {
+  $("faqBtn").onclick = () => {
+    haptic();
+    openFaq("home");
+  };
+}
+if ($("supportFaqBtn")) {
+  $("supportFaqBtn").onclick = () => {
+    haptic();
+    openFaq("support");
+  };
+}
+if ($("menuFaq")) {
+  $("menuFaq").onclick = () => {
+    closeMenu();
+    haptic();
+    openFaq("home");
+  };
+}
 if ($("offerTry")) $("offerTry").onclick = () => startOfferTry();
 if ($("supportSend")) $("supportSend").onclick = () => sendSupport();
 if ($("supportAttach")) {

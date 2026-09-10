@@ -13,6 +13,7 @@ from app.keyboards import (
     back_profile_keyboard,
     buy_keyboard,
     connect_keyboard,
+    faq_keyboard,
     pay_keyboard,
     share_keyboard,
 )
@@ -477,6 +478,19 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
         subscription_issued_text(user or {}, f"Подписка оформлена: {plan['title']}"),
         reply_markup=connect_keyboard(sub_url) if sub_url else back_profile_keyboard(),
     )
+
+
+@router.callback_query(F.data == "faq")
+async def show_faq(callback: CallbackQuery) -> None:
+    if not await gate_or_continue(callback):
+        return
+    from app.faq import faq_html
+
+    await ack(callback)
+    try:
+        await callback.message.edit_text(faq_html(), reply_markup=faq_keyboard())
+    except Exception:
+        await callback.message.answer(faq_html(), reply_markup=faq_keyboard())
 
 
 @router.callback_query(F.data == "vpn_down")

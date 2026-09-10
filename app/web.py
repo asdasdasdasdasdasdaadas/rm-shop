@@ -20,6 +20,7 @@ from app import db, runtime
 from app.admin import mount_admin
 from app.billing import fulfill_rollypay_order, subscription_issued_text
 from app.config import ROOT, get_settings, referral_is_payout
+from app.faq import faq_items
 from app.keyboards import back_profile_keyboard, connect_keyboard, support_url
 from app.referrals import ensure_signup_trial, maybe_reward_referrer, referral_payout_public, trial_grant_days, trial_grant_rub, trial_is_available
 from app.remnawave import (
@@ -474,6 +475,7 @@ async def api_me(request: web.Request) -> web.Response:
             "topup_step": settings.balance_topup_step if settings.balance_enabled else 0,
             "devices": devices,
             "trust": trust,
+            "faq": faq_items(),
             "vpn_apps": public_vpn_apps(),
             "first_device_thanks_pending": bool((local or {}).get("first_device_thanks_pending")),
         }
