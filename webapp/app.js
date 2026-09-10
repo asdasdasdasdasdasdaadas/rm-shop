@@ -2934,8 +2934,7 @@ function paint(me) {
   if (screen === "topup") renderTopup(me);
   if (firstRunBusy) return;
   if (!$("intro").classList.contains("hidden")) return;
-  const firstRun = !(me.devices || []).length;
-  if (!firstRun && shouldShowIntro()) showIntro(me);
+  if (shouldShowIntro()) showIntro(me);
   else {
     showApp();
     maybeOpenFirstRun(me);

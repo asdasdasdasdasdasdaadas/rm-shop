@@ -163,33 +163,24 @@ body.coach-lock {
   position: sticky;
   top: 0;
   z-index: 14;
-  margin: 0 calc(-1 * var(--edge-right)) 6px calc(-1 * var(--edge-left));
-  padding: var(--app-safe-top, 0px) var(--edge-right) 14px var(--edge-left);
-  background: var(--bg-app);
-  transition: border-color 0.22s ease, background 0.22s ease;
+  margin: 0 0 6px;
+  padding: var(--app-safe-top, 0px) 0 14px;
+  background: transparent;
 }
 
 .view-head {
   position: sticky;
   top: 0;
   z-index: 12;
-  margin: 0 calc(-1 * var(--edge-right)) 0 calc(-1 * var(--edge-left));
-  padding: var(--app-safe-top, 0px) var(--edge-right) 16px var(--edge-left);
-  background: var(--bg-app);
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.22s ease, background 0.22s ease;
-}
-html.is-scrolled .view-head:not(.home-nav),
-html.is-scrolled .web-back:not(.hidden) {
-  border-bottom-color: var(--divider);
+  margin: 0;
+  padding: var(--app-safe-top, 0px) 0 16px;
+  background: transparent;
 }
 body:has(#webBack:not(.hidden)) .view-head {
   top: calc(var(--app-safe-top, 0px) + 44px);
   padding-top: 8px;
 }
 .view-head.home-nav {
-  background: transparent;
-  border-bottom: 0;
   padding-bottom: 12px;
 }
 .view-head.home-nav .account-row {
@@ -207,6 +198,7 @@ html.is-scrolled .view-head.home-nav .account-row {
 }
 .view-head .wiz-kicker { margin-top: 0; }
 .view-head .wiz-title { margin-bottom: 0; }
+.view-head .offer-kicker { margin-bottom: 0; }
 
 .web-back.hidden {
   display: none !important;
@@ -377,14 +369,12 @@ html.is-scrolled .view-head.home-nav .account-row {
 .trial-notice-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
 
 .offer-kicker {
-  margin: 18px 8px 18px;
+  margin: 0;
   font-family: Unbounded, Inter, sans-serif;
   font-size: 28px;
-  font-weight: 800;
-  font-style: italic;
+  font-weight: 700;
   letter-spacing: -0.03em;
-  line-height: 1.1;
-  text-transform: uppercase;
+  line-height: 1.12;
 }
 .offer-card {
   padding: 22px 20px 18px;
@@ -1495,7 +1485,7 @@ html.is-scrolled .view-head.home-nav .account-row {
 }
 
 .wiz-kicker {
-  margin: 8px 8px 0;
+  margin: 0 0 6px;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.6px;
@@ -1504,19 +1494,19 @@ html.is-scrolled .view-head.home-nav .account-row {
 }
 
 .wiz-title {
-  margin: 6px 8px 16px;
+  margin: 0 0 8px;
   font-family: Unbounded, Inter, sans-serif;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
 }
 
 .wiz-progress {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 4px 8px 8px;
+  margin: 0 0 12px;
 }
 
 .wiz-progress.hidden { display: none !important; }
@@ -3129,7 +3119,7 @@ body.has-main-btn {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin: 4px 0 20px;
+  margin: 0;
   position: relative;
   z-index: 2;
 }
@@ -3154,12 +3144,12 @@ body.has-main-btn {
   margin-bottom: 3px;
 }
 #view-device #devTitle {
-  font-family: Unbounded, Manrope, sans-serif;
-  font-size: 20px;
+  font-family: Unbounded, Inter, sans-serif;
+  font-size: 28px;
   font-weight: 700;
   margin: 0;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
   color: var(--text-primary);
 }
 .dev-status {
