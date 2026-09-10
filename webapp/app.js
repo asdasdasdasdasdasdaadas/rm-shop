@@ -93,6 +93,21 @@ function initAppTheme() {
 
 initAppTheme();
 
+function isPcWebApp() {
+  const plat = String(tg.platform || "").toLowerCase();
+  if (["tdesktop", "macos", "web", "weba", "webk", "unigram"].includes(plat)) return true;
+  if (window.matchMedia && window.matchMedia("(pointer: fine) and (min-width: 700px)").matches) return true;
+  return window.innerWidth >= 840;
+}
+
+function syncPcLayout() {
+  let cabinet = false;
+  try {
+    cabinet = Boolean(lkToken) && !tg.initData;
+  } catch (_e) {}
+  document.documentElement.classList.toggle("is-pc", cabinet || isPcWebApp());
+}
+
 function applyViewport() {
   const root = document.documentElement;
   const h = Number(tg.viewportHeight) || window.innerHeight;
@@ -111,10 +126,12 @@ function applyViewport() {
   root.style.setProperty("--app-safe-bottom", bottom + "px");
   root.style.setProperty("--app-safe-left", left + "px");
   root.style.setProperty("--app-safe-right", right + "px");
+  syncPcLayout();
 }
 
 let fsTries = 0;
 function requestMiniAppFullscreen() {
+  if (isPcWebApp()) return;
   if (tg.isFullscreen) return;
   if (typeof tg.requestFullscreen !== "function") return;
   if (fsTries > 6) return;
@@ -127,6 +144,7 @@ function requestMiniAppFullscreen() {
 applyTheme();
 applyViewport();
 requestMiniAppFullscreen();
+window.addEventListener("resize", syncPcLayout);
 
 let navScrollY = 0;
 function syncNavScroll() {
@@ -283,6 +301,64 @@ function nameChips(platform) {
   return ["Моё устройство"];
 }
 
+const FUN_DEVICE_NAMES = [
+  "Мармеладный мишка",
+  "Хороший мальчик",
+  "Акита ину",
+  "Плюшевый кролик",
+  "Лунный кот",
+  "Сахарный песик",
+  "Ленивый енот",
+  "Космический хомяк",
+  "Ванильный дракон",
+  "Тихий барсук",
+  "Рыжий корги",
+  "Облачный кит",
+  "Мятный динозавр",
+  "Сонный пингвин",
+  "Храбрый ёжик",
+  "Сливочный пудель",
+  "Ночной филин",
+  "Ягодный лис",
+  "Добрая капибара",
+  "Морской котик",
+  "Банановый гусь",
+  "Шоколадный лабрадор",
+  "Пушистая шиншилла",
+  "Вежливый кактус",
+  "Тёплый плед",
+  "Чайный гриб",
+  "Бумажный самолёт",
+  "Стеклянная лягушка",
+  "Клубничный ёж",
+  "Синий корги",
+  "Медовый шмель",
+  "Тихий кактус",
+  "Мокрый спаниель",
+  "Розовый фламинго",
+  "Снежный барс",
+];
+
+function diceIconSvg() {
+  return (
+    '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke="currentColor" stroke-width="1.8"/>' +
+    '<circle cx="8.2" cy="8.2" r="1.15" fill="currentColor"/>' +
+    '<circle cx="15.8" cy="8.2" r="1.15" fill="currentColor"/>' +
+    '<circle cx="12" cy="12" r="1.15" fill="currentColor"/>' +
+    '<circle cx="8.2" cy="15.8" r="1.15" fill="currentColor"/>' +
+    '<circle cx="15.8" cy="15.8" r="1.15" fill="currentColor"/>' +
+    "</svg>"
+  );
+}
+
+function pickFunDeviceName(current) {
+  const now = String(current || "").trim();
+  const pool = FUN_DEVICE_NAMES.filter((n) => n !== now);
+  const list = pool.length ? pool : FUN_DEVICE_NAMES;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 function storeCaption(url) {
   if (!url) return "Скачать";
   if (url.indexOf("apple.com") >= 0) return "Открыть в App Store";
@@ -305,21 +381,21 @@ function step2Hint(platform) {
 
 function platIconSvg(id) {
   if (id === "ios") {
-    return '<svg viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.7 12.7c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.1.8-.7 0-1.7-.7-2.8-.7-1.4.1-2.8.8-3.5 2.1-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.6 2.1 2.7 2.1 1.1 0 1.5-.7 2.8-.7s1.6.7 2.8.7c1.2 0 1.9-1 2.6-2 .8-1.2 1.1-2.3 1.1-2.4 0 0-2.2-.9-2.5-3.6zm-1.6-6.6c.6-.7 1-1.7.9-2.7-.9 0-2 .6-2.6 1.3-.6.6-1.1 1.6-.9 2.6 1 .1 2-.5 2.6-1.2z"/></svg>';
   }
   if (id === "android") {
-    return '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="7" width="16" height="14" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 7V4M16 7V4M4 12h16" stroke="currentColor" stroke-width="1.8"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.7 9.15l1.72-3a.7.7 0 10-1.22-.7l-1.76 3.05a10.4 10.4 0 00-8.88 0L5.8 5.45a.7.7 0 10-1.22.7l1.72 3A8.1 8.1 0 003.5 15.5h17a8.1 8.1 0 00-2.8-6.35zM8.2 13.4a1.15 1.15 0 110-2.3 1.15 1.15 0 010 2.3zm7.6 0a1.15 1.15 0 110-2.3 1.15 1.15 0 010 2.3z"/></svg>';
   }
   if (id === "macos") {
-    return '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="1.8"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="12.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20.5h8M12 16.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path fill="currentColor" d="M13.9 8.7c0-1.1.9-1.6.9-1.7-.5-.7-1.3-.8-1.6-.8-.7-.1-1.3.4-1.6.4-.4 0-.9-.4-1.5-.4-.7 0-1.5.4-1.8 1.1-.8 1.3-.2 3.3.6 4.4.4.5.8 1.1 1.4 1.1.6 0 .8-.4 1.4-.4s.8.4 1.5.4c.6 0 1-.5 1.4-1.1.4-.6.6-1.2.6-1.2s-1.2-.4-1.3-1.8zm-.8-3.4c.3-.4.5-.9.5-1.4-.5 0-1 .3-1.3.7-.3.3-.6.8-.5 1.3.5.1 1-.2 1.3-.6z"/></svg>';
   }
   if (id === "windows") {
-    return '<svg viewBox="0 0 24 24" fill="none"><path d="M3 6l8-1v7H3V6zM12 5l9-1v8h-9V5zM3 13h8v7l-8-1v-6zM12 13h9v8l-9-1v-7z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.5 6.2l8.1-1.1v7.2H3.5V6.2zm9.1-1.3l8.4-1.2v8.6h-8.4V4.9zM3.5 13.6h8.1v7.3l-8.1-1.1v-6.2zm9.1.1h8.4v8.5l-8.4-1.2V13.7z"/></svg>';
   }
   if (id === "androidtv") {
-    return '<svg viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 21h8" stroke="currentColor" stroke-width="1.8"/></svg>';
+    return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2.5" y="5" width="19" height="12.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20.5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9.2" cy="11.2" r="1.1" fill="currentColor"/><circle cx="14.8" cy="11.2" r="1.1" fill="currentColor"/></svg>';
   }
-  return '<svg viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="11.5" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 21h8" stroke="currentColor" stroke-width="1.8"/></svg>';
+  return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2.5" y="5" width="19" height="12.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20.5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path fill="currentColor" d="M12.7 9.3c0-.8.6-1.2.6-1.2-.4-.5-1-.6-1.2-.6-.5 0-1 .3-1.2.3s-.7-.3-1.1-.3c-.6 0-1.1.3-1.4.8-.6 1-.2 2.5.4 3.3.3.4.6.8 1.1.8s.6-.3 1.1-.3.6.3 1.1.3c.5 0 .8-.4 1.1-.8.3-.5.4-.9.4-1zm-.6-2.5c.2-.3.4-.7.4-1.1-.4 0-.8.2-1 .5-.2.3-.4.6-.4 1 .4 0 .8-.2 1-.4z"/></svg>';
 }
 
 function setWizProgress(step) {
@@ -1381,28 +1457,63 @@ function topupDaysFor(me, amount) {
 }
 
 function monthTopupRub(me) {
-  const n = Math.max(1, Number(me.vpn_day_price_rub) || 1) * 30;
-  const min = Number(me.topup_min) || 1;
-  const max = Number(me.topup_max) || n;
-  return Math.min(max, Math.max(min, n));
+  return periodTopupRub(me, 30);
 }
 
-function firstTopup(me) {
-  return Boolean(me && me.balance_enabled && !me.has_paid_topup);
+function periodTopupRub(me, days) {
+  const n = Math.max(1, Number(me.vpn_day_price_rub) || 1) * days;
+  const min = Number(me.topup_min) || 1;
+  const max = Number(me.topup_max) || n;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+function periodTopupPlans(me) {
+  if (!me.balance_enabled) {
+    const order = { "1m": 1, "3m": 2, "6m": 3, "12m": 4 };
+    return (me.plans || [])
+      .filter((p) => order[p.code])
+      .sort((a, b) => order[a.code] - order[b.code])
+      .map((p) => Object.assign({}, p, {
+        label: p.title,
+        hit: p.code === "6m",
+      }));
+  }
+  const specs = [
+    { days: 30, label: "1 месяц" },
+    { days: 90, label: "3 месяца" },
+    { days: 180, label: "6 месяцев", hit: true },
+    { days: 365, label: "1 год" },
+  ];
+  const out = [];
+  const seen = {};
+  specs.forEach((s) => {
+    const n = periodTopupRub(me, s.days);
+    if (seen[n]) return;
+    seen[n] = true;
+    out.push({
+      code: "b" + n,
+      title: n + " рублей",
+      topup_rub: n,
+      rub: n,
+      days: s.days,
+      label: s.label,
+      hit: Boolean(s.hit),
+    });
+  });
+  return out;
 }
 
 function monthTopupPlan(me) {
-  const n = monthTopupRub(me);
-  return {
-    code: "b" + n,
-    title: n + " рублей",
-    topup_rub: n,
-    rub: n,
+  const plans = periodTopupPlans(me);
+  return plans[0] || {
+    code: "b" + monthTopupRub(me),
+    title: monthTopupRub(me) + " рублей",
+    topup_rub: monthTopupRub(me),
+    rub: monthTopupRub(me),
   };
 }
 
 function currentTopupPlan(me) {
-  if (topupMode === "first") return monthTopupPlan(me);
   if (topupMode === "custom") {
     const min = Number(me.topup_min) || 1;
     const max = Number(me.topup_max) || min;
@@ -1415,30 +1526,22 @@ function currentTopupPlan(me) {
       rub: n,
     };
   }
-  const plans = me.plans || [];
-  return plans.find((p) => p.code === topupCode) || plans[0] || null;
+  const plans = periodTopupPlans(me);
+  return plans.find((p) => p.code === topupCode) || plans.find((p) => p.hit) || plans[0] || null;
 }
 
 function ensureTopupCode(me) {
-  if (topupMode === "first") {
-    topupCode = monthTopupPlan(me).code;
-    return;
-  }
-  const plans = me.plans || [];
+  const plans = periodTopupPlans(me);
   if (plans.some((p) => p.code === topupCode)) return;
-  const month = monthTopupRub(me);
-  const hit = plans.find((p) => planRub(p) === month) || plans.find((p) => planRub(p) === 100);
+  const hit = plans.find((p) => p.hit);
   topupCode = (hit || plans[0] || {}).code || "";
 }
 
 function applyTopupMode() {
-  const first = topupMode === "first";
   const custom = topupMode === "custom";
-  const firstEl = $("topupFirst");
-  if (firstEl) firstEl.classList.toggle("hidden", !first);
   $("tabFast").classList.toggle("on", !custom);
   $("tabCustom").classList.toggle("on", custom);
-  $("fastPanel").classList.toggle("hidden", custom || first);
+  $("fastPanel").classList.toggle("hidden", custom);
   $("customPanel").classList.toggle("hidden", !custom);
 }
 
@@ -1453,9 +1556,7 @@ function updateTopupCta(me) {
   }
   const amount = planRub(plan);
   let label;
-  if (topupMode === "first") {
-    label = `Месяц за ${amount} ₽`;
-  } else if (me.balance_enabled) {
+  if (me.balance_enabled) {
     label = `Пополнить на ${amount} ₽`;
   } else {
     label = `Оплатить · ${plan.title}`;
@@ -1559,7 +1660,7 @@ function openTopup() {
   const me = window.__me;
   if (!me) return;
   screen = "topup";
-  topupMode = firstTopup(me) ? "first" : "fast";
+  topupMode = "fast";
   switchView("view-topup", "push");
   try {
     tg.BackButton.show();
@@ -1639,35 +1740,92 @@ function addSupportFiles(list) {
   paintSupportPending();
 }
 
-function paintSupportThread(current) {
-  const box = $("supportThread");
+function ticketDayLabel(d) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = (today - day) / 86400000;
+  if (diff === 0) return "Сегодня";
+  if (diff === 1) return "Вчера";
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+}
+
+function ticketTimeLabel(d) {
+  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+function paintSupportChrome(current) {
   const status = $("supportStatus");
-  if (!box) return;
-  box.innerHTML = "";
-  const messages = (current && current.messages) || [];
+  const badge = $("supportBadge");
+  const note = $("supportComposeNote");
+  const input = $("supportText");
   if (status) {
     status.textContent = current
-      ? `Тикет #${current.id} · ${SUPPORT_STATUS[current.status] || current.status}`
+      ? `Тикет #${current.id}`
       : "Напишите, что случилось. Можно прикрепить скриншот. Ответ придёт сюда и в чат бота.";
   }
+  if (badge) {
+    const key = current && current.status;
+    badge.textContent = SUPPORT_STATUS[key] || "";
+    badge.className = "support-badge" + (key ? " is-" + key : " hidden");
+    if (!key) badge.classList.add("hidden");
+  }
+  if (note) {
+    note.classList.toggle("hidden", !(current && current.status === "closed"));
+  }
+  if (input) {
+    input.placeholder = current && current.status === "closed"
+      ? "Новое сообщение откроет тикет"
+      : "Написать";
+  }
+}
+
+function resizeSupportText() {
+  const el = $("supportText");
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 140) + "px";
+}
+
+function paintSupportThread(current) {
+  const box = $("supportThread");
+  if (!box) return;
+  box.innerHTML = "";
+  paintSupportChrome(current);
+  const messages = (current && current.messages) || [];
   if (!messages.length) {
     const empty = document.createElement("div");
     empty.className = "support-empty";
-    empty.textContent = current && current.status === "closed"
-      ? "Тикет закрыт. Новое сообщение откроет следующий."
+    empty.textContent = current
+      ? (current.status === "closed"
+        ? "Переписка пустая. Новое сообщение откроет следующий тикет."
+        : "Пока пусто. Опишите проблему — откроем тикет.")
       : "Пока пусто. Опишите проблему — откроем тикет.";
     box.appendChild(empty);
     return;
   }
+  let lastDay = "";
   messages.forEach((m) => {
+    const when = m.created_at ? new Date(m.created_at) : null;
+    const valid = when && !Number.isNaN(when.getTime());
+    if (valid) {
+      const day = ticketDayLabel(when);
+      if (day !== lastDay) {
+        lastDay = day;
+        const sep = document.createElement("div");
+        sep.className = "support-day";
+        sep.textContent = day;
+        box.appendChild(sep);
+      }
+    }
     const wrap = document.createElement("div");
     wrap.className = "support-bubble " + (m.author === "admin" ? "admin" : "user");
-    const meta = document.createElement("div");
-    meta.className = "support-bubble-meta";
-    const when = m.created_at ? new Date(m.created_at) : null;
-    const time = when && !Number.isNaN(when.getTime()) ? when.toLocaleString("ru-RU") : "";
-    meta.textContent = (m.author === "admin" ? "Поддержка" : "Вы") + (time ? " · " + time : "");
-    wrap.appendChild(meta);
+    if (m.author === "admin") {
+      const meta = document.createElement("div");
+      meta.className = "support-bubble-meta";
+      meta.textContent = "Поддержка";
+      wrap.appendChild(meta);
+    }
     if (m.body) {
       const body = document.createElement("div");
       body.className = "support-bubble-body";
@@ -1675,6 +1833,12 @@ function paintSupportThread(current) {
       wrap.appendChild(body);
     }
     paintTicketAttachments(wrap, m.attachments);
+    if (valid) {
+      const time = document.createElement("div");
+      time.className = "support-bubble-time";
+      time.textContent = ticketTimeLabel(when);
+      wrap.appendChild(time);
+    }
     box.appendChild(wrap);
   });
   box.scrollTop = box.scrollHeight;
@@ -2072,6 +2236,7 @@ async function sendSupport() {
     const input = $("supportFiles");
     if (input) input.value = "";
     paintSupportThread(data.current);
+    resizeSupportText();
   } catch (e) {
     showErr(e);
   } finally {
@@ -2166,50 +2331,26 @@ async function payPlan(plan) {
 
 function renderTopup(me) {
   if (!me) return;
-  const first = firstTopup(me) && topupMode !== "custom";
-  if (first) topupMode = "first";
+  if (topupMode !== "custom") topupMode = "fast";
   ensureTopupCode(me);
-  const plans = me.plans || [];
+  const plans = periodTopupPlans(me);
   const canCustom = Boolean(me.balance_enabled);
-  $("topupTabs").classList.toggle("hidden", !canCustom || topupMode === "first");
-  if (!canCustom && topupMode !== "first") topupMode = "fast";
+  $("topupTabs").classList.toggle("hidden", !canCustom);
+  if (!canCustom) topupMode = "fast";
   applyTopupMode();
   const titleEl = document.querySelector("#view-topup .wiz-title");
-  if (titleEl) {
-    titleEl.textContent = topupMode === "first" ? "Месяц, чтобы не думать" : "Сколько зальём?";
-  }
+  if (titleEl) titleEl.textContent = "Сколько зальём?";
   $("topupHint").textContent = me.balance_enabled
-    ? topupMode === "first"
-      ? `Один платёж на ~30 суток одного устройства. С каждого устройства списывается ${me.vpn_day_price_rub} ₽ в сутки.`
-      : `С каждого устройства списывается ${me.vpn_day_price_rub} ₽ в сутки. Карточки показывают, на сколько дней хватит суммы при одном устройстве.`
+    ? `С каждого устройства списывается ${me.vpn_day_price_rub} ₽ в сутки. Карточки — на 1, 3, 6 месяцев и год при одном устройстве.`
     : "Выберите срок подписки.";
-  if (topupMode === "first") {
-    const amount = monthTopupRub(me);
-    const btn = $("topupMonthBtn");
-    if (btn) {
-      btn.innerHTML = "";
-      const amt = document.createElement("div");
-      amt.className = "pay-amount";
-      amt.textContent = `${amount} ₽`;
-      const days = document.createElement("div");
-      days.className = "pay-days";
-      days.textContent = "месяц · одно устройство";
-      btn.appendChild(amt);
-      btn.appendChild(days);
-    }
-    updateTopupCta(me);
-    return;
-  }
-  const amounts = plans.map(planRub).filter((n) => n > 0);
-  const hitAmt = amounts.includes(100) ? 100 : (amounts[1] || 0);
   const grid = $("topupGrid");
   grid.innerHTML = "";
   plans.forEach((plan) => {
     const amount = planRub(plan);
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "pay-card" + (plan.code === topupCode ? " on" : "");
-    if (me.balance_enabled && amount === hitAmt && hitAmt > 0) {
+    b.className = "pay-card" + (plan.code === topupCode ? " on" : "") + (plan.hit ? " hit" : "");
+    if (plan.hit) {
       const badge = document.createElement("span");
       badge.className = "pay-badge hot";
       badge.textContent = "Хит";
@@ -2217,22 +2358,18 @@ function renderTopup(me) {
     }
     const amt = document.createElement("div");
     amt.className = "pay-amount";
-    amt.textContent = me.balance_enabled
-      ? `${amount} ₽`
-      : plan.title;
+    amt.textContent = `${amount} ₽`;
     const days = document.createElement("div");
     days.className = "pay-days";
-    days.textContent = me.balance_enabled
-      ? `≈ ${daysLabel(topupDaysFor(me, amount))}`
-      : daysLabel(plan.days);
+    days.textContent = plan.label || daysLabel(plan.days);
     b.appendChild(amt);
     b.appendChild(days);
-    if (!me.balance_enabled) {
-      const rateEl = document.createElement("div");
-      rateEl.className = "pay-rate";
-      rateEl.textContent = plan.rub ? `${plan.rub} ₽` : `${plan.stars} звёзд`;
-      b.appendChild(rateEl);
-    }
+    const rateEl = document.createElement("div");
+    rateEl.className = "pay-rate";
+    rateEl.textContent = me.balance_enabled
+      ? `≈ ${daysLabel(topupDaysFor(me, amount))} одного устройства`
+      : (plan.rub ? `${plan.rub} ₽` : `${plan.stars} звёзд`);
+    b.appendChild(rateEl);
     b.onclick = () => {
       haptic();
       topupCode = plan.code;
@@ -2241,14 +2378,11 @@ function renderTopup(me) {
     grid.appendChild(b);
   });
   if (canCustom) {
-    const min = Number(me.topup_min) || amounts[0] || 50;
-    const max = Number(me.topup_max) || amounts[amounts.length - 1] || min;
+    const min = Number(me.topup_min) || 1;
+    const max = Number(me.topup_max) || min;
     if (!topupCustomRub) {
-      const month = monthTopupRub(me);
-      const hit = firstTopup(me)
-        ? month
-        : (amounts.includes(100) ? 100 : (planRub(currentTopupPlan(me)) || min));
-      topupCustomRub = Math.min(max, Math.max(min, hit));
+      const hit = plans.find((p) => p.hit) || plans[0];
+      topupCustomRub = Math.min(max, Math.max(min, planRub(hit) || min));
     }
     const inp = $("topupAmount");
     if (document.activeElement !== inp) inp.value = String(topupCustomRub);
@@ -2287,8 +2421,8 @@ function startWizard(opts) {
   if (!(opts && opts.instant)) haptic();
   hideCoach();
   wiz.step = 1;
-  wiz.platform = "ios";
-  const first = clientsFor("ios")[0];
+  wiz.platform = isPcWebApp() ? "windows" : "ios";
+  const first = clientsFor(wiz.platform)[0];
   wiz.client = first ? first.id : "";
   wiz.title = "";
   wiz.url = "";
@@ -2455,7 +2589,42 @@ function renderWizard() {
     input.value = wiz.title;
     input.autocomplete = "off";
     box.appendChild(lab);
-    box.appendChild(input);
+    const row = document.createElement("div");
+    row.className = "wiz-name-row";
+    row.appendChild(input);
+    const dice = document.createElement("button");
+    dice.type = "button";
+    dice.className = "wiz-dice";
+    dice.setAttribute("aria-label", "Случайное название");
+    dice.innerHTML = diceIconSvg();
+    let diceBusy = false;
+    dice.onclick = () => {
+      if (diceBusy) return;
+      haptic();
+      diceBusy = true;
+      const finish = (name) => {
+        wiz.title = name;
+        input.value = name;
+        paintChips();
+        diceBusy = false;
+        dice.classList.remove("is-rolling");
+      };
+      if (reducedMotion()) {
+        finish(pickFunDeviceName(input.value));
+        return;
+      }
+      dice.classList.add("is-rolling");
+      let n = 0;
+      const tick = setInterval(() => {
+        input.value = pickFunDeviceName(input.value);
+        n += 1;
+        if (n < 8) return;
+        clearInterval(tick);
+        finish(pickFunDeviceName(input.value));
+      }, 55);
+    };
+    row.appendChild(dice);
+    box.appendChild(row);
     const chipWrap = document.createElement("div");
     chipWrap.className = "wiz-chips";
     const paintChips = () => {
@@ -2654,6 +2823,8 @@ function paintDevice(d) {
   $("devTitle").textContent = d.title || "Устройство";
   $("devClient").textContent = clientLabel(d.client);
   $("devPlatform").textContent = platformLabel(d.platform);
+  const icon = document.querySelector("#view-device .dev-icon");
+  if (icon) icon.innerHTML = platIconSvg(d.platform);
   $("devUrl").textContent = d.subscription_url || "Ссылка появится после создания";
   $("devOpenLabel").textContent = "Открыть в " + clientLabel(d.client);
   const on = Boolean(d.active);
@@ -2761,7 +2932,7 @@ function renderDevices(me) {
     el.className = "device-row";
     el.innerHTML =
       '<div class="glyph sm" aria-hidden="true">' +
-      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="6" y="2" width="12" height="20" rx="2.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="18" r="0.8" fill="currentColor"/></svg>' +
+      platIconSvg(d.platform) +
       "</div>";
     const meta = document.createElement("div");
     meta.className = "meta";
@@ -3079,7 +3250,7 @@ $("topupBtn").onclick = () => {
 $("tabFast").onclick = () => {
   haptic();
   const me = window.__me;
-  topupMode = firstTopup(me) ? "first" : "fast";
+  topupMode = "fast";
   if (me) renderTopup(me);
 };
 
@@ -3090,27 +3261,6 @@ $("tabCustom").onclick = () => {
   const inp = $("topupAmount");
   if (inp) setTimeout(() => inp.focus(), 50);
 };
-
-if ($("topupOtherBtn")) {
-  $("topupOtherBtn").onclick = () => {
-    haptic();
-    topupMode = "custom";
-    if (window.__me) renderTopup(window.__me);
-    const inp = $("topupAmount");
-    if (inp) setTimeout(() => inp.focus(), 50);
-  };
-}
-
-if ($("topupMonthBtn")) {
-  $("topupMonthBtn").onclick = () => {
-    const me = window.__me;
-    if (!me) return;
-    haptic();
-    const plan = monthTopupPlan(me);
-    setMainBusy(true);
-    payPlan(plan).catch(showErr).finally(() => setMainBusy(false));
-  };
-}
 
 function paintCustomTopup(me) {
   const min = Number(me.topup_min) || 1;
@@ -3571,6 +3721,15 @@ if ($("supportFiles")) {
     addSupportFiles(e.target.files);
     e.target.value = "";
   };
+}
+if ($("supportText")) {
+  $("supportText").addEventListener("input", resizeSupportText);
+  $("supportText").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && document.documentElement.classList.contains("is-pc")) {
+      e.preventDefault();
+      sendSupport();
+    }
+  });
 }
 
 $("intro").onclick = finishIntro;

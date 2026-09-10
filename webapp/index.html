@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=87">
+  <link rel="stylesheet" href="app.css?v=97">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -345,10 +345,14 @@
         <button type="button" id="trialNoticeAct" class="btn btn-primary">Получить</button>
       </div>
 
+      <div class="home-col home-col-main">
       <div id="devicesBlock" class="section">
         <div class="section-head">
           <span class="h">Устройства <span id="deviceCount" class="count">· 0</span></span>
-          <button type="button" id="addDevice" class="link hidden">+ Добавить</button>
+          <button type="button" id="addDevice" class="add-device-btn hidden">
+            <span class="add-device-plus" aria-hidden="true"></span>
+            Добавить
+          </button>
         </div>
         <div id="emptyDevices" class="empty-devices">
           <div class="glyph" aria-hidden="true">
@@ -372,7 +376,9 @@
         <div class="section-head"><span class="h">Подключение</span></div>
         <div id="connectBody" class="stack"></div>
       </div>
+      </div>
 
+      <div class="home-col home-col-side">
       <div class="section referral" id="refHomeCard">
         <div class="glyph" aria-hidden="true">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 21c-4.4-2.9-8-6.6-8-11a5 5 0 0 1 8-4 5 5 0 0 1 8 4c0 4.4-3.6 8.1-8 11z" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/></svg>
@@ -415,28 +421,40 @@
       <div>
         <div class="section-title-plain">Помощь</div>
         <div class="section help-list">
-          <button type="button" id="faqBtn">Частые вопросы <span class="arrow">›</span></button>
-          <button type="button" id="trustHelp">Обещанный платёж <span class="arrow">›</span></button>
-          <button type="button" id="supportBtn">Поддержка <span class="arrow">›</span></button>
+          <button type="button" id="faqBtn"><span>Частые вопросы</span><span class="arrow">›</span></button>
+          <button type="button" id="trustHelp"><span>Обещанный платёж</span><span class="arrow">›</span></button>
+          <button type="button" id="supportBtn"><span>Поддержка</span><span class="arrow">›</span></button>
         </div>
+      </div>
       </div>
     </div>
 
     <div id="view-support" class="view hidden">
-      <div class="view-head">
+      <div class="view-head support-head">
         <p class="wiz-kicker">Поддержка</p>
-        <h1 class="wiz-title">Тикет</h1>
+        <div class="support-title-row">
+          <h1 class="wiz-title">Тикет</h1>
+          <span id="supportBadge" class="support-badge hidden"></span>
+        </div>
+        <p id="supportStatus" class="support-meta">Напишите, что случилось. Можно прикрепить скриншот. Ответ придёт сюда и в чат бота.</p>
       </div>
-      <p id="supportStatus" class="section-note topup-hint">Напишите, что случилось. Можно прикрепить скриншот. Ответ придёт сюда и в чат бота.</p>
-      <button type="button" id="supportFaqBtn" class="faq-inline">Сначала загляните в частые вопросы</button>
+      <button type="button" id="supportFaqBtn" class="support-faq">
+        <span>Частые вопросы</span>
+        <span class="arrow">›</span>
+      </button>
       <div id="supportThread" class="support-thread"></div>
-      <div class="support-compose">
+      <div id="supportCompose" class="support-compose">
+        <p id="supportComposeNote" class="support-compose-note hidden">Тикет закрыт. Новое сообщение откроет следующий.</p>
         <div id="supportAttachList" class="support-attach-list"></div>
-        <textarea id="supportText" rows="3" maxlength="2000" placeholder="Сообщение"></textarea>
-        <div class="support-compose-ops">
+        <div class="support-compose-bar">
           <input id="supportFiles" type="file" class="hidden" multiple accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.zip,.txt,.mp4,.mov,.webm">
-          <button type="button" id="supportAttach" class="btn btn-ghost">Вложение</button>
-          <button type="button" id="supportSend" class="btn btn-primary">Отправить</button>
+          <button type="button" id="supportAttach" class="support-icon-btn" aria-label="Вложение">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21.44 11.05l-8.49 8.49a5.25 5.25 0 0 1-7.42-7.42l8.48-8.49a3.5 3.5 0 0 1 4.95 4.95l-8.48 8.49a1.75 1.75 0 0 1-2.47-2.47l7.78-7.78"/>
+            </svg>
+          </button>
+          <textarea id="supportText" rows="1" maxlength="2000" placeholder="Написать"></textarea>
+          <button type="button" id="supportSend" class="support-send">Отправить</button>
         </div>
       </div>
     </div>
@@ -590,10 +608,6 @@
         <h1 class="wiz-title">Сколько зальём?</h1>
       </div>
       <p id="topupHint" class="section-note topup-hint">С каждого устройства списывается фиксированная сумма в сутки. Карточки показывают, на сколько дней хватит при одном устройстве.</p>
-      <div id="topupFirst" class="hidden">
-        <button type="button" id="topupMonthBtn" class="pay-card on pay-first"></button>
-        <button type="button" id="topupOtherBtn" class="pay-other">Другая сумма</button>
-      </div>
       <div id="topupTabs" class="pay-tabs hidden">
         <button type="button" id="tabFast" class="pay-tab on">Быстрый выбор</button>
         <button type="button" id="tabCustom" class="pay-tab">Своя сумма</button>
@@ -755,6 +769,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=84"></script>
+  <script src="app.js?v=88"></script>
 </body>
 </html>
