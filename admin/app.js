@@ -9,6 +9,7 @@ let selectedUsers = new Set();
 let lastUserItems = [];
 const TABS = ["overview", "users", "referrals", "ads", "orders", "billing", "reports", "tickets", "messages", "broadcast", "promo", "backups", "settings"];
 const TAB_KEYS = {
+  overview: ["dash", "fp", "fs", "fl", "fi", "step"],
   users: ["q", "status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to", "paid"],
   referrals: ["q", "reward", "from", "to"],
   orders: ["q", "status", "from", "to"],
@@ -394,6 +395,7 @@ function switchTab(name, opts = {}) {
   if (!TABS.includes(name)) name = "overview";
   const route = parseRoute();
   if (!opts.skipFill) {
+    if (name === "overview") applyOverviewRoute(route.params);
     if (name === "users") {
       fillFromParams(USER_FILTER_IDS, route.tab === "users" ? route.params : new URLSearchParams());
     }
@@ -476,6 +478,9 @@ function switchTab(name, opts = {}) {
     }
     if (name === "messages") {
       Object.entries(collectMsgFilters()).forEach(([k, v]) => v && params.set(k, v));
+    }
+    if (name === "overview") {
+      Object.entries(collectOverviewParams()).forEach(([k, v]) => v && params.set(k, v));
     }
     writeRoute(name, params);
   }
@@ -708,8 +713,124 @@ const FUNNEL_INV = [
 ];
 
 let funnelCache = null;
-let funnelPeriod = localStorage.getItem("way-funnel-period") || "30d";
-if (!["1d", "7d", "30d", "90d", "all"].includes(funnelPeriod)) funnelPeriod = "30d";
+let lastStats = null;
+let overviewDash = "check";
+let funnelStep = "";
+const FUNNEL_PERIODS = ["1d", "7d", "30d", "90d", "all"];
+let funnelPeriods = {
+  main: localStorage.getItem("way-funnel-period") || "30d",
+  source: "30d",
+  leak: "30d",
+  invite: "30d",
+};
+["main", "source", "leak", "invite"].forEach((k) => {
+  const saved = localStorage.getItem("way-funnel-" + k);
+  if (FUNNEL_PERIODS.includes(saved)) funnelPeriods[k] = saved;
+});
+if (!FUNNEL_PERIODS.includes(funnelPeriods.main)) funnelPeriods.main = "30d";
+let funnelPeriod = funnelPeriods.main;
+
+function collectOverviewParams() {
+  return {
+    dash: overviewDash === "check" ? "" : overviewDash,
+    fp: funnelPeriods.main !== "30d" ? funnelPeriods.main : "",
+    fs: funnelPeriods.source !== "30d" ? funnelPeriods.source : "",
+    fl: funnelPeriods.leak !== "30d" ? funnelPeriods.leak : "",
+    fi: funnelPeriods.invite !== "30d" ? funnelPeriods.invite : "",
+    step: funnelStep || "",
+  };
+}
+
+function applyOverviewRoute(params) {
+  const dash = params.get("dash") || params.get("tab") || "check";
+  overviewDash = ["check", "funnels", "sources", "issues"].includes(dash) ? dash : "check";
+  const map = { fp: "main", fs: "source", fl: "leak", fi: "invite" };
+  Object.entries(map).forEach(([q, key]) => {
+    const v = params.get(q);
+    if (FUNNEL_PERIODS.includes(v)) funnelPeriods[key] = v;
+  });
+  funnelPeriod = funnelPeriods.main;
+  const step = params.get("step") || "";
+  funnelStep = step === "payment" ? "paid" : step;
+  paintOverviewDash();
+}
+
+function paintOverviewDash() {
+  document.querySelectorAll("#overviewDash [data-dash]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.dash === overviewDash);
+  });
+  ["check", "funnels", "sources", "issues"].forEach((name) => {
+    const el = $("dash-" + name);
+    if (el) el.classList.toggle("hidden", name !== overviewDash);
+  });
+}
+
+function setOverviewDash(name) {
+  if (!["check", "funnels", "sources", "issues"].includes(name)) name = "check";
+  overviewDash = name;
+  paintOverviewDash();
+  syncOverviewHash();
+}
+
+function syncOverviewHash() {
+  if (tabFromHash() !== "overview") return;
+  const params = new URLSearchParams();
+  Object.entries(collectOverviewParams()).forEach(([k, v]) => v && params.set(k, v));
+  writeRoute("overview", params);
+}
+
+function cohortRange(period) {
+  if (period === "all") return { from: "", to: "" };
+  const days = { "1d": 1, "7d": 7, "30d": 30, "90d": 90 }[period] || 30;
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - (days - 1));
+  const fmt = (d) =>
+    d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  return { from: fmt(from), to: fmt(to) };
+}
+
+function worstDropIndex(steps, convs) {
+  let worst = -1;
+  let worstV = 101;
+  convs.forEach((c, i) => {
+    if (i && c != null && c < worstV) {
+      worstV = c;
+      worst = i;
+    }
+  });
+  return worst;
+}
+
+const FUNNEL_STEP_FILTER = {
+  trial: { trial: "yes" },
+  device: { devices: "yes" },
+  connected: { online: "30d" },
+  paid: { paid: "yes" },
+  repeat_paid: { paid: "yes" },
+  blocked: { status: "block" },
+  device_no_online: { devices: "yes", online: "never" },
+  checkout_drop: { paid: "no" },
+  no_legal: { trial: "no" },
+  inv_trial: { trial: "yes" },
+  inv_device: { devices: "yes" },
+  inv_connected: { online: "30d" },
+  inv_paid: { paid: "yes" },
+};
+
+function sourceHoverText(cur) {
+  if (!cur) return "";
+  const entered = Number(cur.entered) || 0;
+  if (!entered) return "";
+  return (
+    "Откуда зашедшие: сами " +
+    funnelPctText(funnelPct(cur.organic, entered)) +
+    ", реф " +
+    funnelPctText(funnelPct(cur.from_ref, entered)) +
+    ", реклама " +
+    funnelPctText(funnelPct(cur.from_ad, entered))
+  );
+}
 
 function funnelPct(n, d) {
   if (!d) return null;
@@ -730,9 +851,10 @@ function mapFunnelSteps(spec, row) {
   }));
 }
 
-function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode) {
+function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode, opts) {
   const box = $(boxId);
   if (!box) return;
+  opts = opts || {};
   box.innerHTML = "";
   if (!steps.some((s) => s.n > 0)) {
     box.innerHTML = '<p class="funnel-empty">За этот период никого нет.</p>';
@@ -750,17 +872,9 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode) {
     if (share) return i === 0 ? 100 : funnelPct(s.n, prevSteps[0].n);
     return i === 0 ? 100 : funnelPct(s.n, prevSteps[i - 1].n);
   });
-  let worst = -1;
-  let worstV = 101;
-  if (!share) {
-    convs.forEach((c, i) => {
-      if (i && c != null && c < worstV) {
-        worstV = c;
-        worst = i;
-      }
-    });
-  }
+  const worst = share ? -1 : worstDropIndex(steps, convs);
   const maxN = Math.max(...steps.map((s) => s.n), 1);
+  const srcHint = opts.sourceCur ? sourceHoverText(opts.sourceCur) : "";
   steps.forEach((s, i) => {
     const row = document.createElement("div");
     const conv = convs[i];
@@ -781,23 +895,22 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode) {
       }
     }
     const lost = !share && i ? Math.max(0, steps[i - 1].n - s.n) : 0;
-    row.className = "funnel-row" + (i === worst ? " is-drop" : deltaCls === "up" ? " is-up" : "");
+    row.className =
+      "funnel-row" +
+      (i === worst ? " is-drop" : deltaCls === "up" ? " is-up" : "") +
+      (funnelStep && funnelStep === s.key ? " is-active" : "");
     const bar = Math.max(4, Math.round((100 * s.n) / maxN));
-    let convLine;
-    if (i === 0) {
-      convLine = share ? (s.hint || "старт") : "старт когорты";
-    } else if (share) {
-      convLine = "от зашедших " + funnelPctText(conv) + " · " + (s.hint || "");
-    } else {
-      convLine =
-        "от шага " +
-        funnelPctText(conv) +
-        " · от старта " +
-        funnelPctText(fromStart) +
-        (lost ? " · ушло " + lost : "") +
-        " · " +
-        (s.hint || "");
+    const tips = [];
+    if (i === 0) tips.push(share ? s.hint || "старт" : "старт когорты");
+    else {
+      tips.push("от предыдущего шага " + funnelPctText(conv));
+      tips.push("от старта " + funnelPctText(fromStart));
+      if (lost) tips.push("ушло " + lost);
+      if (s.hint) tips.push(s.hint);
     }
+    if (srcHint) tips.push(srcHint);
+    if (deltaTxt) tips.push(deltaTxt);
+    row.title = tips.join(". ");
     row.innerHTML =
       '<div><div class="funnel-name"></div><div class="funnel-meta"></div></div>' +
       '<div class="funnel-track"><div class="funnel-fill"></div></div>' +
@@ -805,7 +918,7 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode) {
       (deltaTxt ? '<span class="funnel-delta"></span>' : "") +
       "</div>";
     row.querySelector(".funnel-name").textContent = s.title;
-    row.querySelector(".funnel-meta").textContent = convLine;
+    row.querySelector(".funnel-meta").textContent = lost ? "ушло " + lost : "";
     row.querySelector(".funnel-fill").style.width = bar + "%";
     row.querySelector(".funnel-count").textContent = String(s.n);
     row.querySelector(".funnel-conv").textContent = i === 0 && !share ? "100%" : funnelPctText(conv);
@@ -814,6 +927,16 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode) {
       dEl.textContent = deltaTxt;
       dEl.classList.add(deltaCls);
     }
+    row.onclick = () => {
+      funnelStep = funnelStep === s.key ? "" : s.key;
+      if (funnelStep && overviewDash !== "funnels" && overviewDash !== "sources") {
+        overviewDash = "funnels";
+        paintOverviewDash();
+      }
+      syncOverviewHash();
+      paintFunnel(funnelCache);
+      loadFunnelClients();
+    };
     box.appendChild(row);
   });
   return { convs, worst };
@@ -896,12 +1019,26 @@ function paintFunnelInsight(pack, main, convs, worst) {
   bits.forEach((n) => el.appendChild(n));
 }
 
+function packFor(card) {
+  const period = funnelPeriods[card] || "30d";
+  return funnelCache && funnelCache[period];
+}
+
+function paintFunnelPeriodButtons() {
+  document.querySelectorAll(".funnel-seg[data-funnel-card]").forEach((seg) => {
+    const card = seg.dataset.funnelCard;
+    const period = funnelPeriods[card] || "30d";
+    seg.querySelectorAll("[data-funnel]").forEach((b) => {
+      b.classList.toggle("active", b.dataset.funnel === period);
+    });
+  });
+}
+
 function paintFunnel(data) {
   funnelCache = data || funnelCache;
-  const pack = funnelCache && funnelCache[funnelPeriod];
-  document.querySelectorAll("#funnelPeriod [data-funnel]").forEach((b) => {
-    b.classList.toggle("active", b.dataset.funnel === funnelPeriod);
-  });
+  funnelPeriod = funnelPeriods.main;
+  paintFunnelPeriodButtons();
+  const pack = packFor("main");
   if (!pack || !pack.current) {
     paintFunnelRows("funnelMain", [], null, "");
     paintFunnelRows("funnelSource", [], null, "", "share");
@@ -914,28 +1051,239 @@ function paintFunnel(data) {
   const compare = pack.compare || "";
   const main = mapFunnelSteps(FUNNEL_MAIN, pack.current);
   const prevMain = pack.previous ? mapFunnelSteps(FUNNEL_MAIN, pack.previous) : null;
-  const painted = paintFunnelRows("funnelMain", main, prevMain, compare);
+  const painted = paintFunnelRows("funnelMain", main, prevMain, compare, "", { sourceCur: pack.current });
+  const srcPack = packFor("source") || pack;
   paintFunnelRows(
     "funnelSource",
-    mapFunnelSteps(FUNNEL_SOURCE, pack.current),
-    pack.previous ? mapFunnelSteps(FUNNEL_SOURCE, pack.previous) : null,
-    compare,
-    "share"
+    mapFunnelSteps(FUNNEL_SOURCE, srcPack.current || {}),
+    srcPack.previous ? mapFunnelSteps(FUNNEL_SOURCE, srcPack.previous) : null,
+    srcPack.compare || compare,
+    "share",
+    { sourceCur: srcPack.current }
   );
+  const leakPack = packFor("leak") || pack;
   paintFunnelRows(
     "funnelLeak",
-    mapFunnelSteps([["entered", "Когорта", "база потерь"], ...FUNNEL_LEAK], pack.current),
-    pack.previous ? mapFunnelSteps([["entered", "Когорта", "база потерь"], ...FUNNEL_LEAK], pack.previous) : null,
-    compare,
+    mapFunnelSteps([["entered", "Когорта", "база потерь"], ...FUNNEL_LEAK], leakPack.current || {}),
+    leakPack.previous
+      ? mapFunnelSteps([["entered", "Когорта", "база потерь"], ...FUNNEL_LEAK], leakPack.previous)
+      : null,
+    leakPack.compare || compare,
     "share"
   );
+  const invPack = packFor("invite") || pack;
   paintFunnelRows(
     "funnelInvite",
-    mapFunnelSteps(FUNNEL_INV, pack.current),
-    pack.previous ? mapFunnelSteps(FUNNEL_INV, pack.previous) : null,
-    compare
+    mapFunnelSteps(FUNNEL_INV, invPack.current || {}),
+    invPack.previous ? mapFunnelSteps(FUNNEL_INV, invPack.previous) : null,
+    invPack.compare || compare
   );
   paintFunnelInsight(pack, main, (painted && painted.convs) || [], painted ? painted.worst : -1);
+}
+
+function kpiCell(label, value, delta) {
+  const el = document.createElement("div");
+  el.className = "kpi-cell";
+  const l = document.createElement("div");
+  l.className = "l";
+  l.textContent = label;
+  const n = document.createElement("div");
+  n.className = "n";
+  n.textContent = value;
+  el.appendChild(l);
+  el.appendChild(n);
+  if (delta) {
+    const d = document.createElement("div");
+    d.className = "d" + (delta.cls ? " " + delta.cls : "");
+    d.textContent = delta.text;
+    el.appendChild(d);
+  }
+  return el;
+}
+
+function paintKpiStrip(s) {
+  const box = $("kpiStrip");
+  if (!box) return;
+  box.innerHTML = "";
+  const u = s.users || {};
+  const on = s.online || {};
+  const top = s.topups || {};
+  const pack = s.funnel && s.funnel[funnelPeriods.main];
+  const cur = (pack && pack.current) || {};
+  const prev = (pack && pack.previous) || {};
+  const conv = funnelPct(cur.paid, cur.entered);
+  const convPrev = funnelPct(prev.paid, prev.entered);
+  let convDelta = null;
+  if (conv != null && convPrev != null) {
+    const d = Math.round((conv - convPrev) * 10) / 10;
+    convDelta = {
+      cls: d > 0.4 ? "up" : d < -0.4 ? "down" : "",
+      text: (d > 0 ? "+" : "") + String(d).replace(".", ",") + " п.п.",
+    };
+  }
+  const day = Number(on.day) || 0;
+  const dayPrev = Number(on.day_prev) || 0;
+  const dayD = day - dayPrev;
+  box.appendChild(kpiCell("Оборот", String(s.revenue_rub || 0) + " ₽"));
+  box.appendChild(kpiCell("Платежи", String(top.payments || 0)));
+  box.appendChild(kpiCell("Новые 7д", String(u.new_7d || 0)));
+  box.appendChild(
+    kpiCell("Онлайн", String(day), {
+      cls: dayD > 0 ? "up" : dayD < 0 ? "down" : "",
+      text: (dayD > 0 ? "+" : "") + dayD + " к суткам",
+    })
+  );
+  box.appendChild(kpiCell("В оплату", funnelPctText(conv), convDelta));
+}
+
+function paintProblemsBadge(s) {
+  const el = $("problemsBadge");
+  if (!el) return;
+  const n = (Number(s.tickets_open) || 0) + (Number(s.vpn_reports) || 0);
+  if (!n) {
+    el.classList.add("hidden");
+    el.classList.remove("has-fire");
+    el.textContent = "Проблемы";
+    return;
+  }
+  el.classList.remove("hidden");
+  el.classList.add("has-fire");
+  el.innerHTML = "Проблемы<span class=\"n\">" + n + "</span>";
+}
+
+function worstMainKey(row) {
+  if (!row) return "";
+  const steps = mapFunnelSteps(FUNNEL_MAIN, row);
+  const convs = steps.map((s, i) => (i === 0 ? 100 : funnelPct(s.n, steps[i - 1].n)));
+  const idx = worstDropIndex(steps, convs);
+  return idx > 0 ? steps[idx].key : "";
+}
+
+function paintStatusAlert(s) {
+  const el = $("statusAlert");
+  if (!el) return;
+  const lines = [];
+  const tickets = Number(s.tickets_open) || 0;
+  const reports = Number(s.vpn_reports) || 0;
+  if (tickets || reports) {
+    const bits = [];
+    if (tickets) bits.push(tickets + " тикет" + (tickets === 1 ? "" : "ов"));
+    if (reports) bits.push(reports + " жалоб VPN");
+    lines.push("Есть открытые обращения: " + bits.join(", ") + ".");
+  }
+  const pack = s.funnel && s.funnel[funnelPeriods.main];
+  const cur = pack && pack.current;
+  const prev = pack && pack.previous;
+  if (cur && prev) {
+    const conv = funnelPct(cur.paid, cur.entered);
+    const convPrev = funnelPct(prev.paid, prev.entered);
+    if (conv != null && convPrev && convPrev > 0 && (conv - convPrev) / convPrev < -0.2) {
+      lines.push(
+        "Конверсия в оплату упала больше чем на 20%: " +
+          funnelPctText(conv) +
+          " против " +
+          funnelPctText(convPrev) +
+          "."
+      );
+    }
+    const nowKey = worstMainKey(cur);
+    const prevKey = worstMainKey(prev);
+    if (nowKey && prevKey && nowKey !== prevKey) {
+      const title = (FUNNEL_MAIN.find((x) => x[0] === nowKey) || [])[1] || nowKey;
+      lines.push("Узкое место сместилось: сейчас «" + title + "».");
+    }
+  }
+  const shown = lines.slice(0, 2);
+  if (!shown.length) {
+    el.classList.add("hidden");
+    el.innerHTML = "";
+    return;
+  }
+  el.classList.remove("hidden");
+  el.classList.toggle("is-danger", tickets + reports > 0);
+  el.innerHTML = shown.map((t) => "<p></p>").join("");
+  Array.from(el.querySelectorAll("p")).forEach((p, i) => {
+    p.textContent = shown[i];
+  });
+}
+
+function paintOverviewChrome(s) {
+  lastStats = s;
+  paintKpiStrip(s);
+  paintProblemsBadge(s);
+  paintStatusAlert(s);
+}
+
+async function loadFunnelClients() {
+  const body = $("funnelClientRows");
+  const hint = $("funnelClientHint");
+  if (!body) return;
+  body.innerHTML = "";
+  if (!funnelStep) {
+    if (hint) hint.textContent = "Выберите шаг воронки. Список строится из текущих фильтров пользователей за период когорты.";
+    body.appendChild(emptyRow(5, "Шаг не выбран"));
+    return;
+  }
+  if ($("funnelCardMain")) $("funnelCardMain").open = true;
+  const period = funnelPeriods.main;
+  const range = cohortRange(period);
+  const extra = { ...(FUNNEL_STEP_FILTER[funnelStep] || {}) };
+  if ((funnelStep === "connected" || funnelStep === "inv_connected") && extra.online === "30d") {
+    extra.online = period === "1d" || period === "7d" ? period : "30d";
+  }
+  const title = (
+    FUNNEL_MAIN.find((x) => x[0] === funnelStep) ||
+    FUNNEL_SOURCE.find((x) => x[0] === funnelStep) ||
+    FUNNEL_LEAK.find((x) => x[0] === funnelStep) ||
+    FUNNEL_INV.find((x) => x[0] === funnelStep) ||
+    [funnelStep, funnelStep]
+  )[1];
+  if (hint) {
+    hint.textContent =
+      "Приближение по полям списка пользователей для шага «" +
+      title +
+      "»" +
+      (range.from ? ", когорта " + range.from + " — " + range.to : "") +
+      ". Это не точная выборка воронки.";
+  }
+  try {
+    const data = await api(
+      `/admin/api/users?${queryString({
+        ...extra,
+        from: range.from,
+        to: range.to,
+        page: 1,
+      })}`
+    );
+    const items = data.items || [];
+    if (!items.length) {
+      body.appendChild(emptyRow(5, "Никого не нашли по этому приближению"));
+      return;
+    }
+    items.forEach((u) => {
+      const tr = document.createElement("tr");
+      tr.className = "row-link";
+      const tdWho = document.createElement("td");
+      tdWho.className = "who-cell";
+      const idLine = document.createElement("div");
+      idLine.textContent = u.telegram_id + (u.username ? " @" + u.username : "");
+      const nameLine = document.createElement("div");
+      nameLine.className = "who-sub";
+      nameLine.textContent = u.first_name || "без имени";
+      tdWho.appendChild(idLine);
+      tdWho.appendChild(nameLine);
+      tr.appendChild(tdWho);
+      tr.appendChild(tdText(u.balance_rub == null ? "—" : String(u.balance_rub)));
+      tr.appendChild(tdText(u.trial_used ? "да" : "нет"));
+      const nDev = Array.isArray(u.devices) ? u.devices.length : 0;
+      tr.appendChild(tdText(nDev ? String(nDev) : u.remnawave_id ? "подписка" : "—"));
+      tr.appendChild(tdText(paidLine(u)));
+      tr.onclick = () => openUser(u);
+      body.appendChild(tr);
+    });
+  } catch (e) {
+    body.appendChild(emptyRow(5, (e && e.message) || "Не удалось загрузить список"));
+  }
 }
 
 function paidLine(u) {
@@ -1050,6 +1398,9 @@ async function loadStats() {
     kv($("orderStats"), s.orders, "Заказов пока нет");
     kv($("planStats"), s.plans, "Оплаченных тарифов нет");
     paintFunnel(s.funnel);
+    paintOverviewChrome(s);
+    paintOverviewDash();
+    loadFunnelClients();
     paintJobs(s.jobs || {});
     const today = s.billing_today || {};
     if ($("billToday")) {
@@ -2519,17 +2870,42 @@ document.querySelectorAll("#modalTabs [data-pane]").forEach((b) => {
 });
 ["flagMaint", "flagBill", "flagNudge", "flagInvite", "flagInfo", "flagStory"].forEach((id) => {
   const el = $(id);
-  if (el) el.onclick = () => switchTab("overview");
+  if (el) {
+    el.onclick = () => {
+      switchTab("overview");
+      setOverviewDash("check");
+    };
+  }
 });
-if ($("funnelPeriod")) {
-  $("funnelPeriod").querySelectorAll("[data-funnel]").forEach((b) => {
+document.querySelectorAll("#overviewDash [data-dash]").forEach((b) => {
+  b.onclick = () => setOverviewDash(b.dataset.dash);
+});
+if ($("problemsBadge")) {
+  $("problemsBadge").onclick = () => {
+    switchTab("overview");
+    setOverviewDash("issues");
+  };
+}
+document.querySelectorAll(".funnel-seg[data-funnel-card]").forEach((seg) => {
+  seg.querySelectorAll("[data-funnel]").forEach((b) => {
     b.onclick = () => {
-      funnelPeriod = b.dataset.funnel;
-      localStorage.setItem("way-funnel-period", funnelPeriod);
+      const card = seg.dataset.funnelCard;
+      const period = b.dataset.funnel;
+      if (!FUNNEL_PERIODS.includes(period)) return;
+      funnelPeriods[card] = period;
+      localStorage.setItem("way-funnel-" + card, period);
+      if (card === "main") {
+        funnelPeriod = period;
+        localStorage.setItem("way-funnel-period", period);
+      }
+      syncOverviewHash();
       paintFunnel(funnelCache);
+      if (lastStats) paintKpiStrip(lastStats);
+      if (lastStats) paintStatusAlert(lastStats);
+      if (card === "main") loadFunnelClients();
     };
   });
-}
+});
 $("navToggle").onclick = () => setNavOpen(!document.body.classList.contains("nav-open"));
 $("navScrim").onclick = () => setNavOpen(false);
 if ($("themeToggle")) $("themeToggle").onclick = toggleTheme;
