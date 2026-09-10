@@ -159,8 +159,10 @@ def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bo
     story_btn = story_webapp_button(story_offer=story_offer)
     if story_btn:
         builder.row(story_btn)
-    builder.row(InlineKeyboardButton(text=_btn("❓", "Частые вопросы"), callback_data="faq"))
-    builder.row(InlineKeyboardButton(text=_btn("💬", "Поддержка"), callback_data="support_ticket"))
+    builder.row(
+        InlineKeyboardButton(text=_btn("❓", "Частые вопросы"), callback_data="faq"),
+        InlineKeyboardButton(text=_btn("💬", "Поддержка"), callback_data="support_ticket"),
+    )
     add_cabinet_row(builder)
     return builder.as_markup()
 

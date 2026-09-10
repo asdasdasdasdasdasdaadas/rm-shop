@@ -91,16 +91,7 @@ requestMiniAppFullscreen();
 let navScrollY = 0;
 function syncNavScroll() {
   const y = window.scrollY || document.documentElement.scrollTop || 0;
-  const root = document.documentElement;
-  root.classList.toggle("is-scrolled", y > 10);
-  if (y < 28) {
-    root.classList.remove("nav-away");
-    navScrollY = y;
-    return;
-  }
-  const dy = y - navScrollY;
-  if (dy > 8) root.classList.add("nav-away");
-  else if (dy < -8) root.classList.remove("nav-away");
+  document.documentElement.classList.toggle("is-scrolled", y > 10);
   navScrollY = y;
 }
 window.addEventListener("scroll", syncNavScroll, { passive: true });
@@ -673,7 +664,7 @@ function finishIntro() {
   introTimer = setTimeout(() => {
     $("app").inert = false;
     showApp();
-    maybeOpenOffer(window.__me);
+    maybeOpenFirstRun(window.__me);
   }, reducedMotion() ? 0 : 800);
 }
 
@@ -769,7 +760,7 @@ function switchView(id, motion) {
     if (on) replayAnim(el, "view-in-" + (motion || "fade"));
   });
   window.scrollTo(0, 0);
-  document.documentElement.classList.remove("nav-away", "is-scrolled");
+  document.documentElement.classList.remove("is-scrolled");
   navScrollY = 0;
 }
 
@@ -783,6 +774,7 @@ const wiz = {
 };
 
 let screen = "home";
+let firstRunBusy = false;
 let loadSeq = 0;
 let lastConnectUrl = null;
 let openDevice = null;
@@ -850,21 +842,35 @@ function skipOffer() {
 function shouldShowOffer(me) {
   if (!me) return false;
   if ((me.devices || []).length) return false;
-  if (onboardDone() || offerSkipped()) return false;
   if (me.trial_available) return true;
   const kind = me.trial_notice && me.trial_notice.kind;
-  return kind === "claim" || kind === "granted";
+  if (kind === "claim" || kind === "granted") return true;
+  if (!me.balance_enabled || me.has_paid_topup) return false;
+  return Number(me.balance_rub) > 0 || Number(me.days) > 0 || Number(me.trial_days) > 0;
 }
 
-function maybeOpenOffer(me) {
-  if (!me) return;
-  if (screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "faq") return;
+function maybeOpenFirstRun(me) {
+  if (!me || firstRunBusy) return;
+  if ((me.devices || []).length) return;
+  if (
+    screen === "wizard" ||
+    screen === "device" ||
+    screen === "topup" ||
+    screen === "support" ||
+    screen === "faq" ||
+    screen === "billing"
+  ) {
+    return;
+  }
   if (screen === "offer") {
     paintOffer(me);
     return;
   }
-  if (!shouldShowOffer(me)) return;
-  openOffer();
+  if (shouldShowOffer(me)) {
+    openOffer();
+    return;
+  }
+  if (me.balance_enabled) startWizard({ fromOffer: false });
 }
 
 function markCoachDone() {
@@ -1472,7 +1478,11 @@ function onBack() {
     return;
   }
   if (screen === "offer") {
-    skipOffer();
+    const me = window.__me;
+    if (me && me.balance_enabled && !(me.devices || []).length) {
+      startWizard({ fromOffer: true });
+      return;
+    }
     openHome();
   }
 }
@@ -2052,6 +2062,7 @@ async function startOfferTry() {
   haptic();
   const btn = $("offerTry");
   if (btn) btn.disabled = true;
+  firstRunBusy = true;
   try {
     if (me.trial_available) {
       await api("/api/trial", { method: "POST", body: "{}" });
@@ -2067,6 +2078,7 @@ async function startOfferTry() {
   } catch (e) {
     showErr(e);
   } finally {
+    firstRunBusy = false;
     if (btn) btn.disabled = false;
   }
 }
@@ -2920,13 +2932,15 @@ function paint(me) {
     }
   }
   if (screen === "topup") renderTopup(me);
+  if (firstRunBusy) return;
   if (!$("intro").classList.contains("hidden")) return;
-  if (shouldShowIntro()) showIntro(me);
+  const firstRun = !(me.devices || []).length;
+  if (!firstRun && shouldShowIntro()) showIntro(me);
   else {
     showApp();
-    maybeOpenOffer(me);
+    maybeOpenFirstRun(me);
   }
-  if (screen !== "offer") syncCoach(me);
+  if (screen !== "offer" && screen !== "wizard") syncCoach(me);
 }
 
 function syncCoach(me) {

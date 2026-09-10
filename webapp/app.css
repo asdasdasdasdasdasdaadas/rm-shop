@@ -166,7 +166,7 @@ body.coach-lock {
   margin: 0 calc(-1 * var(--edge-right)) 6px calc(-1 * var(--edge-left));
   padding: var(--app-safe-top, 0px) var(--edge-right) 14px var(--edge-left);
   background: var(--bg-app);
-  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease;
+  transition: border-color 0.22s ease, background 0.22s ease;
 }
 
 .view-head {
@@ -177,23 +177,33 @@ body.coach-lock {
   padding: var(--app-safe-top, 0px) var(--edge-right) 16px var(--edge-left);
   background: var(--bg-app);
   border-bottom: 1px solid transparent;
-  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease;
+  transition: border-color 0.22s ease, background 0.22s ease;
 }
-html.is-scrolled .view-head,
+html.is-scrolled .view-head:not(.home-nav),
 html.is-scrolled .web-back:not(.hidden) {
   border-bottom-color: var(--divider);
-}
-html.nav-away .view-head,
-html.nav-away .web-back:not(.hidden) {
-  transform: translate3d(0, -110%, 0);
-  pointer-events: none;
 }
 body:has(#webBack:not(.hidden)) .view-head {
   top: calc(var(--app-safe-top, 0px) + 44px);
   padding-top: 8px;
 }
 .view-head.home-nav {
+  background: transparent;
+  border-bottom: 0;
   padding-bottom: 12px;
+}
+.view-head.home-nav .account-row {
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.32s ease,
+    background 0.32s ease,
+    border-color 0.32s ease;
+}
+html.is-scrolled .view-head.home-nav .account-row {
+  transform: translate3d(0, 0, 0);
+  background: rgba(21, 32, 24, 0.88);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: var(--glass-shine), 0 12px 32px rgba(0, 0, 0, 0.28);
 }
 .view-head .wiz-kicker { margin-top: 0; }
 .view-head .wiz-title { margin-bottom: 0; }
