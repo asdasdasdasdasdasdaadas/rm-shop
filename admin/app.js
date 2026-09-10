@@ -2493,6 +2493,27 @@ async function loadSettings() {
   set("setOffer", v.legal_offer_url);
   set("setPrivacy", v.legal_privacy_url);
   set("setLiveChat", v.admin_live_chat_id);
+  const hint = s.live_chat_hint;
+  const hintEl = $("liveChatHint");
+  const hintBtn = $("liveChatUseHint");
+  if (hintEl && hintBtn) {
+    if (hint && hint.id) {
+      const title = hint.title || "без названия";
+      const uname = hint.username ? " @" + hint.username : "";
+      hintEl.textContent =
+        "Бот уже админ в «" + title + "»" + uname + ". Id " + hint.id + " — это как раз приватный канал.";
+      hintEl.classList.remove("hidden");
+      hintBtn.classList.remove("hidden");
+      hintBtn.onclick = () => {
+        if ($("setLiveChat")) $("setLiveChat").value = String(hint.id);
+      };
+    } else {
+      hintEl.textContent = "";
+      hintEl.classList.add("hidden");
+      hintBtn.classList.add("hidden");
+      hintBtn.onclick = null;
+    }
+  }
   set("setMaxDev", v.max_devices);
   set("setHwid", v.remnawave_hwid_limit);
   set("setDayPrice", v.vpn_day_price_rub);

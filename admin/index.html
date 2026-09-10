@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="52">
+  <meta name="admin-build" content="53">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -1002,8 +1002,12 @@
                 </div>
                 <div>
                   <label class="ops-label" for="setLiveChat">Канал живых событий</label>
-                  <input id="setLiveChat" name="admin_live_chat_id" type="text" maxlength="80" placeholder="@channel или -100...">
-                  <p class="muted tight">Оплатил, пригласил, продлил, история, первое подключение. Бот должен быть админом канала. Пусто — не писать.</p>
+                  <input id="setLiveChat" name="admin_live_chat_id" type="text" maxlength="200" placeholder="@public или -100... или t.me/c/...">
+                  <p class="muted tight">Публичный: @username. Приватный: добавьте бота админом с правом публиковать, затем нажмите «Подставить id» или вставьте -100... / ссылку t.me/c/.... Пригласительная ссылка t.me/+ не подойдёт.</p>
+                  <p id="liveChatHint" class="muted tight hidden"></p>
+                  <div class="ops">
+                    <button type="button" id="liveChatUseHint" class="ghost hidden">Подставить id приватного канала</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1275,6 +1279,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=60"></script>
+  <script src="app.js?v=61"></script>
 </body>
 </html>

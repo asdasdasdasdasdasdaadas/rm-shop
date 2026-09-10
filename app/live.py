@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
 from html import escape
+from typing import Any
 
-from aiogram import Bot
+from aiogram import Bot, Router
+from aiogram.types import ChatMemberUpdated
 
 from app import db, runtime
 from app.config import get_settings
@@ -12,10 +16,51 @@ from app.remnawave import panel_first_connected_at, panel_online_at
 from app.tg_err import telegram_fail_reason
 
 logger = logging.getLogger("rm-shop.live")
+router = Router()
+HINT_KEY = "live_chat_hint"
+_C_LINK = re.compile(r"(?:t\.me|telegram\.me)/c/(\d+)", re.I)
+
+
+def parse_live_chat_id(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if len(text) > 200:
+        raise ValueError("Живой канал: слишком длинная строка")
+    low = text.lower()
+    if "joinchat" in low or "t.me/+" in low or "telegram.me/+" in low or text.startswith("+"):
+        raise ValueError(
+            "Приватный канал: ссылка-приглашение не подходит. "
+            "Добавьте бота администратором канала — id появится в форме. "
+            "Либо вставьте id вида -100... или ссылку t.me/c/..."
+        )
+    found = _C_LINK.search(text.replace("https://", "").replace("http://", ""))
+    if found:
+        return "-100" + found.group(1)
+    if re.match(r"https?://", text, re.I) or low.startswith("t.me/"):
+        path = text.split("?")[0].rstrip("/").rsplit("/", 1)[-1]
+        text = path
+    if text.lstrip("-").isdigit():
+        if text.startswith("-"):
+            return text
+        if text.startswith("100") and len(text) >= 12:
+            return "-" + text
+        return text
+    handle = text[1:] if text.startswith("@") else text
+    handle = handle.strip()
+    if handle and re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{3,}", handle):
+        return "@" + handle
+    raise ValueError(
+        "Публичный канал: @username. Приватный: id -100... или ссылка t.me/c/.... "
+        "Не пригласительная ссылка."
+    )
 
 
 def _chat_id():
-    raw = str(getattr(get_settings(), "admin_live_chat_id", "") or "").strip()
+    try:
+        raw = parse_live_chat_id(getattr(get_settings(), "admin_live_chat_id", "") or "")
+    except ValueError:
+        raw = str(getattr(get_settings(), "admin_live_chat_id", "") or "").strip()
     if not raw:
         return None
     if raw.lstrip("-").isdigit():
@@ -114,3 +159,81 @@ async def note_first_online_from_panels(panels: list[dict]) -> None:
         if raw is not None and str(raw).isdigit():
             ids.append(int(raw))
     await note_first_online_from_panel_ids(ids)
+
+
+async def get_live_chat_hint() -> dict | None:
+    raw = (await db.get_kv(HINT_KEY)).strip()
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(data, dict) or not data.get("id"):
+        return None
+    return data
+
+
+async def remember_live_chat(chat) -> None:
+    if not chat or getattr(chat, "type", "") not in {"channel", "supergroup"}:
+        return
+    settings = get_settings()
+    req = str(settings.required_channel_id or "").strip()
+    cid = str(chat.id)
+    uname = str(getattr(chat, "username", None) or "").lstrip("@").lower()
+    req_name = req.lstrip("@").lower()
+    if req and (cid == req or (uname and uname == req_name)):
+        return
+    try:
+        if parse_live_chat_id(req) == cid:
+            return
+    except ValueError:
+        pass
+    await db.set_kv(
+        HINT_KEY,
+        json.dumps(
+            {
+                "id": cid,
+                "title": str(getattr(chat, "title", None) or ""),
+                "username": str(getattr(chat, "username", None) or ""),
+                "type": str(chat.type),
+            },
+            ensure_ascii=False,
+        ),
+    )
+
+
+async def verify_live_chat(value: str) -> None:
+    raw = parse_live_chat_id(value)
+    if not raw:
+        return
+    bot: Bot | None = getattr(runtime, "bot", None)
+    if bot is None:
+        return
+    chat = int(raw) if raw.lstrip("-").isdigit() else raw
+    try:
+        me = await bot.get_me()
+        member = await bot.get_chat_member(chat, me.id)
+    except Exception as exc:
+        raise ValueError(
+            "Бот не видит этот чат. Для приватного канала добавьте бота администратором "
+            "(право публиковать сообщения), затем укажите id -100... или ссылку t.me/c/.... "
+            f"Telegram: {telegram_fail_reason(exc)}"
+        ) from exc
+    status = str(getattr(member, "status", "") or "")
+    if status not in {"administrator", "creator"}:
+        raise ValueError("Бот должен быть администратором канала")
+    can_post = getattr(member, "can_post_messages", None)
+    if status == "administrator" and can_post is False:
+        raise ValueError("Дайте боту в канале право публиковать сообщения")
+
+
+@router.my_chat_member()
+async def on_bot_chat_member(event: ChatMemberUpdated) -> None:
+    new = event.new_chat_member
+    if str(getattr(new, "status", "") or "") not in {"administrator", "creator"}:
+        return
+    try:
+        await remember_live_chat(event.chat)
+    except Exception:
+        logger.debug("Не удалось запомнить канал для живых событий", exc_info=True)

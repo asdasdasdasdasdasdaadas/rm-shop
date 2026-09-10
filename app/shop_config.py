@@ -46,22 +46,9 @@ def _as_url(value: Any, name: str) -> str:
 
 
 def _as_live_chat(value: Any) -> str:
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    if len(text) > 80:
-        raise ValueError("Живой канал: до 80 символов")
-    if text.startswith("https://t.me/"):
-        text = "@" + text.rstrip("/").rsplit("/", 1)[-1]
-    elif text.startswith("http://t.me/"):
-        text = "@" + text.rstrip("/").rsplit("/", 1)[-1]
-    elif text.startswith("t.me/"):
-        text = "@" + text.rstrip("/").split("/", 1)[-1]
-    if text.lstrip("-").isdigit():
-        return text
-    if text.startswith("@") and len(text) > 1:
-        return text
-    raise ValueError("Живой канал: @username или id вида -100...")
+    from app.live import parse_live_chat_id
+
+    return parse_live_chat_id(value)
 
 
 def validate_shop(body: dict) -> dict:
@@ -186,7 +173,10 @@ async def load_shop_overlay() -> None:
 
 
 async def save_shop_overlay(body: dict) -> dict:
+    from app.live import verify_live_chat
+
     cleaned = validate_shop(body)
+    await verify_live_chat(cleaned.get("admin_live_chat_id") or "")
     await db.set_kv(KV_KEY, json.dumps(cleaned, ensure_ascii=False))
     set_shop_overlay(cleaned)
     return snapshot()

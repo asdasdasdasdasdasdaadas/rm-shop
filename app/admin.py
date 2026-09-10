@@ -1267,7 +1267,11 @@ async def api_settings(request: web.Request) -> web.Response:
     if denied:
         return denied
     if request.method == "GET":
-        return web.json_response(shop_snapshot())
+        from app.live import get_live_chat_hint
+
+        data = shop_snapshot()
+        data["live_chat_hint"] = await get_live_chat_hint()
+        return web.json_response(data)
     try:
         body = await request.json()
         data = await save_shop_overlay(body)
@@ -1276,6 +1280,9 @@ async def api_settings(request: web.Request) -> web.Response:
     except Exception:
         logger.exception("Не удалось сохранить настройки")
         return web.json_response({"ok": False, "error": "Не удалось сохранить"}, status=500)
+    from app.live import get_live_chat_hint
+
+    data["live_chat_hint"] = await get_live_chat_hint()
     return web.json_response(data)
 
 
