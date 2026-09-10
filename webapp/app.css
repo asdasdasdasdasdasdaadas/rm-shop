@@ -127,11 +127,6 @@ body {
   padding: 0 0 calc(24px + var(--app-safe-bottom, var(--tg-safe-area-inset-bottom, 0px)));
 }
 
-html.is-fullscreen body {
-  --edge-left: max(env(safe-area-inset-left, 0px), var(--app-safe-left, 0px));
-  --edge-right: max(env(safe-area-inset-right, 0px), var(--app-safe-right, 0px));
-}
-
 #app {
   position: relative;
   z-index: 1;
@@ -171,6 +166,7 @@ body.coach-lock {
   margin: 0 calc(-1 * var(--edge-right)) 6px calc(-1 * var(--edge-left));
   padding: var(--app-safe-top, 0px) var(--edge-right) 14px var(--edge-left);
   background: var(--bg-app);
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease;
 }
 
 .view-head {
@@ -180,6 +176,17 @@ body.coach-lock {
   margin: 0 calc(-1 * var(--edge-right)) 0 calc(-1 * var(--edge-left));
   padding: var(--app-safe-top, 0px) var(--edge-right) 16px var(--edge-left);
   background: var(--bg-app);
+  border-bottom: 1px solid transparent;
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease;
+}
+html.is-scrolled .view-head,
+html.is-scrolled .web-back:not(.hidden) {
+  border-bottom-color: var(--divider);
+}
+html.nav-away .view-head,
+html.nav-away .web-back:not(.hidden) {
+  transform: translate3d(0, -110%, 0);
+  pointer-events: none;
 }
 body:has(#webBack:not(.hidden)) .view-head {
   top: calc(var(--app-safe-top, 0px) + 44px);
@@ -2387,6 +2394,9 @@ body.has-main-btn {
   z-index: 1;
   max-width: 520px;
   margin: 0 auto;
+  padding-left: var(--edge-left);
+  padding-right: var(--edge-right);
+  padding-top: var(--app-safe-top, 0px);
 }
 
 .app-in .view:not(.hidden) > *:not(.view-head):not(.web-back) {
@@ -2554,7 +2564,7 @@ body.has-main-btn {
 .intro {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 80;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -2566,6 +2576,7 @@ body.has-main-btn {
   background: #0a0618;
   cursor: pointer;
   overflow: hidden;
+  opacity: 1;
 }
 
 .intro.hidden { display: none !important; }
@@ -3402,7 +3413,8 @@ body.has-main-btn {
 }
 
 /* Quiet woodland lake introduction. */
-.intro { background: #081f23; transition: opacity 800ms ease; animation: lake-enter 900ms ease both; }
+.intro { background: #081f23; transition: opacity 800ms ease; }
+.intro.intro-in:not(.intro-go) { animation: lake-enter 900ms ease both; }
 .intro-scene { transition: transform 1200ms ease; }
 .intro:active:not(.intro-go) .intro-scene { transform: none; }
 .intro.intro-go { opacity: 0; pointer-events: none; animation: none; }

@@ -59,23 +59,15 @@ function applyViewport() {
   const sh = Number(tg.viewportStableHeight) || h;
   const sa = tg.safeAreaInset || {};
   const ca = tg.contentSafeAreaInset || {};
-  const saTop = Number(sa.top) || 0;
-  const caTop = Number(ca.top) || 0;
-  const saBottom = Number(sa.bottom) || 0;
-  const caBottom = Number(ca.bottom) || 0;
-  const saLeft = Number(sa.left) || 0;
-  const caLeft = Number(ca.left) || 0;
-  const saRight = Number(sa.right) || 0;
-  const caRight = Number(ca.right) || 0;
   const fs = Boolean(tg.isFullscreen);
-  const top = fs ? Math.max(saTop, caTop) : saTop + caTop;
-  const bottom = fs ? Math.max(saBottom, caBottom) : saBottom + caBottom;
-  const left = fs ? saLeft : saLeft + caLeft;
-  const right = fs ? saRight : saRight + caRight;
+  const top = (Number(sa.top) || 0) + (Number(ca.top) || 0);
+  const bottom = (Number(sa.bottom) || 0) + (Number(ca.bottom) || 0);
+  const left = (Number(sa.left) || 0) + (Number(ca.left) || 0);
+  const right = (Number(sa.right) || 0) + (Number(ca.right) || 0);
   root.classList.toggle("is-fullscreen", fs);
   root.style.setProperty("--app-vh", h + "px");
   root.style.setProperty("--app-svh", sh + "px");
-  root.style.setProperty("--app-safe-top", top + "px");
+  root.style.setProperty("--app-safe-top", (fs ? Math.max(top, 62) : top) + "px");
   root.style.setProperty("--app-safe-bottom", bottom + "px");
   root.style.setProperty("--app-safe-left", left + "px");
   root.style.setProperty("--app-safe-right", right + "px");
@@ -95,6 +87,23 @@ function requestMiniAppFullscreen() {
 applyTheme();
 applyViewport();
 requestMiniAppFullscreen();
+
+let navScrollY = 0;
+function syncNavScroll() {
+  const y = window.scrollY || document.documentElement.scrollTop || 0;
+  const root = document.documentElement;
+  root.classList.toggle("is-scrolled", y > 10);
+  if (y < 28) {
+    root.classList.remove("nav-away");
+    navScrollY = y;
+    return;
+  }
+  const dy = y - navScrollY;
+  if (dy > 8) root.classList.add("nav-away");
+  else if (dy < -8) root.classList.remove("nav-away");
+  navScrollY = y;
+}
+window.addEventListener("scroll", syncNavScroll, { passive: true });
 
 const LK_TOKEN_KEY = "way_lk_token";
 
@@ -553,7 +562,7 @@ function showErr(err) {
   tg.showAlert(err.message || String(err));
 }
 
-const INTRO_KEY = "way_intro_v3";
+const INTRO_KEY = "way_intro_v4";
 let introTimer = 0;
 let introHapticTimer = 0;
 let introHapticLoop = 0;
@@ -577,7 +586,7 @@ function clearIntroTimers() {
 function hideIntro() {
   clearIntroTimers();
   const el = $("intro");
-  el.classList.remove("intro-catch", "intro-go");
+  el.classList.remove("intro-catch", "intro-go", "intro-in");
   el.classList.add("hidden");
 }
 
@@ -701,9 +710,12 @@ function showIntro(me) {
   $("fail").classList.add("hidden");
   $("maint").classList.add("hidden");
   $("app").classList.add("hidden");
-  $("intro").classList.remove("hidden", "intro-catch", "intro-go");
+  const el = $("intro");
+  el.classList.remove("hidden", "intro-catch", "intro-go", "intro-in");
+  void el.offsetWidth;
+  el.classList.add("intro-in");
   clearIntroTimers();
-  introTimer = setTimeout(finishIntro, reducedMotion() ? 1000 : 4200);
+  introTimer = setTimeout(finishIntro, reducedMotion() ? 1600 : 4200);
 }
 
 let mainFn = null;
@@ -757,6 +769,8 @@ function switchView(id, motion) {
     if (on) replayAnim(el, "view-in-" + (motion || "fade"));
   });
   window.scrollTo(0, 0);
+  document.documentElement.classList.remove("nav-away", "is-scrolled");
+  navScrollY = 0;
 }
 
 const wiz = {
