@@ -12,6 +12,14 @@ const tg = window.Telegram && window.Telegram.WebApp
       openInvoice() {},
       setHeaderColor() {},
       setBackgroundColor() {},
+      setBottomBarColor() {},
+      requestFullscreen() {},
+      disableVerticalSwipes() {},
+      isFullscreen: false,
+      viewportHeight: window.innerHeight,
+      viewportStableHeight: window.innerHeight,
+      safeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+      contentSafeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
       onEvent() {},
       BackButton: { show() {}, hide() {}, onClick() {} },
       MainButton: {
@@ -29,6 +37,45 @@ const tg = window.Telegram && window.Telegram.WebApp
 
 tg.ready();
 tg.expand();
+if (typeof tg.disableVerticalSwipes === "function") {
+  try {
+    tg.disableVerticalSwipes();
+  } catch (_e) {}
+}
+
+function applyViewport() {
+  const root = document.documentElement;
+  const h = Number(tg.viewportHeight) || window.innerHeight;
+  const sh = Number(tg.viewportStableHeight) || h;
+  const sa = tg.safeAreaInset || {};
+  const ca = tg.contentSafeAreaInset || {};
+  const top = (Number(sa.top) || 0) + (Number(ca.top) || 0);
+  const bottom = (Number(sa.bottom) || 0) + (Number(ca.bottom) || 0);
+  const left = (Number(sa.left) || 0) + (Number(ca.left) || 0);
+  const right = (Number(sa.right) || 0) + (Number(ca.right) || 0);
+  const fs = Boolean(tg.isFullscreen);
+  root.classList.toggle("is-fullscreen", fs);
+  root.style.setProperty("--app-vh", h + "px");
+  root.style.setProperty("--app-svh", sh + "px");
+  root.style.setProperty("--app-safe-top", (fs && top < 20 ? 48 : top) + "px");
+  root.style.setProperty("--app-safe-bottom", bottom + "px");
+  root.style.setProperty("--app-safe-left", left + "px");
+  root.style.setProperty("--app-safe-right", right + "px");
+}
+
+let fsTries = 0;
+function requestMiniAppFullscreen() {
+  if (tg.isFullscreen) return;
+  if (typeof tg.requestFullscreen !== "function") return;
+  if (fsTries > 6) return;
+  fsTries += 1;
+  try {
+    tg.requestFullscreen();
+  } catch (_e) {}
+}
+
+applyViewport();
+requestMiniAppFullscreen();
 
 const LK_TOKEN_KEY = "way_lk_token";
 
@@ -3352,12 +3399,25 @@ if (tg.onEvent) {
     if (status === "paid") load().catch(() => {});
   });
   tg.onEvent("viewportChanged", () => {
+    applyViewport();
+    requestMiniAppFullscreen();
     if (!coachVisible) return;
     clearTimeout(coachViewportTimer);
     coachViewportTimer = setTimeout(() => {
       coachViewportTimer = 0;
       requestCoachLayout();
     }, 80);
+  });
+  tg.onEvent("fullscreenChanged", () => {
+    applyViewport();
+    applyTheme();
+  });
+  tg.onEvent("safeAreaChanged", applyViewport);
+  tg.onEvent("contentSafeAreaChanged", applyViewport);
+  tg.onEvent("activated", () => {
+    tg.expand();
+    requestMiniAppFullscreen();
+    applyViewport();
   });
 }
 let visTimer = 0;
