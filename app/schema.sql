@@ -349,6 +349,12 @@ CREATE INDEX IF NOT EXISTS ticket_attachments_msg_idx ON ticket_attachments (mes
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_invitee_bonus_at TIMESTAMPTZ;
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS idle_nudge_step INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS idle_nudge_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS users_idle_nudge_idx
+    ON users (idle_nudge_step)
+    WHERE blocked_at IS NULL AND idle_nudge_step < 20;
+
 DROP TABLE IF EXISTS auto_topups;
 
 

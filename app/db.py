@@ -2914,6 +2914,67 @@ async def mark_device_nudge_sent(telegram_id: int) -> None:
     )
 
 
+async def list_due_idle_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
+    skip = [int(x) for x in (skip_ids or [])]
+    rows = await _pool_req().fetch(
+        """
+        SELECT q.telegram_id, q.first_name, q.idle_days
+        FROM (
+            SELECT
+                u.telegram_id,
+                u.first_name,
+                CASE
+                    WHEN seen.last_seen <= timezone('utc', now()) - INTERVAL '20 days'
+                         AND step.v < 20 THEN 20
+                    WHEN seen.last_seen <= timezone('utc', now()) - INTERVAL '15 days'
+                         AND step.v < 15 THEN 15
+                    WHEN seen.last_seen <= timezone('utc', now()) - INTERVAL '10 days'
+                         AND step.v < 10 THEN 10
+                    WHEN seen.last_seen <= timezone('utc', now()) - INTERVAL '7 days'
+                         AND step.v < 7 THEN 7
+                    ELSE NULL
+                END AS idle_days
+            FROM users u
+            JOIN (
+                SELECT telegram_id, MAX(last_online_at) AS last_seen
+                FROM devices
+                WHERE last_online_at IS NOT NULL
+                GROUP BY telegram_id
+            ) seen ON seen.telegram_id = u.telegram_id
+            CROSS JOIN LATERAL (
+                SELECT CASE
+                    WHEN u.idle_nudge_at IS NULL OR seen.last_seen > u.idle_nudge_at
+                    THEN 0
+                    ELSE COALESCE(u.idle_nudge_step, 0)
+                END AS v
+            ) step
+            WHERE u.blocked_at IS NULL
+              AND u.first_online_at IS NOT NULL
+              AND NOT (u.telegram_id = ANY($2::bigint[]))
+        ) q
+        WHERE q.idle_days IS NOT NULL
+        ORDER BY q.idle_days DESC, q.telegram_id
+        LIMIT $1
+        """,
+        int(limit),
+        skip,
+    )
+    return [dict(r) for r in rows]
+
+
+async def mark_idle_nudge_sent(telegram_id: int, days: int) -> None:
+    await _pool_req().execute(
+        """
+        UPDATE users
+        SET idle_nudge_step = $2,
+            idle_nudge_at = timezone('utc', now())
+        WHERE telegram_id = $1
+        """,
+        int(telegram_id),
+        int(days),
+    )
+
+
 async def list_due_first_online_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
     skip = [int(x) for x in (skip_ids or [])]
     rows = await _pool_req().fetch(

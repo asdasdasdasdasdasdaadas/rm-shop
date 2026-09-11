@@ -24,6 +24,7 @@ const MSG_KIND_LABEL = {
   nudge_invite: "Напоминание: друзья",
   nudge_info: "Напоминание: кабинет",
   nudge_story: "Напоминание: история",
+  nudge_idle: "Напоминание: давно не заходил",
   nudge_device: "Напоминание: устройство",
   nudge_first_online: "Напоминание: после онлайна",
   nudge_trial_end: "Напоминание: сутки до отключения",

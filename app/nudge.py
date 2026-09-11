@@ -301,6 +301,52 @@ async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
     return sent, touched
 
 
+async def send_due_idle_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
+    touched: list[int] = []
+    if await db.flag_on("maintenance"):
+        return 0, touched
+    sent = 0
+    for row in await db.list_due_idle_nudges(NUDGE_BATCH, skip_ids):
+        telegram_id = int(row["telegram_id"])
+        days = int(row.get("idle_days") or 0)
+        if days not in {7, 10, 15, 20}:
+            continue
+        body = notice_text(f"idle_nudge_{days}")
+        title = f"Напоминание: не пользуется {days} дн."
+        try:
+            await bot.send_message(telegram_id, body, reply_markup=cabinet_keyboard())
+            await db.log_bot_message(
+                kind="nudge_idle",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title=title,
+                body=body,
+                status="sent",
+                extra={"days": days},
+            )
+            ok = True
+        except Exception as exc:
+            logger.debug("Напоминание про простой не ушло %s", telegram_id, exc_info=True)
+            await db.log_bot_message(
+                kind="nudge_idle",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title=title,
+                body=body,
+                status="failed",
+                extra=fail_extra(exc, {"days": days}),
+            )
+            ok = False
+        await db.mark_idle_nudge_sent(telegram_id, days)
+        await asyncio.sleep(0.035)
+        touched.append(telegram_id)
+        if ok:
+            sent += 1
+    return sent, touched
+
+
 def _days_left_from_row(row: dict) -> int:
     price = max(1, int(get_settings().vpn_day_price_rub or 1))
     n = max(1, int(row.get("device_count") or 0))
@@ -447,6 +493,10 @@ async def trial_nudge_loop(bot: Bot) -> None:
             skip.extend(ids)
             if n:
                 logger.info("Напоминание за сутки до отключения: %s", n)
+            n, ids = await send_due_idle_nudges(bot, skip)
+            skip.extend(ids)
+            if n:
+                logger.info("Напоминание: давно не заходил: %s", n)
             n, ids = await send_due_story_nudges(bot, skip)
             skip.extend(ids)
             if n:
