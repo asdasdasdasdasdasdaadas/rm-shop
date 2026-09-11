@@ -49,6 +49,9 @@ def invite_nudge_text(telegram_id: int, first_name: str | None) -> str:
     else:
         reward = days_text(settings.referral_reward_days)
     when = "Когда человек перейдёт по вашей ссылке и первый раз оплатит VPN, бонус придёт вам."
+    friend = int(settings.referral_invitee_reward_rub or 0)
+    if settings.balance_enabled and friend > 0:
+        when += f" Ему после первой оплаты тоже {rub_text(friend)} на баланс."
     return notice_text("invite_nudge", name=name, reward=reward, link=link, when=when)
 
 

@@ -347,4 +347,6 @@ CREATE TABLE IF NOT EXISTS ticket_attachments (
 
 CREATE INDEX IF NOT EXISTS ticket_attachments_msg_idx ON ticket_attachments (message_id, id);
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_invitee_bonus_at TIMESTAMPTZ;
+
 

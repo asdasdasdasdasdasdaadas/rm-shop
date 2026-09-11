@@ -2122,6 +2122,9 @@ html.is-scrolled .view-head.home-nav .account-row {
   text-transform: uppercase;
   text-align: center;
 }
+.invitee-bonus {
+  margin: 0 4px 4px;
+}
 .ref-stats-note {
   margin: -4px 8px 0;
   color: var(--text-secondary);

@@ -30,7 +30,15 @@ from app.keyboards import (
     share_keyboard,
     support_url,
 )
-from app.referrals import ensure_signup_trial, referral_payout_public, trial_grant_days, trial_grant_rub, trial_is_available
+from app.referrals import (
+    after_topup_keyboard,
+    ensure_signup_trial,
+    referral_payout_public,
+    topup_ok_text,
+    trial_grant_days,
+    trial_grant_rub,
+    trial_is_available,
+)
 from app.remnawave import (
     PANEL_LEASE_DAYS,
     RemnawaveClient,
@@ -431,6 +439,10 @@ async def api_me(request: web.Request) -> web.Response:
             "referral_reward_days": settings.referral_reward_days,
             "referral_invitee_days": settings.referral_invitee_days,
             "referral_reward_rub": settings.referral_reward_rub,
+            "referral_invitee_reward_rub": (
+                int(settings.referral_invitee_reward_rub or 0) if settings.balance_enabled else 0
+            ),
+            "referred": bool((local or {}).get("referred_by")),
             **ref_view,
             "has_paid_topup": bool((local or {}).get("has_paid_topup")),
             "first_online_at": (
@@ -1019,13 +1031,15 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
     telegram_id = int(order["telegram_id"])
     try:
         if settings.balance_enabled:
+            local = await db.get_user(telegram_id)
+            can_share = bool(local and local.get("first_online_at"))
             await bot.send_message(
                 telegram_id,
-                notice_text(
-                    "topup_ok",
-                    amount=rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
+                topup_ok_text(
+                    rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
+                    can_share=can_share,
                 ),
-                reply_markup=share_keyboard(settings.bot_username, telegram_id),
+                reply_markup=await after_topup_keyboard(telegram_id),
             )
         elif user:
             sub_url = user.get("subscriptionUrl") or ""

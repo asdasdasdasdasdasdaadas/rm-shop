@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     balance_topup_max: int = 5000
     balance_topup_step: int = 50
     referral_reward_rub: int = 50
+    referral_invitee_reward_rub: int = 30
     referral_mode: str = "classic"
     referral_payout_enabled: bool = False
     referral_payout_min: int = 2000
@@ -229,6 +230,7 @@ SHOP_KEYS = frozenset(
         "trial_enabled",
         "trial_days",
         "referral_reward_rub",
+        "referral_invitee_reward_rub",
         "referral_mode",
         "referral_payout_enabled",
         "referral_payout_min",

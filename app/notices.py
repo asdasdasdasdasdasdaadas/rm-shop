@@ -82,7 +82,7 @@ DEFAULT_NOTICES: dict[str, str] = {
     "broadcast_invite": (
         "Вы уже в кабинете. Пригласите друзей сюда — не в случайный VPN из переписки.\n\n"
         "За каждого, кто первый раз оплатит по вашей ссылке, начислим {reward}. "
-        "Другу за переход эти деньги не даём.\n\n"
+        "Другу за переход эти деньги не даём, после его первой оплаты ему тоже капнет на баланс.\n\n"
         "Ваша ссылка:\n{link}"
     ),
     "broadcast_unused": (
@@ -141,6 +141,9 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Вам начислено <b>{amount}</b> на баланс."
     ),
     "referral_invitee_balance": "За переход по ссылке на баланс начислено <b>{amount}</b>",
+    "referral_invitee_paid": (
+        "За первую оплату по ссылке друга на баланс ещё <b>{amount}</b>."
+    ),
     "referral_referrer_days": (
         "<b>Поздравляем</b>\n\n"
         "Друг {name} первый раз оплатил VPN по вашей ссылке.\n"
@@ -170,10 +173,7 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Друг {name} заблокировал бота и не взял бесплатный период. "
         "С баланса списано <b>{amount}</b>."
     ),
-    "topup_ok": (
-        "Баланс пополнен на {amount}.\n\n"
-        "Если VPN уже нужен — отправьте ссылку другу. Награда придёт после его первой оплаты."
-    ),
+    "topup_ok": "Баланс пополнен на {amount}.",
     "subscription_issued": (
         "<b>{title}</b>\n\n"
         "Действует до: <b>{expire}</b>{sub_block}"
@@ -215,10 +215,11 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "device_nudge_1", "title": "Нет устройства: 30 минут", "hint": ""},
     {"key": "device_nudge_2", "title": "Нет устройства: сутки после первого", "hint": ""},
     {"key": "device_nudge_3", "title": "Нет устройства: ещё сутки", "hint": ""},
-    {"key": "referral_referrer_balance", "title": "Реферал: пригласившему (оплата, баланс)", "hint": "{name} {amount}"},
+    {"key": "referral_referrer_balance", "title": "Реферал: пригласившему (оплата, баланс)", "hint": "{name} {amount} {nxt}"},
     {"key": "referral_invitee_balance", "title": "Реферал: другу (устарело)", "hint": "{amount}"},
+    {"key": "referral_invitee_paid", "title": "Реферал: другу за первую оплату", "hint": "{amount}"},
     {"key": "referral_referrer_days", "title": "Реферал: пригласившему дни (оплата)", "hint": "{name} {days} {expire} {sub_block}"},
-    {"key": "referral_referrer_paid", "title": "Реферал: пригласившему (оплата)", "hint": "{name} {amount}"},
+    {"key": "referral_referrer_paid", "title": "Реферал: пригласившему (оплата)", "hint": "{name} {amount} {nxt}"},
     {"key": "referral_referrer_paid_days", "title": "Реферал: пригласившему дни (оплата)", "hint": "{name} {days} {expire} {sub_block}"},
     {"key": "referral_payout_submitted", "title": "Реферал: заявка на вывод", "hint": "{amount}"},
     {"key": "referral_payout_paid", "title": "Реферал: выплата прошла", "hint": "{amount}"},

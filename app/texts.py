@@ -16,6 +16,10 @@ def ru_plural(n: int, one: str, few: str, many: str) -> str:
     return many
 
 
+def friends_acc(n: int) -> str:
+    return ru_plural(int(n), "друга", "друга", "друзей")
+
+
 def days_text(n: int) -> str:
     return f"{int(n)} {ru_plural(n, 'день', 'дня', 'дней')}"
 

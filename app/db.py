@@ -343,6 +343,22 @@ async def unclaim_referral_reward(telegram_id: int) -> None:
     )
 
 
+async def claim_invitee_payment_bonus(telegram_id: int) -> bool:
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users
+        SET referral_invitee_bonus_at = timezone('utc', now())
+        WHERE telegram_id = $1
+          AND referred_by IS NOT NULL
+          AND referral_invitee_bonus_at IS NULL
+          AND COALESCE(has_paid_topup, FALSE)
+        RETURNING telegram_id
+        """,
+        int(telegram_id),
+    )
+    return bool(row)
+
+
 async def start_story_check(telegram_id: int) -> bool:
     row = await _pool_req().fetchrow(
         """

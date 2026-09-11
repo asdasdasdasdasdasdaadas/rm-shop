@@ -63,6 +63,12 @@ def validate_shop(body: dict) -> dict:
     out["trial_enabled"] = bool(body.get("trial_enabled"))
     out["trial_days"] = _as_int(body.get("trial_days"), 1, 90, "Дни триала")
     out["referral_reward_rub"] = _as_int(body.get("referral_reward_rub"), 0, 100000, "Реф. в рублях")
+    if "referral_invitee_reward_rub" in body:
+        out["referral_invitee_reward_rub"] = _as_int(
+            body.get("referral_invitee_reward_rub"), 0, 100000, "Реф. другу за оплату"
+        )
+    else:
+        out["referral_invitee_reward_rub"] = int(get_settings().referral_invitee_reward_rub or 0)
     mode = str(body.get("referral_mode") or "").strip().lower()
     if not mode:
         mode = "payout" if body.get("referral_payout_enabled") else "classic"
@@ -132,6 +138,7 @@ def snapshot() -> dict:
             "trial_enabled": s.trial_enabled,
             "trial_days": s.trial_days,
             "referral_reward_rub": s.referral_reward_rub,
+            "referral_invitee_reward_rub": s.referral_invitee_reward_rub,
             "referral_mode": s.referral_mode if s.referral_mode in ("classic", "payout") else (
                 "payout" if s.referral_payout_enabled else "classic"
             ),

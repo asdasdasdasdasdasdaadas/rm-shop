@@ -13,7 +13,7 @@ from app.config import get_settings
 from app.keyboards import cabinet_keyboard, channel_keyboard, legal_keyboard
 from app.notices import notice_text
 from app.referrals import trial_grant_days
-from app.texts import days_text
+from app.texts import days_text, rub_text
 from app.tg_err import fail_extra
 
 logger = logging.getLogger("rm-shop.welcome")
@@ -122,6 +122,11 @@ async def send_welcome_intro(
     chat_id = message.chat.id
     local = await db.get_user(user.id)
     hello = notice_text("welcome_intro_hello", name=name, brand=brand)
+    bonus = int(settings.referral_invitee_reward_rub or 0)
+    if settings.balance_enabled and bonus > 0 and local and local.get("referred_by"):
+        hello += (
+            f"\n\nВы пришли по ссылке друга. После первого пополнения на баланс ещё {rub_text(bonus)}."
+        )
     trial_on = settings.trial_enabled and settings.trial_days > 0
     days = days_text(trial_grant_days(local) if trial_on else settings.trial_days)
     hi = (

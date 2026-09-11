@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from html import escape
+from math import ceil
 
 from aiogram import Bot
 
@@ -8,9 +9,9 @@ from app import db
 from app.billing import expire_human
 from app.notices import notice_text, sub_block
 from app.config import get_settings, referral_is_payout
-from app.keyboards import back_profile_keyboard, connect_keyboard
+from app.keyboards import back_profile_keyboard, cabinet_keyboard, connect_keyboard, share_keyboard
 from app.remnawave import RemnawaveClient, RemnawaveError
-from app.texts import days_text, rub_text
+from app.texts import days_text, friends_acc, rub_text
 
 
 def invitee_extra_days(local: dict | None) -> int:
@@ -86,6 +87,74 @@ def referral_payout_public(wallet: dict | None = None) -> dict:
     }
 
 
+def referral_month_need() -> int:
+    settings = get_settings()
+    reward = max(0, int(settings.referral_reward_rub or 0))
+    day = max(1, int(settings.vpn_day_price_rub or 1))
+    if reward < 1:
+        return 0
+    return max(1, ceil((day * 30) / reward))
+
+
+def referrer_next_line(rewarded: int) -> str:
+    need = referral_month_need()
+    count = max(0, int(rewarded or 0))
+    if need < 1:
+        return "Отправьте ссылку ещё раз."
+    if count > 0 and count % need == 0:
+        return f"Месяц за друзей набран. Следующий — ещё {need} {friends_acc(need)} с оплатой."
+    left = need if count % need == 0 else need - (count % need)
+    return f"Ещё {left} {friends_acc(left)} с оплатой — и месяц VPN."
+
+
+async def after_topup_keyboard(telegram_id: int):
+    settings = get_settings()
+    local = await db.get_user(telegram_id)
+    if local and local.get("first_online_at"):
+        return share_keyboard(settings.bot_username, telegram_id)
+    return cabinet_keyboard()
+
+
+def topup_ok_text(amount: str, *, can_share: bool) -> str:
+    body = notice_text("topup_ok", amount=amount)
+    if can_share:
+        body += (
+            "\n\nЕсли VPN уже нужен — отправьте ссылку другу. "
+            "После его первой оплаты награда будет и вам, и ему."
+        )
+    return body
+
+
+async def maybe_reward_invitee(bot: Bot | None, telegram_id: int) -> int:
+    settings = get_settings()
+    if not settings.balance_enabled:
+        return 0
+    amount = int(settings.referral_invitee_reward_rub or 0)
+    if amount < 1:
+        return 0
+    claimed = await db.claim_invitee_payment_bonus(telegram_id)
+    if not claimed:
+        return 0
+    after = await db.add_balance_rub(telegram_id, amount)
+    await db.log_billing_event(
+        telegram_id,
+        "referral",
+        source="invitee",
+        amount=amount,
+        balance_after=after,
+        note="Бонус другу за первую оплату по ссылке",
+    )
+    if bot:
+        try:
+            await bot.send_message(
+                telegram_id,
+                notice_text("referral_invitee_paid", amount=rub_text(amount)),
+            )
+        except Exception:
+            pass
+    return amount
+
+
 async def maybe_reward_referrer(
     bot: Bot | None,
     rw: RemnawaveClient,
@@ -112,10 +181,17 @@ async def maybe_reward_referrer(
             note=f"Награда за первую оплату друга {new_user_id}",
         )
         key = "referral_referrer_paid" if payout else "referral_referrer_balance"
+        stats = await db.referral_stats(referrer_id)
+        nxt = referrer_next_line(int(stats.get("rewarded") or 0))
         ref_text = notice_text(key, name=name, amount=rub_text(amount))
+        ref_text += f"\n\n{nxt} Отправьте ссылку ещё раз."
         if bot:
             try:
-                await bot.send_message(referrer_id, ref_text, reply_markup=back_profile_keyboard())
+                await bot.send_message(
+                    referrer_id,
+                    ref_text,
+                    reply_markup=share_keyboard(settings.bot_username, referrer_id),
+                )
             except Exception:
                 pass
         return

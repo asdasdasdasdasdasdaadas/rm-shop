@@ -2201,12 +2201,18 @@ function paintReferrals(me) {
     const rub = me.referral_reward_rub || 50;
     if (me.referral_payout_enabled) {
       if (when) when.textContent = "Начисление после первой оплаты друга по вашей ссылке. Пока друг только пришёл и не оплатил, денег не будет.";
-      if (how) how.textContent = `Вам ${rub} ₽ за каждого, кто оплатил. Другу бонус за переход не начисляется.`;
+      if (how) how.textContent = `Вам ${rub} ₽ за каждого, кто оплатил. Другу за переход бонус не начисляется.`
+        + (Number(me.referral_invitee_reward_rub) > 0
+          ? ` После первой оплаты другу ещё ${me.referral_invitee_reward_rub} ₽ на баланс.`
+          : "");
       if (pay) pay.textContent = `Вывести можно от ${me.referral_payout_min || 2000} ₽ реферальных, которые ещё на балансе. Заявка уходит администратору.`;
       if (payWrap) payWrap.classList.remove("hidden");
     } else {
       if (when) when.textContent = "Начисление после первой оплаты друга по вашей ссылке. Пока друг только пришёл и не оплатил, денег не будет.";
-      if (how) how.textContent = `Вам ${rub} ₽ на баланс за каждого, кто оплатил. Другу бонус за переход не начисляется.`;
+      if (how) how.textContent = `Вам ${rub} ₽ на баланс за каждого, кто оплатил. Другу бонус за переход не начисляется.`
+        + (Number(me.referral_invitee_reward_rub) > 0
+          ? ` После первой оплаты другу ещё ${me.referral_invitee_reward_rub} ₽ на баланс.`
+          : "");
       if (payWrap) payWrap.classList.add("hidden");
     }
   } else {
@@ -2401,6 +2407,9 @@ function renderTopup(me) {
   if (titleEl) titleEl.textContent = "Сколько зальём?";
   $("topupHint").textContent = me.balance_enabled
     ? `Сутки одного устройства — ${me.vpn_day_price_rub} ₽. Сверху срок, снизу круглые суммы. Чем больше устройств, тем быстрее уходит баланс.`
+      + (me.referred && !me.has_paid_topup && Number(me.referral_invitee_reward_rub) > 0
+        ? ` По ссылке друга после этого пополнения на баланс ещё ${me.referral_invitee_reward_rub} ₽.`
+        : "")
     : "Выберите срок подписки. Кабинет останется в Telegram, даже если VPN потом отключится.";
   const grid = $("topupGrid");
   grid.innerHTML = "";
@@ -3139,6 +3148,18 @@ function dismissTrialNotice(kind) {
   if (el) el.classList.add("hidden");
 }
 
+function paintInviteeBonus(me) {
+  const el = $("inviteeBonus");
+  if (!el) return;
+  const n = Math.max(0, Number(me && me.referral_invitee_reward_rub) || 0);
+  const show = !!(me && me.balance_enabled && me.referred && !me.has_paid_topup && n > 0);
+  el.classList.toggle("hidden", !show);
+  if (show) {
+    el.textContent =
+      "Вы пришли по ссылке друга. После первого пополнения на баланс ещё " + n + " ₽.";
+  }
+}
+
 function paintTrialNotice(me) {
   const el = $("trialNotice");
   if (el) el.classList.add("hidden");
@@ -3158,6 +3179,7 @@ function paint(me) {
   }
   paintStatus(me);
   paintTrialNotice(me);
+  paintInviteeBonus(me);
   if (me.balance_enabled) {
     const invited = Number(me.invited_count) || 0;
     const earned = Number(me.referral_earned) || 0;

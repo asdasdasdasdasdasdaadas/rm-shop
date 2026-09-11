@@ -2464,6 +2464,7 @@ async function loadSettings() {
   set("setTopMax", v.balance_topup_max);
   set("setTopStep", v.balance_topup_step);
   set("setRefRub", v.referral_reward_rub);
+  set("setRefInviteeRub", v.referral_invitee_reward_rub);
   set("setRefPayoutMin", v.referral_payout_min);
   window.__adminBalanceOn = Boolean(s.balance_enabled);
   const refMode = v.referral_mode || (v.referral_payout_enabled ? "payout" : "classic");
@@ -2666,6 +2667,7 @@ async function saveShopSettings(outId) {
     balance_topup_max: num("setTopMax"),
     balance_topup_step: num("setTopStep"),
     referral_reward_rub: num("setRefRub"),
+    referral_invitee_reward_rub: $("setRefInviteeRub") ? num("setRefInviteeRub") : 0,
     referral_mode: $("setRefModePayout") && $("setRefModePayout").checked ? "payout" : "classic",
     referral_payout_enabled: Boolean($("setRefModePayout") && $("setRefModePayout").checked),
     referral_payout_min: $("setRefPayoutMin") && $("setRefPayoutMin").value

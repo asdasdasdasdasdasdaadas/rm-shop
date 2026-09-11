@@ -270,10 +270,14 @@ def invite_url(telegram_id: int, bot_username: str | None = None) -> str:
 def invite_share_text() -> str:
     settings = get_settings()
     if settings.balance_enabled:
-        return (
+        text = (
             "Кабинет в Telegram: сутки только за свои устройства, "
             "без общего ключа из чата. Подключайся по ссылке."
         )
+        bonus = int(settings.referral_invitee_reward_rub or 0)
+        if bonus > 0:
+            text += f" При первой оплате на баланс ещё {bonus} ₽."
+        return text
     extra = settings.referral_invitee_days
     text = (
         "Кабинет в Telegram: ссылку подписки всегда можно взять там, "

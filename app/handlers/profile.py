@@ -23,7 +23,9 @@ from app.remnawave import (
     is_subscription_active,
 )
 from app.referrals import (
+    after_topup_keyboard,
     invitee_extra_days,
+    topup_ok_text,
     trial_grant_days,
     trial_grant_rub,
     trial_is_available,
@@ -127,11 +129,17 @@ async def share(callback: CallbackQuery) -> None:
     )
     if settings.balance_enabled:
         rub = settings.referral_reward_rub
+        friend = int(settings.referral_invitee_reward_rub or 0)
+        friend_line = (
+            f" Другу после первой оплаты тоже <b>{rub_text(friend)}</b> на баланс."
+            if friend > 0
+            else " Другу за переход деньги не даём."
+        )
         if referral_is_payout():
             body = (
                 "<b>Приведи друга</b>\n\n"
                 f"Когда друг первый раз оплатит VPN по вашей ссылке, вам начислят "
-                f"<b>{rub_text(rub)}</b> на баланс. "
+                f"<b>{rub_text(rub)}</b> на баланс.{friend_line} "
                 f"Вывести можно от <b>{rub_text(settings.referral_payout_min)}</b> реферальных.\n\n"
                 f"Ваша ссылка:\n<code>{link}</code>"
             )
@@ -139,7 +147,7 @@ async def share(callback: CallbackQuery) -> None:
             body = (
                 "<b>Приведи друга</b>\n\n"
                 f"Когда друг первый раз оплатит VPN по вашей ссылке, вам начислят "
-                f"<b>{rub_text(rub)}</b> на баланс. Другу за переход эти деньги не даём.\n\n"
+                f"<b>{rub_text(rub)}</b> на баланс.{friend_line}\n\n"
                 f"Ваша ссылка:\n<code>{link}</code>"
             )
         if story_offer:
@@ -410,12 +418,14 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
         )
         return
     if settings.balance_enabled:
+        local = await db.get_user(callback.from_user.id)
+        can_share = bool(local and local.get("first_online_at"))
         await callback.message.edit_text(
-            notice_text(
-                "topup_ok",
-                amount=rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
+            topup_ok_text(
+                rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
+                can_share=can_share,
             ),
-            reply_markup=share_keyboard(settings.bot_username, callback.from_user.id),
+            reply_markup=await after_topup_keyboard(callback.from_user.id),
         )
         return
     sub_url = (user or {}).get("subscriptionUrl") or ""
@@ -460,12 +470,14 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
         await message.answer(notice_text("payment_panel_error", error=exc))
         return
     if settings.balance_enabled:
+        local = await db.get_user(message.from_user.id)
+        can_share = bool(local and local.get("first_online_at"))
         await message.answer(
-            notice_text(
-                "topup_ok",
-                amount=rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
+            topup_ok_text(
+                rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
+                can_share=can_share,
             ),
-            reply_markup=share_keyboard(settings.bot_username, message.from_user.id),
+            reply_markup=await after_topup_keyboard(message.from_user.id),
         )
         return
     sub_url = (user or {}).get("subscriptionUrl") or ""

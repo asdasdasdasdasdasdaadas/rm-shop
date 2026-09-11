@@ -81,10 +81,11 @@ async def grant_plan(
         title=str(plan.get("title") or plan_code),
         repeat=repeat,
     )
-    from app.referrals import maybe_reward_referrer
+    from app.referrals import maybe_reward_invitee, maybe_reward_referrer
 
     local = await db.get_user(telegram_id)
     await maybe_reward_referrer(bot, rw, telegram_id, (local or {}).get("first_name"))
+    await maybe_reward_invitee(bot, telegram_id)
     return user
 
 

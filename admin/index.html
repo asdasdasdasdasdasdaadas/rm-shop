@@ -510,7 +510,7 @@
         <section id="tab-referrals" class="hidden">
           <div class="panel" id="promo-ref">
             <h3>Режим рефералки</h3>
-            <p class="muted tight" id="refModeHint">Обычная — бонус вам на баланс после первой оплаты друга, вывода нет. С выводом — тот же момент начисления, можно вывести заявкой. Другу за переход деньги не даём. Сохраните, чтобы бот и кабинет переключились. Уже выданная награда повторно не приходит.</p>
+            <p class="muted tight" id="refModeHint">Обычная — бонус вам на баланс после первой оплаты друга, вывода нет. С выводом — тот же момент начисления, можно вывести заявкой. Другу за переход деньги не даём, за его первую оплату можно начислить отдельно. Сохраните, чтобы бот и кабинет переключились. Уже выданная награда повторно не приходит.</p>
             <p class="ops-label">Режим</p>
             <div class="ref-mode-pick">
               <label class="check-row">
@@ -528,6 +528,10 @@
                 <div>
                   <label class="ops-label" for="setRefRub">Награда за друга, рубли</label>
                   <input id="setRefRub" name="referral_reward_rub" type="number" min="0" required>
+                </div>
+                <div>
+                  <label class="ops-label" for="setRefInviteeRub">Другу за первую оплату, рубли</label>
+                  <input id="setRefInviteeRub" name="referral_invitee_reward_rub" type="number" min="0" required>
                 </div>
               </div>
             </div>
@@ -1245,6 +1249,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=62"></script>
+  <script src="app.js?v=63"></script>
 </body>
 </html>
