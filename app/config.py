@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     vpn_day_price_rub: int = 6
     max_devices: int = 5
     balance_topup_min: int = 50
-    balance_topup_max: int = 400
+    balance_topup_max: int = 5000
     balance_topup_step: int = 50
     referral_reward_rub: int = 50
     referral_mode: str = "classic"

@@ -1478,27 +1478,33 @@ function periodTopupPlans(me) {
         hit: p.code === "6m",
       }));
   }
-  const specs = [
-    { days: 30, label: "1 месяц" },
-    { days: 90, label: "3 месяца" },
-    { days: 180, label: "6 месяцев", hit: true },
-    { days: 365, label: "1 год" },
+  const day = Math.max(1, Number(me.vpn_day_price_rub) || 1);
+  const min = Number(me.topup_min) || 1;
+  const max = Number(me.topup_max) || 5000;
+  const periods = [
+    { days: 30, label: "1 мес" },
+    { days: 180, label: "6 мес", hit: true },
+    { days: 365, label: "12 мес" },
   ];
+  const packs = [700, 2000, 5000];
   const out = [];
   const seen = {};
-  specs.forEach((s) => {
-    const n = periodTopupRub(me, s.days);
-    if (seen[n]) return;
+  const add = (n, extra) => {
+    if (!Number.isFinite(n) || n < min || n > max || seen[n]) return;
     seen[n] = true;
-    out.push({
+    out.push(Object.assign({
       code: "b" + n,
       title: n + " рублей",
       topup_rub: n,
       rub: n,
-      days: s.days,
-      label: s.label,
-      hit: Boolean(s.hit),
-    });
+    }, extra));
+  };
+  periods.forEach((s) => {
+    add(day * s.days, { days: s.days, label: s.label, hit: Boolean(s.hit) });
+  });
+  packs.forEach((n) => {
+    const days = Math.floor(n / day);
+    add(n, { days, label: daysLabel(days), pack: true });
   });
   return out;
 }
@@ -2337,7 +2343,7 @@ function renderTopup(me) {
   const titleEl = document.querySelector("#view-topup .wiz-title");
   if (titleEl) titleEl.textContent = "Сколько зальём?";
   $("topupHint").textContent = me.balance_enabled
-    ? `С каждого устройства списывается ${me.vpn_day_price_rub} ₽ в сутки. Карточки — на 1, 3, 6 месяцев и год при одном устройстве. Лишние устройства лучше не держать.`
+    ? `Сутки одного устройства — ${me.vpn_day_price_rub} ₽. Сверху срок, снизу круглые суммы. Чем больше устройств, тем быстрее уходит баланс.`
     : "Выберите срок подписки. Кабинет останется в Telegram, даже если VPN потом отключится.";
   const grid = $("topupGrid");
   grid.innerHTML = "";
@@ -2362,9 +2368,13 @@ function renderTopup(me) {
     b.appendChild(days);
     const rateEl = document.createElement("div");
     rateEl.className = "pay-rate";
-    rateEl.textContent = me.balance_enabled
-      ? `≈ ${daysLabel(topupDaysFor(me, amount))} одного устройства`
-      : (plan.rub ? `${plan.rub} ₽` : `${plan.stars} звёзд`);
+    if (me.balance_enabled) {
+      const day = Math.max(1, Number(me.vpn_day_price_rub) || 1);
+      const one = Math.floor(amount / day);
+      rateEl.textContent = plan.pack ? "на 1 устройство" : `≈ ${daysLabel(one)}`;
+    } else {
+      rateEl.textContent = plan.rub ? `${plan.rub} ₽` : `${plan.stars} звёзд`;
+    }
     b.appendChild(rateEl);
     b.onclick = () => {
       haptic();

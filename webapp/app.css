@@ -2802,9 +2802,9 @@ body.has-main-btn {
 
 .pay-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  padding: 3px;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 2px;
 }
 
 .pay-first {
@@ -2829,15 +2829,15 @@ body.has-main-btn {
   position: relative;
   text-align: left;
   border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px 12px;
+  border-radius: var(--radius-md);
+  padding: 14px 12px 12px;
   background: var(--panel);
   box-shadow: var(--glass-shine);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   color: inherit;
   font: inherit;
-  min-height: 108px;
+  min-height: 102px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -2865,9 +2865,15 @@ body.has-main-btn {
 
 .pay-card .pay-amount {
   font-family: Unbounded, Inter, sans-serif;
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 700;
-  padding-right: 52px;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  padding-right: 0;
+}
+
+.pay-card.hit .pay-amount {
+  padding-right: 40px;
 }
 
 .pay-card .pay-days {
@@ -2875,7 +2881,7 @@ body.has-main-btn {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
-  white-space: nowrap;
+  line-height: 1.25;
 }
 
 .pay-card .pay-rate {
@@ -4379,7 +4385,7 @@ html.is-pc .home-col {
   min-width: 0;
 }
 html.is-pc .pay-grid {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 12px;
 }
 html.is-pc .pay-card {
@@ -4438,7 +4444,7 @@ html.is-pc .status-actions {
 
 @media (min-width: 920px) {
   html.is-pc .pay-grid {
-    grid-template-columns: 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
   }
 }
 

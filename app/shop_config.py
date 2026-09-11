@@ -177,6 +177,13 @@ async def load_shop_overlay() -> None:
     if not isinstance(data, dict):
         set_shop_overlay({})
         return
+    try:
+        max_n = int(data.get("balance_topup_max") or 0)
+    except (TypeError, ValueError):
+        max_n = 0
+    if 0 < max_n <= 500:
+        data["balance_topup_max"] = 5000
+        await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
     set_shop_overlay(data)
 
 
