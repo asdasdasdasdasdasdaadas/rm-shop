@@ -1331,14 +1331,115 @@ html.is-scrolled .view-head.home-nav .account-row {
   gap: 12px;
 }
 
-#refHomeCard {
+.ref-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 124px;
+  padding: 18px 132px 18px 18px;
+  overflow: hidden;
   cursor: pointer;
   width: 100%;
   text-align: left;
 }
-#refHomeCard .chev {
-  color: var(--text-tertiary);
-  flex-shrink: 0;
+.ref-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 86% 18%, rgba(var(--accent-rgb), 0.32), transparent 44%),
+    radial-gradient(circle at 100% 100%, rgba(var(--accent-strong-rgb), 0.16), transparent 52%);
+  pointer-events: none;
+}
+.ref-banner-copy {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  max-width: 100%;
+}
+.ref-banner-title {
+  font-family: Manrope, Inter, sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+  color: var(--text-primary);
+}
+.ref-banner-pill {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 0.25em;
+  margin-top: 12px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(8, 14, 11, 0.45);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.ref-banner-pill .ref-banner-amt,
+#inviteBannerAmt {
+  color: var(--accent);
+  font-weight: 800;
+}
+.ref-banner-art {
+  position: absolute;
+  right: -10px;
+  bottom: -22px;
+  width: 148px;
+  height: 148px;
+  pointer-events: none;
+  z-index: 1;
+}
+.ref-banner-frog {
+  width: 148px;
+  height: 148px;
+  display: block;
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.32));
+  animation: ref-frog-bob 4.4s ease-in-out infinite;
+}
+.ref-banner-chip {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(20, 36, 26, 0.72);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shine);
+  color: var(--accent);
+  animation: ref-chip-float 3.6s ease-in-out infinite;
+}
+.ref-banner-chip-a {
+  top: 14px;
+  left: 4px;
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.ref-banner-chip-b {
+  top: 4px;
+  right: 18px;
+  width: 26px;
+  height: 26px;
+  animation-delay: -1.4s;
+  color: var(--text-primary);
+}
+@keyframes ref-frog-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes ref-chip-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 
 .referral .glyph {
@@ -3912,6 +4013,10 @@ body.has-main-btn {
   .intro-wings {
     animation: none !important;
   }
+  .ref-banner-frog,
+  .ref-banner-chip {
+    animation: none !important;
+  }
   .intro-tongue { stroke-dasharray: 0 160; }
   .intro-maw { opacity: 0; }
   .intro-fly { transform: translate(258px, 400px); }
@@ -4483,7 +4588,9 @@ html.is-pc #view-home.view {
 }
 html.is-pc #view-home .view-head,
 html.is-pc #view-home .status-card,
-html.is-pc #view-home .trial-notice {
+html.is-pc #view-home .trial-notice,
+html.is-pc #view-home .invitee-bonus,
+html.is-pc #view-home .ref-banner {
   grid-column: 1 / -1;
   justify-self: stretch;
   width: 100%;
@@ -4524,6 +4631,7 @@ html.is-pc .support-send:hover,
 html.is-pc .sheet a:hover,
 html.is-pc .sheet button:hover,
 html.is-pc .referral:hover,
+html.is-pc .ref-banner:hover,
 html.is-pc .pay-tab:hover {
   filter: brightness(1.08);
 }

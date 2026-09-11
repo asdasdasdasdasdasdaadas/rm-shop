@@ -349,4 +349,6 @@ CREATE INDEX IF NOT EXISTS ticket_attachments_msg_idx ON ticket_attachments (mes
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_invitee_bonus_at TIMESTAMPTZ;
 
+DROP TABLE IF EXISTS auto_topups;
+
 

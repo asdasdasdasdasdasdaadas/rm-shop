@@ -1583,12 +1583,9 @@ function updateTopupCta(me) {
     return;
   }
   const amount = planRub(plan);
-  let label;
-  if (me.balance_enabled) {
-    label = `Пополнить на ${amount} ₽`;
-  } else {
-    label = `Оплатить · ${plan.title}`;
-  }
+  const label = me.balance_enabled
+    ? `Пополнить на ${amount} ₽`
+    : `Оплатить · ${plan.title}`;
   setMain(label, async () => {
     haptic();
     setMainBusy(true);
@@ -3148,6 +3145,20 @@ function dismissTrialNotice(kind) {
   if (el) el.classList.add("hidden");
 }
 
+function paintRefBanner(me) {
+  const pill = $("inviteBannerPill");
+  if (!pill) return;
+  const rub = Math.max(0, Number(me && me.referral_reward_rub) || 0);
+  const days = Math.max(0, Number(me && me.referral_reward_days) || 0);
+  if (me && me.balance_enabled && rub > 0) {
+    pill.innerHTML = "Получай <span class=\"ref-banner-amt\">" + rub + " ₽</span> за каждого друга";
+  } else if (days > 0) {
+    pill.innerHTML = "Получай <span class=\"ref-banner-amt\">" + daysLabel(days) + "</span> за каждого друга";
+  } else {
+    pill.textContent = "Отправь ссылку — друг попадёт в тот же кабинет";
+  }
+}
+
 function paintInviteeBonus(me) {
   const el = $("inviteeBonus");
   if (!el) return;
@@ -3180,17 +3191,7 @@ function paint(me) {
   paintStatus(me);
   paintTrialNotice(me);
   paintInviteeBonus(me);
-  if (me.balance_enabled) {
-    const invited = Number(me.invited_count) || 0;
-    const earned = Number(me.referral_earned) || 0;
-    const progress = inviteHomeProgress(me);
-    $("inviteTitle").textContent = progress || "Рефералы";
-    $("inviteNote").textContent = invited + " " + friendsWord(invited) + " · " + earned + " ₽";
-  } else {
-    const invited = Number(me.invited_count) || 0;
-    $("inviteTitle").textContent = "Рефералы";
-    $("inviteNote").textContent = invited + " " + friendsWord(invited);
-  }
+  paintRefBanner(me);
   $("invite").textContent = me.invite_url;
   paintPayout(me);
   if (screen === "referrals") paintReferrals(me);
@@ -3455,6 +3456,13 @@ if ($("refHomeCard")) {
   $("refHomeCard").onclick = () => {
     haptic();
     openReferrals();
+  };
+  $("refHomeCard").onkeydown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      haptic();
+      openReferrals();
+    }
   };
 }
 
