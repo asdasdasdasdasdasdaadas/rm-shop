@@ -6,7 +6,7 @@ import logging
 from aiogram import Bot
 
 from app import db
-from app.config import get_settings, referral_is_payout
+from app.config import get_settings
 from app.keyboards import cabinet_keyboard, share_keyboard, story_nudge_keyboard, trial_nudge_keyboard
 from app.notices import notice_text
 from app.referrals import trial_grant_rub
@@ -48,13 +48,7 @@ def invite_nudge_text(telegram_id: int, first_name: str | None) -> str:
         reward = rub_text(settings.referral_reward_rub)
     else:
         reward = days_text(settings.referral_reward_days)
-    if referral_is_payout():
-        when = "Когда человек перейдёт по вашей ссылке и первый раз оплатит VPN, бонус придёт вам."
-    else:
-        when = (
-            "Когда человек перейдёт по вашей ссылке и нажмёт «Попробовать бесплатно», "
-            "бонус придёт вам обоим."
-        )
+    when = "Когда человек перейдёт по вашей ссылке и первый раз оплатит VPN, бонус придёт вам."
     return notice_text("invite_nudge", name=name, reward=reward, link=link, when=when)
 
 
@@ -322,7 +316,7 @@ async def send_due_first_online_nudges(bot: Bot, skip_ids: list[int] | None = No
         telegram_id = int(row["telegram_id"])
         body = notice_text("first_online_nudge", days=days_text(_days_left_from_row(row)))
         try:
-            await bot.send_message(telegram_id, body, reply_markup=cabinet_keyboard())
+            await bot.send_message(telegram_id, body, reply_markup=share_keyboard(get_settings().bot_username, telegram_id))
             await db.log_bot_message(
                 kind="nudge_first_online",
                 source="auto",
@@ -366,7 +360,7 @@ async def send_due_trial_end_nudges(bot: Bot, skip_ids: list[int] | None = None)
         telegram_id = int(row["telegram_id"])
         body = notice_text("trial_end_nudge")
         try:
-            await bot.send_message(telegram_id, body, reply_markup=cabinet_keyboard())
+            await bot.send_message(telegram_id, body, reply_markup=share_keyboard(get_settings().bot_username, telegram_id))
             await db.log_bot_message(
                 kind="nudge_trial_end",
                 source="auto",

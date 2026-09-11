@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=104">
+  <link rel="stylesheet" href="app.css?v=106">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -533,8 +533,11 @@
       <p id="refStatsNote" class="ref-stats-note"></p>
       <div class="ref-actions">
         <button type="button" id="shareBtn" class="btn btn-primary">Поделиться</button>
-        <button type="button" id="refCopyBtn" class="btn btn-ghost">Скопировать ссылку</button>
+        <button type="button" id="refCopyBtn" class="btn btn-ghost">Скопировать текст</button>
       </div>
+      <div class="section-title-plain">Кто пришёл</div>
+      <p id="refFriendsEmpty" class="ref-friends-empty">Пока никто не открыл бота по вашей ссылке.</p>
+      <div id="refFriendsList" class="section ref-friends hidden"></div>
       <div id="refPayoutCard" class="section promo-card hidden">
         <div class="txt">
           <div id="refPayoutTitle" class="t">Вывод реферальных</div>
@@ -551,7 +554,7 @@
       <div class="section ref-faq">
         <details>
           <summary>Как пригласить?</summary>
-          <p>Отправьте свою ссылку. Друг должен открыть бота именно по ней, иначе приглашение не засчитается.</p>
+          <p>Нажмите «Поделиться» или «Скопировать текст» — в буфер попадёт готовое сообщение со ссылкой, без слов про вашу награду. Друг должен открыть бота именно по этой ссылке.</p>
         </details>
         <details>
           <summary>Почему звать сюда?</summary>
@@ -778,6 +781,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=91"></script>
+  <script src="app.js?v=93"></script>
 </body>
 </html>

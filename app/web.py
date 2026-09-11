@@ -19,10 +19,18 @@ from aiogram.utils.web_app import safe_parse_webapp_init_data
 from app import db, runtime
 from app.admin import mount_admin
 from app.billing import fulfill_rollypay_order, subscription_issued_text
-from app.config import ROOT, get_settings, referral_is_payout
+from app.config import ROOT, get_settings
 from app.faq import faq_items
-from app.keyboards import back_profile_keyboard, connect_keyboard, support_url
-from app.referrals import ensure_signup_trial, maybe_reward_referrer, referral_payout_public, trial_grant_days, trial_grant_rub, trial_is_available
+from app.keyboards import (
+    back_profile_keyboard,
+    connect_keyboard,
+    invite_copy_text,
+    invite_share_text,
+    invite_url,
+    share_keyboard,
+    support_url,
+)
+from app.referrals import ensure_signup_trial, referral_payout_public, trial_grant_days, trial_grant_rub, trial_is_available
 from app.remnawave import (
     PANEL_LEASE_DAYS,
     RemnawaveClient,
@@ -314,12 +322,6 @@ async def api_me(request: web.Request) -> web.Response:
     if tg_user:
         await db.upsert_user(telegram_id, tg_user.username, tg_user.first_name)
     await ensure_signup_trial(telegram_id)
-    await maybe_reward_referrer(
-        bot,
-        rw,
-        telegram_id,
-        tg_user.first_name if tg_user else None,
-    )
     local = await db.get_user(telegram_id)
     panel = await fetch_panel(rw, telegram_id, local=local, allow_stale=True)
 
@@ -374,6 +376,7 @@ async def api_me(request: web.Request) -> web.Response:
     hours_left = max(0, int(hours_left))
     wallet = await db.referral_wallet(telegram_id) if settings.balance_enabled else None
     refs = await db.referral_stats(telegram_id)
+    friends = await db.list_referred_friends(telegram_id)
     ref_view = referral_payout_public(wallet)
     if settings.balance_enabled:
         from_events = await db.referral_credit_sum(telegram_id)
@@ -419,8 +422,11 @@ async def api_me(request: web.Request) -> web.Response:
                 or devices
             ),
             "subscription_url": sub_url if not settings.balance_enabled else "",
-            "invite_url": f"https://t.me/{settings.bot_username}?start=ref_{telegram_id}",
+            "invite_url": invite_url(telegram_id),
+            "invite_share_text": invite_share_text(),
+            "invite_copy_text": invite_copy_text(telegram_id),
             "invited_count": int(refs.get("invited") or 0),
+            "referrals": friends,
             "referral_rewarded_count": int(refs.get("rewarded") or 0),
             "referral_reward_days": settings.referral_reward_days,
             "referral_invitee_days": settings.referral_invitee_days,
@@ -536,10 +542,6 @@ async def api_trial(request: web.Request) -> web.Response:
             await db.save_panel_snapshot(telegram_id, user)
     except RemnawaveError as exc:
         return json_error(str(exc), 502)
-    bot: Bot = request.app["bot"]
-    if not referral_is_payout():
-        friend_name = (local or {}).get("first_name")
-        await maybe_reward_referrer(bot, rw, telegram_id, friend_name)
     return web.json_response({"ok": True})
 
 
@@ -1023,6 +1025,7 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
                     "topup_ok",
                     amount=rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
                 ),
+                reply_markup=share_keyboard(settings.bot_username, telegram_id),
             )
         elif user:
             sub_url = user.get("subscriptionUrl") or ""

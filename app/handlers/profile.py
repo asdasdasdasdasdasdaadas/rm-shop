@@ -24,7 +24,6 @@ from app.remnawave import (
 )
 from app.referrals import (
     invitee_extra_days,
-    maybe_reward_referrer,
     trial_grant_days,
     trial_grant_rub,
     trial_is_available,
@@ -73,10 +72,6 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
             balance_after=after,
             note=f"Триал {settings.trial_days} дн.",
         )
-        if not referral_is_payout():
-            await maybe_reward_referrer(
-                callback.bot, rw, callback.from_user.id, callback.from_user.first_name
-            )
         await callback.message.edit_text(
             "<b>Бесплатный период</b>\n\n"
             f"На баланс начислено <b>{rub_text(amount)}</b> "
@@ -102,10 +97,6 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     panel_pk = int(rw_id) if rw_id is not None and str(rw_id).isdigit() else None
     await db.mark_trial_used(callback.from_user.id, panel_pk)
     await db.save_panel_snapshot(callback.from_user.id, user)
-    if not referral_is_payout():
-        await maybe_reward_referrer(
-            callback.bot, rw, callback.from_user.id, callback.from_user.first_name
-        )
     sub_url = user.get("subscriptionUrl") or ""
     text = subscription_issued_text(user, "Подписка оформлена")
     extra = invitee_extra_days(local)
@@ -147,8 +138,8 @@ async def share(callback: CallbackQuery) -> None:
         else:
             body = (
                 "<b>Приведи друга</b>\n\n"
-                f"Когда друг нажмёт «Попробовать бесплатно», вам и другу начислят "
-                f"по <b>{rub_text(rub)}</b> на баланс.\n\n"
+                f"Когда друг первый раз оплатит VPN по вашей ссылке, вам начислят "
+                f"<b>{rub_text(rub)}</b> на баланс. Другу за переход эти деньги не даём.\n\n"
                 f"Ваша ссылка:\n<code>{link}</code>"
             )
         if story_offer:
@@ -156,23 +147,25 @@ async def share(callback: CallbackQuery) -> None:
                 f"\n\nМожно также выложить историю в Telegram и получить "
                 f"<b>{rub_text(settings.story_reward_rub)}</b> на баланс — кнопка ниже откроет кабинет."
             )
+        body += (
+            "\n\n«Отправить другу» — шаринг Telegram. "
+            "«Скопировать текст» — готовое сообщение в личку, без слов про вашу награду."
+        )
     else:
-        if referral_is_payout():
-            body = (
-                "<b>Приведи друга</b>\n\n"
-                f"Отправьте ссылку. Когда друг первый раз оплатит, вам начислят "
-                f"<b>{days_text(settings.referral_reward_days)}</b>. Другу при бесплатном периоде "
-                f"<b>+{days_text(settings.referral_invitee_days)}</b>.\n\n"
-                f"Ваша ссылка:\n<code>{link}</code>"
-            )
-        else:
-            body = (
-                "<b>Приведи друга</b>\n\n"
-                f"Отправьте ссылку. Когда друг нажмёт «Попробовать бесплатно», вам начислят "
-                f"<b>{days_text(settings.referral_reward_days)}</b>, а другу "
-                f"<b>+{days_text(settings.referral_invitee_days)}</b> к бесплатному периоду.\n\n"
-                f"Ваша ссылка:\n<code>{link}</code>"
-            )
+        extra = settings.referral_invitee_days
+        extra_line = (
+            f" Другу при бесплатном периоде <b>+{days_text(extra)}</b>."
+            if extra > 0
+            else ""
+        )
+        body = (
+            "<b>Приведи друга</b>\n\n"
+            f"Отправьте ссылку. Когда друг первый раз оплатит, вам начислят "
+            f"<b>{days_text(settings.referral_reward_days)}</b>.{extra_line}\n\n"
+            f"Ваша ссылка:\n<code>{link}</code>\n\n"
+            "«Отправить другу» — шаринг Telegram. "
+            "«Скопировать текст» — готовое сообщение в личку."
+        )
     await callback.message.edit_text(
         body,
         reply_markup=share_keyboard(
@@ -422,7 +415,7 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
                 "topup_ok",
                 amount=rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
             ),
-            reply_markup=back_profile_keyboard(),
+            reply_markup=share_keyboard(settings.bot_username, callback.from_user.id),
         )
         return
     sub_url = (user or {}).get("subscriptionUrl") or ""
@@ -471,7 +464,8 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
             notice_text(
                 "topup_ok",
                 amount=rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
-            )
+            ),
+            reply_markup=share_keyboard(settings.bot_username, message.from_user.id),
         )
         return
     sub_url = (user or {}).get("subscriptionUrl") or ""

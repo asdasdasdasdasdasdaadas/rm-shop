@@ -317,7 +317,7 @@ async def list_ad_links(*, include_archived: bool = False) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def claim_referral_reward(telegram_id: int, *, require_paid: bool = False) -> int | None:
+async def claim_referral_reward(telegram_id: int, *, require_paid: bool = True) -> int | None:
     paid_sql = "AND COALESCE(has_paid_topup, FALSE)" if require_paid else ""
     row = await _pool_req().fetchrow(
         f"""
@@ -993,6 +993,38 @@ async def referral_wallet(telegram_id: int) -> dict:
         "pending": pending,
         "available": min(max(0, balance), leftover),
     }
+
+
+async def list_referred_friends(telegram_id: int, limit: int = 80) -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT
+            first_name,
+            username,
+            COALESCE(has_paid_topup, FALSE) AS paid,
+            created_at
+        FROM users
+        WHERE referred_by = $1
+        ORDER BY COALESCE(has_paid_topup, FALSE) ASC, created_at DESC
+        LIMIT $2
+        """,
+        int(telegram_id),
+        max(1, min(int(limit), 80)),
+    )
+    friends: list[dict] = []
+    for row in rows:
+        name = str(row["first_name"] or "").strip() or "друг"
+        handle = str(row["username"] or "").strip().lstrip("@")
+        paid = bool(row["paid"])
+        friends.append(
+            {
+                "name": name[:64],
+                "username": handle[:32] if handle else None,
+                "paid": paid,
+                "status": "есть оплата" if paid else "ещё без оплаты",
+            }
+        )
+    return friends
 
 
 async def referral_stats(telegram_id: int) -> dict:
@@ -2669,6 +2701,10 @@ async def list_due_invite_nudges(limit: int = 80, skip_ids: list[int] | None = N
           AND u.blocked_at IS NULL
           AND u.created_at <= timezone('utc', now()) - INTERVAL '48 hours'
           AND NOT (u.telegram_id = ANY($2::bigint[]))
+          AND (
+            COALESCE(u.has_paid_topup, FALSE)
+            OR EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)
+          )
         ORDER BY u.created_at
         LIMIT $1
         """,

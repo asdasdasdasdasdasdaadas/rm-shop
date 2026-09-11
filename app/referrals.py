@@ -87,7 +87,7 @@ def referral_payout_public(wallet: dict | None = None) -> dict:
 
 
 async def maybe_reward_referrer(
-    bot: Bot,
+    bot: Bot | None,
     rw: RemnawaveClient,
     new_user_id: int,
     friend_name: str | None,
@@ -99,51 +99,31 @@ async def maybe_reward_referrer(
         amount = settings.referral_reward_rub
         if amount < 1:
             return
-        referrer_id = await db.claim_referral_reward(new_user_id, require_paid=payout)
+        referrer_id = await db.claim_referral_reward(new_user_id, require_paid=True)
         if not referrer_id:
             return
-        if payout:
-            total = await db.credit_referral_rub(referrer_id, amount)
-            await db.log_billing_event(
-                referrer_id,
-                "referral",
-                source="payment",
-                amount=amount,
-                balance_after=total,
-                note=f"Награда за первую оплату друга {new_user_id}",
-            )
-            ref_text = notice_text("referral_referrer_paid", name=name, amount=rub_text(amount))
+        total = await db.credit_referral_rub(referrer_id, amount)
+        await db.log_billing_event(
+            referrer_id,
+            "referral",
+            source="payment",
+            amount=amount,
+            balance_after=total,
+            note=f"Награда за первую оплату друга {new_user_id}",
+        )
+        key = "referral_referrer_paid" if payout else "referral_referrer_balance"
+        ref_text = notice_text(key, name=name, amount=rub_text(amount))
+        if bot:
             try:
                 await bot.send_message(referrer_id, ref_text, reply_markup=back_profile_keyboard())
             except Exception:
                 pass
-            return
-        total = await db.credit_referral_rub(referrer_id, amount)
-        await db.add_balance_rub(new_user_id, amount)
-        await db.log_billing_event(
-            referrer_id,
-            "referral",
-            source="signup",
-            amount=amount,
-            balance_after=total,
-            note=f"Награда за приглашение {new_user_id}",
-        )
-        ref_text = notice_text("referral_referrer_balance", name=name, amount=rub_text(amount))
-        friend_text = notice_text("referral_invitee_balance", amount=rub_text(amount))
-        try:
-            await bot.send_message(referrer_id, ref_text, reply_markup=back_profile_keyboard())
-        except Exception:
-            pass
-        try:
-            await bot.send_message(new_user_id, friend_text, reply_markup=back_profile_keyboard())
-        except Exception:
-            pass
         return
 
     days = settings.referral_reward_days
     if days < 1:
         return
-    referrer_id = await db.claim_referral_reward(new_user_id, require_paid=payout)
+    referrer_id = await db.claim_referral_reward(new_user_id, require_paid=True)
     if not referrer_id:
         return
     try:
@@ -168,6 +148,8 @@ async def maybe_reward_referrer(
         sub_url = extra
     except RemnawaveError:
         await db.unclaim_referral_reward(new_user_id)
+        return
+    if not bot:
         return
     try:
         await bot.send_message(

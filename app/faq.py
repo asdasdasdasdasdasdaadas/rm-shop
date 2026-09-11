@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from html import escape
 
-from app.config import get_settings
+from app.config import get_settings, referral_is_payout
 from app.texts import days_text, rub_text
 
 
@@ -100,6 +100,53 @@ def faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
     else:
         why += "Ссылку подписки всегда можно взять или перевыпустить в кабинете."
     items.append({"q": "Чем этот VPN удобнее чужого из чата?", "a": why})
+    if settings.balance_enabled:
+        rub = rub_text(settings.referral_reward_rub)
+        when_a = (
+            "После первой оплаты друга по вашей ссылке. "
+            "Пока друг только пришёл или взял бесплатный период, награды не будет."
+        )
+        how_a = (
+            f"Вам {rub} на баланс за каждого, кто оплатил. "
+            "Другу за переход эти деньги не начисляются."
+        )
+        if referral_is_payout():
+            how_a += (
+                f" Вывести можно от {rub_text(settings.referral_payout_min)} реферальных."
+            )
+        items.append(
+            {
+                "q": "Как пригласить друга?",
+                "a": (
+                    "В кабинете: «Поделиться» или «Скопировать текст» — готовое сообщение со ссылкой. "
+                    "Друг должен открыть бота именно по ней. "
+                    "В пересылке нет слов про вашу награду: другу про кабинет, вам начисление после его оплаты."
+                ),
+            }
+        )
+        items.append({"q": "Когда начислят за приглашённого друга?", "a": when_a})
+        items.append({"q": "Сколько дают за друга?", "a": how_a})
+    elif settings.referral_reward_days > 0:
+        mine = days_text(settings.referral_reward_days)
+        extra = days_text(settings.referral_invitee_days)
+        items.append(
+            {
+                "q": "Когда начислят за приглашённого друга?",
+                "a": (
+                    "После первой оплаты друга по вашей ссылке. "
+                    "Пока друг только пришёл или взял бесплатный период, дни вам не начислят."
+                ),
+            }
+        )
+        items.append(
+            {
+                "q": "Сколько дают за друга?",
+                "a": (
+                    f"Вам {mine}. Другу при бесплатном периоде +{extra}. "
+                    "За переход деньги не даём."
+                ),
+            }
+        )
     if settings.balance_enabled and settings.trial_enabled and settings.trial_days > 0:
         items.append(
             {

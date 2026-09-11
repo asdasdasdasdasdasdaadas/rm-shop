@@ -81,13 +81,10 @@ async def grant_plan(
         title=str(plan.get("title") or plan_code),
         repeat=repeat,
     )
-    if bot:
-        from app.config import referral_is_payout
-        from app.referrals import maybe_reward_referrer
+    from app.referrals import maybe_reward_referrer
 
-        if referral_is_payout():
-            local = await db.get_user(telegram_id)
-            await maybe_reward_referrer(bot, rw, telegram_id, (local or {}).get("first_name"))
+    local = await db.get_user(telegram_id)
+    await maybe_reward_referrer(bot, rw, telegram_id, (local or {}).get("first_name"))
     return user
 
 

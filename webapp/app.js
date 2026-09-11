@@ -651,6 +651,28 @@ function friendsWord(n) {
   return "друзей";
 }
 
+function inviteMonthNeed(me) {
+  const reward = Math.max(0, Number(me && me.referral_reward_rub) || 0);
+  const day = Math.max(1, Number(me && me.vpn_day_price_rub) || 1);
+  if (reward < 1) return 0;
+  return Math.max(1, Math.ceil((day * 30) / reward));
+}
+
+function inviteMonthLeft(me) {
+  const need = inviteMonthNeed(me);
+  if (need < 1) return 0;
+  const rewarded = Math.max(0, Number(me && me.referral_rewarded_count) || 0);
+  const inCycle = rewarded % need;
+  return inCycle === 0 ? need : (need - inCycle);
+}
+
+function inviteHomeProgress(me) {
+  if (!me || !me.balance_enabled) return "";
+  const left = inviteMonthLeft(me);
+  if (left < 1) return "";
+  return `Ещё ${left} ${friendsWord(left)} с оплатой — и месяц VPN`;
+}
+
 function rublesWord(n) {
   const abs = Math.abs(n);
   const mod10 = abs % 10;
@@ -2159,14 +2181,14 @@ function paintReferrals(me) {
   }
   const note = $("refStatsNote");
   if (note) {
-    if (me.balance_enabled && me.referral_payout_enabled && invited > rewarded) {
+    if (me.balance_enabled && invited > rewarded) {
       note.textContent = earned > 0
         ? "Начислено за " + rewarded + " " + friendsWord(rewarded) + " с оплатой. Остальные ещё не оплатили."
         : "Деньги придут после первой оплаты друга. Пока бонус не начислен.";
     } else if (invited > 0 && rewarded === 0 && earned === 0) {
       note.textContent = me.balance_enabled
-        ? "Друзья пришли, но бонус ещё не начислен."
-        : "Друзья пришли, начисление дней ещё впереди.";
+        ? "Друзья пришли, но ещё не оплатили — бонус после первой оплаты."
+        : "Друзья пришли. Дни начислятся после их первой оплаты.";
     } else {
       note.textContent = "";
     }
@@ -2183,8 +2205,8 @@ function paintReferrals(me) {
       if (pay) pay.textContent = `Вывести можно от ${me.referral_payout_min || 2000} ₽ реферальных, которые ещё на балансе. Заявка уходит администратору.`;
       if (payWrap) payWrap.classList.remove("hidden");
     } else {
-      if (when) when.textContent = "Начисление, когда друг нажмёт «Попробовать бесплатно» по вашей ссылке.";
-      if (how) how.textContent = `Вам и другу по ${rub} ₽ на баланс.`;
+      if (when) when.textContent = "Начисление после первой оплаты друга по вашей ссылке. Пока друг только пришёл и не оплатил, денег не будет.";
+      if (how) how.textContent = `Вам ${rub} ₽ на баланс за каждого, кто оплатил. Другу бонус за переход не начисляется.`;
       if (payWrap) payWrap.classList.add("hidden");
     }
   } else {
@@ -2194,12 +2216,47 @@ function paintReferrals(me) {
       if (when) when.textContent = "Дни придут после первой оплаты друга по вашей ссылке.";
       if (how) how.textContent = `Вам ${mine}. Другу при бесплатном периоде +${friend}.`;
     } else {
-      if (when) when.textContent = "Дни придут, когда друг нажмёт «Попробовать бесплатно» по вашей ссылке.";
-      if (how) how.textContent = `Вам ${mine}, другу +${friend} к бесплатному периоду.`;
+      if (when) when.textContent = "Дни придут после первой оплаты друга по вашей ссылке.";
+      if (how) how.textContent = `Вам ${mine}. Другу при бесплатном периоде +${friend}.`;
     }
     if (payWrap) payWrap.classList.add("hidden");
   }
+  paintRefFriends(me);
   paintPayout(me);
+}
+
+function paintRefFriends(me) {
+  const list = $("refFriendsList");
+  const empty = $("refFriendsEmpty");
+  if (!list) return;
+  const friends = Array.isArray(me && me.referrals) ? me.referrals : [];
+  list.innerHTML = "";
+  if (!friends.length) {
+    list.classList.add("hidden");
+    if (empty) empty.classList.remove("hidden");
+    return;
+  }
+  if (empty) empty.classList.add("hidden");
+  list.classList.remove("hidden");
+  friends.forEach((friend) => {
+    const row = document.createElement("div");
+    row.className = "ref-friend";
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const name = document.createElement("div");
+    name.className = "n";
+    const label = String((friend && friend.name) || "друг");
+    const user = friend && friend.username ? "@" + friend.username : "";
+    name.textContent = user ? label + " · " + user : label;
+    const st = document.createElement("div");
+    const paid = !!(friend && friend.paid);
+    st.className = "s" + (paid ? " ok" : "");
+    st.textContent = paid ? "есть оплата" : "ещё без оплаты";
+    meta.appendChild(name);
+    meta.appendChild(st);
+    row.appendChild(meta);
+    list.appendChild(row);
+  });
 }
 
 function openReferrals() {
@@ -3104,7 +3161,8 @@ function paint(me) {
   if (me.balance_enabled) {
     const invited = Number(me.invited_count) || 0;
     const earned = Number(me.referral_earned) || 0;
-    $("inviteTitle").textContent = "Рефералы";
+    const progress = inviteHomeProgress(me);
+    $("inviteTitle").textContent = progress || "Рефералы";
     $("inviteNote").textContent = invited + " " + friendsWord(invited) + " · " + earned + " ₽";
   } else {
     const invited = Number(me.invited_count) || 0;
@@ -3452,39 +3510,40 @@ $("storyBtn").onclick = async () => {
   }
 };
 
+function inviteShareText(me) {
+  const fromApi = me && String(me.invite_share_text || "").trim();
+  if (fromApi) return fromApi;
+  return "Кабинет в Telegram: сутки только за свои устройства, без общего ключа из чата. Подключайся по ссылке.";
+}
+
+function inviteCopyText(me) {
+  const fromApi = me && String(me.invite_copy_text || "").trim();
+  if (fromApi) return fromApi;
+  const url = me && me.invite_url;
+  const text = inviteShareText(me);
+  return url ? text + "\n\n" + url : text;
+}
+
 function shareInvite() {
-  const url = window.__me && window.__me.invite_url;
-  if (!url) return;
   const me = window.__me;
-  let text;
-  if (me && me.balance_enabled) {
-    const rub = me.referral_reward_rub || 50;
-    text = encodeURIComponent(
-      me.referral_payout_enabled
-        ? `Подключайся по ссылке. После первой оплаты я получу ${rublesLabel(rub)} за приглашение.`
-        : `Подключайся. Нажми «Попробовать бесплатно» по ссылке — получишь ${rublesLabel(rub)} на баланс, и я тоже.`
-    );
-  } else {
-    const days = (me && me.referral_reward_days) || 7;
-    const extra = (me && me.referral_invitee_days) || 5;
-    text = encodeURIComponent(
-      `Подключайся. Нажми «Попробовать бесплатно» по ссылке — получишь +${daysLabel(extra)}, а я получу ${daysLabel(days)} VPN.`
-    );
-  }
+  const url = me && me.invite_url;
+  if (!url) return;
+  const text = encodeURIComponent(inviteShareText(me));
   tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${text}`);
 }
 
 function copyInvite() {
-  const url = window.__me && window.__me.invite_url;
-  if (!url) return;
+  const me = window.__me;
+  const block = inviteCopyText(me);
+  if (!block) return;
   const done = () => {
-    if (typeof showToast === "function") showToast("Ссылка скопирована");
-    else tg.showAlert("Ссылка скопирована");
+    if (typeof showToast === "function") showToast("Текст скопирован");
+    else tg.showAlert("Текст скопирован");
   };
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url).then(done).catch(() => tg.showAlert("Ссылка: " + url));
+    navigator.clipboard.writeText(block).then(done).catch(() => tg.showAlert(block));
   } else {
-    tg.showAlert("Ссылка: " + url);
+    tg.showAlert(block);
   }
 }
 

@@ -20,7 +20,7 @@ from app.keyboards import (
     profile_text,
     welcome_text,
 )
-from app.referrals import ensure_signup_trial, maybe_reward_referrer, trial_is_available
+from app.referrals import ensure_signup_trial, trial_is_available
 from app.welcome import send_welcome_intro
 from app.remnawave import RemnawaveClient
 from app.sync import fetch_panel, has_access
@@ -107,9 +107,6 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
     local = None
     if from_user:
         await ensure_signup_trial(from_user.id)
-        await maybe_reward_referrer(
-            target.bot, rw, from_user.id, from_user.first_name
-        )
         panel = await fetch_panel(rw, from_user.id)
         local = await db.get_user(from_user.id)
     trial_available = trial_is_available(local)
@@ -185,9 +182,6 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
     )
     await _maybe_live_invite(row)
     await ensure_signup_trial(message.from_user.id)
-    await maybe_reward_referrer(
-        message.bot, rw, message.from_user.id, message.from_user.first_name
-    )
     in_channel = await is_channel_member(message.bot, message.from_user.id)
     passed_legal = await user_passed_legal(message.from_user.id) if in_channel else False
     if await db.claim_welcome_intro(message.from_user.id):
@@ -215,9 +209,6 @@ async def check_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         callback.from_user.first_name,
     )
     await ensure_signup_trial(callback.from_user.id)
-    await maybe_reward_referrer(
-        callback.bot, rw, callback.from_user.id, callback.from_user.first_name
-    )
     if not await is_channel_member(callback.bot, callback.from_user.id, force=True):
         await ack(callback, "Подписка не найдена. Подпишитесь и нажмите ещё раз.", alert=True)
         return
@@ -241,9 +232,6 @@ async def accept_legal(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     )
     await db.accept_legal(callback.from_user.id)
     await ensure_signup_trial(callback.from_user.id)
-    await maybe_reward_referrer(
-        callback.bot, rw, callback.from_user.id, callback.from_user.first_name
-    )
     await show_profile(callback, rw)
 
 
@@ -260,7 +248,6 @@ async def try_again(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     await ack(callback)
     await db.upsert_user(user.id, user.username, user.first_name)
     await ensure_signup_trial(user.id)
-    await maybe_reward_referrer(callback.bot, rw, user.id, user.first_name)
     if not await is_channel_member(callback.bot, user.id):
         await callback.message.answer(welcome_text(), reply_markup=channel_keyboard())
         return

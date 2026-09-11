@@ -5,7 +5,7 @@ from urllib.parse import quote
 from aiogram.types import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from app.config import get_settings, referral_is_payout
+from app.config import get_settings
 from app.notices import notice_text
 from app.texts import days_text, rub_text
 from app import runtime
@@ -262,27 +262,36 @@ def pay_keyboard(pay_url: str, order_id: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = False) -> InlineKeyboardMarkup:
+def invite_url(telegram_id: int, bot_username: str | None = None) -> str:
+    handle = (bot_username or get_settings().bot_username or "").lstrip("@")
+    return f"https://t.me/{handle}?start=ref_{int(telegram_id)}"
+
+
+def invite_share_text() -> str:
     settings = get_settings()
     if settings.balance_enabled:
-        rub = settings.referral_reward_rub
-        if referral_is_payout():
-            share_text = (
-                f"Кабинет в Telegram, сутки за свои устройства. "
-                f"Подключайся по ссылке. После первой оплаты я получу {rub_text(rub)}."
-            )
-        else:
-            share_text = (
-                f"Кабинет в Telegram, сутки только за свои устройства. "
-                f"Нажми «Попробовать бесплатно» — получишь {rub_text(rub)} на баланс, и я тоже."
-            )
-    else:
-        days = settings.referral_reward_days
-        share_text = (
-            f"Кабинет в Telegram. Нажми «Попробовать бесплатно» — получишь "
-            f"+{days_text(settings.referral_invitee_days)}, а я получу {days_text(days)} VPN."
+        return (
+            "Кабинет в Telegram: сутки только за свои устройства, "
+            "без общего ключа из чата. Подключайся по ссылке."
         )
-    link = f"https://t.me/{bot_username}?start=ref_{telegram_id}"
+    extra = settings.referral_invitee_days
+    text = (
+        "Кабинет в Telegram: ссылку подписки всегда можно взять там, "
+        "без поиска VPN по чатам. Подключайся по ссылке."
+    )
+    if extra > 0:
+        text += f" При бесплатном периоде +{days_text(extra)}."
+    return text
+
+
+def invite_copy_text(telegram_id: int, bot_username: str | None = None) -> str:
+    block = f"{invite_share_text()}\n\n{invite_url(telegram_id, bot_username)}"
+    return block[:256]
+
+
+def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = False) -> InlineKeyboardMarkup:
+    share_text = invite_share_text()
+    link = invite_url(telegram_id, bot_username)
     share_url = (
         "https://t.me/share/url?url="
         + quote(link)
@@ -293,6 +302,13 @@ def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = F
     builder.row(
         InlineKeyboardButton(text="Отправить другу", url=share_url, style="success")
     )
+    builder.row(
+        InlineKeyboardButton(
+            text="Скопировать текст",
+            copy_text=CopyTextButton(text=invite_copy_text(telegram_id, bot_username)),
+        )
+    )
+    add_cabinet_row(builder)
     story_btn = story_webapp_button(story_offer=story_offer)
     if story_btn:
         builder.row(story_btn)
