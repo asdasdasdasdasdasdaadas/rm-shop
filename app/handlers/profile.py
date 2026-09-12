@@ -16,6 +16,7 @@ from app.keyboards import (
     connect_keyboard,
     faq_keyboard,
     pay_keyboard,
+    pay_method_keyboard,
     share_keyboard,
 )
 from app.remnawave import (
@@ -327,7 +328,15 @@ async def buy_plan(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
     if not plan:
         await ack(callback, "Тариф не найден", alert=True)
         return
-    await _create_plan_invoice(callback, rp, code, "")
+    if settings.rollypay_configured:
+        await ack(callback)
+        await callback.message.edit_text(
+            f"<b>{plan['title']}</b> — {plan['rub_str']} рублей\n\n"
+            "Как оплатить?",
+            reply_markup=pay_method_keyboard(code),
+        )
+        return
+    await _create_plan_invoice(callback, rp, code, "sbp")
 
 
 @router.callback_query(F.data.startswith("rpm:"))
@@ -357,7 +366,7 @@ async def _create_plan_invoice(
             await ack(callback, "Оплата не настроена", alert=True)
             return
         try:
-            pay_method = resolve_payment_method("")
+            pay_method = resolve_payment_method(method)
         except ValueError as exc:
             await ack(callback, str(exc), alert=True)
             return

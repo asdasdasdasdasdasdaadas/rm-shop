@@ -22,6 +22,8 @@ __all__ = [
     "verify_webhook",
 ]
 
+PAY_HOST = "https://pay.rollypay.io/pay"
+
 
 def payment_is_paid(payment: dict | None) -> bool:
     status = str((payment or {}).get("status") or "").lower()
@@ -34,12 +36,10 @@ _FIAT_METHODS = frozenset({"sbp", "card", "fiat"})
 
 def _fiat_method(raw: str) -> str | None:
     method = str(raw or "").strip().lower()
-    if not method or method == "fiat":
-        return None
-    if method in _CRYPTO_METHODS:
-        return None
     if method in {"sbp", "card"}:
         return method
+    if method == "fiat":
+        return "sbp"
     return None
 
 
@@ -54,8 +54,8 @@ def resolve_payment_method(choice: str | None = None) -> str | None:
         raise ValueError("Неизвестный способ оплаты")
     configured = _fiat_method(get_settings().rollypay_payment_method)
     if str(get_settings().rollypay_payment_method or "").strip().lower() in _CRYPTO_METHODS:
-        logger.warning("ROLLYPAY_PAYMENT_METHOD указывает на крипту — касса откроет карту или СБП")
-    return configured
+        logger.warning("ROLLYPAY_PAYMENT_METHOD указывает на крипту — создаём платёж СБП")
+    return configured or "sbp"
 
 
 def _clean_key(raw: str) -> str:
@@ -75,6 +75,16 @@ def _sdk_base_url(raw: str) -> str:
     if base.endswith("/api/v1"):
         return base
     return f"{base}/api/v1"
+
+
+def _pay_url(data: dict) -> str:
+    url = str(data.get("pay_url") or "").strip()
+    if url:
+        return url
+    token = str(data.get("token") or "").strip()
+    if token:
+        return f"{PAY_HOST}/{token}"
+    return ""
 
 
 class RollyPayClient:
@@ -106,43 +116,6 @@ class RollyPayClient:
     async def aclose(self) -> None:
         await asyncio.to_thread(self._sdk._session.close)
 
-    def _payload(
-        self,
-        *,
-        amount_rub: str,
-        order_id: str,
-        description: str,
-        customer_id: str,
-        metadata: dict | None,
-        payment_method: str | None,
-    ) -> dict[str, Any]:
-        settings = get_settings()
-        payload: dict[str, Any] = {
-            "amount": amount_rub,
-            "order_id": order_id,
-            "payment_currency": "RUB",
-            "description": description,
-            "customer_id": customer_id,
-            "metadata": metadata or {},
-        }
-        method = _fiat_method(payment_method)
-        if method:
-            payload["payment_method"] = method
-        redirect = (settings.webapp_public_url or "").rstrip("/")
-        if redirect:
-            payload["redirect_url"] = redirect
-            payload["success_redirect_url"] = redirect
-        if settings.rollypay_test and self._live_key:
-            logger.warning(
-                "ROLLYPAY_TEST=true пропущен: ключ rpk_live_. Иначе страница оплаты "
-                "открывается, а активация карты и СБП отвечает 400"
-            )
-        elif settings.rollypay_test:
-            payload["test"] = True
-        if not payload.get("metadata"):
-            payload.pop("metadata", None)
-        return payload
-
     async def create_payment(
         self,
         *,
@@ -153,38 +126,57 @@ class RollyPayClient:
         metadata: dict | None = None,
         payment_method: str | None = None,
     ) -> dict:
-        payload = self._payload(
-            amount_rub=amount_rub,
-            order_id=order_id,
-            description=description,
-            customer_id=customer_id,
-            metadata=metadata,
-            payment_method=payment_method,
-        )
+        settings = get_settings()
+        method = _fiat_method(payment_method) or "sbp"
+        redirect = (settings.webapp_public_url or "").rstrip("/") or None
+        sandbox = bool(settings.rollypay_test) and not self._live_key
+        if settings.rollypay_test and self._live_key:
+            logger.warning(
+                "ROLLYPAY_TEST=true пропущен: ключ rpk_live_. Иначе страница оплаты "
+                "открывается, а активация QR СБП отвечает 400"
+            )
         logger.info(
             "RollyPay create order=%s method=%s amount=%s test=%s",
             order_id,
-            payload.get("payment_method") or "default",
+            method,
             amount_rub,
-            bool(payload.get("test")),
+            sandbox,
         )
 
         def _create() -> dict:
-            if payload.get("test"):
-                data = self._sdk.request("POST", "payments", json=payload)
+            if sandbox:
+                body: dict[str, Any] = {
+                    "amount": amount_rub,
+                    "order_id": order_id,
+                    "payment_currency": "RUB",
+                    "payment_method": method,
+                    "description": description,
+                    "customer_id": customer_id,
+                    "test": True,
+                }
+                if redirect:
+                    body["redirect_url"] = redirect
+                    body["success_redirect_url"] = redirect
+                if metadata:
+                    body["metadata"] = metadata
+                data = self._sdk.request("POST", "payments", json=body)
             else:
                 data = self._sdk.payments.create(
-                    amount=payload["amount"],
-                    order_id=payload["order_id"],
-                    payment_currency=payload["payment_currency"],
-                    payment_method=payload.get("payment_method"),
-                    description=payload.get("description"),
-                    customer_id=payload.get("customer_id"),
-                    redirect_url=payload.get("redirect_url"),
-                    success_redirect_url=payload.get("success_redirect_url"),
-                    metadata=payload.get("metadata"),
+                    amount=amount_rub,
+                    order_id=order_id,
+                    payment_currency="RUB",
+                    payment_method=method,
+                    description=description,
+                    customer_id=customer_id,
+                    redirect_url=redirect,
+                    success_redirect_url=redirect,
+                    metadata=metadata or None,
                 )
-            return data if isinstance(data, dict) else {}
+            result = data if isinstance(data, dict) else {}
+            url = _pay_url(result)
+            if url:
+                result["pay_url"] = url
+            return result
 
         return await asyncio.to_thread(_create)
 

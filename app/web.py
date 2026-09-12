@@ -776,7 +776,7 @@ async def api_invoice(request: web.Request) -> web.Response:
     if not plan:
         return json_error("Тариф не найден")
     try:
-        pay_method = resolve_payment_method("")
+        pay_method = resolve_payment_method(str(body.get("method") or ""))
     except ValueError as exc:
         return json_error(str(exc))
     if not settings.rollypay_configured and int(plan.get("stars") or 0) < 1:
