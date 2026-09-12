@@ -1747,18 +1747,20 @@ function autoTopupInfo(me) {
   return (me && me.recurring) || {};
 }
 
+function autoTopupCap(me, interval) {
+  const rec = autoTopupInfo(me);
+  const caps = rec.caps || { month: 4000, quarter: 9000, year: 24000 };
+  return Number(caps[interval || autoTopupInterval] || 0);
+}
+
 function autoTopupReady(me) {
   if (screen !== "topup" || !autoTopupOn) return false;
   if (!me || !me.balance_enabled) return false;
-  const rec = autoTopupInfo(me);
-  if (!rec.available) return false;
   const plan = currentTopupPlan(me);
   if (!plan || plan.code === "router" || plan.router) return false;
   const amount = planRub(plan);
   if (!amount) return false;
-  const intervals = rec.intervals || [];
-  if (!intervals.some((x) => x.id === autoTopupInterval)) return false;
-  const cap = Number((rec.caps && rec.caps[autoTopupInterval]) || 0);
+  const cap = autoTopupCap(me, autoTopupInterval);
   if (cap && amount > cap) return false;
   return true;
 }
@@ -1769,34 +1771,25 @@ function paintAutoTopup(me) {
   const note = $("autoTopupNote");
   const rec = autoTopupInfo(me);
   if (!box) return;
-  const show = Boolean(me && me.balance_enabled && rec.available);
+  const show = Boolean(me && me.balance_enabled);
   box.classList.toggle("hidden", !show);
   if (!show) {
-    autoTopupOn = false;
-    if ($("autoTopupOn")) $("autoTopupOn").checked = false;
     if (menu) menu.classList.add("hidden");
     return;
   }
   if ($("autoTopupOn")) $("autoTopupOn").checked = autoTopupOn;
   if (menu) {
     menu.classList.toggle("hidden", !autoTopupOn);
-    const allowed = new Set((rec.intervals || []).map((x) => x.id));
     menu.querySelectorAll("button[data-interval]").forEach((btn) => {
       const id = btn.getAttribute("data-interval");
-      btn.classList.toggle("hidden", !allowed.has(id));
+      btn.classList.remove("hidden");
       btn.classList.toggle("on", autoTopupOn && id === autoTopupInterval);
     });
-    if (autoTopupOn && !allowed.has(autoTopupInterval)) {
-      autoTopupInterval = (rec.intervals[0] && rec.intervals[0].id) || "month";
-      menu.querySelectorAll("button[data-interval]").forEach((btn) => {
-        btn.classList.toggle("on", btn.getAttribute("data-interval") === autoTopupInterval);
-      });
-    }
   }
   if (!note) return;
   const plan = currentTopupPlan(me);
   const amount = planRub(plan);
-  const cap = Number((rec.caps && rec.caps[autoTopupInterval]) || 0);
+  const cap = autoTopupCap(me, autoTopupInterval);
   const active = rec.active;
   const lines = [];
   if (autoTopupOn && cap && amount > cap) {
@@ -1829,10 +1822,12 @@ function updateTopupCta(me) {
   const amount = planRub(plan);
   const rec = autoTopupReady(me);
   if (autoTopupOn && screen === "topup" && !rec) {
-    setMain("Сумма больше лимита периода");
+    const cap = autoTopupCap(me, autoTopupInterval);
+    const over = cap && planRub(plan) > cap;
+    setMain(over ? "Сумма больше лимита периода" : `Подключить автопополнение · ${amount} ₽`);
     const btn = $("appMainBtn");
-    if (btn) btn.disabled = true;
-    return;
+    if (btn) btn.disabled = Boolean(over);
+    if (over) return;
   }
   const label = rec
     ? `Подключить автопополнение · ${amount} ₽`

@@ -237,6 +237,27 @@ def _public_origin(request: web.Request) -> str:
     return str(request.url.origin).rstrip("/")
 
 
+async def _recurring_public(request: web.Request, telegram_id: int, settings) -> dict:
+    plans: list = []
+    active = None
+    if settings.balance_enabled:
+        try:
+            active = await db.get_active_sbp_subscription(telegram_id)
+        except Exception:
+            logger.exception("Не прочитать автопополнение %s", telegram_id)
+        if settings.rollypay_configured:
+            try:
+                plans = await subscription_plans(request.app.get("rp"))
+            except Exception:
+                logger.exception("Не получить сценарии автопополнения")
+                plans = []
+    return public_recurring(
+        plans,
+        active,
+        configured=bool(settings.balance_enabled and settings.rollypay_configured),
+    )
+
+
 _NO_STORE = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
@@ -632,14 +653,7 @@ async def api_me(request: web.Request) -> web.Response:
             },
             "trust": trust,
             "faq": faq_items(),
-            "recurring": public_recurring(
-                await subscription_plans(request.app.get("rp"))
-                if settings.balance_enabled and settings.rollypay_configured
-                else [],
-                await db.get_active_sbp_subscription(telegram_id)
-                if settings.balance_enabled
-                else None,
-            ),
+            "recurring": await _recurring_public(request, telegram_id, settings),
             "vpn_apps": public_vpn_apps(),
             "first_device_thanks_pending": bool((local or {}).get("first_device_thanks_pending")),
             "announcement": _announcement_public(

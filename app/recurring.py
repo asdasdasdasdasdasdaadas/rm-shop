@@ -79,23 +79,26 @@ def plan_for_interval(plans: list[dict], interval: str) -> dict | None:
     return None
 
 
-def public_recurring(plans: list[dict], active: dict | None = None) -> dict[str, Any]:
+def public_recurring(
+    plans: list[dict],
+    active: dict | None = None,
+    *,
+    configured: bool = False,
+) -> dict[str, Any]:
+    by_interval = {str(item.get("interval") or ""): item for item in plans}
     intervals = []
-    seen: set[str] = set()
-    for item in plans:
-        key = str(item.get("interval") or "")
-        if key in seen or key not in INTERVALS:
-            continue
-        seen.add(key)
+    for key in INTERVALS:
+        scene = by_interval.get(key) or {}
         intervals.append(
             {
                 "id": key,
                 "label": INTERVAL_LABELS[key].capitalize(),
-                "cap": int(item.get("cap") or cap_for(key)),
+                "cap": int(scene.get("cap") or cap_for(key)),
             }
         )
     out: dict[str, Any] = {
-        "available": bool(intervals),
+        "available": True,
+        "configured": bool(configured),
         "intervals": intervals,
         "caps": {k: cap_for(k) for k in INTERVALS},
         "active": None,
