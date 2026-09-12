@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 from aiogram import F, Router
@@ -37,6 +38,7 @@ from app.notices import notice_text
 from app.texts import days_text, minutes_text, rub_text
 
 router = Router()
+logger = logging.getLogger("rm-shop.profile")
 
 
 def _status_human(user: dict | None) -> str:
@@ -370,7 +372,8 @@ async def _create_plan_invoice(
                 metadata={"telegram_id": str(callback.from_user.id), "plan": code},
                 payment_method=pay_method,
             )
-        except RollyPayError:
+        except RollyPayError as exc:
+            logger.exception("RollyPay create failed: %s", exc)
             await callback.message.edit_text(
                 "Не удалось создать платёж.",
                 reply_markup=back_profile_keyboard(),

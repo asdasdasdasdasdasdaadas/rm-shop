@@ -149,7 +149,7 @@ Deep-link: `https://t.me/<BOT_USERNAME>?start=ref_<telegram_id>`.
 
 `https://<ваш-домен>/webhooks/rollypay`
 
-`ROLLYPAY_TEST=true` — тестовые платежи. Перед продом поставьте `false`.
+`ROLLYPAY_TEST=true` — тестовые платежи. На ключе `rpk_live_` флаг игнорируется: иначе страница кассы открывается, а карта и СБП не активируются.
 
 Telegram Stars (`STARS_ENABLED`) по умолчанию выключены.
 

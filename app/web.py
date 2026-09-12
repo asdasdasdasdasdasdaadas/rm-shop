@@ -796,6 +796,7 @@ async def api_invoice(request: web.Request) -> web.Response:
                 payment_method=pay_method,
             )
         except RollyPayError as exc:
+            logger.exception("RollyPay create failed: %s", exc)
             return json_error("Не удалось создать платёж", 502)
         pay_url = str(data.get("pay_url") or "")
         payment_id = str(data.get("payment_id") or "")

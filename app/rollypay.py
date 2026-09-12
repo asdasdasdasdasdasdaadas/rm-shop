@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import hmac
 import logging
+import uuid
 from typing import Any
 
 from rollypay import RollyPayClient as SdkClient
@@ -31,16 +32,30 @@ _CRYPTO_METHODS = frozenset({"usdt", "btc", "eth", "ton", "crypto"})
 _FIAT_METHODS = frozenset({"sbp", "card", "fiat"})
 
 
+def _fiat_method(raw: str) -> str | None:
+    method = str(raw or "").strip().lower()
+    if not method or method == "fiat":
+        return None
+    if method in _CRYPTO_METHODS:
+        return None
+    if method in {"sbp", "card"}:
+        return method
+    return None
+
+
 def resolve_payment_method(choice: str | None = None) -> str | None:
     raw = str(choice or "").strip().lower()
     if raw in _CRYPTO_METHODS:
         raise ValueError("Оплата криптой недоступна")
-    if raw in _FIAT_METHODS or not raw:
-        if raw in {"sbp", "card"}:
-            return raw
-        method = str(get_settings().rollypay_payment_method or "").strip()
-        return method or None
-    raise ValueError("Неизвестный способ оплаты")
+    picked = _fiat_method(raw)
+    if picked:
+        return picked
+    if raw and raw not in _FIAT_METHODS:
+        raise ValueError("Неизвестный способ оплаты")
+    configured = _fiat_method(get_settings().rollypay_payment_method)
+    if str(get_settings().rollypay_payment_method or "").strip().lower() in _CRYPTO_METHODS:
+        logger.warning("ROLLYPAY_PAYMENT_METHOD указывает на крипту — касса откроет карту или СБП")
+    return configured
 
 
 def _clean_key(raw: str) -> str:
@@ -77,7 +92,16 @@ class RollyPayClient:
                 "Не подставляйте signing_secret. В Docker символ $ в ключе пишите как $$"
             )
         sdk = SdkClient(api_key=key, base_url=base, timeout=30)
+        orig = sdk.request
+
+        def request_with_nonce(method: str, path: str, **kwargs: Any) -> Any:
+            headers = dict(kwargs.pop("headers", {}) or {})
+            headers["X-Nonce"] = str(uuid.uuid4())
+            return orig(method, path, headers=headers, **kwargs)
+
+        sdk.request = request_with_nonce  # type: ignore[method-assign]
         self._sdk = sdk
+        self._live_key = key.startswith("rpk_live_")
 
     async def aclose(self) -> None:
         await asyncio.to_thread(self._sdk._session.close)
@@ -101,15 +125,22 @@ class RollyPayClient:
             "customer_id": customer_id,
             "metadata": metadata or {},
         }
-        method = (payment_method or "").strip() or None
+        method = _fiat_method(payment_method)
         if method:
             payload["payment_method"] = method
         redirect = (settings.webapp_public_url or "").rstrip("/")
         if redirect:
             payload["redirect_url"] = redirect
             payload["success_redirect_url"] = redirect
-        if settings.rollypay_test:
+        if settings.rollypay_test and self._live_key:
+            logger.warning(
+                "ROLLYPAY_TEST=true пропущен: ключ rpk_live_. Иначе страница оплаты "
+                "открывается, а активация карты и СБП отвечает 400"
+            )
+        elif settings.rollypay_test:
             payload["test"] = True
+        if not payload.get("metadata"):
+            payload.pop("metadata", None)
         return payload
 
     async def create_payment(
@@ -131,10 +162,11 @@ class RollyPayClient:
             payment_method=payment_method,
         )
         logger.info(
-            "RollyPay create order=%s method=%s amount=%s",
+            "RollyPay create order=%s method=%s amount=%s test=%s",
             order_id,
             payload.get("payment_method") or "default",
             amount_rub,
+            bool(payload.get("test")),
         )
 
         def _create() -> dict:

@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     rollypay_api_url: str = "https://rollypay.io"
     rollypay_api_key: str = ""
     rollypay_signing_secret: str = ""
-    rollypay_test: bool = True
+    rollypay_test: bool = False
     rollypay_payment_method: str = ""
     rollypay_crypto_enabled: bool = False
     rollypay_crypto_method: str = "usdt"
