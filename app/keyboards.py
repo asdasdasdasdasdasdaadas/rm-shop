@@ -57,6 +57,17 @@ def cabinet_button() -> InlineKeyboardButton | None:
     )
 
 
+def cabinet_login_keyboard(challenge_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Подтвердить", callback_data=f"lk:y:{challenge_id}"),
+                InlineKeyboardButton(text="Отклонить", callback_data=f"lk:n:{challenge_id}"),
+            ]
+        ]
+    )
+
+
 def add_cabinet_row(builder: InlineKeyboardBuilder) -> None:
     btn = cabinet_button()
     if btn:

@@ -28,6 +28,7 @@ from app.config import ROOT, get_settings
 from app.faq import faq_items
 from app.keyboards import (
     back_profile_keyboard,
+    cabinet_login_keyboard,
     connect_keyboard,
     invite_copy_text,
     invite_share_text,
@@ -71,6 +72,8 @@ logger = logging.getLogger("rm-shop.web")
 WEBAPP_DIR = ROOT / "webapp"
 _PHOTO_TTL = 600.0
 _photo_cache: dict[int, tuple[float, str]] = {}
+_CABINET_LOGIN_RE = re.compile(r"^[A-Za-z0-9_]{5,32}$")
+_cabinet_login_hits: dict[str, list[float]] = {}
 
 
 def _is_router_device(item: dict | None) -> bool:
@@ -333,6 +336,75 @@ def _announcement_public(ann: dict | None, first_name: str | None) -> dict | Non
         "created_at": ann.get("created_at"),
         "image_url": f"/api/announcements/{aid}/image" if ann.get("image_name") else "",
     }
+
+
+def _client_ip(request: web.Request) -> str:
+    forwarded = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+    return forwarded or request.remote or "0.0.0.0"
+
+
+def _cabinet_login_limited(ip: str) -> bool:
+    now = time.time()
+    window = 600.0
+    hits = [t for t in _cabinet_login_hits.get(ip, []) if now - t < window]
+    if len(hits) >= 12:
+        _cabinet_login_hits[ip] = hits
+        return True
+    hits.append(now)
+    _cabinet_login_hits[ip] = hits
+    return False
+
+
+async def api_cabinet_login(request: web.Request) -> web.Response:
+    empty = web.json_response({"ok": True})
+    if await db.flag_on("maintenance"):
+        return empty
+    if _cabinet_login_limited(_client_ip(request)):
+        return empty
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    nick = str((payload or {}).get("username") or (payload or {}).get("q") or "").strip().lstrip("@").strip()
+    if not _CABINET_LOGIN_RE.match(nick):
+        return empty
+    user = await db.get_user_by_username(nick)
+    if not user or user.get("blocked_at"):
+        return empty
+    bot: Bot | None = request.app.get("bot")
+    if not bot:
+        return empty
+    wait_id = await db.create_cabinet_login_challenge(int(user["telegram_id"]), _client_ip(request))
+    try:
+        await bot.send_message(
+            int(user["telegram_id"]),
+            notice_text("cabinet_login"),
+            reply_markup=cabinet_login_keyboard(wait_id),
+        )
+    except Exception:
+        logger.debug("Не удалось отправить подтверждение входа %s", user["telegram_id"], exc_info=True)
+        await db.decline_cabinet_login_challenge(wait_id, int(user["telegram_id"]))
+        return empty
+    return web.json_response({"ok": True, "wait": wait_id})
+
+
+async def api_cabinet_login_status(request: web.Request) -> web.Response:
+    empty = web.json_response({"ok": True, "status": "pending"})
+    wait_id = str(request.query.get("id") or "").strip()
+    if not wait_id:
+        return empty
+    row = await db.get_cabinet_login_challenge(wait_id, _client_ip(request))
+    if not row:
+        return empty
+    status = str(row.get("status") or "pending")
+    if status == "approved":
+        token = str(row.get("session_token") or "")
+        if token:
+            return web.json_response({"ok": True, "status": "approved", "token": token})
+        return empty
+    if status in {"declined", "expired"}:
+        return web.json_response({"ok": True, "status": status})
+    return empty
 
 
 async def api_me(request: web.Request) -> web.Response:
@@ -1224,6 +1296,8 @@ def build_web_app() -> web.Application:
         app.router.add_get("/stories_img.png", webapp_story)
         app.router.add_get("/stories_img.jpg", webapp_story)
         app.router.add_get("/api/me", api_me)
+        app.router.add_post("/api/cabinet-login", api_cabinet_login)
+        app.router.add_get("/api/cabinet-login/status", api_cabinet_login_status)
         app.router.add_get("/api/avatar", api_avatar)
         app.router.add_get("/api/announcements/{ann_id}/image", api_announcement_image)
         app.router.add_post("/api/trial", api_trial)

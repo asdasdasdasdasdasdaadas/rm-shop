@@ -61,6 +61,13 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Запасная ссылка без VPN, действует 10 дней:\n"
         "{url}"
     ),
+    "cabinet_login": (
+        "Кто-то хочет войти в Ваш кабинет с сайта.\n"
+        "Если это Вы — нажмите «Подтвердить». Если нет — «Отклонить»."
+    ),
+    "cabinet_login_ok": "Вход подтверждён. Вернитесь в браузер, кабинет откроется сам.",
+    "cabinet_login_no": "Вход отклонён.",
+    "cabinet_login_gone": "Эта заявка уже не действует.",
     "trust_collect": (
         "Списан обещанный платёж: {amount}. "
         "Если баланс ушёл в минус, пополните его."
@@ -235,6 +242,10 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "profile_days", "title": "Профиль (режим подписки)", "hint": "{name}"},
     {"key": "low_balance", "title": "Не хватает денег на сутки", "hint": "{price}"},
     {"key": "cabinet_link", "title": "Запасная ссылка без VPN", "hint": "{url}"},
+    {"key": "cabinet_login", "title": "Подтверждение входа на сайт", "hint": ""},
+    {"key": "cabinet_login_ok", "title": "Вход на сайт подтверждён", "hint": ""},
+    {"key": "cabinet_login_no", "title": "Вход на сайт отклонён", "hint": ""},
+    {"key": "cabinet_login_gone", "title": "Заявка на вход устарела", "hint": ""},
     {"key": "trust_collect", "title": "Списание обещанного платежа", "hint": "{amount}"},
     {"key": "trial_nudge", "title": "Напоминание взять триал", "hint": "{name} {extra}"},
     {"key": "invite_nudge", "title": "Пригласить друга", "hint": "{name} {reward} {when} {link}"},

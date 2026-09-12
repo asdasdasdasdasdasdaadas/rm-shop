@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=127">
+  <link rel="stylesheet" href="app.css?v=134">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -24,6 +24,45 @@
     <span class="app-bg-orb b"></span>
     <span class="app-bg-orb c"></span>
   </div>
+
+  <div id="decoy" class="decoy">
+    <header class="decoy-bar">
+      <form id="decoyFormTop" class="decoy-bar-form" autocomplete="off">
+        <a class="decoy-wordmark" href="#" id="decoyHomeLink" aria-label="Поиск">Поиск</a>
+        <div class="decoy-field">
+          <input id="decoyQTop" name="q" type="search" maxlength="80" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Найти в интернете">
+          <button type="submit" class="decoy-go">Найти</button>
+        </div>
+      </form>
+    </header>
+    <main class="decoy-home" id="decoyHome">
+      <div class="decoy-brand" aria-hidden="true">
+        <span class="decoy-dot d1"></span>
+        <span class="decoy-dot d2"></span>
+        <span class="decoy-dot d3"></span>
+        <span class="decoy-dot d4"></span>
+      </div>
+      <h1 class="decoy-title">Поиск</h1>
+      <form id="decoyForm" class="decoy-search" autocomplete="off">
+        <input id="decoyQ" name="q" type="search" maxlength="80" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Введите запрос">
+        <div class="decoy-actions">
+          <button type="submit" id="decoyBtn">Найти</button>
+          <button type="submit" id="decoyLucky" name="lucky" value="1">Мне повезёт</button>
+        </div>
+      </form>
+    </main>
+    <section class="decoy-serp hidden" id="decoySerp">
+      <p class="decoy-stats" id="decoyStats"></p>
+      <div id="decoyHits"></div>
+    </section>
+    <footer class="decoy-foot">
+      <span>Россия</span>
+      <span>Как пользоваться поиском</span>
+      <span>Конфиденциальность</span>
+      <span>Условия</span>
+    </footer>
+  </div>
+
   <div id="boot" class="state">
     <div class="account-row skel-row">
       <div class="avatar pulse"></div>
@@ -212,8 +251,39 @@
   </div>
 
   <div id="fail" class="state hidden">
-    <section class="section">
+    <section class="section login-card">
       <p id="failText" class="muted">Не удалось загрузить данные.</p>
+      <form id="loginForm" class="login-form hidden" autocomplete="on">
+        <label class="login-label" for="loginUser">Логин Telegram</label>
+        <div class="login-field">
+          <div class="login-frog" id="loginFrog" aria-hidden="true">
+            <svg class="login-frog-svg" viewBox="0 0 64 58" fill="none">
+              <ellipse cx="18" cy="52" rx="7" ry="3.4" fill="#3f9e63"/>
+              <ellipse cx="46" cy="52" rx="7" ry="3.4" fill="#3f9e63"/>
+              <ellipse cx="32" cy="40" rx="20" ry="15" fill="var(--frog)"/>
+              <ellipse cx="22" cy="46" rx="4" ry="2.4" fill="#dff2e2" opacity=".55"/>
+              <ellipse cx="42" cy="46" rx="4" ry="2.4" fill="#dff2e2" opacity=".55"/>
+              <g class="login-frog-eyes">
+                <circle cx="18" cy="22" r="9" fill="var(--frog)"/>
+                <circle cx="46" cy="22" r="9" fill="var(--frog)"/>
+                <circle cx="18" cy="22" r="5.1" fill="#fff"/>
+                <circle cx="46" cy="22" r="5.1" fill="#fff"/>
+                <g class="login-frog-pupils">
+                  <circle cx="18.4" cy="24.2" r="2.25" fill="#173321"/>
+                  <circle cx="46.4" cy="24.2" r="2.25" fill="#173321"/>
+                  <circle cx="17.4" cy="23.2" r="0.7" fill="#fff"/>
+                  <circle cx="45.4" cy="23.2" r="0.7" fill="#fff"/>
+                </g>
+              </g>
+              <path class="login-frog-mouth" d="M24 42q8-3 16 0" stroke="#173321" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+              <ellipse class="login-frog-hands" cx="14" cy="50" rx="5.5" ry="3" fill="var(--frog)"/>
+              <ellipse class="login-frog-hands" cx="50" cy="50" rx="5.5" ry="3" fill="var(--frog)"/>
+            </svg>
+          </div>
+          <input id="loginUser" name="username" type="text" inputmode="text" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="@username">
+        </div>
+        <button type="submit" id="loginBtn" class="btn btn-primary">Войти</button>
+      </form>
       <button type="button" id="retryBtn" class="btn btn-primary">Повторить</button>
     </section>
   </div>
@@ -921,6 +991,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=105"></script>
+  <script src="app.js?v=111"></script>
 </body>
 </html>

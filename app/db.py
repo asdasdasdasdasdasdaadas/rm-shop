@@ -165,6 +165,24 @@ async def get_user(telegram_id: int) -> dict | None:
     return _as_dict(row)
 
 
+async def get_user_by_username(username: str) -> dict | None:
+    nick = (username or "").strip().lstrip("@").lower()
+    if not nick:
+        return None
+    row = await _pool_req().fetchrow(
+        """
+        SELECT *
+        FROM users
+        WHERE username IS NOT NULL
+          AND lower(ltrim(username, '@')) = $1
+        ORDER BY COALESCE(last_synced_at, created_at) DESC, telegram_id DESC
+        LIMIT 1
+        """,
+        nick,
+    )
+    return _as_dict(row)
+
+
 async def claim_first_online(telegram_id: int) -> dict | None:
     row = await _pool_req().fetchrow(
         """
@@ -3343,11 +3361,12 @@ def _cabinet_token_hash(raw: str) -> str:
     return hashlib.sha256((raw or "").encode("utf-8")).hexdigest()
 
 
-async def issue_cabinet_token(telegram_id: int, days: int = 10) -> str:
+async def issue_cabinet_token(telegram_id: int, days: int = 10, *, replace: bool = False) -> str:
     raw = secrets.token_urlsafe(32)
     expires = _utc_now() + timedelta(days=max(1, days))
     pool = _pool_req()
-    await pool.execute("DELETE FROM cabinet_tokens WHERE telegram_id = $1", int(telegram_id))
+    if replace:
+        await pool.execute("DELETE FROM cabinet_tokens WHERE telegram_id = $1", int(telegram_id))
     await pool.execute(
         """
         INSERT INTO cabinet_tokens (token_hash, telegram_id, expires_at)
@@ -3385,6 +3404,111 @@ async def get_cabinet_token_user(raw: str) -> int | None:
 
 async def purge_expired_cabinet_tokens() -> None:
     await _pool_req().execute("DELETE FROM cabinet_tokens WHERE expires_at <= timezone('utc', now())")
+    await _pool_req().execute(
+        "DELETE FROM cabinet_login_challenges WHERE expires_at <= timezone('utc', now())"
+    )
+
+
+def _ip_hash(ip: str) -> str:
+    return hashlib.sha256((ip or "").encode("utf-8")).hexdigest()
+
+
+async def create_cabinet_login_challenge(telegram_id: int, ip: str) -> str:
+    challenge_id = secrets.token_urlsafe(16)
+    expires = _utc_now() + timedelta(minutes=10)
+    pool = _pool_req()
+    await pool.execute(
+        """
+        UPDATE cabinet_login_challenges
+        SET status = 'expired'
+        WHERE telegram_id = $1 AND status = 'pending'
+        """,
+        int(telegram_id),
+    )
+    await pool.execute(
+        """
+        INSERT INTO cabinet_login_challenges (id, telegram_id, ip_hash, status, expires_at)
+        VALUES ($1, $2, $3, 'pending', $4)
+        """,
+        challenge_id,
+        int(telegram_id),
+        _ip_hash(ip),
+        expires,
+    )
+    return challenge_id
+
+
+async def get_cabinet_login_challenge(challenge_id: str, ip: str | None = None) -> dict | None:
+    cid = (challenge_id or "").strip()
+    if not cid:
+        return None
+    row = await _pool_req().fetchrow(
+        "SELECT * FROM cabinet_login_challenges WHERE id = $1",
+        cid,
+    )
+    data = _as_dict(row)
+    if not data:
+        return None
+    if ip is not None and data.get("ip_hash") and data["ip_hash"] != _ip_hash(ip):
+        return None
+    status = str(data.get("status") or "")
+    expires = data.get("expires_at")
+    if status == "pending" and expires and expires <= _utc_now():
+        await _pool_req().execute(
+            "UPDATE cabinet_login_challenges SET status = 'expired' WHERE id = $1 AND status = 'pending'",
+            cid,
+        )
+        data["status"] = "expired"
+    return data
+
+
+async def approve_cabinet_login_challenge(challenge_id: str, telegram_id: int, days: int = 365) -> str | None:
+    cid = (challenge_id or "").strip()
+    row = await _pool_req().fetchrow(
+        """
+        SELECT * FROM cabinet_login_challenges
+        WHERE id = $1 AND telegram_id = $2
+        """,
+        cid,
+        int(telegram_id),
+    )
+    if not row or str(row["status"]) != "pending":
+        return None
+    if row["expires_at"] and row["expires_at"] <= _utc_now():
+        await _pool_req().execute(
+            "UPDATE cabinet_login_challenges SET status = 'expired' WHERE id = $1 AND status = 'pending'",
+            cid,
+        )
+        return None
+    token = await issue_cabinet_token(int(telegram_id), days, replace=False)
+    await _pool_req().execute(
+        """
+        UPDATE cabinet_login_challenges
+        SET status = 'approved',
+            session_token = $2,
+            expires_at = $3
+        WHERE id = $1 AND status = 'pending'
+        """,
+        cid,
+        token,
+        _utc_now() + timedelta(minutes=10),
+    )
+    return token
+
+
+async def decline_cabinet_login_challenge(challenge_id: str, telegram_id: int) -> bool:
+    cid = (challenge_id or "").strip()
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE cabinet_login_challenges
+        SET status = 'declined'
+        WHERE id = $1 AND telegram_id = $2 AND status = 'pending'
+        RETURNING id
+        """,
+        cid,
+        int(telegram_id),
+    )
+    return row is not None
 
 
 async def users_needing_cabinet_link(day_price: int) -> list[int]:

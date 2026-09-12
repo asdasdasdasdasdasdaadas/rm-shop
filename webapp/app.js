@@ -103,7 +103,7 @@ function isPcWebApp() {
 function syncPcLayout() {
   let cabinet = false;
   try {
-    cabinet = Boolean(lkToken) && !tg.initData;
+    cabinet = !tg.initData;
   } catch (_e) {}
   document.documentElement.classList.toggle("is-pc", cabinet || isPcWebApp());
 }
@@ -156,6 +156,30 @@ window.addEventListener("scroll", syncNavScroll, { passive: true });
 
 const LK_TOKEN_KEY = "way_lk_token";
 
+function readLkCookie() {
+  try {
+    const parts = document.cookie.split(";");
+    for (let i = 0; i < parts.length; i += 1) {
+      const raw = parts[i].trim();
+      const cut = raw.indexOf("=");
+      if (cut < 0) continue;
+      if (raw.slice(0, cut) !== LK_TOKEN_KEY) continue;
+      return decodeURIComponent(raw.slice(cut + 1) || "");
+    }
+  } catch (_e) {}
+  return "";
+}
+
+function writeLkCookie(token) {
+  try {
+    if (token) {
+      document.cookie = LK_TOKEN_KEY + "=" + encodeURIComponent(token) + "; Max-Age=34560000; Path=/; SameSite=Lax";
+    } else {
+      document.cookie = LK_TOKEN_KEY + "=; Max-Age=0; Path=/";
+    }
+  } catch (_e) {}
+}
+
 function readLkToken() {
   const params = new URLSearchParams(window.location.search);
   const fromUrl = (params.get("t") || "").trim();
@@ -163,6 +187,7 @@ function readLkToken() {
     try {
       localStorage.setItem(LK_TOKEN_KEY, fromUrl);
     } catch (_e) {}
+    writeLkCookie(fromUrl);
     params.delete("t");
     const qs = params.toString();
     const next = window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
@@ -172,13 +197,31 @@ function readLkToken() {
     return fromUrl;
   }
   try {
-    return localStorage.getItem(LK_TOKEN_KEY) || "";
-  } catch (_e) {
-    return "";
+    const stored = localStorage.getItem(LK_TOKEN_KEY) || "";
+    if (stored) {
+      writeLkCookie(stored);
+      return stored;
+    }
+  } catch (_e) {}
+  const fromCookie = readLkCookie();
+  if (fromCookie) {
+    try {
+      localStorage.setItem(LK_TOKEN_KEY, fromCookie);
+    } catch (_e) {}
   }
+  return fromCookie;
 }
 
-const lkToken = readLkToken();
+let lkToken = readLkToken();
+
+function persistLkToken(token) {
+  lkToken = String(token || "").trim();
+  try {
+    if (lkToken) localStorage.setItem(LK_TOKEN_KEY, lkToken);
+    else localStorage.removeItem(LK_TOKEN_KEY);
+  } catch (_e) {}
+  writeLkCookie(lkToken);
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -728,25 +771,134 @@ function hideIntro() {
 function showBoot() {
   hideCoach();
   hideIntro();
+  hideDecoy();
   $("boot").classList.remove("hidden");
   $("fail").classList.add("hidden");
   $("maint").classList.add("hidden");
   $("app").classList.add("hidden");
 }
 
-function showFail(message) {
+function showFail(message, opts = {}) {
   hideCoach();
   hideIntro();
+  hideDecoy();
   $("boot").classList.add("hidden");
   $("app").classList.add("hidden");
   $("maint").classList.add("hidden");
   $("fail").classList.remove("hidden");
   $("failText").textContent = message;
+  const login = Boolean(opts.login);
+  const form = $("loginForm");
+  const retry = $("retryBtn");
+  if (form) form.classList.toggle("hidden", !login);
+  if (retry) retry.classList.toggle("hidden", login);
+  if (login) {
+    const input = $("loginUser");
+    if (input) setTimeout(() => input.focus(), 50);
+  }
+}
+
+function showLogin(message) {
+  showFail(message || "Введите логин Telegram", { login: true });
+}
+
+function goToDecoy(query) {
+  const q = String(query || "").trim();
+  try {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("t");
+    if (q) params.set("q", q);
+    else params.delete("q");
+    const qs = params.toString();
+    history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash);
+  } catch (_e) {}
+  showDecoy(q);
+}
+
+function fakeSearchHits(q) {
+  const text = String(q || "").trim() || "запрос";
+  const enc = encodeURIComponent(text);
+  return [
+    {
+      host: "ru.wikipedia.org",
+      title: text + " — Википедия",
+      href: "https://ru.wikipedia.org/w/index.php?search=" + enc,
+      snippet: "Краткая справка, связанные статьи и ссылки по запросу «" + text + "».",
+    },
+    {
+      host: "www.google.com",
+      title: "Результаты по запросу " + text,
+      href: "https://www.google.com/search?q=" + enc,
+      snippet: "Документы, новости и страницы, где встречается «" + text + "».",
+    },
+    {
+      host: "yandex.ru",
+      title: text + ": что это и где искать",
+      href: "https://yandex.ru/search/?text=" + enc,
+      snippet: "Подборка открытых источников, определения и похожие формулировки.",
+    },
+    {
+      host: "translate.yandex.ru",
+      title: "Перевод и значение: " + text,
+      href: "https://translate.yandex.ru/?text=" + enc,
+      snippet: "Возможные значения, употребление в текстах и близкие по смыслу слова.",
+    },
+  ];
+}
+
+function paintDecoyHits(q) {
+  const box = $("decoyHits");
+  const stats = $("decoyStats");
+  if (!box) return;
+  const hits = fakeSearchHits(q);
+  const n = 800000 + (String(q).length * 17341) % 9000000;
+  if (stats) stats.textContent = "Результатов: примерно " + n.toLocaleString("ru-RU") + " (0,31 сек.)";
+  box.innerHTML = hits.map((item) => (
+    "<article class=\"decoy-hit\">" +
+      "<a href=\"" + item.href + "\" target=\"_blank\" rel=\"noopener noreferrer\">" +
+        "<cite>" + item.host + "</cite>" +
+        "<h3>" + item.title.replace(/</g, "") + "</h3>" +
+      "</a>" +
+      "<p>" + item.snippet.replace(/</g, "") + "</p>" +
+    "</article>"
+  )).join("");
+}
+
+function showDecoy(query) {
+  hideCoach();
+  hideIntro();
+  document.documentElement.classList.add("is-decoy");
+  document.title = query ? (query + " — Поиск") : "Поиск";
+  $("boot").classList.add("hidden");
+  $("fail").classList.add("hidden");
+  $("maint").classList.add("hidden");
+  $("app").classList.add("hidden");
+  const q = String(query || "").trim();
+  const home = $("decoyHome");
+  const serp = $("decoySerp");
+  const top = $("decoyQTop");
+  const main = $("decoyQ");
+  if (main && q) main.value = q;
+  if (top && q) top.value = q;
+  if (q) {
+    if (home) home.classList.add("hidden");
+    if (serp) serp.classList.remove("hidden");
+    paintDecoyHits(q);
+  } else {
+    if (home) home.classList.remove("hidden");
+    if (serp) serp.classList.add("hidden");
+    if (main) setTimeout(() => main.focus(), 40);
+  }
+}
+
+function hideDecoy() {
+  document.documentElement.classList.remove("is-decoy");
 }
 
 function showMaint(notice) {
   hideCoach();
   hideIntro();
+  hideDecoy();
   $("boot").classList.add("hidden");
   $("fail").classList.add("hidden");
   $("app").classList.add("hidden");
@@ -761,6 +913,7 @@ function showMaint(notice) {
 function showApp() {
   const wasHidden = $("app").classList.contains("hidden");
   hideIntro();
+  hideDecoy();
   $("boot").classList.add("hidden");
   $("fail").classList.add("hidden");
   $("maint").classList.add("hidden");
@@ -3633,6 +3786,10 @@ function syncCoach(me) {
 }
 
 async function load() {
+  if (!tg.initData && !lkToken) {
+    showLogin("Введите логин Telegram");
+    return;
+  }
   const seq = ++loadSeq;
   const me = await api("/api/me");
   if (seq !== loadSeq) return;
@@ -4193,8 +4350,148 @@ $("qrScrim").onclick = () => hideQr();
 
 $("retryBtn").onclick = () => {
   showBoot();
-  load().catch((err) => showFail(err.message || "Не удалось загрузить данные"));
+  load().catch((err) => handleLoadFail(err));
 };
+
+let loginWaitSeq = 0;
+
+function setLoginWaiting(on) {
+  const form = $("loginForm");
+  const input = $("loginUser");
+  const btn = $("loginBtn");
+  if (form) form.classList.toggle("is-waiting", Boolean(on));
+  if (input) input.disabled = Boolean(on);
+  if (btn) btn.disabled = Boolean(on);
+}
+
+async function waitCabinetConfirm(waitId, username) {
+  const seq = ++loginWaitSeq;
+  setLoginWaiting(true);
+  $("failText").textContent = "Подтвердите вход в Telegram";
+  const started = Date.now();
+  while (seq === loginWaitSeq && Date.now() - started < 10 * 60 * 1000) {
+    await new Promise((resolve) => setTimeout(resolve, 1400));
+    if (seq !== loginWaitSeq) return;
+    try {
+      const res = await fetch("/api/cabinet-login/status?id=" + encodeURIComponent(waitId));
+      const data = await res.json().catch(() => ({}));
+      if (data && data.token) {
+        persistLkToken(data.token);
+        syncPcLayout();
+        setLoginWaiting(false);
+        showBoot();
+        await load();
+        return;
+      }
+      if (data && data.status === "declined") {
+        setLoginWaiting(false);
+        goToDecoy(username);
+        return;
+      }
+      if (data && data.status === "expired") {
+        setLoginWaiting(false);
+        showLogin("Не дождались подтверждения. Попробуйте ещё раз.");
+        return;
+      }
+    } catch (_e) {}
+  }
+  if (seq === loginWaitSeq) {
+    setLoginWaiting(false);
+    showLogin("Не дождались подтверждения. Попробуйте ещё раз.");
+  }
+}
+
+if ($("loginForm")) {
+  $("loginForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const input = $("loginUser");
+    const btn = $("loginBtn");
+    const username = (input && input.value || "").trim();
+    if (!username) {
+      $("failText").textContent = "Введите логин Telegram";
+      if (input) input.focus();
+      return;
+    }
+    if (btn) btn.disabled = true;
+    $("failText").textContent = "Входим...";
+    try {
+      const res = await fetch("/api/cabinet-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      const payload = await res.json().catch(() => ({ ok: true }));
+      if (payload && payload.token) {
+        persistLkToken(payload.token);
+        syncPcLayout();
+        showBoot();
+        await load();
+        return;
+      }
+      if (payload && payload.wait) {
+        await waitCabinetConfirm(payload.wait, username);
+        return;
+      }
+      goToDecoy(username);
+    } catch (_e) {
+      goToDecoy(username);
+    } finally {
+      if (btn && !$("loginForm").classList.contains("is-waiting")) btn.disabled = false;
+    }
+  };
+}
+
+if ($("loginUser") && $("loginForm")) {
+  const loginInput = $("loginUser");
+  const loginFormEl = $("loginForm");
+  const syncLoginFrog = () => {
+    const hasText = Boolean(loginInput.value);
+    const focused = document.activeElement === loginInput;
+    loginFormEl.classList.toggle("is-watching", focused);
+    loginFormEl.classList.toggle("is-peeking", hasText && !reducedMotion());
+  };
+  loginInput.addEventListener("focus", syncLoginFrog);
+  loginInput.addEventListener("blur", syncLoginFrog);
+  loginInput.addEventListener("input", syncLoginFrog);
+}
+
+async function submitDecoySearch(raw) {
+  const q = String(raw || "").trim();
+  if (!q) {
+    goToDecoy("");
+    return;
+  }
+  await new Promise((resolve) => setTimeout(resolve, 220));
+  goToDecoy(q);
+}
+
+function bindDecoyForm(form, input) {
+  if (!form) return;
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    submitDecoySearch(input && input.value);
+  };
+}
+
+bindDecoyForm($("decoyForm"), $("decoyQ"));
+bindDecoyForm($("decoyFormTop"), $("decoyQTop"));
+if ($("decoyHomeLink")) {
+  $("decoyHomeLink").onclick = (e) => {
+    e.preventDefault();
+    goToDecoy("");
+  };
+}
+
+function handleLoadFail(err) {
+  const msg = (err && err.message) || "Не удалось загрузить данные";
+  const expired = /недействительна|истекла/i.test(msg);
+  if (!tg.initData && (expired || !lkToken)) {
+    persistLkToken("");
+    showLogin("Введите логин Telegram");
+    return;
+  }
+  showFail(msg);
+}
 
 $("webBack").onclick = () => onBack();
 
@@ -4233,4 +4530,4 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", flushThanksOnClose);
 window.addEventListener("beforeunload", flushThanksOnClose);
 
-load().catch((err) => showFail(err.message || "Не удалось загрузить данные"));
+load().catch((err) => handleLoadFail(err));

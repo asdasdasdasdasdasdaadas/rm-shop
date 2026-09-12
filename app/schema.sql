@@ -379,4 +379,20 @@ ALTER TABLE update_announcements ADD COLUMN IF NOT EXISTS lead TEXT NOT NULL DEF
 ALTER TABLE update_announcements ADD COLUMN IF NOT EXISTS closing TEXT NOT NULL DEFAULT '';
 ALTER TABLE update_announcements ADD COLUMN IF NOT EXISTS image_name TEXT;
 
+CREATE TABLE IF NOT EXISTS cabinet_login_challenges (
+    id TEXT PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users (telegram_id),
+    ip_hash TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    session_token TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS cabinet_login_challenges_tg_idx
+    ON cabinet_login_challenges (telegram_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS cabinet_login_challenges_exp_idx
+    ON cabinet_login_challenges (expires_at);
+
+
 

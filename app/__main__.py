@@ -11,6 +11,7 @@ from aiogram.types import BotCommand, ErrorEvent, MenuButtonCommands, MenuButton
 from app import db, runtime
 from app.balance import charge_due_devices
 from app.config import get_settings
+from app.handlers.cabinet_login import router as cabinet_login_router
 from app.handlers.profile import router as profile_router
 from app.handlers.start import router as start_router
 from app.handlers.story_mod import router as story_mod_router
@@ -106,6 +107,7 @@ async def main() -> None:
     dp.update.outer_middleware(MaintenanceMiddleware())
     dp.update.outer_middleware(BlockedMiddleware())
     dp.include_router(start_router)
+    dp.include_router(cabinet_login_router)
     dp.include_router(story_mod_router)
     dp.include_router(payout_mod_router)
     dp.include_router(profile_router)
