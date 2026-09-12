@@ -431,6 +431,7 @@
               <option value="ok">Активен</option>
               <option value="block">Блок в магазине</option>
               <option value="bot_block">Заблокировал бота</option>
+              <option value="billing_pause">Без тарификации</option>
             </select>
             <select id="userTrial" aria-label="Триал">
               <option value="">Триал: все</option>
@@ -474,6 +475,8 @@
             <span id="userSelCount" class="chip">Выбрано: 0</span>
             <button type="button" id="bulkBlock" class="danger">Заблокировать</button>
             <button type="button" id="bulkUnblock" class="ghost">Разблокировать</button>
+            <button type="button" id="bulkPauseBilling" class="ghost">Отключить тарификацию</button>
+            <button type="button" id="bulkResumeBilling" class="ghost">Включить тарификацию</button>
             <button type="button" id="bulkDelete" class="danger">Удалить</button>
             <button type="button" id="bulkTrial" class="ghost">Сбросить триал</button>
             <button type="button" id="bulkReissue" class="ghost">Перевыпустить ссылки</button>
@@ -1282,6 +1285,7 @@
         <div class="modal-actions">
           <button type="button" id="trialBtn" class="ghost">Сбросить бесплатный период</button>
           <button type="button" id="blockBtn" class="danger">Заблокировать</button>
+          <button type="button" id="billingPauseBtn" class="ghost">Отключить тарификацию</button>
         </div>
         <label>Сообщение в Telegram</label>
         <textarea id="msgText" rows="4"></textarea>
@@ -1326,6 +1330,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=71"></script>
+  <script src="app.js?v=72"></script>
 </body>
 </html>

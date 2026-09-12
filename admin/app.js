@@ -1551,7 +1551,7 @@ async function loadUsers(page) {
     tr.appendChild(tdTraffic);
     tr.appendChild(tdText(u.trial_used ? "да" : "нет"));
     tr.appendChild(tdText(fmt(u.expire_at)));
-    tr.appendChild(tdPill(u.blocked_at ? "блок" : (u.bot_blocked_at ? "блок бота" : (u.panel_status || "—"))));
+    tr.appendChild(tdPill(u.blocked_at ? "блок" : (u.bot_blocked_at ? "блок бота" : (u.billing_paused_at ? "без тарифа" : (u.panel_status || "—")))));
     tr.appendChild(tdText(
       u.referred_by
         ? whoLabel(u.referred_by, u.referrer_username, u.referrer_name)
@@ -1829,6 +1829,8 @@ const BILL_KIND = {
   charge: "списание",
   disable: "отключение",
   pause: "пауза",
+  admin_pause: "тариф выкл",
+  admin_resume: "тариф вкл",
   revive: "включение",
   trial: "триал",
   admin_balance: "баланс",
@@ -2754,8 +2756,7 @@ function collectNotices() {
   return out;
 }
 
-function openUser(u) {
-  currentUser = u;
+function paintUserModal(u) {
   $("modalTitle").textContent = u.first_name || String(u.telegram_id);
   $("modalMeta").textContent =
     `ID ${u.telegram_id}` +
@@ -2766,11 +2767,19 @@ function openUser(u) {
       : " · пришёл без рефссылки") +
     ` · пригласил друзей: ${u.invited_count || 0}` +
     (u.blocked_at ? " · заблокирован в магазине" : "") +
-    (u.bot_blocked_at ? " · заблокировал бота" : "");
+    (u.bot_blocked_at ? " · заблокировал бота" : "") +
+    (u.billing_paused_at ? " · тарификация выкл" : "");
   paintModalPaid(u);
   $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
   $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
+  $("billingPauseBtn").textContent = u.billing_paused_at ? "Включить тарификацию" : "Отключить тарификацию";
+  $("billingPauseBtn").className = u.billing_paused_at ? "" : "ghost";
   paintModalOnline(u.last_online_at);
+}
+
+function openUser(u) {
+  currentUser = u;
+  paintUserModal(u);
   setModalPane("act");
   $("modal").classList.remove("hidden");
   loadUserDevices(u.telegram_id);
@@ -2783,21 +2792,7 @@ async function refreshOpenUser() {
   const u = lastUserItems.find((x) => x.telegram_id === currentUser.telegram_id);
   if (!u) return;
   currentUser = u;
-  $("modalTitle").textContent = u.first_name || String(u.telegram_id);
-  $("modalMeta").textContent =
-    `ID ${u.telegram_id}` +
-    (u.username ? ` · @${u.username}` : "") +
-    (u.balance_rub == null ? "" : ` · баланс ${u.balance_rub} рублей`) +
-    (u.referred_by
-      ? ` · пригласил ${whoLabel(u.referred_by, u.referrer_username, u.referrer_name)}`
-      : " · пришёл без рефссылки") +
-    ` · пригласил друзей: ${u.invited_count || 0}` +
-    (u.blocked_at ? " · заблокирован в магазине" : "") +
-    (u.bot_blocked_at ? " · заблокировал бота" : "");
-  paintModalPaid(u);
-  $("blockBtn").textContent = u.blocked_at ? "Разблокировать" : "Заблокировать";
-  $("blockBtn").className = u.blocked_at ? "ghost" : "danger";
-  paintModalOnline(u.last_online_at);
+  paintUserModal(u);
   loadUserDevices(u.telegram_id);
   loadUserBilling(u.telegram_id);
 }
@@ -3172,6 +3167,28 @@ $("bulkUnblock").onclick = () => {
   runBulk(
     { action: "unblock", ids },
     `Разблокировать ${ids.length} пользователей?`
+  );
+};
+$("bulkPauseBilling").onclick = () => {
+  const ids = [...selectedUsers];
+  if (!ids.length) {
+    $("bulkOut").textContent = "Никого не выбрано";
+    return;
+  }
+  runBulk(
+    { action: "pause_billing", ids },
+    `Отключить тарификацию у ${ids.length} пользователей? VPN останется включённым, сутки с баланса не спишутся. Админы пропускаются.`
+  );
+};
+$("bulkResumeBilling").onclick = () => {
+  const ids = [...selectedUsers];
+  if (!ids.length) {
+    $("bulkOut").textContent = "Никого не выбрано";
+    return;
+  }
+  runBulk(
+    { action: "resume_billing", ids },
+    `Включить тарификацию у ${ids.length} пользователей? Сутки снова будут списываться с баланса. Админы пропускаются.`
   );
 };
 $("bulkDelete").onclick = () => {
@@ -3784,6 +3801,20 @@ $("blockBtn").onclick = async () => {
     body: JSON.stringify({ blocked: on }),
   });
   toast(on ? "Заблокирован" : "Разблокирован");
+  await refreshOpenUser();
+};
+$("billingPauseBtn").onclick = async () => {
+  if (!currentUser) return;
+  const on = !currentUser.billing_paused_at;
+  const msg = on
+    ? `Отключить тарификацию ${currentUser.telegram_id}? VPN останется включённым, сутки с баланса не спишутся.`
+    : `Включить тарификацию ${currentUser.telegram_id}? Сутки снова будут списываться с баланса.`;
+  if (!(await confirmAction(on ? "Отключить тарификацию" : "Включить тарификацию", msg))) return;
+  await api(`/admin/api/users/${currentUser.telegram_id}/billing-pause`, {
+    method: "POST",
+    body: JSON.stringify({ paused: on }),
+  });
+  toast(on ? "Тарификация отключена" : "Тарификация включена");
   await refreshOpenUser();
 };
 $("msgBtn").onclick = async () => {

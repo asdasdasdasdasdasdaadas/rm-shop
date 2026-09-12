@@ -533,6 +533,7 @@ async def api_me(request: web.Request) -> web.Response:
             "days_left": days_left,
             "hours_left": hours_left,
             "billing_active": bool(settings.balance_enabled and billable_raw),
+            "billing_paused": bool((local or {}).get("billing_paused_at")),
             "balance_rub": balance_rub,
             "vpn_day_price_rub": settings.vpn_day_price_rub,
             "pay_crypto": False,

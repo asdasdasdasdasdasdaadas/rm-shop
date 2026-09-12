@@ -1420,6 +1420,34 @@ async def user_is_blocked(telegram_id: int) -> bool:
     return bool(val)
 
 
+async def user_billing_paused(telegram_id: int) -> bool:
+    val = await _pool_req().fetchval(
+        "SELECT billing_paused_at IS NOT NULL FROM users WHERE telegram_id = $1",
+        telegram_id,
+    )
+    return bool(val)
+
+
+async def set_user_billing_paused(telegram_id: int, paused: bool) -> bool:
+    pool = _pool_req()
+    if paused:
+        result = await pool.execute(
+            """
+            UPDATE users
+            SET billing_paused_at = COALESCE(billing_paused_at, $2)
+            WHERE telegram_id = $1
+            """,
+            telegram_id,
+            _utc_now(),
+        )
+    else:
+        result = await pool.execute(
+            "UPDATE users SET billing_paused_at = NULL WHERE telegram_id = $1",
+            telegram_id,
+        )
+    return result == "UPDATE 1"
+
+
 async def set_user_blocked(telegram_id: int, blocked: bool, reason: str | None = None) -> bool:
     pool = _pool_req()
     if blocked:
@@ -1787,15 +1815,17 @@ async def list_router_devices() -> list[dict]:
 async def devices_due_for_billing() -> list[dict]:
     rows = await _pool_req().fetch(
         """
-        SELECT id, telegram_id, title, remnawave_id, remnawave_uuid
-        FROM devices
-        WHERE remnawave_id IS NOT NULL
-          AND COALESCE(kind, '') <> 'router'
-          AND UPPER(COALESCE(panel_status, '')) <> 'DISABLED'
-          AND (last_billed_at IS NULL OR last_billed_at <= timezone('utc', now()) - INTERVAL '24 hours')
-          AND (last_billed_at IS NOT NULL OR last_billed_on IS NULL OR last_billed_on < (timezone('utc', now()))::date)
-          AND telegram_id NOT IN (SELECT telegram_id FROM users WHERE blocked_at IS NOT NULL)
-        ORDER BY id
+        SELECT d.id, d.telegram_id, d.title, d.remnawave_id, d.remnawave_uuid,
+               (u.billing_paused_at IS NOT NULL) AS billing_paused
+        FROM devices d
+        JOIN users u ON u.telegram_id = d.telegram_id
+        WHERE d.remnawave_id IS NOT NULL
+          AND COALESCE(d.kind, '') <> 'router'
+          AND UPPER(COALESCE(d.panel_status, '')) <> 'DISABLED'
+          AND (d.last_billed_at IS NULL OR d.last_billed_at <= timezone('utc', now()) - INTERVAL '24 hours')
+          AND (d.last_billed_at IS NOT NULL OR d.last_billed_on IS NULL OR d.last_billed_on < (timezone('utc', now()))::date)
+          AND u.blocked_at IS NULL
+        ORDER BY d.id
         """
     )
     return [dict(r) for r in rows]
@@ -1828,13 +1858,15 @@ async def devices_needing_revive(*, refresh_hours: int = 36) -> list[dict]:
 async def devices_to_retry_disable() -> list[dict]:
     rows = await _pool_req().fetch(
         """
-        SELECT d.id, d.telegram_id, d.title, d.remnawave_id, d.remnawave_uuid
+        SELECT d.id, d.telegram_id, d.title, d.remnawave_id, d.remnawave_uuid,
+               (u.billing_paused_at IS NOT NULL) AS billing_paused
         FROM devices d
+        JOIN users u ON u.telegram_id = d.telegram_id
         WHERE d.remnawave_id IS NOT NULL
           AND COALESCE(d.kind, '') <> 'router'
           AND UPPER(COALESCE(d.panel_status, '')) <> 'DISABLED'
           AND (d.last_billed_at IS NULL OR d.last_billed_at <= timezone('utc', now()) - INTERVAL '24 hours')
-          AND d.telegram_id NOT IN (SELECT telegram_id FROM users WHERE blocked_at IS NOT NULL)
+          AND u.blocked_at IS NULL
           AND EXISTS (
             SELECT 1
             FROM billing_events e
@@ -2367,6 +2399,8 @@ def _admin_users_filter(query: str, extra: dict | None = None) -> tuple[str, lis
         clauses.append("u.bot_blocked_at IS NOT NULL")
     elif status == "ok":
         clauses.append("u.blocked_at IS NULL AND u.bot_blocked_at IS NULL")
+    elif status == "billing_pause":
+        clauses.append("u.billing_paused_at IS NOT NULL")
     trial = str(extra.get("trial") or "").strip()
     if trial == "yes":
         clauses.append("u.trial_used")

@@ -358,6 +358,7 @@ CREATE INDEX IF NOT EXISTS users_idle_nudge_idx
 DROP TABLE IF EXISTS auto_topups;
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS router_expire_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_paused_at TIMESTAMPTZ;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT '';
 CREATE UNIQUE INDEX IF NOT EXISTS devices_one_router_uidx
     ON devices (telegram_id)

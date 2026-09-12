@@ -477,24 +477,37 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
             rows.sort(key=lambda x: int(x["id"]))
         sem = asyncio.Semaphore(max(1, settings.billing_concurrency))
 
-        async def decide(tg_id: int, devices: list[dict]) -> tuple[list[dict], list[dict]]:
+        async def decide(tg_id: int, devices: list[dict]) -> tuple[list[dict], list[dict], bool]:
             async with sem:
-                return await _decide_user_devices(devices, price, paused)
+                user_paused = paused or any(bool(item.get("billing_paused")) for item in devices)
+                ext, dis = await _decide_user_devices(devices, price, user_paused)
+                return ext, dis, user_paused
 
         keys = list(groups.items())
-        decided: list[tuple[list[dict], list[dict]]] = []
+        decided: list[tuple[list[dict], list[dict], bool]] = []
         for part in _chunks(keys, 400):
             decided.extend(
                 await asyncio.gather(*[decide(tg, rows) for tg, rows in part])
             )
-        extend: list[dict] = []
+        extend_free: list[dict] = []
+        extend_pay: list[dict] = []
         disable: list[dict] = []
-        for ext, dis in decided:
-            extend.extend(ext)
+        for ext, dis, user_paused in decided:
+            if user_paused:
+                extend_free.extend(ext)
+            else:
+                extend_pay.extend(ext)
             disable.extend(dis)
-        extended, extend_mode = await _commit_extends(
-            rw, extend, price=price, paused=paused, source="cron", chunk=chunk
+        extended_free, free_mode = await _commit_extends(
+            rw, extend_free, price=price, paused=True, source="cron", chunk=chunk
         )
+        extended_pay, pay_mode = await _commit_extends(
+            rw, extend_pay, price=price, paused=False, source="cron", chunk=chunk
+        )
+        extended = extended_free + extended_pay
+        extend_mode = free_mode if extended_free else pay_mode
+        if extended_free and extended_pay:
+            extend_mode = f"{free_mode}/{pay_mode}"
         disabled, disable_mode = await _commit_disables(
             rw, disable, bot=bot, price=price, source="cron", chunk=chunk
         )
@@ -554,7 +567,7 @@ async def sync_user_billing(
     if await db.user_is_blocked(telegram_id):
         return result
     price = max(1, settings.vpn_day_price_rub)
-    paused = await db.flag_on("billing_paused")
+    paused = bool(await db.flag_on("billing_paused") or await db.user_billing_paused(telegram_id))
     warned: set[int] = set()
     for item in await db.list_devices(telegram_id):
         if not item.get("remnawave_id"):

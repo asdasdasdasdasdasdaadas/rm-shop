@@ -878,6 +878,30 @@ async def api_block_user(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "blocked": blocked})
 
 
+async def api_user_billing_pause(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    telegram_id = int(request.match_info["telegram_id"])
+    if telegram_id in get_settings().admin_id_set:
+        return web.json_response({"ok": False, "error": "Админу тарификацию не отключают"}, status=400)
+    if not await db.get_user(telegram_id):
+        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    body = await request.json()
+    paused = bool(body.get("paused"))
+    await db.set_user_billing_paused(telegram_id, paused)
+    await db.log_billing_event(
+        telegram_id,
+        "admin_pause" if paused else "admin_resume",
+        source="admin",
+        note="Тарификация отключена админом" if paused else "Тарификация включена админом",
+    )
+    billing = None
+    if not paused:
+        billing = await sync_user_billing(request.app["rw"], telegram_id, request.app.get("bot"))
+    return web.json_response({"ok": True, "paused": paused, "billing": billing})
+
+
 BULK_MAX = 500
 
 
@@ -887,7 +911,17 @@ async def api_users_bulk(request: web.Request) -> web.Response:
         return denied
     body = await request.json()
     action = str(body.get("action") or "").strip()
-    if action not in {"delete", "trial_reset", "message", "block", "unblock", "reissue", "cabinet_link"}:
+    if action not in {
+        "delete",
+        "trial_reset",
+        "message",
+        "block",
+        "unblock",
+        "reissue",
+        "cabinet_link",
+        "pause_billing",
+        "resume_billing",
+    }:
         return web.json_response({"ok": False, "error": "Неизвестное действие"}, status=400)
     ids: list[int] = []
     if body.get("all_matching"):
@@ -986,6 +1020,21 @@ async def api_users_bulk(request: web.Request) -> web.Response:
                 from app.balance import send_cabinet_link_to
 
                 if await send_cabinet_link_to(bot, telegram_id, force=True, source="manual"):
+                    ok_n += 1
+                else:
+                    failed += 1
+            elif action in {"pause_billing", "resume_billing"}:
+                if telegram_id in get_settings().admin_id_set:
+                    skipped += 1
+                    continue
+                paused = action == "pause_billing"
+                if await db.set_user_billing_paused(telegram_id, paused):
+                    await db.log_billing_event(
+                        telegram_id,
+                        "admin_pause" if paused else "admin_resume",
+                        source="admin",
+                        note="Тарификация отключена админом" if paused else "Тарификация включена админом",
+                    )
                     ok_n += 1
                 else:
                     failed += 1
@@ -1952,6 +2001,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/users/{telegram_id}/cabinet-link", api_cabinet_link)
     app.router.add_post("/admin/api/users/{telegram_id}/delete", api_delete_user)
     app.router.add_post("/admin/api/users/{telegram_id}/block", api_block_user)
+    app.router.add_post("/admin/api/users/{telegram_id}/billing-pause", api_user_billing_pause)
     app.router.add_get("/admin/api/flags", api_flags)
     app.router.add_post("/admin/api/flags", api_flags)
     app.router.add_get("/admin/api/subscriptions/replace", api_replace_subscriptions)

@@ -579,6 +579,14 @@ function paintStatus(me) {
       ? `При текущем расходе баланса хватит примерно на ${remainLabel(me, { running })}.`
       : `Подписка действует ещё ${remainLabel(me, { running })}.`;
   }
+  if (me.balance_enabled && me.billing_paused && running) {
+    setFrog("happy");
+    setGauge(1, "ok");
+    badge.classList.add("hidden");
+    pill.className = "status-pill on";
+    pill.innerHTML = '<span class="dot"></span> Подключено';
+    $("statusNote").textContent = "Тарификация отключена. Сутки с баланса не списываются.";
+  }
   const add = $("ctaAdd");
   const topup = $("topupBtn");
   if (me.balance_enabled && n === 0) {

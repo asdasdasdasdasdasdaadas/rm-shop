@@ -130,6 +130,8 @@ def _guess(local: dict | None, devices: list[dict], panels: list[dict], flags: d
         reasons.append("Сейчас включены техработы")
     if flags.get("billing_paused"):
         reasons.append("Тарификация на паузе")
+    if flags.get("user_billing_paused"):
+        reasons.append("Тарификация отключена этому пользователю")
     if not devices and get_settings().balance_enabled:
         reasons.append("В кабинете нет устройств")
     if local and get_settings().balance_enabled and int(local.get("balance_rub") or 0) <= 0 and devices:
@@ -311,6 +313,10 @@ def _shop_block(local: dict | None, devices: list[dict], flags: dict) -> str:
         _line("last_synced", _human_dt((local or {}).get("last_synced_at"))),
         _line("техработы", flags.get("maintenance")),
         _line("тарификация на паузе", flags.get("billing_paused")),
+        _line(
+            "тарификация пользователя",
+            "выкл" if (local or {}).get("billing_paused_at") else "вкл",
+        ),
         _line("устройств", len(devices)),
     ]
     for item in devices:
@@ -370,6 +376,7 @@ async def submit_vpn_report(
     flags = {
         "maintenance": await db.flag_on("maintenance"),
         "billing_paused": await db.flag_on("billing_paused"),
+        "user_billing_paused": bool((local or {}).get("billing_paused_at")),
         "blocked": bool((local or {}).get("blocked_at")),
     }
     ctx = _clip_context(client_context)
