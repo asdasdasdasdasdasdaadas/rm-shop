@@ -61,8 +61,16 @@ def cabinet_login_keyboard(challenge_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Подтвердить", callback_data=f"lk:y:{challenge_id}"),
-                InlineKeyboardButton(text="Отклонить", callback_data=f"lk:n:{challenge_id}"),
+                InlineKeyboardButton(
+                    text="Подтвердить",
+                    callback_data=f"lk:y:{challenge_id}",
+                    style="success",
+                ),
+                InlineKeyboardButton(
+                    text="Отклонить",
+                    callback_data=f"lk:n:{challenge_id}",
+                    style="danger",
+                ),
             ]
         ]
     )
