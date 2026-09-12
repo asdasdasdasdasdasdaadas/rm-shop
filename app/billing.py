@@ -170,3 +170,38 @@ async def fulfill_rollypay_order(
         user = await grant_plan(int(order["telegram_id"]), order["plan_code"], rw, bot=bot)
         await db.mark_rollypay_paid(order_id)
         return user
+
+
+async def fulfill_sbp_charge(
+    payment: dict,
+    rw: RemnawaveClient,
+    bot: Bot | None = None,
+) -> dict | None:
+    payment_id = str(payment.get("payment_id") or "").strip()
+    sub_id = str(payment.get("subscription_id") or "").strip()
+    if not payment_id or not sub_id:
+        return None
+    lock = await _lock_for(f"sbp:{payment_id}")
+    async with lock:
+        sub = await db.get_sbp_subscription_by_id(sub_id)
+        if not sub:
+            return None
+        telegram_id = int(sub["telegram_id"])
+        amount = int(sub.get("amount_rub") or 0)
+        try:
+            paid = payment.get("amount")
+            if paid not in (None, ""):
+                amount = int(round(float(str(paid).replace(",", "."))))
+        except (TypeError, ValueError):
+            pass
+        if amount < 1:
+            return None
+        if not await db.claim_sbp_charge(payment_id, sub_id, telegram_id, amount):
+            return None
+        code = str(sub.get("shop_plan_code") or "")
+        plan = get_settings().plan_by_code(code)
+        if not plan or int(plan.get("topup_rub") or 0) != amount:
+            code = f"b{amount}"
+        user = await grant_plan(telegram_id, code, rw, bot=bot)
+        await db.mark_sbp_subscription_active(sub_id, payment.get("next_charge_at"))
+        return {"user": user, "telegram_id": telegram_id, "amount": amount}

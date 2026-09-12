@@ -395,5 +395,32 @@ CREATE INDEX IF NOT EXISTS cabinet_login_challenges_tg_idx
 CREATE INDEX IF NOT EXISTS cabinet_login_challenges_exp_idx
     ON cabinet_login_challenges (expires_at);
 
+CREATE TABLE IF NOT EXISTS sbp_subscriptions (
+    merchant_ref TEXT PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users (telegram_id),
+    subscription_id TEXT UNIQUE,
+    plan_id TEXT NOT NULL,
+    interval TEXT NOT NULL,
+    amount_rub INTEGER NOT NULL,
+    shop_plan_code TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    pay_url TEXT,
+    next_charge_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    stopped_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS sbp_subscriptions_user_idx
+    ON sbp_subscriptions (telegram_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS sbp_subscription_charges (
+    payment_id TEXT PRIMARY KEY,
+    subscription_id TEXT NOT NULL,
+    telegram_id BIGINT NOT NULL,
+    amount_rub INTEGER NOT NULL,
+    granted_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
+);
+CREATE INDEX IF NOT EXISTS sbp_subscription_charges_sub_idx
+    ON sbp_subscription_charges (subscription_id, granted_at DESC);
+
 
 

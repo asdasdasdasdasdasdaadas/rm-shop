@@ -3370,6 +3370,71 @@ body.has-main-btn {
   padding: 10px 12px;
 }
 
+.auto-topup {
+  margin-top: 18px;
+  margin-bottom: 8px;
+}
+
+.auto-topup-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  cursor: pointer;
+  user-select: none;
+}
+
+.auto-topup-check input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.auto-topup-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.auto-topup-menu.hidden {
+  display: none;
+}
+
+.auto-topup-menu button {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--panel);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.auto-topup-menu button.on {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.auto-topup-note {
+  margin: 8px 0 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.auto-topup-note.hidden {
+  display: none;
+}
+
 .group {
   background: var(--panel);
   border-radius: var(--radius-lg);

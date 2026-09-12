@@ -1972,6 +1972,128 @@ async def mark_rollypay_paid(order_id: str) -> bool:
     return row is not None
 
 
+async def save_sbp_subscription(
+    *,
+    merchant_ref: str,
+    telegram_id: int,
+    subscription_id: str,
+    plan_id: str,
+    interval: str,
+    amount_rub: int,
+    shop_plan_code: str,
+    pay_url: str,
+) -> None:
+    await _pool_req().execute(
+        """
+        INSERT INTO sbp_subscriptions (
+            merchant_ref, telegram_id, subscription_id, plan_id, interval,
+            amount_rub, shop_plan_code, status, pay_url
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
+        ON CONFLICT (merchant_ref) DO UPDATE SET
+            subscription_id = EXCLUDED.subscription_id,
+            plan_id = EXCLUDED.plan_id,
+            interval = EXCLUDED.interval,
+            amount_rub = EXCLUDED.amount_rub,
+            shop_plan_code = EXCLUDED.shop_plan_code,
+            pay_url = EXCLUDED.pay_url
+        """,
+        merchant_ref,
+        telegram_id,
+        subscription_id,
+        plan_id,
+        interval,
+        amount_rub,
+        shop_plan_code,
+        pay_url,
+    )
+
+
+async def get_sbp_subscription_by_id(subscription_id: str) -> dict | None:
+    row = await _pool_req().fetchrow(
+        "SELECT * FROM sbp_subscriptions WHERE subscription_id = $1",
+        subscription_id,
+    )
+    return _as_dict(row)
+
+
+async def get_sbp_subscription_by_ref(merchant_ref: str) -> dict | None:
+    row = await _pool_req().fetchrow(
+        "SELECT * FROM sbp_subscriptions WHERE merchant_ref = $1",
+        merchant_ref,
+    )
+    return _as_dict(row)
+
+
+async def get_active_sbp_subscription(telegram_id: int) -> dict | None:
+    row = await _pool_req().fetchrow(
+        """
+        SELECT * FROM sbp_subscriptions
+        WHERE telegram_id = $1 AND status IN ('pending', 'active')
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        telegram_id,
+    )
+    return _as_dict(row)
+
+
+async def list_open_sbp_subscriptions(telegram_id: int) -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT * FROM sbp_subscriptions
+        WHERE telegram_id = $1 AND status IN ('pending', 'active')
+        ORDER BY created_at DESC
+        """,
+        telegram_id,
+    )
+    return [_as_dict(r) or {} for r in rows]
+
+
+async def mark_sbp_subscription_active(subscription_id: str, next_charge_at=None) -> None:
+    await _pool_req().execute(
+        """
+        UPDATE sbp_subscriptions
+        SET status = 'active', next_charge_at = COALESCE($2, next_charge_at)
+        WHERE subscription_id = $1 AND status <> 'stopped'
+        """,
+        subscription_id,
+        next_charge_at,
+    )
+
+
+async def mark_sbp_subscription_stopped(subscription_id: str) -> None:
+    await _pool_req().execute(
+        """
+        UPDATE sbp_subscriptions
+        SET status = 'stopped', stopped_at = timezone('utc', now()), next_charge_at = NULL
+        WHERE subscription_id = $1
+        """,
+        subscription_id,
+    )
+
+
+async def claim_sbp_charge(
+    payment_id: str,
+    subscription_id: str,
+    telegram_id: int,
+    amount_rub: int,
+) -> bool:
+    row = await _pool_req().fetchrow(
+        """
+        INSERT INTO sbp_subscription_charges (payment_id, subscription_id, telegram_id, amount_rub)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (payment_id) DO NOTHING
+        RETURNING payment_id
+        """,
+        payment_id,
+        subscription_id,
+        telegram_id,
+        amount_rub,
+    )
+    return row is not None
+
+
 async def use_promo(telegram_id: int, code: str) -> bool:
     try:
         await _pool_req().execute(

@@ -23,7 +23,13 @@ from app.announcements import (
     content_type_for,
     fill_placeholders,
 )
-from app.billing import apply_router_slot, fulfill_rollypay_order, router_panel_until, subscription_issued_text
+from app.billing import (
+    apply_router_slot,
+    fulfill_rollypay_order,
+    fulfill_sbp_charge,
+    router_panel_until,
+    subscription_issued_text,
+)
 from app.config import ROOT, get_settings
 from app.faq import faq_items
 from app.keyboards import (
@@ -58,6 +64,14 @@ from app.remnawave import (
     username_taken,
 )
 from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, resolve_payment_method, verify_webhook
+from app.recurring import (
+    INTERVAL_LABELS,
+    cap_for,
+    interval_ok,
+    plan_for_interval,
+    public_recurring,
+    subscription_plans,
+)
 from app.sync import fetch_panel
 from app.notices import notice_text
 from app.texts import days_text, minutes_text, rub_text
@@ -618,6 +632,14 @@ async def api_me(request: web.Request) -> web.Response:
             },
             "trust": trust,
             "faq": faq_items(),
+            "recurring": public_recurring(
+                await subscription_plans(request.app.get("rp"))
+                if settings.balance_enabled and settings.rollypay_configured
+                else [],
+                await db.get_active_sbp_subscription(telegram_id)
+                if settings.balance_enabled
+                else None,
+            ),
             "vpn_apps": public_vpn_apps(),
             "first_device_thanks_pending": bool((local or {}).get("first_device_thanks_pending")),
             "announcement": _announcement_public(
@@ -776,6 +798,66 @@ async def api_invoice(request: web.Request) -> web.Response:
     plan = settings.plan_by_code(code)
     if not plan:
         return json_error("Тариф не найден")
+    recurring = bool(body.get("recurring"))
+    interval = str(body.get("interval") or "").strip()
+    if recurring:
+        if plan.get("router") or not settings.balance_enabled:
+            return json_error("Автопополнение доступно только для баланса")
+        if not interval_ok(interval):
+            return json_error("Выберите период: раз в месяц, раз в 3 месяца или раз в год")
+        amount = int(plan.get("topup_rub") or 0)
+        if amount < 1:
+            return json_error("Сумма не подходит для автопополнения")
+        if amount > cap_for(interval):
+            return json_error(
+                f"Для периода «{INTERVAL_LABELS[interval]}» сумма не больше {cap_for(interval)} ₽"
+            )
+        rp: RollyPayClient | None = request.app.get("rp")
+        if rp is None or not settings.rollypay_configured:
+            return json_error("Оплата не настроена")
+        plans = await subscription_plans(rp, force=True)
+        scene = plan_for_interval(plans, interval)
+        if not scene:
+            return json_error("Этот период автопополнения ещё не подключён к кассе")
+        if amount > int(scene.get("cap") or cap_for(interval)):
+            return json_error(
+                f"Для периода «{INTERVAL_LABELS[interval]}» сумма не больше {int(scene.get('cap') or cap_for(interval))} ₽"
+            )
+        for old in await db.list_open_sbp_subscriptions(telegram_id):
+            sid = str(old.get("subscription_id") or "")
+            if not sid:
+                continue
+            try:
+                await rp.stop_subscription(sid)
+            except RollyPayError:
+                logger.warning("Не удалось остановить прошлую подписку %s", sid, exc_info=True)
+            await db.mark_sbp_subscription_stopped(sid)
+        merchant_ref = uuid.uuid4().hex
+        try:
+            data = await rp.create_subscription(
+                plan_id=str(scene["id"]),
+                amount_rub=plan["rub_str"],
+                merchant_ref=merchant_ref,
+                idempotency_key=merchant_ref,
+            )
+        except RollyPayError as exc:
+            logger.exception("RollyPay subscription create failed: %s", exc)
+            return json_error("Не удалось создать автопополнение", 502)
+        pay_url = str(data.get("pay_url") or "")
+        subscription_id = str(data.get("id") or data.get("subscription_id") or "")
+        if not pay_url or not subscription_id:
+            return json_error("Не удалось получить ссылку на автопополнение", 502)
+        await db.save_sbp_subscription(
+            merchant_ref=merchant_ref,
+            telegram_id=telegram_id,
+            subscription_id=subscription_id,
+            plan_id=str(scene["id"]),
+            interval=interval,
+            amount_rub=amount,
+            shop_plan_code=code,
+            pay_url=pay_url,
+        )
+        return web.json_response({"ok": True, "pay_url": pay_url, "subscription_id": subscription_id})
     try:
         pay_method = resolve_payment_method(str(body.get("method") or ""))
     except ValueError as exc:
@@ -818,6 +900,28 @@ async def api_invoice(request: web.Request) -> web.Response:
         provider_token="",
     )
     return web.json_response({"ok": True, "invoice_url": link})
+
+
+async def api_recurring_stop(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    rp: RollyPayClient | None = request.app.get("rp")
+    if rp is None:
+        return json_error("Оплата не настроена")
+    stopped = 0
+    for item in await db.list_open_sbp_subscriptions(telegram_id):
+        sid = str(item.get("subscription_id") or "")
+        if not sid:
+            continue
+        try:
+            await rp.stop_subscription(sid)
+        except RollyPayError as exc:
+            logger.exception("Не удалось остановить подписку %s: %s", sid, exc)
+            return json_error("Не удалось отключить автопополнение", 502)
+        await db.mark_sbp_subscription_stopped(sid)
+        stopped += 1
+    return web.json_response({"ok": True, "stopped": stopped})
 
 
 async def api_promo(request: web.Request) -> web.Response:
@@ -1222,10 +1326,48 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
     payment_id = str(event.get("payment_id") or "")
     if not payment_is_paid(event):
         return web.Response(text="OK")
+    rw: RemnawaveClient = request.app["rw"]
+    bot: Bot = request.app["bot"]
     order = await db.get_rollypay_order(order_id) if order_id else None
     if not order and payment_id:
         order = await db.get_rollypay_order_by_payment(payment_id)
     if not order:
+        rp: RollyPayClient | None = request.app.get("rp")
+        payment = dict(event)
+        if rp and payment_id:
+            try:
+                fetched = await rp.get_payment(payment_id)
+                if isinstance(fetched, dict) and fetched:
+                    payment = fetched
+                    payment.setdefault("payment_id", payment_id)
+            except RollyPayError:
+                logger.warning("RollyPay webhook: не прочитать платёж %s", payment_id, exc_info=True)
+        sub_id = str(payment.get("subscription_id") or "")
+        if sub_id:
+            try:
+                granted = await fulfill_sbp_charge(payment, rw, bot=bot)
+            except RemnawaveError as exc:
+                logger.exception("RollyPay recurring fulfill failed: %s", exc)
+                return web.Response(status=500, text="fulfill failed")
+            except ValueError:
+                logger.exception("RollyPay recurring grant failed for %s", payment_id)
+                return web.Response(status=500, text="fulfill failed")
+            if granted and settings.balance_enabled:
+                telegram_id = int(granted["telegram_id"])
+                try:
+                    local = await db.get_user(telegram_id)
+                    can_share = bool(local and local.get("first_online_at"))
+                    await bot.send_message(
+                        telegram_id,
+                        topup_ok_text(
+                            rub_text(int(granted.get("amount") or 0)),
+                            can_share=can_share,
+                        ),
+                        reply_markup=await after_topup_keyboard(telegram_id),
+                    )
+                except Exception:
+                    logger.exception("Не удалось уведомить %s об автопополнении", telegram_id)
+            return web.Response(text="OK")
         logger.warning("RollyPay webhook: unknown order %s / %s", order_id, payment_id)
         return web.Response(text="OK")
     order_id = order["order_id"]
@@ -1304,6 +1446,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/api/announcements/{ann_id}/image", api_announcement_image)
         app.router.add_post("/api/trial", api_trial)
         app.router.add_post("/api/invoice", api_invoice)
+        app.router.add_post("/api/recurring/stop", api_recurring_stop)
         app.router.add_post("/api/promo", api_promo)
         app.router.add_post("/api/devices", api_add_device)
         app.router.add_post("/api/devices/{device_id}/reissue", api_reissue_device)

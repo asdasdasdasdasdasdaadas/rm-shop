@@ -1094,6 +1094,8 @@ let topupMode = "fast";
 let faqFrom = "home";
 let topupCode = "";
 let topupCustomRub = 0;
+let autoTopupOn = false;
+let autoTopupInterval = "month";
 
 const COACH_KEY = "way_home_coach_v2";
 const WIZ_COACH_KEY = "way_wiz_coach_v1";
@@ -1741,6 +1743,80 @@ function applyTopupMode() {
   $("customPanel").classList.toggle("hidden", !custom);
 }
 
+function autoTopupInfo(me) {
+  return (me && me.recurring) || {};
+}
+
+function autoTopupReady(me) {
+  if (screen !== "topup" || !autoTopupOn) return false;
+  if (!me || !me.balance_enabled) return false;
+  const rec = autoTopupInfo(me);
+  if (!rec.available) return false;
+  const plan = currentTopupPlan(me);
+  if (!plan || plan.code === "router" || plan.router) return false;
+  const amount = planRub(plan);
+  if (!amount) return false;
+  const intervals = rec.intervals || [];
+  if (!intervals.some((x) => x.id === autoTopupInterval)) return false;
+  const cap = Number((rec.caps && rec.caps[autoTopupInterval]) || 0);
+  if (cap && amount > cap) return false;
+  return true;
+}
+
+function paintAutoTopup(me) {
+  const box = $("autoTopupBox");
+  const menu = $("autoTopupMenu");
+  const note = $("autoTopupNote");
+  const rec = autoTopupInfo(me);
+  if (!box) return;
+  const show = Boolean(me && me.balance_enabled && rec.available);
+  box.classList.toggle("hidden", !show);
+  if (!show) {
+    autoTopupOn = false;
+    if ($("autoTopupOn")) $("autoTopupOn").checked = false;
+    if (menu) menu.classList.add("hidden");
+    return;
+  }
+  if ($("autoTopupOn")) $("autoTopupOn").checked = autoTopupOn;
+  if (menu) {
+    menu.classList.toggle("hidden", !autoTopupOn);
+    const allowed = new Set((rec.intervals || []).map((x) => x.id));
+    menu.querySelectorAll("button[data-interval]").forEach((btn) => {
+      const id = btn.getAttribute("data-interval");
+      btn.classList.toggle("hidden", !allowed.has(id));
+      btn.classList.toggle("on", autoTopupOn && id === autoTopupInterval);
+    });
+    if (autoTopupOn && !allowed.has(autoTopupInterval)) {
+      autoTopupInterval = (rec.intervals[0] && rec.intervals[0].id) || "month";
+      menu.querySelectorAll("button[data-interval]").forEach((btn) => {
+        btn.classList.toggle("on", btn.getAttribute("data-interval") === autoTopupInterval);
+      });
+    }
+  }
+  if (!note) return;
+  const plan = currentTopupPlan(me);
+  const amount = planRub(plan);
+  const cap = Number((rec.caps && rec.caps[autoTopupInterval]) || 0);
+  const active = rec.active;
+  const lines = [];
+  if (autoTopupOn && cap && amount > cap) {
+    lines.push(`Для этого периода сумма не больше ${cap} ₽.`);
+  } else if (autoTopupOn) {
+    lines.push("Первый платёж подтвердит согласие в СБП, дальше сумма будет списываться сама.");
+  }
+  if (active && (active.status === "active" || active.status === "pending") && active.amount_rub) {
+    const when =
+      active.interval === "quarter"
+        ? "раз в 3 месяца"
+        : active.interval === "year"
+          ? "раз в год"
+          : "раз в месяц";
+    lines.push(`Сейчас подключено: ${active.amount_rub} ₽ ${when}.`);
+  }
+  note.textContent = lines.join(" ");
+  note.classList.toggle("hidden", !lines.length);
+}
+
 function updateTopupCta(me) {
   const plan = currentTopupPlan(me);
   if (!plan) {
@@ -1751,9 +1827,18 @@ function updateTopupCta(me) {
     return;
   }
   const amount = planRub(plan);
-  const label = me.balance_enabled
-    ? `Пополнить на ${amount} ₽`
-    : `Оплатить · ${plan.title}`;
+  const rec = autoTopupReady(me);
+  if (autoTopupOn && screen === "topup" && !rec) {
+    setMain("Сумма больше лимита периода");
+    const btn = $("appMainBtn");
+    if (btn) btn.disabled = true;
+    return;
+  }
+  const label = rec
+    ? `Подключить автопополнение · ${amount} ₽`
+    : me.balance_enabled
+      ? `Пополнить на ${amount} ₽`
+      : `Оплатить · ${plan.title}`;
   setMain(label, async () => {
     haptic();
     setMainBusy(true);
@@ -2555,9 +2640,15 @@ async function startOfferTry() {
 }
 
 async function payPlan(plan) {
+  const rec = autoTopupReady(window.__me);
+  const body = { plan: plan.code };
+  if (rec) {
+    body.recurring = true;
+    body.interval = autoTopupInterval;
+  }
   const inv = await api("/api/invoice", {
     method: "POST",
-    body: JSON.stringify({ plan: plan.code }),
+    body: JSON.stringify(body),
   });
   if (inv.pay_url) {
     tg.openLink(inv.pay_url);
@@ -2638,6 +2729,7 @@ function renderTopup(me) {
       ? `Сейчас устройств: ${nDev}. Чем их больше, тем быстрее уходит баланс.`
       : "Пока нет устройств — баланс не списывается. Оценка дней — как для одного устройства.";
   }
+  paintAutoTopup(me);
   updateTopupCta(me);
 }
 
@@ -3901,6 +3993,23 @@ $("tabCustom").onclick = () => {
   const inp = $("topupAmount");
   if (inp) setTimeout(() => inp.focus(), 50);
 };
+
+if ($("autoTopupOn")) {
+  $("autoTopupOn").onchange = () => {
+    autoTopupOn = Boolean($("autoTopupOn").checked);
+    if (window.__me) renderTopup(window.__me);
+  };
+}
+if ($("autoTopupMenu")) {
+  $("autoTopupMenu").onclick = (e) => {
+    const btn = e.target.closest("button[data-interval]");
+    if (!btn) return;
+    haptic();
+    autoTopupOn = true;
+    autoTopupInterval = btn.getAttribute("data-interval") || "month";
+    if (window.__me) renderTopup(window.__me);
+  };
+}
 
 function paintCustomTopup(me) {
   const min = Number(me.topup_min) || 1;

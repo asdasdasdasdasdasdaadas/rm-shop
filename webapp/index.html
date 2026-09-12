@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=138">
+  <link rel="stylesheet" href="app.css?v=139">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -829,6 +829,18 @@
           <div id="topupStrip" class="pay-strip"></div>
         </div>
       </div>
+      <div id="autoTopupBox" class="auto-topup hidden">
+        <label class="auto-topup-check">
+          <input id="autoTopupOn" type="checkbox">
+          <span>Пополнять автоматически</span>
+        </label>
+        <div id="autoTopupMenu" class="auto-topup-menu hidden">
+          <button type="button" data-interval="month">Раз в месяц</button>
+          <button type="button" data-interval="quarter">Раз в 3 месяца</button>
+          <button type="button" data-interval="year">Раз в год</button>
+        </div>
+        <p id="autoTopupNote" class="auto-topup-note hidden"></p>
+      </div>
     </div>
 
     <div id="view-wizard" class="view hidden">
@@ -1000,6 +1012,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=117"></script>
+  <script src="app.js?v=118"></script>
 </body>
 </html>
