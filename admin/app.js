@@ -7,7 +7,7 @@ let billPage = 1;
 let currentUser = null;
 let selectedUsers = new Set();
 let lastUserItems = [];
-const TABS = ["overview", "users", "referrals", "ads", "orders", "billing", "tickets", "messages", "broadcast", "promo", "backups", "settings"];
+const TABS = ["overview", "users", "referrals", "ads", "orders", "billing", "tickets", "messages", "broadcast", "announcements", "promo", "backups", "settings"];
 const TAB_KEYS = {
   overview: ["dash", "fp", "fs", "fl", "fi", "step"],
   users: ["q", "status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to", "paid"],
@@ -492,6 +492,7 @@ function switchTab(name, opts = {}) {
   if (name === "messages") loadMessages();
   if (name === "backups") loadBackups();
   if (name === "broadcast") loadBroadcastJob();
+  if (name === "announcements") loadAnnouncements();
   if (name === "settings" || name === "promo") loadSettings();
   setNavOpen(false);
 }
@@ -2461,6 +2462,9 @@ async function loadSettings() {
   set("setMaxDev", v.max_devices);
   set("setHwid", v.remnawave_hwid_limit);
   set("setDayPrice", v.vpn_day_price_rub);
+  set("setRouterOn", v.router_enabled);
+  set("setRouterRub", v.router_rub);
+  set("setRouterDays", v.router_days);
   set("setTopMin", v.balance_topup_min);
   set("setTopMax", v.balance_topup_max);
   set("setTopStep", v.balance_topup_step);
@@ -2664,6 +2668,9 @@ async function saveShopSettings(outId) {
     max_devices: num("setMaxDev"),
     remnawave_hwid_limit: num("setHwid"),
     vpn_day_price_rub: num("setDayPrice"),
+    router_enabled: Boolean($("setRouterOn") && $("setRouterOn").checked),
+    router_rub: $("setRouterRub") ? num("setRouterRub") : 490,
+    router_days: $("setRouterDays") ? num("setRouterDays") : 30,
     balance_topup_min: num("setTopMin"),
     balance_topup_max: num("setTopMax"),
     balance_topup_step: num("setTopStep"),
@@ -3347,6 +3354,160 @@ async function loadBroadcastJob() {
   } catch (_e) {
     /* ignore */
   }
+}
+
+function annCollectItems() {
+  return Array.from(document.querySelectorAll("#annItems input"))
+    .map((el) => el.value.trim())
+    .filter(Boolean);
+}
+
+function annPreviewText() {
+  const title = (($("annTitle") && $("annTitle").value) || "").trim() || "Обновление кабинета";
+  const items = annCollectItems();
+  if (!items.length) return title + "\n\n- ";
+  return title + "\n\n" + items.map((x) => "- " + x).join("\n");
+}
+
+function paintAnnPreview() {
+  if ($("annPreview")) $("annPreview").textContent = annPreviewText();
+}
+
+function addAnnItem(value) {
+  const box = $("annItems");
+  if (!box) return;
+  const row = document.createElement("div");
+  row.className = "ann-item";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.maxLength = 160;
+  input.placeholder = "Что добавилось";
+  input.value = value || "";
+  input.oninput = paintAnnPreview;
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "ghost";
+  del.textContent = "Убрать";
+  del.onclick = () => {
+    if (box.children.length <= 1) {
+      input.value = "";
+      paintAnnPreview();
+      return;
+    }
+    row.remove();
+    paintAnnPreview();
+  };
+  row.appendChild(input);
+  row.appendChild(del);
+  box.appendChild(row);
+  paintAnnPreview();
+}
+
+function ensureAnnItems() {
+  const box = $("annItems");
+  if (!box || box.childElementCount) return;
+  addAnnItem("");
+  addAnnItem("");
+  addAnnItem("");
+}
+
+let annPoll = 0;
+
+function paintAnnJob(j) {
+  const out = $("annOut");
+  const btn = $("annSend");
+  if (btn) btn.disabled = !!(j && j.running);
+  if (!out) return;
+  if (j && j.running) {
+    const total = j.total || 0;
+    out.textContent = total
+      ? `Идёт: ${j.sent || 0} из ${total}` + (j.failed ? `, ошибок ${j.failed}` : "")
+      : "Запущено...";
+    return;
+  }
+  if (j && j.message && j.template === "update") out.textContent = j.message;
+}
+
+async function loadAnnouncements() {
+  ensureAnnItems();
+  paintAnnPreview();
+  try {
+    const data = await api("/admin/api/announcements");
+    if ($("annCount")) {
+      $("annCount").textContent = "Уйдёт " + (data.recipients || 0) + " пользователям (все незаблокированные).";
+    }
+    paintAnnJob(data.broadcast || {});
+    const body = $("annRows");
+    if (body) {
+      body.innerHTML = "";
+      const rows = data.items || [];
+      if (!rows.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 3;
+        td.className = "muted";
+        td.textContent = "Пока ничего не отправляли";
+        tr.appendChild(td);
+        body.appendChild(tr);
+      } else {
+        rows.forEach((item) => {
+          const tr = document.createElement("tr");
+          const when = document.createElement("td");
+          when.textContent = fmt(item.created_at);
+          const title = document.createElement("td");
+          title.textContent = item.title || "";
+          const changes = document.createElement("td");
+          changes.textContent = (item.items || []).join("; ");
+          tr.appendChild(when);
+          tr.appendChild(title);
+          tr.appendChild(changes);
+          body.appendChild(tr);
+        });
+      }
+    }
+    const job = data.broadcast || {};
+    if (job.running) {
+      if (annPoll) clearTimeout(annPoll);
+      annPoll = setTimeout(loadAnnouncements, 1000);
+    }
+  } catch (err) {
+    if ($("annOut")) $("annOut").textContent = err.message || "Не удалось загрузить";
+  }
+}
+
+if ($("annAddItem")) {
+  $("annAddItem").onclick = () => addAnnItem("");
+}
+if ($("annTitle")) $("annTitle").oninput = paintAnnPreview;
+if ($("annSend")) {
+  $("annSend").onclick = async () => {
+    const title = (($("annTitle") && $("annTitle").value) || "").trim();
+    const items = annCollectItems();
+    if (!title) {
+      $("annOut").textContent = "Укажите заголовок";
+      return;
+    }
+    if (!items.length) {
+      $("annOut").textContent = "Добавьте хотя бы одно изменение";
+      return;
+    }
+    const n = ($("annCount") && $("annCount").textContent) || "";
+    if (!(await confirmAction("Анонс обновления", "Сообщение уйдёт всем незаблокированным. Отменить рассылку нельзя. " + n))) {
+      return;
+    }
+    $("annOut").textContent = "Запускаю...";
+    try {
+      await api("/admin/api/announcements", {
+        method: "POST",
+        body: JSON.stringify({ title, items }),
+      });
+      toast("Анонс отправляется");
+      loadAnnouncements();
+      loadBroadcastJob();
+    } catch (err) {
+      $("annOut").textContent = err.message;
+    }
+  };
 }
 
 $("broadcastBtn").onclick = async () => {

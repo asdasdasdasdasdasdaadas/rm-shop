@@ -511,6 +511,20 @@ html.is-scrolled .view-head.home-nav .account-row {
   line-height: 1.45;
 }
 
+.update-notice-list {
+  margin: 10px 0 0;
+  padding: 0 0 0 18px;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.update-notice-list li {
+  margin: 0 0 6px;
+}
+.update-notice-list li:last-child {
+  margin-bottom: 0;
+}
+
 .trial-notice .btn {
   width: 100%;
   margin-top: 14px;
@@ -1486,6 +1500,46 @@ html.is-scrolled .view-head.home-nav .account-row {
 }
 .router-banner-art .router-wifi {
   animation: ref-chip-float 3.6s ease-in-out infinite;
+}
+.router-card {
+  margin: 4px 0 16px;
+  padding: 16px 16px 14px;
+  border-radius: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.router-card .k {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.router-card .v {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.router-card .d {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+.router-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.router-link {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  word-break: break-all;
+  color: var(--text-secondary);
 }
 @keyframes ref-frog-bob {
   0%, 100% { transform: translateY(0); }

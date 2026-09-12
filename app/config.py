@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     rollypay_signing_secret: str = ""
     rollypay_test: bool = True
     rollypay_payment_method: str = ""
+    rollypay_crypto_enabled: bool = True
+    rollypay_crypto_method: str = "usdt"
 
     balance_enabled: bool = False
     vpn_day_price_rub: int = 6
@@ -77,6 +79,9 @@ class Settings(BaseSettings):
     billing_bulk_chunk: int = 80
     promo_enabled: bool = True
     promo_codes: str = "TEST:3"
+    router_enabled: bool = True
+    router_rub: int = 490
+    router_days: int = 30
     webapp_enabled: bool = False
     webapp_host: str = "0.0.0.0"
     webapp_port: int = 8080
@@ -163,10 +168,32 @@ class Settings(BaseSettings):
             amount += step
         return result
 
+    def router_plan(self) -> dict | None:
+        if not self.router_enabled or not self.balance_enabled:
+            return None
+        days = max(1, int(self.router_days or 30))
+        try:
+            rub = int(self.router_rub or 0)
+        except (TypeError, ValueError):
+            rub = 0
+        if rub < 1:
+            return None
+        return {
+            "title": f"Роутер {days} дн.",
+            "days": days,
+            "stars": 0,
+            "rub": float(rub),
+            "rub_str": f"{rub:.2f}",
+            "router": True,
+            "topup_rub": 0,
+        }
+
     def plan_by_code(self, code: str) -> dict | None:
         key = str(code or "").strip()
         if not key:
             return None
+        if key == "router":
+            return self.router_plan()
         plan = self.shop_plans.get(key)
         if plan:
             return plan
@@ -193,6 +220,11 @@ class Settings(BaseSettings):
             return 0
         plan = self.plan_by_code(key) or self.plans.get(key)
         if plan:
+            if plan.get("router"):
+                try:
+                    return int(round(float(plan.get("rub") or 0)))
+                except (TypeError, ValueError):
+                    return 0
             raw = plan.get("topup_rub")
             if raw in (None, ""):
                 raw = plan.get("rub")
@@ -248,6 +280,9 @@ SHOP_KEYS = frozenset(
         "balance_topup_step",
         "promo_enabled",
         "promo_codes",
+        "router_enabled",
+        "router_rub",
+        "router_days",
         "plan_1m_rub",
         "plan_3m_rub",
         "plan_6m_rub",

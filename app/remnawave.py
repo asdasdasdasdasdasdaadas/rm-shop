@@ -870,6 +870,19 @@ class RemnawaveClient:
                 raise RemnawaveError("Устройство в панели не найдено")
             return await self.update_user(user, patch)
 
+    async def set_panel_expire(self, panel_user_id: int, expire_at: datetime) -> dict:
+        patch = {
+            "expireAt": iso_expire(expire_at),
+            "status": "ACTIVE",
+        }
+        try:
+            return await self.update_user({"id": panel_user_id}, patch)
+        except RemnawaveError:
+            user = await self.get_user_by_id(panel_user_id)
+            if not user:
+                raise RemnawaveError("Устройство в панели не найдено")
+            return await self.update_user(user, patch)
+
     async def enable_panel_user(self, panel_user_id: int) -> dict:
         user = await self.get_user_by_id(panel_user_id)
         if not user:

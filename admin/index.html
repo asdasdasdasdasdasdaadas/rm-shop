@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="53">
+  <meta name="admin-build" content="55">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=42">
+  <link rel="stylesheet" href="app.css?v=43">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -90,6 +90,10 @@
         <button type="button" data-tab="broadcast" data-title="Рассылка" data-lead="Шаблоны по аудитории или свой текст">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 11l16-6-6 16-2.5-6.5L4 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           <span class="nav-text">Рассылка</span>
+        </button>
+        <button type="button" data-tab="announcements" data-title="Анонсы" data-lead="Что изменилось в кабинете — уходит всем в бот и показывается на главной">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span class="nav-text">Анонсы</span>
         </button>
         <button type="button" data-tab="messages" data-title="Сообщения" data-lead="Рассылки, напоминания и обращения во время техработ">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M5 6h14v10H8l-3 3V6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
@@ -901,6 +905,39 @@
           </div>
         </section>
 
+        <section id="tab-announcements" class="hidden">
+          <div class="panel narrow">
+            <h3>Новое обновление</h3>
+            <p class="muted tight">Заголовок и список изменений. По кнопке уйдёт всем незаблокированным в бот, с кнопкой в кабинет. Последний анонс также покажется на главной, пока человек его не закроет.</p>
+            <label class="ops-label" for="annTitle">Заголовок</label>
+            <input id="annTitle" type="text" maxlength="80" value="Обновление кабинета">
+            <p class="ops-label">Что добавилось</p>
+            <div id="annItems" class="ann-items"></div>
+            <div class="ops">
+              <button type="button" id="annAddItem" class="ghost">Добавить пункт</button>
+            </div>
+            <p id="annCount" class="muted">Получатели: —</p>
+            <div class="chat-preview" id="annPreview">Превью сообщения</div>
+            <button type="button" id="annSend">Отправить всем</button>
+            <p id="annOut" class="muted"></p>
+          </div>
+          <div class="panel">
+            <h3>Отправленные</h3>
+            <div class="table-wrap">
+              <table class="table-as-cards">
+                <thead>
+                  <tr>
+                    <th>Когда</th>
+                    <th>Заголовок</th>
+                    <th>Изменения</th>
+                  </tr>
+                </thead>
+                <tbody id="annRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
         <section id="tab-backups" class="hidden">
           <div class="panel">
             <h3>Автобэкап</h3>
@@ -1025,6 +1062,30 @@
                 <div>
                   <label class="ops-label" for="setTopStep">Шаг</label>
                   <input id="setTopStep" name="balance_topup_step" type="number" min="1" required>
+                </div>
+              </div>
+            </div>
+            <div class="panel shop-balance" id="set-router">
+              <h3>Роутер</h3>
+              <p class="muted tight">Отдельный слот на дом: оплата не идёт на баланс телефонов и не занимает лимит устройств. Один роутер на кабинет.</p>
+              <label class="switch-row">
+                <span>
+                  <strong>Плашка и оплата роутера</strong>
+                  <span class="switch-row-state" data-on="Вкл" data-off="Выкл"></span>
+                </span>
+                <span class="switch-ui">
+                  <input id="setRouterOn" name="router_enabled" type="checkbox">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                </span>
+              </label>
+              <div class="form-grid">
+                <div>
+                  <label class="ops-label" for="setRouterRub">Цена, рубли</label>
+                  <input id="setRouterRub" name="router_rub" type="number" min="1" max="100000">
+                </div>
+                <div>
+                  <label class="ops-label" for="setRouterDays">Срок, дни</label>
+                  <input id="setRouterDays" name="router_days" type="number" min="1" max="365">
                 </div>
               </div>
             </div>
@@ -1250,6 +1311,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=66"></script>
+  <script src="app.js?v=68"></script>
 </body>
 </html>

@@ -259,6 +259,7 @@ function clientById(id) {
 }
 
 function platformLabel(id) {
+  if (id === "router") return "Роутер";
   const p = PLATFORMS.find((x) => x.id === id);
   return p ? p.title : id || "—";
 }
@@ -380,6 +381,9 @@ function step2Hint(platform) {
 }
 
 function platIconSvg(id) {
+  if (id === "router") {
+    return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="11" width="17" height="8" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M7 11V8.2M12 11V6.5M17 11V8.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="15" r="1.1" fill="currentColor"/><circle cx="12" cy="15" r="1.1" fill="currentColor"/><path d="M4.8 7.2a9.2 9.2 0 0 1 14.4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  }
   if (id === "ios") {
     return '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.7 12.7c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.1.8-.7 0-1.7-.7-2.8-.7-1.4.1-2.8.8-3.5 2.1-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.6 2.1 2.7 2.1 1.1 0 1.5-.7 2.8-.7s1.6.7 2.8.7c1.2 0 1.9-1 2.6-2 .8-1.2 1.1-2.3 1.1-2.4 0 0-2.2-.9-2.5-3.6zm-1.6-6.6c.6-.7 1-1.7.9-2.7-.9 0-2 .6-2.6 1.3-.6.6-1.1 1.6-.9 2.6 1 .1 2-.5 2.6-1.2z"/></svg>';
   }
@@ -896,7 +900,7 @@ function replayAnim(el, cls) {
 
 function switchView(id, motion) {
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
-  ["view-home", "view-topup", "view-wizard", "view-device", "view-support", "view-faq", "view-billing", "view-referrals", "view-offer", "view-settings"].forEach((vid) => {
+  ["view-home", "view-topup", "view-wizard", "view-device", "view-router", "view-support", "view-faq", "view-billing", "view-referrals", "view-offer", "view-settings"].forEach((vid) => {
     const el = $(vid);
     const on = vid === id;
     el.classList.toggle("hidden", !on);
@@ -928,6 +932,7 @@ let topupMode = "fast";
 let faqFrom = "home";
 let topupCode = "";
 let topupCustomRub = 0;
+let payMethod = "fiat";
 
 const COACH_KEY = "way_home_coach_v2";
 const WIZ_COACH_KEY = "way_wiz_coach_v1";
@@ -1001,6 +1006,7 @@ function maybeOpenFirstRun(me) {
   if (
     screen === "wizard" ||
     screen === "device" ||
+    screen === "router" ||
     screen === "topup" ||
     screen === "support" ||
     screen === "faq" ||
@@ -1584,8 +1590,8 @@ function updateTopupCta(me) {
   }
   const amount = planRub(plan);
   const label = me.balance_enabled
-    ? `Пополнить на ${amount} ₽`
-    : `Оплатить · ${plan.title}`;
+    ? (payMethod === "crypto" ? `Пополнить криптой · ${amount} ₽` : `Пополнить на ${amount} ₽`)
+    : (payMethod === "crypto" ? `Крипта · ${plan.title}` : `Оплатить · ${plan.title}`);
   setMain(label, async () => {
     haptic();
     setMainBusy(true);
@@ -1630,6 +1636,10 @@ function onBack() {
     openHome();
     return;
   }
+  if (screen === "router") {
+    openHome();
+    return;
+  }
   if (screen === "topup") {
     openHome();
     return;
@@ -1667,8 +1677,9 @@ function onBack() {
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "support" || screen === "faq" || screen === "billing" || screen === "referrals" || screen === "offer" || screen === "settings";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "router" || screen === "topup" || screen === "support" || screen === "faq" || screen === "billing" || screen === "referrals" || screen === "offer" || screen === "settings";
   stopSupportPoll();
+  stopRouterPayPoll();
   screen = "home";
   openDevice = null;
   switchView("view-home", fromStack ? "pop" : "fade");
@@ -2380,7 +2391,7 @@ async function startOfferTry() {
 async function payPlan(plan) {
   const inv = await api("/api/invoice", {
     method: "POST",
-    body: JSON.stringify({ plan: plan.code }),
+    body: JSON.stringify({ plan: plan.code, method: payMethod }),
   });
   if (inv.pay_url) {
     tg.openLink(inv.pay_url);
@@ -2389,6 +2400,16 @@ async function payPlan(plan) {
   tg.openInvoice(inv.invoice_url, (status) => {
     if (status === "paid") load();
   });
+}
+
+function applyPayMethodTabs(me) {
+  const tabs = $("payMethodTabs");
+  if (!tabs) return;
+  const on = Boolean(me && me.pay_crypto);
+  tabs.classList.toggle("hidden", !on);
+  if (!on) payMethod = "fiat";
+  if ($("payFiat")) $("payFiat").classList.toggle("on", payMethod !== "crypto");
+  if ($("payCrypto")) $("payCrypto").classList.toggle("on", payMethod === "crypto");
 }
 
 function renderTopup(me) {
@@ -2400,6 +2421,7 @@ function renderTopup(me) {
   $("topupTabs").classList.toggle("hidden", !canCustom);
   if (!canCustom) topupMode = "fast";
   applyTopupMode();
+  applyPayMethodTabs(me);
   const titleEl = document.querySelector("#view-topup .wiz-title");
   if (titleEl) titleEl.textContent = "Сколько зальём?";
   $("topupHint").textContent = me.balance_enabled
@@ -2482,7 +2504,7 @@ function startWizard(opts) {
   const me = window.__me;
   if (!me || !me.balance_enabled) return;
   const cap = Number(me.max_devices) || 0;
-  const n = (me.devices || []).length;
+  const n = phoneDevices(me).length;
   if (cap > 0 && n >= cap) {
     tg.showAlert("Можно подключить не больше " + cap + " устройств");
     return;
@@ -2908,6 +2930,10 @@ function paintDevice(d) {
 }
 
 function showDevice(d) {
+  if (isRouterDevice(d)) {
+    openRouter();
+    return;
+  }
   haptic();
   screen = "device";
   openDevice = d;
@@ -2966,9 +2992,21 @@ function renderConnect(me) {
   body.appendChild(reissueBtn);
 }
 
+function isRouterDevice(d) {
+  return Boolean(d && (d.kind === "router" || d.platform === "router"));
+}
+
+function phoneDevices(me) {
+  return (me && me.devices ? me.devices : []).filter((d) => !isRouterDevice(d));
+}
+
+function routerDevice(me) {
+  return (me && me.devices ? me.devices : []).find((d) => isRouterDevice(d)) || null;
+}
+
 function devicesKey(me) {
   return (me.devices || [])
-    .map((d) => [d.id, d.title || "", d.active ? 1 : 0, d.client || "", d.platform || ""].join(":"))
+    .map((d) => [d.id, d.title || "", d.active ? 1 : 0, d.client || "", d.platform || "", d.kind || ""].join(":"))
     .join("|") + "|" + String(me.max_devices || 0);
 }
 
@@ -2983,10 +3021,11 @@ function renderDevices(me) {
   }
   block.classList.remove("hidden");
   const n = me.devices.length;
+  const phoneN = phoneDevices(me).length;
   const cap = Number(me.max_devices) || 0;
-  const atCap = cap > 0 && n >= cap;
+  const atCap = cap > 0 && phoneN >= cap;
   $("deviceCount").textContent = cap > 0 ? "· " + n + " из " + cap : "· " + n;
-  $("addDevice").classList.toggle("hidden", n === 0 || atCap);
+  $("addDevice").classList.toggle("hidden", (phoneN === 0 && n === 0) || atCap);
   $("emptyDevices").classList.toggle("hidden", n > 0);
   const body = $("devicesBody");
   body.classList.toggle("hidden", n === 0);
@@ -3011,6 +3050,9 @@ function renderDevices(me) {
     const st = document.createElement("div");
     st.className = "s" + (d.active ? "" : " off");
     st.innerHTML = '<span class="dot"></span>' + (d.active ? "Подключено" : "Неактивно");
+    if (isRouterDevice(d)) {
+      st.innerHTML = '<span class="dot"></span>' + (d.active ? "Роутер · не с баланса" : "Роутер · неактивен");
+    }
     meta.appendChild(title);
     meta.appendChild(st);
     el.appendChild(meta);
@@ -3159,6 +3201,238 @@ function paintRefBanner(me) {
   }
 }
 
+function routerInfo(me) {
+  return (me && me.router) || {};
+}
+
+function fmtRouterDate(iso) {
+  if (!iso) return "";
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleDateString("ru-RU");
+}
+
+function paintRouterCard(me) {
+  const card = $("routerCard");
+  if (!card) return;
+  const r = routerInfo(me);
+  const on = Boolean(me && me.balance_enabled && r.enabled);
+  card.classList.toggle("hidden", !on);
+  if (!on) return;
+  const pill = $("routerCardNote");
+  if (!pill) return;
+  const days = r.days || 30;
+  const rub = r.rub || 0;
+  if (r.active && r.has_device) {
+    const until = fmtRouterDate(r.expire_at);
+    pill.innerHTML = until
+      ? "До <span class=\"ref-banner-amt\">" + until + "</span>"
+      : "Оплачен · в устройствах";
+    return;
+  }
+  if (r.active) {
+    pill.innerHTML = "Оплачен · <span class=\"ref-banner-amt\">создать</span>";
+    return;
+  }
+  pill.innerHTML =
+    "<span class=\"ref-banner-amt\">" + days + " дней</span> · " + rub + " ₽ · не с баланса";
+}
+
+let routerPayPoll = 0;
+
+function stopRouterPayPoll() {
+  if (routerPayPoll) {
+    clearInterval(routerPayPoll);
+    routerPayPoll = 0;
+  }
+}
+
+function armRouterPayPoll() {
+  stopRouterPayPoll();
+  let n = 0;
+  routerPayPoll = setInterval(() => {
+    n += 1;
+    if (n > 40 || screen !== "router") {
+      stopRouterPayPoll();
+      return;
+    }
+    load()
+      .then(() => {
+        const r = window.__me && window.__me.router;
+        if (r && r.active) stopRouterPayPoll();
+      })
+      .catch(() => {});
+  }, 3000);
+}
+
+function openRouter() {
+  const me = window.__me;
+  const r = routerInfo(me);
+  if (!me || !me.balance_enabled || !r.enabled) return;
+  haptic();
+  screen = "router";
+  switchView("view-router", "push");
+  try {
+    tg.BackButton.show();
+  } catch (_e) {}
+  syncWebBack();
+  setMain("");
+  renderRouter(me);
+}
+
+function renderRouter(me) {
+  const r = routerInfo(me);
+  const status = $("routerStatus");
+  const actions = $("routerActions");
+  const lead = $("routerLead");
+  if (!status || !actions) return;
+  const days = r.days || 30;
+  const rub = r.rub || 0;
+  const until = fmtRouterDate(r.expire_at);
+  const device = routerDevice(me);
+  if (lead) {
+    lead.textContent =
+      "Слот на " +
+      days +
+      " дней. Не списывается с баланса телефонов и не занимает лимит устройств. Один роутер на кабинет.";
+  }
+  status.innerHTML = "";
+  const k = document.createElement("div");
+  k.className = "k";
+  const v = document.createElement("div");
+  v.className = "v";
+  const d = document.createElement("div");
+  d.className = "d";
+  if (r.active && device) {
+    k.textContent = "Слот активен";
+    v.textContent = until ? "До " + until : "Оплачен";
+    d.textContent = "Устройство уже в списке. Ссылку вставьте в клиент роутера.";
+  } else if (r.active) {
+    k.textContent = "Слот оплачен";
+    v.textContent = until ? "До " + until : "Можно создать устройство";
+    d.textContent = "Создайте роутер — он появится в устройствах, даже если лимит телефонов заполнен.";
+  } else {
+    k.textContent = "Отдельная оплата";
+    v.textContent = rub + " ₽ за " + days + " дней";
+    d.textContent = "После оплаты создайте устройство и вставьте ссылку в Keenetic, OpenWrt или другой клиент.";
+  }
+  status.appendChild(k);
+  status.appendChild(v);
+  status.appendChild(d);
+  actions.innerHTML = "";
+  if (!r.active) {
+    if (me && me.pay_crypto) {
+      const tabs = document.createElement("div");
+      tabs.className = "pay-tabs";
+      const fiat = document.createElement("button");
+      fiat.type = "button";
+      fiat.className = "pay-tab" + (payMethod !== "crypto" ? " on" : "");
+      fiat.textContent = "Карта или СБП";
+      fiat.onclick = () => {
+        haptic();
+        payMethod = "fiat";
+        renderRouter(me);
+      };
+      const crypto = document.createElement("button");
+      crypto.type = "button";
+      crypto.className = "pay-tab" + (payMethod === "crypto" ? " on" : "");
+      crypto.textContent = "Крипта";
+      crypto.onclick = () => {
+        haptic();
+        payMethod = "crypto";
+        renderRouter(me);
+      };
+      tabs.appendChild(fiat);
+      tabs.appendChild(crypto);
+      actions.appendChild(tabs);
+    }
+    const pay = document.createElement("button");
+    pay.type = "button";
+    pay.className = "btn btn-primary";
+    pay.textContent = payMethod === "crypto" ? "Оплатить криптой · " + rub + " ₽" : "Оплатить " + rub + " ₽";
+    pay.onclick = async () => {
+      haptic();
+      pay.disabled = true;
+      try {
+        await payPlan({ code: "router" });
+        armRouterPayPoll();
+        tg.showAlert("После оплаты вернитесь в кабинет — слот появится сам.");
+      } catch (e) {
+        showErr(e);
+      } finally {
+        pay.disabled = false;
+      }
+    };
+    actions.appendChild(pay);
+    return;
+  }
+  if (!device) {
+    const create = document.createElement("button");
+    create.type = "button";
+    create.className = "btn btn-primary";
+    create.textContent = "Создать устройство";
+    create.onclick = async () => {
+      haptic();
+      create.disabled = true;
+      try {
+        await api("/api/devices", {
+          method: "POST",
+          body: JSON.stringify({ kind: "router", title: "Роутер", platform: "router" }),
+        });
+        await load();
+      } catch (e) {
+        showErr(e);
+      } finally {
+        create.disabled = false;
+      }
+    };
+    actions.appendChild(create);
+    return;
+  }
+  if (device.subscription_url) {
+    const link = document.createElement("div");
+    link.className = "router-link";
+    link.textContent = device.subscription_url;
+    actions.appendChild(link);
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "btn btn-primary";
+    copy.textContent = "Скопировать ссылку";
+    copy.onclick = () => {
+      haptic();
+      navigator.clipboard.writeText(device.subscription_url);
+      tg.showAlert("Ссылка скопирована");
+    };
+    actions.appendChild(copy);
+  }
+  const reissue = document.createElement("button");
+  reissue.type = "button";
+  reissue.className = "btn btn-ghost";
+  reissue.textContent = "Перевыпустить ссылку";
+  reissue.onclick = async () => {
+    await reissueSubscription(device.id);
+    if (screen === "router") renderRouter(window.__me);
+  };
+  actions.appendChild(reissue);
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "btn btn-ghost";
+  del.textContent = "Удалить устройство";
+  del.onclick = async () => {
+    haptic();
+    if (!(await askDeleteDevice())) return;
+    try {
+      await api(`/api/devices/${device.id}`, { method: "DELETE" });
+      lastDevicesKey = "";
+      await load();
+      showToast("Устройство удалено");
+    } catch (e) {
+      showErr(e);
+    }
+  };
+  actions.appendChild(del);
+}
+
 function paintInviteeBonus(me) {
   const el = $("inviteeBonus");
   if (!el) return;
@@ -3169,6 +3443,41 @@ function paintInviteeBonus(me) {
     el.textContent =
       "Вы пришли по ссылке друга. После первого пополнения на баланс ещё " + n + " ₽.";
   }
+}
+
+const ANNOUNCE_KEY = "way_announce_seen_v1";
+
+function seenAnnouncementId() {
+  try {
+    return Number(localStorage.getItem(ANNOUNCE_KEY) || 0) || 0;
+  } catch (_e) {
+    return 0;
+  }
+}
+
+function markAnnouncementSeen(id) {
+  try {
+    localStorage.setItem(ANNOUNCE_KEY, String(id || 0));
+  } catch (_e) {}
+}
+
+function paintUpdateNotice(me) {
+  const el = $("updateNotice");
+  if (!el) return;
+  const a = me && me.announcement;
+  const id = a && Number(a.id);
+  const items = (a && a.items) || [];
+  const show = Boolean(id && items.length && id !== seenAnnouncementId());
+  el.classList.toggle("hidden", !show);
+  if (!show) return;
+  $("updateNoticeTitle").textContent = a.title || "Обновление кабинета";
+  const list = $("updateNoticeItems");
+  list.innerHTML = "";
+  items.forEach((text) => {
+    const li = document.createElement("li");
+    li.textContent = text;
+    list.appendChild(li);
+  });
 }
 
 function paintTrialNotice(me) {
@@ -3192,6 +3501,8 @@ function paint(me) {
   paintTrialNotice(me);
   paintInviteeBonus(me);
   paintRefBanner(me);
+  paintRouterCard(me);
+  paintUpdateNotice(me);
   $("invite").textContent = me.invite_url;
   paintPayout(me);
   if (screen === "referrals") paintReferrals(me);
@@ -3272,6 +3583,7 @@ function paint(me) {
     }
   }
   if (screen === "topup") renderTopup(me);
+  if (screen === "router") renderRouter(me);
   if (firstRunBusy) return;
   if (!$("intro").classList.contains("hidden")) return;
   if (shouldShowIntro()) showIntro(me);
@@ -3364,6 +3676,29 @@ $("tabCustom").onclick = () => {
   if (inp) setTimeout(() => inp.focus(), 50);
 };
 
+if ($("payFiat")) {
+  $("payFiat").onclick = () => {
+    haptic();
+    payMethod = "fiat";
+    if (window.__me) {
+      applyPayMethodTabs(window.__me);
+      if (screen === "topup") updateTopupCta(window.__me);
+      if (screen === "router") renderRouter(window.__me);
+    }
+  };
+}
+if ($("payCrypto")) {
+  $("payCrypto").onclick = () => {
+    haptic();
+    payMethod = "crypto";
+    if (window.__me) {
+      applyPayMethodTabs(window.__me);
+      if (screen === "topup") updateTopupCta(window.__me);
+      if (screen === "router") renderRouter(window.__me);
+    }
+  };
+}
+
 function paintCustomTopup(me) {
   const min = Number(me.topup_min) || 1;
   const max = Number(me.topup_max) || min;
@@ -3423,6 +3758,16 @@ $("trialNoticeClose").onclick = (e) => {
   if (window.__me) paint(window.__me);
 };
 
+if ($("updateNoticeClose")) {
+  $("updateNoticeClose").onclick = (e) => {
+    e.stopPropagation();
+    haptic();
+    const id = window.__me && window.__me.announcement && window.__me.announcement.id;
+    markAnnouncementSeen(id);
+    if (window.__me) paintUpdateNotice(window.__me);
+  };
+}
+
 $("trialNoticeAct").onclick = () => {
   haptic();
   startWizard();
@@ -3462,6 +3807,15 @@ if ($("refHomeCard")) {
       e.preventDefault();
       haptic();
       openReferrals();
+    }
+  };
+}
+if ($("routerCard")) {
+  $("routerCard").onclick = () => openRouter();
+  $("routerCard").onkeydown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openRouter();
     }
   };
 }

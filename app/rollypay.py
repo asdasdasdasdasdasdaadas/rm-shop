@@ -13,12 +13,40 @@ from app.config import get_settings
 
 logger = logging.getLogger("rm-shop.rollypay")
 
-__all__ = ["RollyPayClient", "RollyPayError", "payment_is_paid", "verify_webhook"]
+__all__ = [
+    "RollyPayClient",
+    "RollyPayError",
+    "payment_is_paid",
+    "resolve_payment_method",
+    "verify_webhook",
+]
 
 
 def payment_is_paid(payment: dict | None) -> bool:
     status = str((payment or {}).get("status") or "").lower()
     return status in {"paid", "succeeded"}
+
+
+_CRYPTO_METHODS = frozenset({"usdt", "btc", "eth", "ton", "crypto"})
+_FIAT_METHODS = frozenset({"sbp", "card", "fiat"})
+
+
+def resolve_payment_method(choice: str | None = None) -> str | None:
+    settings = get_settings()
+    raw = str(choice or "").strip().lower()
+    if raw in _CRYPTO_METHODS:
+        if not settings.rollypay_crypto_enabled:
+            raise ValueError("Оплата криптой выключена")
+        if raw == "crypto":
+            method = str(settings.rollypay_crypto_method or "usdt").strip().lower()
+            return method or "usdt"
+        return raw
+    if raw in _FIAT_METHODS or not raw:
+        if raw in {"sbp", "card"}:
+            return raw
+        method = str(settings.rollypay_payment_method or "").strip()
+        return method or None
+    raise ValueError("Неизвестный способ оплаты")
 
 
 def _clean_key(raw: str) -> str:
@@ -68,6 +96,7 @@ class RollyPayClient:
         description: str,
         customer_id: str,
         metadata: dict | None,
+        payment_method: str | None,
     ) -> dict[str, Any]:
         settings = get_settings()
         payload: dict[str, Any] = {
@@ -78,7 +107,7 @@ class RollyPayClient:
             "customer_id": customer_id,
             "metadata": metadata or {},
         }
-        method = (settings.rollypay_payment_method or "").strip()
+        method = (payment_method or "").strip() or None
         if method:
             payload["payment_method"] = method
         redirect = (settings.webapp_public_url or "").rstrip("/")
@@ -97,6 +126,7 @@ class RollyPayClient:
         description: str,
         customer_id: str,
         metadata: dict | None = None,
+        payment_method: str | None = None,
     ) -> dict:
         payload = self._payload(
             amount_rub=amount_rub,
@@ -104,6 +134,13 @@ class RollyPayClient:
             description=description,
             customer_id=customer_id,
             metadata=metadata,
+            payment_method=payment_method,
+        )
+        logger.info(
+            "RollyPay create order=%s method=%s amount=%s",
+            order_id,
+            payload.get("payment_method") or "default",
+            amount_rub,
         )
 
         def _create() -> dict:

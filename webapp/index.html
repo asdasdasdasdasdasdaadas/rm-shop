@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=120">
+  <link rel="stylesheet" href="app.css?v=123">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -345,6 +345,13 @@
         <button type="button" id="trialNoticeAct" class="btn btn-primary">Получить</button>
       </div>
       <p id="inviteeBonus" class="section-note invitee-bonus hidden"></p>
+
+      <div id="updateNotice" class="trial-notice hidden" role="status">
+        <button type="button" id="updateNoticeClose" class="trial-notice-close" aria-label="Закрыть"></button>
+        <div class="trial-notice-kicker">Обновление</div>
+        <div id="updateNoticeTitle" class="trial-notice-title"></div>
+        <ul id="updateNoticeItems" class="update-notice-list"></ul>
+      </div>
 
       <div class="home-col home-col-main">
       <div id="devicesBlock" class="section">
@@ -739,6 +746,10 @@
           <div id="topupStrip" class="pay-strip"></div>
         </div>
       </div>
+      <div id="payMethodTabs" class="pay-tabs hidden">
+        <button type="button" id="payFiat" class="pay-tab on">Карта или СБП</button>
+        <button type="button" id="payCrypto" class="pay-tab">Крипта</button>
+      </div>
     </div>
 
     <div id="view-wizard" class="view hidden">
@@ -754,6 +765,35 @@
       <p id="wizLead" class="topup-hint"></p>
       <div id="wizBody"></div>
       <p id="wizHint" class="section-note"></p>
+    </div>
+
+    <div id="view-router" class="view hidden">
+      <div class="view-head">
+        <p class="wiz-kicker">Роутер</p>
+        <h1 class="wiz-title">На весь дом</h1>
+        <p id="routerLead" class="section-note">Отдельный слот на срок. Не списывается с баланса телефонов и не занимает лимит устройств. Один роутер на кабинет.</p>
+      </div>
+      <div id="routerStatus" class="router-card"></div>
+      <div id="routerActions" class="router-actions"></div>
+      <div class="section-title-plain">Как подключить</div>
+      <div class="section ref-faq">
+        <details open>
+          <summary>Ссылка из кабинета</summary>
+          <p>После оплаты создайте устройство на этом экране. Скопируйте ссылку подписки и вставьте её в VPN-клиент роутера. Телефоны и компьютеры за роутером ходят уже через него, отдельно их добавлять не нужно.</p>
+        </details>
+        <details>
+          <summary>Keenetic</summary>
+          <p>Интернет-фильтры → Другие протоколы → добавить подписку. Вставьте ссылку, сохраните и примените профиль к домашней сети. Если пункта нет, обновите прошивку Keenetic.</p>
+        </details>
+        <details>
+          <summary>OpenWrt</summary>
+          <p>PassWall, HomeProxy или OpenClash: тип «подписка», вставьте ссылку, обновите список узлов и включите проксирование LAN.</p>
+        </details>
+        <details>
+          <summary>Другой роутер</summary>
+          <p>Подойдёт любой клиент, который принимает ссылку подписки (Clash, Sing-box, Xray). Вставьте её в настройки VPN на самом роутере, не в телефоне.</p>
+        </details>
+      </div>
     </div>
 
     <div id="view-device" class="view hidden">
@@ -881,6 +921,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=97"></script>
+  <script src="app.js?v=100"></script>
 </body>
 </html>

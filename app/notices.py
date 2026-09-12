@@ -190,6 +190,11 @@ DEFAULT_NOTICES: dict[str, str] = {
         "С баланса списано <b>{amount}</b>."
     ),
     "topup_ok": "Баланс пополнен на {amount}.",
+    "router_ok": (
+        "Роутер оплачен на {days} дн., до {expire}. "
+        "Откройте кабинет: создайте устройство и вставьте ссылку в настройки роутера. "
+        "С баланса телефонов эта сумма не списывается."
+    ),
     "subscription_issued": (
         "<b>{title}</b>\n\n"
         "Действует до: <b>{expire}</b>{sub_block}"
@@ -246,6 +251,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "referral_payout_rejected", "title": "Реферал: выплата отклонена", "hint": "{amount}"},
     {"key": "referral_clawback", "title": "Реферал: возврат за блок бота", "hint": "{name} {amount}"},
     {"key": "topup_ok", "title": "Баланс пополнен", "hint": "{amount}"},
+    {"key": "router_ok", "title": "Роутер оплачен", "hint": "{amount} {days} {expire}"},
     {"key": "subscription_issued", "title": "Подписка оформлена", "hint": "{title} {expire} {sub_block}"},
     {"key": "sub_reissued", "title": "Ссылка подписки перевыпущена", "hint": "{links}"},
     {"key": "blocked", "title": "Пользователь заблокирован", "hint": ""},

@@ -452,6 +452,8 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
             return share_keyboard(settings.bot_username, telegram_id)
         if tpl == "unused":
             return cabinet_keyboard()
+        if tpl == "update":
+            return cabinet_keyboard()
         return None
     if kind == "nudge_invite":
         return share_keyboard(settings.bot_username, telegram_id)
@@ -1095,6 +1097,8 @@ def _broadcast_title(template: str) -> str:
         return "Рассылка: пользуются VPN"
     if template == "unused":
         return "Рассылка: не подключались"
+    if template == "update":
+        return "Анонс обновления"
     return "Рассылка"
 
 
@@ -1127,6 +1131,8 @@ def _broadcast_payload(
             name=escape(str(first_name or "друг")),
         )
         return body, cabinet_keyboard()
+    if template == "update":
+        return text, cabinet_keyboard()
     return text, None
 
 
@@ -1247,6 +1253,81 @@ async def api_broadcast(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Нет получателей"}, status=400)
     started = _start_broadcast_job(request.app, text, ids, None)
     return web.json_response({"ok": True, **started, "audiences": audiences})
+
+
+def _announcement_body(title: str, items: list[str]) -> str:
+    lines = [title]
+    if items:
+        lines.append("")
+        lines.extend(f"- {item}" for item in items)
+    return "\n".join(lines).strip()
+
+
+def _clean_announcement(body: dict) -> tuple[str, list[str]]:
+    title = str((body or {}).get("title") or "").strip()
+    if len(title) < 2 or len(title) > 80:
+        raise ValueError("Заголовок: от 2 до 80 символов")
+    raw = (body or {}).get("items")
+    if not isinstance(raw, list):
+        raw = []
+    items: list[str] = []
+    for item in raw:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        if len(text) > 160:
+            raise ValueError("Пункт слишком длинный: до 160 символов")
+        items.append(text)
+        if len(items) >= 12:
+            break
+    if not items:
+        raise ValueError("Добавьте хотя бы одно изменение")
+    return title, items
+
+
+async def api_announcements(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    if request.method == "GET":
+        items = await db.list_update_announcements(30)
+        counts = await db.broadcast_audience_counts()
+        job = _bc_job(request.app)
+        return web.json_response(
+            {
+                "ok": True,
+                "items": items,
+                "recipients": int(counts.get("all") or 0),
+                "broadcast": {
+                    "running": bool(job.get("running")),
+                    "sent": int(job.get("sent") or 0),
+                    "failed": int(job.get("failed") or 0),
+                    "total": int(job.get("total") or 0),
+                    "message": str(job.get("message") or ""),
+                    "template": str(job.get("template") or ""),
+                },
+            }
+        )
+    job = _bc_job(request.app)
+    if job.get("running"):
+        return web.json_response({"ok": False, "error": "Рассылка уже идёт", **job}, status=409)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    try:
+        title, items = _clean_announcement(payload)
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    text = _announcement_body(title, items)
+    if len(text) > 3500:
+        return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
+    ids = await db.list_broadcast_ids("all")
+    if not ids:
+        return web.json_response({"ok": False, "error": "Нет получателей"}, status=400)
+    saved = await db.create_update_announcement(title, items, text)
+    started = _start_broadcast_job(request.app, text, ids, "update")
+    return web.json_response({"ok": True, "announcement": saved, **started})
 
 
 async def api_settings(request: web.Request) -> web.Response:
@@ -1742,6 +1823,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_delete("/admin/api/maintenance/photo", api_maintenance_photo)
     app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
+    app.router.add_get("/admin/api/announcements", api_announcements)
+    app.router.add_post("/admin/api/announcements", api_announcements)
     app.router.add_get("/admin/api/backups", api_backups)
     app.router.add_post("/admin/api/backups", api_backup_create)
     app.router.add_post("/admin/api/backups/restore", api_backup_restore)

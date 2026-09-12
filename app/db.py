@@ -1641,7 +1641,12 @@ async def spend_balance_day(telegram_id: int) -> bool:
 
 async def list_devices(telegram_id: int) -> list[dict]:
     rows = await _pool_req().fetch(
-        "SELECT * FROM devices WHERE telegram_id = $1 ORDER BY id",
+        """
+        SELECT *
+        FROM devices
+        WHERE telegram_id = $1
+        ORDER BY CASE WHEN COALESCE(kind, '') = 'router' THEN 1 ELSE 0 END, id
+        """,
         telegram_id,
     )
     return [dict(r) for r in rows]
@@ -1653,11 +1658,12 @@ async def add_device(
     remnawave_id: int,
     platform: str | None = None,
     client: str | None = None,
+    kind: str | None = None,
 ) -> dict:
     row = await _pool_req().fetchrow(
         """
-        INSERT INTO devices (telegram_id, title, remnawave_id, last_billed_on, last_billed_at, platform, client)
-        VALUES ($1, $2, $3, (timezone('utc', now()))::date, timezone('utc', now()), $4, $5)
+        INSERT INTO devices (telegram_id, title, remnawave_id, last_billed_on, last_billed_at, platform, client, kind)
+        VALUES ($1, $2, $3, (timezone('utc', now()))::date, timezone('utc', now()), $4, $5, $6)
         RETURNING *
         """,
         telegram_id,
@@ -1665,6 +1671,7 @@ async def add_device(
         remnawave_id,
         platform,
         client,
+        str(kind or ""),
     )
     return dict(row) if row else {"title": title, "remnawave_id": remnawave_id}
 
@@ -1695,12 +1702,77 @@ async def device_count(telegram_id: int) -> int:
     return int(val or 0)
 
 
+async def billable_device_count(telegram_id: int) -> int:
+    val = await _pool_req().fetchval(
+        """
+        SELECT COUNT(*)
+        FROM devices
+        WHERE telegram_id = $1
+          AND COALESCE(kind, '') <> 'router'
+        """,
+        telegram_id,
+    )
+    return int(val or 0)
+
+
+async def get_router_device(telegram_id: int) -> dict | None:
+    row = await _pool_req().fetchrow(
+        """
+        SELECT *
+        FROM devices
+        WHERE telegram_id = $1
+          AND kind = 'router'
+        LIMIT 1
+        """,
+        telegram_id,
+    )
+    return _as_dict(row)
+
+
+async def extend_router_expire(telegram_id: int, days: int) -> datetime | None:
+    n = max(1, int(days or 0))
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE users
+        SET router_expire_at =
+            GREATEST(
+                COALESCE(router_expire_at, timezone('utc', now())),
+                timezone('utc', now())
+            ) + ($2::int * INTERVAL '1 day')
+        WHERE telegram_id = $1
+        RETURNING router_expire_at
+        """,
+        telegram_id,
+        n,
+    )
+    if not row:
+        return None
+    return row["router_expire_at"]
+
+
+async def list_router_devices() -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT d.id, d.telegram_id, d.title, d.remnawave_id, d.remnawave_uuid,
+               d.panel_status, u.router_expire_at
+        FROM devices d
+        JOIN users u ON u.telegram_id = d.telegram_id
+        WHERE d.kind = 'router'
+          AND d.remnawave_id IS NOT NULL
+          AND u.blocked_at IS NULL
+        ORDER BY d.id
+        """
+    )
+    return [dict(r) for r in rows]
+
+
 async def devices_due_for_billing() -> list[dict]:
     rows = await _pool_req().fetch(
         """
         SELECT id, telegram_id, title, remnawave_id, remnawave_uuid
         FROM devices
         WHERE remnawave_id IS NOT NULL
+          AND COALESCE(kind, '') <> 'router'
           AND UPPER(COALESCE(panel_status, '')) <> 'DISABLED'
           AND (last_billed_at IS NULL OR last_billed_at <= timezone('utc', now()) - INTERVAL '24 hours')
           AND (last_billed_at IS NOT NULL OR last_billed_on IS NULL OR last_billed_on < (timezone('utc', now()))::date)
@@ -1719,6 +1791,7 @@ async def devices_needing_revive(*, refresh_hours: int = 36) -> list[dict]:
         FROM devices d
         JOIN users u ON u.telegram_id = d.telegram_id
         WHERE d.remnawave_id IS NOT NULL
+          AND COALESCE(d.kind, '') <> 'router'
           AND u.blocked_at IS NULL
           AND d.last_billed_at IS NOT NULL
           AND d.last_billed_at > timezone('utc', now()) - INTERVAL '24 hours'
@@ -1740,6 +1813,7 @@ async def devices_to_retry_disable() -> list[dict]:
         SELECT d.id, d.telegram_id, d.title, d.remnawave_id, d.remnawave_uuid
         FROM devices d
         WHERE d.remnawave_id IS NOT NULL
+          AND COALESCE(d.kind, '') <> 'router'
           AND UPPER(COALESCE(d.panel_status, '')) <> 'DISABLED'
           AND (d.last_billed_at IS NULL OR d.last_billed_at <= timezone('utc', now()) - INTERVAL '24 hours')
           AND d.telegram_id NOT IN (SELECT telegram_id FROM users WHERE blocked_at IS NOT NULL)
@@ -3111,6 +3185,68 @@ async def list_broadcast_targets(audience: str = "all") -> list[dict]:
 
 async def list_broadcast_ids(audience: str = "all") -> list[int]:
     return [int(r["telegram_id"]) for r in await list_broadcast_targets(audience)]
+
+
+def _announcement_row(row) -> dict | None:
+    if not row:
+        return None
+    data = dict(row)
+    items = data.get("items")
+    if isinstance(items, str):
+        try:
+            items = json.loads(items)
+        except ValueError:
+            items = []
+    if not isinstance(items, list):
+        items = []
+    data["items"] = [str(x).strip() for x in items if str(x).strip()]
+    created = data.get("created_at")
+    if created is not None and hasattr(created, "isoformat"):
+        data["created_at"] = created.isoformat()
+    return data
+
+
+async def create_update_announcement(title: str, items: list[str], body: str) -> dict:
+    row = await _pool_req().fetchrow(
+        """
+        INSERT INTO update_announcements (title, items, body)
+        VALUES ($1, $2::jsonb, $3)
+        RETURNING *
+        """,
+        title,
+        json.dumps(items, ensure_ascii=False),
+        body,
+    )
+    return _announcement_row(row) or {
+        "title": title,
+        "items": items,
+        "body": body,
+    }
+
+
+async def list_update_announcements(limit: int = 30) -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT *
+        FROM update_announcements
+        ORDER BY id DESC
+        LIMIT $1
+        """,
+        max(1, min(100, int(limit))),
+    )
+    return [item for item in (_announcement_row(r) for r in rows) if item]
+
+
+async def latest_update_announcement() -> dict | None:
+    row = await _pool_req().fetchrow(
+        """
+        SELECT *
+        FROM update_announcements
+        ORDER BY id DESC
+        LIMIT 1
+        """
+    )
+    return _announcement_row(row)
 
 
 async def last_vpn_report_at(telegram_id: int):

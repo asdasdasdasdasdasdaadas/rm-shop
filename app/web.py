@@ -18,7 +18,7 @@ from aiogram.utils.web_app import safe_parse_webapp_init_data
 
 from app import db, runtime
 from app.admin import mount_admin
-from app.billing import fulfill_rollypay_order, subscription_issued_text
+from app.billing import apply_router_slot, fulfill_rollypay_order, router_panel_until, subscription_issued_text
 from app.config import ROOT, get_settings
 from app.faq import faq_items
 from app.keyboards import (
@@ -51,7 +51,7 @@ from app.remnawave import (
     panel_lease_until,
     username_taken,
 )
-from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, verify_webhook
+from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, resolve_payment_method, verify_webhook
 from app.sync import fetch_panel
 from app.notices import notice_text
 from app.texts import days_text, minutes_text, rub_text
@@ -66,6 +66,14 @@ logger = logging.getLogger("rm-shop.web")
 WEBAPP_DIR = ROOT / "webapp"
 _PHOTO_TTL = 600.0
 _photo_cache: dict[int, tuple[float, str]] = {}
+
+
+def _is_router_device(item: dict | None) -> bool:
+    if not item:
+        return False
+    return str(item.get("kind") or "").strip().lower() == "router" or str(
+        item.get("platform") or ""
+    ).strip().lower() == "router"
 
 
 def _device_as_panel(item: dict) -> dict:
@@ -353,6 +361,7 @@ async def api_me(request: web.Request) -> web.Response:
                     "expire_at": expire.isoformat() if expire else None,
                     "platform": item.get("platform") or "",
                     "client": item.get("client") or "",
+                    "kind": "router" if _is_router_device(item) else "",
                 }
             )
 
@@ -363,12 +372,19 @@ async def api_me(request: web.Request) -> web.Response:
     if not username and local and local.get("username"):
         nick = str(local["username"])
         username = nick if nick.startswith("@") else f"@{nick}"
-    trust = await trust_info(telegram_id, local, len(devices)) if settings.balance_enabled else None
+    trust = await trust_info(
+        telegram_id, local, sum(1 for d in devices if d.get("kind") != "router")
+    ) if settings.balance_enabled else None
     price = max(1, settings.vpn_day_price_rub)
-    if settings.balance_enabled and devices:
-        hours_money = int(balance_rub) * 24 // (price * len(devices))
+    billable_raw = [item for item in (raw_devices if settings.balance_enabled else []) if not _is_router_device(item)]
+    router_expire = (local or {}).get("router_expire_at") if local else None
+    if router_expire is not None and getattr(router_expire, "tzinfo", None) is None:
+        router_expire = router_expire.replace(tzinfo=timezone.utc)
+    router_active = bool(router_expire and router_expire > datetime.now(timezone.utc))
+    if settings.balance_enabled and billable_raw:
+        hours_money = int(balance_rub) * 24 // (price * len(billable_raw))
         paid = []
-        for item in raw_devices:
+        for item in billable_raw:
             billed = parse_dt(item.get("last_billed_at"))
             if billed:
                 paid.append(_hours_until(billed + timedelta(hours=24)))
@@ -418,13 +434,14 @@ async def api_me(request: web.Request) -> web.Response:
             "days": days,
             "days_left": days_left,
             "hours_left": hours_left,
-            "billing_active": bool(settings.balance_enabled and devices),
+            "billing_active": bool(settings.balance_enabled and billable_raw),
             "balance_rub": balance_rub,
             "vpn_day_price_rub": settings.vpn_day_price_rub,
+            "pay_crypto": bool(settings.rollypay_configured and settings.rollypay_crypto_enabled),
             "traffic_limit_gb": int(settings.remnawave_traffic_limit_gb or 0),
             "max_devices": settings.max_devices,
             "has_access": bool(
-                (settings.balance_enabled and (balance_rub > 0 or devices))
+                (settings.balance_enabled and (balance_rub > 0 or devices or router_active))
                 or days > 0
                 or is_subscription_active(panel)
                 or devices
@@ -492,10 +509,28 @@ async def api_me(request: web.Request) -> web.Response:
             "topup_max": settings.balance_topup_max if settings.balance_enabled else 0,
             "topup_step": settings.balance_topup_step if settings.balance_enabled else 0,
             "devices": devices,
+            "router": {
+                "enabled": bool(settings.balance_enabled and settings.router_enabled),
+                "rub": int(settings.router_rub or 0),
+                "days": int(settings.router_days or 30),
+                "expire_at": router_expire.isoformat() if router_expire else None,
+                "active": router_active,
+                "has_device": any(d.get("kind") == "router" for d in devices),
+            },
             "trust": trust,
             "faq": faq_items(),
             "vpn_apps": public_vpn_apps(),
             "first_device_thanks_pending": bool((local or {}).get("first_device_thanks_pending")),
+            "announcement": (
+                {
+                    "id": int(ann["id"]),
+                    "title": ann.get("title") or "",
+                    "items": ann.get("items") or [],
+                    "created_at": ann.get("created_at"),
+                }
+                if (ann := await db.latest_update_announcement())
+                else None
+            ),
         }
     )
 
@@ -631,6 +666,10 @@ async def api_invoice(request: web.Request) -> web.Response:
     plan = settings.plan_by_code(code)
     if not plan:
         return json_error("Тариф не найден")
+    try:
+        pay_method = resolve_payment_method(str(body.get("method") or ""))
+    except ValueError as exc:
+        return json_error(str(exc))
     if not settings.rollypay_configured and int(plan.get("stars") or 0) < 1:
         return json_error("Эта сумма доступна при оплате в рублях")
     if settings.rollypay_configured:
@@ -644,7 +683,8 @@ async def api_invoice(request: web.Request) -> web.Response:
                 order_id=order_id,
                 description=f"{settings.brand_name}: {plan['title']}",
                 customer_id=str(telegram_id),
-                metadata={"telegram_id": str(telegram_id), "plan": code},
+                metadata={"telegram_id": str(telegram_id), "plan": code, "method": str(body.get("method") or "")},
+                payment_method=pay_method,
             )
         except RollyPayError as exc:
             return json_error("Не удалось создать платёж", 502)
@@ -714,8 +754,68 @@ async def api_add_device(request: web.Request) -> web.Response:
     title = str(body.get("title") or "").strip() or "Устройство"
     platform = str(body.get("platform") or "").strip()[:32] or None
     client = str(body.get("client") or "").strip()[:32] or None
+    kind = str(body.get("kind") or "").strip().lower()
+    if kind == "router":
+        if not settings.router_enabled:
+            return json_error("Роутер выключен")
+        local = await db.get_user(telegram_id)
+        expire = (local or {}).get("router_expire_at") if local else None
+        if expire is not None and getattr(expire, "tzinfo", None) is None:
+            expire = expire.replace(tzinfo=timezone.utc)
+        if not expire or expire <= datetime.now(timezone.utc):
+            return json_error("Сначала оплатите слот роутера")
+        if await db.get_router_device(telegram_id):
+            return json_error("Роутер уже создан")
+        title = str(body.get("title") or "").strip() or "Роутер"
+        rw: RemnawaveClient = request.app["rw"]
+        user = None
+        last_error: RemnawaveError | None = None
+        until = router_panel_until(expire)
+        for _ in range(6):
+            username = f"t{telegram_id}x{secrets.token_hex(4)}"[:36]
+            try:
+                user = await rw.create_user(
+                    telegram_id=None,
+                    expire_at=until,
+                    tag="ROUTER",
+                    username=username,
+                    hwid_limit=settings.remnawave_hwid_limit,
+                    description=f"tg:{telegram_id}:router",
+                )
+                break
+            except RemnawaveError as exc:
+                last_error = exc
+                if not username_taken(exc):
+                    break
+        if user is None:
+            return json_error(str(last_error or "Не удалось создать роутер"), 502)
+        rw_id = int(user["id"])
+        try:
+            await db.add_device(telegram_id, title, rw_id, "router", None, kind="router")
+        except Exception:
+            try:
+                await rw.disable_panel_user(rw_id)
+            except RemnawaveError:
+                pass
+            return json_error("Роутер уже создан")
+        await db.save_device_subscription(rw_id, user)
+        try:
+            await apply_router_slot(rw, telegram_id, expire)
+        except RemnawaveError:
+            pass
+        return web.json_response(
+            {
+                "ok": True,
+                "first_device": False,
+                "subscription_url": user.get("subscriptionUrl") or "",
+                "title": title,
+                "platform": "router",
+                "client": "",
+                "kind": "router",
+            }
+        )
     cap = int(settings.max_devices or 0)
-    device_n = await db.device_count(telegram_id)
+    device_n = await db.billable_device_count(telegram_id)
     was_first = device_n == 0
     if cap > 0 and device_n >= cap:
         return json_error(f"Можно подключить не больше {cap} устройств")
@@ -1030,7 +1130,24 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
         return web.Response(status=500, text="fulfill failed")
     telegram_id = int(order["telegram_id"])
     try:
-        if settings.balance_enabled:
+        if plan.get("router"):
+            local = await db.get_user(telegram_id)
+            exp = (local or {}).get("router_expire_at")
+            if exp is not None and getattr(exp, "tzinfo", None) is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            when = exp.astimezone().strftime("%d.%m.%Y") if exp else "—"
+            await bot.send_message(
+                telegram_id,
+                notice_text(
+                    "router_ok",
+                    amount=rub_text(int(round(float(plan.get("rub") or 0)))),
+                    days=str(int(plan.get("days") or 30)),
+                    expire=when,
+                ),
+                parse_mode=ParseMode.HTML,
+                reply_markup=await after_topup_keyboard(telegram_id),
+            )
+        elif settings.balance_enabled:
             local = await db.get_user(telegram_id)
             can_share = bool(local and local.get("first_online_at"))
             await bot.send_message(

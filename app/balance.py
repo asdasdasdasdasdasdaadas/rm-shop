@@ -505,6 +505,8 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
         if int(item["id"]) not in disable_ids
     ]
     kept, keep_mode = await _commit_keepalives(rw, keep, chunk=chunk)
+    if not maintenance:
+        await _sync_router_slots(rw)
     logger.info(
         "Списание: к оплате %s, продлили %s, отключили %s, поддержали %s",
         len(pending),
@@ -530,6 +532,16 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
     await send_low_balance_cabinet_links(bot)
 
 
+async def _sync_router_slots(rw: RemnawaveClient) -> None:
+    from app.billing import apply_router_slot
+
+    for item in await db.list_router_devices():
+        try:
+            await apply_router_slot(rw, int(item["telegram_id"]), item.get("router_expire_at"))
+        except RemnawaveError:
+            logger.exception("Не удалось синхронизировать роутер %s", item.get("id"))
+
+
 async def sync_user_billing(
     rw: RemnawaveClient,
     telegram_id: int,
@@ -546,6 +558,14 @@ async def sync_user_billing(
     warned: set[int] = set()
     for item in await db.list_devices(telegram_id):
         if not item.get("remnawave_id"):
+            continue
+        if str(item.get("kind") or "") == "router":
+            from app.billing import apply_router_slot
+
+            try:
+                await apply_router_slot(rw, telegram_id)
+            except RemnawaveError:
+                logger.exception("Не удалось синхронизировать роутер %s", item.get("id"))
             continue
         row = {
             "id": item["id"],

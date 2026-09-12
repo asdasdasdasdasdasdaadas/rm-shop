@@ -95,6 +95,18 @@ def validate_shop(body: dict) -> dict:
     if out["balance_topup_max"] < out["balance_topup_min"]:
         raise ValueError("Максимум пополнения не меньше минимума")
     out["promo_enabled"] = bool(body.get("promo_enabled"))
+    if "router_enabled" in body:
+        out["router_enabled"] = bool(body.get("router_enabled"))
+    else:
+        out["router_enabled"] = bool(get_settings().router_enabled)
+    if "router_rub" in body:
+        out["router_rub"] = _as_int(body.get("router_rub"), 1, 100000, "Роутер, рубли")
+    else:
+        out["router_rub"] = int(get_settings().router_rub or 490)
+    if "router_days" in body:
+        out["router_days"] = _as_int(body.get("router_days"), 1, 365, "Роутер, дни")
+    else:
+        out["router_days"] = int(get_settings().router_days or 30)
     codes = str(body.get("promo_codes") or "").strip()
     if len(codes) > 2000:
         raise ValueError("Промокоды слишком длинные")
@@ -158,6 +170,9 @@ def snapshot() -> dict:
             "balance_topup_step": s.balance_topup_step,
             "promo_enabled": s.promo_enabled,
             "promo_codes": s.promo_codes,
+            "router_enabled": s.router_enabled,
+            "router_rub": s.router_rub,
+            "router_days": s.router_days,
             "plan_1m_rub": s.plan_1m_rub,
             "plan_3m_rub": s.plan_3m_rub,
             "plan_6m_rub": s.plan_6m_rub,

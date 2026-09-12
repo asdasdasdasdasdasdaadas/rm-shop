@@ -1690,6 +1690,42 @@ html.sidebar-collapsed nav button.active::before { display: none; }
 #broadcastText[readonly] {
   opacity: 0.85;
 }
+.ann-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.ann-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ann-item input {
+  flex: 1;
+}
+.ann-item .ghost {
+  flex: none;
+  min-width: 40px;
+}
+.ann-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.ann-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ann-item input {
+  flex: 1;
+}
+.ann-item .ghost {
+  flex: none;
+  min-width: 40px;
+}
 .set-nav-select { display: none; width: 100%; margin-bottom: 12px; min-height: 44px; }
 .vpn-app summary {
   cursor: pointer;

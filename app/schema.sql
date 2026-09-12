@@ -357,4 +357,21 @@ CREATE INDEX IF NOT EXISTS users_idle_nudge_idx
 
 DROP TABLE IF EXISTS auto_topups;
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS router_expire_at TIMESTAMPTZ;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX IF NOT EXISTS devices_one_router_uidx
+    ON devices (telegram_id)
+    WHERE kind = 'router';
+
+CREATE TABLE IF NOT EXISTS update_announcements (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    items JSONB NOT NULL DEFAULT '[]',
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
+);
+
+CREATE INDEX IF NOT EXISTS update_announcements_created_idx
+    ON update_announcements (created_at DESC);
+
 

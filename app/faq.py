@@ -38,6 +38,7 @@ def faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
                     "a": (
                         f"Только с устройств, которые вы сами добавили. "
                         f"Сутки одного устройства — {price}. "
+                        "Роутер в этот счёт не входит: у него отдельная оплата на срок. "
                         "Пока устройства нет, деньги лежат. "
                         "Лишние гаджеты лучше не держать — уйдёт быстрее."
                     ),
@@ -100,6 +101,18 @@ def faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
     else:
         why += "Ссылку подписки всегда можно взять или перевыпустить в кабинете."
     items.append({"q": "Чем этот VPN удобнее чужого из чата?", "a": why})
+    if settings.balance_enabled and settings.router_enabled:
+        items.append(
+            {
+                "q": "Как подключить роутер?",
+                "a": (
+                    f"На главной откройте плашку «Роутер». Слот на {settings.router_days} дней "
+                    f"стоит {rub_text(settings.router_rub)}, не списывается с баланса телефонов "
+                    "и не занимает лимит устройств. После оплаты создайте устройство и вставьте "
+                    "ссылку подписки в Keenetic, OpenWrt или другой клиент роутера."
+                ),
+            }
+        )
     if settings.balance_enabled:
         rub = rub_text(settings.referral_reward_rub)
         when_a = (

@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import asyncio
 
+from datetime import datetime, timedelta, timezone
+
 from aiogram import Bot
 
 from app import db
 from app.config import get_settings
 from app.notices import notice_text, sub_block
-from app.remnawave import RemnawaveClient, parse_expire
+from app.remnawave import RemnawaveClient, parse_expire, panel_lease_until
 
 _fulfill_guard = asyncio.Lock()
 _order_locks: dict[str, asyncio.Lock] = {}
@@ -31,6 +33,45 @@ def subscription_issued_text(user: dict, title: str) -> str:
     )
 
 
+def _aware(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if getattr(dt, "tzinfo", None) is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def router_panel_until(expire_at: datetime) -> datetime:
+    now = datetime.now(timezone.utc)
+    exp = _aware(expire_at) or now
+    left = max(2, int((exp - now).total_seconds() // 86400) + 2)
+    return panel_lease_until(min_days=left)
+
+
+async def apply_router_slot(
+    rw: RemnawaveClient,
+    telegram_id: int,
+    expire_at: datetime | None = None,
+) -> None:
+    local = await db.get_user(telegram_id)
+    exp = _aware(expire_at if expire_at is not None else (local or {}).get("router_expire_at"))
+    item = await db.get_router_device(telegram_id)
+    if not item or not item.get("remnawave_id"):
+        return
+    panel_id = int(item["remnawave_id"])
+    now = datetime.now(timezone.utc)
+    if exp and exp > now:
+        until = router_panel_until(exp)
+        await rw.set_panel_expire(panel_id, until)
+        await db.mark_devices_billed([int(item["id"])], status="ACTIVE", expire_at=until, touch_billed=False)
+        return
+    try:
+        await rw.disable_panel_user(panel_id)
+    except Exception:
+        return
+    await db.mark_devices_billed([int(item["id"])], status="DISABLED", touch_billed=False)
+
+
 async def grant_plan(
     telegram_id: int,
     plan_code: str,
@@ -44,7 +85,26 @@ async def grant_plan(
     local = await db.get_user(telegram_id)
     repeat = bool(local and local.get("has_paid_topup"))
     user = None
-    if settings.balance_enabled:
+    amount = 0
+    if plan.get("router"):
+        days = max(1, int(plan.get("days") or settings.router_days or 30))
+        try:
+            amount = int(round(float(plan.get("rub") or 0)))
+        except (TypeError, ValueError):
+            amount = int(settings.router_rub or 0)
+        expire = await db.extend_router_expire(telegram_id, days)
+        await db.log_billing_event(
+            telegram_id,
+            "router",
+            source="pay",
+            amount=amount,
+            note=plan_code,
+        )
+        try:
+            await apply_router_slot(rw, telegram_id, expire)
+        except Exception:
+            pass
+    elif settings.balance_enabled:
         amount = int(plan.get("topup_rub") or 0)
         if amount < 1:
             raise ValueError("unknown plan")
@@ -57,7 +117,6 @@ async def grant_plan(
             note=plan_code,
         )
     else:
-        amount = 0
         try:
             amount = int(round(float(plan.get("rub") or 0)))
         except (TypeError, ValueError):

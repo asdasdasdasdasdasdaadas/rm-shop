@@ -95,7 +95,7 @@ async def take_trust(telegram_id: int) -> dict:
     local = await db.get_user(telegram_id)
     if not local:
         raise ValueError("Пользователь не найден")
-    n = await db.device_count(telegram_id)
+    n = await db.billable_device_count(telegram_id)
     info = await trust_info(telegram_id, local, n)
     if not info["available"]:
         raise ValueError(info["reason"] or "Нельзя взять обещанный платёж")
