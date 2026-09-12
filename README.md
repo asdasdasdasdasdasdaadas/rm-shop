@@ -149,7 +149,7 @@ Deep-link: `https://t.me/<BOT_USERNAME>?start=ref_<telegram_id>`.
 
 `https://<ваш-домен>/webhooks/rollypay`
 
-`ROLLYPAY_TEST=true` — тестовые платежи. На ключе `rpk_live_` флаг игнорируется: иначе страница кассы открывается, а карта и СБП не активируются.
+`ROLLYPAY_TEST=true` — тестовые платежи. На ключе `rpk_live_` флаг игнорируется: иначе страница кассы открывается, а QR СБП не активируется.
 
 Telegram Stars (`STARS_ENABLED`) по умолчанию выключены.
 
@@ -249,7 +249,7 @@ cp .env.example .env
 | `PLAN_*_RUB` | см. `.env.example` | Цены тарифов |
 | `STARS_ENABLED` | `false` | Оплата Stars |
 | `ROLLYPAY_API_URL` | `https://rollypay.io` | API кассы (не `api.rollypay.io`) |
-| `ROLLYPAY_PAYMENT_METHOD` | пусто | `sbp` / `card` или выбор на форме |
+| `ROLLYPAY_PAYMENT_METHOD` | пусто | в кассу всегда уходит `sbp`, как в SDK |
 | `BALANCE_ENABLED` | `false` | Баланс в рублях + устройства |
 | `PROMO_ENABLED` | `true` | Промокоды |
 | `PROMO_CODES` | `TEST:3` | `КОД:дни`, несколько через запятую |

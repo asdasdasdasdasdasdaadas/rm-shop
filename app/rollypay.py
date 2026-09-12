@@ -34,28 +34,13 @@ _CRYPTO_METHODS = frozenset({"usdt", "btc", "eth", "ton", "crypto"})
 _FIAT_METHODS = frozenset({"sbp", "card", "fiat"})
 
 
-def _fiat_method(raw: str) -> str | None:
-    method = str(raw or "").strip().lower()
-    if method in {"sbp", "card"}:
-        return method
-    if method == "fiat":
-        return "sbp"
-    return None
-
-
 def resolve_payment_method(choice: str | None = None) -> str | None:
     raw = str(choice or "").strip().lower()
     if raw in _CRYPTO_METHODS:
         raise ValueError("Оплата криптой недоступна")
-    picked = _fiat_method(raw)
-    if picked:
-        return picked
     if raw and raw not in _FIAT_METHODS:
         raise ValueError("Неизвестный способ оплаты")
-    configured = _fiat_method(get_settings().rollypay_payment_method)
-    if str(get_settings().rollypay_payment_method or "").strip().lower() in _CRYPTO_METHODS:
-        logger.warning("ROLLYPAY_PAYMENT_METHOD указывает на крипту — создаём платёж СБП")
-    return configured or "sbp"
+    return "sbp"
 
 
 def _clean_key(raw: str) -> str:
@@ -127,7 +112,7 @@ class RollyPayClient:
         payment_method: str | None = None,
     ) -> dict:
         settings = get_settings()
-        method = _fiat_method(payment_method) or "sbp"
+        method = "sbp"
         redirect = (settings.webapp_public_url or "").rstrip("/") or None
         sandbox = bool(settings.rollypay_test) and not self._live_key
         if settings.rollypay_test and self._live_key:

@@ -1086,7 +1086,6 @@ let topupMode = "fast";
 let faqFrom = "home";
 let topupCode = "";
 let topupCustomRub = 0;
-let payMethod = "sbp";
 
 const COACH_KEY = "way_home_coach_v2";
 const WIZ_COACH_KEY = "way_wiz_coach_v1";
@@ -1744,10 +1743,9 @@ function updateTopupCta(me) {
     return;
   }
   const amount = planRub(plan);
-  const how = payMethod === "card" ? "картой" : "СБП";
   const label = me.balance_enabled
-    ? `Пополнить ${how} · ${amount} ₽`
-    : `Оплатить ${how} · ${plan.title}`;
+    ? `Пополнить на ${amount} ₽`
+    : `Оплатить · ${plan.title}`;
   setMain(label, async () => {
     haptic();
     setMainBusy(true);
@@ -2551,7 +2549,7 @@ async function startOfferTry() {
 async function payPlan(plan) {
   const inv = await api("/api/invoice", {
     method: "POST",
-    body: JSON.stringify({ plan: plan.code, method: payMethod }),
+    body: JSON.stringify({ plan: plan.code }),
   });
   if (inv.pay_url) {
     tg.openLink(inv.pay_url);
@@ -2560,11 +2558,6 @@ async function payPlan(plan) {
   tg.openInvoice(inv.invoice_url, (status) => {
     if (status === "paid") load();
   });
-}
-
-function applyPayMethodTabs() {
-  if ($("paySbp")) $("paySbp").classList.toggle("on", payMethod !== "card");
-  if ($("payCard")) $("payCard").classList.toggle("on", payMethod === "card");
 }
 
 function renderTopup(me) {
@@ -2576,7 +2569,6 @@ function renderTopup(me) {
   $("topupTabs").classList.toggle("hidden", !canCustom);
   if (!canCustom) topupMode = "fast";
   applyTopupMode();
-  applyPayMethodTabs();
   const titleEl = document.querySelector("#view-topup .wiz-title");
   if (titleEl) titleEl.textContent = "Сколько зальём?";
   $("topupHint").textContent = me.balance_enabled
@@ -3476,33 +3468,10 @@ function renderRouter(me) {
   status.appendChild(d);
   actions.innerHTML = "";
   if (!r.active) {
-    const tabs = document.createElement("div");
-    tabs.className = "pay-tabs";
-    const sbp = document.createElement("button");
-    sbp.type = "button";
-    sbp.className = "pay-tab" + (payMethod !== "card" ? " on" : "");
-    sbp.textContent = "СБП";
-    sbp.onclick = () => {
-      haptic();
-      payMethod = "sbp";
-      renderRouter(me);
-    };
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "pay-tab" + (payMethod === "card" ? " on" : "");
-    card.textContent = "Карта";
-    card.onclick = () => {
-      haptic();
-      payMethod = "card";
-      renderRouter(me);
-    };
-    tabs.appendChild(sbp);
-    tabs.appendChild(card);
-    actions.appendChild(tabs);
     const pay = document.createElement("button");
     pay.type = "button";
     pay.className = "btn btn-primary";
-    pay.textContent = (payMethod === "card" ? "Оплатить картой · " : "Оплатить СБП · ") + rub + " ₽";
+    pay.textContent = "Оплатить " + rub + " ₽";
     pay.onclick = async () => {
       haptic();
       pay.disabled = true;
@@ -3924,29 +3893,6 @@ $("tabCustom").onclick = () => {
   const inp = $("topupAmount");
   if (inp) setTimeout(() => inp.focus(), 50);
 };
-
-if ($("paySbp")) {
-  $("paySbp").onclick = () => {
-    haptic();
-    payMethod = "sbp";
-    applyPayMethodTabs();
-    if (window.__me) {
-      if (screen === "topup") updateTopupCta(window.__me);
-      if (screen === "router") renderRouter(window.__me);
-    }
-  };
-}
-if ($("payCard")) {
-  $("payCard").onclick = () => {
-    haptic();
-    payMethod = "card";
-    applyPayMethodTabs();
-    if (window.__me) {
-      if (screen === "topup") updateTopupCta(window.__me);
-      if (screen === "router") renderRouter(window.__me);
-    }
-  };
-}
 
 function paintCustomTopup(me) {
   const min = Number(me.topup_min) || 1;

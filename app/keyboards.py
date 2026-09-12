@@ -302,16 +302,6 @@ def buy_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def pay_method_keyboard(code: str) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="СБП", callback_data=f"rpm:{code}:sbp", style="success")
-    )
-    builder.row(InlineKeyboardButton(text="Карта", callback_data=f"rpm:{code}:card"))
-    builder.row(InlineKeyboardButton(text="Назад", callback_data="buy"))
-    return builder.as_markup()
-
-
 def pay_keyboard(pay_url: str, order_id: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="Оплатить", url=pay_url, style="success"))
