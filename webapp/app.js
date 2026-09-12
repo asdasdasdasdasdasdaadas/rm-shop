@@ -2071,9 +2071,9 @@ function paintFaq(me) {
   if (!box) return;
   box.innerHTML = "";
   const items = (me && me.faq) || [];
-  items.forEach((item, i) => {
+  items.forEach((item) => {
     const wrap = document.createElement("div");
-    wrap.className = "faq-item" + (i === 0 ? " on" : "");
+    wrap.className = "faq-item";
     const btn = document.createElement("button");
     btn.type = "button";
     const title = document.createElement("span");
