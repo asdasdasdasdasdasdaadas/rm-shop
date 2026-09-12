@@ -41,6 +41,7 @@ from app.shop_config import save_shop_overlay, snapshot as shop_snapshot
 from app.keyboards import (
     blocked_keyboard,
     cabinet_keyboard,
+    help_connect_keyboard,
     share_keyboard,
     story_nudge_keyboard,
     trial_nudge_keyboard,
@@ -479,7 +480,9 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
         return story_nudge_keyboard()
     if kind == "first_device_thanks":
         return cabinet_keyboard()
-    if kind in {"nudge_info", "nudge_device", "nudge_idle", "low_balance", "nudge_first_online", "nudge_trial_end", "welcome_intro"}:
+    if kind == "nudge_device":
+        return help_connect_keyboard()
+    if kind in {"nudge_info", "nudge_idle", "low_balance", "nudge_first_online", "nudge_trial_end", "welcome_intro"}:
         return cabinet_keyboard()
     return None
 

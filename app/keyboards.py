@@ -169,6 +169,35 @@ def faq_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def help_connect_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="Не получается подключиться",
+            callback_data="help:connect",
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="Другая проблема",
+            callback_data="help:other",
+        )
+    )
+    return builder.as_markup()
+
+
+def help_connect_reply_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    add_cabinet_row(builder)
+    builder.row(
+        InlineKeyboardButton(
+            text="Другая проблема",
+            callback_data="help:other",
+        )
+    )
+    return builder.as_markup()
+
+
 def cabinet_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     add_cabinet_row(builder)

@@ -7,7 +7,7 @@ from aiogram import Bot
 
 from app import db
 from app.config import get_settings
-from app.keyboards import cabinet_keyboard, share_keyboard, story_nudge_keyboard, trial_nudge_keyboard
+from app.keyboards import cabinet_keyboard, help_connect_keyboard, share_keyboard, story_nudge_keyboard, trial_nudge_keyboard
 from app.notices import notice_text
 from app.referrals import trial_grant_rub
 from app.texts import days_text, rub_text
@@ -268,7 +268,7 @@ async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
         step = min(3, int(row.get("device_nudge_count") or 0) + 1)
         body = notice_text(f"device_nudge_{step}")
         try:
-            await bot.send_message(telegram_id, body, reply_markup=cabinet_keyboard())
+            await bot.send_message(telegram_id, body, reply_markup=help_connect_keyboard())
             await db.log_bot_message(
                 kind="nudge_device",
                 source="auto",
