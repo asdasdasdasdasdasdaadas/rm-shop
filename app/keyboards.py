@@ -320,15 +320,19 @@ def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = F
     return builder.as_markup()
 
 
-def story_mod_keyboard(telegram_id: int, username: str | None) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
+def _telegram_profile_url(telegram_id: int, username: str | None) -> str:
     handle = (username or "").lstrip("@").strip()
     if handle:
-        builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"https://t.me/{handle}"))
+        return f"https://t.me/{handle}"
+    return f"tg://user?id={int(telegram_id)}"
+
+
+def story_mod_keyboard(telegram_id: int, username: str | None) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="Скопировать ID",
-            copy_text=CopyTextButton(text=str(int(telegram_id))),
+            text="Открыть профиль",
+            url=_telegram_profile_url(telegram_id, username),
         )
     )
     builder.row(
@@ -350,13 +354,10 @@ def payout_mod_keyboard(
     payout_id: int, username: str | None, telegram_id: int
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    handle = (username or "").lstrip("@").strip()
-    if handle:
-        builder.row(InlineKeyboardButton(text="Открыть Telegram", url=f"https://t.me/{handle}"))
     builder.row(
         InlineKeyboardButton(
-            text="Скопировать ID",
-            copy_text=CopyTextButton(text=str(int(telegram_id))),
+            text="Открыть профиль",
+            url=_telegram_profile_url(telegram_id, username),
         )
     )
     builder.row(

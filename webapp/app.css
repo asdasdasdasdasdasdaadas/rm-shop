@@ -1433,6 +1433,60 @@ html.is-scrolled .view-head.home-nav .account-row {
   animation-delay: -1.4s;
   color: var(--text-primary);
 }
+#routerCard .ref-banner-copy {
+  max-width: 52%;
+  padding-right: 0;
+}
+#routerCard .ref-banner-title {
+  font-size: 20px;
+  white-space: nowrap;
+}
+#routerCard .ref-banner-pill {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  margin-top: 10px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft-border);
+  box-shadow: none;
+}
+#routerCard .ref-banner-pill .ref-banner-amt {
+  color: var(--accent);
+}
+.router-banner-art {
+  right: -10px;
+  bottom: -20px;
+  width: 168px;
+  height: 168px;
+}
+.router-banner-art .ref-banner-frog {
+  width: 168px;
+  height: 168px;
+}
+.router-glow {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 210, 122, 0.42) 0%, rgba(95, 214, 139, 0.18) 46%, transparent 72%);
+  pointer-events: none;
+}
+.router-chip-wifi {
+  top: 10px;
+  left: -2px;
+  width: 34px;
+  height: 34px;
+  color: #ffe08a;
+  background: rgba(23, 51, 33, 0.82);
+}
+.router-banner-art .router-wifi {
+  animation: ref-chip-float 3.6s ease-in-out infinite;
+}
 @keyframes ref-frog-bob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
