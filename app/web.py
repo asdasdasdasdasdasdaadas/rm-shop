@@ -463,7 +463,7 @@ async def api_me(request: web.Request) -> web.Response:
             "billing_active": bool(settings.balance_enabled and billable_raw),
             "balance_rub": balance_rub,
             "vpn_day_price_rub": settings.vpn_day_price_rub,
-            "pay_crypto": bool(settings.rollypay_configured and settings.rollypay_crypto_enabled),
+            "pay_crypto": False,
             "traffic_limit_gb": int(settings.remnawave_traffic_limit_gb or 0),
             "max_devices": settings.max_devices,
             "has_access": bool(
@@ -704,7 +704,7 @@ async def api_invoice(request: web.Request) -> web.Response:
     if not plan:
         return json_error("Тариф не найден")
     try:
-        pay_method = resolve_payment_method(str(body.get("method") or ""))
+        pay_method = resolve_payment_method("")
     except ValueError as exc:
         return json_error(str(exc))
     if not settings.rollypay_configured and int(plan.get("stars") or 0) < 1:
@@ -720,7 +720,7 @@ async def api_invoice(request: web.Request) -> web.Response:
                 order_id=order_id,
                 description=f"{settings.brand_name}: {plan['title']}",
                 customer_id=str(telegram_id),
-                metadata={"telegram_id": str(telegram_id), "plan": code, "method": str(body.get("method") or "")},
+                metadata={"telegram_id": str(telegram_id), "plan": code},
                 payment_method=pay_method,
             )
         except RollyPayError as exc:

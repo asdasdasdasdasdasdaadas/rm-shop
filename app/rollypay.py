@@ -32,19 +32,13 @@ _FIAT_METHODS = frozenset({"sbp", "card", "fiat"})
 
 
 def resolve_payment_method(choice: str | None = None) -> str | None:
-    settings = get_settings()
     raw = str(choice or "").strip().lower()
     if raw in _CRYPTO_METHODS:
-        if not settings.rollypay_crypto_enabled:
-            raise ValueError("Оплата криптой выключена")
-        if raw == "crypto":
-            method = str(settings.rollypay_crypto_method or "usdt").strip().lower()
-            return method or "usdt"
-        return raw
+        raise ValueError("Оплата криптой недоступна")
     if raw in _FIAT_METHODS or not raw:
         if raw in {"sbp", "card"}:
             return raw
-        method = str(settings.rollypay_payment_method or "").strip()
+        method = str(get_settings().rollypay_payment_method or "").strip()
         return method or None
     raise ValueError("Неизвестный способ оплаты")
 

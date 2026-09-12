@@ -932,7 +932,6 @@ let topupMode = "fast";
 let faqFrom = "home";
 let topupCode = "";
 let topupCustomRub = 0;
-let payMethod = "fiat";
 
 const COACH_KEY = "way_home_coach_v2";
 const WIZ_COACH_KEY = "way_wiz_coach_v1";
@@ -1590,8 +1589,8 @@ function updateTopupCta(me) {
   }
   const amount = planRub(plan);
   const label = me.balance_enabled
-    ? (payMethod === "crypto" ? `Пополнить криптой · ${amount} ₽` : `Пополнить на ${amount} ₽`)
-    : (payMethod === "crypto" ? `Крипта · ${plan.title}` : `Оплатить · ${plan.title}`);
+    ? `Пополнить на ${amount} ₽`
+    : `Оплатить · ${plan.title}`;
   setMain(label, async () => {
     haptic();
     setMainBusy(true);
@@ -2391,7 +2390,7 @@ async function startOfferTry() {
 async function payPlan(plan) {
   const inv = await api("/api/invoice", {
     method: "POST",
-    body: JSON.stringify({ plan: plan.code, method: payMethod }),
+    body: JSON.stringify({ plan: plan.code }),
   });
   if (inv.pay_url) {
     tg.openLink(inv.pay_url);
@@ -2400,16 +2399,6 @@ async function payPlan(plan) {
   tg.openInvoice(inv.invoice_url, (status) => {
     if (status === "paid") load();
   });
-}
-
-function applyPayMethodTabs(me) {
-  const tabs = $("payMethodTabs");
-  if (!tabs) return;
-  const on = Boolean(me && me.pay_crypto);
-  tabs.classList.toggle("hidden", !on);
-  if (!on) payMethod = "fiat";
-  if ($("payFiat")) $("payFiat").classList.toggle("on", payMethod !== "crypto");
-  if ($("payCrypto")) $("payCrypto").classList.toggle("on", payMethod === "crypto");
 }
 
 function renderTopup(me) {
@@ -2421,7 +2410,6 @@ function renderTopup(me) {
   $("topupTabs").classList.toggle("hidden", !canCustom);
   if (!canCustom) topupMode = "fast";
   applyTopupMode();
-  applyPayMethodTabs(me);
   const titleEl = document.querySelector("#view-topup .wiz-title");
   if (titleEl) titleEl.textContent = "Сколько зальём?";
   $("topupHint").textContent = me.balance_enabled
@@ -3321,35 +3309,10 @@ function renderRouter(me) {
   status.appendChild(d);
   actions.innerHTML = "";
   if (!r.active) {
-    if (me && me.pay_crypto) {
-      const tabs = document.createElement("div");
-      tabs.className = "pay-tabs";
-      const fiat = document.createElement("button");
-      fiat.type = "button";
-      fiat.className = "pay-tab" + (payMethod !== "crypto" ? " on" : "");
-      fiat.textContent = "Карта или СБП";
-      fiat.onclick = () => {
-        haptic();
-        payMethod = "fiat";
-        renderRouter(me);
-      };
-      const crypto = document.createElement("button");
-      crypto.type = "button";
-      crypto.className = "pay-tab" + (payMethod === "crypto" ? " on" : "");
-      crypto.textContent = "Крипта";
-      crypto.onclick = () => {
-        haptic();
-        payMethod = "crypto";
-        renderRouter(me);
-      };
-      tabs.appendChild(fiat);
-      tabs.appendChild(crypto);
-      actions.appendChild(tabs);
-    }
     const pay = document.createElement("button");
     pay.type = "button";
     pay.className = "btn btn-primary";
-    pay.textContent = payMethod === "crypto" ? "Оплатить криптой · " + rub + " ₽" : "Оплатить " + rub + " ₽";
+    pay.textContent = "Оплатить " + rub + " ₽";
     pay.onclick = async () => {
       haptic();
       pay.disabled = true;
@@ -3719,29 +3682,6 @@ $("tabCustom").onclick = () => {
   const inp = $("topupAmount");
   if (inp) setTimeout(() => inp.focus(), 50);
 };
-
-if ($("payFiat")) {
-  $("payFiat").onclick = () => {
-    haptic();
-    payMethod = "fiat";
-    if (window.__me) {
-      applyPayMethodTabs(window.__me);
-      if (screen === "topup") updateTopupCta(window.__me);
-      if (screen === "router") renderRouter(window.__me);
-    }
-  };
-}
-if ($("payCrypto")) {
-  $("payCrypto").onclick = () => {
-    haptic();
-    payMethod = "crypto";
-    if (window.__me) {
-      applyPayMethodTabs(window.__me);
-      if (screen === "topup") updateTopupCta(window.__me);
-      if (screen === "router") renderRouter(window.__me);
-    }
-  };
-}
 
 function paintCustomTopup(me) {
   const min = Number(me.topup_min) || 1;

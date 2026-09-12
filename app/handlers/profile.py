@@ -15,7 +15,6 @@ from app.keyboards import (
     connect_keyboard,
     faq_keyboard,
     pay_keyboard,
-    pay_method_keyboard,
     share_keyboard,
 )
 from app.remnawave import (
@@ -326,14 +325,6 @@ async def buy_plan(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
     if not plan:
         await ack(callback, "Тариф не найден", alert=True)
         return
-    if settings.rollypay_configured and settings.rollypay_crypto_enabled:
-        await ack(callback)
-        await callback.message.edit_text(
-            f"<b>{plan['title']}</b> — {plan['rub_str']} рублей\n\n"
-            "Как оплатить?",
-            reply_markup=pay_method_keyboard(code),
-        )
-        return
     await _create_plan_invoice(callback, rp, code, "")
 
 
@@ -364,7 +355,7 @@ async def _create_plan_invoice(
             await ack(callback, "Оплата не настроена", alert=True)
             return
         try:
-            pay_method = resolve_payment_method(method)
+            pay_method = resolve_payment_method("")
         except ValueError as exc:
             await ack(callback, str(exc), alert=True)
             return
@@ -376,7 +367,7 @@ async def _create_plan_invoice(
                 order_id=order_id,
                 description=f"{settings.brand_name}: {plan['title']}",
                 customer_id=str(callback.from_user.id),
-                metadata={"telegram_id": str(callback.from_user.id), "plan": code, "method": method},
+                metadata={"telegram_id": str(callback.from_user.id), "plan": code},
                 payment_method=pay_method,
             )
         except RollyPayError:
@@ -396,10 +387,9 @@ async def _create_plan_invoice(
         await db.save_rollypay_order(
             order_id, callback.from_user.id, code, payment_id, pay_url
         )
-        how = "криптой" if str(method).lower() in {"crypto", "usdt", "btc", "eth", "ton"} else "картой или СБП"
         await callback.message.edit_text(
             f"<b>{plan['title']}</b> — {plan['rub_str']} рублей\n\n"
-            f"Оплата {how}. Нажмите «Оплатить», затем вернитесь и нажмите «Проверить оплату».",
+            "Нажмите «Оплатить», затем вернитесь и нажмите «Проверить оплату».",
             reply_markup=pay_keyboard(pay_url, order_id),
         )
         return

@@ -291,16 +291,6 @@ def pay_keyboard(pay_url: str, order_id: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def pay_method_keyboard(code: str) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="Карта или СБП", callback_data=f"rpm:{code}:fiat", style="success")
-    )
-    builder.row(InlineKeyboardButton(text="Крипта", callback_data=f"rpm:{code}:crypto"))
-    builder.row(InlineKeyboardButton(text="Назад", callback_data="buy"))
-    return builder.as_markup()
-
-
 def invite_url(telegram_id: int, bot_username: str | None = None) -> str:
     handle = (bot_username or get_settings().bot_username or "").lstrip("@")
     return f"https://t.me/{handle}?start=ref_{int(telegram_id)}"

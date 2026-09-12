@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     rollypay_signing_secret: str = ""
     rollypay_test: bool = True
     rollypay_payment_method: str = ""
-    rollypay_crypto_enabled: bool = True
+    rollypay_crypto_enabled: bool = False
     rollypay_crypto_method: str = "usdt"
 
     balance_enabled: bool = False
