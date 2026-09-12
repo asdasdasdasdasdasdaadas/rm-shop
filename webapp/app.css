@@ -4855,11 +4855,14 @@ html.is-pc .app-main-bar {
   padding-right: 20px;
   background: linear-gradient(180deg, transparent 0%, var(--bg-app) 42%);
 }
-html.is-pc #view-home.view {
+html.is-pc #view-home.view:not(.hidden) {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.85fr);
   gap: 16px 20px;
   align-items: start;
+}
+html.is-pc #view-home.view.hidden {
+  display: none !important;
 }
 html.is-pc #view-home .view-head,
 html.is-pc #view-home .status-card,
@@ -4943,7 +4946,7 @@ html.is-pc .status-actions {
 }
 
 @media (max-width: 760px) {
-  html.is-pc #view-home.view {
+  html.is-pc #view-home.view:not(.hidden) {
     display: flex;
     flex-direction: column;
   }
