@@ -79,9 +79,8 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
             "<b>Бесплатный период</b>\n\n"
             f"На баланс начислено <b>{rub_text(amount)}</b> "
             f"({days_text(settings.trial_days)} × {rub_text(settings.vpn_day_price_rub)}).\n\n"
-            "Откройте кабинет, добавьте устройство и импортируйте ссылку в Happ или Incy. "
-            "Пока устройств нет, баланс не списывается. "
-            "Дальше ссылку и поддержку не придётся искать по чатам — всё в кабинете.",
+            "Нажмите «Открыть кабинет», добавьте устройство и импортируйте ссылку в Happ или Incy. "
+            "Пока устройств нет, баланс не списывается.",
             reply_markup=back_profile_keyboard(cabinet=True),
         )
         return
@@ -154,7 +153,7 @@ async def share(callback: CallbackQuery) -> None:
         if story_offer:
             body += (
                 f"\n\nМожно также выложить историю в Telegram и получить "
-                f"<b>{rub_text(settings.story_reward_rub)}</b> на баланс — кнопка ниже откроет кабинет."
+                f"<b>{rub_text(settings.story_reward_rub)}</b> на баланс — кнопка ниже откроет редактор."
             )
         body += (
             "\n\n«Отправить другу» — шаринг Telegram. "
@@ -205,7 +204,7 @@ async def my_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
             f"Устройств: <b>{n}</b>\n"
             f"Списание: <b>{rub_text(settings.vpn_day_price_rub)}</b> в сутки за устройство, "
             "только пока есть хотя бы одно устройство.\n"
-            "Устройства добавляются в личном кабинете.",
+            "Устройства добавляются в кабинете.",
             reply_markup=buy_keyboard(),
         )
         return
@@ -265,7 +264,7 @@ async def reissue_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     settings = get_settings()
     if settings.balance_enabled:
         await callback.message.edit_text(
-            "Ссылку подписки можно перевыпустить в личном кабинете, на экране устройства.",
+            "Ссылку подписки можно обновить в кабинете, на экране устройства.",
             reply_markup=back_profile_keyboard(),
         )
         return

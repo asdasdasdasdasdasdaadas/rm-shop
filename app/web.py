@@ -18,6 +18,11 @@ from aiogram.utils.web_app import safe_parse_webapp_init_data
 
 from app import db, runtime
 from app.admin import mount_admin
+from app.announcements import (
+    announcement_photo_path,
+    content_type_for,
+    fill_placeholders,
+)
 from app.billing import apply_router_slot, fulfill_rollypay_order, router_panel_until, subscription_issued_text
 from app.config import ROOT, get_settings
 from app.faq import faq_items
@@ -193,7 +198,7 @@ async def _require_miniapp(request: web.Request) -> tuple[int | None, web.Respon
     settings = get_settings()
     raw = _init_data(request)
     if not raw:
-        return None, json_error("Откройте кабинет из Telegram, чтобы выложить историю", 401)
+        return None, json_error("Историю можно выложить только из приложения, не из браузера", 401)
     try:
         parsed = safe_parse_webapp_init_data(settings.bot_token, raw)
     except ValueError:
@@ -307,6 +312,27 @@ def _trial_notice(
             "days": max(0, int(days_left or 0)),
         }
     return None
+
+
+def _announcement_public(ann: dict | None, first_name: str | None) -> dict | None:
+    if not ann:
+        return None
+    try:
+        aid = int(ann.get("id") or 0)
+    except (TypeError, ValueError):
+        return None
+    if not aid:
+        return None
+    return {
+        "id": aid,
+        "kicker": fill_placeholders(ann.get("kicker") or "", first_name),
+        "title": fill_placeholders(ann.get("title") or "", first_name),
+        "lead": fill_placeholders(ann.get("lead") or "", first_name),
+        "closing": fill_placeholders(ann.get("closing") or "", first_name),
+        "items": [fill_placeholders(str(x), first_name) for x in (ann.get("items") or [])],
+        "created_at": ann.get("created_at"),
+        "image_url": f"/api/announcements/{aid}/image" if ann.get("image_name") else "",
+    }
 
 
 async def api_me(request: web.Request) -> web.Response:
@@ -521,15 +547,9 @@ async def api_me(request: web.Request) -> web.Response:
             "faq": faq_items(),
             "vpn_apps": public_vpn_apps(),
             "first_device_thanks_pending": bool((local or {}).get("first_device_thanks_pending")),
-            "announcement": (
-                {
-                    "id": int(ann["id"]),
-                    "title": ann.get("title") or "",
-                    "items": ann.get("items") or [],
-                    "created_at": ann.get("created_at"),
-                }
-                if (ann := await db.latest_update_announcement())
-                else None
+            "announcement": _announcement_public(
+                await db.latest_update_announcement(),
+                (tg_user.first_name if tg_user else None) or (local or {}).get("first_name"),
             ),
         }
     )
@@ -548,6 +568,23 @@ async def api_avatar(request: web.Request) -> web.Response:
     except Exception:
         raise web.HTTPNotFound()
     return web.Response(body=data, content_type="image/jpeg")
+
+
+async def api_announcement_image(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        ann = await db.get_update_announcement(int(request.match_info["ann_id"]))
+    except (TypeError, ValueError):
+        raise web.HTTPNotFound()
+    path = announcement_photo_path((ann or {}).get("image_name"))
+    if not path:
+        raise web.HTTPNotFound()
+    return web.FileResponse(
+        path,
+        headers={"Content-Type": content_type_for(path), "Cache-Control": "private, max-age=3600"},
+    )
 
 
 async def api_trial(request: web.Request) -> web.Response:
@@ -922,7 +959,7 @@ async def api_delete_device(request: web.Request) -> web.Response:
         source="user",
         device_id=device_id,
         device_title=str(item.get("title") or ""),
-        note="Устройство удалено из кабинета",
+        note="Устройство удалено",
     )
     return web.json_response({"ok": True})
 
@@ -1188,6 +1225,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/stories_img.jpg", webapp_story)
         app.router.add_get("/api/me", api_me)
         app.router.add_get("/api/avatar", api_avatar)
+        app.router.add_get("/api/announcements/{ann_id}/image", api_announcement_image)
         app.router.add_post("/api/trial", api_trial)
         app.router.add_post("/api/invoice", api_invoice)
         app.router.add_post("/api/promo", api_promo)

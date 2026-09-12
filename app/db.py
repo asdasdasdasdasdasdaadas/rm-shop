@@ -3206,22 +3206,61 @@ def _announcement_row(row) -> dict | None:
     return data
 
 
-async def create_update_announcement(title: str, items: list[str], body: str) -> dict:
+async def create_update_announcement(
+    title: str,
+    items: list[str],
+    body: str,
+    *,
+    kicker: str = "",
+    lead: str = "",
+    closing: str = "",
+    image_name: str | None = None,
+) -> dict:
     row = await _pool_req().fetchrow(
         """
-        INSERT INTO update_announcements (title, items, body)
-        VALUES ($1, $2::jsonb, $3)
+        INSERT INTO update_announcements (title, items, body, kicker, lead, closing, image_name)
+        VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7)
         RETURNING *
         """,
         title,
         json.dumps(items, ensure_ascii=False),
         body,
+        kicker,
+        lead,
+        closing,
+        image_name,
     )
     return _announcement_row(row) or {
         "title": title,
         "items": items,
         "body": body,
+        "kicker": kicker,
+        "lead": lead,
+        "closing": closing,
+        "image_name": image_name,
     }
+
+
+async def set_announcement_image(ann_id: int, image_name: str) -> dict | None:
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE update_announcements
+        SET image_name = $2
+        WHERE id = $1
+        RETURNING *
+        """,
+        int(ann_id),
+        image_name,
+    )
+    return _announcement_row(row)
+
+
+async def get_update_announcement(ann_id: int) -> dict | None:
+    row = await _pool_req().fetchrow(
+        "SELECT * FROM update_announcements WHERE id = $1",
+        int(ann_id),
+    )
+    return _announcement_row(row)
 
 
 async def list_update_announcements(limit: int = 30) -> list[dict]:

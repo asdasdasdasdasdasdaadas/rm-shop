@@ -3356,6 +3356,15 @@ async function loadBroadcastJob() {
   }
 }
 
+function fillAnnPlaceholders(text) {
+  const name = "Анна";
+  return String(text || "")
+    .replaceAll("{hello}", "Здравствуйте, " + name + ".")
+    .replaceAll("{name}", name)
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 function annCollectItems() {
   return Array.from(document.querySelectorAll("#annItems input"))
     .map((el) => el.value.trim())
@@ -3363,10 +3372,48 @@ function annCollectItems() {
 }
 
 function annPreviewText() {
-  const title = (($("annTitle") && $("annTitle").value) || "").trim() || "Обновление кабинета";
+  const kicker = fillAnnPlaceholders(($("annKicker") && $("annKicker").value) || "");
+  const title = fillAnnPlaceholders((($("annTitle") && $("annTitle").value) || "").trim() || "Мы кое-что обновили");
+  const lead = fillAnnPlaceholders(($("annLead") && $("annLead").value) || "");
+  const closing = fillAnnPlaceholders(($("annClosing") && $("annClosing").value) || "");
   const items = annCollectItems();
-  if (!items.length) return title + "\n\n- ";
-  return title + "\n\n" + items.map((x) => "- " + x).join("\n");
+  const lines = [];
+  if (kicker) {
+    lines.push(kicker);
+    lines.push("");
+  }
+  lines.push(title);
+  if (lead) {
+    lines.push("");
+    lines.push(lead);
+  }
+  if (items.length) {
+    lines.push("");
+    items.forEach((x) => lines.push("- " + x));
+  }
+  if (closing) {
+    lines.push("");
+    lines.push(closing);
+  }
+  return lines.join("\n").trim();
+}
+
+function paintAnnPhotoPreview() {
+  const img = $("annPhotoPreview");
+  const input = $("annPhoto");
+  const file = input && input.files && input.files[0];
+  if (!img) return;
+  if (!file) {
+    img.classList.add("hidden");
+    img.removeAttribute("src");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    img.src = reader.result;
+    img.classList.remove("hidden");
+  };
+  reader.readAsDataURL(file);
 }
 
 function paintAnnPreview() {
@@ -3381,7 +3428,7 @@ function addAnnItem(value) {
   const input = document.createElement("input");
   input.type = "text";
   input.maxLength = 160;
-  input.placeholder = "Что добавилось";
+  input.placeholder = "Что изменилось для Вас";
   input.value = value || "";
   input.oninput = paintAnnPreview;
   const del = document.createElement("button");
@@ -3406,7 +3453,6 @@ function addAnnItem(value) {
 function ensureAnnItems() {
   const box = $("annItems");
   if (!box || box.childElementCount) return;
-  addAnnItem("");
   addAnnItem("");
   addAnnItem("");
 }
@@ -3444,7 +3490,7 @@ async function loadAnnouncements() {
       if (!rows.length) {
         const tr = document.createElement("tr");
         const td = document.createElement("td");
-        td.colSpan = 3;
+        td.colSpan = 4;
         td.className = "muted";
         td.textContent = "Пока ничего не отправляли";
         tr.appendChild(td);
@@ -3457,10 +3503,26 @@ async function loadAnnouncements() {
           const title = document.createElement("td");
           title.textContent = item.title || "";
           const changes = document.createElement("td");
-          changes.textContent = (item.items || []).join("; ");
+          const bits = [];
+          if (item.lead) bits.push(item.lead);
+          if ((item.items || []).length) bits.push((item.items || []).join("; "));
+          if (item.closing) bits.push(item.closing);
+          changes.textContent = bits.join(" · ");
+          const photo = document.createElement("td");
+          if (item.image_name && item.id) {
+            const img = document.createElement("img");
+            img.className = "ann-thumb";
+            img.alt = "";
+            img.src = "/admin/api/announcements/" + item.id + "/image";
+            photo.appendChild(img);
+          } else {
+            photo.textContent = "нет";
+            photo.className = "muted";
+          }
           tr.appendChild(when);
           tr.appendChild(title);
           tr.appendChild(changes);
+          tr.appendChild(photo);
           body.appendChild(tr);
         });
       }
@@ -3478,17 +3540,29 @@ async function loadAnnouncements() {
 if ($("annAddItem")) {
   $("annAddItem").onclick = () => addAnnItem("");
 }
-if ($("annTitle")) $("annTitle").oninput = paintAnnPreview;
+["annKicker", "annTitle", "annLead", "annClosing"].forEach((id) => {
+  if ($(id)) $(id).oninput = paintAnnPreview;
+});
+if ($("annPhoto")) $("annPhoto").onchange = paintAnnPhotoPreview;
+if ($("annPhotoClear")) {
+  $("annPhotoClear").onclick = () => {
+    if ($("annPhoto")) $("annPhoto").value = "";
+    paintAnnPhotoPreview();
+  };
+}
 if ($("annSend")) {
   $("annSend").onclick = async () => {
+    const kicker = (($("annKicker") && $("annKicker").value) || "").trim();
     const title = (($("annTitle") && $("annTitle").value) || "").trim();
+    const lead = (($("annLead") && $("annLead").value) || "").trim();
+    const closing = (($("annClosing") && $("annClosing").value) || "").trim();
     const items = annCollectItems();
     if (!title) {
       $("annOut").textContent = "Укажите заголовок";
       return;
     }
-    if (!items.length) {
-      $("annOut").textContent = "Добавьте хотя бы одно изменение";
+    if (!items.length && !lead) {
+      $("annOut").textContent = "Добавьте вступление или хотя бы один пункт";
       return;
     }
     const n = ($("annCount") && $("annCount").textContent) || "";
@@ -3497,10 +3571,21 @@ if ($("annSend")) {
     }
     $("annOut").textContent = "Запускаю...";
     try {
-      await api("/admin/api/announcements", {
+      const fd = new FormData();
+      fd.append("kicker", kicker);
+      fd.append("title", title);
+      fd.append("lead", lead);
+      fd.append("closing", closing);
+      fd.append("items", JSON.stringify(items));
+      const file = $("annPhoto") && $("annPhoto").files && $("annPhoto").files[0];
+      if (file) fd.append("file", file);
+      const res = await fetch("/admin/api/announcements", {
         method: "POST",
-        body: JSON.stringify({ title, items }),
+        credentials: "same-origin",
+        body: fd,
       });
+      const data = await res.json().catch(() => ({ ok: false, error: "Ошибка ответа" }));
+      if (!res.ok || data.ok === false) throw new Error(data.error || "Не удалось отправить");
       toast("Анонс отправляется");
       loadAnnouncements();
       loadBroadcastJob();

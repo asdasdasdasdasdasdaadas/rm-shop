@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>Кабинет</title>
+  <title>VPN</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=123">
+  <link rel="stylesheet" href="app.css?v=126">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -348,9 +348,13 @@
 
       <div id="updateNotice" class="trial-notice hidden" role="status">
         <button type="button" id="updateNoticeClose" class="trial-notice-close" aria-label="Закрыть"></button>
-        <div class="trial-notice-kicker">Обновление</div>
+        <img id="updateNoticeImage" class="update-notice-image hidden" alt="">
+        <div id="updateNoticeKicker" class="trial-notice-kicker">Что нового</div>
         <div id="updateNoticeTitle" class="trial-notice-title"></div>
+        <p id="updateNoticeLead" class="trial-notice-text hidden"></p>
         <ul id="updateNoticeItems" class="update-notice-list"></ul>
+        <p id="updateNoticeClosing" class="trial-notice-text hidden"></p>
+      </div>
       </div>
 
       <div class="home-col home-col-main">
@@ -383,7 +387,7 @@
       <div class="section ref-banner" id="routerCard" role="button" tabindex="0" aria-label="Подключить роутер">
         <div class="ref-banner-copy">
           <div class="ref-banner-title">Роутер<br>на весь дом</div>
-          <div id="routerCardNote" class="ref-banner-pill"><span class="ref-banner-amt">30 дней</span> · не с баланса</div>
+          <div id="routerCardNote" class="ref-banner-pill"><span class="ref-banner-amt">30 дней</span></div>
         </div>
         <div class="ref-banner-art router-banner-art" aria-hidden="true">
           <span class="router-glow"></span>
@@ -456,7 +460,7 @@
       <div class="section ref-banner" id="refHomeCard" role="button" tabindex="0" aria-label="Пригласить друзей">
         <div class="ref-banner-copy">
           <div class="ref-banner-title">Приглашай друзей<br>и зарабатывай</div>
-          <div id="inviteBannerPill" class="ref-banner-pill">Получай <span id="inviteBannerAmt">50 ₽</span> за каждого друга</div>
+          <div id="inviteBannerPill" class="ref-banner-pill">Получайте <span id="inviteBannerAmt">50 ₽</span> за каждого друга</div>
         </div>
         <div class="ref-banner-art" aria-hidden="true">
           <span class="ref-banner-chip ref-banner-chip-a">₽</span>
@@ -575,7 +579,7 @@
         <p class="wiz-kicker">Помощь</p>
         <h1 class="wiz-title">Частые вопросы</h1>
       </div>
-      <p class="section-note topup-hint">Подключение, баланс и чем этот кабинет удобнее чужого ключа из чата.</p>
+      <p class="section-note topup-hint">Подключение, баланс и ответы на частые вопросы.</p>
       <div id="faqList" class="faq-list"></div>
     </div>
 
@@ -584,7 +588,7 @@
         <p class="wiz-kicker">Настройки</p>
         <h1 class="wiz-title">Оформление</h1>
       </div>
-      <p class="section-note topup-hint">Тема кабинета. Запоминается на этом устройстве.</p>
+      <p class="section-note topup-hint">Тема оформления. Запоминается на этом устройстве.</p>
       <div id="themeList" class="group theme-list">
         <button type="button" class="theme-swatch" data-theme-id="green">
           <span class="theme-dot t-green"></span>
@@ -661,11 +665,11 @@
       <div class="section ref-faq">
         <details>
           <summary>Как пригласить?</summary>
-          <p>Нажмите «Поделиться» или «Скопировать текст» — в буфер попадёт готовое сообщение со ссылкой. Там про кабинет и бонус другу за первую оплату, без слов про вашу награду. Друг должен открыть бота именно по этой ссылке.</p>
+          <p>Нажмите «Поделиться» или «Скопировать текст» — в буфер попадёт готовое сообщение со ссылкой. Там про сервис и бонус другу за первую оплату, без слов про Вашу награду. Друг должен открыть бота именно по этой ссылке.</p>
         </details>
         <details>
           <summary>Почему звать сюда?</summary>
-          <p>Друг попадёт в тот же кабинет: устройства, баланс и поддержка в Telegram, без чужого сайта и без общего ключа.</p>
+          <p>Друг подключится по вашей ссылке. Устройства, баланс и поддержка будут в одном месте.</p>
         </details>
         <details>
           <summary>Когда начислят?</summary>
@@ -707,11 +711,11 @@
         </div>
         <p class="offer-kicker">Вам подарок</p>
         <h1 class="offer-title">Дарим <span id="offerDays">3</span> дня</h1>
-        <p class="offer-lead">Кабинет в Telegram, сутки только за свои устройства. Заберите тест и подключитесь за минуту.</p>
+        <p class="offer-lead">Сутки только за свои устройства. Заберите тест и подключитесь за минуту.</p>
         <div class="offer-card">
           <div class="offer-rows">
             <div class="offer-row"><span id="offerPrice">—</span><span class="k">Цена</span></div>
-            <div class="offer-row"><span>Кабинет в Telegram</span><span class="k">Управление</span></div>
+            <div class="offer-row"><span>Всегда под рукой</span><span class="k">Управление</span></div>
             <div class="offer-row"><span>Серверы в разных странах</span><span class="k">Локации</span></div>
             <div class="offer-row"><span id="offerTraffic">Безлимит</span><span class="k">Трафик</span></div>
           </div>
@@ -771,14 +775,14 @@
       <div class="view-head">
         <p class="wiz-kicker">Роутер</p>
         <h1 class="wiz-title">На весь дом</h1>
-        <p id="routerLead" class="section-note">Отдельный слот на срок. Не списывается с баланса телефонов и не занимает лимит устройств. Один роутер на кабинет.</p>
+        <p id="routerLead" class="section-note">Отдельный слот на срок. Не списывается с баланса телефонов и не занимает лимит устройств. Один роутер на аккаунт.</p>
       </div>
       <div id="routerStatus" class="router-card"></div>
       <div id="routerActions" class="router-actions"></div>
       <div class="section-title-plain">Как подключить</div>
       <div class="section ref-faq">
         <details open>
-          <summary>Ссылка из кабинета</summary>
+          <summary>Ссылка подписки</summary>
           <p>После оплаты создайте устройство на этом экране. Скопируйте ссылку подписки и вставьте её в VPN-клиент роутера. Телефоны и компьютеры за роутером ходят уже через него, отдельно их добавлять не нужно.</p>
         </details>
         <details>
@@ -921,6 +925,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=100"></script>
+  <script src="app.js?v=104"></script>
 </body>
 </html>

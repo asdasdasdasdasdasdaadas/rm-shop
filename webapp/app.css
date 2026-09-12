@@ -474,6 +474,7 @@ html.is-scrolled .view-head.home-nav .account-row {
 
 .trial-notice {
   position: relative;
+  overflow: hidden;
   padding: 18px 20px 16px;
   border-radius: var(--radius-lg);
   background: var(--glass-tint);
@@ -511,6 +512,15 @@ html.is-scrolled .view-head.home-nav .account-row {
   line-height: 1.45;
 }
 
+.update-notice-image {
+  display: block;
+  width: calc(100% + 40px);
+  max-height: 180px;
+  margin: -18px -20px 14px;
+  object-fit: cover;
+}
+.update-notice-image.hidden { display: none !important; }
+
 .update-notice-list {
   margin: 10px 0 0;
   padding: 0 0 0 18px;
@@ -533,6 +543,7 @@ html.is-scrolled .view-head.home-nav .account-row {
 
 .trial-notice-close {
   position: absolute;
+  z-index: 2;
   top: 12px;
   right: 12px;
   width: 32px;

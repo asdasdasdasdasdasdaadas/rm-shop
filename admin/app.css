@@ -1726,6 +1726,14 @@ html.sidebar-collapsed nav button.active::before { display: none; }
   flex: none;
   min-width: 40px;
 }
+.ann-thumb {
+  display: block;
+  width: 72px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
 .set-nav-select { display: none; width: 100%; margin-bottom: 12px; min-height: 44px; }
 .vpn-app summary {
   cursor: pointer;

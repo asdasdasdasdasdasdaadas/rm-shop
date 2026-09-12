@@ -511,7 +511,7 @@ function paintStatus(me) {
     pill.className = "status-pill";
     pill.innerHTML = '<span class="dot"></span> Тариф не запущен';
     $("statusNote").textContent = me.balance_enabled
-      ? "Добавьте устройство в кабинете — без него VPN не стартует, деньги лежат. Сутки только за то, что сами добавите."
+      ? "Добавьте устройство — без него VPN не стартует, деньги лежат. Сутки только за то, что сами добавите."
       : "Оформите доступ — лягушка возьмётся за дело и покажет срок подписки.";
   } else if (days < 3) {
     setFrog("worried");
@@ -1182,7 +1182,7 @@ function buildCoachSteps(me) {
         id: addId,
         required: true,
         title: "Добавьте устройство",
-        text: "Без устройства VPN не заработает и баланс не начнёт тратиться. Три коротких шага — и это уже ваше устройство в кабинете, не общий ключ.",
+        text: "Без устройства VPN не заработает и баланс не начнёт тратиться. Три коротких шага — и устройство будет готово.",
         action: "wizard",
       });
     }
@@ -1264,7 +1264,7 @@ function buildWizCoachSteps() {
         wiz: true,
         required: true,
         title: "Назовите и создайте",
-        text: "Имя только для списка в кабинете. Кнопка «Создать» спишет сутки с баланса и выдаст ссылку.",
+        text: "Имя только для Вашего списка. Кнопка «Создать» спишет сутки с баланса и выдаст ссылку.",
       },
     ];
   }
@@ -1275,7 +1275,7 @@ function buildWizCoachSteps() {
         wiz: true,
         required: true,
         title: "Откройте в приложении",
-        text: "Нажмите «Открыть» или вставьте ссылку вручную. После этого VPN заработает. Если что — поддержка в том же кабинете.",
+        text: "Нажмите «Открыть» или вставьте ссылку вручную. После этого VPN заработает. Если что — напишите в поддержку.",
       },
     ];
   }
@@ -2429,7 +2429,7 @@ function renderTopup(me) {
       + (me.referred && !me.has_paid_topup && Number(me.referral_invitee_reward_rub) > 0
         ? ` По ссылке друга после этого пополнения на баланс ещё ${me.referral_invitee_reward_rub} ₽.`
         : "")
-    : "Выберите срок подписки. Кабинет останется в Telegram, даже если VPN потом отключится.";
+    : "Выберите срок подписки. Сюда можно зайти даже если VPN потом отключится.";
   const grid = $("topupGrid");
   grid.innerHTML = "";
   plans.forEach((plan) => {
@@ -3193,11 +3193,11 @@ function paintRefBanner(me) {
   const rub = Math.max(0, Number(me && me.referral_reward_rub) || 0);
   const days = Math.max(0, Number(me && me.referral_reward_days) || 0);
   if (me && me.balance_enabled && rub > 0) {
-    pill.innerHTML = "Получай <span class=\"ref-banner-amt\">" + rub + " ₽</span> за каждого друга";
+    pill.innerHTML = "Получайте <span class=\"ref-banner-amt\">" + rub + " ₽</span> за каждого друга";
   } else if (days > 0) {
-    pill.innerHTML = "Получай <span class=\"ref-banner-amt\">" + daysLabel(days) + "</span> за каждого друга";
+    pill.innerHTML = "Получайте <span class=\"ref-banner-amt\">" + daysLabel(days) + "</span> за каждого друга";
   } else {
-    pill.textContent = "Отправь ссылку — друг попадёт в тот же кабинет";
+    pill.textContent = "Отправьте ссылку — друг попадёт к нам же";
   }
 }
 
@@ -3235,7 +3235,7 @@ function paintRouterCard(me) {
     return;
   }
   pill.innerHTML =
-    "<span class=\"ref-banner-amt\">" + days + " дней</span> · " + rub + " ₽ · не с баланса";
+    "<span class=\"ref-banner-amt\">" + days + " дней</span> · " + rub + " ₽";
 }
 
 let routerPayPoll = 0;
@@ -3294,7 +3294,7 @@ function renderRouter(me) {
     lead.textContent =
       "Слот на " +
       days +
-      " дней. Не списывается с баланса телефонов и не занимает лимит устройств. Один роутер на кабинет.";
+      " дней. Не списывается с баланса телефонов и не занимает лимит устройств. Один роутер на аккаунт.";
   }
   status.innerHTML = "";
   const k = document.createElement("div");
@@ -3356,7 +3356,7 @@ function renderRouter(me) {
       try {
         await payPlan({ code: "router" });
         armRouterPayPoll();
-        tg.showAlert("После оплаты вернитесь в кабинет — слот появится сам.");
+        tg.showAlert("После оплаты вернитесь сюда — слот появится сам.");
       } catch (e) {
         showErr(e);
       } finally {
@@ -3467,17 +3467,61 @@ function paintUpdateNotice(me) {
   const a = me && me.announcement;
   const id = a && Number(a.id);
   const items = (a && a.items) || [];
-  const show = Boolean(id && items.length && id !== seenAnnouncementId());
+  const hasCopy = Boolean((a && a.lead) || (a && a.title) || items.length);
+  const show = Boolean(id && hasCopy && id !== seenAnnouncementId());
   el.classList.toggle("hidden", !show);
   if (!show) return;
-  $("updateNoticeTitle").textContent = a.title || "Обновление кабинета";
+  const kicker = $("updateNoticeKicker");
+  if (kicker) kicker.textContent = a.kicker || "Что нового";
+  $("updateNoticeTitle").textContent = a.title || "Мы кое-что обновили";
+  const lead = $("updateNoticeLead");
+  if (lead) {
+    lead.textContent = a.lead || "";
+    lead.classList.toggle("hidden", !a.lead);
+  }
+  const closing = $("updateNoticeClosing");
+  if (closing) {
+    closing.textContent = a.closing || "";
+    closing.classList.toggle("hidden", !a.closing);
+  }
   const list = $("updateNoticeItems");
   list.innerHTML = "";
+  list.classList.toggle("hidden", !items.length);
   items.forEach((text) => {
     const li = document.createElement("li");
     li.textContent = text;
     list.appendChild(li);
   });
+  loadUpdateNoticeImage(a.image_url || "");
+}
+
+let updateNoticeBlob = "";
+
+async function loadUpdateNoticeImage(url) {
+  const img = $("updateNoticeImage");
+  if (!img) return;
+  if (updateNoticeBlob) {
+    URL.revokeObjectURL(updateNoticeBlob);
+    updateNoticeBlob = "";
+  }
+  if (!url) {
+    img.classList.add("hidden");
+    img.removeAttribute("src");
+    return;
+  }
+  try {
+    const headers = { "X-Init-Data": tg.initData || "" };
+    if (lkToken) headers["X-Lk-Token"] = lkToken;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error("no image");
+    const blob = await res.blob();
+    updateNoticeBlob = URL.createObjectURL(blob);
+    img.src = updateNoticeBlob;
+    img.classList.remove("hidden");
+  } catch (_e) {
+    img.classList.add("hidden");
+    img.removeAttribute("src");
+  }
 }
 
 function paintTrialNotice(me) {
@@ -3871,7 +3915,7 @@ $("storyBtn").onclick = async () => {
   const caption = [me.story_share_text, me.story_bot_url].filter(Boolean).join("\n");
   const canShare = typeof tg.shareToStory === "function";
   if (!canShare || browserCabinet()) {
-    tg.showAlert("Откройте кабинет в Telegram, чтобы выложить историю. Нужна свежая версия приложения.");
+    tg.showAlert("Историю можно выложить только из приложения, не из браузера. Нужна свежая версия.");
     return;
   }
   try {
@@ -3897,7 +3941,7 @@ $("storyBtn").onclick = async () => {
 function inviteShareText(me) {
   const fromApi = me && String(me.invite_share_text || "").trim();
   if (fromApi) return fromApi;
-  return "Кабинет в Telegram: сутки только за свои устройства, без общего ключа из чата. Подключайся по ссылке.";
+  return "VPN: сутки только за свои устройства. Подключайтесь по ссылке.";
 }
 
 function inviteCopyText(me) {

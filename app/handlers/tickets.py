@@ -12,7 +12,7 @@ router = Router()
 async def support_hint(callback: CallbackQuery) -> None:
     await callback.answer()
     await callback.message.answer(
-        "Напишите сюда, что случилось. Можно прислать скриншот. Откроется тикет, ответ придёт в этот чат и в кабинет."
+        "Напишите сюда, что случилось. Можно прислать скриншот. Откроется обращение, ответ придёт в этот чат."
     )
 
 

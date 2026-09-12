@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="55">
+  <meta name="admin-build" content="58">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=43">
+  <link rel="stylesheet" href="app.css?v=44">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -91,7 +91,7 @@
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 11l16-6-6 16-2.5-6.5L4 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           <span class="nav-text">Рассылка</span>
         </button>
-        <button type="button" data-tab="announcements" data-title="Анонсы" data-lead="Что изменилось в кабинете — уходит всем в бот и показывается на главной">
+        <button type="button" data-tab="announcements" data-title="Анонсы" data-lead="Дружелюбное обновление кабинета — в бот и на главную, можно с картинкой">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
           <span class="nav-text">Анонсы</span>
         </button>
@@ -908,14 +908,28 @@
         <section id="tab-announcements" class="hidden">
           <div class="panel narrow">
             <h3>Новое обновление</h3>
-            <p class="muted tight">Заголовок и список изменений. По кнопке уйдёт всем незаблокированным в бот, с кнопкой в кабинет. Последний анонс также покажется на главной, пока человек его не закроет.</p>
+            <p class="muted tight">Дружелюбное обращение на Вы. Уйдёт всем незаблокированным в бот (с кнопкой «Открыть кабинет») и появится на главной, пока человек его не закроет. Можно без списка пунктов, если есть вступление. Картинка необязательна.</p>
+            <p class="muted tight">В тексте можно {hello} — «Здравствуйте, Имя.» и {name} — имя или «друг».</p>
+            <label class="ops-label" for="annKicker">Надзаголовок</label>
+            <input id="annKicker" type="text" maxlength="80" value="Что нового" placeholder="Что нового">
             <label class="ops-label" for="annTitle">Заголовок</label>
-            <input id="annTitle" type="text" maxlength="80" value="Обновление кабинета">
-            <p class="ops-label">Что добавилось</p>
+            <input id="annTitle" type="text" maxlength="80" value="Мы кое-что обновили">
+            <label class="ops-label" for="annLead">Вступление</label>
+            <textarea id="annLead" rows="3" maxlength="800" placeholder="Коротко, по-человечески">{hello} Появилось несколько удобств. Коротко расскажем, что изменилось, чтобы Вам было проще пользоваться сервисом.</textarea>
+            <p class="ops-label">Пункты (по желанию)</p>
             <div id="annItems" class="ann-items"></div>
             <div class="ops">
               <button type="button" id="annAddItem" class="ghost">Добавить пункт</button>
             </div>
+            <label class="ops-label" for="annClosing">Завершение</label>
+            <textarea id="annClosing" rows="2" maxlength="400">Если что-то будет непонятно, напишите в поддержку. Мы рядом и спокойно разберёмся.</textarea>
+            <label class="ops-label" for="annPhoto">Картинка</label>
+            <div class="row">
+              <input id="annPhoto" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+              <button type="button" id="annPhotoClear" class="ghost">Убрать</button>
+            </div>
+            <p id="annPhotoHint" class="muted">JPG, PNG, WEBP или GIF, до 10 МБ. В Telegram уйдёт вместе с текстом.</p>
+            <img id="annPhotoPreview" class="maint-preview hidden" alt="Превью картинки анонса">
             <p id="annCount" class="muted">Получатели: —</p>
             <div class="chat-preview" id="annPreview">Превью сообщения</div>
             <button type="button" id="annSend">Отправить всем</button>
@@ -929,7 +943,8 @@
                   <tr>
                     <th>Когда</th>
                     <th>Заголовок</th>
-                    <th>Изменения</th>
+                    <th>Текст</th>
+                    <th>Картинка</th>
                   </tr>
                 </thead>
                 <tbody id="annRows"></tbody>
@@ -1311,6 +1326,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=68"></script>
+  <script src="app.js?v=71"></script>
 </body>
 </html>

@@ -281,8 +281,7 @@ def invite_share_text() -> str:
     settings = get_settings()
     if settings.balance_enabled:
         text = (
-            "Кабинет в Telegram: сутки только за свои устройства, "
-            "без общего ключа из чата. Подключайся по ссылке."
+            "VPN: сутки только за свои устройства. Подключайтесь по ссылке."
         )
         bonus = int(settings.referral_invitee_reward_rub or 0)
         if bonus > 0:
@@ -290,8 +289,7 @@ def invite_share_text() -> str:
         return text
     extra = settings.referral_invitee_days
     text = (
-        "Кабинет в Telegram: ссылку подписки всегда можно взять там, "
-        "без поиска VPN по чатам. Подключайся по ссылке."
+        "VPN: ссылку подписки всегда можно взять у нас. Подключайтесь по ссылке."
     )
     if extra > 0:
         text += f" При бесплатном периоде +{days_text(extra)}."

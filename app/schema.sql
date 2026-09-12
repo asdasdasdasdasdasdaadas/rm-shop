@@ -374,4 +374,9 @@ CREATE TABLE IF NOT EXISTS update_announcements (
 CREATE INDEX IF NOT EXISTS update_announcements_created_idx
     ON update_announcements (created_at DESC);
 
+ALTER TABLE update_announcements ADD COLUMN IF NOT EXISTS kicker TEXT NOT NULL DEFAULT '';
+ALTER TABLE update_announcements ADD COLUMN IF NOT EXISTS lead TEXT NOT NULL DEFAULT '';
+ALTER TABLE update_announcements ADD COLUMN IF NOT EXISTS closing TEXT NOT NULL DEFAULT '';
+ALTER TABLE update_announcements ADD COLUMN IF NOT EXISTS image_name TEXT;
+
 
