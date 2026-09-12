@@ -1053,8 +1053,9 @@ function replayAnim(el, cls) {
 
 function switchView(id, motion) {
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
-  ["view-home", "view-topup", "view-wizard", "view-device", "view-router", "view-support", "view-faq", "view-billing", "view-referrals", "view-offer", "view-settings"].forEach((vid) => {
+  ["view-home", "view-topup", "view-wizard", "view-device", "view-router", "view-support", "view-faq", "view-article", "view-billing", "view-referrals", "view-offer", "view-settings"].forEach((vid) => {
     const el = $(vid);
+    if (!el) return;
     const on = vid === id;
     el.classList.toggle("hidden", !on);
     el.classList.remove("view-in-fade", "view-in-push", "view-in-pop");
@@ -1163,7 +1164,8 @@ function maybeOpenFirstRun(me) {
     screen === "support" ||
     screen === "faq" ||
     screen === "billing" ||
-    screen === "settings"
+    screen === "settings" ||
+    screen === "article"
   ) {
     return;
   }
@@ -1806,6 +1808,10 @@ function onBack() {
     else openHome();
     return;
   }
+  if (screen === "article") {
+    finishAnnouncement();
+    return;
+  }
   if (screen === "billing") {
     openHome();
     return;
@@ -1829,7 +1835,7 @@ function onBack() {
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device" || screen === "router" || screen === "topup" || screen === "support" || screen === "faq" || screen === "billing" || screen === "referrals" || screen === "offer" || screen === "settings";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "router" || screen === "topup" || screen === "support" || screen === "faq" || screen === "article" || screen === "billing" || screen === "referrals" || screen === "offer" || screen === "settings";
   stopSupportPoll();
   stopRouterPayPoll();
   screen = "home";
@@ -3577,6 +3583,15 @@ function markAnnouncementSeen(id) {
   } catch (_e) {}
 }
 
+function shortenLead(text, max) {
+  const s = String(text || "").replace(/\s+/g, " ").trim();
+  if (!s) return "";
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return ((space > 40 ? cut.slice(0, space) : cut).trim()) + "…";
+}
+
 function paintUpdateNotice(me) {
   const el = $("updateNotice");
   if (!el) return;
@@ -3592,29 +3607,68 @@ function paintUpdateNotice(me) {
   $("updateNoticeTitle").textContent = a.title || "Мы кое-что обновили";
   const lead = $("updateNoticeLead");
   if (lead) {
+    const short = shortenLead(a.lead || "", 120);
+    lead.textContent = short;
+    lead.classList.toggle("hidden", !short);
+  }
+}
+
+function paintArticle(a) {
+  if (!a) return;
+  const kicker = $("articleKicker");
+  if (kicker) kicker.textContent = a.kicker || "Что нового";
+  const title = $("articleTitle");
+  if (title) title.textContent = a.title || "Мы кое-что обновили";
+  const lead = $("articleLead");
+  if (lead) {
     lead.textContent = a.lead || "";
     lead.classList.toggle("hidden", !a.lead);
   }
-  const closing = $("updateNoticeClosing");
+  const closing = $("articleClosing");
   if (closing) {
     closing.textContent = a.closing || "";
     closing.classList.toggle("hidden", !a.closing);
   }
-  const list = $("updateNoticeItems");
-  list.innerHTML = "";
-  list.classList.toggle("hidden", !items.length);
-  items.forEach((text) => {
-    const li = document.createElement("li");
-    li.textContent = text;
-    list.appendChild(li);
-  });
-  loadUpdateNoticeImage(a.image_url || "");
+  const list = $("articleItems");
+  const items = a.items || [];
+  if (list) {
+    list.innerHTML = "";
+    list.classList.toggle("hidden", !items.length);
+    items.forEach((text) => {
+      const li = document.createElement("li");
+      li.textContent = text;
+      list.appendChild(li);
+    });
+  }
+  loadUpdateNoticeImage(a.image_url || "", $("articleImage"));
+}
+
+function openAnnouncement() {
+  const a = window.__me && window.__me.announcement;
+  if (!a || !a.id) return;
+  hideCoach();
+  stopSupportPoll();
+  screen = "article";
+  switchView("view-article", "push");
+  setMain("");
+  paintArticle(a);
+  try {
+    tg.BackButton.show();
+  } catch (_e) {}
+  syncWebBack();
+}
+
+function finishAnnouncement() {
+  const id = window.__me && window.__me.announcement && window.__me.announcement.id;
+  markAnnouncementSeen(id);
+  openHome();
+  if (window.__me) paintUpdateNotice(window.__me);
 }
 
 let updateNoticeBlob = "";
 
-async function loadUpdateNoticeImage(url) {
-  const img = $("updateNoticeImage");
+async function loadUpdateNoticeImage(url, img) {
+  img = img || $("articleImage");
   if (!img) return;
   if (updateNoticeBlob) {
     URL.revokeObjectURL(updateNoticeBlob);
@@ -3906,6 +3960,24 @@ if ($("updateNoticeClose")) {
     const id = window.__me && window.__me.announcement && window.__me.announcement.id;
     markAnnouncementSeen(id);
     if (window.__me) paintUpdateNotice(window.__me);
+  };
+}
+if ($("updateNotice")) {
+  $("updateNotice").onclick = (e) => {
+    if (e.target && e.target.closest && e.target.closest("#updateNoticeClose")) return;
+    haptic();
+    openAnnouncement();
+  };
+  $("updateNotice").onkeydown = (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    openAnnouncement();
+  };
+}
+if ($("articleDone")) {
+  $("articleDone").onclick = () => {
+    haptic();
+    finishAnnouncement();
   };
 }
 
