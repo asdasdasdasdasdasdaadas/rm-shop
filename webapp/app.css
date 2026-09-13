@@ -1413,6 +1413,70 @@ body:has(#webBack:not(.hidden)) .view-head {
   min-width: 0;
   max-width: 100%;
 }
+.ref-banner-invite {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  min-height: 0;
+  padding: 18px 18px 16px;
+  cursor: default;
+}
+.ref-banner-invite .ref-banner-copy {
+  padding-right: 92px;
+  flex: 1 1 100%;
+}
+.ref-banner-invite .ref-banner-art {
+  width: 112px;
+  height: 112px;
+  right: -6px;
+  bottom: auto;
+  top: 6px;
+}
+.ref-banner-invite .ref-banner-frog {
+  width: 112px;
+  height: 112px;
+}
+.ref-banner-actions {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  margin-top: 16px;
+}
+.ref-banner-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 72px;
+  padding: 12px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass);
+  color: var(--accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  box-shadow: var(--glass-shine);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+}
+.ref-banner-btn svg {
+  width: 22px;
+  height: 22px;
+}
+.ref-banner-btn.primary {
+  background: linear-gradient(160deg, var(--accent), var(--accent-strong));
+  color: var(--btn-text);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.ref-banner-btn:active {
+  transform: scale(0.97);
+}
 .ref-banner-title {
   font-family: Manrope, Inter, sans-serif;
   font-size: 20px;
@@ -5129,7 +5193,8 @@ html.is-pc .support-send:hover,
 html.is-pc .sheet a:hover,
 html.is-pc .sheet button:hover,
 html.is-pc .referral:hover,
-html.is-pc .ref-banner:hover,
+html.is-pc .ref-banner:not(.ref-banner-invite):hover,
+html.is-pc .ref-banner-btn:hover,
 html.is-pc .pay-tab:hover {
   filter: brightness(1.08);
 }

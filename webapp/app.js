@@ -4008,17 +4008,18 @@ if ($("menuReferrals")) {
     openReferrals();
   };
 }
-if ($("refHomeCard")) {
-  $("refHomeCard").onclick = () => {
+if ($("refHomeShare")) {
+  $("refHomeShare").onclick = (e) => {
+    if (e) e.stopPropagation();
     haptic();
-    openReferrals();
+    shareInvite();
   };
-  $("refHomeCard").onkeydown = (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      haptic();
-      openReferrals();
-    }
+}
+if ($("refHomeCopy")) {
+  $("refHomeCopy").onclick = (e) => {
+    if (e) e.stopPropagation();
+    haptic();
+    copyInvite();
   };
 }
 if ($("routerCard")) {
