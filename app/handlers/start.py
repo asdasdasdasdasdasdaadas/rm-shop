@@ -275,6 +275,11 @@ async def cmd_welcome_sticker(message: Message) -> None:
     await message.answer("Стикер для первого запуска сохранён.")
 
 
+@router.message(Command("info"))
+async def cmd_info(message: Message) -> None:
+    await message.answer("Platega test")
+
+
 @router.message(Command("admin"))
 async def cmd_admin(message: Message) -> None:
     settings = get_settings()
