@@ -149,6 +149,8 @@ window.addEventListener("resize", syncPcLayout);
 let navScrollY = 0;
 function syncNavScroll() {
   const y = window.scrollY || document.documentElement.scrollTop || 0;
+  const p = Math.max(0, Math.min(1, y / 72));
+  document.documentElement.style.setProperty("--nav-glass", p.toFixed(3));
   document.documentElement.classList.toggle("is-scrolled", y > 10);
   navScrollY = y;
 }
@@ -1073,6 +1075,7 @@ function switchView(id, motion) {
   });
   window.scrollTo(0, 0);
   document.documentElement.classList.remove("is-scrolled");
+  document.documentElement.style.setProperty("--nav-glass", "0");
   navScrollY = 0;
 }
 
