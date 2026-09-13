@@ -332,6 +332,13 @@ html.is-scrolled .view-head::before {
   position: relative;
   z-index: 1;
 }
+.view > *:not(.view-head):not(.web-back) {
+  position: relative;
+  z-index: 0;
+}
+.view > .support-compose {
+  z-index: 6;
+}
 body:has(#webBack:not(.hidden)) .view-head {
   top: calc(var(--app-safe-top, 0px) + 44px);
   padding-top: 8px;
@@ -5041,6 +5048,9 @@ html.is-pc .app-main-bar {
   border-radius: 0;
   padding-left: 20px;
   padding-right: 20px;
+  background: none;
+}
+html.is-pc .support-compose {
   background: none;
 }
 html.is-pc #view-home.view:not(.hidden) {
