@@ -3435,7 +3435,6 @@ function openRouter() {
     tg.BackButton.show();
   } catch (_e) {}
   syncWebBack();
-  setMain("");
   renderRouter(me);
 }
 
@@ -3480,13 +3479,9 @@ function renderRouter(me) {
   status.appendChild(d);
   actions.innerHTML = "";
   if (!r.active) {
-    const pay = document.createElement("button");
-    pay.type = "button";
-    pay.className = "btn btn-primary";
-    pay.textContent = "Оплатить " + rub + " ₽";
-    pay.onclick = async () => {
+    setMain("Оплатить " + rub + " ₽", async () => {
       haptic();
-      pay.disabled = true;
+      setMainBusy(true);
       try {
         await payPlan({ code: "router" });
         armRouterPayPoll();
@@ -3494,20 +3489,15 @@ function renderRouter(me) {
       } catch (e) {
         showErr(e);
       } finally {
-        pay.disabled = false;
+        setMainBusy(false);
       }
-    };
-    actions.appendChild(pay);
+    });
     return;
   }
   if (!device) {
-    const create = document.createElement("button");
-    create.type = "button";
-    create.className = "btn btn-primary";
-    create.textContent = "Создать устройство";
-    create.onclick = async () => {
+    setMain("Создать устройство", async () => {
       haptic();
-      create.disabled = true;
+      setMainBusy(true);
       try {
         await api("/api/devices", {
           method: "POST",
@@ -3517,10 +3507,9 @@ function renderRouter(me) {
       } catch (e) {
         showErr(e);
       } finally {
-        create.disabled = false;
+        setMainBusy(false);
       }
-    };
-    actions.appendChild(create);
+    });
     return;
   }
   if (device.subscription_url) {
@@ -3528,16 +3517,13 @@ function renderRouter(me) {
     link.className = "router-link";
     link.textContent = device.subscription_url;
     actions.appendChild(link);
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.className = "btn btn-primary";
-    copy.textContent = "Скопировать ссылку";
-    copy.onclick = () => {
+    setMain("Скопировать ссылку", () => {
       haptic();
       navigator.clipboard.writeText(device.subscription_url);
       tg.showAlert("Ссылка скопирована");
-    };
-    actions.appendChild(copy);
+    });
+  } else {
+    setMain("");
   }
   const reissue = document.createElement("button");
   reissue.type = "button";

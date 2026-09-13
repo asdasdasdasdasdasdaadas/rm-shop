@@ -276,12 +276,12 @@ body.coach-lock {
 .web-back:not(.hidden) {
   position: sticky;
   top: 0;
-  z-index: 14;
+  z-index: 16;
   margin: 0 0 6px;
   padding: var(--app-safe-top, 0px) 0 14px;
   isolation: isolate;
   background: transparent;
-  overflow: visible;
+  overflow: hidden;
 }
 .web-back:not(.hidden)::before,
 .web-back:not(.hidden)::after,
@@ -292,12 +292,12 @@ body.coach-lock {
   left: 0;
   right: 0;
   top: 0;
+  bottom: 0;
   pointer-events: none;
   z-index: -1;
 }
 .web-back:not(.hidden)::before,
 .view-head::before {
-  bottom: -64px;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--bg-app) calc(22% + 38% * var(--nav-glass)), transparent) 0%,
@@ -306,28 +306,33 @@ body.coach-lock {
   );
   backdrop-filter: blur(28px) saturate(1.85);
   -webkit-backdrop-filter: blur(28px) saturate(1.85);
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 36%, rgba(0, 0, 0, 0.5) 68%, transparent 100%);
-  mask-image: linear-gradient(180deg, #000 0%, #000 36%, rgba(0, 0, 0, 0.5) 68%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 42%, rgba(0, 0, 0, 0.45) 74%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 42%, rgba(0, 0, 0, 0.45) 74%, transparent 100%);
 }
 .web-back:not(.hidden)::after,
 .view-head::after {
-  bottom: -96px;
   background: transparent;
   backdrop-filter: blur(10px) saturate(1.35);
   -webkit-backdrop-filter: blur(10px) saturate(1.35);
-  -webkit-mask-image: linear-gradient(180deg, transparent 8%, #000 32%, rgba(0, 0, 0, 0.28) 62%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 8%, #000 32%, rgba(0, 0, 0, 0.28) 62%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 12%, #000 40%, rgba(0, 0, 0, 0.22) 70%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 12%, #000 40%, rgba(0, 0, 0, 0.22) 70%, transparent 100%);
+}
+
+.view {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
 }
 
 .view-head {
   position: sticky;
   top: 0;
-  z-index: 12;
+  z-index: 8;
   margin: 0;
-  padding: var(--app-safe-top, 0px) 0 18px;
+  padding: var(--app-safe-top, 0px) 0 48px;
   isolation: isolate;
   background: transparent;
-  overflow: visible;
+  overflow: hidden;
 }
 .view-head > * {
   position: relative;
@@ -349,7 +354,7 @@ body:has(#webBack:not(.hidden)) .view-head {
   max-width: 100%;
   align-self: stretch;
   justify-self: stretch;
-  padding-bottom: 12px;
+  padding-bottom: 28px;
 }
 .view-head.home-nav .account-row {
   width: 100%;
@@ -1567,6 +1572,10 @@ body:has(#webBack:not(.hidden)) .view-head {
   flex-direction: column;
   gap: 10px;
   margin-bottom: 22px;
+}
+.router-actions:empty {
+  display: none;
+  margin: 0;
 }
 .router-link {
   padding: 12px 14px;
