@@ -200,66 +200,6 @@ class RollyPayClient:
     def _call(self, method: str, path: str, **kwargs: Any) -> Any:
         return self._sdk.request(method, path, **kwargs)
 
-    async def list_subscription_plans(self) -> list[dict]:
-        tid = await self.terminal_id()
-
-        def _get() -> Any:
-            return self._call("GET", f"subscription-plans?terminal_id={tid}")
-
-        data = await asyncio.to_thread(_get)
-        if isinstance(data, list):
-            return [x for x in data if isinstance(x, dict)]
-        if isinstance(data, dict):
-            raw = data.get("items") or data.get("plans") or []
-            if isinstance(raw, list):
-                return [x for x in raw if isinstance(x, dict)]
-        return []
-
-    async def create_subscription(
-        self,
-        *,
-        plan_id: str,
-        amount_rub: str,
-        merchant_ref: str,
-        idempotency_key: str,
-    ) -> dict:
-        tid = await self.terminal_id()
-        body = {
-            "terminal_id": tid,
-            "plan_id": plan_id,
-            "amount": amount_rub,
-            "merchant_subscription_ref": merchant_ref,
-        }
-
-        def _create() -> Any:
-            return self._call(
-                "POST",
-                "subscriptions",
-                json=body,
-                headers={"Idempotency-Key": idempotency_key},
-            )
-
-        data = await asyncio.to_thread(_create)
-        result = data if isinstance(data, dict) else {}
-        url = _pay_url(result)
-        if url:
-            result["pay_url"] = url
-        return result
-
-    async def get_subscription(self, subscription_id: str) -> dict:
-        def _get() -> Any:
-            return self._call("GET", f"subscriptions/{subscription_id}")
-
-        data = await asyncio.to_thread(_get)
-        return data if isinstance(data, dict) else {}
-
-    async def stop_subscription(self, subscription_id: str) -> dict:
-        def _stop() -> Any:
-            return self._call("POST", f"subscriptions/{subscription_id}/stop")
-
-        data = await asyncio.to_thread(_stop)
-        return data if isinstance(data, dict) else {}
-
 
 def verify_webhook(body: bytes, timestamp: str, signature: str, secret: str) -> bool:
     if not timestamp or not signature or not secret:
