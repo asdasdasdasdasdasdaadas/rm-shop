@@ -4184,3 +4184,35 @@ async def admin_list_tickets(
         offset,
     )
     return [_jsonable(dict(r)) for r in rows], int(total or 0)
+
+
+async def upsert_office_status(
+    agent_id: str,
+    state: str,
+    message: str,
+    source_ts: datetime | None = None,
+) -> dict:
+    row = await _pool_req().fetchrow(
+        """
+        INSERT INTO office_agent_status (agent_id, state, message, updated_at, source_ts)
+        VALUES ($1, $2, $3, timezone('utc', now()), $4)
+        ON CONFLICT (agent_id) DO UPDATE SET
+            state = EXCLUDED.state,
+            message = EXCLUDED.message,
+            updated_at = timezone('utc', now()),
+            source_ts = EXCLUDED.source_ts
+        RETURNING *
+        """,
+        agent_id,
+        state,
+        message,
+        source_ts,
+    )
+    return _jsonable(dict(row)) if row else {}
+
+
+async def list_office_status() -> list[dict]:
+    rows = await _pool_req().fetch(
+        "SELECT * FROM office_agent_status ORDER BY agent_id"
+    )
+    return [_jsonable(dict(r)) for r in rows]

@@ -7,7 +7,7 @@ let billPage = 1;
 let currentUser = null;
 let selectedUsers = new Set();
 let lastUserItems = [];
-const TABS = ["overview", "users", "referrals", "ads", "orders", "billing", "tickets", "messages", "broadcast", "announcements", "promo", "backups", "settings"];
+const TABS = ["overview", "office", "users", "referrals", "ads", "orders", "billing", "tickets", "messages", "broadcast", "announcements", "promo", "backups", "settings"];
 const TAB_KEYS = {
   overview: ["dash", "fp", "fs", "fl", "fi", "step"],
   users: ["q", "status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to", "paid"],
@@ -494,6 +494,11 @@ function switchTab(name, opts = {}) {
   if (name === "broadcast") loadBroadcastJob();
   if (name === "announcements") loadAnnouncements();
   if (name === "settings" || name === "promo") loadSettings();
+  if (name === "office") {
+    if (window.OfficeBoard) window.OfficeBoard.start();
+  } else if (window.OfficeBoard) {
+    window.OfficeBoard.stop();
+  }
   setNavOpen(false);
 }
 

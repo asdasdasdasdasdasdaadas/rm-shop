@@ -74,6 +74,8 @@ async def panel_sync_loop(rw: RemnawaveClient) -> None:
 def _warn_deploy(settings) -> None:
     if not settings.admin_password:
         logger.warning("ADMIN_PASSWORD пуст: вход в /admin не сработает")
+    if not (settings.office_status_token or "").strip():
+        logger.warning("OFFICE_STATUS_TOKEN пуст: агенты не смогут слать статус в офис")
     if settings.webapp_enabled and not settings.webapp_public_url.startswith("https://"):
         logger.warning("Для Mini App нужен HTTPS в WEBAPP_PUBLIC_URL (требование Telegram)")
     if settings.rollypay_configured and settings.rollypay_test:
