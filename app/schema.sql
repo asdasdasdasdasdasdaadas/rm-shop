@@ -395,5 +395,13 @@ CREATE INDEX IF NOT EXISTS cabinet_login_challenges_tg_idx
 CREATE INDEX IF NOT EXISTS cabinet_login_challenges_exp_idx
     ON cabinet_login_challenges (expires_at);
 
+CREATE TABLE IF NOT EXISTS office_agent_status (
+    agent_id TEXT PRIMARY KEY,
+    state TEXT NOT NULL DEFAULT 'idle',
+    message TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    source_ts TIMESTAMPTZ
+);
+
 
 

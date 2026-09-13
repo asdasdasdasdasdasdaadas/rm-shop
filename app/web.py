@@ -18,6 +18,7 @@ from aiogram.utils.web_app import safe_parse_webapp_init_data
 
 from app import db, runtime
 from app.admin import mount_admin
+from app.office import mount_office
 from app.announcements import (
     announcement_photo_path,
     content_type_for,
@@ -1330,6 +1331,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/", health)
     app.router.add_static("/icons", WEBAPP_DIR / "icons")
     mount_admin(app)
+    mount_office(app)
     return app
 
 

@@ -94,6 +94,8 @@ class Settings(BaseSettings):
     brand_name: str = "RM Shop"
     support_username: str = "@way_proxy_support"
     admin_password: str = ""
+    office_status_token: str = ""
+    office_stale_minutes: int = 8
     database_url: str = "postgresql://rmshop:rmshop@127.0.0.1:5432/rmshop"
     panel_sync_ttl: int = 60
     panel_sync_interval: int = 600

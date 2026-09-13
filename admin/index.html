@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Админка</title>
-  <meta name="admin-build" content="58">
+  <meta name="admin-build" content="59">
   <script>
     (function () {
       var k = "way-admin-theme";
@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=44">
+  <link rel="stylesheet" href="app.css?v=46">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -60,6 +60,10 @@
         <button type="button" data-tab="overview" data-title="Обзор" data-lead="Статистика, техработы и тарификация" class="active">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 11l8-7 8 7v8a2 2 0 01-2 2h-4v-6H10v6H6a2 2 0 01-2-2v-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           <span class="nav-text">Обзор</span>
+        </button>
+        <button type="button" data-tab="office" data-title="Офис" data-lead="Кто за каким столом и чем занят прямо сейчас">
+          <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 10h16v10H4zM8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 15h2M13 15h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span class="nav-text">Офис</span>
         </button>
         <div class="nav-label">Клиенты</div>
         <button type="button" data-tab="users" data-title="Пользователи" data-lead="Поиск, блокировки, баланс и массовые действия">
@@ -419,6 +423,128 @@
             <p class="muted tight">«Заблокировали бота» — те, кому Telegram ответил, что чат закрыт. Без триала можно удалить и вернуть реферальную награду пригласившему.</p>
             <div class="ops">
               <button type="button" id="purgeBotBlockers" class="danger">Удалить блок бота без триала</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-office" class="hidden" translate="no">
+          <p class="muted intro">Пиксельный зал команды. Агенты сами шлют статус; если тишина дольше порога — стол гаснет (офлайн).</p>
+          <div class="office-toolbar">
+            <div class="office-legend" aria-hidden="true">
+              <span class="office-leg is-busy">занят</span>
+              <span class="office-leg is-idle">на месте</span>
+              <span class="office-leg is-offline">офлайн</span>
+            </div>
+            <p id="officeMeta" class="muted tight office-meta">Обновление: —</p>
+          </div>
+          <div id="officeErr" class="banner-error hidden"></div>
+          <div class="office-stage" id="officeStage">
+            <div class="office-room" id="officeRoom" role="img" aria-label="Пиксельный офис команды">
+              <div class="office-wall"></div>
+              <div class="office-trim"></div>
+              <div class="office-window left" aria-hidden="true"><span></span><span></span></div>
+              <div class="office-window right" aria-hidden="true"><span></span><span></span></div>
+              <div class="office-clock" aria-hidden="true"></div>
+              <div class="office-plant a" aria-hidden="true"></div>
+              <div class="office-plant b" aria-hidden="true"></div>
+              <div class="office-cooler" aria-hidden="true"></div>
+              <div class="office-rug" aria-hidden="true"></div>
+              <div class="office-desk" data-agent="monday">
+                <div class="desk-shadow"></div>
+                <div class="desk-body"></div>
+                <div class="desk-screen"></div>
+                <div class="desk-chair"></div>
+                <div class="px-char" data-palette="monday">
+                  <span class="px-hair"></span>
+                  <span class="px-head"></span>
+                  <span class="px-eye l"></span>
+                  <span class="px-eye r"></span>
+                  <span class="px-body"></span>
+                  <span class="px-arm l"></span>
+                  <span class="px-arm r"></span>
+                  <span class="px-leg l"></span>
+                  <span class="px-leg r"></span>
+                </div>
+                <div class="agent-plate">
+                  <strong class="agent-name">Понедельник</strong>
+                  <span class="agent-role">код / фичи</span>
+                  <span class="agent-state">офлайн</span>
+                  <span class="agent-doing">ещё не отмечался</span>
+                  <span class="agent-ago">—</span>
+                </div>
+              </div>
+              <div class="office-desk" data-agent="friday">
+                <div class="desk-shadow"></div>
+                <div class="desk-body"></div>
+                <div class="desk-screen"></div>
+                <div class="desk-chair"></div>
+                <div class="px-char" data-palette="friday">
+                  <span class="px-hair"></span>
+                  <span class="px-head"></span>
+                  <span class="px-eye l"></span>
+                  <span class="px-eye r"></span>
+                  <span class="px-body"></span>
+                  <span class="px-arm l"></span>
+                  <span class="px-arm r"></span>
+                  <span class="px-leg l"></span>
+                  <span class="px-leg r"></span>
+                </div>
+                <div class="agent-plate">
+                  <strong class="agent-name">Пятница</strong>
+                  <span class="agent-role">Threads / PR</span>
+                  <span class="agent-state">офлайн</span>
+                  <span class="agent-doing">ещё не отмечался</span>
+                  <span class="agent-ago">—</span>
+                </div>
+              </div>
+              <div class="office-desk" data-agent="thursday">
+                <div class="desk-shadow"></div>
+                <div class="desk-body"></div>
+                <div class="desk-screen"></div>
+                <div class="desk-chair"></div>
+                <div class="px-char" data-palette="thursday">
+                  <span class="px-hair"></span>
+                  <span class="px-head"></span>
+                  <span class="px-eye l"></span>
+                  <span class="px-eye r"></span>
+                  <span class="px-body"></span>
+                  <span class="px-arm l"></span>
+                  <span class="px-arm r"></span>
+                  <span class="px-leg l"></span>
+                  <span class="px-leg r"></span>
+                </div>
+                <div class="agent-plate">
+                  <strong class="agent-name">Четверг</strong>
+                  <span class="agent-role">метрики</span>
+                  <span class="agent-state">офлайн</span>
+                  <span class="agent-doing">ещё не отмечался</span>
+                  <span class="agent-ago">—</span>
+                </div>
+              </div>
+              <div class="office-desk" data-agent="product">
+                <div class="desk-shadow"></div>
+                <div class="desk-body"></div>
+                <div class="desk-screen"></div>
+                <div class="desk-chair"></div>
+                <div class="px-char" data-palette="product">
+                  <span class="px-hair"></span>
+                  <span class="px-head"></span>
+                  <span class="px-eye l"></span>
+                  <span class="px-eye r"></span>
+                  <span class="px-body"></span>
+                  <span class="px-arm l"></span>
+                  <span class="px-arm r"></span>
+                  <span class="px-leg l"></span>
+                  <span class="px-leg r"></span>
+                </div>
+                <div class="agent-plate">
+                  <strong class="agent-name">Продакт</strong>
+                  <span class="agent-role">QA / деплой</span>
+                  <span class="agent-state">офлайн</span>
+                  <span class="agent-doing">ещё не отмечался</span>
+                  <span class="agent-ago">—</span>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -1330,6 +1456,7 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=72"></script>
+  <script src="app.js?v=73"></script>
+  <script src="office.js?v=1"></script>
 </body>
 </html>
