@@ -4915,12 +4915,13 @@ body.has-main-btn {
 }
 .dev-link-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
 }
 .dev-lbtn {
-  width: 100%;
-  flex: none;
+  width: auto;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4947,7 +4948,6 @@ body.has-main-btn {
   color: var(--btn-text);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 8px 18px -12px rgba(var(--accent-strong-rgb), 0.7);
-  flex: none;
 }
 .dev-lbtn.copied {
   background: var(--accent);
