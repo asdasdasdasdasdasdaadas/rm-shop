@@ -1417,23 +1417,23 @@ body:has(#webBack:not(.hidden)) .view-head {
   flex-wrap: wrap;
   align-items: flex-start;
   min-height: 0;
-  padding: 14px 14px 12px;
+  padding: 16px 16px 14px;
   cursor: default;
 }
 .ref-banner-invite .ref-banner-copy {
-  padding-right: 76px;
+  padding-right: 100px;
   flex: 1 1 100%;
 }
 .ref-banner-invite .ref-banner-art {
-  width: 88px;
-  height: 88px;
-  right: -8px;
+  width: 80px;
+  height: 80px;
+  right: -4px;
   bottom: auto;
-  top: 4px;
+  top: 8px;
 }
 .ref-banner-invite .ref-banner-frog {
-  width: 88px;
-  height: 88px;
+  width: 80px;
+  height: 80px;
 }
 .ref-banner-invite .ref-banner-pill {
   margin-top: 8px;
