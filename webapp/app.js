@@ -4109,7 +4109,7 @@ $("storyBtn").onclick = async () => {
 function inviteShareText(me) {
   const fromApi = me && String(me.invite_share_text || "").trim();
   if (fromApi) return fromApi;
-  return "VPN: сутки только за свои устройства. Подключайтесь по ссылке.";
+  return "Попробуй VPN: быстрый сервис в Telegram. Подключается за минуту, платишь только за свои устройства. Зайди по ссылке.";
 }
 
 function inviteCopyText(me) {

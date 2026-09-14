@@ -7,7 +7,14 @@ from aiogram import Bot
 
 from app import db
 from app.config import get_settings
-from app.keyboards import cabinet_keyboard, help_connect_keyboard, share_keyboard, story_nudge_keyboard, trial_nudge_keyboard
+from app.keyboards import (
+    cabinet_keyboard,
+    help_connect_keyboard,
+    legal_keyboard,
+    share_keyboard,
+    story_nudge_keyboard,
+    trial_nudge_keyboard,
+)
 from app.notices import notice_text
 from app.referrals import trial_grant_rub
 from app.texts import days_text, rub_text
@@ -258,6 +265,51 @@ async def send_due_story_nudges(bot: Bot, skip_ids: list[int] | None = None) -> 
     return sent, touched
 
 
+async def send_due_legal_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
+    touched: list[int] = []
+    if await db.flag_on("maintenance"):
+        return 0, touched
+    if not await db.flag_on("legal_nudge", default=True):
+        return 0, touched
+    sent = 0
+    for row in await db.list_due_legal_nudges(NUDGE_BATCH, skip_ids):
+        telegram_id = int(row["telegram_id"])
+        step = min(3, int(row.get("legal_nudge_count") or 0) + 1)
+        body = notice_text(f"legal_nudge_{step}")
+        try:
+            await bot.send_message(telegram_id, body, reply_markup=legal_keyboard())
+            await db.log_bot_message(
+                kind="nudge_legal",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title=f"Напоминание: оферта {step}/3",
+                body=body,
+                status="sent",
+                extra={"step": step},
+            )
+            ok = True
+        except Exception as exc:
+            logger.debug("Напоминание про оферту не ушло %s", telegram_id, exc_info=True)
+            await db.log_bot_message(
+                kind="nudge_legal",
+                source="auto",
+                telegram_id=telegram_id,
+                first_name=row.get("first_name"),
+                title=f"Напоминание: оферта {step}/3",
+                body=body,
+                status="failed",
+                extra=fail_extra(exc, {"step": step}),
+            )
+            ok = False
+        await db.mark_legal_nudge_sent(telegram_id)
+        await asyncio.sleep(0.035)
+        touched.append(telegram_id)
+        if ok:
+            sent += 1
+    return sent, touched
+
+
 async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
     touched: list[int] = []
     if await db.flag_on("maintenance"):
@@ -481,7 +533,11 @@ async def trial_nudge_loop(bot: Bot) -> None:
     while True:
         try:
             skip: list[int] = []
-            n, ids = await send_due_device_nudges(bot)
+            n, ids = await send_due_legal_nudges(bot)
+            skip.extend(ids)
+            if n:
+                logger.info("Напоминание принять оферту: %s", n)
+            n, ids = await send_due_device_nudges(bot, skip)
             skip.extend(ids)
             if n:
                 logger.info("Напоминание добавить устройство: %s", n)

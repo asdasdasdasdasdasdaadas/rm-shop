@@ -88,6 +88,9 @@ async def _ensure_nudge_defaults() -> None:
             """
         )
         await set_kv("nudge_defaults_v5", "1")
+    if (await get_kv("nudge_defaults_v6")) != "1":
+        await set_flag("legal_nudge", True)
+        await set_kv("nudge_defaults_v6", "1")
     if (await get_kv("welcome_intro_backfill")) != "1":
         await _pool_req().execute(
             """
@@ -1343,6 +1346,7 @@ async def get_flags() -> dict:
         "invite_nudge": _on("invite_nudge"),
         "info_nudge": _on("info_nudge"),
         "story_nudge": _on("story_nudge"),
+        "legal_nudge": _on("legal_nudge"),
         "maintenance_notice": data.get("maintenance_notice") or "",
     }
 
@@ -3002,6 +3006,7 @@ async def list_due_device_nudges(limit: int = 80, skip_ids: list[int] | None = N
         SELECT u.telegram_id, u.first_name, COALESCE(u.device_nudge_count, 0) AS device_nudge_count
         FROM users u
         WHERE u.blocked_at IS NULL
+          AND u.accepted_legal_at IS NOT NULL
           AND COALESCE(u.device_nudge_count, 0) < 3
           AND NOT EXISTS (
               SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
@@ -3034,6 +3039,49 @@ async def mark_device_nudge_sent(telegram_id: int) -> None:
         UPDATE users
         SET device_nudge_count = LEAST(COALESCE(device_nudge_count, 0) + 1, 3),
             device_nudge_at = timezone('utc', now())
+        WHERE telegram_id = $1
+        """,
+        int(telegram_id),
+    )
+
+
+async def list_due_legal_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
+    skip = [int(x) for x in (skip_ids or [])]
+    rows = await _pool_req().fetch(
+        """
+        SELECT u.telegram_id, u.first_name, COALESCE(u.legal_nudge_count, 0) AS legal_nudge_count
+        FROM users u
+        WHERE u.blocked_at IS NULL
+          AND u.accepted_legal_at IS NULL
+          AND COALESCE(u.legal_nudge_count, 0) < 3
+          AND NOT (u.telegram_id = ANY($2::bigint[]))
+          AND (
+            (
+              COALESCE(u.legal_nudge_count, 0) = 0
+              AND u.created_at <= timezone('utc', now()) - INTERVAL '30 minutes'
+              AND u.created_at > timezone('utc', now()) - INTERVAL '36 hours'
+            )
+            OR (
+              COALESCE(u.legal_nudge_count, 0) IN (1, 2)
+              AND u.legal_nudge_at IS NOT NULL
+              AND u.legal_nudge_at <= timezone('utc', now()) - INTERVAL '24 hours'
+            )
+          )
+        ORDER BY u.created_at
+        LIMIT $1
+        """,
+        int(limit),
+        skip,
+    )
+    return [dict(r) for r in rows]
+
+
+async def mark_legal_nudge_sent(telegram_id: int) -> None:
+    await _pool_req().execute(
+        """
+        UPDATE users
+        SET legal_nudge_count = LEAST(COALESCE(legal_nudge_count, 0) + 1, 3),
+            legal_nudge_at = timezone('utc', now())
         WHERE telegram_id = $1
         """,
         int(telegram_id),

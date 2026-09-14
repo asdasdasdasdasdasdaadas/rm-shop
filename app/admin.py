@@ -42,6 +42,7 @@ from app.keyboards import (
     blocked_keyboard,
     cabinet_keyboard,
     help_connect_keyboard,
+    legal_keyboard,
     share_keyboard,
     story_nudge_keyboard,
     trial_nudge_keyboard,
@@ -482,6 +483,8 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
         return cabinet_keyboard()
     if kind == "nudge_device":
         return help_connect_keyboard()
+    if kind == "nudge_legal":
+        return legal_keyboard()
     if kind in {"nudge_info", "nudge_idle", "low_balance", "nudge_first_online", "nudge_trial_end", "welcome_intro"}:
         return cabinet_keyboard()
     return None
@@ -1578,6 +1581,8 @@ async def api_flags(request: web.Request) -> web.Response:
         await db.set_flag("info_nudge", bool(body.get("info_nudge")))
     if "story_nudge" in body:
         await db.set_flag("story_nudge", bool(body.get("story_nudge")))
+    if "legal_nudge" in body:
+        await db.set_flag("legal_nudge", bool(body.get("legal_nudge")))
     flags = await db.get_flags()
     return web.json_response({"ok": True, **flags, "maintenance_has_photo": has_photo()})
 

@@ -26,6 +26,7 @@ const MSG_KIND_LABEL = {
   nudge_story: "Напоминание: история",
   nudge_idle: "Напоминание: давно не заходил",
   nudge_device: "Напоминание: устройство",
+  nudge_legal: "Напоминание: оферта",
   nudge_first_online: "Напоминание: после онлайна",
   nudge_trial_end: "Напоминание: сутки до отключения",
   welcome_intro: "Первый запуск",
@@ -630,12 +631,14 @@ function paintFlags(f) {
   const inv = !!f.invite_nudge;
   const inf = !!f.info_nudge;
   const st = !!f.story_nudge;
+  const lg = !!f.legal_nudge;
   paintSwitch("maintBtn", m, { alert: m, onText: "Вкл", offText: "Выкл" });
   paintSwitch("billBtn", !p, { onText: "Идёт", offText: "Пауза" });
   paintSwitch("nudgeBtn", n);
   paintSwitch("inviteNudgeBtn", inv);
   paintSwitch("infoNudgeBtn", inf);
   paintSwitch("storyNudgeBtn", st);
+  paintSwitch("legalNudgeBtn", lg);
   if (typeof f.maintenance_notice === "string") {
     $("maintNotice").value = f.maintenance_notice;
     const phone = $("maintPhonePreview");
@@ -662,6 +665,7 @@ function paintFlags(f) {
   paintFlag("flagInvite", inv, "Друзья: вкл", "Друзья: выкл", false);
   paintFlag("flagInfo", inf, "Справка: вкл", "Справка: выкл", false);
   paintFlag("flagStory", st, "История: вкл", "История: выкл", false);
+  paintFlag("flagLegal", lg, "Оферта: вкл", "Оферта: выкл", false);
 }
 
 async function loadFlags() {
@@ -3990,6 +3994,23 @@ if ($("storyNudgeBtn")) {
       return;
     }
     paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ story_nudge: next }) }));
+  };
+}
+
+if ($("legalNudgeBtn")) {
+  $("legalNudgeBtn").onclick = async () => {
+    const f = await api("/admin/api/flags");
+    const next = !f.legal_nudge;
+    if (
+      next &&
+      !(await confirmAction(
+        "Напоминание про оферту",
+        "Включить? Тем, кто не принял оферту: через 30 минут, потом ещё через сутки и ещё через сутки уйдёт сообщение с кнопкой «Принимаю»."
+      ))
+    ) {
+      return;
+    }
+    paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ legal_nudge: next }) }));
   };
 }
 

@@ -111,7 +111,8 @@ INSERT INTO app_flags (key, value) VALUES
     ('trial_nudge', '1'),
     ('invite_nudge', '1'),
     ('info_nudge', '1'),
-    ('story_nudge', '1')
+    ('story_nudge', '1'),
+    ('legal_nudge', '1')
 ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS trust_loans (
@@ -146,6 +147,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS first_device_thanks_pending BOOLEAN N
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_device_thanks_sent_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS device_nudge_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS device_nudge_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS legal_nudge_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS legal_nudge_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_online_nudge_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_end_nudge_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS welcome_intro_sent_at TIMESTAMPTZ;
@@ -153,6 +156,11 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS welcome_intro_sent_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS users_device_nudge_idx
     ON users (device_nudge_count, created_at)
     WHERE blocked_at IS NULL AND device_nudge_count < 3;
+CREATE INDEX IF NOT EXISTS users_legal_nudge_idx
+    ON users (legal_nudge_count, created_at)
+    WHERE blocked_at IS NULL
+      AND accepted_legal_at IS NULL
+      AND legal_nudge_count < 3;
 
 CREATE TABLE IF NOT EXISTS ad_links (
     id BIGSERIAL PRIMARY KEY,

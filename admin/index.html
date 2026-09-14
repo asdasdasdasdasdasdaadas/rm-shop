@@ -140,6 +140,7 @@
             <span id="flagInvite" class="flag flag-off">Друзья: выкл</span>
             <span id="flagInfo" class="flag flag-off">Справка: выкл</span>
             <span id="flagStory" class="flag flag-off">История: выкл</span>
+            <span id="flagLegal" class="flag flag-off">Оферта: выкл</span>
             <div class="admin-chip">
               <span class="admin-chip-ava" aria-hidden="true">
                 <svg viewBox="0 0 48 48" fill="none"><ellipse cx="24" cy="30" rx="11" ry="13" fill="currentColor"/><circle cx="12" cy="14" r="4.4" fill="currentColor"/><circle cx="36" cy="14" r="4.4" fill="currentColor"/><circle cx="20" cy="8" r="3.6" fill="currentColor" opacity=".75"/><circle cx="28" cy="8" r="3.6" fill="currentColor" opacity=".75"/></svg>
@@ -249,6 +250,17 @@
                 </button>
               </div>
               <p class="muted tight">Если устройства нет: через 30 минут, потом ещё раз через сутки и ещё раз через сутки.</p>
+            </div>
+            <div class="panel ops-card">
+              <div class="ops-kicker">Сообщения</div>
+              <div class="ops-head">
+                <strong>Напоминание про оферту</strong>
+                <button type="button" id="legalNudgeBtn" class="switch is-off" role="switch" aria-checked="false">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                  <span class="switch-state">Выкл</span>
+                </button>
+              </div>
+              <p class="muted tight">Если оферта не принята: через 30 минут, потом ещё раз через сутки и ещё раз через сутки.</p>
             </div>
             <div class="panel ops-card">
               <div class="ops-kicker">Сообщения</div>
@@ -820,6 +832,7 @@
               <option value="nudge_story">Напоминание: история</option>
               <option value="nudge_idle">Напоминание: давно не заходил</option>
               <option value="nudge_device">Напоминание: устройство</option>
+              <option value="nudge_legal">Напоминание: оферта</option>
               <option value="nudge_first_online">Напоминание: после онлайна</option>
               <option value="nudge_trial_end">Напоминание: сутки до отключения</option>
               <option value="welcome_intro">Первый запуск</option>

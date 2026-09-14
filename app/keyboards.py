@@ -317,20 +317,28 @@ def invite_url(telegram_id: int, bot_username: str | None = None) -> str:
 
 def invite_share_text() -> str:
     settings = get_settings()
+    brand = (settings.brand_name or "VPN").strip() or "VPN"
     if settings.balance_enabled:
+        price = int(settings.vpn_day_price_rub or 0)
         text = (
-            "VPN: сутки только за свои устройства. Подключайтесь по ссылке."
+            f"Попробуй {brand}: быстрый VPN в Telegram. "
+            "Подключается за минуту, платишь только за свои устройства"
         )
+        if price > 0:
+            text += f" (от {price} ₽/сутки)"
+        text += ". Зайди по ссылке."
         bonus = int(settings.referral_invitee_reward_rub or 0)
         if bonus > 0:
-            text += f" При первой оплате на баланс ещё {bonus} ₽."
+            text += f" После первой оплаты на баланс ещё {bonus} ₽."
         return text
     extra = settings.referral_invitee_days
     text = (
-        "VPN: ссылку подписки всегда можно взять у нас. Подключайтесь по ссылке."
+        f"Попробуй {brand}: быстрый VPN в Telegram. "
+        "Подключается за минуту, ссылку подписки всегда можно взять в кабинете. "
+        "Зайди по ссылке."
     )
     if extra > 0:
-        text += f" При бесплатном периоде +{days_text(extra)}."
+        text += f" На пробном периоде +{days_text(extra)}."
     return text
 
 
