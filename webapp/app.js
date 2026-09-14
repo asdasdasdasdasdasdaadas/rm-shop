@@ -3112,6 +3112,13 @@ function paintDevice(d) {
   const svg = d.subscription_url ? makeQrSvg(d.subscription_url, "dev-qr-svg") : null;
   btn.classList.toggle("hidden", !svg);
   if (svg) box.appendChild(svg);
+  const warnSub = $("devWarnSub");
+  if (warnSub) {
+    const me = window.__me;
+    warnSub.textContent = me && me.balance_enabled
+      ? "Удалите его, чтобы не расходовать баланс"
+      : "Удалите его, если больше не пользуетесь";
+  }
 }
 
 function showDevice(d) {
