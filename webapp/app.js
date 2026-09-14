@@ -1157,11 +1157,11 @@ function skipOffer() {
 function shouldShowOffer(me) {
   if (!me) return false;
   if ((me.devices || []).length) return false;
+  if (offerSkipped() || onboardDone()) return false;
+  // Только пока триал ещё можно забрать. После выдачи / удаления устройств подарок не показываем.
   if (me.trial_available) return true;
   const kind = me.trial_notice && me.trial_notice.kind;
-  if (kind === "claim" || kind === "granted") return true;
-  if (!me.balance_enabled || me.has_paid_topup) return false;
-  return Number(me.balance_rub) > 0 || Number(me.days) > 0 || Number(me.trial_days) > 0;
+  return kind === "claim";
 }
 
 function maybeOpenFirstRun(me) {
@@ -1182,14 +1182,21 @@ function maybeOpenFirstRun(me) {
     return;
   }
   if (screen === "offer") {
-    paintOffer(me);
+    if (shouldShowOffer(me)) {
+      paintOffer(me);
+      return;
+    }
+    openHome();
     return;
   }
   if (shouldShowOffer(me)) {
     openOffer({ instant: true });
     return;
   }
-  if (me.balance_enabled) startWizard({ fromOffer: false, instant: true });
+  // Мастер только для тех, кто ещё не прошёл онбординг — не после удаления устройств.
+  if (me.balance_enabled && !onboardDone()) {
+    startWizard({ fromOffer: false, instant: true });
+  }
 }
 
 function markCoachDone() {
@@ -3095,12 +3102,27 @@ function openClient(client, url) {
   window.location.href = deep;
 }
 
+function setDevUrl(url) {
+  const el = $("devUrl");
+  if (!el) return;
+  const value = String(url || "").trim();
+  if (!value) {
+    el.textContent = "Ссылка появится после создания";
+    el.removeAttribute("href");
+    el.classList.add("is-empty");
+    return;
+  }
+  el.textContent = value;
+  el.setAttribute("href", value);
+  el.classList.remove("is-empty");
+}
+
 function paintDevice(d) {
   $("devTitle").textContent = d.title || "Устройство";
   $("devPlatform").textContent = platformLabel(d.platform);
   const icon = document.querySelector("#view-device .dev-icon");
   if (icon) icon.innerHTML = platIconSvg(d.platform);
-  $("devUrl").textContent = d.subscription_url || "Ссылка появится после создания";
+  setDevUrl(d.subscription_url || "");
   $("devOpenLabel").textContent = "Открыть в " + clientLabel(d.client);
   const on = Boolean(d.active);
   $("devStatus").classList.toggle("off", !on);
@@ -3564,6 +3586,7 @@ function renderRouter(me) {
     try {
       await api(`/api/devices/${device.id}`, { method: "DELETE" });
       lastDevicesKey = "";
+      markOnboardDone();
       await load();
       showToast("Устройство удалено");
     } catch (e) {
@@ -4272,20 +4295,45 @@ function showToast(text) {
   toastTimer = setTimeout(() => el.classList.remove("show"), 1600);
 }
 
-$("devCopy").onclick = () => {
+function copyDevUrl() {
   const d = openDevice;
-  if (!d || !d.subscription_url) return;
+  const url = (d && d.subscription_url) || ($("devUrl") && $("devUrl").getAttribute("href")) || "";
+  if (!url || url === "#") return;
   haptic();
-  navigator.clipboard.writeText(d.subscription_url).then(() => {
-    $("devCopy").classList.add("copied");
-    $("devCopyLabel").textContent = "Готово";
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = $("devCopy");
+    const label = $("devCopyLabel");
+    if (btn) btn.classList.add("copied");
+    if (label) label.textContent = "Готово";
     showToast("Ссылка скопирована");
     setTimeout(() => {
-      $("devCopy").classList.remove("copied");
-      $("devCopyLabel").textContent = "Копировать";
+      if (btn) btn.classList.remove("copied");
+      if (label) label.textContent = "Копировать";
     }, 1600);
   }).catch(() => tg.showAlert("Не удалось скопировать"));
-};
+}
+
+$("devCopy").onclick = () => copyDevUrl();
+
+(function bindDevUrlClick() {
+  const el = $("devUrl");
+  if (!el) return;
+  let downX = 0;
+  let downY = 0;
+  el.addEventListener("pointerdown", (e) => {
+    downX = e.clientX;
+    downY = e.clientY;
+  });
+  el.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (el.classList.contains("is-empty")) return;
+    const moved = Math.hypot(e.clientX - downX, e.clientY - downY) > 6;
+    const sel = window.getSelection && window.getSelection();
+    const hasSel = !!(sel && !sel.isCollapsed && el.contains(sel.anchorNode));
+    if (moved || hasSel) return;
+    copyDevUrl();
+  });
+})();
 
 $("devOpen").onclick = () => {
   const d = openDevice;
@@ -4314,7 +4362,7 @@ async function reissueSubscription(deviceId) {
     const data = await api(path, { method: "POST", body: "{}" });
     if (deviceId && openDevice && openDevice.id === deviceId) {
       openDevice.subscription_url = data.subscription_url || "";
-      $("devUrl").textContent = openDevice.subscription_url || "Ссылка появится после создания";
+      setDevUrl(openDevice.subscription_url);
       paintDevice(openDevice);
     }
     await load();
@@ -4349,6 +4397,7 @@ async function deleteDevice() {
   try {
     await api(`/api/devices/${d.id}`, { method: "DELETE" });
     lastDevicesKey = "";
+    markOnboardDone();
     openHome();
     await load();
     showToast("Устройство удалено");

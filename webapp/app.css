@@ -4865,10 +4865,20 @@ body.has-main-btn {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 .dev-link-text {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
   font-size: 12.5px;
   line-height: 1.55;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  color: var(--text-primary);
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: rgba(var(--accent-rgb), 0.45);
+  text-underline-offset: 3px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft-border);
+  border-radius: 14px;
+  padding: 12px 14px;
   overflow-wrap: anywhere;
   word-break: break-all;
   white-space: pre-wrap;
@@ -4877,6 +4887,19 @@ body.has-main-btn {
   overflow: visible;
   user-select: text;
   -webkit-user-select: text;
+  -webkit-touch-callout: default;
+  cursor: pointer;
+}
+.dev-link-text.is-empty {
+  color: var(--text-secondary);
+  text-decoration: none;
+  background: transparent;
+  border-color: transparent;
+  padding: 0;
+  cursor: default;
+}
+.dev-link-text:not(.is-empty):active {
+  background: rgba(var(--accent-rgb), 0.22);
 }
 .dev-qr-btn {
   display: flex;
