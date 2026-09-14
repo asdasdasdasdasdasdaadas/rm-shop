@@ -3097,7 +3097,6 @@ function openClient(client, url) {
 
 function paintDevice(d) {
   $("devTitle").textContent = d.title || "Устройство";
-  $("devClient").textContent = clientLabel(d.client);
   $("devPlatform").textContent = platformLabel(d.platform);
   const icon = document.querySelector("#view-device .dev-icon");
   if (icon) icon.innerHTML = platIconSvg(d.platform);
@@ -3106,12 +3105,6 @@ function paintDevice(d) {
   const on = Boolean(d.active);
   $("devStatus").classList.toggle("off", !on);
   $("devStatusText").textContent = on ? "Активно" : "Неактивно";
-  const box = $("devQr");
-  const btn = $("devQrBtn");
-  box.innerHTML = "";
-  const svg = d.subscription_url ? makeQrSvg(d.subscription_url, "dev-qr-svg") : null;
-  btn.classList.toggle("hidden", !svg);
-  if (svg) box.appendChild(svg);
   const warnSub = $("devWarnSub");
   if (warnSub) {
     const me = window.__me;
@@ -4335,13 +4328,6 @@ $("devReissue").onclick = () => {
   const d = openDevice;
   if (!d) return;
   reissueSubscription(d.id);
-};
-
-$("devQrBtn").onclick = () => {
-  const d = openDevice;
-  if (!d || !d.subscription_url) return;
-  haptic();
-  showQr(d.subscription_url);
 };
 
 function askDeleteDevice() {
