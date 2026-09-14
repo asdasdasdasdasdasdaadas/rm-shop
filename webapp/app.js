@@ -3312,15 +3312,9 @@ function paintStoryCard(me, rub) {
     return;
   }
   timer.classList.add("hidden");
-  if (me.story_rewarded) {
-    $("storyTitle").textContent = "Выложить историю";
-    $("storyNote").textContent = "Награда уже начислена. Можно выложить ещё раз.";
-    $("storyBtn").textContent = "Ещё раз";
-  } else {
-    $("storyTitle").textContent = `История — ${rub} ₽`;
-    $("storyNote").textContent = "Откроется редактор истории Telegram. Награда один раз после подтверждения администратором.";
-    $("storyBtn").textContent = "Выложить";
-  }
+  $("storyTitle").textContent = `История — ${rub} ₽`;
+  $("storyNote").textContent = "Откроется редактор истории Telegram. Награда один раз после подтверждения администратором.";
+  $("storyBtn").textContent = "Выложить";
 }
 
 function paintPayout(me) {
@@ -3745,7 +3739,7 @@ function paint(me) {
   paintPayout(me);
   if (screen === "referrals") paintReferrals(me);
   const storyCard = $("storyCard");
-  if (me.story_reward_enabled) {
+  if (me.story_reward_enabled && !me.story_rewarded) {
     const rub = me.story_reward_rub || 0;
     storyCard.classList.remove("hidden");
     paintStoryCard(me, rub);

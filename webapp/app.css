@@ -1950,6 +1950,18 @@ body:has(#webBack:not(.hidden)) .view-head {
   padding: 4px 10px 10px;
 }
 
+.home-help {
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+  box-sizing: border-box;
+}
+
+.home-help .help-list {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .help-list {
   display: flex;
   flex-direction: column;
@@ -1971,7 +1983,7 @@ body:has(#webBack:not(.hidden)) .view-head {
   letter-spacing: -0.01em;
   text-decoration: none;
   border: 0;
-  border-top: 1px solid var(--divider);
+  border-top: 0;
   background: transparent;
   font-family: inherit;
   cursor: pointer;
@@ -1983,7 +1995,9 @@ body:has(#webBack:not(.hidden)) .view-head {
   flex: 1;
 }
 
-.help-list button:first-child { border-top: none; }
+.help-list > button:not(.hidden) ~ button:not(.hidden) {
+  border-top: 1px solid var(--divider);
+}
 
 .help-list .arrow {
   flex-shrink: 0;
@@ -5143,7 +5157,9 @@ html.is-pc #view-home .view-head,
 html.is-pc #view-home .status-card,
 html.is-pc #view-home .trial-notice,
 html.is-pc #view-home .invitee-bonus,
-html.is-pc #view-home .ref-banner {
+html.is-pc #view-home .ref-banner,
+html.is-pc #view-home #storyCard,
+html.is-pc #view-home .home-help {
   grid-column: 1 / -1;
   justify-self: stretch;
   width: 100%;

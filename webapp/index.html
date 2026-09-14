@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=151">
+  <link rel="stylesheet" href="app.css?v=152">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -584,6 +584,7 @@
 
       <div class="home-col home-col-side">
       <button type="button" id="invite" class="hidden" tabindex="-1"></button>
+      </div>
 
       <div id="storyCard" class="section referral hidden">
         <div class="glyph" aria-hidden="true">
@@ -599,14 +600,13 @@
         <div id="storyTimer" class="story-timer hidden" aria-live="polite"></div>
       </div>
 
-      <div>
+      <div class="home-help">
         <div class="section-title-plain">Помощь</div>
         <div class="section help-list">
           <button type="button" id="faqBtn"><span>Частые вопросы</span><span class="arrow">›</span></button>
-          <button type="button" id="trustHelp"><span>Обещанный платёж</span><span class="arrow">›</span></button>
+          <button type="button" id="trustHelp" class="hidden"><span>Обещанный платёж</span><span class="arrow">›</span></button>
           <button type="button" id="supportBtn"><span>Поддержка</span><span class="arrow">›</span></button>
         </div>
-      </div>
       </div>
     </div>
 
@@ -1102,6 +1102,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=125"></script>
+  <script src="app.js?v=126"></script>
 </body>
 </html>
