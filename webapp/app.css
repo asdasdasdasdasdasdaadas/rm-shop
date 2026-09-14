@@ -1868,6 +1868,13 @@ body:has(#webBack:not(.hidden)) .view-head {
 }
 
 .promo-card { padding: 2px 12px; }
+#view-promo .promo-card {
+  padding: 14px 12px;
+  margin-top: 8px;
+}
+#view-promo .promo-inner {
+  margin: 0;
+}
 
 .promo-toggle {
   display: flex;

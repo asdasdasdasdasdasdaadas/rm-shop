@@ -1063,7 +1063,7 @@ function replayAnim(el, cls) {
 
 function switchView(id, motion) {
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
-  ["view-home", "view-topup", "view-wizard", "view-device", "view-router", "view-support", "view-faq", "view-article", "view-billing", "view-referrals", "view-offer", "view-settings"].forEach((vid) => {
+  ["view-home", "view-topup", "view-wizard", "view-device", "view-router", "view-support", "view-faq", "view-article", "view-billing", "view-referrals", "view-offer", "view-settings", "view-promo"].forEach((vid) => {
     const el = $(vid);
     if (!el) return;
     const on = vid === id;
@@ -1176,6 +1176,7 @@ function maybeOpenFirstRun(me) {
     screen === "faq" ||
     screen === "billing" ||
     screen === "settings" ||
+    screen === "promo" ||
     screen === "article"
   ) {
     return;
@@ -1835,6 +1836,10 @@ function onBack() {
     openHome();
     return;
   }
+  if (screen === "promo") {
+    openHome();
+    return;
+  }
   if (screen === "offer") {
     const me = window.__me;
     if (me && me.balance_enabled && !(me.devices || []).length) {
@@ -1846,7 +1851,7 @@ function onBack() {
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device" || screen === "router" || screen === "topup" || screen === "support" || screen === "faq" || screen === "article" || screen === "billing" || screen === "referrals" || screen === "offer" || screen === "settings";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "router" || screen === "topup" || screen === "support" || screen === "faq" || screen === "article" || screen === "billing" || screen === "referrals" || screen === "offer" || screen === "settings" || screen === "promo";
   stopSupportPoll();
   stopRouterPayPoll();
   screen = "home";
@@ -2123,6 +2128,27 @@ function openSettings() {
   switchView("view-settings", "push");
   setMain("");
   paintThemePicker();
+  try {
+    tg.BackButton.show();
+  } catch (_e) {}
+  syncWebBack();
+}
+
+function openPromo() {
+  hideCoach();
+  stopSupportPoll();
+  screen = "promo";
+  switchView("view-promo", "push");
+  setMain("");
+  const input = $("promo");
+  if (input) {
+    input.value = "";
+    setTimeout(() => {
+      try {
+        input.focus();
+      } catch (_e) {}
+    }, 50);
+  }
   try {
     tg.BackButton.show();
   } catch (_e) {}
@@ -3731,11 +3757,8 @@ function paint(me) {
   $("privacyLink").href = me.legal.privacy;
   const menuBilling = $("menuBilling");
   if (menuBilling) menuBilling.classList.toggle("hidden", !me.balance_enabled);
-  if (me.promo_enabled) {
-    $("promoCard").classList.remove("hidden");
-  } else {
-    $("promoCard").classList.add("hidden");
-  }
+  const menuPromo = $("menuPromo");
+  if (menuPromo) menuPromo.classList.toggle("hidden", !me.promo_enabled);
   const trustBtn = $("trustBtn");
   const trustOpen = $("trustOpen");
   const trustHelp = $("trustHelp");
@@ -3796,6 +3819,7 @@ function paint(me) {
   }
   if (screen === "topup") renderTopup(me);
   if (screen === "router") renderRouter(me);
+  if (screen === "promo" && !me.promo_enabled) openHome();
   if (firstRunBusy) return;
   if (!$("intro").classList.contains("hidden")) return;
   if (shouldShowIntro()) showIntro(me);
@@ -4194,6 +4218,14 @@ $("promoBtn").onclick = async () => {
   }
 };
 
+if ($("menuPromo")) {
+  $("menuPromo").onclick = () => {
+    closeMenu();
+    haptic();
+    openPromo();
+  };
+}
+
 $("ctaAdd").onclick = () => startWizard();
 $("addDevice").onclick = () => startWizard();
 $("addDeviceEmpty").onclick = () => startWizard();
@@ -4235,12 +4267,6 @@ window.addEventListener("resize", () => {
     requestCoachLayout();
   }, 80);
 });
-
-$("promoToggle").onclick = () => {
-  const body = $("promoBody");
-  body.classList.toggle("open");
-  $("promoChev").style.transform = body.classList.contains("open") ? "rotate(180deg)" : "rotate(0deg)";
-};
 
 let toastTimer = 0;
 function showToast(text) {

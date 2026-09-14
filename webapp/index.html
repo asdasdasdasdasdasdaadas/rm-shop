@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=150">
+  <link rel="stylesheet" href="app.css?v=151">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -599,19 +599,6 @@
         <div id="storyTimer" class="story-timer hidden" aria-live="polite"></div>
       </div>
 
-      <div id="promoCard" class="section promo-card hidden">
-        <div class="promo-toggle" id="promoToggle">
-          <span class="l">Есть промокод?</span>
-          <span class="chev" id="promoChev">⌄</span>
-        </div>
-        <div class="promo-body" id="promoBody">
-          <div class="promo-inner">
-            <input id="promo" type="text" placeholder="Введите код" autocomplete="off" autocapitalize="characters">
-            <button type="button" id="promoBtn">Применить</button>
-          </div>
-        </div>
-      </div>
-
       <div>
         <div class="section-title-plain">Помощь</div>
         <div class="section help-list">
@@ -709,6 +696,20 @@
           <span class="theme-dot t-yellow"></span>
           <span>Жёлтая</span>
         </button>
+      </div>
+    </div>
+
+    <div id="view-promo" class="view hidden">
+      <div class="view-head">
+        <p class="wiz-kicker">Бонус</p>
+        <h1 class="wiz-title">Промокод</h1>
+      </div>
+      <p class="section-note topup-hint">Введите код — начисление придёт на баланс или продлит подписку, в зависимости от режима магазина.</p>
+      <div class="section promo-card">
+        <div class="promo-inner">
+          <input id="promo" type="text" placeholder="Введите код" autocomplete="off" autocapitalize="characters">
+          <button type="button" id="promoBtn">Применить</button>
+        </div>
       </div>
     </div>
 
@@ -1064,6 +1065,7 @@
   <div id="menu" class="sheet hidden" role="menu">
     <button type="button" id="menuSettings" role="menuitem">Настройки</button>
     <button type="button" id="menuFaq" role="menuitem">Частые вопросы</button>
+    <button type="button" id="menuPromo" class="hidden" role="menuitem">Промокод</button>
     <button type="button" id="menuReferrals" role="menuitem">Рефералы</button>
     <button type="button" id="menuBilling" class="hidden" role="menuitem">История списаний</button>
     <button type="button" id="menuTrust" class="hidden" role="menuitem">Обещанный платёж</button>
@@ -1100,6 +1102,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=124"></script>
+  <script src="app.js?v=125"></script>
 </body>
 </html>
