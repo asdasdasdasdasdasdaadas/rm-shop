@@ -70,7 +70,7 @@
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M12 21c-4.4-2.9-8-6.6-8-11a5 5 0 018-4 5 5 0 018 4c0 4.4-3.6 8.1-8 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           <span class="nav-text">Рефералы</span>
         </button>
-        <button type="button" data-tab="ads" data-title="Реклама" data-lead="Ссылки для рекламы и сколько по ним пришло людей">
+        <button type="button" data-tab="ads" data-title="Реклама" data-lead="Ссылки для рекламы, автогенерация и статистика сторис клиентов">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 11l16-6-6 16-2.5-6.5L4 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           <span class="nav-text">Реклама</span>
         </button>
@@ -99,7 +99,7 @@
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M5 6h14v10H8l-3 3V6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           <span class="nav-text">Сообщения</span>
         </button>
-        <button type="button" data-tab="promo" data-title="Промо" data-lead="Триал, промокоды, истории и награды за друзей">
+        <button type="button" data-tab="promo" data-title="Промо" data-lead="Триал, промокоды с лимитами, истории и награды за друзей">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 9h16v11H4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9V4.8A1.8 1.8 0 0113.8 3h.2A2 2 0 0116 5v4M12 9V4.8A1.8 1.8 0 0010.2 3h-.2A2 2 0 008 5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 13h16" stroke="currentColor" stroke-width="1.8"/></svg>
           <span class="nav-text">Промо</span>
         </button>
@@ -641,7 +641,7 @@
         <section id="tab-ads" class="hidden">
           <div class="panel">
             <h3>Новая ссылка</h3>
-            <p class="muted tight">Отдайте ссылку в рекламу. Клики — все открытия бота. Пришли — люди, за которыми ссылка закрепилась при первом заходе. Код в ссылке необязателен: если пусто, подставим сами.</p>
+            <p class="muted tight">Отдайте ссылку в рекламу. Клики — все открытия бота. Пришли — люди, за которыми ссылка закрепилась при первом заходе. Код в ссылке необязателен: если пусто, подставим сами. «Сгенерировать» — сразу создать с автоназванием и скопировать URL.</p>
             <div class="form-grid">
               <div>
                 <label class="ops-label" for="adTitle">Название</label>
@@ -654,6 +654,7 @@
             </div>
             <div class="ops">
               <button type="button" id="adCreate">Создать</button>
+              <button type="button" id="adAutogen" class="ghost">Сгенерировать</button>
               <label class="check-row" style="margin:0">
                 <input id="adShowArchived" type="checkbox">
                 <span>Показать скрытые</span>
@@ -676,6 +677,29 @@
                 </tr>
               </thead>
               <tbody id="adRows"></tbody>
+            </table>
+          </div>
+
+          <div class="panel" style="margin-top:18px">
+            <h3>Сторис клиентов</h3>
+            <p class="muted tight">В историю уходит персональная ссылка. Ниже — выложили, наградили и сколько людей пришло с этих ссылок.</p>
+            <div id="storyStatsKpis" class="kpi-strip"></div>
+            <p id="storyStatsOut" class="muted"></p>
+          </div>
+          <div class="table-wrap">
+            <table class="table-as-cards">
+              <thead>
+                <tr>
+                  <th>Клиент</th>
+                  <th>Статус</th>
+                  <th>Клики</th>
+                  <th>Пришли</th>
+                  <th>Триал</th>
+                  <th>Оплатили</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="storyStatsRows"></tbody>
             </table>
           </div>
         </section>
@@ -1211,8 +1235,49 @@
                   <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
                 </span>
               </label>
-              <label class="ops-label" for="setPromo">Коды (КОД:дни через запятую)</label>
-              <input id="setPromo" name="promo_codes" type="text" maxlength="2000">
+              <p class="muted tight">Дни начисляются как сейчас: при балансе — рубли за сутки × дни. Один код — один раз на пользователя.</p>
+              <div class="form-grid">
+                <div>
+                  <label class="ops-label" for="promoCode">Код</label>
+                  <input id="promoCode" type="text" maxlength="32" placeholder="пусто = сгенерируем" autocomplete="off">
+                </div>
+                <div>
+                  <label class="ops-label" for="promoDays">Дни</label>
+                  <input id="promoDays" type="number" min="1" max="3650" value="3">
+                </div>
+                <div>
+                  <label class="ops-label" for="promoMaxUses">Лимит активаций</label>
+                  <input id="promoMaxUses" type="number" min="1" placeholder="без лимита">
+                </div>
+                <div>
+                  <label class="ops-label" for="promoExpires">Срок до</label>
+                  <input id="promoExpires" type="datetime-local">
+                </div>
+              </div>
+              <div class="ops">
+                <button type="button" id="promoCreate">Создать</button>
+                <button type="button" id="promoGen" class="ghost">Сгенерировать код</button>
+                <label class="check-row" style="margin:0">
+                  <input id="promoShowArchived" type="checkbox">
+                  <span>Показать скрытые</span>
+                </label>
+              </div>
+              <p id="promoCodesOut" class="muted"></p>
+              <div class="table-wrap" style="margin-top:12px">
+                <table class="table-as-cards">
+                  <thead>
+                    <tr>
+                      <th>Код</th>
+                      <th>Дни</th>
+                      <th>Использовано</th>
+                      <th>Срок</th>
+                      <th>Статус</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="promoCodeRows"></tbody>
+                </table>
+              </div>
             </div>
             <div class="panel shop-balance" id="promo-story">
               <h3>История в Telegram</h3>

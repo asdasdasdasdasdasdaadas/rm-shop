@@ -107,10 +107,13 @@ def validate_shop(body: dict) -> dict:
         out["router_days"] = _as_int(body.get("router_days"), 1, 365, "Роутер, дни")
     else:
         out["router_days"] = int(get_settings().router_days or 30)
-    codes = str(body.get("promo_codes") or "").strip()
-    if len(codes) > 2000:
-        raise ValueError("Промокоды слишком длинные")
-    out["promo_codes"] = codes
+    if "promo_codes" in body:
+        codes = str(body.get("promo_codes") or "").strip()
+        if len(codes) > 2000:
+            raise ValueError("Промокоды слишком длинные")
+        out["promo_codes"] = codes
+    else:
+        out["promo_codes"] = str(get_settings().promo_codes or "")
     out["plan_1m_rub"] = _as_float(body.get("plan_1m_rub"), 1, 100000, "Тариф 1 месяц")
     out["plan_3m_rub"] = _as_float(body.get("plan_3m_rub"), 1, 100000, "Тариф 3 месяца")
     out["plan_6m_rub"] = _as_float(body.get("plan_6m_rub"), 1, 100000, "Тариф 6 месяцев")
@@ -207,6 +210,7 @@ async def load_shop_overlay() -> None:
         data["balance_topup_max"] = 5000
         await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
     set_shop_overlay(data)
+    await db.migrate_legacy_promo_codes()
 
 
 async def save_shop_overlay(body: dict) -> dict:

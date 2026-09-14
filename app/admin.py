@@ -351,6 +351,7 @@ def _ad_public(row: dict) -> dict:
     return {
         "id": int(row["id"]),
         "slug": slug,
+        "kind": row.get("kind") or "manual",
         "title": row.get("title") or "",
         "url": f"https://t.me/{settings.bot_username}?start=ad_{slug}",
         "clicks": int(row.get("clicks") or 0),
@@ -362,20 +363,69 @@ def _ad_public(row: dict) -> dict:
     }
 
 
+def _promo_public(row: dict) -> dict:
+    max_uses = row.get("max_uses")
+    used = int(row.get("used_count") or 0)
+    return {
+        "id": int(row["id"]),
+        "code": row.get("code") or "",
+        "days": int(row.get("days") or 0),
+        "max_uses": int(max_uses) if max_uses is not None else None,
+        "used_count": used,
+        "remaining": (int(max_uses) - used) if max_uses is not None else None,
+        "enabled": bool(row.get("enabled")),
+        "expires_at": row["expires_at"].isoformat() if row.get("expires_at") else None,
+        "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+        "archived": bool(row.get("archived_at")),
+    }
+
+
+def _parse_promo_expires(raw) -> object:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    from datetime import datetime, timezone
+
+    try:
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+    except ValueError as exc:
+        raise ValueError("Неверная дата срока") from exc
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 async def api_ad_links(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
         return denied
     if request.method == "GET":
         archived = str(request.query.get("archived") or "") in {"1", "true", "yes"}
-        items = [_ad_public(r) for r in await db.list_ad_links(include_archived=archived)]
+        items = [
+            _ad_public(r)
+            for r in await db.list_ad_links(include_archived=archived, kind="manual")
+        ]
         return web.json_response({"ok": True, "items": items})
     try:
         body = await request.json()
     except Exception:
         body = {}
+    title = str(body.get("title") or "").strip()
+    if not title and body.get("autogen"):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        try:
+            now = datetime.now(ZoneInfo("Europe/Moscow"))
+        except Exception:
+            from datetime import timezone
+
+            now = datetime.now(timezone.utc)
+        title = f"Реклама {now.strftime('%d.%m %H:%M')}"
     try:
-        row = await db.create_ad_link(str(body.get("title") or ""), str(body.get("slug") or ""))
+        row = await db.create_ad_link(title, str(body.get("slug") or ""), kind="manual")
     except ValueError as exc:
         return web.json_response({"ok": False, "error": str(exc)}, status=400)
     item = _ad_public({**row, "users": 0, "trial": 0, "paid": 0, "clicks": int(row.get("clicks") or 0)})
@@ -392,6 +442,143 @@ async def api_ad_link_archive(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Ссылка не найдена"}, status=404)
     if not await db.archive_ad_link(link_id):
         return web.json_response({"ok": False, "error": "Ссылка уже скрыта или не найдена"}, status=404)
+    return web.json_response({"ok": True})
+
+
+async def api_story_stats(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    settings = get_settings()
+    data = await db.story_share_stats()
+    summary = data.get("summary") or {}
+    items = []
+    for row in data.get("items") or []:
+        slug = str(row.get("slug") or "")
+        status = "none"
+        if row.get("story_rewarded_at"):
+            status = "rewarded"
+        elif row.get("story_pending_at"):
+            status = "pending"
+        items.append(
+            {
+                "telegram_id": int(row["telegram_id"]),
+                "username": row.get("username"),
+                "first_name": row.get("first_name"),
+                "status": status,
+                "story_pending_at": row["story_pending_at"].isoformat() if row.get("story_pending_at") else None,
+                "story_rewarded_at": row["story_rewarded_at"].isoformat() if row.get("story_rewarded_at") else None,
+                "slug": slug,
+                "url": (
+                    f"https://t.me/{settings.bot_username}?start=ad_{slug}" if slug else None
+                ),
+                "clicks": int(row.get("clicks") or 0),
+                "users": int(row.get("users") or 0),
+                "trial": int(row.get("trial") or 0),
+                "paid": int(row.get("paid") or 0),
+            }
+        )
+    return web.json_response(
+        {
+            "ok": True,
+            "summary": {
+                "shared": int(summary.get("shared") or 0),
+                "pending": int(summary.get("pending") or 0),
+                "rewarded": int(summary.get("rewarded") or 0),
+                "clicks": int(summary.get("clicks") or 0),
+                "users": int(summary.get("users") or 0),
+                "trial": int(summary.get("trial") or 0),
+                "paid": int(summary.get("paid") or 0),
+            },
+            "items": items,
+        }
+    )
+
+
+async def api_promo_codes(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    if request.method == "GET":
+        archived = str(request.query.get("archived") or "") in {"1", "true", "yes"}
+        items = [_promo_public(r) for r in await db.list_promo_codes(include_archived=archived)]
+        return web.json_response({"ok": True, "items": items})
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        expires = _parse_promo_expires(body.get("expires_at"))
+        max_uses = body.get("max_uses")
+        if max_uses in ("", None):
+            max_uses = None
+        else:
+            max_uses = int(max_uses)
+        row = await db.create_promo_code(
+            code=str(body.get("code") or ""),
+            days=int(body.get("days") or 0),
+            max_uses=max_uses,
+            expires_at=expires,
+            enabled=bool(body.get("enabled", True)),
+        )
+    except (TypeError, ValueError) as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    return web.json_response({"ok": True, "item": _promo_public(row)})
+
+
+async def api_promo_code_update(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        promo_id = int(request.match_info["promo_id"])
+    except (KeyError, TypeError, ValueError):
+        return web.json_response({"ok": False, "error": "Промокод не найден"}, status=404)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    kwargs: dict = {}
+    if "days" in body:
+        try:
+            kwargs["days"] = int(body.get("days"))
+        except (TypeError, ValueError):
+            return web.json_response({"ok": False, "error": "Неверные дни"}, status=400)
+    if "max_uses" in body:
+        raw = body.get("max_uses")
+        if raw in ("", None):
+            kwargs["max_uses"] = None
+        else:
+            try:
+                kwargs["max_uses"] = int(raw)
+            except (TypeError, ValueError):
+                return web.json_response({"ok": False, "error": "Неверный лимит"}, status=400)
+    if "expires_at" in body:
+        try:
+            kwargs["expires_at"] = _parse_promo_expires(body.get("expires_at"))
+        except ValueError as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    if "enabled" in body:
+        kwargs["enabled"] = bool(body.get("enabled"))
+    try:
+        row = await db.update_promo_code(promo_id, **kwargs)
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    if not row:
+        return web.json_response({"ok": False, "error": "Промокод не найден"}, status=404)
+    return web.json_response({"ok": True, "item": _promo_public(row)})
+
+
+async def api_promo_code_archive(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        promo_id = int(request.match_info["promo_id"])
+    except (KeyError, TypeError, ValueError):
+        return web.json_response({"ok": False, "error": "Промокод не найден"}, status=404)
+    if not await db.archive_promo_code(promo_id):
+        return web.json_response({"ok": False, "error": "Промокод уже скрыт или не найден"}, status=404)
     return web.json_response({"ok": True})
 
 
@@ -1985,6 +2172,11 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/ads", api_ad_links)
     app.router.add_post("/admin/api/ads", api_ad_links)
     app.router.add_post("/admin/api/ads/{link_id}/archive", api_ad_link_archive)
+    app.router.add_get("/admin/api/story-stats", api_story_stats)
+    app.router.add_get("/admin/api/promos", api_promo_codes)
+    app.router.add_post("/admin/api/promos", api_promo_codes)
+    app.router.add_post("/admin/api/promos/{promo_id}", api_promo_code_update)
+    app.router.add_post("/admin/api/promos/{promo_id}/archive", api_promo_code_archive)
     app.router.add_get("/admin/api/payouts", api_payouts)
     app.router.add_post("/admin/api/payouts/{payout_id}", api_payout_resolve)
     app.router.add_get("/admin/api/orders", api_orders)

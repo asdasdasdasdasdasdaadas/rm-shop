@@ -46,6 +46,30 @@ async def init_db() -> None:
     await _ensure_nudge_defaults()
 
 
+async def migrate_legacy_promo_codes() -> None:
+    if (await get_kv("promo_codes_migrated_v1")) == "1":
+        return
+    settings = get_settings()
+    for code, days in settings.promo_map.items():
+        clean = str(code or "").strip().upper()
+        try:
+            day_n = int(days)
+        except (TypeError, ValueError):
+            continue
+        if not clean or day_n < 1:
+            continue
+        await _pool_req().execute(
+            """
+            INSERT INTO promo_codes (code, days, enabled)
+            VALUES ($1, $2, TRUE)
+            ON CONFLICT (code) DO NOTHING
+            """,
+            clean,
+            day_n,
+        )
+    await set_kv("promo_codes_migrated_v1", "1")
+
+
 async def close_db() -> None:
     global _pool
     if _pool is not None:
@@ -265,12 +289,15 @@ async def touch_ad_link(slug: str) -> int | None:
     return int(row["id"]) if row else None
 
 
-async def create_ad_link(title: str, slug: str = "") -> dict:
+async def create_ad_link(title: str, slug: str = "", *, kind: str = "manual") -> dict:
     name = str(title or "").strip()
     if len(name) < 2:
         raise ValueError("Укажите название ссылки")
     if len(name) > 80:
         raise ValueError("Название слишком длинное")
+    link_kind = str(kind or "manual").strip().lower() or "manual"
+    if link_kind not in {"manual", "story"}:
+        raise ValueError("Неизвестный тип ссылки")
     raw_slug = str(slug or "").strip()
     if raw_slug:
         candidate = raw_slug.lower()
@@ -279,21 +306,26 @@ async def create_ad_link(title: str, slug: str = "") -> dict:
         candidate = candidate.replace(" ", "_")
         if not _AD_SLUG_RE.fullmatch(candidate) or not (2 <= len(candidate) <= 32):
             raise ValueError("Код: латиница, цифры и подчёркивание, от 2 до 32 знаков")
+        if link_kind == "manual" and candidate.startswith("st_"):
+            raise ValueError("Код st_ зарезервирован для сторис")
         base = candidate
     else:
         base = normalize_ad_slug("", title=name)
+        if link_kind == "manual" and base.startswith("st_"):
+            base = "ad" + secrets.token_hex(3)
     pool = _pool_req()
     for i in range(8):
         candidate = base if i == 0 else f"{base[:24]}_{secrets.token_hex(2)}"
         try:
             row = await pool.fetchrow(
                 """
-                INSERT INTO ad_links (slug, title)
-                VALUES ($1, $2)
-                RETURNING id, slug, title, clicks, created_at, archived_at
+                INSERT INTO ad_links (slug, title, kind)
+                VALUES ($1, $2, $3)
+                RETURNING id, slug, title, kind, clicks, created_at, archived_at
                 """,
                 candidate,
                 name,
+                link_kind,
             )
             return dict(row)
         except asyncpg.exceptions.UniqueViolationError:
@@ -301,12 +333,45 @@ async def create_ad_link(title: str, slug: str = "") -> dict:
     raise ValueError("Не удалось подобрать код ссылки, задайте другой")
 
 
+async def ensure_story_ad_link(
+    telegram_id: int,
+    *,
+    username: str | None = None,
+    first_name: str | None = None,
+) -> dict:
+    tid = int(telegram_id)
+    slug = f"st_{tid}"
+    if len(slug) > 32:
+        slug = f"st{tid}"[:32]
+    if username:
+        title = f"Сторис @{str(username).lstrip('@')}"[:80]
+    elif first_name:
+        title = f"Сторис {first_name}"[:80]
+    else:
+        title = f"Сторис {tid}"[:80]
+    pool = _pool_req()
+    row = await pool.fetchrow(
+        """
+        INSERT INTO ad_links (slug, title, kind)
+        VALUES ($1, $2, 'story')
+        ON CONFLICT (slug) DO UPDATE SET
+            title = EXCLUDED.title,
+            kind = 'story',
+            archived_at = NULL
+        RETURNING id, slug, title, kind, clicks, created_at, archived_at
+        """,
+        slug,
+        title,
+    )
+    return dict(row)
+
+
 async def archive_ad_link(link_id: int) -> bool:
     row = await _pool_req().fetchrow(
         """
         UPDATE ad_links
         SET archived_at = timezone('utc', now())
-        WHERE id = $1 AND archived_at IS NULL
+        WHERE id = $1 AND archived_at IS NULL AND COALESCE(kind, 'manual') = 'manual'
         RETURNING id
         """,
         int(link_id),
@@ -314,13 +379,14 @@ async def archive_ad_link(link_id: int) -> bool:
     return bool(row)
 
 
-async def list_ad_links(*, include_archived: bool = False) -> list[dict]:
+async def list_ad_links(*, include_archived: bool = False, kind: str = "manual") -> list[dict]:
     rows = await _pool_req().fetch(
         """
         SELECT
             l.id,
             l.slug,
             l.title,
+            COALESCE(l.kind, 'manual') AS kind,
             COALESCE(l.clicks, 0)::int AS clicks,
             l.created_at,
             l.archived_at,
@@ -329,13 +395,75 @@ async def list_ad_links(*, include_archived: bool = False) -> list[dict]:
             COUNT(u.telegram_id) FILTER (WHERE COALESCE(u.has_paid_topup, FALSE))::int AS paid
         FROM ad_links l
         LEFT JOIN users u ON u.ad_link_id = l.id
-        WHERE ($1::bool OR l.archived_at IS NULL)
+        WHERE COALESCE(l.kind, 'manual') = $2
+          AND ($1::bool OR l.archived_at IS NULL)
         GROUP BY l.id
         ORDER BY l.created_at DESC, l.id DESC
         """,
         bool(include_archived),
+        str(kind or "manual"),
     )
     return [dict(r) for r in rows]
+
+
+async def story_share_stats() -> dict:
+    pool = _pool_req()
+    summary = await pool.fetchrow(
+        """
+        SELECT
+            COUNT(*) FILTER (
+                WHERE u.story_pending_at IS NOT NULL OR u.story_rewarded_at IS NOT NULL
+            )::int AS shared,
+            COUNT(*) FILTER (
+                WHERE u.story_pending_at IS NOT NULL AND u.story_rewarded_at IS NULL
+            )::int AS pending,
+            COUNT(*) FILTER (WHERE u.story_rewarded_at IS NOT NULL)::int AS rewarded,
+            COALESCE(SUM(COALESCE(l.clicks, 0)) FILTER (WHERE l.id IS NOT NULL), 0)::int AS clicks,
+            COUNT(attr.telegram_id)::int AS users,
+            COUNT(attr.telegram_id) FILTER (WHERE attr.trial_used)::int AS trial,
+            COUNT(attr.telegram_id) FILTER (
+                WHERE COALESCE(attr.has_paid_topup, FALSE)
+            )::int AS paid
+        FROM users u
+        LEFT JOIN ad_links l
+            ON l.slug = ('st_' || u.telegram_id::text)
+           AND COALESCE(l.kind, 'manual') = 'story'
+        LEFT JOIN users attr ON attr.ad_link_id = l.id
+        WHERE u.story_pending_at IS NOT NULL
+           OR u.story_rewarded_at IS NOT NULL
+           OR l.id IS NOT NULL
+        """
+    )
+    rows = await pool.fetch(
+        """
+        SELECT
+            u.telegram_id,
+            u.username,
+            u.first_name,
+            u.story_pending_at,
+            u.story_rewarded_at,
+            l.id AS ad_link_id,
+            l.slug,
+            COALESCE(l.clicks, 0)::int AS clicks,
+            COUNT(attr.telegram_id)::int AS users,
+            COUNT(attr.telegram_id) FILTER (WHERE attr.trial_used)::int AS trial,
+            COUNT(attr.telegram_id) FILTER (
+                WHERE COALESCE(attr.has_paid_topup, FALSE)
+            )::int AS paid
+        FROM users u
+        LEFT JOIN ad_links l
+            ON l.slug = ('st_' || u.telegram_id::text)
+           AND COALESCE(l.kind, 'manual') = 'story'
+        LEFT JOIN users attr ON attr.ad_link_id = l.id
+        WHERE u.story_pending_at IS NOT NULL
+           OR u.story_rewarded_at IS NOT NULL
+           OR l.id IS NOT NULL
+        GROUP BY u.telegram_id, l.id
+        ORDER BY COALESCE(u.story_rewarded_at, u.story_pending_at, l.created_at) DESC NULLS LAST
+        LIMIT 200
+        """
+    )
+    return {"summary": dict(summary) if summary else {}, "items": [dict(r) for r in rows]}
 
 
 async def claim_referral_reward(telegram_id: int, *, require_paid: bool = True) -> int | None:
@@ -1976,15 +2104,196 @@ async def mark_rollypay_paid(order_id: str) -> bool:
     return row is not None
 
 
+_PROMO_CODE_RE = re.compile(r"^[A-Z0-9][A-Z0-9_-]{1,31}$")
+_PROMO_GEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def normalize_promo_code(raw: str) -> str:
+    return str(raw or "").strip().upper().replace(" ", "")
+
+
+def generate_promo_code() -> str:
+    chunk = lambda n: "".join(secrets.choice(_PROMO_GEN_ALPHABET) for _ in range(n))
+    return f"{chunk(4)}-{chunk(4)}"
+
+
+async def list_promo_codes(*, include_archived: bool = False) -> list[dict]:
+    rows = await _pool_req().fetch(
+        """
+        SELECT
+            id, code, days, max_uses, used_count, enabled, expires_at, created_at, archived_at
+        FROM promo_codes
+        WHERE ($1::bool OR archived_at IS NULL)
+        ORDER BY created_at DESC, id DESC
+        """,
+        bool(include_archived),
+    )
+    return [dict(r) for r in rows]
+
+
+async def create_promo_code(
+    *,
+    code: str = "",
+    days: int,
+    max_uses: int | None = None,
+    expires_at: datetime | None = None,
+    enabled: bool = True,
+) -> dict:
+    day_n = int(days)
+    if day_n < 1 or day_n > 3650:
+        raise ValueError("Дни: от 1 до 3650")
+    if max_uses is not None:
+        max_uses = int(max_uses)
+        if max_uses < 1:
+            raise ValueError("Лимит активаций должен быть больше нуля")
+    clean = normalize_promo_code(code)
+    pool = _pool_req()
+    for _ in range(8):
+        if not clean:
+            clean = generate_promo_code()
+        if not _PROMO_CODE_RE.fullmatch(clean):
+            raise ValueError("Код: латиница, цифры, _ и -, от 2 до 32 знаков")
+        try:
+            row = await pool.fetchrow(
+                """
+                INSERT INTO promo_codes (code, days, max_uses, expires_at, enabled)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING id, code, days, max_uses, used_count, enabled, expires_at, created_at, archived_at
+                """,
+                clean,
+                day_n,
+                max_uses,
+                expires_at,
+                bool(enabled),
+            )
+            return dict(row)
+        except asyncpg.exceptions.UniqueViolationError:
+            if code:
+                raise ValueError("Такой промокод уже есть") from None
+            clean = ""
+            continue
+    raise ValueError("Не удалось подобрать код")
+
+
+async def update_promo_code(
+    promo_id: int,
+    *,
+    days: int | None = None,
+    max_uses: int | None = ...,
+    expires_at: datetime | None = ...,
+    enabled: bool | None = None,
+) -> dict | None:
+    row = await _pool_req().fetchrow(
+        "SELECT * FROM promo_codes WHERE id = $1 AND archived_at IS NULL",
+        int(promo_id),
+    )
+    if not row:
+        return None
+    next_days = int(row["days"] if days is None else days)
+    if next_days < 1 or next_days > 3650:
+        raise ValueError("Дни: от 1 до 3650")
+    if max_uses is ...:
+        next_max = row["max_uses"]
+    elif max_uses is None:
+        next_max = None
+    else:
+        next_max = int(max_uses)
+        if next_max < 1:
+            raise ValueError("Лимит активаций должен быть больше нуля")
+        if next_max < int(row["used_count"] or 0):
+            raise ValueError("Лимит не может быть меньше уже использованных")
+    if expires_at is ...:
+        next_exp = row["expires_at"]
+    else:
+        next_exp = expires_at
+    next_enabled = bool(row["enabled"] if enabled is None else enabled)
+    updated = await _pool_req().fetchrow(
+        """
+        UPDATE promo_codes
+        SET days = $2,
+            max_uses = $3,
+            expires_at = $4,
+            enabled = $5
+        WHERE id = $1 AND archived_at IS NULL
+        RETURNING id, code, days, max_uses, used_count, enabled, expires_at, created_at, archived_at
+        """,
+        int(promo_id),
+        next_days,
+        next_max,
+        next_exp,
+        next_enabled,
+    )
+    return dict(updated) if updated else None
+
+
+async def archive_promo_code(promo_id: int) -> bool:
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE promo_codes
+        SET archived_at = timezone('utc', now()), enabled = FALSE
+        WHERE id = $1 AND archived_at IS NULL
+        RETURNING id
+        """,
+        int(promo_id),
+    )
+    return bool(row)
+
+
+async def claim_promo_code(telegram_id: int, code: str) -> int:
+    """Activate promo for user. Returns days granted. Raises ValueError on failure."""
+    clean = normalize_promo_code(code)
+    if not clean:
+        raise ValueError("Промокод не найден")
+    pool = _pool_req()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                SELECT id, code, days, max_uses, used_count, enabled, expires_at, archived_at
+                FROM promo_codes
+                WHERE code = $1
+                FOR UPDATE
+                """,
+                clean,
+            )
+            if not row or row["archived_at"] is not None:
+                raise ValueError("Промокод не найден")
+            if not row["enabled"]:
+                raise ValueError("Промокод выключен")
+            exp = row["expires_at"]
+            if exp is not None:
+                if getattr(exp, "tzinfo", None) is None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                if exp <= _utc_now():
+                    raise ValueError("Срок промокода истёк")
+            max_uses = row["max_uses"]
+            used = int(row["used_count"] or 0)
+            if max_uses is not None and used >= int(max_uses):
+                raise ValueError("Лимит активаций исчерпан")
+            try:
+                await conn.execute(
+                    "INSERT INTO promo_uses (telegram_id, code) VALUES ($1, $2)",
+                    int(telegram_id),
+                    clean,
+                )
+            except asyncpg.exceptions.UniqueViolationError:
+                raise ValueError("Промокод уже использован") from None
+            await conn.execute(
+                """
+                UPDATE promo_codes
+                SET used_count = COALESCE(used_count, 0) + 1
+                WHERE id = $1
+                """,
+                int(row["id"]),
+            )
+            return int(row["days"])
+
+
 async def use_promo(telegram_id: int, code: str) -> bool:
     try:
-        await _pool_req().execute(
-            "INSERT INTO promo_uses (telegram_id, code) VALUES ($1, $2)",
-            telegram_id,
-            code.upper(),
-        )
+        await claim_promo_code(telegram_id, code)
         return True
-    except asyncpg.exceptions.UniqueViolationError:
+    except ValueError:
         return False
 
 

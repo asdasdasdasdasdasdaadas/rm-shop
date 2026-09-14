@@ -486,7 +486,10 @@ function switchTab(name, opts = {}) {
     loadReferrals();
     loadPayouts();
   }
-  if (name === "ads") loadAds();
+  if (name === "ads") {
+    loadAds();
+    loadStoryStats();
+  }
   if (name === "orders") loadOrders();
   if (name === "billing") loadBilling();
   if (name === "tickets") loadTickets();
@@ -494,7 +497,10 @@ function switchTab(name, opts = {}) {
   if (name === "backups") loadBackups();
   if (name === "broadcast") loadBroadcastJob();
   if (name === "announcements") loadAnnouncements();
-  if (name === "settings" || name === "promo") loadSettings();
+  if (name === "settings" || name === "promo") {
+    loadSettings();
+    if (name === "promo") loadPromos();
+  }
   setNavOpen(false);
 }
 
@@ -1721,6 +1727,203 @@ async function loadAds() {
   });
 }
 
+async function createAdLink(payload) {
+  const out = $("adOut");
+  const data = await api("/admin/api/ads", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  setVal("adTitle", "");
+  setVal("adSlug", "");
+  if (out) out.textContent = "Готово. Ссылка скопирована.";
+  try {
+    await navigator.clipboard.writeText(data.item.url);
+  } catch (_e) {
+    if (out) out.textContent = data.item.url;
+  }
+  toast("Ссылка скопирована");
+  loadAds();
+  return data;
+}
+
+async function loadStoryStats() {
+  const body = $("storyStatsRows");
+  const kpis = $("storyStatsKpis");
+  const out = $("storyStatsOut");
+  if (!body || !kpis) return;
+  try {
+    const data = await api("/admin/api/story-stats");
+    const s = data.summary || {};
+    kpis.innerHTML = "";
+    [
+      ["Выложили", s.shared],
+      ["На проверке", s.pending],
+      ["Наградили", s.rewarded],
+      ["Клики", s.clicks],
+      ["Пришли", s.users],
+      ["Триал", s.trial],
+      ["Оплатили", s.paid],
+    ].forEach(([label, value]) => {
+      const el = document.createElement("div");
+      el.className = "card";
+      el.innerHTML = `<div class="l">${label}</div><div class="n">${value ?? 0}</div>`;
+      kpis.appendChild(el);
+    });
+    body.innerHTML = "";
+    const labels = ["Клиент", "Статус", "Клики", "Пришли", "Триал", "Оплатили", ""];
+    const statusMap = { pending: "на проверке", rewarded: "награждён", none: "ссылка" };
+    if (!data.items.length) {
+      body.appendChild(emptyRow(7, "Пока никто не выкладывал историю"));
+    }
+    data.items.forEach((row) => {
+      const tr = document.createElement("tr");
+      tr.appendChild(tdText(whoLabel(row.telegram_id, row.username, row.first_name)));
+      tr.appendChild(tdText(statusMap[row.status] || row.status));
+      tr.appendChild(tdText(String(row.clicks || 0)));
+      tr.appendChild(tdText(String(row.users || 0)));
+      tr.appendChild(tdText(String(row.trial || 0)));
+      tr.appendChild(tdText(String(row.paid || 0)));
+      const td = document.createElement("td");
+      if (row.url) {
+        const copyBtn = document.createElement("button");
+        copyBtn.type = "button";
+        copyBtn.className = "ghost";
+        copyBtn.textContent = "Ссылка";
+        copyBtn.onclick = async (e) => {
+          e.stopPropagation();
+          try {
+            await navigator.clipboard.writeText(row.url);
+            toast("Ссылка скопирована");
+          } catch (_e) {
+            toast(row.url);
+          }
+        };
+        td.appendChild(copyBtn);
+      }
+      tr.appendChild(td);
+      labelRow(tr, labels);
+      body.appendChild(tr);
+    });
+    if (out) out.textContent = "";
+  } catch (err) {
+    if (out) out.textContent = err.message || "Не удалось загрузить статистику сторис";
+  }
+}
+
+function promoExpiresLocalValue(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function promoExpiresPayload(localValue) {
+  const raw = String(localValue || "").trim();
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  return d.toISOString();
+}
+
+async function loadPromos() {
+  const body = $("promoCodeRows");
+  if (!body) return;
+  const archived = $("promoShowArchived") && $("promoShowArchived").checked;
+  const data = await api("/admin/api/promos" + (archived ? "?archived=1" : ""));
+  body.innerHTML = "";
+  const labels = ["Код", "Дни", "Использовано", "Срок", "Статус", ""];
+  if (!data.items.length) {
+    body.appendChild(emptyRow(6, archived ? "Скрытых промокодов нет" : "Промокодов пока нет"));
+  }
+  data.items.forEach((row) => {
+    const tr = document.createElement("tr");
+    if (row.archived || !row.enabled) tr.classList.add("is-muted");
+    const codeTd = document.createElement("td");
+    const code = document.createElement("code");
+    code.textContent = row.code;
+    codeTd.appendChild(code);
+    tr.appendChild(codeTd);
+    tr.appendChild(tdText(String(row.days || 0)));
+    const used =
+      row.max_uses == null ? `${row.used_count || 0} / ∞` : `${row.used_count || 0} / ${row.max_uses}`;
+    tr.appendChild(tdText(used));
+    tr.appendChild(tdText(row.expires_at ? fmt(row.expires_at) : "без срока"));
+    let status = "вкл";
+    if (row.archived) status = "скрыт";
+    else if (!row.enabled) status = "выкл";
+    tr.appendChild(tdText(status));
+    const td = document.createElement("td");
+    if (!row.archived) {
+      const toggleBtn = document.createElement("button");
+      toggleBtn.type = "button";
+      toggleBtn.className = "ghost";
+      toggleBtn.textContent = row.enabled ? "Выкл" : "Вкл";
+      toggleBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          await api(`/admin/api/promos/${row.id}`, {
+            method: "POST",
+            body: JSON.stringify({ enabled: !row.enabled }),
+          });
+          loadPromos();
+        } catch (err) {
+          toast(err.message || "Не удалось изменить");
+        }
+      };
+      td.appendChild(toggleBtn);
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "ghost";
+      editBtn.textContent = "Изменить";
+      editBtn.onclick = async (e) => {
+        e.stopPropagation();
+        const daysRaw = window.prompt("Дни", String(row.days || 1));
+        if (daysRaw == null) return;
+        const maxRaw = window.prompt("Лимит активаций (пусто = без лимита)", row.max_uses == null ? "" : String(row.max_uses));
+        if (maxRaw == null) return;
+        const expRaw = window.prompt(
+          "Срок (YYYY-MM-DDTHH:MM или пусто)",
+          promoExpiresLocalValue(row.expires_at)
+        );
+        if (expRaw == null) return;
+        try {
+          await api(`/admin/api/promos/${row.id}`, {
+            method: "POST",
+            body: JSON.stringify({
+              days: Number(daysRaw),
+              max_uses: String(maxRaw).trim() === "" ? null : Number(maxRaw),
+              expires_at: promoExpiresPayload(expRaw),
+            }),
+          });
+          loadPromos();
+        } catch (err) {
+          toast(err.message || "Не удалось сохранить");
+        }
+      };
+      td.appendChild(editBtn);
+      const hideBtn = document.createElement("button");
+      hideBtn.type = "button";
+      hideBtn.className = "ghost";
+      hideBtn.textContent = "Скрыть";
+      hideBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (!(await confirmAction("Скрыть промокод", "Код перестанет приниматься."))) return;
+        try {
+          await api(`/admin/api/promos/${row.id}/archive`, { method: "POST", body: "{}" });
+          loadPromos();
+        } catch (err) {
+          toast(err.message || "Не удалось скрыть");
+        }
+      };
+      td.appendChild(hideBtn);
+    }
+    tr.appendChild(td);
+    labelRow(tr, labels);
+    body.appendChild(tr);
+  });
+}
+
 async function loadPayouts(page) {
   if (page) payPage = page;
   const f = { q: val("payQ"), status: val("payStatus") };
@@ -2497,7 +2700,6 @@ async function loadSettings() {
   set("setTrialOn", v.trial_enabled);
   set("setTrialDays", v.trial_days);
   set("setPromoOn", v.promo_enabled);
-  set("setPromo", v.promo_codes);
   renderVpnApps(Array.isArray(v.vpn_apps) ? v.vpn_apps : []);
   renderNotices(s.notice_fields || [], v.notices || {});
   document.querySelectorAll(".shop-balance").forEach((el) => {
@@ -2703,7 +2905,6 @@ async function saveShopSettings(outId) {
     trial_enabled: $("setTrialOn").checked,
     trial_days: num("setTrialDays"),
     promo_enabled: $("setPromoOn").checked,
-    promo_codes: $("setPromo").value,
     vpn_apps: collectVpnApps(),
     notices: collectNotices(),
   };
@@ -2947,26 +3148,66 @@ if ($("adCreate")) {
   $("adCreate").onclick = async () => {
     const out = $("adOut");
     try {
-      const data = await api("/admin/api/ads", {
-        method: "POST",
-        body: JSON.stringify({ title: val("adTitle"), slug: val("adSlug") }),
+      await createAdLink({ title: val("adTitle"), slug: val("adSlug") });
+    } catch (err) {
+      if (out) out.textContent = err.message || "Не удалось создать";
+    }
+  };
+}
+if ($("adAutogen")) {
+  $("adAutogen").onclick = async () => {
+    const out = $("adOut");
+    try {
+      await createAdLink({
+        title: val("adTitle"),
+        slug: val("adSlug"),
+        autogen: true,
       });
-      setVal("adTitle", "");
-      setVal("adSlug", "");
-      if (out) out.textContent = "Готово. Ссылка скопирована.";
-      try {
-        await navigator.clipboard.writeText(data.item.url);
-      } catch (_e) {
-        if (out) out.textContent = data.item.url;
-      }
-      toast("Ссылка скопирована");
-      loadAds();
     } catch (err) {
       if (out) out.textContent = err.message || "Не удалось создать";
     }
   };
 }
 if ($("adShowArchived")) $("adShowArchived").onchange = () => loadAds();
+
+function randomPromoCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const chunk = (n) => Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+  return `${chunk(4)}-${chunk(4)}`;
+}
+
+if ($("promoGen")) {
+  $("promoGen").onclick = () => {
+    setVal("promoCode", randomPromoCode());
+  };
+}
+if ($("promoCreate")) {
+  $("promoCreate").onclick = async () => {
+    const out = $("promoCodesOut");
+    try {
+      const maxRaw = val("promoMaxUses");
+      const data = await api("/admin/api/promos", {
+        method: "POST",
+        body: JSON.stringify({
+          code: val("promoCode"),
+          days: Number(val("promoDays") || 0),
+          max_uses: maxRaw ? Number(maxRaw) : null,
+          expires_at: promoExpiresPayload(val("promoExpires")),
+          enabled: true,
+        }),
+      });
+      setVal("promoCode", "");
+      setVal("promoMaxUses", "");
+      setVal("promoExpires", "");
+      if (out) out.textContent = "Создан: " + data.item.code;
+      toast("Промокод создан");
+      loadPromos();
+    } catch (err) {
+      if (out) out.textContent = err.message || "Не удалось создать";
+    }
+  };
+}
+if ($("promoShowArchived")) $("promoShowArchived").onchange = () => loadPromos();
 if ($("refReset")) {
   $("refReset").onclick = () => {
     ["refQ", "refReward", "refFrom", "refTo"].forEach((id) => setVal(id, ""));

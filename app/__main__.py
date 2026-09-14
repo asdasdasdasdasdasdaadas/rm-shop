@@ -87,6 +87,7 @@ async def main() -> None:
     _warn_deploy(settings)
     await db.init_db()
     await load_shop_overlay()
+    await db.migrate_legacy_promo_codes()
     rw = RemnawaveClient()
     rp = RollyPayClient() if settings.rollypay_configured else None
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))

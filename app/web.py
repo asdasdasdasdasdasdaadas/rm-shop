@@ -138,6 +138,34 @@ def _story_check_state(local, settings) -> dict:
     }
 
 
+async def _story_bot_url(settings, local, telegram_id: int) -> str:
+    base = f"https://t.me/{settings.bot_username}"
+    if not (
+        settings.balance_enabled
+        and settings.story_reward_enabled
+        and settings.story_reward_rub > 0
+    ):
+        return base
+    if not local or not (
+        local.get("first_online_at")
+        or local.get("story_pending_at")
+        or local.get("story_rewarded_at")
+    ):
+        return base
+    try:
+        link = await db.ensure_story_ad_link(
+            int(telegram_id),
+            username=(local or {}).get("username"),
+            first_name=(local or {}).get("first_name"),
+        )
+    except Exception:
+        return base
+    slug = str((link or {}).get("slug") or "").strip()
+    if not slug:
+        return base
+    return f"{base}?start=ad_{slug}"
+
+
 def _init_data(request: web.Request) -> str:
     return request.headers.get("X-Init-Data") or request.query.get("initData") or ""
 
@@ -592,7 +620,7 @@ async def api_me(request: web.Request) -> web.Response:
                 settings.story_share_text.strip()
                 or "VPN без границ. Подключайся в боте."
             ),
-            "story_bot_url": f"https://t.me/{settings.bot_username}",
+            "story_bot_url": await _story_bot_url(settings, local, telegram_id),
             "legal": {
                 "offer": settings.legal_offer_url,
                 "privacy": settings.legal_privacy_url,
@@ -723,6 +751,11 @@ async def api_story_share(request: web.Request) -> web.Response:
         return json_error("Сначала подключите VPN. Награда за историю — после первого онлайна")
     if local.get("story_rewarded_at"):
         return web.json_response({"ok": True, "already": True, "balance_rub": int(local.get("balance_rub") or 0)})
+    await db.ensure_story_ad_link(
+        telegram_id,
+        username=local.get("username"),
+        first_name=local.get("first_name"),
+    )
     pending_at = parse_dt(local.get("story_pending_at"))
     if not pending_at:
         started = await db.start_story_check(telegram_id)
@@ -837,11 +870,10 @@ async def api_promo(request: web.Request) -> web.Response:
         return denied
     body = await request.json()
     code = str(body.get("code") or "").strip().upper()
-    days = settings.promo_map.get(code)
-    if not days:
-        return json_error("Промокод не найден")
-    if not await db.use_promo(telegram_id, code):
-        return json_error("Промокод уже использован")
+    try:
+        days = await db.claim_promo_code(telegram_id, code)
+    except ValueError as exc:
+        return json_error(str(exc))
     rw: RemnawaveClient = request.app["rw"]
     if settings.balance_enabled:
         await db.add_balance_rub(telegram_id, days * max(1, settings.vpn_day_price_rub))

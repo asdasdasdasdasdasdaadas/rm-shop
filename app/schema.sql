@@ -49,6 +49,23 @@ CREATE TABLE IF NOT EXISTS promo_uses (
     PRIMARY KEY (telegram_id, code)
 );
 
+CREATE TABLE IF NOT EXISTS promo_codes (
+    id BIGSERIAL PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    days INTEGER NOT NULL CHECK (days > 0),
+    max_uses INTEGER,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    archived_at TIMESTAMPTZ,
+    CONSTRAINT promo_codes_max_uses_chk CHECK (max_uses IS NULL OR max_uses > 0)
+);
+
+CREATE INDEX IF NOT EXISTS promo_codes_active_idx
+    ON promo_codes (code)
+    WHERE archived_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS rollypay_orders (
     order_id TEXT PRIMARY KEY,
     telegram_id BIGINT NOT NULL REFERENCES users (telegram_id),
@@ -171,7 +188,10 @@ CREATE TABLE IF NOT EXISTS ad_links (
     archived_at TIMESTAMPTZ
 );
 
+ALTER TABLE ad_links ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'manual';
+
 CREATE INDEX IF NOT EXISTS ad_links_created_idx ON ad_links (created_at DESC);
+CREATE INDEX IF NOT EXISTS ad_links_kind_idx ON ad_links (kind, created_at DESC);
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_link_id BIGINT REFERENCES ad_links (id) ON DELETE SET NULL;
 
