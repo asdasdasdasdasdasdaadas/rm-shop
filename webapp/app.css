@@ -6046,3 +6046,32 @@ html.is-decoy .decoy:has(#decoySerp:not(.hidden)) .decoy-bar {
   align-items: center;
   justify-content: center;
 }
+
+/* Presets use one outline; promotional card spacing does not apply here. */
+#view-topup .topup-amounts .pay-card {
+  box-shadow: none;
+  border-color: var(--glass-border);
+}
+#view-topup .topup-amounts .pay-card.on {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft);
+}
+#view-topup .topup-amounts .pay-card .pay-amount {
+  padding: 0;
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.payment-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 4px 4px 12px;
+}
+.payment-toolbar-balance {
+  color: var(--text-secondary);
+  font: 500 12px/1.4 Inter, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.payment-toolbar:has(.payment-toolbar-balance.hidden) { display: none; }

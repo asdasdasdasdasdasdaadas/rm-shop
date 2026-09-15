@@ -22,7 +22,7 @@ KNOWN_PAY_METHODS: dict[str, dict[str, str]] = {
 DEFAULT_PAY_METHODS: list[dict[str, Any]] = [
     {"id": "sbp", "enabled": True},
     {"id": "card", "enabled": True},
-    {"id": "stars", "enabled": False},
+    {"id": "stars", "enabled": True},
 ]
 
 
@@ -127,3 +127,16 @@ def admin_pay_methods() -> list[dict[str, Any]]:
             }
         )
     return out
+
+
+def stars_price(plan: dict) -> int:
+    """One Star per balance ruble; subscription plans have explicit Star prices."""
+    from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+    try:
+        value = plan.get("stars") or plan.get("topup_rub") or plan.get("rub") or 0
+        amount = int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    except (InvalidOperation, ValueError, TypeError, OverflowError):
+        raise ValueError("Некорректная цена в Telegram Stars")
+    if amount < 1:
+        raise ValueError("Цена в Telegram Stars должна быть положительной")
+    return amount

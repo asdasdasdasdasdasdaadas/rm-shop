@@ -478,6 +478,17 @@ async def pre_checkout(query: PreCheckoutQuery) -> None:
     if not any(method["id"] == "stars" for method in public_pay_methods()):
         await query.answer(ok=False, error_message="Оплата звёздами отключена. Выберите другой способ в кабинете.")
         return
+    from app.pay_methods import stars_price
+
+    payload = query.invoice_payload or ""
+    plan = get_settings().plan_by_code(payload[5:]) if payload.startswith("plan:") else None
+    try:
+        valid = plan is not None and query.currency == "XTR" and query.total_amount == stars_price(plan)
+    except ValueError:
+        valid = False
+    if not valid:
+        await query.answer(ok=False, error_message="Счёт устарел. Создайте новый платёж в кабинете.")
+        return
     await query.answer(ok=True)
 
 

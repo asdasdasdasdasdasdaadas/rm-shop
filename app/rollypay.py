@@ -117,8 +117,9 @@ class RollyPayClient:
         payment_method: str | None = None,
     ) -> dict:
         settings = get_settings()
-        raw = str(payment_method or "sbp").strip().lower()
-        method = raw if raw in {"sbp", "card"} else "sbp"
+        method = resolve_payment_method(payment_method)
+        if method not in {"sbp", "card"}:
+            raise ValueError("Этот способ оплаты не поддерживается RollyPay")
         redirect = (settings.webapp_public_url or "").rstrip("/") or None
         sandbox = bool(settings.rollypay_test) and not self._live_key
         if settings.rollypay_test and self._live_key:

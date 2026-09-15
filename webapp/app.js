@@ -2656,8 +2656,14 @@ async function payPlan(plan, method) {
     tg.openLink(inv.pay_url);
     return;
   }
+  if (!inv.invoice_url) throw new Error("Не удалось получить счёт Telegram Stars");
+  if (!tg.initData) {
+    window.location.assign(inv.invoice_url);
+    return;
+  }
   tg.openInvoice(inv.invoice_url, (status) => {
-    if (status === "paid") load();
+    if (status === "paid") load().catch(showErr);
+    if (status === "failed") showErr(new Error("Оплата не прошла. Попробуйте ещё раз."));
   });
 }
 
@@ -2733,7 +2739,16 @@ function paintPayMethods() {
   if (note) note.textContent = payMethodNoteText(payMethod, methods);
 }
 
+function renderPaymentBalance(me) {
+  document.querySelectorAll(".payment-toolbar-balance").forEach((el) => {
+    const visible = Boolean(me && me.balance_enabled && me.balance_rub != null);
+    el.classList.toggle("hidden", !visible);
+    el.textContent = visible ? `Баланс ${me.balance_rub} ₽` : "";
+  });
+}
+
 function renderPayMethod(plan) {
+  renderPaymentBalance(window.__me);
   const me = window.__me;
   const amount = planRub(plan);
   const title = document.querySelector("#view-pay .pay-title");
@@ -2776,6 +2791,7 @@ function openPayMethod(plan) {
 
 function renderTopup(me) {
   if (!me) return;
+  renderPaymentBalance(me);
   ensureTopupCode(me);
   const plans = periodTopupPlans(me);
   const canCustom = Boolean(me.balance_enabled);

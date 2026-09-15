@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=168">
+  <link rel="stylesheet" href="app.css?v=170">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -822,6 +822,7 @@
     </div>
 
     <div id="view-topup" class="view hidden">
+      <div class="payment-toolbar"><span class="payment-toolbar-balance hidden" aria-label="Текущий баланс"></span></div>
       <div class="view-head topup-head">
         <h1 class="wiz-title topup-title">Пополнение баланса</h1>
         <p id="topupHint" class="topup-sub">Зачисление средств может занять до 15 минут!</p>
@@ -844,6 +845,7 @@
     </div>
 
     <div id="view-pay" class="view hidden">
+      <div class="payment-toolbar"><span class="payment-toolbar-balance hidden" aria-label="Текущий баланс"></span></div>
       <div class="view-head pay-head">
         <h1 class="wiz-title pay-title">Пополнение баланса</h1>
         <div id="payAmount" class="pay-amount-hero"><span id="payAmountNum">0</span> <span class="pay-amount-rub">₽</span></div>
@@ -1106,6 +1108,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=140"></script>
+  <script src="app.js?v=142"></script>
 </body>
 </html>

@@ -69,7 +69,7 @@ from app.texts import days_text, minutes_text, rub_text
 from app.balance import sync_user_billing
 from app.block import blocked_notice
 from app.maintenance import current_text
-from app.pay_methods import public_pay_methods
+from app.pay_methods import public_pay_methods, stars_price
 from app.vpn_apps import public_vpn_apps
 from app.story import notify_admins_story
 from app.trust import take_trust, trust_info
@@ -856,16 +856,9 @@ async def api_invoice(request: web.Request) -> web.Response:
         return web.json_response({"ok": True, "pay_url": pay_url, "order_id": order_id})
     if pay_method == "stars":
         try:
-            stars_amount = int(plan.get("stars") or 0)
-        except (TypeError, ValueError):
-            stars_amount = 0
-        if stars_amount < 1:
-            try:
-                stars_amount = int(round(float(plan.get("rub") or 0)))
-            except (TypeError, ValueError):
-                stars_amount = 0
-        if stars_amount < 1:
-            return json_error("Для Stars нужна сумма тарифа")
+            stars_amount = stars_price(plan)
+        except ValueError as exc:
+            return json_error(str(exc))
         bot: Bot = request.app["bot"]
         title = "Пополнение" if settings.balance_enabled else "Подписка"
         days = int(plan.get("days") or 0)
