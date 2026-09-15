@@ -2847,6 +2847,7 @@ function collectVpnApps() {
 }
 
 const DEFAULT_PAY_METHODS_ADMIN = [
+  { id: "crypto", title: "Криптовалюта", note: "Валюта, сеть и реквизиты перевода будут указаны на странице оплаты.", enabled: false },
   { id: "sbp", title: "СБП", note: "Для оплаты через СБП требуется, чтобы у вас было установлено приложение банка.", enabled: true },
   { id: "card", title: "Оплата картой", note: "Оплата картой откроется на защищённой странице банка.", enabled: true },
   { id: "stars", title: "Telegram Stars", note: "Оплата звёздами прямо в Telegram, без перехода в банк.", enabled: true },

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=170">
+  <link rel="stylesheet" href="app.css?v=171">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -1068,6 +1068,22 @@
     <button type="button" id="appMainBtn" class="btn btn-primary"></button>
   </div>
 
+  <dialog id="lowBalanceSheet" class="low-balance-sheet" aria-labelledby="lowBalanceTitle">
+    <div class="low-balance-grab" aria-hidden="true"></div>
+    <button type="button" id="lowBalanceClose" class="low-balance-close" aria-label="Закрыть">×</button>
+    <div class="low-balance-content">
+      <div class="low-balance-clock" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="25" stroke="currentColor" stroke-width="3"/><path d="M32 16v17l11 7" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></div>
+      <p class="low-balance-label">Осталось не больше суток</p>
+      <h2 id="lowBalanceTitle">Продолжайте<br>быть на связи</h2>
+      <p>Пополните баланс заранее. Когда оплаченный доступ закончится, VPN отключится — до следующей оплаты.</p>
+      <p>После пополнения вы сможете снова пользоваться подключением.</p>
+    </div>
+    <div class="low-balance-actions">
+      <button type="button" id="lowBalancePay" class="btn btn-primary">Пополнить баланс</button>
+      <button type="button" id="lowBalanceLater" class="btn">Напомнить позже</button>
+    </div>
+  </dialog>
+
   <div id="menu" class="sheet hidden" role="menu">
     <button type="button" id="menuSettings" role="menuitem">Настройки</button>
     <button type="button" id="menuFaq" role="menuitem">Частые вопросы</button>
@@ -1108,6 +1124,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=142"></script>
+  <script src="app.js?v=144"></script>
 </body>
 </html>

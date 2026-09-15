@@ -946,6 +946,54 @@ function showMaint(notice) {
   setMain("");
 }
 
+let lowBalanceShown = false;
+let lowBalanceScroll = "";
+let lowBalanceFocus = null;
+function closeLowBalance() {
+  const sheet = $("lowBalanceSheet");
+  if (!sheet.open) return;
+  sheet.close();
+}
+function maybeShowLowBalance() {
+  const me = window.__me;
+  if (!me || lowBalanceShown || screen !== "home" || !me.balance_enabled) return;
+  const hours = remainHours(me);
+  if (!(hours > 0 && hours <= 24) || !(me.devices || []).length) return;
+  const key = `way_low_balance_${me.user && (me.user.id || me.user.telegram_id) || "user"}`;
+  try {
+    if (Date.now() - Number(localStorage.getItem(key) || 0) < 24 * 60 * 60 * 1000) return;
+  } catch (_) {}
+  const sheet = $("lowBalanceSheet");
+  if (document.querySelector("dialog[open]")) return;
+  hideCoach();
+  lowBalanceShown = true;
+  lowBalanceFocus = document.activeElement;
+  lowBalanceScroll = document.body.style.overflow;
+  document.body.style.overflow = "hidden";
+  sheet.showModal();
+  try { localStorage.setItem(key, String(Date.now())); } catch (_) {}
+}
+$("lowBalanceClose").onclick = closeLowBalance;
+$("lowBalanceLater").onclick = closeLowBalance;
+$("lowBalancePay").onclick = () => { closeLowBalance(); openTopup(); };
+$("lowBalanceSheet").addEventListener("close", () => {
+  document.body.style.overflow = lowBalanceScroll;
+  if (lowBalanceFocus && lowBalanceFocus.isConnected) lowBalanceFocus.focus({ preventScroll: true });
+});
+let lowBalanceTouch = null;
+$("lowBalanceSheet").addEventListener("touchstart", (e) => {
+  if (e.target.closest("button") || e.touches.length !== 1) return;
+  lowBalanceTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+$("lowBalanceSheet").addEventListener("touchend", (e) => {
+  if (!lowBalanceTouch) return;
+  const dx = e.changedTouches[0].clientX - lowBalanceTouch.x;
+  const dy = e.changedTouches[0].clientY - lowBalanceTouch.y;
+  lowBalanceTouch = null;
+  if (dy > 90 && dy > Math.abs(dx) * 1.5) closeLowBalance();
+}, { passive: true });
+$("lowBalanceSheet").addEventListener("touchcancel", () => { lowBalanceTouch = null; });
+
 function showApp() {
   const wasHidden = $("app").classList.contains("hidden");
   hideIntro();
@@ -958,6 +1006,7 @@ function showApp() {
     if (!reducedMotion()) replayAnim($("app"), "app-in");
     scheduleCoach();
   }
+  setTimeout(maybeShowLowBalance, 700);
 }
 
 function introSeen() {
@@ -2668,6 +2717,7 @@ async function payPlan(plan, method) {
 }
 
 function payMethodIcon(id) {
+  if (id === "crypto") return '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="12" stroke="currentColor" stroke-width="2"/><path d="m16 7 7 9-7 9-7-9 7-9Zm-7 9 7 3 7-3" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
   if (id === "card") {
     return (
       '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true">' +
@@ -2699,6 +2749,7 @@ function payMethodNoteText(method, methods) {
   const list = Array.isArray(methods) ? methods : [];
   const found = list.find((m) => m.id === method);
   if (found && found.note) return found.note;
+  if (method === "crypto") return "Валюта, сеть и реквизиты перевода будут указаны на странице оплаты.";
   if (method === "card") return "Оплата картой откроется на защищённой странице банка.";
   if (method === "stars") return "Оплата звёздами прямо в Telegram, без перехода в банк.";
   return "Для оплаты через СБП требуется, чтобы у вас было установлено приложение банка.";

@@ -35,6 +35,13 @@ class RollyPayMethodsTest(unittest.TestCase):
         self.assertEqual(args['payment_currency'], 'RUB')
         self.assertEqual(result['pay_url'], 'https://pay.rollypay.io/pay/test')
 
+    def test_crypto_sent_with_ruble_amount(self):
+        self.create('crypto')
+        args = self.client._sdk.payments.create.call_args.kwargs
+        self.assertEqual(args['payment_method'], 'crypto')
+        self.assertEqual(args['payment_currency'], 'RUB')
+        self.assertEqual(args['amount'], '100.00')
+
     def test_sbp_is_preserved(self):
         self.create('sbp')
         self.assertEqual(self.client._sdk.payments.create.call_args.kwargs['payment_method'], 'sbp')

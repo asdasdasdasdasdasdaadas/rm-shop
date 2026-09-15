@@ -44,7 +44,7 @@ class PaymentMethodsTest(unittest.TestCase):
         result = self.module.validate_pay_methods([
             {'id': 'stars', 'enabled': True}, {'id': 'stars', 'enabled': True},
             {'id': 'unknown', 'enabled': True}])
-        self.assertEqual([m['id'] for m in result], ['stars', 'sbp', 'card'])
+        self.assertEqual([m['id'] for m in result], ['stars', 'sbp', 'card', 'crypto'])
 
 
 if __name__ == '__main__':

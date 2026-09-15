@@ -36,8 +36,10 @@ _FIAT_METHODS = frozenset({"sbp", "card", "fiat"})
 
 def resolve_payment_method(choice: str | None = None) -> str:
     raw = str(choice or "").strip().lower()
+    if raw == "crypto":
+        return "crypto"
     if raw in _CRYPTO_METHODS:
-        raise ValueError("Оплата криптой недоступна")
+        raise ValueError("Выберите способ оплаты crypto; валюту и сеть выбирают на странице оплаты")
     if not raw or raw == "fiat" or raw == "sbp":
         return "sbp"
     if raw == "card":
@@ -118,7 +120,7 @@ class RollyPayClient:
     ) -> dict:
         settings = get_settings()
         method = resolve_payment_method(payment_method)
-        if method not in {"sbp", "card"}:
+        if method not in {"sbp", "card", "crypto"}:
             raise ValueError("Этот способ оплаты не поддерживается RollyPay")
         redirect = (settings.webapp_public_url or "").rstrip("/") or None
         sandbox = bool(settings.rollypay_test) and not self._live_key

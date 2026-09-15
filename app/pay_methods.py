@@ -5,6 +5,7 @@ from typing import Any
 from app.config import get_settings, shop_overlay
 
 KNOWN_PAY_METHODS: dict[str, dict[str, str]] = {
+    "crypto": {"title": "Криптовалюта", "note": "Валюта, сеть и реквизиты перевода будут указаны на странице оплаты."},
     "sbp": {
         "title": "СБП",
         "note": "Для оплаты через СБП требуется, чтобы у вас было установлено приложение банка.",
@@ -23,6 +24,7 @@ DEFAULT_PAY_METHODS: list[dict[str, Any]] = [
     {"id": "sbp", "enabled": True},
     {"id": "card", "enabled": True},
     {"id": "stars", "enabled": True},
+    {"id": "crypto", "enabled": False},
 ]
 
 
@@ -79,7 +81,7 @@ def configured_pay_methods() -> list[dict[str, Any]]:
 def method_available(method_id: str, settings=None) -> bool:
     s = settings or get_settings()
     key = str(method_id or "").strip().lower()
-    if key in {"sbp", "card"}:
+    if key in {"sbp", "card", "crypto"}:
         return bool(s.rollypay_configured)
     if key == "stars":
         return True
@@ -114,7 +116,7 @@ def admin_pay_methods() -> list[dict[str, Any]]:
         base = KNOWN_PAY_METHODS[method_id]
         available = method_available(method_id, settings)
         hint = ""
-        if method_id in {"sbp", "card"} and not available:
+        if method_id in {"sbp", "card", "crypto"} and not available:
             hint = "Нужны ключи RollyPay в окружении"
         out.append(
             {

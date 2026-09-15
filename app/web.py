@@ -829,7 +829,7 @@ async def api_invoice(request: web.Request) -> web.Response:
             return json_error("Способ оплаты недоступен")
     else:
         pay_method = allowed_ids[0]
-    if pay_method in {"sbp", "card"}:
+    if pay_method in {"sbp", "card", "crypto"}:
         if not settings.rollypay_configured:
             return json_error("Оплата в рублях не настроена")
         rp: RollyPayClient | None = request.app.get("rp")
