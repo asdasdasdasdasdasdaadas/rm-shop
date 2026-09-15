@@ -491,7 +491,6 @@ async def api_me(request: web.Request) -> web.Response:
                     "active": is_subscription_active(panel_dev),
                     "expire_at": expire.isoformat() if expire else None,
                     "platform": item.get("platform") or "",
-                    "client": item.get("client") or "",
                     "kind": "router" if _is_router_device(item) else "",
                 }
             )
@@ -901,7 +900,6 @@ async def api_add_device(request: web.Request) -> web.Response:
     body = await request.json()
     title = str(body.get("title") or "").strip() or "Устройство"
     platform = str(body.get("platform") or "").strip()[:32] or None
-    client = str(body.get("client") or "").strip()[:32] or None
     kind = str(body.get("kind") or "").strip().lower()
     if kind == "router":
         if not settings.router_enabled:
@@ -958,7 +956,6 @@ async def api_add_device(request: web.Request) -> web.Response:
                 "subscription_url": user.get("subscriptionUrl") or "",
                 "title": title,
                 "platform": "router",
-                "client": "",
                 "kind": "router",
             }
         )
@@ -993,7 +990,7 @@ async def api_add_device(request: web.Request) -> web.Response:
         await db.add_balance_rub(telegram_id, price)
         return json_error(str(last_error or "Не удалось создать устройство"), 502)
     rw_id = int(user["id"])
-    await db.add_device(telegram_id, title, rw_id, platform, client)
+    await db.add_device(telegram_id, title, rw_id, platform, None)
     await db.save_device_subscription(rw_id, user)
     if was_first:
         await db.mark_first_device_thanks_pending(telegram_id)
@@ -1004,7 +1001,6 @@ async def api_add_device(request: web.Request) -> web.Response:
             "subscription_url": user.get("subscriptionUrl") or "",
             "title": title,
             "platform": platform or "",
-            "client": client or "",
         }
     )
 

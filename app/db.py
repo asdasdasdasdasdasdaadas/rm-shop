@@ -2820,7 +2820,6 @@ async def admin_list_users(
                                'id', d.id,
                                'title', COALESCE(NULLIF(d.title, ''), 'Устройство'),
                                'platform', COALESCE(d.platform, ''),
-                               'client', COALESCE(d.client, ''),
                                'status', COALESCE(d.panel_status, ''),
                                'last_online_at', d.last_online_at,
                                'used_traffic_bytes', GREATEST(

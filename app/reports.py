@@ -261,7 +261,6 @@ def _client_block(ctx: dict) -> str:
         _line("экран", ctx.get("view") or ctx.get("screen")),
         _line("мастер шаг", ctx.get("wizard_step")),
         _line("открытое устройство", device.get("title") or "нет"),
-        _line("клиент приложения", device.get("client") or ctx.get("client")),
         _line("платформа устройства", device.get("platform") or ctx.get("platform")),
         _line("TG platform", tg.get("platform")),
         _line("TG version", tg.get("version")),
@@ -322,7 +321,7 @@ def _shop_block(local: dict | None, devices: list[dict], flags: dict) -> str:
     for item in devices:
         lines.append(
             escape(
-                f"  {item.get('title')} · {item.get('platform')}/{item.get('client')} · "
+                f"  {item.get('title')} · {item.get('platform') or '—'} · "
                 f"rw={item.get('remnawave_id')} · {item.get('subscription_url') or 'без ссылки'}"
             )
         )

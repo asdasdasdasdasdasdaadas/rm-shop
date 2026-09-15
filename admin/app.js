@@ -363,10 +363,10 @@ function deviceBreakdownCell(u) {
     title.textContent = d.title || "Устройство";
     const meta = document.createElement("div");
     meta.className = "who-sub";
-    const how = [d.client, d.platform].filter(Boolean).join(" · ") || "клиент не указан";
+    const how = d.platform || "";
     const when = fmtAgo(d.last_online_at);
     const traffic = fmtTraffic(d.used_traffic_bytes, d.lifetime_traffic_bytes);
-    meta.textContent = how + " · " + when + " · " + traffic;
+    meta.textContent = [how, when, traffic].filter(Boolean).join(" · ") || "без данных";
     row.appendChild(title);
     row.appendChild(meta);
     td.appendChild(row);
@@ -2209,8 +2209,8 @@ function paintDeviceCard(d) {
   pill.textContent = d.status || "—";
   head.appendChild(pill);
   card.appendChild(head);
-  const how = [d.client, d.platform].filter(Boolean).join(" · ");
-  card.appendChild(kvLine("Клиент", how || "не указан в кабинете"));
+  const how = d.platform || "";
+  card.appendChild(kvLine("Платформа", how || "не указана"));
   card.appendChild(kvLine("Сейчас", fmtTraffic(d.used_traffic_bytes, d.lifetime_traffic_bytes)));
   const life = fmtTraffic(d.lifetime_traffic_bytes, d.used_traffic_bytes);
   card.appendChild(kvLine("Всего", life));

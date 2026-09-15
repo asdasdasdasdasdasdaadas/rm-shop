@@ -430,11 +430,9 @@ function pickFunDeviceName(current) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-function storeCaption(url) {
-  if (!url) return "Скачать";
-  if (url.indexOf("apple.com") >= 0) return "Открыть в App Store";
-  if (url.indexOf("google.com") >= 0) return "Открыть в Google Play";
-  return "Скачать";
+function preferredClientId(platform) {
+  const list = clientsFor(platform);
+  return list[0] ? list[0].id : "";
 }
 
 function step2Hint(platform) {
@@ -2868,63 +2866,42 @@ function renderWizard() {
       queueWizCoach();
       return;
     }
-    if (!list.some((c) => c.id === wiz.client)) wiz.client = list[0].id;
+    wiz.client = preferredClientId(wiz.platform);
     const listWrap = document.createElement("div");
     listWrap.id = "wizAppList";
+    listWrap.className = "wiz-app-list";
     list.forEach((c, i) => {
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = "wiz-app" + (wiz.client === c.id ? " on" : "");
+      const row = document.createElement("div");
+      row.className = "wiz-app";
+      if (i === 0) row.id = "wizStoreBtn";
       const logo = document.createElement("div");
-      fillAppLogo(logo, c, i !== 0);
+      fillAppLogo(logo, c, false);
       const info = document.createElement("div");
       info.className = "wiz-app-info";
       const t = document.createElement("div");
       t.className = "wiz-app-name";
-      t.appendChild(document.createTextNode(c.name));
-      if (i === 0) {
-        const rec = document.createElement("span");
-        rec.className = "rec-badge";
-        rec.textContent = "Рекомендуем";
-        t.appendChild(rec);
-      }
-      const s = document.createElement("div");
-      s.className = "wiz-app-sub";
-      s.textContent = "Для " + platformLabel(wiz.platform);
+      t.textContent = c.name;
       info.appendChild(t);
-      info.appendChild(s);
+      row.appendChild(logo);
+      row.appendChild(info);
       const store = (c.stores || {})[wiz.platform];
       if (store) {
         const a = document.createElement("button");
         a.type = "button";
-        a.className = "wiz-app-store";
-        a.textContent = storeCaption(store);
-        a.onclick = (e) => {
-          e.stopPropagation();
+        a.className = "wiz-app-dl";
+        a.textContent = "Скачать";
+        a.onclick = () => {
           haptic();
           tg.openLink(store);
         };
-        info.appendChild(a);
+        row.appendChild(a);
       }
-      const mark = document.createElement("span");
-      mark.className = "radio" + (wiz.client === c.id ? " on" : "");
-      row.appendChild(logo);
-      row.appendChild(info);
-      row.appendChild(mark);
-      row.onclick = () => {
-        haptic();
-        wiz.client = c.id;
-        renderWizard();
-      };
       listWrap.appendChild(row);
     });
     body.appendChild(listWrap);
-    const storeBtn = listWrap.querySelector(".wiz-app-store");
-    if (storeBtn) storeBtn.id = "wizStoreBtn";
-    $("wizHint").textContent =
-      "Приложение можно сменить в любой момент. Уже установлено? Нажмите «Продолжить».";
+    $("wizHint").textContent = "Уже установлено? Нажмите «Продолжить».";
     replayAnim(body, "wiz-swap");
-    setMain("Продолжить с " + clientLabel(wiz.client), () => {
+    setMain("Продолжить", () => {
       haptic();
       markWizCoachStep(2);
       wiz.step = 3;
@@ -3027,12 +3004,12 @@ function renderWizard() {
           body: JSON.stringify({
             title,
             platform: wiz.platform,
-            client: wiz.client,
           }),
         });
         markWizCoachStep(3);
         wiz.title = title;
         wiz.url = created.subscription_url || "";
+        wiz.client = preferredClientId(wiz.platform);
         wiz.step = 4;
         if (created.first_device) armThanksOnClose();
         await load();
@@ -3052,9 +3029,7 @@ function renderWizard() {
   lead.textContent =
     "Ссылка привязана к «" +
     wiz.title +
-    "». Откройте её в " +
-    clientLabel(wiz.client) +
-    " — VPN подключится.";
+    "». Откройте её в приложении — VPN подключится.";
   const ok = document.createElement("div");
   ok.id = "wizOkFloat";
   ok.className = "wiz-ok";
@@ -3071,9 +3046,7 @@ function renderWizard() {
   recB.textContent = wiz.title || defaultTitle();
   recTxt.appendChild(recB);
   recTxt.appendChild(
-    document.createTextNode(
-      " · " + platformLabel(wiz.platform) + " · через " + clientLabel(wiz.client)
-    )
+    document.createTextNode(" · " + platformLabel(wiz.platform))
   );
   recap.appendChild(recIcon);
   recap.appendChild(recTxt);
@@ -3111,7 +3084,7 @@ function renderWizard() {
   const openLab = document.createElement("span");
   openLab.textContent = "Открыть в приложении";
   open.appendChild(openLab);
-  open.onclick = () => openClient(wiz.client, wiz.url);
+  open.onclick = () => openClient(wiz.client || preferredClientId(wiz.platform), wiz.url);
 
   const markCopied = () => {
     copy.classList.add("copied");
@@ -4431,7 +4404,7 @@ $("devCopy").onclick = () => copyDevUrl();
 $("devOpen").onclick = () => {
   const d = openDevice;
   if (!d || !d.subscription_url) return;
-  openClient(d.client, d.subscription_url);
+  openClient(preferredClientId(d.platform) || d.client, d.subscription_url);
 };
 
 function askReissue() {
