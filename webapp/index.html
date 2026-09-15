@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=167">
+  <link rel="stylesheet" href="app.css?v=168">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -830,14 +830,14 @@
       <div class="topup-card">
         <div id="topupSum" class="topup-sum">0 ₽</div>
         <div id="topupSumHint" class="topup-sum-hint">Выберите сумму</div>
-        <div id="topupGrid" class="pay-grid topup-amounts"></div>
         <div id="customPanel" class="topup-custom hidden">
           <div class="topup-custom-field">
             <span>₽</span>
-            <input id="topupAmount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" maxlength="6" placeholder="Своя сумма">
+            <input id="topupAmount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" maxlength="6" placeholder="Своя сумма" aria-label="Сумма пополнения в рублях">
           </div>
           <p id="topupCustomHint" class="topup-custom-hint"></p>
         </div>
+        <div id="topupGrid" class="pay-grid topup-amounts"></div>
       </div>
 
       <p id="topupLegal" class="topup-legal">Пополнение баланса является однократной операцией (не подписка). Мы не имеем доступа к вашим личным и платежным данным.</p>
