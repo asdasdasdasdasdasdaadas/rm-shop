@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=163">
+  <link rel="stylesheet" href="app.css?v=167">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -830,30 +830,29 @@
       <div class="topup-card">
         <div id="topupSum" class="topup-sum">0 ₽</div>
         <div id="topupSumHint" class="topup-sum-hint">Выберите сумму</div>
-
-        <div id="topupTabs" class="pay-tabs hidden">
-          <button type="button" id="tabFast" class="pay-tab on">Суммы</button>
-          <button type="button" id="tabCustom" class="pay-tab">Своя</button>
-        </div>
-
-        <div id="fastPanel">
-          <div id="topupGrid" class="pay-grid topup-amounts"></div>
-        </div>
-        <div id="customPanel" class="pay-custom hidden">
-          <div class="pay-custom-box">
-            <label class="pay-custom-label" for="topupAmount">Сумма, рубли</label>
-            <div class="pay-custom-field">
-              <span>₽</span>
-              <input id="topupAmount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" maxlength="6">
-            </div>
-            <div id="customDays" class="pay-custom-days"></div>
-            <p id="topupCustomHint" class="pay-custom-hint"></p>
-            <div id="topupStrip" class="pay-strip"></div>
+        <div id="topupGrid" class="pay-grid topup-amounts"></div>
+        <div id="customPanel" class="topup-custom hidden">
+          <div class="topup-custom-field">
+            <span>₽</span>
+            <input id="topupAmount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" maxlength="6" placeholder="Своя сумма">
           </div>
+          <p id="topupCustomHint" class="topup-custom-hint"></p>
         </div>
       </div>
 
       <p id="topupLegal" class="topup-legal">Пополнение баланса является однократной операцией (не подписка). Мы не имеем доступа к вашим личным и платежным данным.</p>
+    </div>
+
+    <div id="view-pay" class="view hidden">
+      <div class="view-head pay-head">
+        <h1 class="wiz-title pay-title">Пополнение баланса</h1>
+        <div id="payAmount" class="pay-amount-hero"><span id="payAmountNum">0</span> <span class="pay-amount-rub">₽</span></div>
+      </div>
+
+      <div class="pay-method-label">Выберите способ оплаты:</div>
+      <div id="payMethods" class="pay-methods" role="radiogroup" aria-label="Способ оплаты"></div>
+      <p id="payMethodNote" class="pay-method-note"></p>
+      <p class="pay-vpn-warn">Не забудьте отключить VPN перед оплатой! Некоторые банки не работают с включенным VPN.</p>
     </div>
 
     <div id="view-wizard" class="view hidden">
@@ -1107,6 +1106,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=136"></script>
+  <script src="app.js?v=140"></script>
 </body>
 </html>

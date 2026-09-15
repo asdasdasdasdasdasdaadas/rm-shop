@@ -1089,7 +1089,7 @@ function replayAnim(el, cls) {
 
 function switchView(id, motion) {
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
-  ["view-home", "view-topup", "view-wizard", "view-device", "view-router", "view-support", "view-faq", "view-article", "view-billing", "view-referrals", "view-offer", "view-settings", "view-promo"].forEach((vid) => {
+  ["view-home", "view-topup", "view-pay", "view-wizard", "view-device", "view-router", "view-support", "view-faq", "view-article", "view-billing", "view-referrals", "view-offer", "view-settings", "view-promo"].forEach((vid) => {
     const el = $(vid);
     if (!el) return;
     const on = vid === id;
@@ -1119,10 +1119,11 @@ let firstRunBusy = false;
 let loadSeq = 0;
 let lastConnectUrl = null;
 let openDevice = null;
-let topupMode = "fast";
 let faqFrom = "home";
 let topupCode = "";
 let topupCustomRub = 0;
+let payMethod = "sbp";
+let pendingPayPlan = null;
 
 const COACH_KEY = "way_home_coach_v2";
 const WIZ_COACH_KEY = "way_wiz_coach_v1";
@@ -1198,6 +1199,7 @@ function maybeOpenFirstRun(me) {
     screen === "device" ||
     screen === "router" ||
     screen === "topup" ||
+    screen === "pay" ||
     screen === "support" ||
     screen === "faq" ||
     screen === "billing" ||
@@ -1734,7 +1736,7 @@ function monthTopupPlan(me) {
 }
 
 function currentTopupPlan(me) {
-  if (topupMode === "custom") {
+  if (me.balance_enabled) {
     const min = Number(me.topup_min) || 1;
     const max = Number(me.topup_max) || min;
     const n = Number(topupCustomRub);
@@ -1752,33 +1754,50 @@ function currentTopupPlan(me) {
 
 function ensureTopupCode(me) {
   const plans = periodTopupPlans(me);
+  if (!plans.length) return;
+  if (me.balance_enabled) {
+    const min = Number(me.topup_min) || 1;
+    const max = Number(me.topup_max) || min;
+    if (!Number.isFinite(topupCustomRub) || topupCustomRub < min || topupCustomRub > max) {
+      const hit = plans.find((p) => p.hit) || plans[0];
+      topupCustomRub = planRub(hit) || min;
+    }
+    topupCode = "b" + topupCustomRub;
+    return;
+  }
   if (plans.some((p) => p.code === topupCode)) return;
   const hit = plans.find((p) => p.hit);
   topupCode = (hit || plans[0] || {}).code || "";
-}
-
-function applyTopupMode() {
-  const custom = topupMode === "custom";
-  $("tabFast").classList.toggle("on", !custom);
-  $("tabCustom").classList.toggle("on", custom);
-  $("fastPanel").classList.toggle("hidden", custom);
-  $("customPanel").classList.toggle("hidden", !custom);
 }
 
 function updateTopupCta(me) {
   const plan = currentTopupPlan(me);
   if (!plan) {
     const min = Number(me.topup_min) || 1;
-    setMain(topupMode === "custom" ? `Укажите сумму от ${min} ₽` : "Выберите сумму");
+    setMain(me.balance_enabled ? `Укажите сумму от ${min} ₽` : "Выберите сумму");
     const btn = $("appMainBtn");
     if (btn) btn.disabled = true;
     return;
   }
-  const label = me.balance_enabled
+  const methods = Array.isArray(me.pay_methods) ? me.pay_methods : [];
+  if (!methods.length) {
+    setMain("Оплата временно недоступна");
+    const btn = $("appMainBtn");
+    if (btn) btn.disabled = true;
+    return;
+  }
+  const useMethods = methods.length > 0;
+  const label = useMethods
     ? "Выбрать способ оплаты"
-    : `Оплатить · ${plan.title}`;
+    : me.balance_enabled
+      ? "Оплатить"
+      : `Оплатить · ${plan.title}`;
   setMain(label, async () => {
     haptic();
+    if (useMethods) {
+      openPayMethod(plan);
+      return;
+    }
     setMainBusy(true);
     try {
       await payPlan(plan);
@@ -1794,19 +1813,6 @@ function paintTopupSum(me) {
   const sumEl = $("topupSum");
   const hintEl = $("topupSumHint");
   if (!sumEl || !hintEl || !me) return;
-  if (topupMode === "custom") {
-    const min = Number(me.topup_min) || 1;
-    const max = Number(me.topup_max) || min;
-    const raw = String(($("topupAmount") && $("topupAmount").value) || "").replace(/\D/g, "");
-    const typed = raw ? Number(raw) : Number(topupCustomRub) || 0;
-    const ok = Number.isFinite(typed) && typed >= min && typed <= max;
-    sumEl.textContent = typed ? `${typed} ₽` : "0 ₽";
-    sumEl.classList.toggle("is-empty", !ok);
-    hintEl.textContent = ok
-      ? `≈ ${daysLabel(topupDaysFor(me, typed))}`
-      : "Введите сумму";
-    return;
-  }
   const plan = currentTopupPlan(me);
   if (plan) {
     const amount = planRub(plan);
@@ -1821,7 +1827,7 @@ function paintTopupSum(me) {
   }
   sumEl.textContent = "0 ₽";
   sumEl.classList.add("is-empty");
-  hintEl.textContent = "Выберите сумму";
+  hintEl.textContent = me.balance_enabled ? "Введите или выберите сумму" : "Выберите сумму";
 }
 function browserCabinet() {
   return Boolean(lkToken) && !tg.initData;
@@ -1861,6 +1867,10 @@ function onBack() {
   }
   if (screen === "topup") {
     openHome();
+    return;
+  }
+  if (screen === "pay") {
+    openTopup();
     return;
   }
   if (screen === "support") {
@@ -1904,7 +1914,7 @@ function onBack() {
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device" || screen === "router" || screen === "topup" || screen === "support" || screen === "faq" || screen === "article" || screen === "billing" || screen === "referrals" || screen === "offer" || screen === "settings" || screen === "promo";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "router" || screen === "topup" || screen === "pay" || screen === "support" || screen === "faq" || screen === "article" || screen === "billing" || screen === "referrals" || screen === "offer" || screen === "settings" || screen === "promo";
   stopSupportPoll();
   stopRouterPayPoll();
   screen = "home";
@@ -1923,7 +1933,6 @@ function openTopup() {
   const me = window.__me;
   if (!me) return;
   screen = "topup";
-  topupMode = "fast";
   switchView("view-topup", "push");
   try {
     tg.BackButton.show();
@@ -2636,8 +2645,9 @@ async function startOfferTry() {
   }
 }
 
-async function payPlan(plan) {
+async function payPlan(plan, method) {
   const body = { plan: plan.code };
+  if (method) body.method = method;
   const inv = await api("/api/invoice", {
     method: "POST",
     body: JSON.stringify(body),
@@ -2651,15 +2661,126 @@ async function payPlan(plan) {
   });
 }
 
+function payMethodIcon(id) {
+  if (id === "card") {
+    return (
+      '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true">' +
+      '<rect x="4" y="8" width="24" height="16" rx="3.5" stroke="#6EA8FF" stroke-width="2"/>' +
+      '<path d="M4 13.5h24" stroke="#6EA8FF" stroke-width="2"/>' +
+      '<path d="M8 20h6" stroke="#6EA8FF" stroke-width="2" stroke-linecap="round"/>' +
+      "</svg>"
+    );
+  }
+  if (id === "stars") {
+    return (
+      '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true">' +
+      '<path d="M16 6.5l2.6 6.1 6.6.6-5 4.4 1.5 6.4L16 20.7l-5.7 3.3 1.5-6.4-5-4.4 6.6-.6L16 6.5z" fill="#F5C542"/>' +
+      "</svg>"
+    );
+  }
+  return (
+    '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true">' +
+    '<rect width="32" height="32" rx="8" fill="#1B1F3B"/>' +
+    '<path d="M8 16c0-4.4 3.6-8 8-8" stroke="#5B8CFF" stroke-width="3" stroke-linecap="round"/>' +
+    '<path d="M24 16c0 4.4-3.6 8-8 8" stroke="#7C5CFF" stroke-width="3" stroke-linecap="round"/>' +
+    '<path d="M16 8c4.4 0 8 3.6 8 8" stroke="#2ED3A2" stroke-width="3" stroke-linecap="round"/>' +
+    '<path d="M16 24c-4.4 0-8-3.6-8-8" stroke="#FF6B8A" stroke-width="3" stroke-linecap="round"/>' +
+    "</svg>"
+  );
+}
+
+function payMethodNoteText(method, methods) {
+  const list = Array.isArray(methods) ? methods : [];
+  const found = list.find((m) => m.id === method);
+  if (found && found.note) return found.note;
+  if (method === "card") return "Оплата картой откроется на защищённой странице банка.";
+  if (method === "stars") return "Оплата звёздами прямо в Telegram, без перехода в банк.";
+  return "Для оплаты через СБП требуется, чтобы у вас было установлено приложение банка.";
+}
+
+function paintPayMethods() {
+  const me = window.__me;
+  const methods = Array.isArray(me && me.pay_methods) ? me.pay_methods : [];
+  const box = $("payMethods");
+  if (!box) return;
+  if (!methods.some((m) => m.id === payMethod) && methods[0]) {
+    payMethod = methods[0].id;
+  }
+  box.innerHTML = "";
+  methods.forEach((item) => {
+    const on = item.id === payMethod;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pay-method" + (on ? " on" : "");
+    btn.setAttribute("data-method", item.id);
+    btn.innerHTML =
+      '<span class="pay-method-ico">' +
+      payMethodIcon(item.id) +
+      "</span>" +
+      '<span class="pay-method-name"></span>' +
+      '<span class="radio' +
+      (on ? " on" : "") +
+      '" aria-hidden="true"></span>';
+    btn.querySelector(".pay-method-name").textContent = item.title || item.id;
+    btn.onclick = () => {
+      haptic();
+      payMethod = item.id;
+      paintPayMethods();
+    };
+    box.appendChild(btn);
+  });
+  const note = $("payMethodNote");
+  if (note) note.textContent = payMethodNoteText(payMethod, methods);
+}
+
+function renderPayMethod(plan) {
+  const me = window.__me;
+  const amount = planRub(plan);
+  const title = document.querySelector("#view-pay .pay-title");
+  if (title) {
+    title.textContent = me && me.balance_enabled ? "Пополнение баланса" : "Оплата подписки";
+  }
+  const num = $("payAmountNum");
+  if (num) num.textContent = String(amount || 0);
+  paintPayMethods();
+  setMain("Оплатить", async () => {
+    haptic();
+    setMainBusy(true);
+    try {
+      await payPlan(plan, payMethod);
+    } catch (e) {
+      showErr(e);
+    } finally {
+      setMainBusy(false);
+    }
+  });
+}
+
+function openPayMethod(plan) {
+  if (!plan) return;
+  const methods = Array.isArray(window.__me && window.__me.pay_methods) ? window.__me.pay_methods : [];
+  if (!methods.length) {
+    showErr(new Error("Оплата временно недоступна"));
+    return;
+  }
+  pendingPayPlan = plan;
+  if (!methods.some((m) => m.id === payMethod)) payMethod = methods[0].id;
+  screen = "pay";
+  switchView("view-pay", "push");
+  try {
+    tg.BackButton.show();
+  } catch (_e) {}
+  syncWebBack();
+  renderPayMethod(plan);
+}
+
 function renderTopup(me) {
   if (!me) return;
-  if (topupMode !== "custom") topupMode = "fast";
   ensureTopupCode(me);
   const plans = periodTopupPlans(me);
   const canCustom = Boolean(me.balance_enabled);
-  $("topupTabs").classList.toggle("hidden", !canCustom);
-  if (!canCustom) topupMode = "fast";
-  applyTopupMode();
+  const customPanel = $("customPanel");
+  if (customPanel) customPanel.classList.toggle("hidden", !canCustom);
   const titleEl = document.querySelector("#view-topup .topup-title");
   if (titleEl) {
     titleEl.textContent = me.balance_enabled ? "Пополнение баланса" : "Оплата подписки";
@@ -2678,9 +2799,12 @@ function renderTopup(me) {
   grid.innerHTML = "";
   plans.forEach((plan) => {
     const amount = planRub(plan);
+    const selected = me.balance_enabled
+      ? amount === Number(topupCustomRub)
+      : plan.code === topupCode;
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "pay-card" + (plan.code === topupCode ? " on" : "") + (plan.hit ? " hit" : "");
+    b.className = "pay-card" + (selected ? " on" : "") + (plan.hit ? " hit" : "");
     if (!me.balance_enabled && plan.hit) {
       const badge = document.createElement("span");
       badge.className = "pay-badge hot";
@@ -2704,27 +2828,24 @@ function renderTopup(me) {
     b.onclick = () => {
       haptic();
       topupCode = plan.code;
+      if (me.balance_enabled) {
+        topupCustomRub = amount;
+        const inp = $("topupAmount");
+        if (inp) inp.value = String(amount);
+      }
       renderTopup(me);
     };
     grid.appendChild(b);
   });
 
-  paintTopupSum(me);
-
   if (canCustom) {
     const min = Number(me.topup_min) || 1;
     const max = Number(me.topup_max) || min;
-    if (!topupCustomRub) {
-      const hit = plans.find((p) => p.hit) || plans[0];
-      topupCustomRub = Math.min(max, Math.max(min, planRub(hit) || min));
-    }
     const inp = $("topupAmount");
-    if (document.activeElement !== inp) inp.value = String(topupCustomRub);
+    if (inp && document.activeElement !== inp) inp.value = String(topupCustomRub || "");
     paintCustomTopup(me);
-    const nDev = (me.devices || []).length;
-    $("topupStrip").textContent = nDev
-      ? `Сейчас устройств: ${nDev}. Чем их больше, тем быстрее уходит баланс.`
-      : "Пока нет устройств — баланс не списывается. Оценка дней — как для одного устройства.";
+  } else {
+    paintTopupSum(me);
   }
   updateTopupCta(me);
 }
@@ -3926,6 +4047,7 @@ function paint(me) {
     }
   }
   if (screen === "topup") renderTopup(me);
+  if (screen === "pay" && pendingPayPlan) renderPayMethod(pendingPayPlan);
   if (screen === "router") renderRouter(me);
   if (screen === "promo" && !me.promo_enabled) openHome();
   if (firstRunBusy) return;
@@ -4009,39 +4131,18 @@ $("topupBtn").onclick = () => {
   openTopup();
 };
 
-$("tabFast").onclick = () => {
-  haptic();
-  const me = window.__me;
-  topupMode = "fast";
-  if (me) renderTopup(me);
-};
-
-$("tabCustom").onclick = () => {
-  haptic();
-  topupMode = "custom";
-  if (window.__me) renderTopup(window.__me);
-  const inp = $("topupAmount");
-  if (inp) setTimeout(() => inp.focus(), 50);
-};
-
 function paintCustomTopup(me) {
   const min = Number(me.topup_min) || 1;
   const max = Number(me.topup_max) || min;
-  const raw = String(($("topupAmount") && $("topupAmount").value) || "").replace(/\D/g, "");
-  const n = raw ? Number(raw) : null;
   const hint = $("topupCustomHint");
-  if (n == null) {
-    $("customDays").textContent = "Введите любую сумму";
-    hint.textContent = `От ${min} до ${max} ₽`;
-    hint.classList.remove("bad");
+  if (!hint) {
     paintTopupSum(me);
     return;
   }
-  const ok = n >= min && n <= max;
-  if (ok) topupCustomRub = n;
-  $("customDays").textContent = `≈ ${daysLabel(topupDaysFor(me, n))}`;
+  const n = Number(topupCustomRub);
+  const ok = Number.isFinite(n) && n >= min && n <= max;
   hint.textContent = ok ? `От ${min} до ${max} ₽` : `Можно от ${min} до ${max} ₽`;
-  hint.classList.toggle("bad", !ok);
+  hint.classList.toggle("bad", Boolean(topupCustomRub) && !ok);
   paintTopupSum(me);
 }
 
@@ -4051,8 +4152,9 @@ $("topupAmount").oninput = () => {
   const inp = $("topupAmount");
   const next = String(inp.value || "").replace(/\D/g, "");
   if (inp.value !== next) inp.value = next;
-  paintCustomTopup(me);
-  updateTopupCta(me);
+  topupCustomRub = next ? Number(next) : 0;
+  topupCode = next ? "b" + next : "";
+  renderTopup(me);
 };
 
 $("topupAmount").onkeydown = (e) => {

@@ -291,6 +291,7 @@ SHOP_KEYS = frozenset(
         "vpn_report_cooldown_sec",
         "admin_live_chat_id",
         "vpn_apps",
+        "pay_methods",
         "notices",
     }
 )
@@ -318,6 +319,7 @@ def get_settings() -> Settings:
         return base
     update = dict(_overlay)
     update.pop("vpn_apps", None)
+    update.pop("pay_methods", None)
     update.pop("notices", None)
     if "remnawave_hwid_limit" in update:
         raw = update["remnawave_hwid_limit"]

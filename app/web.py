@@ -69,6 +69,7 @@ from app.texts import days_text, minutes_text, rub_text
 from app.balance import sync_user_billing
 from app.block import blocked_notice
 from app.maintenance import current_text
+from app.pay_methods import public_pay_methods
 from app.vpn_apps import public_vpn_apps
 from app.story import notify_admins_story
 from app.trust import take_trust, trust_info
@@ -569,6 +570,7 @@ async def api_me(request: web.Request) -> web.Response:
             "balance_rub": balance_rub,
             "vpn_day_price_rub": settings.vpn_day_price_rub,
             "pay_crypto": False,
+            "pay_methods": public_pay_methods(),
             "traffic_limit_gb": int(settings.remnawave_traffic_limit_gb or 0),
             "max_devices": settings.max_devices,
             "has_access": bool(
@@ -813,13 +815,23 @@ async def api_invoice(request: web.Request) -> web.Response:
     plan = settings.plan_by_code(code)
     if not plan:
         return json_error("Тариф не найден")
-    try:
-        pay_method = resolve_payment_method(str(body.get("method") or ""))
-    except ValueError as exc:
-        return json_error(str(exc))
-    if not settings.rollypay_configured and int(plan.get("stars") or 0) < 1:
-        return json_error("Эта сумма доступна при оплате в рублях")
-    if settings.rollypay_configured:
+    methods = public_pay_methods()
+    allowed_ids = [item["id"] for item in methods]
+    if not allowed_ids:
+        return json_error("Способы оплаты выключены")
+    raw_method = str(body.get("method") or "").strip()
+    if raw_method:
+        try:
+            pay_method = resolve_payment_method(raw_method)
+        except ValueError as exc:
+            return json_error(str(exc))
+        if pay_method not in allowed_ids:
+            return json_error("Способ оплаты недоступен")
+    else:
+        pay_method = allowed_ids[0]
+    if pay_method in {"sbp", "card"}:
+        if not settings.rollypay_configured:
+            return json_error("Оплата в рублях не настроена")
         rp: RollyPayClient | None = request.app.get("rp")
         if rp is None:
             return json_error("Оплата не настроена")
@@ -842,19 +854,36 @@ async def api_invoice(request: web.Request) -> web.Response:
             return json_error("Не удалось получить ссылку на оплату", 502)
         await db.save_rollypay_order(order_id, telegram_id, code, payment_id, pay_url)
         return web.json_response({"ok": True, "pay_url": pay_url, "order_id": order_id})
-    if not settings.stars_enabled:
-        return json_error("Оплата не настроена")
-    bot: Bot = request.app["bot"]
-    title = "Пополнение" if settings.balance_enabled else "Подписка"
-    link = await bot.create_invoice_link(
-        title=f"{title}: {plan['title']}",
-        description=f"{days_text(plan['days'])}, трафик безлимитный.",
-        payload=f"plan:{code}",
-        currency="XTR",
-        prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
-        provider_token="",
-    )
-    return web.json_response({"ok": True, "invoice_url": link})
+    if pay_method == "stars":
+        try:
+            stars_amount = int(plan.get("stars") or 0)
+        except (TypeError, ValueError):
+            stars_amount = 0
+        if stars_amount < 1:
+            try:
+                stars_amount = int(round(float(plan.get("rub") or 0)))
+            except (TypeError, ValueError):
+                stars_amount = 0
+        if stars_amount < 1:
+            return json_error("Для Stars нужна сумма тарифа")
+        bot: Bot = request.app["bot"]
+        title = "Пополнение" if settings.balance_enabled else "Подписка"
+        days = int(plan.get("days") or 0)
+        desc = (
+            f"{days_text(days)}, трафик безлимитный."
+            if days > 0
+            else f"Пополнение на {plan.get('title') or stars_amount}."
+        )
+        link = await bot.create_invoice_link(
+            title=f"{title}: {plan['title']}",
+            description=desc,
+            payload=f"plan:{code}",
+            currency="XTR",
+            prices=[LabeledPrice(label=plan["title"], amount=stars_amount)],
+            provider_token="",
+        )
+        return web.json_response({"ok": True, "invoice_url": link})
+    return json_error("Неизвестный способ оплаты")
 
 
 async def api_promo(request: web.Request) -> web.Response:

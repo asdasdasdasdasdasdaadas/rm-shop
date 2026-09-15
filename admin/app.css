@@ -1337,6 +1337,46 @@ label { font-size: 12px; color: var(--text-2); font-weight: 700; }
 .vpn-app-head .va-mark { max-width: 72px; flex: none; }
 .vpn-app-head .va-icon { flex: 1 1 180px; }
 .vpn-app-head .va-deep { flex: 1 1 220px; }
+
+.pay-method-admin {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 10px;
+  background: var(--bg-secondary);
+}
+.pay-method-admin-main {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pay-method-admin .pm-title {
+  flex: 1;
+  min-width: 140px;
+}
+.pay-method-admin .pm-id {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+  min-width: 52px;
+}
+.pay-method-admin .pm-switch {
+  margin: 0;
+  min-width: 120px;
+}
+.pay-method-admin .pm-moves {
+  display: flex;
+  gap: 6px;
+}
+.pay-method-admin .pm-note {
+  width: 100%;
+  margin-top: 10px;
+}
+.pay-method-admin .pm-hint {
+  margin: 8px 0 0;
+}
+
 .va-plats {
   display: flex;
   flex-direction: column;

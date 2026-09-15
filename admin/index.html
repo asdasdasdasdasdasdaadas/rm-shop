@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=44">
+  <link rel="stylesheet" href="app.css?v=45">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -1039,6 +1039,7 @@
             <button type="button" data-jump="set-brand" class="ghost">Бренд</button>
             <button type="button" data-jump="set-devices" class="ghost">Устройства</button>
             <button type="button" data-jump="set-apps" class="ghost">Клиенты</button>
+            <button type="button" data-jump="set-pay" class="ghost">Оплата</button>
             <button type="button" data-jump="set-prices" class="ghost">Цены</button>
             <button type="button" data-jump="set-notices" class="ghost">Тексты</button>
           </div>
@@ -1098,6 +1099,11 @@
               <div class="ops">
                 <button type="button" id="vpnAppAdd" class="ghost">Добавить приложение</button>
               </div>
+            </div>
+            <div class="panel" id="set-pay">
+              <h3>Способы оплаты</h3>
+              <p class="muted tight">Порядок сверху вниз — как в кабинете. Выключенный способ скрыт. СБП и карта работают только при настроенном RollyPay. Telegram Stars включаются без ключа платёжной системы. Для пополнений 1 звезда зачисляет 1 рубль; для подписок используются цены Stars из конфигурации. Можно выключить все способы. После изменений нажмите «Сохранить».</p>
+              <div id="payMethodsList"></div>
             </div>
             <div class="panel shop-balance" id="set-prices">
               <h3>Цены и пополнение</h3>
@@ -1408,6 +1414,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=73"></script>
+  <script src="app.js?v=75"></script>
 </body>
 </html>

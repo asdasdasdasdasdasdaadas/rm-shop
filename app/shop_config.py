@@ -6,6 +6,7 @@ from typing import Any
 from app import db
 from app.config import SHOP_KEYS, get_settings, set_shop_overlay
 from app.notices import NOTICE_FIELDS, public_notices, validate_notices
+from app.pay_methods import admin_pay_methods, validate_pay_methods
 from app.vpn_apps import public_vpn_apps, validate_vpn_apps
 
 KV_KEY = "shop_settings"
@@ -131,6 +132,7 @@ def validate_shop(body: dict) -> dict:
         raise ValueError("Стикер приветствия: слишком длинный id")
     out["welcome_sticker_file_id"] = sticker
     out["vpn_apps"] = validate_vpn_apps(body.get("vpn_apps"))
+    out["pay_methods"] = validate_pay_methods(body["pay_methods"]) if "pay_methods" in body else admin_pay_methods()
     out["notices"] = validate_notices(body.get("notices"))
     return {k: out[k] for k in SHOP_KEYS}
 
@@ -184,6 +186,7 @@ def snapshot() -> dict:
             "admin_live_chat_id": s.admin_live_chat_id,
             "welcome_sticker_file_id": s.welcome_sticker_file_id,
             "vpn_apps": public_vpn_apps(),
+            "pay_methods": admin_pay_methods(),
             "notices": public_notices(),
         },
     }

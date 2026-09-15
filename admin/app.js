@@ -2701,6 +2701,7 @@ async function loadSettings() {
   set("setTrialDays", v.trial_days);
   set("setPromoOn", v.promo_enabled);
   renderVpnApps(Array.isArray(v.vpn_apps) ? v.vpn_apps : []);
+  renderPayMethodsAdmin(Array.isArray(v.pay_methods) ? v.pay_methods : []);
   renderNotices(s.notice_fields || [], v.notices || {});
   document.querySelectorAll(".shop-balance").forEach((el) => {
     el.classList.toggle("hidden", !s.balance_enabled);
@@ -2845,6 +2846,117 @@ function collectVpnApps() {
   });
 }
 
+const DEFAULT_PAY_METHODS_ADMIN = [
+  { id: "sbp", title: "СБП", note: "Для оплаты через СБП требуется, чтобы у вас было установлено приложение банка.", enabled: true },
+  { id: "card", title: "Оплата картой", note: "Оплата картой откроется на защищённой странице банка.", enabled: true },
+  { id: "stars", title: "Telegram Stars", note: "Оплата звёздами прямо в Telegram, без перехода в банк.", enabled: false },
+];
+
+function renderPayMethodsAdmin(list) {
+  const box = $("payMethodsList");
+  if (!box) return;
+  box.innerHTML = "";
+  const rows = list && list.length ? list : DEFAULT_PAY_METHODS_ADMIN;
+  rows.forEach((item, index) => box.appendChild(payMethodAdminRow(item, index, rows.length)));
+}
+
+function payMethodAdminRow(item, index, total) {
+  const row = document.createElement("div");
+  row.className = "pay-method-admin";
+  row.dataset.id = item.id || "";
+  row.dataset.available = String(item.available !== false);
+  row.dataset.hint = item.hint || "";
+
+  const main = document.createElement("div");
+  main.className = "pay-method-admin-main";
+
+  const title = document.createElement("input");
+  title.type = "text";
+  title.className = "pm-title";
+  title.maxLength = 64;
+  title.value = item.title || item.id || "";
+  title.placeholder = "Название";
+
+  const idLabel = document.createElement("span");
+  idLabel.className = "pm-id";
+  idLabel.textContent = item.id || "";
+
+  const toggle = document.createElement("label");
+  toggle.className = "switch-row pm-switch";
+  toggle.innerHTML =
+    '<span><strong>Вкл</strong><span class="switch-row-state" data-on="Вкл" data-off="Выкл"></span></span>' +
+    '<span class="switch-ui"><input class="pm-enabled" type="checkbox"><span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span></span>';
+  const cb = toggle.querySelector(".pm-enabled");
+  cb.checked = Boolean(item.enabled);
+
+  const moves = document.createElement("div");
+  moves.className = "pm-moves";
+  const up = document.createElement("button");
+  up.type = "button";
+  up.className = "ghost";
+  up.textContent = "Выше";
+  up.disabled = index <= 0;
+  up.onclick = () => movePayMethodAdmin(row, -1);
+  const down = document.createElement("button");
+  down.type = "button";
+  down.className = "ghost";
+  down.textContent = "Ниже";
+  down.disabled = index >= total - 1;
+  down.onclick = () => movePayMethodAdmin(row, 1);
+  moves.appendChild(up);
+  moves.appendChild(down);
+
+  main.appendChild(title);
+  main.appendChild(idLabel);
+  main.appendChild(toggle);
+  main.appendChild(moves);
+
+  const note = document.createElement("input");
+  note.type = "text";
+  note.className = "pm-note";
+  note.maxLength = 300;
+  note.value = item.note || "";
+  note.placeholder = "Подсказка под способом оплаты";
+
+  const hint = document.createElement("p");
+  hint.className = "muted tight pm-hint";
+  if (item.hint) {
+    hint.textContent = item.hint;
+  } else if (item.available === false) {
+    hint.textContent = "Сейчас недоступен в кабинете";
+  } else {
+    hint.textContent = "Доступен в кабинете при включении";
+  }
+
+  row.appendChild(main);
+  row.appendChild(note);
+  row.appendChild(hint);
+  return row;
+}
+
+function movePayMethodAdmin(row, delta) {
+  const box = $("payMethodsList");
+  if (!box || !row) return;
+  const items = [...box.children];
+  const index = items.indexOf(row);
+  const next = index + delta;
+  if (index < 0 || next < 0 || next >= items.length) return;
+  if (delta < 0) box.insertBefore(row, items[next]);
+  else box.insertBefore(items[next], row);
+  renderPayMethodsAdmin(collectPayMethodsAdmin());
+}
+
+function collectPayMethodsAdmin() {
+  return [...document.querySelectorAll("#payMethodsList .pay-method-admin")].map((row) => ({
+    id: row.dataset.id || "",
+    title: ((row.querySelector(".pm-title") || {}).value || "").trim(),
+    note: ((row.querySelector(".pm-note") || {}).value || "").trim(),
+    enabled: Boolean((row.querySelector(".pm-enabled") || {}).checked),
+    available: row.dataset.available !== "false",
+    hint: row.dataset.hint || "",
+  }));
+}
+
 $("shopForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   await saveShopSettings();
@@ -2906,6 +3018,7 @@ async function saveShopSettings(outId) {
     trial_days: num("setTrialDays"),
     promo_enabled: $("setPromoOn").checked,
     vpn_apps: collectVpnApps(),
+    pay_methods: collectPayMethodsAdmin(),
     notices: collectNotices(),
   };
   const out = $(outId || "shopOut");

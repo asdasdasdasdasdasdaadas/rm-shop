@@ -473,6 +473,11 @@ async def pre_checkout(query: PreCheckoutQuery) -> None:
     if await db.flag_on("maintenance"):
         await query.answer(ok=False, error_message="Сервис временно недоступен")
         return
+    from app.pay_methods import public_pay_methods
+
+    if not any(method["id"] == "stars" for method in public_pay_methods()):
+        await query.answer(ok=False, error_message="Оплата звёздами отключена. Выберите другой способ в кабинете.")
+        return
     await query.answer(ok=True)
 
 
