@@ -281,7 +281,7 @@ body.coach-lock {
   padding: var(--app-safe-top, 0px) 0 14px;
   isolation: isolate;
   background: transparent;
-  overflow: hidden;
+  overflow: visible;
 }
 .web-back:not(.hidden)::before,
 .web-back:not(.hidden)::after,
@@ -289,10 +289,11 @@ body.coach-lock {
 .view-head::after {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
+  left: calc(50% - 50vw);
+  right: calc(50% - 50vw);
   top: 0;
   bottom: 0;
+  width: auto;
   pointer-events: none;
   z-index: -1;
 }
@@ -332,7 +333,7 @@ body.coach-lock {
   padding: var(--app-safe-top, 0px) 0 48px;
   isolation: isolate;
   background: transparent;
-  overflow: hidden;
+  overflow: visible;
 }
 .view-head > * {
   position: relative;
@@ -956,25 +957,112 @@ body:has(#webBack:not(.hidden)) .view-head {
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
+.wiz-radio-block {
+  border-top: 1px solid var(--divider);
+}
+.wiz-radio-block:first-child { border-top: none; }
+.wiz-radio-block.on {
+  background: rgba(var(--accent-rgb), 0.06);
+}
 .wiz-radio-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   width: 100%;
-  padding: 16px 18px;
+  padding: 14px 16px;
   background: transparent;
   border: 0;
-  border-top: 1px solid var(--divider);
   color: var(--text-primary);
   font: inherit;
   font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: none;
   text-align: left;
   cursor: pointer;
 }
-.wiz-radio-row:first-child { border-top: none; }
+.wiz-radio-ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+.wiz-radio-row.on .wiz-radio-ico {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.wiz-radio-ico svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+.wiz-radio-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wiz-radio-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.wiz-radio-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  line-height: 1.25;
+}
+.wiz-radio-row .radio {
+  margin-left: auto;
+  flex: none;
+}
+.wiz-radio-kids {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 14px 64px;
+}
+.wiz-radio-kid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-strong);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.wiz-radio-kid.on {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-border);
+  color: var(--accent);
+}
+.wiz-radio-kid-ico {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: inherit;
+}
+.wiz-radio-kid-ico svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
 
 .status-top {
   display: flex;

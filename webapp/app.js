@@ -228,13 +228,38 @@ function persistLkToken(token) {
 const $ = (id) => document.getElementById(id);
 
 const PLATFORMS = [
-  { id: "ios", title: "iPhone, iPad", hint: "IPHONE, IPAD", sub: "iOS 15+" },
-  { id: "android", title: "Android", hint: "ANDROID", sub: "8.0+" },
-  { id: "macos", title: "macOS", hint: "MACOS", sub: "12+" },
-  { id: "windows", title: "Windows", hint: "WINDOWS", sub: "10/11" },
-  { id: "androidtv", title: "Android TV", hint: "ANDROID TV", sub: "Смарт-ТВ" },
-  { id: "appletv", title: "Apple TV", hint: "APPLE TV", sub: "tvOS" },
+  { id: "ios", title: "iPhone, iPad", sub: "iOS 15+" },
+  { id: "android", title: "Android", sub: "8.0+" },
+  { id: "macos", title: "macOS", sub: "12+" },
+  { id: "windows", title: "Windows", sub: "10/11" },
+  { id: "androidtv", title: "Android TV", sub: "Смарт-ТВ" },
+  { id: "appletv", title: "Apple TV", sub: "tvOS" },
 ];
+
+const PLATFORM_CHOICES = [
+  { id: "ios", title: "iPhone, iPad", sub: "iOS 15+" },
+  { id: "android", title: "Android", sub: "8.0+" },
+  { id: "macos", title: "macOS", sub: "12+" },
+  { id: "windows", title: "Windows", sub: "10/11" },
+  {
+    id: "tv",
+    title: "Телевизор",
+    sub: "Android TV и Apple TV",
+    kids: [
+      { id: "androidtv", title: "Android TV" },
+      { id: "appletv", title: "Apple TV" },
+    ],
+  },
+];
+
+function isTvPlatform(id) {
+  return id === "androidtv" || id === "appletv";
+}
+
+function choiceSelected(choice, platform) {
+  if (choice.id === "tv") return isTvPlatform(platform);
+  return platform === choice.id;
+}
 
 const DEFAULT_VPN_APPS = [
   {
@@ -441,10 +466,13 @@ function platIconSvg(id) {
   if (id === "windows") {
     return '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.5 6.2l8.1-1.1v7.2H3.5V6.2zm9.1-1.3l8.4-1.2v8.6h-8.4V4.9zM3.5 13.6h8.1v7.3l-8.1-1.1v-6.2zm9.1.1h8.4v8.5l-8.4-1.2V13.7z"/></svg>';
   }
-  if (id === "androidtv") {
+  if (id === "androidtv" || id === "tv") {
     return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2.5" y="5" width="19" height="12.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20.5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9.2" cy="11.2" r="1.1" fill="currentColor"/><circle cx="14.8" cy="11.2" r="1.1" fill="currentColor"/></svg>';
   }
-  return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2.5" y="5" width="19" height="12.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20.5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path fill="currentColor" d="M12.7 9.3c0-.8.6-1.2.6-1.2-.4-.5-1-.6-1.2-.6-.5 0-1 .3-1.2.3s-.7-.3-1.1-.3c-.6 0-1.1.3-1.4.8-.6 1-.2 2.5.4 3.3.3.4.6.8 1.1.8s.6-.3 1.1-.3.6.3 1.1.3c.5 0 .8-.4 1.1-.8.3-.5.4-.9.4-1zm-.6-2.5c.2-.3.4-.7.4-1.1-.4 0-.8.2-1 .5-.2.3-.4.6-.4 1 .4 0 .8-.2 1-.4z"/></svg>';
+  if (id === "appletv") {
+    return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2.5" y="5" width="19" height="12.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20.5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path fill="currentColor" d="M12.7 9.3c0-.8.6-1.2.6-1.2-.4-.5-1-.6-1.2-.6-.5 0-1 .3-1.2.3s-.7-.3-1.1-.3c-.6 0-1.1.3-1.4.8-.6 1-.2 2.5.4 3.3.3.4.6.8 1.1.8s.6-.3 1.1-.3.6.3 1.1.3c.5 0 .8-.4 1.1-.8.3-.5.4-.9.4-1zm-.6-2.5c.2-.3.4-.7.4-1.1-.4 0-.8.2-1 .5-.2.3-.4.6-.4 1 .4 0 .8-.2 1-.4z"/></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="17.2" r="1" fill="currentColor"/></svg>';
 }
 
 function setWizProgress(step) {
@@ -2739,25 +2767,78 @@ function renderWizard() {
     const list = document.createElement("div");
     list.id = "wizPlatGrid";
     list.className = "wiz-radio";
-    PLATFORMS.forEach((p) => {
+    PLATFORM_CHOICES.forEach((p) => {
+      const on = choiceSelected(p, wiz.platform);
+      const wrap = document.createElement("div");
+      wrap.className = "wiz-radio-block" + (on ? " on" : "");
+
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "wiz-radio-row" + (wiz.platform === p.id ? " on" : "");
+      b.className = "wiz-radio-row" + (on ? " on" : "");
+
+      const ico = document.createElement("span");
+      ico.className = "wiz-radio-ico";
+      ico.innerHTML = platIconSvg(p.id === "tv" ? "tv" : p.id);
+
+      const copy = document.createElement("span");
+      copy.className = "wiz-radio-copy";
       const name = document.createElement("span");
-      name.textContent = p.hint || p.title;
+      name.className = "wiz-radio-name";
+      name.textContent = p.title;
+      const sub = document.createElement("span");
+      sub.className = "wiz-radio-sub";
+      sub.textContent = p.sub || "";
+      copy.appendChild(name);
+      if (p.sub) copy.appendChild(sub);
+
       const mark = document.createElement("span");
-      mark.className = "radio" + (wiz.platform === p.id ? " on" : "");
-      b.appendChild(name);
+      mark.className = "radio" + (on ? " on" : "");
+
+      b.appendChild(ico);
+      b.appendChild(copy);
       b.appendChild(mark);
       b.onclick = () => {
         haptic();
-        wiz.platform = p.id;
-        const first = clientsFor(p.id)[0];
+        if (p.id === "tv") {
+          wiz.platform = isTvPlatform(wiz.platform) ? wiz.platform : "androidtv";
+        } else {
+          wiz.platform = p.id;
+        }
+        const first = clientsFor(wiz.platform)[0];
         wiz.client = first ? first.id : "";
         wiz.title = "";
         renderWizard();
       };
-      list.appendChild(b);
+      wrap.appendChild(b);
+
+      if (p.kids && on) {
+        const kids = document.createElement("div");
+        kids.className = "wiz-radio-kids";
+        p.kids.forEach((kid) => {
+          const kb = document.createElement("button");
+          kb.type = "button";
+          kb.className = "wiz-radio-kid" + (wiz.platform === kid.id ? " on" : "");
+          const kIco = document.createElement("span");
+          kIco.className = "wiz-radio-kid-ico";
+          kIco.innerHTML = platIconSvg(kid.id);
+          const kName = document.createElement("span");
+          kName.textContent = kid.title;
+          kb.appendChild(kIco);
+          kb.appendChild(kName);
+          kb.onclick = () => {
+            haptic();
+            wiz.platform = kid.id;
+            const first = clientsFor(kid.id)[0];
+            wiz.client = first ? first.id : "";
+            wiz.title = "";
+            renderWizard();
+          };
+          kids.appendChild(kb);
+        });
+        wrap.appendChild(kids);
+      }
+
+      list.appendChild(wrap);
     });
     body.appendChild(list);
     replayAnim(body, "wiz-swap");
@@ -2997,68 +3078,82 @@ function renderWizard() {
   recap.appendChild(recIcon);
   recap.appendChild(recTxt);
 
+  const linkLabel = document.createElement("div");
+  linkLabel.className = "dev-label";
+  linkLabel.textContent = "Ссылка подписки";
+
   const link = document.createElement("div");
-  link.className = "wiz-link";
-  const lbl = document.createElement("div");
-  lbl.className = "wiz-link-lbl";
-  lbl.textContent = "Ссылка для " + clientLabel(wiz.client);
-  const row = document.createElement("div");
-  row.className = "wiz-link-row";
-  const urlEl = document.createElement("div");
-  urlEl.className = "wiz-link-text";
+  link.className = "dev-link";
+
+  const urlEl = document.createElement("a");
+  urlEl.className = "dev-link-text";
+  urlEl.href = wiz.url || "#";
+  urlEl.target = "_blank";
+  urlEl.rel = "noopener noreferrer";
   urlEl.textContent = wiz.url || "";
+  if (!wiz.url) urlEl.classList.add("is-empty");
+
+  const copyLabel = document.createElement("span");
+  copyLabel.textContent = "Копировать";
   const copy = document.createElement("button");
   copy.type = "button";
-  copy.className = "wiz-copy";
-  copy.textContent = "Копировать";
-  copy.onclick = () => {
-    haptic();
-    navigator.clipboard.writeText(wiz.url || "").then(() => {
-      copy.classList.add("on");
-      copy.textContent = "Скопировано";
-      setTimeout(() => {
-        copy.classList.remove("on");
-        copy.textContent = "Копировать";
-      }, 1600);
-    }).catch(() => tg.showAlert("Не удалось скопировать"));
-  };
-  row.appendChild(urlEl);
-  row.appendChild(copy);
-  link.appendChild(lbl);
-  link.appendChild(row);
+  copy.className = "dev-lbtn";
+  copy.innerHTML =
+    '<svg class="dev-lbtn-ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 8h10a2 2 0 012 2v10a2 2 0 01-2 2H9a2 2 0 01-2-2V10a2 2 0 012-2zm-3-1V5a2 2 0 012-2h9v2H8v1H6z"/></svg>';
+  copy.appendChild(copyLabel);
 
-  const tiles = document.createElement("div");
-  tiles.className = "wiz-tiles";
-  const openTile = document.createElement("button");
-  openTile.type = "button";
-  openTile.id = "wizOpenTile";
-  openTile.className = "wiz-tile";
-  openTile.innerHTML =
-    '<svg viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
-  const openLab = document.createElement("div");
-  openLab.className = "lab";
-  openLab.textContent = "Открыть в " + clientLabel(wiz.client);
-  openTile.appendChild(openLab);
-  openTile.onclick = () => openClient(wiz.client, wiz.url);
-  const qrTile = document.createElement("button");
-  qrTile.type = "button";
-  qrTile.className = "wiz-tile";
-  qrTile.innerHTML =
-    '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.8"/><path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 21h3M21 14v3" stroke="currentColor" stroke-width="1.8"/></svg>';
-  const qrLab = document.createElement("div");
-  qrLab.className = "lab";
-  qrLab.textContent = "Показать QR";
-  qrTile.appendChild(qrLab);
-  qrTile.onclick = () => {
-    haptic();
-    showQr(wiz.url);
+  const open = document.createElement("button");
+  open.type = "button";
+  open.id = "wizOpenTile";
+  open.className = "dev-lbtn primary";
+  open.innerHTML =
+    '<svg class="dev-lbtn-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+  const openLab = document.createElement("span");
+  openLab.textContent = "Открыть в приложении";
+  open.appendChild(openLab);
+  open.onclick = () => openClient(wiz.client, wiz.url);
+
+  const markCopied = () => {
+    copy.classList.add("copied");
+    copyLabel.textContent = "Готово";
+    showToast("Ссылка скопирована");
+    setTimeout(() => {
+      copy.classList.remove("copied");
+      copyLabel.textContent = "Копировать";
+    }, 1600);
   };
-  tiles.appendChild(openTile);
-  tiles.appendChild(qrTile);
+  const doCopy = () => {
+    if (!wiz.url) return;
+    haptic();
+    navigator.clipboard.writeText(wiz.url).then(markCopied).catch(() => tg.showAlert("Не удалось скопировать"));
+  };
+  copy.onclick = doCopy;
+  let downX = 0;
+  let downY = 0;
+  urlEl.addEventListener("pointerdown", (e) => {
+    downX = e.clientX;
+    downY = e.clientY;
+  });
+  urlEl.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!wiz.url) return;
+    const moved = Math.hypot(e.clientX - downX, e.clientY - downY) > 6;
+    const sel = window.getSelection && window.getSelection();
+    const hasSel = !!(sel && !sel.isCollapsed && urlEl.contains(sel.anchorNode));
+    if (moved || hasSel) return;
+    doCopy();
+  });
+
+  const actions = document.createElement("div");
+  actions.className = "dev-link-actions";
+  actions.appendChild(copy);
+  actions.appendChild(open);
+  link.appendChild(urlEl);
+  link.appendChild(actions);
 
   body.appendChild(recap);
+  body.appendChild(linkLabel);
   body.appendChild(link);
-  body.appendChild(tiles);
   $("wizHint").textContent =
     "Ссылку можно вставить вручную в Happ или Incy — она не сгорает.";
   replayAnim(body, "wiz-swap");
@@ -3119,11 +3214,9 @@ function setDevUrl(url) {
 
 function paintDevice(d) {
   $("devTitle").textContent = d.title || "Устройство";
-  $("devPlatform").textContent = platformLabel(d.platform);
   const icon = document.querySelector("#view-device .dev-icon");
   if (icon) icon.innerHTML = platIconSvg(d.platform);
   setDevUrl(d.subscription_url || "");
-  $("devOpenLabel").textContent = "Открыть в " + clientLabel(d.client);
   const on = Boolean(d.active);
   $("devStatus").classList.toggle("off", !on);
   $("devStatusText").textContent = on ? "Активно" : "Неактивно";
