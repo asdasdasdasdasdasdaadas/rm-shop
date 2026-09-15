@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=162">
+  <link rel="stylesheet" href="app.css?v=163">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -822,30 +822,38 @@
     </div>
 
     <div id="view-topup" class="view hidden">
-      <div class="view-head">
-        <p class="wiz-kicker">Пополнение</p>
-        <h1 class="wiz-title">Сколько зальём?</h1>
+      <div class="view-head topup-head">
+        <h1 class="wiz-title topup-title">Пополнение баланса</h1>
+        <p id="topupHint" class="topup-sub">Зачисление средств может занять до 15 минут!</p>
       </div>
-      <p id="topupHint" class="section-note topup-hint">С каждого устройства списывается фиксированная сумма в сутки. Карточки показывают, на сколько дней хватит при одном устройстве.</p>
-      <div id="topupTabs" class="pay-tabs hidden">
-        <button type="button" id="tabFast" class="pay-tab on">Быстрый выбор</button>
-        <button type="button" id="tabCustom" class="pay-tab">Своя сумма</button>
-      </div>
-      <div id="fastPanel">
-        <div id="topupGrid" class="pay-grid"></div>
-      </div>
-      <div id="customPanel" class="pay-custom hidden">
-        <div class="pay-custom-box">
-          <label class="pay-custom-label" for="topupAmount">Сумма, рубли</label>
-          <div class="pay-custom-field">
-            <span>₽</span>
-            <input id="topupAmount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" maxlength="6">
+
+      <div class="topup-card">
+        <div id="topupSum" class="topup-sum">0 ₽</div>
+        <div id="topupSumHint" class="topup-sum-hint">Выберите сумму</div>
+
+        <div id="topupTabs" class="pay-tabs hidden">
+          <button type="button" id="tabFast" class="pay-tab on">Суммы</button>
+          <button type="button" id="tabCustom" class="pay-tab">Своя</button>
+        </div>
+
+        <div id="fastPanel">
+          <div id="topupGrid" class="pay-grid topup-amounts"></div>
+        </div>
+        <div id="customPanel" class="pay-custom hidden">
+          <div class="pay-custom-box">
+            <label class="pay-custom-label" for="topupAmount">Сумма, рубли</label>
+            <div class="pay-custom-field">
+              <span>₽</span>
+              <input id="topupAmount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" maxlength="6">
+            </div>
+            <div id="customDays" class="pay-custom-days"></div>
+            <p id="topupCustomHint" class="pay-custom-hint"></p>
+            <div id="topupStrip" class="pay-strip"></div>
           </div>
-          <div id="customDays" class="pay-custom-days"></div>
-          <p id="topupCustomHint" class="pay-custom-hint"></p>
-          <div id="topupStrip" class="pay-strip"></div>
         </div>
       </div>
+
+      <p id="topupLegal" class="topup-legal">Пополнение баланса является однократной операцией (не подписка). Мы не имеем доступа к вашим личным и платежным данным.</p>
     </div>
 
     <div id="view-wizard" class="view hidden">
@@ -1099,6 +1107,6 @@
   </div>
 
   <script src="qrcode.min.js"></script>
-  <script src="app.js?v=135"></script>
+  <script src="app.js?v=136"></script>
 </body>
 </html>
