@@ -1137,6 +1137,7 @@ function replayAnim(el, cls) {
 }
 
 function switchView(id, motion) {
+  if (id !== "view-pay") clearPaymentStarAnimation();
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
   ["view-home", "view-topup", "view-pay", "view-wizard", "view-device", "view-router", "view-support", "view-faq", "view-article", "view-billing", "view-referrals", "view-offer", "view-settings", "view-promo"].forEach((vid) => {
     const el = $(vid);
@@ -2076,6 +2077,8 @@ function ticketTimeLabel(d) {
 }
 
 function paintSupportChrome(current) {
+  const title = $("supportTitle");
+  if (title) title.textContent = current ? "Обращение в поддержку" : "Чат поддержки";
   const status = $("supportStatus");
   const badge = $("supportBadge");
   const note = $("supportComposeNote");
@@ -2083,7 +2086,7 @@ function paintSupportChrome(current) {
   if (status) {
     status.textContent = current
       ? `Тикет #${current.id}`
-      : "Напишите, что случилось. Можно прикрепить скриншот. Ответ придёт сюда и в чат бота.";
+      : "Обращение создастся после отправки сообщения или файла. Ответ придёт сюда и в чат бота.";
   }
   if (badge) {
     const key = current && current.status;
@@ -2116,8 +2119,8 @@ function paintSupportThread(current) {
     empty.textContent = current
       ? (current.status === "closed"
         ? "Переписка пустая. Новое сообщение откроет следующий тикет."
-        : "Пока пусто. Опишите проблему — откроем тикет.")
-      : "Пока пусто. Опишите проблему — откроем тикет.";
+        : "Здесь будет ваша переписка с поддержкой. Чтобы обратиться за помощью, отправьте сообщение.")
+      : "Здесь будет ваша переписка с поддержкой. Чтобы обратиться за помощью, отправьте сообщение.";
     box.appendChild(empty);
     return;
   }
@@ -2727,22 +2730,8 @@ function payMethodIcon(id) {
       "</svg>"
     );
   }
-  if (id === "stars") {
-    return (
-      '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true">' +
-      '<path d="M16 6.5l2.6 6.1 6.6.6-5 4.4 1.5 6.4L16 20.7l-5.7 3.3 1.5-6.4-5-4.4 6.6-.6L16 6.5z" fill="#F5C542"/>' +
-      "</svg>"
-    );
-  }
-  return (
-    '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true">' +
-    '<rect width="32" height="32" rx="8" fill="#1B1F3B"/>' +
-    '<path d="M8 16c0-4.4 3.6-8 8-8" stroke="#5B8CFF" stroke-width="3" stroke-linecap="round"/>' +
-    '<path d="M24 16c0 4.4-3.6 8-8 8" stroke="#7C5CFF" stroke-width="3" stroke-linecap="round"/>' +
-    '<path d="M16 8c4.4 0 8 3.6 8 8" stroke="#2ED3A2" stroke-width="3" stroke-linecap="round"/>' +
-    '<path d="M16 24c-4.4 0-8-3.6-8-8" stroke="#FF6B8A" stroke-width="3" stroke-linecap="round"/>' +
-    "</svg>"
-  );
+  if (id === "stars") return '<span class="stars-logo" aria-hidden="true"></span>';
+  return '<img src="/icons/sbp.svg" width="28" height="32" alt="" aria-hidden="true">';
 }
 
 function payMethodNoteText(method, methods) {
@@ -2755,7 +2744,13 @@ function payMethodNoteText(method, methods) {
   return "Для оплаты через СБП требуется, чтобы у вас было установлено приложение банка.";
 }
 
+let paymentStarAnimation = null;
+function clearPaymentStarAnimation() {
+  if (paymentStarAnimation) paymentStarAnimation.destroy();
+  paymentStarAnimation = null;
+}
 function paintPayMethods() {
+  clearPaymentStarAnimation();
   const me = window.__me;
   const methods = Array.isArray(me && me.pay_methods) ? me.pay_methods : [];
   const box = $("payMethods");
@@ -2786,6 +2781,18 @@ function paintPayMethods() {
     };
     box.appendChild(btn);
   });
+  const star = box.querySelector(".stars-logo");
+  if (star && window.lottie) {
+    paymentStarAnimation = window.lottie.loadAnimation({
+      container: star, renderer: "svg", loop: true, autoplay: !reducedMotion(),
+      path: "/icons/telegram-stars.json",
+      rendererSettings: { progressiveLoad: true, preserveAspectRatio: "xMidYMid meet" },
+    });
+    if (reducedMotion()) {
+      const animation = paymentStarAnimation;
+      animation.addEventListener("DOMLoaded", () => animation.goToAndStop(40, true));
+    }
+  }
   const note = $("payMethodNote");
   if (note) note.textContent = payMethodNoteText(payMethod, methods);
 }

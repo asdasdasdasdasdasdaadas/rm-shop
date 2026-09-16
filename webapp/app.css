@@ -6096,3 +6096,7 @@ html.is-decoy .decoy:has(#decoySerp:not(.hidden)) .decoy-bar {
 .low-balance-actions .btn { min-height: 52px; }
 @keyframes low-sheet-in { from { transform: translateY(100%); opacity: .4; } to { transform: translateY(0); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .low-balance-sheet[open] { animation: none; } }
+
+.pay-method-ico img { display: block; object-fit: contain; }
+.pay-method-ico .stars-logo { display: block; width: 36px; height: 36px; }
+.pay-method-ico .stars-logo svg { width: 100%; height: 100%; }

@@ -43,22 +43,8 @@ async def help_other(callback: CallbackQuery) -> None:
 
 
 async def _open_help_ticket(callback: CallbackQuery, body: str) -> None:
-    user = callback.from_user
-    if not user:
-        return
-    try:
-        await receive_user_message(
-            callback.bot,
-            telegram_id=user.id,
-            username=user.username,
-            first_name=user.first_name,
-            body=body,
-            source="bot",
-            ack_user=False,
-        )
-    except ValueError:
-        await callback.message.answer(notice_text("help_other"))
-        return
+    # Viewing help is not a support request: the message handler opens
+    # the ticket only when the user sends actual text or an attachment.
     await callback.message.answer(notice_text("help_other"))
 
 
