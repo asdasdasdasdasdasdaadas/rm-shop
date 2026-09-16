@@ -2720,7 +2720,7 @@ async function payPlan(plan, method) {
 }
 
 function payMethodIcon(id) {
-  if (id === "crypto") return '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="12" stroke="currentColor" stroke-width="2"/><path d="m16 7 7 9-7 9-7-9 7-9Zm-7 9 7 3 7-3" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+  if (id === "crypto") return '<img class="crypto-logo" src="/icons/bitcoin.svg" width="32" height="32" alt="" aria-hidden="true">';
   if (id === "card") {
     return (
       '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true">' +
