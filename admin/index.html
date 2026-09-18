@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=45">
+  <link rel="stylesheet" href="app.css?v=46">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -33,9 +33,9 @@
       <div class="login-mark" aria-hidden="true">
         <svg viewBox="0 0 48 48" fill="none"><ellipse cx="24" cy="30" rx="11" ry="13" fill="currentColor"/><circle cx="12" cy="14" r="4.4" fill="currentColor"/><circle cx="36" cy="14" r="4.4" fill="currentColor"/><circle cx="20" cy="8" r="3.6" fill="currentColor" opacity=".75"/><circle cx="28" cy="8" r="3.6" fill="currentColor" opacity=".75"/></svg>
       </div>
-      <p class="login-kicker">Админка · сборка 37</p>
+      <p class="login-kicker">Панель управления</p>
       <h1>Кабинет сервиса</h1>
-      <p class="muted">Пользователи, оплаты, биллинг и настройки. Тема переключается кнопкой сверху.</p>
+      <p class="muted">Всё для работы вашего сервиса в одном месте.</p>
       <label class="field-label" for="password">Пароль</label>
       <input id="password" type="password" placeholder="Введите пароль" autocomplete="current-password">
       <button type="submit">Войти</button>
@@ -55,6 +55,7 @@
           <div class="brand-sub">Управление</div>
         </div>
       </div>
+      <div class="nav-search-wrap"><input id="adminNavSearch" type="search" placeholder="Найти раздел" aria-label="Поиск раздела"><p id="navSearchEmpty" class="nav-search-empty hidden">Раздел не найден</p></div>
       <nav>
         <div class="nav-label">Сводка</div>
         <button type="button" data-tab="overview" data-title="Обзор" data-lead="Статистика, техработы и тарификация" class="active">
@@ -1045,6 +1046,8 @@
             <button type="button" data-jump="set-router" class="ghost">Роутер</button>
             <button type="button" data-jump="set-notices" class="ghost">Тексты</button>
           </div>
+          <div class="settings-search"><input id="settingsSearch" type="search" placeholder="Найти настройку: роутер, оплата, устройства…" aria-label="Поиск настроек"><span id="settingsSearchCount" aria-live="polite"></span></div>
+          <p id="settingsNoResult" class="settings-no-result hidden">Ничего не найдено. Попробуйте другое название.</p>
           <form id="shopForm">
             <div class="panel" id="set-brand">
               <h3>Бренд</h3>
@@ -1418,6 +1421,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=77"></script>
+  <script src="app.js?v=78"></script>
 </body>
 </html>

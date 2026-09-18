@@ -4450,3 +4450,36 @@ $("subReplaceBtn").onclick = async () => {
     showLogin();
   }
 })();
+
+// Local navigation and settings search; no extra server requests.
+$("adminNavSearch").addEventListener("input", (e) => {
+  const query = e.target.value.trim().toLocaleLowerCase("ru");
+  let count = 0;
+  document.querySelectorAll("#sidebar nav [data-tab]").forEach((button) => {
+    const matches = `${button.dataset.title} ${button.dataset.lead}`.toLocaleLowerCase("ru").includes(query);
+    button.classList.toggle("hidden", !matches);
+    if (matches) count++;
+  });
+  document.querySelectorAll("#sidebar .nav-label").forEach((label) => label.classList.toggle("hidden", Boolean(query)));
+  $("navSearchEmpty").classList.toggle("hidden", count > 0);
+});
+function filterSettings() {
+  const query = $("settingsSearch").value.trim().toLocaleLowerCase("ru");
+  let count = 0;
+  document.querySelectorAll("#shopForm > .panel").forEach((panel) => {
+    const matches = panel.textContent.toLocaleLowerCase("ru").includes(query);
+    panel.classList.toggle("search-miss", !matches);
+    if (matches && !panel.classList.contains("hidden")) count++;
+  });
+  $("settingsSearchCount").textContent = query ? `Разделов: ${count}` : "";
+  $("settingsNoResult").classList.toggle("hidden", !query || count > 0);
+}
+$("settingsSearch").addEventListener("input", filterSettings);
+document.querySelectorAll("#setNav [data-jump], #setNavSelect").forEach((control) => {
+  control.addEventListener(control.tagName === "SELECT" ? "change" : "click", () => {
+    $("settingsSearch").value = "";
+    filterSettings();
+    const target = $(control.dataset.jump || control.value);
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+});
