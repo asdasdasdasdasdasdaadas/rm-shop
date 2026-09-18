@@ -547,6 +547,7 @@ async def api_me(request: web.Request) -> web.Response:
             "ok": True,
             "maintenance": False,
             "user": {
+                "id": telegram_id,
                 "name": name or (local or {}).get("first_name") or "Пользователь",
                 "username": username,
                 "photo": photo,

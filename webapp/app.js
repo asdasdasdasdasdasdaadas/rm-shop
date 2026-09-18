@@ -1238,9 +1238,15 @@ let coachHideTimer = 0;
 let coachScrollY = 0;
 let coachScrollLocked = false;
 
+function onboardingStorageKey(key) {
+  const user = window.__me && window.__me.user;
+  const id = user && (user.id || user.telegram_id);
+  return id ? `${key}_${id}` : key;
+}
+
 function coachDone() {
   try {
-    return localStorage.getItem(ONBOARD_KEY) === "1" || localStorage.getItem(COACH_KEY) === "1";
+    return localStorage.getItem(onboardingStorageKey(ONBOARD_KEY)) === "1" || localStorage.getItem(COACH_KEY) === "1";
   } catch (_e) {
     return false;
   }
@@ -1248,7 +1254,7 @@ function coachDone() {
 
 function onboardDone() {
   try {
-    return localStorage.getItem(ONBOARD_KEY) === "1";
+    return localStorage.getItem(onboardingStorageKey(ONBOARD_KEY)) === "1";
   } catch (_e) {
     return false;
   }
@@ -1256,9 +1262,9 @@ function onboardDone() {
 
 function markOnboardDone() {
   try {
-    localStorage.setItem(ONBOARD_KEY, "1");
+    localStorage.setItem(onboardingStorageKey(ONBOARD_KEY), "1");
     localStorage.setItem(COACH_KEY, "1");
-    localStorage.setItem(OFFER_SKIP_KEY, "1");
+    localStorage.setItem(onboardingStorageKey(OFFER_SKIP_KEY), "1");
   } catch (_e) {}
   try {
     localStorage.setItem(WIZ_COACH_KEY, JSON.stringify({ 1: 1, 2: 1, 3: 1, 4: 1, done: 1 }));
@@ -1267,7 +1273,7 @@ function markOnboardDone() {
 
 function offerSkipped() {
   try {
-    return localStorage.getItem(OFFER_SKIP_KEY) === "1";
+    return localStorage.getItem(onboardingStorageKey(OFFER_SKIP_KEY)) === "1";
   } catch (_e) {
     return false;
   }
@@ -1275,18 +1281,18 @@ function offerSkipped() {
 
 function skipOffer() {
   try {
-    localStorage.setItem(OFFER_SKIP_KEY, "1");
+    localStorage.setItem(onboardingStorageKey(OFFER_SKIP_KEY), "1");
   } catch (_e) {}
 }
 
 function shouldShowOffer(me) {
   if (!me) return false;
-  if ((me.devices || []).length) return false;
+  if ((me.devices || []).length || me.first_online_at || me.has_paid_topup) return false;
   if (offerSkipped() || onboardDone()) return false;
-  // Только пока триал ещё можно забрать. После выдачи / удаления устройств подарок не показываем.
+  // Signup may have already credited the gift before the first cabinet visit.
   if (me.trial_available) return true;
   const kind = me.trial_notice && me.trial_notice.kind;
-  return kind === "claim";
+  return kind === "claim" || kind === "granted";
 }
 
 function maybeOpenFirstRun(me) {
