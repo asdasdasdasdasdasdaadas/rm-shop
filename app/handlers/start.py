@@ -5,7 +5,7 @@ import re
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
 
 from app import db
 from app.access import is_channel_member
@@ -95,11 +95,17 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
     if isinstance(target, CallbackQuery):
         await ack(target)
         try:
-            await message.edit_text(text, reply_markup=kb)
+            await message.edit_text(
+                text, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
+            )
         except TelegramBadRequest:
-            await message.answer(text, reply_markup=kb)
+            await message.answer(
+                text, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
+            )
     else:
-        await message.answer(text, reply_markup=kb)
+        await message.answer(
+            text, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
     if from_user:
         await db.mark_legal_notice(from_user.id)
 
@@ -111,10 +117,14 @@ async def gate_or_continue(event: Message | CallbackQuery) -> bool:
         text = welcome_text()
         kb = channel_keyboard()
         if isinstance(event, CallbackQuery):
-            await event.message.edit_text(text, reply_markup=kb)
+            await event.message.edit_text(
+                text, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
+            )
             await ack(event, "Сначала подпишитесь на канал", alert=True)
         else:
-            await event.answer(text, reply_markup=kb)
+            await event.answer(
+                text, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
+            )
         await db.mark_legal_notice(user.id)
         return False
     await db.accept_legal_after_notice(user.id)
@@ -146,7 +156,9 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
         if ok:
             return
     if not in_channel:
-        await message.answer(welcome_text(), reply_markup=channel_keyboard())
+        await message.answer(
+            welcome_text(), reply_markup=channel_keyboard(), link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
         await db.mark_legal_notice(message.from_user.id)
         return
     await show_profile(message, rw)
@@ -169,7 +181,9 @@ async def check_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
 @router.callback_query(F.data == "accept_legal")
 async def accept_legal(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await is_channel_member(callback.bot, callback.from_user.id):
-        await callback.message.edit_text(welcome_text(), reply_markup=channel_keyboard())
+        await callback.message.edit_text(
+            welcome_text(), reply_markup=channel_keyboard(), link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
         await ack(callback, "Сначала подпишитесь на канал", alert=True)
         return
     await db.upsert_user(
@@ -194,7 +208,9 @@ async def try_again(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     await ack(callback)
     await db.upsert_user(user.id, user.username, user.first_name)
     if not await is_channel_member(callback.bot, user.id):
-        await callback.message.answer(welcome_text(), reply_markup=channel_keyboard())
+        await callback.message.answer(
+            welcome_text(), reply_markup=channel_keyboard(), link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
         await db.mark_legal_notice(user.id)
         return
     await db.accept_legal_after_notice(user.id)

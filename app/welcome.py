@@ -6,7 +6,7 @@ import logging
 from aiogram import Bot
 from aiogram.enums import ChatAction
 from aiogram.exceptions import TelegramAPIError
-from aiogram.types import Message
+from aiogram.types import LinkPreviewOptions, Message
 
 from app import db
 from app.config import get_settings
@@ -154,7 +154,9 @@ async def send_welcome_intro(
         await _pause(bot, chat_id)
         await message.answer(hello)
         await _pause(bot, chat_id)
-        await message.answer(last, reply_markup=kb)
+        await message.answer(
+            last, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
         await db.mark_legal_notice(user.id)
         await _log(user.id, user.first_name, "\n\n".join(parts), ok=True)
         return True

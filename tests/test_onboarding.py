@@ -121,6 +121,7 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                 else:
                     db.mark_legal_notice.assert_awaited_once_with(123)
                     self.assertIn('Legal links', message.answer.call_args.args[0])
+                    self.assertTrue(message.answer.call_args.kwargs['link_preview_options'].is_disabled)
 
 
 class AcceptanceStorageTest(unittest.IsolatedAsyncioTestCase):
