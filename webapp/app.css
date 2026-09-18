@@ -6107,3 +6107,7 @@ html.is-decoy .decoy:has(#decoySerp:not(.hidden)) .decoy-bar {
   50% { transform: translateY(-2px) rotate(8deg); }
 }
 @media (prefers-reduced-motion: reduce) { .pay-method-ico .crypto-logo { animation: none; } }
+
+.low-balance-sheet[data-state="empty"] .low-balance-clock,
+.low-balance-sheet[data-state="empty"] .low-balance-label { color: #ffbf83; }
+.low-balance-content .low-balance-amount { font-size: 18px; font-weight: 700; color: var(--text-primary); }

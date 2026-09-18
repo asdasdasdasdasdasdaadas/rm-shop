@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 from urllib.parse import quote
 
 from aiogram.types import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
@@ -21,11 +22,18 @@ def support_url() -> str:
 
 
 def legal_text() -> str:
-    return notice_text("legal")
+    settings = get_settings()
+    offer = escape(settings.legal_offer_url, quote=True)
+    privacy = escape(settings.legal_privacy_url, quote=True)
+    return (
+        f'Продолжая работу с ботом или открывая кабинет, вы принимаете '
+        f'<a href="{offer}">оферту</a> и подтверждаете ознакомление с '
+        f'<a href="{privacy}">политикой конфиденциальности</a>.'
+    )
 
 
 def welcome_text() -> str:
-    return notice_text("welcome", brand=get_settings().brand_name)
+    return notice_text("welcome", brand=get_settings().brand_name) + "\n\n" + legal_text()
 
 
 def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> str:
@@ -33,13 +41,13 @@ def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> s
     settings = get_settings()
     if settings.balance_enabled:
         rub = 0 if balance_rub is None else balance_rub
-        return notice_text(
-            "profile_balance",
-            name=name,
-            balance=rub_text(rub),
+        body = notice_text(
+            "profile_balance", name=name, balance=rub_text(rub),
             price=rub_text(settings.vpn_day_price_rub),
         )
-    return notice_text("profile_days", name=name)
+    else:
+        body = notice_text("profile_days", name=name)
+    return body + "\n\n" + legal_text()
 
 
 def mini_app_url() -> str:

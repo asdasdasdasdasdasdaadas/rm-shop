@@ -10,7 +10,7 @@ from aiogram.types import Message
 
 from app import db
 from app.config import get_settings
-from app.keyboards import cabinet_keyboard, channel_keyboard, legal_keyboard
+from app.keyboards import cabinet_keyboard, channel_keyboard, legal_text
 from app.notices import notice_text
 from app.referrals import trial_grant_days
 from app.texts import days_text, rub_text
@@ -110,7 +110,6 @@ async def send_welcome_intro(
     message: Message,
     *,
     in_channel: bool,
-    passed_legal: bool,
 ) -> bool:
     bot = message.bot
     user = message.from_user
@@ -141,12 +140,10 @@ async def send_welcome_intro(
     if not in_channel:
         last = notice_text("welcome_intro_channel")
         kb = channel_keyboard()
-    elif not passed_legal:
-        last = notice_text("welcome_intro_legal")
-        kb = legal_keyboard()
     else:
         last = try_body
         kb = cabinet_keyboard()
+    last += "\n\n" + legal_text()
     parts = [hi, hello, last]
     try:
         await send_welcome_sticker(bot, chat_id)
@@ -156,6 +153,7 @@ async def send_welcome_intro(
         await message.answer(hello)
         await _pause(bot, chat_id)
         await message.answer(last, reply_markup=kb)
+        await db.mark_legal_notice(user.id)
         await _log(user.id, user.first_name, "\n\n".join(parts), ok=True)
         return True
     except Exception as exc:

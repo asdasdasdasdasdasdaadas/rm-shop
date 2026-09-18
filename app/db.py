@@ -660,9 +660,26 @@ async def claim_story_reward(telegram_id: int, amount: int) -> int | None:
 
 async def accept_legal(telegram_id: int) -> None:
     await _pool_req().execute(
-        "UPDATE users SET accepted_legal_at = $1 WHERE telegram_id = $2",
+        "UPDATE users SET accepted_legal_at = $1 WHERE telegram_id = $2 AND accepted_legal_at IS NULL",
         _utc_now(),
         telegram_id,
+    )
+
+
+async def mark_legal_notice(telegram_id: int) -> None:
+    await _pool_req().execute(
+        "UPDATE users SET legal_notice_at = $1 WHERE telegram_id = $2 AND legal_notice_at IS NULL",
+        _utc_now(), telegram_id,
+    )
+
+
+async def accept_legal_after_notice(telegram_id: int) -> None:
+    """Record a subsequent user action, never registration or elapsed time alone."""
+    await _pool_req().execute(
+        """UPDATE users SET accepted_legal_at = $1
+           WHERE telegram_id = $2 AND accepted_legal_at IS NULL
+             AND legal_notice_at IS NOT NULL""",
+        _utc_now(), telegram_id,
     )
 
 

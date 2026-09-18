@@ -575,7 +575,7 @@ function paintStatus(me) {
   }
   const pill = $("statusPill");
   const badge = $("daysBadge");
-  if (!running) {
+  if (!running && balanceAlertState(me) !== "empty") {
     setFrog("neutral");
     setGauge(0, "empty");
     badge.classList.add("hidden");
@@ -584,6 +584,13 @@ function paintStatus(me) {
     $("statusNote").textContent = me.balance_enabled
       ? "Добавьте устройство — без него VPN не стартует, деньги лежат. Сутки только за то, что сами добавите."
       : "Оформите доступ — лягушка возьмётся за дело и покажет срок подписки.";
+  } else if (balanceAlertState(me) === "empty") {
+    setFrog("worried");
+    setGauge(0, "empty");
+    badge.classList.add("hidden");
+    pill.className = "status-pill warn";
+    pill.innerHTML = '<span class="dot"></span> Пора пополнить баланс';
+    $("statusNote").textContent = "Пополните баланс, чтобы продолжить пользоваться VPN.";
   } else if (days < 3) {
     setFrog("worried");
     setGauge(days / GAUGE_REF_DAYS, "warn");
@@ -617,7 +624,7 @@ function paintStatus(me) {
   }
   const add = $("ctaAdd");
   const topup = $("topupBtn");
-  if (me.balance_enabled && n === 0) {
+  if (me.balance_enabled && n === 0 && balanceAlertState(me) !== "empty") {
     add.classList.remove("hidden");
     add.className = "btn btn-primary";
     topup.className = "btn btn-ghost";
@@ -946,7 +953,24 @@ function showMaint(notice) {
   setMain("");
 }
 
-let lowBalanceShown = false;
+// Alert state is separate from wallet balance: the current day may already be paid.
+function balanceAlertState(me) {
+  if (!me || !me.balance_enabled || me.billing_paused) return "";
+  const devices = (me.devices || []).filter((d) => d.kind !== "router");
+  // Router subscriptions have a separate payment cycle.
+  if (!devices.length && (me.devices || []).length) return "";
+  if (!devices.length && me.trial_available) return "";
+  const balance = Number(me.balance_rub) || 0;
+  if (devices.length) {
+    if (remainHours(me) <= 0) return "empty";
+    if (remainHours(me) <= 24) return "low";
+  } else if (balance < Math.max(1, Number(me.vpn_day_price_rub) || 1)) {
+    return "empty";
+  }
+  return "";
+}
+
+let lowBalanceShown = new Set();
 let lowBalanceScroll = "";
 let lowBalanceFocus = null;
 function closeLowBalance() {
@@ -956,17 +980,41 @@ function closeLowBalance() {
 }
 function maybeShowLowBalance() {
   const me = window.__me;
-  if (!me || lowBalanceShown || screen !== "home" || !me.balance_enabled) return;
-  const hours = remainHours(me);
-  if (!(hours > 0 && hours <= 24) || !(me.devices || []).length) return;
-  const key = `way_low_balance_${me.user && (me.user.id || me.user.telegram_id) || "user"}`;
-  try {
-    if (Date.now() - Number(localStorage.getItem(key) || 0) < 24 * 60 * 60 * 1000) return;
-  } catch (_) {}
+  const state = balanceAlertState(me);
   const sheet = $("lowBalanceSheet");
-  if (document.querySelector("dialog[open]")) return;
+  if (!state) {
+    lowBalanceShown.clear();
+    closeLowBalance();
+    return;
+  }
+  if (screen !== "home") return;
+  const key = `way_balance_alert_${me.user && (me.user.id || me.user.telegram_id) || "user"}_${state}`;
+  const alreadyOpen = sheet.open;
+  if (!alreadyOpen) {
+    if (lowBalanceShown.has(key)) return;
+    try {
+      if (Date.now() - Number(localStorage.getItem(key) || 0) < 24 * 60 * 60 * 1000) return;
+    } catch (_) {}
+    if (document.querySelector("dialog[open]")) return;
+  }
+  const empty = state === "empty";
+  sheet.dataset.state = state;
+  $("lowBalanceLabel").textContent = empty ? "Пора пополнить баланс" : "Осталось не больше суток";
+  $("lowBalanceTitle").textContent = empty ? "Вернитесь на связь" : "Баланс заканчивается";
+  $("lowBalanceDescription").textContent = empty
+    ? "Средств на дальнейшее подключение не хватает. Пополните баланс, чтобы продолжить пользоваться VPN."
+    : "Оплаченный доступ скоро закончится. Пополните баланс сейчас, чтобы оставаться на связи.";
+  $("lowBalanceAmount").textContent = `${Number(me.balance_rub) || 0} ₽ на балансе`;
+  $("lowBalanceLater").textContent = "Позже";
+  if (alreadyOpen) {
+    if (!lowBalanceShown.has(key)) {
+      lowBalanceShown.add(key);
+      try { localStorage.setItem(key, String(Date.now())); } catch (_) {}
+    }
+    return;
+  }
   hideCoach();
-  lowBalanceShown = true;
+  lowBalanceShown.add(key);
   lowBalanceFocus = document.activeElement;
   lowBalanceScroll = document.body.style.overflow;
   document.body.style.overflow = "hidden";

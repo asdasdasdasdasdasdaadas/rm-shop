@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
@@ -14,8 +13,6 @@ from app.config import get_settings
 from app.live import invited as live_invited
 from app.keyboards import (
     channel_keyboard,
-    legal_keyboard,
-    legal_text,
     profile_keyboard,
     profile_text,
     welcome_text,
@@ -33,38 +30,6 @@ async def _maybe_live_invite(row: dict | None) -> None:
 
 
 router = Router()
-
-
-def _aware(dt: datetime) -> datetime:
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt
-
-
-def is_established_user(local: dict, *, devices: int = 0) -> bool:
-    if local.get("remnawave_id") or local.get("remnawave_uuid"):
-        return True
-    if local.get("has_paid_topup"):
-        return True
-    if devices > 0:
-        return True
-    created = local.get("created_at")
-    if isinstance(created, datetime):
-        return datetime.now(timezone.utc) - _aware(created) > timedelta(minutes=1)
-    return False
-
-
-async def user_passed_legal(telegram_id: int) -> bool:
-    local = await db.get_user(telegram_id)
-    if not local:
-        return False
-    if local.get("accepted_legal_at"):
-        return True
-    devices = await db.device_count(telegram_id)
-    if not is_established_user(local, devices=devices):
-        return False
-    await db.accept_legal(telegram_id)
-    return True
 
 
 async def ack(callback: CallbackQuery, text: str | None = None, alert: bool = False) -> None:
@@ -136,6 +101,8 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
             await message.answer(text, reply_markup=kb)
     else:
         await message.answer(text, reply_markup=kb)
+    if from_user:
+        await db.mark_legal_notice(from_user.id)
 
 
 async def gate_or_continue(event: Message | CallbackQuery) -> bool:
@@ -149,19 +116,9 @@ async def gate_or_continue(event: Message | CallbackQuery) -> bool:
             await ack(event, "Сначала подпишитесь на канал", alert=True)
         else:
             await event.answer(text, reply_markup=kb)
+        await db.mark_legal_notice(user.id)
         return False
-    if not await user_passed_legal(user.id):
-        text = legal_text()
-        kb = legal_keyboard()
-        if isinstance(event, CallbackQuery):
-            try:
-                await event.message.edit_text(text, reply_markup=kb)
-            except TelegramBadRequest:
-                await event.message.answer(text, reply_markup=kb)
-            await ack(event)
-        else:
-            await event.answer(text, reply_markup=kb)
-        return False
+    await db.accept_legal_after_notice(user.id)
     return True
 
 
@@ -183,20 +140,16 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
     await _maybe_live_invite(row)
     await ensure_signup_trial(message.from_user.id)
     in_channel = await is_channel_member(message.bot, message.from_user.id)
-    passed_legal = await user_passed_legal(message.from_user.id) if in_channel else False
     if await db.claim_welcome_intro(message.from_user.id):
         ok = await send_welcome_intro(
             message,
             in_channel=in_channel,
-            passed_legal=passed_legal,
         )
         if ok:
             return
     if not in_channel:
         await message.answer(welcome_text(), reply_markup=channel_keyboard())
-        return
-    if not passed_legal:
-        await message.answer(legal_text(), reply_markup=legal_keyboard())
+        await db.mark_legal_notice(message.from_user.id)
         return
     await show_profile(message, rw)
 
@@ -212,11 +165,8 @@ async def check_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await is_channel_member(callback.bot, callback.from_user.id, force=True):
         await ack(callback, "Подписка не найдена. Подпишитесь и нажмите ещё раз.", alert=True)
         return
-    if await user_passed_legal(callback.from_user.id):
-        await show_profile(callback, rw)
-        return
-    await callback.message.edit_text(legal_text(), reply_markup=legal_keyboard())
-    await ack(callback, "Подписка подтверждена")
+    await db.accept_legal_after_notice(callback.from_user.id)
+    await show_profile(callback, rw)
 
 
 @router.callback_query(F.data == "accept_legal")
@@ -250,8 +200,9 @@ async def try_again(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     await ensure_signup_trial(user.id)
     if not await is_channel_member(callback.bot, user.id):
         await callback.message.answer(welcome_text(), reply_markup=channel_keyboard())
+        await db.mark_legal_notice(user.id)
         return
-    await user_passed_legal(user.id)
+    await db.accept_legal_after_notice(user.id)
     await show_profile(callback, rw)
 
 

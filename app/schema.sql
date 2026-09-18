@@ -425,3 +425,5 @@ CREATE INDEX IF NOT EXISTS cabinet_login_challenges_exp_idx
 
 
 
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS legal_notice_at TIMESTAMPTZ;
