@@ -25,10 +25,7 @@ from app.remnawave import (
 )
 from app.referrals import (
     after_topup_keyboard,
-    invitee_extra_days,
     topup_ok_text,
-    trial_grant_days,
-    trial_grant_rub,
     trial_is_available,
 )
 from app.reports import ReportCooldown, submit_vpn_report
@@ -54,7 +51,6 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await gate_or_continue(callback):
         return
     await ack(callback)
-    settings = get_settings()
     local = await db.get_user(callback.from_user.id)
     if not trial_is_available(local):
         if local and local.get("trial_used"):
@@ -62,52 +58,11 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
             return
         await callback.message.edit_text("Сейчас нельзя попробовать бесплатно.", reply_markup=back_profile_keyboard())
         return
-    if settings.balance_enabled:
-        amount = trial_grant_rub()
-        after = await db.claim_trial_balance(callback.from_user.id, amount)
-        if after is None:
-            await show_profile(callback, rw)
-            return
-        await db.log_billing_event(
-            callback.from_user.id,
-            "trial",
-            source="user",
-            amount=amount,
-            balance_after=after,
-            note=f"Триал {settings.trial_days} дн.",
-        )
-        await callback.message.edit_text(
-            "<b>Бесплатный период</b>\n\n"
-            f"На баланс начислено <b>{rub_text(amount)}</b> "
-            f"({days_text(settings.trial_days)} × {rub_text(settings.vpn_day_price_rub)}).\n\n"
-            "Нажмите «Открыть кабинет», добавьте устройство и импортируйте ссылку в Happ или Incy. "
-            "Пока устройств нет, баланс не списывается.",
-            reply_markup=back_profile_keyboard(cabinet=True),
-        )
-        return
-    try:
-        panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
-        user = await rw.extend_subscription(
-            callback.from_user.id,
-            trial_grant_days(local),
-            tag="TRIAL",
-            panel_user_id=panel_id,
-        )
-    except RemnawaveError as exc:
-        await callback.message.edit_text(f"Не удалось включить бесплатный период: {exc}", reply_markup=back_profile_keyboard())
-        return
-    rw_id = user.get("id")
-    panel_pk = int(rw_id) if rw_id is not None and str(rw_id).isdigit() else None
-    await db.mark_trial_used(callback.from_user.id, panel_pk)
-    await db.save_panel_snapshot(callback.from_user.id, user)
-    sub_url = user.get("subscriptionUrl") or ""
-    text = subscription_issued_text(user, "Подписка оформлена")
-    extra = invitee_extra_days(local)
-    if extra:
-        text += f"\n\nБонус за переход по ссылке: <b>+{days_text(extra)}</b>"
     await callback.message.edit_text(
-        text,
-        reply_markup=connect_keyboard(sub_url) if sub_url else back_profile_keyboard(),
+        "🎁 <b>Вам подарок</b>\n\n"
+        "Откройте личный кабинет и нажмите «Принять подарок». "
+        "После этого сразу перейдёте к добавлению устройства.",
+        reply_markup=back_profile_keyboard(cabinet=True),
     )
 
 

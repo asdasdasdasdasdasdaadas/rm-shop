@@ -43,7 +43,6 @@ from app.keyboards import (
 )
 from app.referrals import (
     after_topup_keyboard,
-    ensure_signup_trial,
     referral_payout_public,
     topup_ok_text,
     trial_grant_days,
@@ -469,7 +468,6 @@ async def api_me(request: web.Request) -> web.Response:
     tg_user = parsed.user if parsed else None
     if tg_user:
         await db.upsert_user(telegram_id, tg_user.username, tg_user.first_name)
-    await ensure_signup_trial(telegram_id)
     await db.accept_legal_after_notice(telegram_id)
     local = await db.get_user(telegram_id)
     panel = await fetch_panel(rw, telegram_id, local=local, allow_stale=True)

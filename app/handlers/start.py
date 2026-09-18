@@ -17,7 +17,7 @@ from app.keyboards import (
     profile_text,
     welcome_text,
 )
-from app.referrals import ensure_signup_trial, trial_is_available
+from app.referrals import trial_is_available
 from app.welcome import send_welcome_intro
 from app.remnawave import RemnawaveClient
 from app.sync import fetch_panel, has_access
@@ -71,7 +71,6 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
     panel = None
     local = None
     if from_user:
-        await ensure_signup_trial(from_user.id)
         panel = await fetch_panel(rw, from_user.id)
         local = await db.get_user(from_user.id)
     trial_available = trial_is_available(local)
@@ -138,7 +137,6 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
         ad_link_id=ad_id,
     )
     await _maybe_live_invite(row)
-    await ensure_signup_trial(message.from_user.id)
     in_channel = await is_channel_member(message.bot, message.from_user.id)
     if await db.claim_welcome_intro(message.from_user.id):
         ok = await send_welcome_intro(
@@ -161,7 +159,6 @@ async def check_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         callback.from_user.username,
         callback.from_user.first_name,
     )
-    await ensure_signup_trial(callback.from_user.id)
     if not await is_channel_member(callback.bot, callback.from_user.id, force=True):
         await ack(callback, "Подписка не найдена. Подпишитесь и нажмите ещё раз.", alert=True)
         return
@@ -181,7 +178,6 @@ async def accept_legal(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         callback.from_user.first_name,
     )
     await db.accept_legal(callback.from_user.id)
-    await ensure_signup_trial(callback.from_user.id)
     await show_profile(callback, rw)
 
 
@@ -197,7 +193,6 @@ async def try_again(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     user = callback.from_user
     await ack(callback)
     await db.upsert_user(user.id, user.username, user.first_name)
-    await ensure_signup_trial(user.id)
     if not await is_channel_member(callback.bot, user.id):
         await callback.message.answer(welcome_text(), reply_markup=channel_keyboard())
         await db.mark_legal_notice(user.id)

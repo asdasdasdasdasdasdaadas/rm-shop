@@ -22,7 +22,6 @@ class OnboardingTest(unittest.IsolatedAsyncioTestCase):
         self.db.claim_welcome_intro.return_value = True
         self.member = self.stack.enter_context(patch.object(start, 'is_channel_member', new_callable=AsyncMock))
         self.member.return_value = True
-        self.stack.enter_context(patch.object(start, 'ensure_signup_trial', new_callable=AsyncMock))
         self.intro = self.stack.enter_context(patch.object(start, 'send_welcome_intro', new_callable=AsyncMock))
         self.intro.return_value = True
         self.profile = self.stack.enter_context(patch.object(start, 'show_profile', new_callable=AsyncMock))
@@ -38,6 +37,8 @@ class OnboardingTest(unittest.IsolatedAsyncioTestCase):
         self.intro.assert_awaited_once_with(self.event, in_channel=True)
         self.db.accept_legal_after_notice.assert_not_awaited()
         self.db.accept_legal.assert_not_awaited()
+        self.db.claim_trial_balance.assert_not_called()
+        self.db.mark_trial_used.assert_not_called()
 
     async def test_repeat_start_opens_profile_without_legal_gate(self):
         self.db.claim_welcome_intro.return_value = False
@@ -102,6 +103,7 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                     brand_name='VPN', referral_invitee_reward_rub=0,
                     balance_enabled=False, trial_enabled=False, trial_days=0)))
                 stack.enter_context(patch.object(welcome.logger, 'warning'))
+                stack.enter_context(patch.object(welcome, 'trial_is_available', return_value=False))
                 stack.enter_context(patch.object(welcome, 'notice_text', return_value='Hello'))
                 stack.enter_context(patch.object(welcome, 'legal_text', return_value='Legal links'))
                 stack.enter_context(patch.object(welcome, 'cabinet_keyboard', return_value=None))

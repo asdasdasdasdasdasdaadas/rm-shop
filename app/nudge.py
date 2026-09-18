@@ -40,7 +40,10 @@ def trial_nudge_text(first_name: str | None, *, already_granted: bool) -> str:
             "без него VPN не включится, деньги не спишутся."
         )
     elif settings.balance_enabled:
-        extra = f"На баланс сразу ляжет {rub_text(trial_grant_rub())} на {days}."
+        extra = (
+            f"Заберите подарок в личном кабинете — {rub_text(trial_grant_rub())} на {days}. "
+            "Нажмите «Принять подарок», и средства поступят на баланс."
+        )
     else:
         extra = f"Бесплатный период — {days}."
     return notice_text("trial_nudge", name=name, extra=extra)

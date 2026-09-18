@@ -12,7 +12,7 @@ from app import db
 from app.config import get_settings
 from app.keyboards import cabinet_keyboard, channel_keyboard, legal_text
 from app.notices import notice_text
-from app.referrals import trial_grant_days
+from app.referrals import trial_grant_days, trial_is_available
 from app.texts import days_text, rub_text
 from app.tg_err import fail_extra
 
@@ -126,8 +126,10 @@ async def send_welcome_intro(
         hello += (
             f"\n\nВы пришли по ссылке друга. После первого пополнения на баланс ещё {rub_text(bonus)}."
         )
-    trial_on = settings.trial_enabled and settings.trial_days > 0
-    days = days_text(trial_grant_days(local) if trial_on else settings.trial_days)
+    trial_on = trial_is_available(local)
+    days = days_text(
+        trial_grant_days(local) if trial_on and not settings.balance_enabled else settings.trial_days
+    )
     hi = (
         notice_text("welcome_intro_hi", name=name, days=days)
         if trial_on

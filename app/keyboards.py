@@ -151,8 +151,10 @@ def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bo
     settings = get_settings()
     builder = InlineKeyboardBuilder()
     if trial_available:
+        url = mini_app_url()
         builder.row(
-            InlineKeyboardButton(text="Попробовать бесплатно", callback_data="trial")
+            InlineKeyboardButton(text="Забрать подарок", web_app=WebAppInfo(url=url))
+            if url else InlineKeyboardButton(text="Забрать подарок", callback_data="trial")
         )
     if settings.balance_enabled:
         builder.row(

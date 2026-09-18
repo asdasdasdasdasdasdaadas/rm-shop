@@ -4294,18 +4294,7 @@ $("topupAmount").onkeydown = (e) => {
   }
 };
 
-async function claimTrial() {
-  haptic();
-  try {
-    await api("/api/trial", { method: "POST", body: "{}" });
-    showToast("Тестовый баланс начислен");
-    await load();
-  } catch (e) {
-    showErr(e);
-  }
-}
-
-$("trialHomeBtn").onclick = () => claimTrial();
+$("trialHomeBtn").onclick = () => openOffer();
 
 $("trialNoticeClose").onclick = (e) => {
   e.stopPropagation();
