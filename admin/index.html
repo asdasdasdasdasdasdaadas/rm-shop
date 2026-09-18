@@ -1033,6 +1033,7 @@
             <option value="set-devices">Устройства</option>
             <option value="set-apps">Клиенты</option>
             <option value="set-prices">Цены</option>
+            <option value="set-router">Роутер</option>
             <option value="set-notices">Тексты</option>
           </select>
           <div class="seg settings-nav" id="setNav">
@@ -1041,6 +1042,7 @@
             <button type="button" data-jump="set-apps" class="ghost">Клиенты</button>
             <button type="button" data-jump="set-pay" class="ghost">Оплата</button>
             <button type="button" data-jump="set-prices" class="ghost">Цены</button>
+            <button type="button" data-jump="set-router" class="ghost">Роутер</button>
             <button type="button" data-jump="set-notices" class="ghost">Тексты</button>
           </div>
           <form id="shopForm">
@@ -1128,10 +1130,11 @@
             </div>
             <div class="panel shop-balance" id="set-router">
               <h3>Роутер</h3>
+              <p class="muted tight">Выключение скрывает предложение в кабинете и запрещает покупку. После изменения нажмите «Сохранить».</p>
               <p class="muted tight">Отдельный слот на дом: оплата не идёт на баланс телефонов и не занимает лимит устройств. Один роутер на кабинет.</p>
               <label class="switch-row">
                 <span>
-                  <strong>Плашка и оплата роутера</strong>
+                  <strong>Подписка на роутер</strong>
                   <span class="switch-row-state" data-on="Вкл" data-off="Выкл"></span>
                 </span>
                 <span class="switch-ui">
@@ -1287,10 +1290,11 @@
             </div>
             <div class="panel shop-balance" id="promo-story">
               <h3>История в Telegram</h3>
+              <p class="muted tight">Выключение скрывает предложение в кабинете и запрещает новые заявки. Уже отправленные заявки сохраняются. После изменения нажмите «Сохранить».</p>
               <p class="muted tight">Кнопка в кабинете открывает редактор истории. Админам в бот приходит заявка со ссылкой в Telegram и кнопками «Подтвердить» / «Отказать». Награда один раз. Пауза ниже только для таймера в кабинете.</p>
               <label class="switch-row">
                 <span>
-                  <strong>Награда за историю</strong>
+                  <strong>Показывать плашку «Пост в сторис»</strong>
                   <span class="switch-row-state" data-on="Вкл" data-off="Выкл"></span>
                 </span>
                 <span class="switch-ui">
