@@ -970,12 +970,67 @@ function balanceAlertState(me) {
   return "";
 }
 
+let lowBalanceSelected = 0;
+function lowBalanceAmounts(me) {
+  const min = Math.max(1, Number(me.topup_min) || 1);
+  const max = Math.max(min, Number(me.topup_max) || 5000);
+  const amounts = [300, 500, 1000, 2000].filter(n => n >= min && n <= max);
+  return amounts.length ? amounts : [min];
+}
+function paintLowBalance(me, state) {
+  const devices = (me.devices || []).filter(d => d.kind !== "router");
+  const stopped = state === "empty" && devices.length && devices.every(d => d.active === false);
+  $("lowBalanceTitle").textContent = stopped ? "Устройства отключены" : state === "empty" ? "Пора пополнить баланс" : "Баланс заканчивается";
+  const balance = `${Number(me.balance_rub) || 0} ₽`;
+  $("lowBalanceDescription").textContent = `Баланс — ${balance}. ` + (stopped
+    ? "Пополните его, чтобы снова пользоваться VPN на своих устройствах."
+    : state === "empty" ? "Средств на дальнейшее подключение не хватает. Пополните баланс, чтобы продолжить."
+    : "Осталось не больше суток доступа. Пополните сейчас, чтобы устройства оставались на связи.");
+  const strip = $("lowBalanceDevices");
+  strip.replaceChildren();
+  strip.classList.toggle("hidden", !devices.length);
+  const visible = devices.length > 4 ? devices.slice(0, 3) : devices;
+  for (const device of visible) {
+    const chip = document.createElement("div"); chip.className = "low-balance-device";
+    const icon = document.createElement("span"); icon.className = "low-balance-device-icon";
+    icon.textContent = ({ios:"🍏", macos:"💻", android:"📱", windows:"🖥️", linux:"🖥️"})[device.platform] || "📱";
+    icon.setAttribute("aria-hidden", "true");
+    const name = document.createElement("span"); name.className = "low-balance-device-name";
+    name.textContent = device.title || "Устройство";
+    const status = document.createElement("span"); status.className = "low-balance-device-status";
+    status.textContent = device.active === false ? "отключено" : "доступ истекает";
+    chip.append(icon, name, status); strip.append(chip);
+  }
+  if (devices.length > 4) {
+    const chip = document.createElement("div"); chip.className = "low-balance-device";
+    const icon = document.createElement("span"); icon.className = "low-balance-device-icon";
+    icon.textContent = `+${devices.length - 3}`;
+    const label = document.createElement("span"); label.className = "low-balance-device-name"; label.textContent = "ещё";
+    chip.append(icon, label); strip.append(chip);
+  }
+  const amounts = lowBalanceAmounts(me);
+  if (!amounts.includes(lowBalanceSelected)) lowBalanceSelected = amounts.includes(1000) ? 1000 : amounts[0];
+  const grid = $("lowBalanceAmounts"); grid.replaceChildren();
+  for (const amount of amounts) {
+    const button = document.createElement("button"); button.type = "button";
+    button.textContent = `${amount.toLocaleString("ru-RU")} ₽`;
+    button.setAttribute("aria-pressed", String(amount === lowBalanceSelected));
+    button.onclick = () => { lowBalanceSelected = amount; paintLowBalance(me, state); };
+    grid.append(button);
+  }
+  const daily = Math.max(1, Number(me.vpn_day_price_rub) || 1) * Math.max(1, devices.length);
+  const days = Math.max(0, Math.floor((lowBalanceSelected + Math.min(0, Number(me.balance_rub) || 0)) / daily));
+  $("lowBalanceRunway").textContent = `Пополнения хватит примерно на ${daysLabel(days)} ` + (devices.length ? "для этих устройств" : "для одного устройства");
+  $("lowBalancePay").textContent = `Пополнить на ${lowBalanceSelected.toLocaleString("ru-RU")} ₽`;
+}
+
 let lowBalanceShown = new Set();
 let lowBalanceScroll = "";
 let lowBalanceFocus = null;
 function closeLowBalance() {
   const sheet = $("lowBalanceSheet");
   if (!sheet.open) return;
+  sheet.style.transform = "";
   sheet.close();
 }
 function maybeShowLowBalance() {
@@ -997,15 +1052,8 @@ function maybeShowLowBalance() {
     } catch (_) {}
     if (document.querySelector("dialog[open]")) return;
   }
-  const empty = state === "empty";
   sheet.dataset.state = state;
-  $("lowBalanceLabel").textContent = empty ? "Пора пополнить баланс" : "Осталось не больше суток";
-  $("lowBalanceTitle").textContent = empty ? "Вернитесь на связь" : "Баланс заканчивается";
-  $("lowBalanceDescription").textContent = empty
-    ? "Средств на дальнейшее подключение не хватает. Пополните баланс, чтобы продолжить пользоваться VPN."
-    : "Оплаченный доступ скоро закончится. Пополните баланс сейчас, чтобы оставаться на связи.";
-  $("lowBalanceAmount").textContent = `${Number(me.balance_rub) || 0} ₽ на балансе`;
-  $("lowBalanceLater").textContent = "Позже";
+  paintLowBalance(me, state);
   if (alreadyOpen) {
     if (!lowBalanceShown.has(key)) {
       lowBalanceShown.add(key);
@@ -1023,24 +1071,44 @@ function maybeShowLowBalance() {
 }
 $("lowBalanceClose").onclick = closeLowBalance;
 $("lowBalanceLater").onclick = closeLowBalance;
-$("lowBalancePay").onclick = () => { closeLowBalance(); openTopup(); };
+$("lowBalancePay").onclick = () => {
+  const me = window.__me;
+  if (!me) return;
+  if (!lowBalanceAmounts(me).includes(lowBalanceSelected)) { paintLowBalance(me, balanceAlertState(me)); return; }
+  closeLowBalance();
+  topupCustomRub = lowBalanceSelected;
+  openPayMethod(currentTopupPlan(me));
+};
+$("lowBalanceCustom").onclick = () => {
+  closeLowBalance(); openTopup();
+  $("topupAmount").focus(); $("topupAmount").select();
+};
 $("lowBalanceSheet").addEventListener("close", () => {
   document.body.style.overflow = lowBalanceScroll;
   if (lowBalanceFocus && lowBalanceFocus.isConnected) lowBalanceFocus.focus({ preventScroll: true });
 });
 let lowBalanceTouch = null;
-$("lowBalanceSheet").addEventListener("touchstart", (e) => {
-  if (e.target.closest("button") || e.touches.length !== 1) return;
-  lowBalanceTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-}, { passive: true });
-$("lowBalanceSheet").addEventListener("touchend", (e) => {
-  if (!lowBalanceTouch) return;
-  const dx = e.changedTouches[0].clientX - lowBalanceTouch.x;
-  const dy = e.changedTouches[0].clientY - lowBalanceTouch.y;
+const lowBalanceGrab = $("lowBalanceGrab");
+lowBalanceGrab.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  lowBalanceTouch = { id: e.pointerId, y: e.clientY, distance: 0 };
+  lowBalanceGrab.setPointerCapture(e.pointerId);
+});
+lowBalanceGrab.addEventListener("pointermove", (e) => {
+  if (!lowBalanceTouch || lowBalanceTouch.id !== e.pointerId) return;
+  lowBalanceTouch.distance = Math.max(0, e.clientY - lowBalanceTouch.y);
+  $("lowBalanceSheet").style.transform = `translateY(${lowBalanceTouch.distance}px)`;
+});
+function finishLowBalanceDrag(e) {
+  if (!lowBalanceTouch || lowBalanceTouch.id !== e.pointerId) return;
+  const dismiss = e.type === "pointerup" && lowBalanceTouch.distance > $("lowBalanceSheet").getBoundingClientRect().height * .28;
   lowBalanceTouch = null;
-  if (dy > 90 && dy > Math.abs(dx) * 1.5) closeLowBalance();
-}, { passive: true });
-$("lowBalanceSheet").addEventListener("touchcancel", () => { lowBalanceTouch = null; });
+  $("lowBalanceSheet").style.transform = "";
+  if (lowBalanceGrab.hasPointerCapture(e.pointerId)) lowBalanceGrab.releasePointerCapture(e.pointerId);
+  if (dismiss) closeLowBalance();
+}
+lowBalanceGrab.addEventListener("pointerup", finishLowBalanceDrag);
+lowBalanceGrab.addEventListener("pointercancel", finishLowBalanceDrag);
 
 function showApp() {
   const wasHidden = $("app").classList.contains("hidden");
