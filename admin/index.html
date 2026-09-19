@@ -917,6 +917,14 @@
             <p class="muted">Выберите шаблон — уйдёт только подходящим незаблокированным пользователям. Тексты можно поправить в Настройки / Тексты.</p>
             <div class="bc-choices" role="radiogroup" aria-label="Шаблон рассылки">
               <label class="bc-choice">
+                <input type="radio" name="bcTpl" value="whitelist">
+                <span>
+                  <strong>Белые списки включены</strong>
+                  <span class="muted tight">Сообщить всем пользователям. Изменить сообщение: Настройки → Тексты → Рассылка: белые списки включены.</span>
+                  <span id="bcCountWhitelist" class="bc-count">Получатели: —</span>
+                </span>
+              </label>
+              <label class="bc-choice">
                 <input type="radio" name="bcTpl" value="invite">
                 <span>
                   <strong>Пользуются VPN</strong>
@@ -1432,6 +1440,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=79"></script>
+  <script src="app.js?v=80"></script>
 </body>
 </html>

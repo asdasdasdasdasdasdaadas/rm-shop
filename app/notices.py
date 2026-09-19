@@ -94,6 +94,11 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Другу за переход эти деньги не даём, после его первой оплаты ему тоже капнет на баланс.\n\n"
         "Ваша ссылка:\n{link}"
     ),
+    "broadcast_whitelist": (
+        "Белые списки включены!\n\n"
+        "Откройте личный кабинет, чтобы подключиться. "
+        "Если нужна помощь, напишите в поддержку."
+    ),
     "broadcast_unused": (
         "Вы так и не воспользовались VPN.\n\n"
         "Нажмите «Открыть кабинет» и добавьте одно устройство. Пока его нет, баланс не списывается."
@@ -267,6 +272,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "trial_nudge", "title": "Напоминание взять триал", "hint": "{name} {extra}"},
     {"key": "invite_nudge", "title": "Пригласить друга", "hint": "{name} {reward} {when} {link}"},
     {"key": "broadcast_invite", "title": "Рассылка: пользуются VPN", "hint": "{reward} {link}"},
+    {"key": "broadcast_whitelist", "title": "Рассылка: белые списки включены", "hint": ""},
     {"key": "broadcast_unused", "title": "Рассылка: не подключались", "hint": ""},
     {"key": "info_nudge", "title": "Как у нас устроено", "hint": "{price} {story}"},
     {"key": "story_nudge", "title": "Выложить историю", "hint": "{amount}"},

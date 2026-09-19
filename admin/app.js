@@ -3651,7 +3651,7 @@ $("refQ").onkeydown = (e) => {
 };
 
 let bcPoll = 0;
-let bcPreviews = { invite: "", unused: "" };
+let bcPreviews = { invite: "", unused: "", whitelist: "" };
 let bcAudiences = { all: 0, using: 0, unused: 0 };
 
 function bcTpl() {
@@ -3668,7 +3668,7 @@ function paintBroadcastAudience() {
     ? "using"
     : tpl === "unused"
       ? "unused"
-      : (($("bcAudience") && $("bcAudience").value) || "all");
+      : tpl === "whitelist" ? "all" : (($("bcAudience") && $("bcAudience").value) || "all");
   const n = Number(bcAudiences[audience] || 0);
   const labels = {
     all: "всем незаблокированным",
@@ -3678,11 +3678,13 @@ function paintBroadcastAudience() {
   if ($("broadcastCount")) {
     $("broadcastCount").textContent = `Уйдёт ${n} пользователям (${labels[audience] || "выбранным"}).`;
   }
+  if ($("bcCountWhitelist")) $("bcCountWhitelist").textContent = "Получатели: " + (bcAudiences.all || 0);
+  if ($("broadcastBtn")) $("broadcastBtn").textContent = tpl === "whitelist" ? "Сообщить всем о белых списках" : "Отправить";
   if ($("bcCountInvite")) $("bcCountInvite").textContent = "Получатели: " + (bcAudiences.using || 0);
   if ($("bcCountUnused")) $("bcCountUnused").textContent = "Получатели: " + (bcAudiences.unused || 0);
   if ($("bcCountCustom")) $("bcCountCustom").textContent = "Получатели: " + (bcAudiences[($("bcAudience") && $("bcAudience").value) || "all"] || 0);
   if (ta) {
-    if (tpl === "invite" || tpl === "unused") {
+    if (tpl === "invite" || tpl === "unused" || tpl === "whitelist") {
       ta.value = bcPreviews[tpl] || "";
       ta.readOnly = true;
     } else {
@@ -3977,10 +3979,10 @@ $("broadcastBtn").onclick = async () => {
   let payload;
   let title = "Рассылка";
   let lead = "";
-  if (tpl === "invite" || tpl === "unused") {
-    const n = tpl === "invite" ? bcAudiences.using : bcAudiences.unused;
+  if (tpl === "invite" || tpl === "unused" || tpl === "whitelist") {
+    const n = tpl === "invite" ? bcAudiences.using : tpl === "unused" ? bcAudiences.unused : bcAudiences.all;
     payload = { template: tpl };
-    title = tpl === "invite" ? "Пользуются VPN" : "Не подключались";
+    title = tpl === "invite" ? "Пользуются VPN" : tpl === "unused" ? "Не подключались" : "Белые списки включены";
     lead = `Сообщение уйдёт ${n || 0} пользователям. Отменить рассылку нельзя.`;
   } else {
     const text = $("broadcastText").value.trim();

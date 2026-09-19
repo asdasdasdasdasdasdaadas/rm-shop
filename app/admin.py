@@ -1381,6 +1381,8 @@ async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup, phot
 
 
 def _broadcast_title(template: str) -> str:
+    if template == "whitelist":
+        return "Рассылка: белые списки включены"
     if template == "invite":
         return "Рассылка: пользуются VPN"
     if template == "unused":
@@ -1419,6 +1421,8 @@ def _broadcast_payload(
             name=escape(str(first_name or "друг")),
         )
         return body, cabinet_keyboard()
+    if template == "whitelist":
+        return text, cabinet_keyboard()
     if template == "update":
         return fill_placeholders(text, first_name), cabinet_keyboard()
     return text, None
@@ -1497,6 +1501,8 @@ def _broadcast_template_preview(template: str) -> str:
             link=link,
             name="друг",
         )
+    if template == "whitelist":
+        return notice_text("broadcast_whitelist")
     if template == "unused":
         return notice_text("broadcast_unused", name="друг")
     return ""
@@ -1516,18 +1522,19 @@ async def api_broadcast(request: web.Request) -> web.Response:
             extra["previews"] = {
                 "invite": _broadcast_template_preview("invite"),
                 "unused": _broadcast_template_preview("unused"),
+                "whitelist": _broadcast_template_preview("whitelist"),
             }
         return web.json_response({"ok": True, **job, **extra})
     if job.get("running"):
         return web.json_response({"ok": False, "error": "Рассылка уже идёт", **job}, status=409)
     body = await request.json()
     template = str(body.get("template") or "").strip()
-    if template not in {"", "invite", "unused"}:
+    if template not in {"", "invite", "unused", "whitelist"}:
         return web.json_response({"ok": False, "error": "Неизвестный шаблон"}, status=400)
     text = str(body.get("text") or "").strip()
-    if template in {"invite", "unused"}:
+    if template in {"invite", "unused", "whitelist"}:
         text = _broadcast_template_preview(template)
-        audience = "using" if template == "invite" else "unused"
+        audience = "using" if template == "invite" else "unused" if template == "unused" else "all"
         ids = await db.list_broadcast_ids(audience)
         if not ids:
             return web.json_response({"ok": False, "error": "Нет получателей для этого шаблона"}, status=400)
