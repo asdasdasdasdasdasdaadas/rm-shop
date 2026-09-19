@@ -301,7 +301,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "subscription_issued", "title": "Подписка оформлена", "hint": "{title} {expire} {sub_block}"},
     {"key": "sub_reissued", "title": "Ссылка подписки перевыпущена", "hint": "{links}"},
     {"key": "blocked", "title": "Пользователь заблокирован", "hint": ""},
-    {"key": "payment_nudge", "title": "Незавершённая оплата: 30 минут", "hint": ""},
+    {"key": "payment_nudge", "title": "Незавершённая оплата: 10 минут", "hint": ""},
     {"key": "payment_unknown", "title": "Оплата: неизвестный тариф", "hint": ""},
     {"key": "payment_duplicate", "title": "Оплата: повтор", "hint": ""},
     {"key": "payment_panel_error", "title": "Оплата: панель не ответила", "hint": "{error}"},

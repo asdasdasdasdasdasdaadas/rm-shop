@@ -2116,7 +2116,7 @@ async def track_checkout(telegram_id: int, payment_id: str | None = None) -> Non
 
 
 _PAYMENT_NUDGE_DUE = """
-    u.checkout_started_at <= NOW() - INTERVAL '30 minutes'
+    u.checkout_started_at <= NOW() - INTERVAL '10 minutes'
     AND u.checkout_started_at > NOW() - INTERVAL '24 hours'
     AND u.checkout_nudge_at IS NULL
     AND (u.payment_nudge_at IS NULL OR u.payment_nudge_at <= NOW() - INTERVAL '24 hours')

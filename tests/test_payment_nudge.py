@@ -73,7 +73,7 @@ class PaymentNudgeStorageTest(unittest.IsolatedAsyncioTestCase):
             CREATE TABLE payments (telegram_id INTEGER, created_at TEXT);
         """)
         def query(sql, args):
-            sql = sql.replace("NOW() - INTERVAL '30 minutes'", "'2026-09-19 11:30:00'")
+            sql = sql.replace("NOW() - INTERVAL '10 minutes'", "'2026-09-19 11:50:00'")
             sql = sql.replace("NOW() - INTERVAL '24 hours'", "'2026-09-18 12:00:00'")
             sql = sql.replace('NOW()', "'2026-09-19 12:00:00'").replace('UPDATE users u ', 'UPDATE users AS u ')
             return conn.execute(sql, {str(i): x for i, x in enumerate(args, 1)})
@@ -81,7 +81,7 @@ class PaymentNudgeStorageTest(unittest.IsolatedAsyncioTestCase):
         async def fetchrow(sql, *args): return query(sql,args).fetchone()
         async def execute(sql, *args): return query(sql,args)
         pool = SimpleNamespace(fetch=fetch,fetchrow=fetchrow,execute=execute)
-        for uid, started in [(1,'2026-09-19 11:29:00'),(2,'2026-09-19 11:45:00'),
+        for uid, started in [(1,'2026-09-19 11:50:00'),(2,'2026-09-19 11:50:01'),
                              (3,'2026-09-18 11:00:00'),(4,'2026-09-19 11:00:00')]:
             conn.execute('INSERT INTO users (telegram_id, checkout_token, checkout_started_at, bot_started_at) VALUES (?,?,?,?)',
                          (uid,'token',started,'2026-09-18 10:00:00'))
