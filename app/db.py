@@ -39,10 +39,9 @@ async def init_db() -> None:
     )
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     async with _pool.acquire() as conn:
-        for stmt in schema.split(";"):
-            chunk = stmt.strip()
-            if chunk:
-                await conn.execute(chunk)
+        # PostgreSQL must parse statement boundaries: semicolons can also occur
+        # inside comments, strings and function bodies. asyncpg supports scripts.
+        await conn.execute(schema)
     await _ensure_nudge_defaults()
 
 
