@@ -959,14 +959,10 @@ function balanceAlertState(me) {
   const devices = (me.devices || []).filter((d) => d.kind !== "router");
   // Router subscriptions have a separate payment cycle.
   if (!devices.length && (me.devices || []).length) return "";
-  if (!devices.length && me.trial_available) return "";
   const balance = Number(me.balance_rub) || 0;
-  if (devices.length) {
-    if (remainHours(me) <= 0) return "empty";
-    if (remainHours(me) <= 24) return "low";
-  } else if (balance < Math.max(1, Number(me.vpn_day_price_rub) || 1)) {
-    return "empty";
-  }
+  if (balance <= 0) return "empty";
+  const daily = Math.max(1, Number(me.vpn_day_price_rub) || 1) * Math.max(1, devices.length);
+  if (balance <= daily || (devices.length && remainHours(me) <= 24)) return "low";
   return "";
 }
 
@@ -1042,14 +1038,13 @@ function maybeShowLowBalance() {
     closeLowBalance();
     return;
   }
-  if (screen !== "home") return;
+  if (!["home", "wizard", "device", "offer"].includes(screen)) return;
+  if (screen === "offer" && Number(me.balance_rub) === 0 &&
+      me.trial_notice && ["claim", "start_bot"].includes(me.trial_notice.kind)) return;
   const key = `way_balance_alert_${me.user && (me.user.id || me.user.telegram_id) || "user"}_${state}`;
   const alreadyOpen = sheet.open;
   if (!alreadyOpen) {
     if (lowBalanceShown.has(key)) return;
-    try {
-      if (Date.now() - Number(localStorage.getItem(key) || 0) < 24 * 60 * 60 * 1000) return;
-    } catch (_) {}
     if (document.querySelector("dialog[open]")) return;
   }
   sheet.dataset.state = state;
@@ -1057,7 +1052,6 @@ function maybeShowLowBalance() {
   if (alreadyOpen) {
     if (!lowBalanceShown.has(key)) {
       lowBalanceShown.add(key);
-      try { localStorage.setItem(key, String(Date.now())); } catch (_) {}
     }
     return;
   }
@@ -1067,7 +1061,6 @@ function maybeShowLowBalance() {
   lowBalanceScroll = document.body.style.overflow;
   document.body.style.overflow = "hidden";
   sheet.showModal();
-  try { localStorage.setItem(key, String(Date.now())); } catch (_) {}
 }
 $("lowBalanceClose").onclick = closeLowBalance;
 $("lowBalanceLater").onclick = closeLowBalance;
@@ -1394,7 +1387,7 @@ function maybeOpenFirstRun(me) {
     return;
   }
   // Мастер только для тех, кто ещё не прошёл онбординг — не после удаления устройств.
-  if (me.balance_enabled && !onboardDone()) {
+  if (me.balance_enabled && !onboardDone() && !balanceAlertState(me)) {
     startWizard({ fromOffer: false, instant: true });
   }
 }
@@ -2099,6 +2092,7 @@ function openHome() {
   } catch (_e) {}
   syncWebBack();
   requestAnimationFrame(() => scheduleCoach());
+  maybeShowLowBalance();
 }
 
 function openTopup() {
@@ -4296,6 +4290,16 @@ function syncCoach(me) {
   if (coachVisible) finishCoach();
 }
 
+let balanceRefreshBusy = false;
+async function refreshVisibleBalance() {
+  if (balanceRefreshBusy || firstRunBusy || document.visibilityState !== "visible" || !window.__me) return;
+  if (!["home", "wizard", "device", "offer"].includes(screen)) return;
+  balanceRefreshBusy = true;
+  try { await load(); } catch (_) {
+    // Keep the current screen on transient network failures; retry next interval.
+  } finally { balanceRefreshBusy = false; }
+}
+
 async function load() {
   if (!tg.initData && !lkToken) {
     showLogin("Введите логин Telegram");
@@ -5049,6 +5053,7 @@ document.addEventListener("visibilitychange", () => {
   clearTimeout(visTimer);
   visTimer = setTimeout(() => load().catch(() => {}), 400);
 });
+setInterval(refreshVisibleBalance, 15000);
 window.addEventListener("pagehide", flushThanksOnClose);
 window.addEventListener("beforeunload", flushThanksOnClose);
 

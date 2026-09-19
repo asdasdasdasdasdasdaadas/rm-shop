@@ -31,11 +31,11 @@ const base = {balance_enabled: true, balance_rub: 6, vpn_day_price_rub: 6,
 test('thresholds, prepaid time, trial, routers and paused billing', () => {
   const {ctx} = setup();
   for (const [fields, expected] of [
-    [{}, 'low'], [{hours_left: 25}, ''], [{hours_left: 0, balance_rub: 0}, 'empty'],
-    [{hours_left: 8, balance_rub: 0}, 'low'], [{hours_left: 0, balance_rub: -6}, 'empty'],
+    [{}, 'low'], [{hours_left: 25, balance_rub: 100}, ''], [{hours_left: 0, balance_rub: 0}, 'empty'],
+    [{hours_left: 8, balance_rub: 0}, 'empty'], [{hours_left: 0, balance_rub: -6}, 'empty'],
     [{billing_paused: true, hours_left: 0}, ''], [{balance_enabled: false}, ''],
     [{devices: [{kind: 'router'}], hours_left: 0}, ''],
-    [{devices: [], balance_rub: 0, trial_available: true}, ''],
+    [{devices: [], balance_rub: 0, trial_available: true}, 'empty'],
     [{devices: [], balance_rub: 0, trial_available: false}, 'empty'],
   ]) assert.equal(ctx.balanceAlertState({...base, ...fields}), expected);
 });
@@ -90,4 +90,38 @@ test('changing amount changes payment, custom amount opens input', () => {
   assert.equal(ctx.plan.topup_rub,300);
   el('lowBalanceCustom').onclick();
   assert.equal(ctx.screen,'topup');
+});
+
+test('new user with exhausted gift is warned in the device wizard', () => {
+  const {ctx,el} = setup();
+  ctx.screen='wizard';
+  ctx.window.__me={...base,devices:[],balance_rub:0,trial_available:false};
+  ctx.maybeShowLowBalance();
+  assert.equal(el('lowBalanceSheet').open,true);
+});
+test('fresh session shows zero balance despite previously dismissed alert', () => {
+  const {ctx,el} = setup();
+  ctx.localStorage.getItem=()=>String(Date.now());
+  ctx.window.__me={...base,balance_rub:0};
+  ctx.maybeShowLowBalance();
+  assert.equal(el('lowBalanceSheet').open,true);
+});
+test('initial unclaimed gift is preserved, admin debt interrupts it', () => {
+  const {ctx,el} = setup();
+  ctx.screen='offer';
+  ctx.window.__me={...base,devices:[],balance_rub:0,trial_notice:{kind:'claim'}};
+  ctx.maybeShowLowBalance();
+  assert.equal(el('lowBalanceSheet').open,false);
+  ctx.window.__me.balance_rub=-1;
+  ctx.maybeShowLowBalance();
+  assert.equal(el('lowBalanceSheet').open,true);
+});
+test('balance refresh runs on visible onboarding but never during payment', async () => {
+  const {ctx} = setup();
+  ctx.window.__me={...base};ctx.firstRunBusy=false;ctx.document.visibilityState='visible';
+  let loads=0;ctx.load=async()=>{loads++;};
+  vm.runInContext(source.slice(source.indexOf('let balanceRefreshBusy'),source.indexOf('async function load()')),ctx);
+  ctx.screen='wizard';await ctx.refreshVisibleBalance();assert.equal(loads,1);
+  ctx.screen='pay';await ctx.refreshVisibleBalance();assert.equal(loads,1);
+  ctx.screen='home';ctx.document.visibilityState='hidden';await ctx.refreshVisibleBalance();assert.equal(loads,1);
 });
