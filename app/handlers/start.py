@@ -146,6 +146,7 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
         referred_by=ref,
         ad_link_id=ad_id,
     )
+    await db.mark_bot_started(message.from_user.id)
     await _maybe_live_invite(row)
     in_channel = await is_channel_member(message.bot, message.from_user.id)
     if await db.claim_welcome_intro(message.from_user.id):

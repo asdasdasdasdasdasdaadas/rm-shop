@@ -666,6 +666,13 @@ async def accept_legal(telegram_id: int) -> None:
     )
 
 
+async def mark_bot_started(telegram_id: int) -> None:
+    await _pool_req().execute(
+        "UPDATE users SET bot_started_at = $1 WHERE telegram_id = $2 AND bot_started_at IS NULL",
+        _utc_now(), telegram_id,
+    )
+
+
 async def mark_legal_notice(telegram_id: int) -> None:
     await _pool_req().execute(
         "UPDATE users SET legal_notice_at = $1 WHERE telegram_id = $2 AND legal_notice_at IS NULL",

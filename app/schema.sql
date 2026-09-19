@@ -427,3 +427,8 @@ CREATE INDEX IF NOT EXISTS cabinet_login_challenges_exp_idx
 
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS legal_notice_at TIMESTAMPTZ;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_started_at TIMESTAMPTZ;
+-- Only the /start handler claims this welcome marker; Web App registration does not.
+UPDATE users SET bot_started_at = welcome_intro_sent_at
+WHERE bot_started_at IS NULL AND welcome_intro_sent_at IS NOT NULL;

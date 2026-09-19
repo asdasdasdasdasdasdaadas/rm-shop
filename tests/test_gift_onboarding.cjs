@@ -11,7 +11,7 @@ function setup(me, storage = new Map()) {
   }, $: () => button, haptic() {}, firstRunBusy: false,
   api: async () => calls.push('claim'), load: async () => calls.push('load'),
   startWizard: opts => calls.push(['wizard',opts.fromOffer]), openHome: () => calls.push('home'),
-  showErr: e => {throw e;},
+  showErr: e => {throw e;}, tg: {openTelegramLink: url => calls.push(['bot',url])},
   ONBOARD_KEY:'onboard', OFFER_SKIP_KEY:'skip', COACH_KEY:'coach', WIZ_COACH_KEY:'wiz',
   });
   vm.runInContext(source.slice(source.indexOf('function onboardingStorageKey('), source.indexOf('function maybeOpenFirstRun(')),ctx);
@@ -46,4 +46,12 @@ test('onboarding completion is scoped to the Telegram account', () => {
   const other = {...newcomer,user:{id:456}};
   ctx.window.__me = other;
   assert.equal(ctx.shouldShowOffer(other),true);
+});
+
+test('direct Web App entry opens bot instead of claiming or adding a device', async () => {
+  const me = {...newcomer, trial_notice:{kind:'start_bot'}, bot_start_url:'https://t.me/test_bot?start=gift'};
+  const {ctx,calls} = setup(me);
+  assert.equal(ctx.shouldShowOffer(me),true);
+  await ctx.startOfferTry();
+  assert.deepEqual(calls,[['bot',me.bot_start_url]]);
 });

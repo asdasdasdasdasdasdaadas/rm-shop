@@ -16,7 +16,7 @@ class OnboardingTest(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.stack.close)
         self.db = self.stack.enter_context(patch.object(start, 'db'))
         for name in ('upsert_user', 'claim_welcome_intro', 'mark_legal_notice',
-                     'accept_legal_after_notice', 'accept_legal', 'touch_ad_link'):
+                     'accept_legal_after_notice', 'accept_legal', 'touch_ad_link', 'mark_bot_started'):
             setattr(self.db, name, AsyncMock())
         self.db.upsert_user.return_value = {}
         self.db.claim_welcome_intro.return_value = True
@@ -35,6 +35,7 @@ class OnboardingTest(unittest.IsolatedAsyncioTestCase):
     async def test_start_does_not_record_acceptance(self):
         await start.cmd_start(self.event, None, SimpleNamespace(args=None))
         self.intro.assert_awaited_once_with(self.event, in_channel=True)
+        self.db.mark_bot_started.assert_awaited_once_with(123)
         self.db.accept_legal_after_notice.assert_not_awaited()
         self.db.accept_legal.assert_not_awaited()
         self.db.claim_trial_balance.assert_not_called()
@@ -106,7 +107,7 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                 stack.enter_context(patch.object(welcome, 'trial_is_available', return_value=False))
                 stack.enter_context(patch.object(welcome, 'notice_text', return_value='Hello'))
                 stack.enter_context(patch.object(welcome, 'legal_text', return_value='Legal links'))
-                stack.enter_context(patch.object(welcome, 'cabinet_keyboard', return_value=None))
+                keyboard = stack.enter_context(patch.object(welcome, 'profile_keyboard', return_value='full-menu'))
                 for name in ('send_welcome_sticker', '_pause', '_log'):
                     stack.enter_context(patch.object(welcome, name, new_callable=AsyncMock))
                 message = AsyncMock()
@@ -120,6 +121,8 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                     db.mark_legal_notice.assert_not_awaited()
                 else:
                     db.mark_legal_notice.assert_awaited_once_with(123)
+                    keyboard.assert_called_once()
+                    self.assertEqual(message.answer.call_args.kwargs['reply_markup'], 'full-menu')
                     self.assertIn('Legal links', message.answer.call_args.args[0])
                     self.assertTrue(message.answer.call_args.kwargs['link_preview_options'].is_disabled)
 

@@ -10,7 +10,7 @@ from aiogram.types import LinkPreviewOptions, Message
 
 from app import db
 from app.config import get_settings
-from app.keyboards import cabinet_keyboard, channel_keyboard, legal_text
+from app.keyboards import channel_keyboard, legal_text, profile_keyboard
 from app.notices import notice_text
 from app.referrals import trial_grant_days, trial_is_available
 from app.texts import days_text, rub_text
@@ -144,7 +144,11 @@ async def send_welcome_intro(
         kb = channel_keyboard()
     else:
         last = try_body
-        kb = cabinet_keyboard()
+        kb = profile_keyboard(
+            trial_available=trial_on,
+            has_access=bool(local and (local.get("subscription_url") or local.get("balance_rub") or local.get("balance_days"))),
+            story_offer=False,
+        )
     last += "\n\n" + legal_text()
     parts = [hi, hello, last]
     try:

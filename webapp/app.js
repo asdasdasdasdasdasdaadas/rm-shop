@@ -1292,7 +1292,7 @@ function shouldShowOffer(me) {
   // Signup may have already credited the gift before the first cabinet visit.
   if (me.trial_available) return true;
   const kind = me.trial_notice && me.trial_notice.kind;
-  return kind === "claim" || kind === "granted";
+  return kind === "claim" || kind === "granted" || kind === "start_bot";
 }
 
 function maybeOpenFirstRun(me) {
@@ -2694,6 +2694,11 @@ function monthPriceLabel(me) {
 
 function paintOffer(me) {
   if (!me) return;
+  const needsBot = me.trial_notice && me.trial_notice.kind === "start_bot";
+  $("offerTry").textContent = needsBot ? "Запустить бота" : "Принять подарок";
+  $("offerLead").textContent = needsBot
+    ? "Чтобы забрать подарок, откройте бота и нажмите «Начать». Затем вернитесь в кабинет."
+    : "Сутки только за свои устройства. Заберите тест и подключитесь за минуту.";
   const days = Number((me.trial_notice && me.trial_notice.days) || me.trial_days) || 3;
   $("offerDays").textContent = String(days);
   $("offerPrice").textContent = monthPriceLabel(me);
@@ -2727,6 +2732,10 @@ function openOffer(opts) {
 async function startOfferTry() {
   const me = window.__me;
   if (!me) return;
+  if (me.trial_notice && me.trial_notice.kind === "start_bot") {
+    tg.openTelegramLink(me.bot_start_url);
+    return;
+  }
   haptic();
   const btn = $("offerTry");
   if (btn) btn.disabled = true;

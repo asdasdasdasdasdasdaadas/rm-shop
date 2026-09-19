@@ -30,8 +30,10 @@ def trial_grant_rub() -> int:
     return max(0, settings.trial_days) * max(1, settings.vpn_day_price_rub)
 
 
-def trial_is_available(local: dict | None) -> bool:
+def trial_is_available(local: dict | None, *, require_bot_start: bool = True) -> bool:
     if not local or local.get("trial_used"):
+        return False
+    if require_bot_start and not local.get("bot_started_at"):
         return False
     settings = get_settings()
     if int(settings.trial_days or 0) < 1:

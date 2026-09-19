@@ -328,9 +328,9 @@ def _trial_notice(
     days_left: int,
 ) -> dict | None:
     settings = get_settings()
-    if trial_is_available(local):
+    if trial_is_available(local, require_bot_start=False):
         return {
-            "kind": "claim",
+            "kind": "claim" if local.get("bot_started_at") else "start_bot",
             "rub": trial_grant_rub() if settings.balance_enabled else 0,
             "days": trial_grant_days(local) if not settings.balance_enabled else settings.trial_days,
         }
@@ -554,6 +554,7 @@ async def api_me(request: web.Request) -> web.Response:
             "balance_enabled": settings.balance_enabled,
             "promo_enabled": settings.promo_enabled,
             "trial_available": trial_is_available(local),
+            "bot_start_url": f"https://t.me/{settings.bot_username}?start=gift",
             "trial_days": trial_grant_days(local) if not settings.balance_enabled else settings.trial_days,
             "trial_rub": trial_grant_rub() if settings.balance_enabled else 0,
             "trial_notice": _trial_notice(
@@ -700,7 +701,9 @@ async def api_trial(request: web.Request) -> web.Response:
         return denied
     settings = get_settings()
     local = await db.get_user(telegram_id)
-    if local and local["trial_used"]:
+    if not local or not local.get("bot_started_at"):
+        return json_error("Сначала запустите бота, затем вернитесь за подарком", 403)
+    if local["trial_used"]:
         return json_error("Вы уже пробовали бесплатно")
     if not trial_is_available(local):
         return json_error("Сейчас нельзя попробовать бесплатно")
