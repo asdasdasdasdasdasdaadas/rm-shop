@@ -1115,7 +1115,7 @@ function showApp() {
     if (!reducedMotion()) replayAnim($("app"), "app-in");
     scheduleCoach();
   }
-  setTimeout(maybeShowLowBalance, 700);
+  maybeShowLowBalance();
 }
 
 function introSeen() {
@@ -1159,6 +1159,7 @@ function finishIntro() {
   introTimer = setTimeout(() => {
     $("app").inert = false;
     hideIntro();
+    maybeShowLowBalance();
     if (screen === "home") scheduleCoach();
   }, reducedMotion() ? 0 : 800);
 }
@@ -1168,7 +1169,7 @@ function reducedMotion() {
 }
 
 function shouldShowIntro() {
-  return !introSeen();
+  return !introSeen() && !balanceAlertState(window.__me);
 }
 
 function showIntro(me) {

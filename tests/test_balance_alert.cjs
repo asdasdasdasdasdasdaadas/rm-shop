@@ -125,3 +125,28 @@ test('balance refresh runs on visible onboarding but never during payment', asyn
   ctx.screen='pay';await ctx.refreshVisibleBalance();assert.equal(loads,1);
   ctx.screen='home';ctx.document.visibilityState='hidden';await ctx.refreshVisibleBalance();assert.equal(loads,1);
 });
+
+test('cabinet display checks balance synchronously without waiting for polling', () => {
+  let checks=0;
+  const node={classList:{contains:()=>false,add(){},remove(){}}};
+  const ctx=vm.createContext({$:()=>node,hideIntro(){},hideDecoy(){},
+    maybeShowLowBalance(){checks++;},scheduleCoach(){}});
+  vm.runInContext(source.slice(source.indexOf('function showApp()'),source.indexOf('function introSeen()')),ctx);
+  ctx.showApp();
+  assert.equal(checks,1);
+});
+test('intro exit checks balance and low balance skips intro entirely', () => {
+  let checks=0;
+  const node={inert:false,classList:{contains:()=>false,add(){},remove(){}}};
+  const ctx=vm.createContext({$:()=>node,window:{__me:{balance_rub:1}},screen:'home',
+    introTimer:0,clearIntroTimers(){},markIntroSeen(){},maybeOpenFirstRun(){},
+    hideIntro(){},scheduleCoach(){},reducedMotion:()=>true,
+    setTimeout(fn){fn();return 1;},maybeShowLowBalance(){checks++;},
+    introSeen:()=>false,balanceAlertState:()=> 'low'});
+  vm.runInContext(source.slice(source.indexOf('function finishIntro()'),source.indexOf('function reducedMotion()')),ctx);
+  vm.runInContext(source.slice(source.indexOf('function shouldShowIntro()'),source.indexOf('function showIntro(')),ctx);
+  assert.equal(ctx.shouldShowIntro(),false);
+  ctx.finishIntro();
+  assert.equal(checks,1);
+  assert.equal(node.inert,false);
+});
