@@ -989,7 +989,7 @@ function paintLowBalance(me, state) {
   for (const device of visible) {
     const chip = document.createElement("div"); chip.className = "low-balance-device";
     const icon = document.createElement("span"); icon.className = "low-balance-device-icon";
-    icon.textContent = ({ios:"🍏", macos:"💻", android:"📱", windows:"🖥️", linux:"🖥️"})[device.platform] || "📱";
+    icon.innerHTML = platIconSvg(device.platform);
     icon.setAttribute("aria-hidden", "true");
     const name = document.createElement("span"); name.className = "low-balance-device-name";
     name.textContent = device.title || "Устройство";
@@ -1009,7 +1009,10 @@ function paintLowBalance(me, state) {
   const grid = $("lowBalanceAmounts"); grid.replaceChildren();
   for (const amount of amounts) {
     const button = document.createElement("button"); button.type = "button";
-    button.textContent = `${amount.toLocaleString("ru-RU")} ₽`;
+    button.className = "pay-card" + (amount === lowBalanceSelected ? " on" : "");
+    const label = document.createElement("span"); label.className = "pay-amount";
+    label.textContent = `${amount.toLocaleString("ru-RU")} ₽`;
+    button.append(label);
     button.setAttribute("aria-pressed", String(amount === lowBalanceSelected));
     button.onclick = () => { lowBalanceSelected = amount; paintLowBalance(me, state); };
     grid.append(button);

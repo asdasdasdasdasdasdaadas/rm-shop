@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=175">
+  <link rel="stylesheet" href="app.css?v=176">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -1075,13 +1075,12 @@
     <p id="lowBalanceDescription" class="low-balance-description"></p>
     <div id="lowBalanceDevices" class="low-balance-devices" aria-label="Ваши устройства"></div>
     <p id="lowBalanceSumLabel" class="low-balance-section">Выберите сумму</p>
-    <div id="lowBalanceAmounts" class="low-balance-amounts" role="group" aria-labelledby="lowBalanceSumLabel"></div>
+    <div id="lowBalanceAmounts" class="low-balance-amounts topup-amounts" role="group" aria-labelledby="lowBalanceSumLabel"></div>
     <p id="lowBalanceRunway" class="low-balance-runway" aria-live="polite"></p>
-    <button type="button" id="lowBalancePay" class="low-balance-pay">Пополнить баланс</button>
+    <button type="button" id="lowBalancePay" class="btn btn-primary low-balance-pay">Пополнить баланс</button>
     <div class="low-balance-actions">
-      <button type="button" id="lowBalanceCustom" class="low-balance-secondary">Своя сумма</button>
-      <span aria-hidden="true">·</span>
-      <button type="button" id="lowBalanceLater" class="low-balance-secondary">Позже</button>
+      <button type="button" id="lowBalanceCustom" class="btn btn-ghost low-balance-secondary">Своя сумма</button>
+      <button type="button" id="lowBalanceLater" class="btn btn-ghost low-balance-secondary">Позже</button>
     </div>
   </dialog>
 
@@ -1126,6 +1125,6 @@
 
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
-  <script src="app.js?v=154"></script>
+  <script src="app.js?v=155"></script>
 </body>
 </html>

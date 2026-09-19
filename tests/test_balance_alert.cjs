@@ -18,7 +18,7 @@ function setup() {
     document: {body: {style: {}}, activeElement: null, querySelector: () => null, createElement: () => el(Symbol())},
     localStorage: {getItem: (k) => saved.get(k), setItem: (k, v) => saved.set(k, v)},
     hideCoach() {}, openTopup() {ctx.screen = 'topup';},
-    daysLabel: n => `${n} дней`, topupCustomRub: 0,
+    platIconSvg: () => '<svg></svg>', daysLabel: n => `${n} дней`, topupCustomRub: 0,
     currentTopupPlan: () => ({topup_rub: ctx.topupCustomRub}),
     openPayMethod(plan) {ctx.screen = 'pay'; ctx.plan = plan;},
   });
