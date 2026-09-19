@@ -4304,6 +4304,7 @@ async function refreshVisibleBalance() {
   } finally { balanceRefreshBusy = false; }
 }
 
+let paymentEntryHandled = false;
 async function load() {
   if (!tg.initData && !lkToken) {
     showLogin("Введите логин Telegram");
@@ -4318,6 +4319,15 @@ async function load() {
   }
   if (me.blocked) {
     showMaint(me.notice || "Доступ ограничен.");
+    return;
+  }
+  if (!paymentEntryHandled && new URLSearchParams(window.location.search).get("screen") === "topup") {
+    paymentEntryHandled = true;
+    markIntroSeen();
+    screen = "topup";
+    window.__me = me;
+    paint(me);
+    openTopup();
     return;
   }
   paint(me);

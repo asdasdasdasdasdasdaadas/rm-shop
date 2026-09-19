@@ -9,6 +9,7 @@ from app import db
 from app.config import get_settings
 from app.keyboards import (
     cabinet_keyboard,
+    payment_nudge_keyboard,
     help_connect_keyboard,
     share_keyboard,
     story_nudge_keyboard,
@@ -16,6 +17,7 @@ from app.keyboards import (
 )
 from app.notices import notice_text
 from app.referrals import trial_grant_rub
+from app.rollypay import payment_is_paid
 from app.texts import days_text, rub_text
 from app.tg_err import fail_extra
 
@@ -485,11 +487,44 @@ async def send_first_device_thanks(bot: Bot | None, telegram_id: int) -> bool:
         return False
 
 
-async def trial_nudge_loop(bot: Bot) -> None:
+async def send_due_payment_nudges(bot: Bot, rp=None) -> tuple[int, list[int]]:
+    if await db.flag_on("maintenance") or not await db.flag_on("payment_nudge", default=True):
+        return 0, []
+    sent, touched = 0, []
+    for row in await db.list_due_payment_nudges(NUDGE_BATCH):
+        uid, token = int(row["telegram_id"]), row["checkout_token"]
+        try:
+            if row.get("checkout_payment_id"):
+                if rp is None:
+                    continue
+                payment = await rp.get_payment(row["checkout_payment_id"])
+                status = str(payment.get("status") or "").lower()
+                if payment_is_paid(payment) or status == "refunded":
+                    await db.cancel_payment_nudge(uid, token)
+                    continue
+                if status not in {"created", "pending", "processing", "waiting", "expired", "canceled", "cancelled", "failed"}:
+                    continue  # Unknown status is not proof of an unpaid invoice.
+            if not await db.claim_payment_nudge(uid, token):
+                continue
+            touched.append(uid)
+            ok = await _deliver(
+                bot, kind="nudge_payment", telegram_id=uid, first_name=row.get("first_name"),
+                title="Незавершённая оплата", body=notice_text("payment_nudge"),
+                reply_markup=payment_nudge_keyboard(),
+            )
+            sent += int(ok)
+        except Exception:
+            logger.exception("Не удалось проверить незавершённую оплату %s", uid)
+    return sent, touched
+
+
+async def trial_nudge_loop(bot: Bot, rp=None) -> None:
     await asyncio.sleep(NUDGE_START_DELAY)
     while True:
         try:
-            skip: list[int] = []
+            n, skip = await send_due_payment_nudges(bot, rp)
+            if n:
+                logger.info("Напоминание о незавершённой оплате: %s", n)
             n, ids = await send_due_device_nudges(bot, skip)
             skip.extend(ids)
             if n:

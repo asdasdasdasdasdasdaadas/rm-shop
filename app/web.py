@@ -878,6 +878,7 @@ async def api_invoice(request: web.Request) -> web.Response:
             prices=[LabeledPrice(label=plan["title"], amount=stars_amount)],
             provider_token="",
         )
+        await db.track_checkout(telegram_id)
         return web.json_response({"ok": True, "invoice_url": link})
     return json_error("Неизвестный способ оплаты")
 

@@ -147,7 +147,7 @@ async def main() -> None:
         sync_task = asyncio.create_task(panel_sync_loop(rw), name="panel-sync")
         charge_task = asyncio.create_task(balance_charge_loop(rw, bot), name="balance-charge")
         dump_task = asyncio.create_task(backup_loop(bot), name="backup")
-        nudge_task = asyncio.create_task(trial_nudge_loop(bot), name="trial-nudge")
+        nudge_task = asyncio.create_task(trial_nudge_loop(bot, rp), name="trial-nudge")
         try:
             await dp.start_polling(
                 bot,

@@ -641,6 +641,7 @@ function paintFlags(f) {
   paintSwitch("maintBtn", m, { alert: m, onText: "Вкл", offText: "Выкл" });
   paintSwitch("billBtn", !p, { onText: "Идёт", offText: "Пауза" });
   paintSwitch("nudgeBtn", n);
+  paintSwitch("paymentNudgeBtn", !!f.payment_nudge);
   paintSwitch("inviteNudgeBtn", inv);
   paintSwitch("infoNudgeBtn", inf);
   paintSwitch("storyNudgeBtn", st);
@@ -4288,6 +4289,11 @@ $("billBtn").onclick = async () => {
   const next = !f.billing_paused;
   if (next && !(await confirmAction("Тарификация", "Остановить тарификацию? Устройства останутся активными, плата списываться не будет."))) return;
   paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ billing_paused: next }) }));
+};
+
+$("paymentNudgeBtn").onclick = async () => {
+  const flags = await api("/admin/api/flags");
+  paintFlags(await api("/admin/api/flags", {method: "POST", body: JSON.stringify({payment_nudge: !flags.payment_nudge})}));
 };
 
 $("nudgeBtn").onclick = async () => {

@@ -1451,7 +1451,7 @@ async def claim_low_balance_notice(telegram_id: int) -> bool:
 
 async def mark_paid_topup(telegram_id: int) -> None:
     await _pool_req().execute(
-        "UPDATE users SET has_paid_topup = TRUE WHERE telegram_id = $1",
+        "UPDATE users SET has_paid_topup = TRUE, checkout_started_at = NULL WHERE telegram_id = $1",
         telegram_id,
     )
 
@@ -1494,6 +1494,7 @@ async def get_flags() -> dict:
         "maintenance": _on("maintenance"),
         "billing_paused": _on("billing_paused"),
         "trial_nudge": _on("trial_nudge"),
+        "payment_nudge": _on("payment_nudge"),
         "invite_nudge": _on("invite_nudge"),
         "info_nudge": _on("info_nudge"),
         "story_nudge": _on("story_nudge"),
@@ -2102,6 +2103,49 @@ async def save_rollypay_order(
         plan_code,
         payment_id,
         pay_url,
+    )
+    await track_checkout(telegram_id, payment_id)
+
+
+async def track_checkout(telegram_id: int, payment_id: str | None = None) -> None:
+    await _pool_req().execute(
+        """UPDATE users SET checkout_token = $2, checkout_started_at = NOW(),
+           checkout_payment_id = $3, checkout_nudge_at = NULL WHERE telegram_id = $1""",
+        telegram_id, secrets.token_hex(16), payment_id,
+    )
+
+
+_PAYMENT_NUDGE_DUE = """
+    u.checkout_started_at <= NOW() - INTERVAL '30 minutes'
+    AND u.checkout_started_at > NOW() - INTERVAL '24 hours'
+    AND u.checkout_nudge_at IS NULL
+    AND (u.payment_nudge_at IS NULL OR u.payment_nudge_at <= NOW() - INTERVAL '24 hours')
+    AND u.bot_started_at IS NOT NULL AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id = u.telegram_id
+                    AND p.created_at >= u.checkout_started_at)
+"""
+
+
+async def list_due_payment_nudges(limit: int = 80) -> list[dict]:
+    rows = await _pool_req().fetch(
+        f"SELECT u.* FROM users u WHERE {_PAYMENT_NUDGE_DUE} ORDER BY u.checkout_started_at LIMIT $1", limit,
+    )
+    return [dict(row) for row in rows]
+
+
+async def claim_payment_nudge(telegram_id: int, token: str) -> bool:
+    row = await _pool_req().fetchrow(
+        f"""UPDATE users u SET checkout_nudge_at = NOW(), payment_nudge_at = NOW()
+            WHERE u.telegram_id = $1 AND u.checkout_token = $2 AND {_PAYMENT_NUDGE_DUE}
+            RETURNING telegram_id""", telegram_id, token,
+    )
+    return row is not None
+
+
+async def cancel_payment_nudge(telegram_id: int, token: str) -> None:
+    await _pool_req().execute(
+        "UPDATE users SET checkout_started_at = NULL WHERE telegram_id = $1 AND checkout_token = $2",
+        telegram_id, token,
     )
 
 

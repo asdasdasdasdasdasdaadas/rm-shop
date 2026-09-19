@@ -432,3 +432,12 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_started_at TIMESTAMPTZ;
 -- Only the /start handler claims this welcome marker; Web App registration does not.
 UPDATE users SET bot_started_at = welcome_intro_sent_at
 WHERE bot_started_at IS NULL AND welcome_intro_sent_at IS NOT NULL;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS checkout_token TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS checkout_started_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS checkout_payment_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS checkout_nudge_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_nudge_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS users_checkout_nudge_idx ON users (checkout_started_at)
+WHERE checkout_started_at IS NOT NULL AND checkout_nudge_at IS NULL;
+INSERT INTO app_flags (key, value) VALUES ('payment_nudge', '1') ON CONFLICT (key) DO NOTHING;

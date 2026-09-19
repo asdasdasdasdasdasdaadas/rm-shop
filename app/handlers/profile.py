@@ -360,6 +360,7 @@ async def _create_plan_invoice(
             currency="XTR",
             prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
         )
+        await db.track_checkout(callback.from_user.id)
         return
     await ack(callback, "Оплата не настроена", alert=True)
 

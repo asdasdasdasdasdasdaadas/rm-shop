@@ -244,6 +244,17 @@
             <div class="panel ops-card">
               <div class="ops-kicker">Сообщения</div>
               <div class="ops-head">
+                <strong>Незавершённая оплата</strong>
+                <button type="button" id="paymentNudgeBtn" class="switch is-off" role="switch" aria-checked="false">
+                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                  <span class="switch-state">Выкл</span>
+                </button>
+              </div>
+              <p class="muted tight">Одно напоминание через 30 минут после создания счёта. Не чаще раза в сутки, только по попыткам за последние 24 часа.</p>
+            </div>
+            <div class="panel ops-card">
+              <div class="ops-kicker">Сообщения</div>
+              <div class="ops-head">
                 <strong>Напоминание про устройство</strong>
                 <button type="button" id="nudgeBtn" class="switch is-off" role="switch" aria-checked="false">
                   <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
@@ -1421,6 +1432,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=78"></script>
+  <script src="app.js?v=79"></script>
 </body>
 </html>

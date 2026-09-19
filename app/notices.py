@@ -5,6 +5,11 @@ from typing import Any
 from app.config import shop_overlay
 
 DEFAULT_NOTICES: dict[str, str] = {
+    "payment_nudge": (
+        "Вы начали оплату, но подтверждение пока не пришло.\n\n"
+        "Если ещё не оплатили, вернитесь в кабинет: выберите сумму и удобный способ оплаты. "
+        "Если деньги уже списались, не платите повторно — дождитесь зачисления или напишите в поддержку."
+    ),
     "welcome": (
         "Добро пожаловать в <b>{brand}</b>.\n\n"
         "Чтобы начать, подпишитесь на канал и нажмите «Проверить подписку»."
@@ -296,6 +301,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "subscription_issued", "title": "Подписка оформлена", "hint": "{title} {expire} {sub_block}"},
     {"key": "sub_reissued", "title": "Ссылка подписки перевыпущена", "hint": "{links}"},
     {"key": "blocked", "title": "Пользователь заблокирован", "hint": ""},
+    {"key": "payment_nudge", "title": "Незавершённая оплата: 30 минут", "hint": ""},
     {"key": "payment_unknown", "title": "Оплата: неизвестный тариф", "hint": ""},
     {"key": "payment_duplicate", "title": "Оплата: повтор", "hint": ""},
     {"key": "payment_panel_error", "title": "Оплата: панель не ответила", "hint": "{error}"},

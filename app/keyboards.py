@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from html import escape
-from urllib.parse import quote
+from urllib.parse import quote, urlencode, urlsplit, urlunsplit, parse_qsl
 
 from aiogram.types import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -63,6 +63,21 @@ def cabinet_button() -> InlineKeyboardButton | None:
         web_app=WebAppInfo(url=url),
         style="success",
     )
+
+
+def payment_nudge_keyboard() -> InlineKeyboardMarkup:
+    url = mini_app_url()
+    if not url:
+        return InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="Продолжить оплату", callback_data="buy")
+        ]])
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query))
+    query["screen"] = "topup"
+    url = urlunsplit(parts._replace(query=urlencode(query)))
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Продолжить оплату", web_app=WebAppInfo(url=url), style="success")
+    ]])
 
 
 def cabinet_login_keyboard(challenge_id: str) -> InlineKeyboardMarkup:

@@ -41,6 +41,7 @@ from app.shop_config import save_shop_overlay, snapshot as shop_snapshot
 from app.keyboards import (
     blocked_keyboard,
     cabinet_keyboard,
+    payment_nudge_keyboard,
     help_connect_keyboard,
     legal_keyboard,
     share_keyboard,
@@ -641,7 +642,7 @@ async def api_messages(request: web.Request) -> web.Response:
 
 
 MSG_RETRY_MAX = 80
-_MSG_RETRY_SKIP = {"maintenance_hit"}
+_MSG_RETRY_SKIP = {"maintenance_hit", "nudge_payment"}
 
 
 async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
@@ -656,6 +657,8 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
         if tpl == "update":
             return cabinet_keyboard()
         return None
+    if kind == "nudge_payment":
+        return payment_nudge_keyboard()
     if kind == "nudge_invite":
         return share_keyboard(settings.bot_username, telegram_id)
     if kind == "nudge_trial":
@@ -1758,6 +1761,8 @@ async def api_flags(request: web.Request) -> web.Response:
         await db.set_flag("maintenance", turning_on)
     if "billing_paused" in body:
         await db.set_flag("billing_paused", bool(body.get("billing_paused")))
+    if "payment_nudge" in body:
+        await db.set_flag("payment_nudge", bool(body.get("payment_nudge")))
     if "trial_nudge" in body:
         await db.set_flag("trial_nudge", bool(body.get("trial_nudge")))
     if "invite_nudge" in body:
