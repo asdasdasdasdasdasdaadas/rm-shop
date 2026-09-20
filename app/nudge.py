@@ -308,7 +308,7 @@ async def send_due_first_online_nudges(bot: Bot, skip_ids: list[int] | None = No
         telegram_id = int(row["telegram_id"])
         body = notice_text("first_online_nudge", days=days_text(_days_left_from_row(row)))
         try:
-            await bot.send_message(telegram_id, body, reply_markup=share_keyboard(get_settings().bot_username, telegram_id))
+            await bot.send_message(telegram_id, body, reply_markup=payment_nudge_keyboard(label="Пополнить баланс"))
             await db.log_bot_message(
                 kind="nudge_first_online",
                 source="auto",

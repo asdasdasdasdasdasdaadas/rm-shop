@@ -24,6 +24,7 @@ from app.remnawave import (
 )
 from app.trust import collect_due_trusts
 from app.notices import notice_text
+from app.keyboards import payment_nudge_keyboard
 from app.texts import rub_text
 from app.tg_err import fail_extra
 
@@ -61,7 +62,7 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
     if await db.claim_low_balance_notice(tg_id):
         body = notice_text("low_balance", price=rub_text(price))
         try:
-            await bot.send_message(tg_id, body)
+            await bot.send_message(tg_id, body, reply_markup=payment_nudge_keyboard(label="Пополнить баланс"))
             await db.log_bot_message(
                 kind="low_balance",
                 source="auto",

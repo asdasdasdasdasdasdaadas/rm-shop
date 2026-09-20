@@ -679,7 +679,9 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
         return help_connect_keyboard()
     if kind == "nudge_legal":
         return legal_keyboard()
-    if kind in {"nudge_info", "nudge_idle", "low_balance", "nudge_first_online", "nudge_trial_end", "welcome_intro"}:
+    if kind in {"low_balance", "nudge_first_online", "nudge_trial_end"}:
+        return payment_nudge_keyboard(label="Пополнить баланс")
+    if kind in {"nudge_info", "nudge_idle", "welcome_intro"}:
         return cabinet_keyboard()
     return None
 
