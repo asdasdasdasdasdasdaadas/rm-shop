@@ -82,15 +82,6 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
     kb = profile_keyboard(
         trial_available=trial_available,
         has_access=access,
-        story_offer=bool(
-            settings.balance_enabled
-            and settings.story_reward_enabled
-            and settings.story_reward_rub > 0
-            and local
-            and local.get("first_online_at")
-            and not local.get("story_rewarded_at")
-            and not local.get("story_pending_at")
-        ),
     )
     if isinstance(target, CallbackQuery):
         await ack(target)

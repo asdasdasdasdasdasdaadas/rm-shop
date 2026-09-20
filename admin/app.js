@@ -488,7 +488,6 @@ function switchTab(name, opts = {}) {
   }
   if (name === "ads") {
     loadAds();
-    loadStoryStats();
   }
   if (name === "orders") loadOrders();
   if (name === "billing") loadBilling();
@@ -636,7 +635,6 @@ function paintFlags(f) {
   const n = !!f.trial_nudge;
   const inv = !!f.invite_nudge;
   const inf = !!f.info_nudge;
-  const st = !!f.story_nudge;
   const lg = !!f.legal_nudge;
   paintSwitch("maintBtn", m, { alert: m, onText: "Вкл", offText: "Выкл" });
   paintSwitch("billBtn", !p, { onText: "Идёт", offText: "Пауза" });
@@ -644,7 +642,6 @@ function paintFlags(f) {
   paintSwitch("paymentNudgeBtn", !!f.payment_nudge);
   paintSwitch("inviteNudgeBtn", inv);
   paintSwitch("infoNudgeBtn", inf);
-  paintSwitch("storyNudgeBtn", st);
   paintSwitch("legalNudgeBtn", lg);
   if (typeof f.maintenance_notice === "string") {
     $("maintNotice").value = f.maintenance_notice;
@@ -671,7 +668,6 @@ function paintFlags(f) {
   paintFlag("flagNudge", n, "Триал: вкл", "Триал: выкл", false);
   paintFlag("flagInvite", inv, "Друзья: вкл", "Друзья: выкл", false);
   paintFlag("flagInfo", inf, "Справка: вкл", "Справка: выкл", false);
-  paintFlag("flagStory", st, "История: вкл", "История: выкл", false);
   paintFlag("flagLegal", lg, "Оферта: вкл", "Оферта: выкл", false);
 }
 
@@ -1747,69 +1743,6 @@ async function createAdLink(payload) {
   return data;
 }
 
-async function loadStoryStats() {
-  const body = $("storyStatsRows");
-  const kpis = $("storyStatsKpis");
-  const out = $("storyStatsOut");
-  if (!body || !kpis) return;
-  try {
-    const data = await api("/admin/api/story-stats");
-    const s = data.summary || {};
-    kpis.innerHTML = "";
-    [
-      ["Выложили", s.shared],
-      ["На проверке", s.pending],
-      ["Наградили", s.rewarded],
-      ["Клики", s.clicks],
-      ["Пришли", s.users],
-      ["Триал", s.trial],
-      ["Оплатили", s.paid],
-    ].forEach(([label, value]) => {
-      const el = document.createElement("div");
-      el.className = "card";
-      el.innerHTML = `<div class="l">${label}</div><div class="n">${value ?? 0}</div>`;
-      kpis.appendChild(el);
-    });
-    body.innerHTML = "";
-    const labels = ["Клиент", "Статус", "Клики", "Пришли", "Триал", "Оплатили", ""];
-    const statusMap = { pending: "на проверке", rewarded: "награждён", none: "ссылка" };
-    if (!data.items.length) {
-      body.appendChild(emptyRow(7, "Пока никто не выкладывал историю"));
-    }
-    data.items.forEach((row) => {
-      const tr = document.createElement("tr");
-      tr.appendChild(tdText(whoLabel(row.telegram_id, row.username, row.first_name)));
-      tr.appendChild(tdText(statusMap[row.status] || row.status));
-      tr.appendChild(tdText(String(row.clicks || 0)));
-      tr.appendChild(tdText(String(row.users || 0)));
-      tr.appendChild(tdText(String(row.trial || 0)));
-      tr.appendChild(tdText(String(row.paid || 0)));
-      const td = document.createElement("td");
-      if (row.url) {
-        const copyBtn = document.createElement("button");
-        copyBtn.type = "button";
-        copyBtn.className = "ghost";
-        copyBtn.textContent = "Ссылка";
-        copyBtn.onclick = async (e) => {
-          e.stopPropagation();
-          try {
-            await navigator.clipboard.writeText(row.url);
-            toast("Ссылка скопирована");
-          } catch (_e) {
-            toast(row.url);
-          }
-        };
-        td.appendChild(copyBtn);
-      }
-      tr.appendChild(td);
-      labelRow(tr, labels);
-      body.appendChild(tr);
-    });
-    if (out) out.textContent = "";
-  } catch (err) {
-    if (out) out.textContent = err.message || "Не удалось загрузить статистику сторис";
-  }
-}
 
 function promoExpiresLocalValue(iso) {
   if (!iso) return "";
@@ -2685,10 +2618,6 @@ async function loadSettings() {
   const refMode = v.referral_mode || (v.referral_payout_enabled ? "payout" : "classic");
   if ($("setRefModeClassic")) $("setRefModeClassic").checked = refMode !== "payout";
   if ($("setRefModePayout")) $("setRefModePayout").checked = refMode === "payout";
-  set("setStoryOn", v.story_reward_enabled);
-  set("setStoryRub", v.story_reward_rub);
-  set("setStoryCheck", v.story_check_minutes);
-  set("setStoryText", v.story_share_text);
   set("setTrustOn", v.trust_enabled);
   set("setTrustDays", v.trust_days);
   set("setTrustFee", v.trust_fee_rub);
@@ -3003,10 +2932,6 @@ async function saveShopSettings(outId) {
     referral_payout_min: $("setRefPayoutMin") && $("setRefPayoutMin").value
       ? num("setRefPayoutMin")
       : 2000,
-    story_reward_enabled: $("setStoryOn").checked,
-    story_reward_rub: num("setStoryRub"),
-    story_check_minutes: num("setStoryCheck"),
-    story_share_text: $("setStoryText").value,
     trust_enabled: $("setTrustOn").checked,
     trust_days: num("setTrustDays"),
     trust_fee_rub: num("setTrustFee"),
@@ -3158,7 +3083,7 @@ if ($("setNavSelect")) {
 document.querySelectorAll("#modalTabs [data-pane]").forEach((b) => {
   b.onclick = () => setModalPane(b.dataset.pane);
 });
-["flagMaint", "flagBill", "flagNudge", "flagInvite", "flagInfo", "flagStory"].forEach((id) => {
+["flagMaint", "flagBill", "flagNudge", "flagInvite", "flagInfo"].forEach((id) => {
   const el = $(id);
   if (el) {
     el.onclick = () => {
@@ -4342,23 +4267,6 @@ $("infoNudgeBtn").onclick = async () => {
   }
   paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ info_nudge: next }) }));
 };
-
-if ($("storyNudgeBtn")) {
-  $("storyNudgeBtn").onclick = async () => {
-    const f = await api("/admin/api/flags");
-    const next = !f.story_nudge;
-    if (
-      next &&
-      !(await confirmAction(
-        "Выложить историю",
-        "Тем, у кого есть устройство и награда за историю ещё не получена, сразу уйдёт предложение выложить историю. Если сообщение не дошло, бот отправит его снова."
-      ))
-    ) {
-      return;
-    }
-    paintFlags(await api("/admin/api/flags", { method: "POST", body: JSON.stringify({ story_nudge: next }) }));
-  };
-}
 
 if ($("legalNudgeBtn")) {
   $("legalNudgeBtn").onclick = async () => {

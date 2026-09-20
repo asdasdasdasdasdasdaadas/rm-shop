@@ -82,7 +82,7 @@ async def _ensure_nudge_defaults() -> None:
             await set_flag(key, True)
         await set_kv("nudge_defaults_v2", "1")
     if (await get_kv("nudge_defaults_v4")) != "1":
-        await set_flag("story_nudge", True)
+        await set_flag("story_nudge", False)
         await _pool_req().execute(
             """
             UPDATE users u
@@ -508,39 +508,11 @@ async def claim_invitee_payment_bonus(telegram_id: int) -> bool:
 
 
 async def start_story_check(telegram_id: int) -> bool:
-    row = await _pool_req().fetchrow(
-        """
-        UPDATE users
-        SET story_pending_at = timezone('utc', now())
-        WHERE telegram_id = $1
-          AND story_rewarded_at IS NULL
-          AND story_pending_at IS NULL
-        RETURNING telegram_id
-        """,
-        telegram_id,
-    )
-    return bool(row)
+    return False
 
 
 async def approve_story_reward(telegram_id: int, amount: int) -> int | None:
-    if amount <= 0:
-        return None
-    row = await _pool_req().fetchrow(
-        """
-        UPDATE users
-        SET story_rewarded_at = timezone('utc', now()),
-            balance_rub = COALESCE(balance_rub, 0) + $2
-        WHERE telegram_id = $1
-          AND story_rewarded_at IS NULL
-          AND story_pending_at IS NOT NULL
-        RETURNING balance_rub
-        """,
-        telegram_id,
-        amount,
-    )
-    if not row:
-        return None
-    return int(row["balance_rub"])
+    return None
 
 
 async def reject_story_check(telegram_id: int) -> bool:
@@ -1498,7 +1470,7 @@ async def get_flags() -> dict:
         "payment_nudge": _on("payment_nudge"),
         "invite_nudge": _on("invite_nudge"),
         "info_nudge": _on("info_nudge"),
-        "story_nudge": _on("story_nudge"),
+        "story_nudge": False,
         "legal_nudge": _on("legal_nudge"),
         "maintenance_notice": data.get("maintenance_notice") or "",
     }

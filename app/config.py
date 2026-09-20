@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     referral_mode: str = "classic"
     referral_payout_enabled: bool = False
     referral_payout_min: int = 2000
-    story_reward_enabled: bool = True
+    story_reward_enabled: bool = False
     story_reward_rub: int = 150
     story_share_text: str = "VPN: сутки только за свои устройства. Подключайтесь в боте."
     story_check_minutes: int = 30

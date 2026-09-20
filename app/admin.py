@@ -642,7 +642,7 @@ async def api_messages(request: web.Request) -> web.Response:
 
 
 MSG_RETRY_MAX = 80
-_MSG_RETRY_SKIP = {"maintenance_hit", "nudge_payment"}
+_MSG_RETRY_SKIP = {"maintenance_hit", "nudge_payment", "nudge_story"}
 
 
 async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
@@ -1777,7 +1777,7 @@ async def api_flags(request: web.Request) -> web.Response:
     if "info_nudge" in body:
         await db.set_flag("info_nudge", bool(body.get("info_nudge")))
     if "story_nudge" in body:
-        await db.set_flag("story_nudge", bool(body.get("story_nudge")))
+        await db.set_flag("story_nudge", False)
     if "legal_nudge" in body:
         await db.set_flag("legal_nudge", bool(body.get("legal_nudge")))
     flags = await db.get_flags()

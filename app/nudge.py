@@ -13,7 +13,6 @@ from app.keyboards import (
     payment_nudge_keyboard,
     help_connect_keyboard,
     share_keyboard,
-    story_nudge_keyboard,
     trial_nudge_keyboard,
 )
 from app.notices import notice_text
@@ -23,9 +22,6 @@ from app.texts import days_text, rub_text
 from app.tg_err import fail_extra
 
 
-def _story_reward_on() -> bool:
-    settings = get_settings()
-    return bool(settings.balance_enabled and settings.story_reward_enabled and settings.story_reward_rub > 0)
 
 logger = logging.getLogger("rm-shop.nudge")
 NUDGE_INTERVAL = 120
@@ -69,16 +65,11 @@ def invite_nudge_text(telegram_id: int, first_name: str | None) -> str:
 
 def info_nudge_text() -> str:
     settings = get_settings()
-    story = ""
-    if settings.balance_enabled and settings.story_reward_enabled and settings.story_reward_rub > 0:
-        story = (
-            f"\n\nЗа историю в Telegram можно получить {rub_text(settings.story_reward_rub)} на баланс."
-        )
     if settings.balance_enabled:
         price = rub_text(settings.vpn_day_price_rub)
     else:
         price = days_text(1)
-    return notice_text("info_nudge", price=price, story=story)
+    return notice_text("info_nudge", price=price, story="")
 
 
 async def _deliver(
@@ -120,7 +111,6 @@ async def _deliver(
         "nudge_trial": "trial",
         "nudge_invite": "invite",
         "nudge_info": "info",
-        "nudge_story": "story",
     }.get(kind)
     if mark:
         await db.mark_nudge_sent(telegram_id, mark)
@@ -207,69 +197,8 @@ async def send_due_info_nudges(bot: Bot, skip_ids: list[int] | None = None) -> t
     return sent, touched
 
 
-async def send_story_offer_now(bot: Bot | None, telegram_id: int) -> bool:
-    if not bot:
-        return False
-    if not _story_reward_on():
-        return False
-    if not await db.flag_on("story_nudge", default=True):
-        return False
-    if await db.flag_on("maintenance"):
-        return False
-    if await db.user_is_blocked(telegram_id):
-        return False
-    if telegram_id in await db.nudge_suppressed_ids():
-        return False
-    claimed = await db.take_story_nudge(telegram_id)
-    if not claimed:
-        return False
-    settings = get_settings()
-    body = notice_text("story_nudge", amount=rub_text(settings.story_reward_rub))
-    try:
-        await bot.send_message(telegram_id, body, reply_markup=story_nudge_keyboard())
-        await db.log_bot_message(
-            kind="nudge_story",
-            source="auto",
-            telegram_id=telegram_id,
-            first_name=claimed.get("first_name"),
-            title="Напоминание: история",
-            body=body,
-            status="sent",
-        )
-        logger.info("Предложение выложить историю отправлено %s", telegram_id)
-        return True
-    except Exception as exc:
-        logger.warning("Не удалось отправить предложение истории %s", telegram_id, exc_info=True)
-        await db.restore_story_nudge(telegram_id)
-        await db.log_bot_message(
-            kind="nudge_story",
-            source="auto",
-            telegram_id=telegram_id,
-            first_name=claimed.get("first_name"),
-            title="Напоминание: история",
-            body=body,
-            status="failed",
-            extra=fail_extra(exc),
-        )
-        return False
 
 
-async def send_due_story_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    touched: list[int] = []
-    if not _story_reward_on():
-        return 0, touched
-    if not await db.flag_on("story_nudge", default=True):
-        return 0, touched
-    if await db.flag_on("maintenance"):
-        return 0, touched
-    sent = 0
-    for row in await db.list_due_story_nudges(NUDGE_BATCH, skip_ids):
-        telegram_id = int(row["telegram_id"])
-        ok = await send_story_offer_now(bot, telegram_id)
-        touched.append(telegram_id)
-        if ok:
-            sent += 1
-    return sent, touched
 
 
 async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
@@ -548,10 +477,6 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
             skip.extend(ids)
             if n:
                 logger.info("Напоминание: давно не заходил: %s", n)
-            n, ids = await send_due_story_nudges(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info("Напоминание про историю: %s", n)
             n, ids = await send_due_trial_nudges(bot, skip)
             skip.extend(ids)
             if n:

@@ -150,20 +150,7 @@ def legal_keyboard() -> InlineKeyboardMarkup:
 
 
 def story_webapp_button(*, story_offer: bool) -> InlineKeyboardButton | None:
-    settings = get_settings()
-    url = mini_app_url()
-    if (
-        not story_offer
-        or not settings.balance_enabled
-        or not settings.story_reward_enabled
-        or settings.story_reward_rub <= 0
-        or not url
-    ):
-        return None
-    return InlineKeyboardButton(
-        text=f"История — {rub_text(settings.story_reward_rub)}",
-        web_app=WebAppInfo(url=url),
-    )
+    return None
 
 
 def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bool = True) -> InlineKeyboardMarkup:
@@ -413,27 +400,6 @@ def _telegram_profile_url(telegram_id: int, username: str | None) -> str:
     return f"tg://user?id={int(telegram_id)}"
 
 
-def story_mod_keyboard(telegram_id: int, username: str | None) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(
-            text="Открыть профиль",
-            url=_telegram_profile_url(telegram_id, username),
-        )
-    )
-    builder.row(
-        InlineKeyboardButton(
-            text="Подтвердить",
-            callback_data=f"st_ok:{telegram_id}",
-            style="success",
-        ),
-        InlineKeyboardButton(
-            text="Отказать",
-            callback_data=f"st_no:{telegram_id}",
-            style="danger",
-        ),
-    )
-    return builder.as_markup()
 
 
 def payout_mod_keyboard(

@@ -100,7 +100,7 @@
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M5 6h14v10H8l-3 3V6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           <span class="nav-text">Сообщения</span>
         </button>
-        <button type="button" data-tab="promo" data-title="Промо" data-lead="Триал, промокоды с лимитами, истории и награды за друзей">
+        <button type="button" data-tab="promo" data-title="Промо" data-lead="Триал, промокоды с лимитами, награды за друзей">
           <svg class="nav-ico" viewBox="0 0 24 24" fill="none"><path d="M4 9h16v11H4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9V4.8A1.8 1.8 0 0113.8 3h.2A2 2 0 0116 5v4M12 9V4.8A1.8 1.8 0 0010.2 3h-.2A2 2 0 008 5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 13h16" stroke="currentColor" stroke-width="1.8"/></svg>
           <span class="nav-text">Промо</span>
         </button>
@@ -140,7 +140,6 @@
             <span id="flagNudge" class="flag flag-off">Триал: выкл</span>
             <span id="flagInvite" class="flag flag-off">Друзья: выкл</span>
             <span id="flagInfo" class="flag flag-off">Справка: выкл</span>
-            <span id="flagStory" class="flag flag-off">История: выкл</span>
             <span id="flagLegal" class="flag flag-off">Оферта: выкл</span>
             <div class="admin-chip">
               <span class="admin-chip-ava" aria-hidden="true">
@@ -294,19 +293,9 @@
                   <span class="switch-state">Выкл</span>
                 </button>
               </div>
-              <p class="muted tight">Через четверо суток уйдёт короткое объяснение кабинета, списания и истории.</p>
+              <p class="muted tight">Через четверо суток уйдёт короткое объяснение кабинета, и списания.</p>
             </div>
-            <div class="panel ops-card">
-              <div class="ops-kicker">Сообщения</div>
-              <div class="ops-head">
-                <strong>Выложить историю</strong>
-                <button type="button" id="storyNudgeBtn" class="switch is-off" role="switch" aria-checked="false">
-                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
-                  <span class="switch-state">Выкл</span>
-                </button>
-              </div>
-              <p class="muted tight">Как только появилось первое устройство, сразу уйдёт предложение выложить историю за награду. Если не дошло — бот повторит, пока не отправится.</p>
-            </div>
+
           </div>
 
           <details class="panel fold">
@@ -692,28 +681,6 @@
             </table>
           </div>
 
-          <div class="panel" style="margin-top:18px">
-            <h3>Сторис клиентов</h3>
-            <p class="muted tight">В историю уходит персональная ссылка. Ниже — выложили, наградили и сколько людей пришло с этих ссылок.</p>
-            <div id="storyStatsKpis" class="kpi-strip"></div>
-            <p id="storyStatsOut" class="muted"></p>
-          </div>
-          <div class="table-wrap">
-            <table class="table-as-cards">
-              <thead>
-                <tr>
-                  <th>Клиент</th>
-                  <th>Статус</th>
-                  <th>Клики</th>
-                  <th>Пришли</th>
-                  <th>Триал</th>
-                  <th>Оплатили</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="storyStatsRows"></tbody>
-            </table>
-          </div>
         </section>
 
         <section id="tab-orders" class="hidden">
@@ -865,7 +832,6 @@
               <option value="nudge_trial">Напоминание: триал</option>
               <option value="nudge_invite">Напоминание: друзья</option>
               <option value="nudge_info">Напоминание: кабинет</option>
-              <option value="nudge_story">Напоминание: история</option>
               <option value="nudge_idle">Напоминание: давно не заходил</option>
               <option value="nudge_device">Напоминание: устройство</option>
               <option value="nudge_legal">Напоминание: оферта</option>
@@ -1233,7 +1199,7 @@
         </section>
 
         <section id="tab-promo" class="hidden">
-          <p class="muted intro">Триал, промокоды, истории и награды за друзей. Сохраняется вместе с остальными настройками магазина.</p>
+          <p class="muted intro">Триал, промокоды, награды за друзей. Сохраняется вместе с остальными настройками магазина.</p>
           <form id="promoForm">
             <div class="panel" id="promo-trial">
               <h3>Триал</h3>
@@ -1308,35 +1274,6 @@
                   </thead>
                   <tbody id="promoCodeRows"></tbody>
                 </table>
-              </div>
-            </div>
-            <div class="panel shop-balance" id="promo-story">
-              <h3>История в Telegram</h3>
-              <p class="muted tight">Выключение скрывает предложение в кабинете и запрещает новые заявки. Уже отправленные заявки сохраняются. После изменения нажмите «Сохранить».</p>
-              <p class="muted tight">Кнопка в кабинете открывает редактор истории. Админам в бот приходит заявка со ссылкой в Telegram и кнопками «Подтвердить» / «Отказать». Награда один раз. Пауза ниже только для таймера в кабинете.</p>
-              <label class="switch-row">
-                <span>
-                  <strong>Показывать плашку «Пост в сторис»</strong>
-                  <span class="switch-row-state" data-on="Вкл" data-off="Выкл"></span>
-                </span>
-                <span class="switch-ui">
-                  <input id="setStoryOn" name="story_reward_enabled" type="checkbox">
-                  <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
-                </span>
-              </label>
-              <div class="form-grid">
-                <div>
-                  <label class="ops-label" for="setStoryRub">Награда, рубли</label>
-                  <input id="setStoryRub" name="story_reward_rub" type="number" min="0" required>
-                </div>
-                <div>
-                  <label class="ops-label" for="setStoryCheck">Проверка, минуты</label>
-                  <input id="setStoryCheck" name="story_check_minutes" type="number" min="1" max="10080" required>
-                </div>
-                <div>
-                  <label class="ops-label" for="setStoryText">Текст в истории</label>
-                  <input id="setStoryText" name="story_share_text" type="text" maxlength="500">
-                </div>
               </div>
             </div>
             <div class="panel" id="promo-ref-note">
@@ -1440,6 +1377,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=80"></script>
+  <script src="app.js?v=81"></script>
 </body>
 </html>

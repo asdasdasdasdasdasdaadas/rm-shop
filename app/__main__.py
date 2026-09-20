@@ -14,7 +14,6 @@ from app.config import get_settings
 from app.handlers.cabinet_login import router as cabinet_login_router
 from app.handlers.profile import router as profile_router
 from app.handlers.start import router as start_router
-from app.handlers.story_mod import router as story_mod_router
 from app.handlers.payout_mod import router as payout_mod_router
 from app.handlers.tickets import router as tickets_router
 from app.live import router as live_router
@@ -109,7 +108,6 @@ async def main() -> None:
     dp.update.outer_middleware(BlockedMiddleware())
     dp.include_router(start_router)
     dp.include_router(cabinet_login_router)
-    dp.include_router(story_mod_router)
     dp.include_router(payout_mod_router)
     dp.include_router(profile_router)
     dp.include_router(tickets_router)

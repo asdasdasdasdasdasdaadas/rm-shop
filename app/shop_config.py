@@ -78,13 +78,7 @@ def validate_shop(body: dict) -> dict:
     out["referral_mode"] = mode
     out["referral_payout_enabled"] = mode == "payout"
     out["referral_payout_min"] = _as_int(body.get("referral_payout_min"), 1, 1000000, "Мин. вывод реферальных")
-    out["story_reward_enabled"] = bool(body.get("story_reward_enabled"))
-    out["story_reward_rub"] = _as_int(body.get("story_reward_rub"), 0, 100000, "Награда за историю")
-    caption = str(body.get("story_share_text") or "").strip()
-    if len(caption) > 500:
-        raise ValueError("Текст истории: до 500 символов")
-    out["story_share_text"] = caption
-    out["story_check_minutes"] = _as_int(body.get("story_check_minutes"), 1, 10080, "Проверка истории, минуты")
+    out["story_reward_enabled"] = False
     out["trust_enabled"] = bool(body.get("trust_enabled"))
     out["trust_days"] = _as_int(body.get("trust_days"), 1, 30, "Дни обещанного платежа")
     out["trust_fee_rub"] = _as_int(body.get("trust_fee_rub"), 0, 10000, "Комиссия обещанного платежа")
@@ -161,7 +155,7 @@ def snapshot() -> dict:
             ),
             "referral_payout_enabled": s.referral_payout_enabled,
             "referral_payout_min": s.referral_payout_min,
-            "story_reward_enabled": s.story_reward_enabled,
+            "story_reward_enabled": False,
             "story_reward_rub": s.story_reward_rub,
             "story_share_text": s.story_share_text,
             "story_check_minutes": s.story_check_minutes,

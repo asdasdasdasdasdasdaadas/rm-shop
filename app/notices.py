@@ -111,11 +111,7 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Поддержка тоже здесь."
         "{story}"
     ),
-    "story_nudge": (
-        "VPN уже работает. Если удобно, выложите историю: коротко расскажите, "
-        "что подключились у нас. После проверки начислим {amount} на баланс.\n\n"
-        "Это один раз. Кнопка ниже откроет редактор — можно сразу добавить картинку и подпись."
-    ),
+
     "first_device_thanks": (
         "Всё готово. Спасибо, что решили попробовать.\n\n"
         "Если держит — удобно остаться: ссылку можно обновить в кабинете, "
@@ -273,8 +269,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "broadcast_invite", "title": "Рассылка: пользуются VPN", "hint": "{reward} {link}"},
     {"key": "broadcast_whitelist", "title": "Рассылка: белые списки включены", "hint": ""},
     {"key": "broadcast_unused", "title": "Рассылка: не подключались", "hint": ""},
-    {"key": "info_nudge", "title": "Как у нас устроено", "hint": "{price} {story}"},
-    {"key": "story_nudge", "title": "Выложить историю", "hint": "{amount}"},
+    {"key": "info_nudge", "title": "Как у нас устроено", "hint": "{price}"},
     {"key": "first_device_thanks", "title": "После первого устройства", "hint": ""},
     {"key": "first_online_nudge", "title": "После первого онлайна", "hint": "{days}"},
     {"key": "trial_end_nudge", "title": "Заканчивается подарок", "hint": "{hours} {devices}"},

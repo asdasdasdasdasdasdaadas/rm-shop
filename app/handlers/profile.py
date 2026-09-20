@@ -76,15 +76,6 @@ async def share(callback: CallbackQuery) -> None:
     settings = get_settings()
     local = await db.get_user(callback.from_user.id)
     link = f"https://t.me/{settings.bot_username}?start=ref_{callback.from_user.id}"
-    story_offer = bool(
-        settings.balance_enabled
-        and settings.story_reward_enabled
-        and settings.story_reward_rub > 0
-        and local
-        and local.get("first_online_at")
-        and not local.get("story_rewarded_at")
-        and not local.get("story_pending_at")
-    )
     if settings.balance_enabled:
         rub = settings.referral_reward_rub
         friend = int(settings.referral_invitee_reward_rub or 0)
@@ -108,15 +99,12 @@ async def share(callback: CallbackQuery) -> None:
                 f"<b>{rub_text(rub)}</b> на баланс.{friend_line}\n\n"
                 f"Ваша ссылка:\n<code>{link}</code>"
             )
-        if story_offer:
-            body += (
-                f"\n\nМожно также выложить историю в Telegram и получить "
-                f"<b>{rub_text(settings.story_reward_rub)}</b> на баланс — кнопка ниже откроет редактор."
-            )
+
         body += (
             "\n\n«Отправить другу» — шаринг Telegram. "
             "«Скопировать текст» — готовое сообщение в личку, без слов про вашу награду."
         )
+
     else:
         extra = settings.referral_invitee_days
         extra_line = (
@@ -137,7 +125,6 @@ async def share(callback: CallbackQuery) -> None:
         reply_markup=share_keyboard(
             settings.bot_username,
             callback.from_user.id,
-            story_offer=story_offer,
         ),
     )
 
