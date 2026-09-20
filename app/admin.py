@@ -1398,7 +1398,7 @@ def _broadcast_title(template: str) -> str:
 def _referral_reward_label() -> str:
     settings = get_settings()
     if settings.balance_enabled:
-        return rub_text(settings.referral_reward_rub)
+        return "50 ₽ + 5% с каждого пополнения"
     return days_text(settings.referral_reward_days)
 
 
@@ -1532,6 +1532,8 @@ async def api_broadcast(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Рассылка уже идёт", **job}, status=409)
     body = await request.json()
     template = str(body.get("template") or "").strip()
+    if template == "invite" and not get_settings().referral_program_enabled:
+        return web.json_response({"ok": False, "error": "Реферальная программа приостановлена"}, status=400)
     if template not in {"", "invite", "unused", "whitelist"}:
         return web.json_response({"ok": False, "error": "Неизвестный шаблон"}, status=400)
     text = str(body.get("text") or "").strip()

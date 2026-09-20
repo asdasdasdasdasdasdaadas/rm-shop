@@ -74,10 +74,15 @@ async def share(callback: CallbackQuery) -> None:
         return
     await ack(callback)
     settings = get_settings()
+    if not settings.referral_program_enabled:
+        await callback.message.edit_text(
+            "Реферальная программа приостановлена. Новые награды не начисляются. "
+            "Уже начисленный баланс сохраняется.", reply_markup=back_profile_keyboard())
+        return
     local = await db.get_user(callback.from_user.id)
     link = f"https://t.me/{settings.bot_username}?start=ref_{callback.from_user.id}"
     if settings.balance_enabled:
-        rub = settings.referral_reward_rub
+        rub = 50
         friend = int(settings.referral_invitee_reward_rub or 0)
         friend_line = (
             f" Другу после первой оплаты тоже <b>{rub_text(friend)}</b> на баланс."
@@ -88,7 +93,7 @@ async def share(callback: CallbackQuery) -> None:
             body = (
                 "<b>Приведи друга</b>\n\n"
                 f"Когда друг первый раз оплатит VPN по вашей ссылке, вам начислят "
-                f"<b>{rub_text(rub)}</b> на баланс.{friend_line} "
+                f"<b>{rub_text(rub)}</b> на баланс плюс 5% с каждого его пополнения, включая первое.{friend_line} "
                 f"Вывести можно от <b>{rub_text(settings.referral_payout_min)}</b> реферальных.\n\n"
                 f"Ваша ссылка:\n<code>{link}</code>"
             )
@@ -96,7 +101,7 @@ async def share(callback: CallbackQuery) -> None:
             body = (
                 "<b>Приведи друга</b>\n\n"
                 f"Когда друг первый раз оплатит VPN по вашей ссылке, вам начислят "
-                f"<b>{rub_text(rub)}</b> на баланс.{friend_line}\n\n"
+                f"<b>{rub_text(rub)}</b> на баланс плюс 5% с каждого его пополнения, включая первое.{friend_line}\n\n"
                 f"Ваша ссылка:\n<code>{link}</code>"
             )
 
@@ -480,7 +485,8 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
         await message.answer(notice_text("payment_duplicate"))
         return
     try:
-        user = await grant_plan(message.from_user.id, code, rw, bot=message.bot)
+        user = await grant_plan(message.from_user.id, code, rw, bot=message.bot,
+            payment_key=f"stars:{payment.telegram_payment_charge_id}")
     except RemnawaveError as exc:
         await message.answer(notice_text("payment_panel_error", error=exc))
         return

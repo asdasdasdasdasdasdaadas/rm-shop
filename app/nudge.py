@@ -53,7 +53,7 @@ def invite_nudge_text(telegram_id: int, first_name: str | None) -> str:
     name = first_name or "привет"
     link = f"https://t.me/{settings.bot_username}?start=ref_{telegram_id}"
     if settings.balance_enabled:
-        reward = rub_text(settings.referral_reward_rub)
+        reward = "50 ₽ + 5% с каждого пополнения"
     else:
         reward = days_text(settings.referral_reward_days)
     when = "Когда человек перейдёт по вашей ссылке и первый раз оплатит VPN, бонус придёт вам."
@@ -149,7 +149,7 @@ async def send_due_trial_nudges(bot: Bot, skip_ids: list[int] | None = None) -> 
 
 async def send_due_invite_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
     touched: list[int] = []
-    if not await db.flag_on("invite_nudge"):
+    if not get_settings().referral_program_enabled or not await db.flag_on("invite_nudge"):
         return 0, touched
     if await db.flag_on("maintenance"):
         return 0, touched

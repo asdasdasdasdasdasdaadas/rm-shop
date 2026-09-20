@@ -541,8 +541,10 @@
 
         <section id="tab-referrals" class="hidden">
           <div class="panel" id="promo-ref">
-            <h3>Режим рефералки</h3>
-            <p class="muted tight" id="refModeHint">Обычная — бонус вам на баланс после первой оплаты друга, вывода нет. С выводом — тот же момент начисления, можно вывести заявкой. Другу за переход деньги не даём, за его первую оплату можно начислить отдельно. Сохраните, чтобы бот и кабинет переключились. Уже выданная награда повторно не приходит.</p>
+            <h3>Реферальная программа</h3>
+            <label class="check-row"><input id="setRefProgramOn" type="checkbox"><span>Начислять реферальные награды</span></label>
+            <p class="muted">50 ₽ за первую оплату друга + 5% с каждого пополнения, включая первое. При выключении новые награды не начисляются, в кабинете видна пауза. Платежи во время паузы не вознаграждаются задним числом. После изменения нажмите «Сохранить».</p>
+            <p class="muted tight" id="refModeHint">Обычная — 50 ₽ за первую оплату друга и 5% с пополнений на баланс. С выводом — те же начисления, можно вывести заявкой. Другу за переход деньги не даём, за его первую оплату можно начислить отдельно. Сохраните, чтобы бот и кабинет переключились. Уже выданная награда повторно не приходит.</p>
             <p class="ops-label">Режим</p>
             <div class="ref-mode-pick">
               <label class="check-row">
@@ -559,7 +561,7 @@
               <div class="form-grid">
                 <div>
                   <label class="ops-label" for="setRefRub">Награда за друга, рубли</label>
-                  <input id="setRefRub" name="referral_reward_rub" type="number" min="0" required>
+                  <input id="setRefRub" name="referral_reward_rub" type="number" value="50" readonly>
                 </div>
                 <div>
                   <label class="ops-label" for="setRefInviteeRub">Другу за первую оплату, рубли</label>
@@ -1389,6 +1391,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=82"></script>
+  <script src="app.js?v=83"></script>
 </body>
 </html>

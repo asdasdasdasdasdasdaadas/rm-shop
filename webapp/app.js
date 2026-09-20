@@ -758,9 +758,8 @@ function inviteMonthLeft(me) {
 
 function inviteHomeProgress(me) {
   if (!me || !me.balance_enabled) return "";
-  const left = inviteMonthLeft(me);
-  if (left < 1) return "";
-  return `Ещё ${left} ${friendsWord(left)} с оплатой — и месяц VPN`;
+  if (!me.referral_program_enabled) return "Начисления по программе приостановлены";
+  return "50 ₽ за первую оплату + 5% с каждого пополнения";
 }
 
 function rublesWord(n) {
@@ -2664,6 +2663,16 @@ function paintReferrals(me) {
     }
     if (payWrap) payWrap.classList.add("hidden");
   }
+  if (me.balance_enabled) {
+    if (when) when.textContent = "50 ₽ за первую оплату друга и 5% с каждого пополнения, включая первое. Награды начисляются только пока программа включена.";
+    if (how) how.textContent = "Например, за первое пополнение на 300 ₽ вы получите 65 ₽, за следующее на 300 ₽ — 15 ₽. Доли рубля накапливаются до целого рубля.";
+    if (note) note.textContent = "Начисления за оплаты во время действия программы: " + earned + " ₽.";
+  }
+  if (!me.referral_program_enabled) {
+    if (note) note.textContent = "Программа приостановлена. Новые награды не начисляются, уже полученный баланс сохраняется.";
+    if (when) when.textContent = "Во время паузы начислений нет. После включения учитываются только новые пополнения, без выплат за период паузы.";
+    if (how) how.textContent = "Условия при включении: 50 ₽ за первую оплату нового друга + 5% с каждого пополнения. Если первая оплата прошла во время паузы, бонус 50 ₽ позже не начисляется.";
+  }
   paintRefFriends(me);
   paintPayout(me);
 }
@@ -3750,15 +3759,11 @@ function dismissTrialNotice(kind) {
 function paintRefBanner(me) {
   const pill = $("inviteBannerPill");
   if (!pill) return;
-  const rub = Math.max(0, Number(me && me.referral_reward_rub) || 0);
-  const days = Math.max(0, Number(me && me.referral_reward_days) || 0);
-  if (me && me.balance_enabled && rub > 0) {
-    pill.innerHTML = "Получайте <span class=\"ref-banner-amt\">" + rub + " ₽</span> за каждого друга";
-  } else if (days > 0) {
-    pill.innerHTML = "Получайте <span class=\"ref-banner-amt\">" + daysLabel(days) + "</span> за каждого друга";
-  } else {
-    pill.textContent = "Отправьте ссылку — друг попадёт к нам же";
-  }
+  const active = Boolean(me && me.referral_program_enabled);
+  const title = $("inviteBannerTitle");
+  if (title) title.textContent = active ? "Приглашай друзей и зарабатывай" : "Реферальная программа";
+  pill.textContent = active ? "50 ₽ за первую оплату + 5% с каждого пополнения" : "Начисления приостановлены";
+
 }
 
 function routerInfo(me) {
@@ -3959,7 +3964,7 @@ function paintInviteeBonus(me) {
   const el = $("inviteeBonus");
   if (!el) return;
   const n = Math.max(0, Number(me && me.referral_invitee_reward_rub) || 0);
-  const show = !!(me && me.balance_enabled && me.referred && !me.has_paid_topup && n > 0);
+  const show = !!(me && me.referral_program_enabled && me.balance_enabled && me.referred && !me.has_paid_topup && n > 0);
   el.classList.toggle("hidden", !show);
   if (show) {
     el.textContent =

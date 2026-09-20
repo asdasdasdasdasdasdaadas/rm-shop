@@ -77,6 +77,7 @@ async def grant_plan(
     plan_code: str,
     rw: RemnawaveClient,
     bot: Bot | None = None,
+    payment_key: str | None = None,
 ) -> dict | None:
     settings = get_settings()
     plan = settings.plan_by_code(plan_code)
@@ -143,8 +144,10 @@ async def grant_plan(
     from app.referrals import maybe_reward_invitee, maybe_reward_referrer
 
     local = await db.get_user(telegram_id)
-    await maybe_reward_referrer(bot, rw, telegram_id, (local or {}).get("first_name"))
-    await maybe_reward_invitee(bot, telegram_id)
+    await maybe_reward_referrer(bot, rw, telegram_id, (local or {}).get("first_name"),
+        payment_key=payment_key, topup_rub=amount if not plan.get("router") else 0, first_payment=not repeat)
+    if not repeat:
+        await maybe_reward_invitee(bot, telegram_id)
     return user
 
 
@@ -167,6 +170,6 @@ async def fulfill_rollypay_order(
             return None
         if order["status"] == "granted":
             return None
-        user = await grant_plan(int(order["telegram_id"]), order["plan_code"], rw, bot=bot)
+        user = await grant_plan(int(order["telegram_id"]), order["plan_code"], rw, bot=bot, payment_key=f"rollypay:{order_id}")
         await db.mark_rollypay_paid(order_id)
         return user

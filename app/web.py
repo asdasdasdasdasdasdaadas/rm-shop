@@ -473,8 +473,7 @@ async def api_me(request: web.Request) -> web.Response:
     ref_view = referral_payout_public(wallet)
     if settings.balance_enabled:
         from_events = await db.referral_credit_sum(telegram_id)
-        implied = int(refs.get("rewarded") or 0) * max(0, int(settings.referral_reward_rub or 0))
-        earned = max(int(ref_view.get("referral_earned") or 0), from_events, implied)
+        earned = max(int(ref_view.get("referral_earned") or 0), from_events)
         if earned > int(ref_view.get("referral_earned") or 0):
             await db.ensure_referral_earned(telegram_id, earned)
         ref_view["referral_earned"] = earned
@@ -528,9 +527,11 @@ async def api_me(request: web.Request) -> web.Response:
             "referral_rewarded_count": int(refs.get("rewarded") or 0),
             "referral_reward_days": settings.referral_reward_days,
             "referral_invitee_days": settings.referral_invitee_days,
-            "referral_reward_rub": settings.referral_reward_rub,
+            "referral_reward_rub": 50,
+            "referral_program_enabled": settings.referral_program_enabled,
+            "referral_percent": 5,
             "referral_invitee_reward_rub": (
-                int(settings.referral_invitee_reward_rub or 0) if settings.balance_enabled else 0
+                int(settings.referral_invitee_reward_rub or 0) if settings.balance_enabled and settings.referral_program_enabled else 0
             ),
             "referred": bool((local or {}).get("referred_by")),
             **ref_view,

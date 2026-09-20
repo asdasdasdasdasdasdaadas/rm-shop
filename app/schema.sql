@@ -444,3 +444,14 @@ INSERT INTO app_flags (key, value) VALUES ('payment_nudge', '1') ON CONFLICT (ke
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS gift_claimed_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS checkout_url TEXT;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_fraction INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS referral_payment_rewards (
+    payment_key TEXT PRIMARY KEY,
+    invitee_id BIGINT NOT NULL,
+    referrer_id BIGINT,
+    topup_rub INTEGER NOT NULL,
+    enabled BOOLEAN NOT NULL,
+    reward_rub INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

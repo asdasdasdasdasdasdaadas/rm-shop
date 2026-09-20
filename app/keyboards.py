@@ -347,7 +347,7 @@ def invite_share_text() -> str:
             text += f" (от {price} ₽/сутки)"
         text += ". Зайди по ссылке."
         bonus = int(settings.referral_invitee_reward_rub or 0)
-        if bonus > 0:
+        if settings.referral_program_enabled and bonus > 0:
             text += f" После первой оплаты на баланс ещё {bonus} ₽."
         return text
     extra = settings.referral_invitee_days
@@ -356,7 +356,7 @@ def invite_share_text() -> str:
         "Подключается за минуту, ссылку подписки всегда можно взять в кабинете. "
         "Зайди по ссылке."
     )
-    if extra > 0:
+    if settings.referral_program_enabled and extra > 0:
         text += f" На пробном периоде +{days_text(extra)}."
     return text
 

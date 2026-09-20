@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     balance_topup_min: int = 50
     balance_topup_max: int = 5000
     balance_topup_step: int = 50
+    referral_program_enabled: bool = False
     referral_reward_rub: int = 50
     referral_invitee_reward_rub: int = 30
     referral_mode: str = "classic"
@@ -262,6 +263,7 @@ SHOP_KEYS = frozenset(
         "remnawave_hwid_limit",
         "trial_enabled",
         "trial_days",
+        "referral_program_enabled",
         "referral_reward_rub",
         "referral_invitee_reward_rub",
         "referral_mode",

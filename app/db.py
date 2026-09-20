@@ -4598,3 +4598,44 @@ async def nudge_suppressed_ids(hours: int = 24) -> list[int]:
                AND m.created_at > NOW() - ($1 * INTERVAL '1 hour'))""", hours,
     )
     return [int(r['telegram_id']) for r in rows]
+
+
+async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int,
+                                  *, enabled: bool, first_payment: bool) -> dict | None:
+    """Record paused payments too; credit each provider payment at most once."""
+    if not payment_key or amount <= 0:
+        return None
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            invitee = await conn.fetchrow(
+                "SELECT referred_by, referral_rewarded FROM users WHERE telegram_id=$1 FOR UPDATE", invitee_id)
+            if not invitee:
+                return None
+            referrer_id = invitee['referred_by']
+            inserted = await conn.fetchrow(
+                """INSERT INTO referral_payment_rewards (payment_key, invitee_id, referrer_id, topup_rub, enabled)
+                   VALUES ($1,$2,$3,$4,$5) ON CONFLICT (payment_key) DO NOTHING RETURNING payment_key""",
+                payment_key, invitee_id, referrer_id, amount, enabled)
+            if not inserted or not enabled or not referrer_id or referrer_id == invitee_id:
+                return None
+            referrer = await conn.fetchrow(
+                "SELECT referral_fraction FROM users WHERE telegram_id=$1 FOR UPDATE", referrer_id)
+            if not referrer:
+                return None
+            percent, fraction = divmod(amount * 5 + int(referrer['referral_fraction'] or 0), 100)
+            bonus = 50 if first_payment and not invitee['referral_rewarded'] else 0
+            reward = bonus + percent
+            after = await conn.fetchval(
+                """UPDATE users SET balance_rub=COALESCE(balance_rub,0)+$2,
+                   referral_earned=COALESCE(referral_earned,0)+$2, referral_fraction=$3,
+                   low_balance_notified_at=CASE WHEN $2 > 0 THEN NULL ELSE low_balance_notified_at END
+                   WHERE telegram_id=$1 RETURNING balance_rub""", referrer_id, reward, fraction)
+            if bonus:
+                await conn.execute("UPDATE users SET referral_rewarded=TRUE WHERE telegram_id=$1", invitee_id)
+            await conn.execute("UPDATE referral_payment_rewards SET reward_rub=$2 WHERE payment_key=$1", payment_key,reward)
+            if reward:
+                await conn.execute(
+                    """INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
+                       VALUES ($1,'referral','payment',$2,$3,$4)""", referrer_id,reward,after,
+                    f"Друг {invitee_id}: первая оплата {bonus} ₽ + 5% от {amount} ₽; {payment_key}")
+            return {'referrer_id':referrer_id,'amount':reward,'bonus':bonus,'percent':percent}

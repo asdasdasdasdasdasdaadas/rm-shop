@@ -63,7 +63,8 @@ def validate_shop(body: dict) -> dict:
     out["remnawave_hwid_limit"] = _as_int(body.get("remnawave_hwid_limit"), 0, 20, "Лимит HWID")
     out["trial_enabled"] = bool(body.get("trial_enabled"))
     out["trial_days"] = _as_int(body.get("trial_days"), 1, 90, "Дни триала")
-    out["referral_reward_rub"] = _as_int(body.get("referral_reward_rub"), 0, 100000, "Реф. в рублях")
+    out["referral_program_enabled"] = bool(body.get("referral_program_enabled"))
+    out["referral_reward_rub"] = 50
     if "referral_invitee_reward_rub" in body:
         out["referral_invitee_reward_rub"] = _as_int(
             body.get("referral_invitee_reward_rub"), 0, 100000, "Реф. другу за оплату"
@@ -148,7 +149,8 @@ def snapshot() -> dict:
             "remnawave_hwid_limit": 0 if hwid is None else int(hwid),
             "trial_enabled": s.trial_enabled,
             "trial_days": s.trial_days,
-            "referral_reward_rub": s.referral_reward_rub,
+            "referral_program_enabled": s.referral_program_enabled,
+            "referral_reward_rub": 50,
             "referral_invitee_reward_rub": s.referral_invitee_reward_rub,
             "referral_mode": s.referral_mode if s.referral_mode in ("classic", "payout") else (
                 "payout" if s.referral_payout_enabled else "classic"
