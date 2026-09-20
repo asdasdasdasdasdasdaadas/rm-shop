@@ -207,6 +207,9 @@ function collectUserFilters() {
     trial: val("userTrial"),
     devices: val("userDevices"),
     online: val("userOnline"),
+    sort: val("userSort"),
+    traffic_min: val("userTrafficMin"),
+    traffic_max: val("userTrafficMax"),
     bal_sign: val("userBalSign"),
     bal_min: val("userBalMin"),
     bal_max: val("userBalMax"),
@@ -222,6 +225,9 @@ const USER_FILTER_IDS = {
   trial: "userTrial",
   devices: "userDevices",
   online: "userOnline",
+  sort: "userSort",
+  traffic_min: "userTrafficMin",
+  traffic_max: "userTrafficMax",
   bal_sign: "userBalSign",
   bal_min: "userBalMin",
   bal_max: "userBalMax",
@@ -301,6 +307,13 @@ function trafficBytes(used, life) {
   if (Number.isFinite(a) && a >= 0) return a;
   if (Number.isFinite(b) && b >= 0) return b;
   return null;
+}
+
+function fmtTrafficGB(used, life) {
+  const bytes = trafficBytes(used, life);
+  if (bytes == null) return "—";
+  const gb = bytes / (1024 ** 3);
+  return (gb > 0 && gb < 0.01 ? "< 0,01" : gb.toLocaleString("ru-RU", { maximumFractionDigits: 2 })) + " ГБ";
 }
 
 function fmtTraffic(used, life) {
@@ -1495,9 +1508,12 @@ async function loadUsers(page) {
   if (f.devices) chips.push(["devices", "Устройства: " + f.devices]);
   if (f.paid) chips.push(["paid", f.paid === "yes" ? "были оплаты" : "без оплат"]);
   if (f.online) {
-    const names = { now: "сейчас", "1h": "час", "1d": "сутки", "7d": "неделя", "30d": "месяц", never: "не было" };
+    const names = { now: "сейчас", "1h": "час", "1d": "сутки", "7d": "неделя", "30d": "месяц", inactive_1d: "больше суток назад", inactive_7d: "больше недели назад", inactive_30d: "больше месяца назад", never: "не было" };
     chips.push(["online", "Онлайн: " + (names[f.online] || f.online)]);
   }
+  if (f.sort) chips.push(["sort", $("userSort").selectedOptions[0].textContent]);
+  if (f.traffic_min) chips.push(["traffic_min", "Трафик от " + f.traffic_min + " ГБ"]);
+  if (f.traffic_max) chips.push(["traffic_max", "Трафик до " + f.traffic_max + " ГБ"]);
   if (f.bal_sign) {
     const names = { pos: "больше нуля", zero: "ноль", neg: "минус" };
     chips.push(["bal_sign", "Баланс: " + (names[f.bal_sign] || f.bal_sign)]);
@@ -1553,8 +1569,8 @@ async function loadUsers(page) {
     tr.appendChild(tdPaid);
     tr.appendChild(deviceBreakdownCell(u));
     tr.appendChild(onlineCell(u.last_online_at));
-    const tdTraffic = tdText(fmtTraffic(u.used_traffic_bytes, u.lifetime_traffic_bytes));
-    tdTraffic.title = "Сейчас: " + fmtBytes(u.used_traffic_bytes) + ". Всего: " + fmtBytes(u.lifetime_traffic_bytes);
+    const tdTraffic = tdText(fmtTrafficGB(u.used_traffic_bytes, u.lifetime_traffic_bytes));
+    tdTraffic.title = "Суммарный трафик по сохранённым данным VPN-панели. 1 ГБ = 1024³ байт.";
     tr.appendChild(tdTraffic);
     tr.appendChild(tdText(u.trial_used ? "да" : "нет"));
     tr.appendChild(tdText(fmt(u.expire_at)));
@@ -3164,7 +3180,7 @@ $("userSearch").onclick = () => {
 };
 if ($("userReset")) {
   $("userReset").onclick = () => {
-    ["userQ", "userStatus", "userTrial", "userDevices", "userOnline", "userPaid", "userBalSign", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => setVal(id, ""));
+    ["userQ", "userStatus", "userTrial", "userDevices", "userOnline", "userSort", "userTrafficMin", "userTrafficMax", "userPaid", "userBalSign", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => setVal(id, ""));
     selectedUsers.clear();
     loadUsers(1);
   };
@@ -3268,7 +3284,7 @@ const userReload = debounce(() => {
   loadUsers(1);
 }, 300);
 $("userQ").oninput = userReload;
-["userStatus", "userTrial", "userDevices", "userOnline", "userPaid", "userBalSign", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => {
+["userStatus", "userTrial", "userDevices", "userOnline", "userSort", "userTrafficMin", "userTrafficMax", "userPaid", "userBalSign", "userBalMin", "userBalMax", "userFrom", "userTo"].forEach((id) => {
   const el = $(id);
   if (el) el.onchange = userReload;
 });

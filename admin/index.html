@@ -456,13 +456,25 @@
               <option value="yes">Есть</option>
               <option value="no">Нет</option>
             </select>
-            <select id="userOnline" aria-label="Онлайн">
+            <select id="userSort" aria-label="Сортировка пользователей">
+              <option value="">Сначала новые пользователи</option>
+              <option value="traffic_desc">Трафик: от большего к меньшему</option>
+              <option value="traffic_asc">Трафик: от меньшего к большему</option>
+              <option value="online_desc">Последний онлайн: сначала недавние</option>
+              <option value="online_asc">Последний онлайн: сначала давние</option>
+            </select>
+            <input id="userTrafficMin" type="number" min="0" step="any" placeholder="Трафик от, ГБ" aria-label="Трафик от, ГБ">
+            <input id="userTrafficMax" type="number" min="0" step="any" placeholder="Трафик до, ГБ" aria-label="Трафик до, ГБ">
+            <select id="userOnline" aria-label="Последний онлайн">
               <option value="">Онлайн: все</option>
               <option value="now">Сейчас (15 мин)</option>
               <option value="1h">За час</option>
               <option value="1d">За сутки</option>
               <option value="7d">За неделю</option>
               <option value="30d">За месяц</option>
+              <option value="inactive_1d">Не заходили больше суток</option>
+              <option value="inactive_7d">Не заходили больше недели</option>
+              <option value="inactive_30d">Не заходили больше месяца</option>
               <option value="never">Не было онлайна</option>
             </select>
             <select id="userBalSign" aria-label="Баланс">
@@ -1377,6 +1389,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=81"></script>
+  <script src="app.js?v=82"></script>
 </body>
 </html>

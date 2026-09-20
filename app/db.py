@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import hashlib
+from decimal import Decimal, InvalidOperation
 import json
 import logging
 import re
@@ -2729,6 +2730,22 @@ async def admin_funnel() -> dict:
     }
 
 
+_ADMIN_TRAFFIC_SQL = """CAST(GREATEST(
+    COALESCE((SELECT SUM(GREATEST(COALESCE(d.used_traffic_bytes, 0),
+        COALESCE(d.lifetime_traffic_bytes, 0))) FROM devices d
+        WHERE d.telegram_id = u.telegram_id), 0),
+    COALESCE(u.used_traffic_bytes, 0), COALESCE(u.lifetime_traffic_bytes, 0)) AS BIGINT)"""
+
+
+def _admin_users_order(extra: dict | None = None) -> str:
+    return {
+        "traffic_desc": "traffic_total_bytes DESC, u.telegram_id DESC",
+        "traffic_asc": "traffic_total_bytes ASC, u.telegram_id DESC",
+        "online_desc": "last_online_at DESC NULLS LAST, u.telegram_id DESC",
+        "online_asc": "last_online_at ASC NULLS LAST, u.telegram_id DESC",
+    }.get((extra or {}).get("sort"), "u.created_at DESC, u.telegram_id DESC")
+
+
 def _admin_users_filter(query: str, extra: dict | None = None) -> tuple[str, list]:
     clauses: list[str] = []
     args: list = []
@@ -2791,6 +2808,18 @@ def _admin_users_filter(query: str, extra: dict | None = None) -> tuple[str, lis
         if raw.isdigit() or (raw.startswith("-") and raw[1:].isdigit()):
             args.append(int(raw))
             clauses.append(f"COALESCE(u.balance_rub, 0) {op} ${len(args)}")
+    for key, op in (("traffic_min", ">="), ("traffic_max", "<=")):
+        raw = str(extra.get(key) or "").strip()
+        if not raw:
+            continue
+        try:
+            gb = Decimal(raw.replace(",", "."))
+            if not gb.is_finite() or gb < 0 or gb > 1_000_000_000:
+                continue
+        except InvalidOperation:
+            continue
+        args.append(int(gb * (1024 ** 3)))
+        clauses.append(f"{_ADMIN_TRAFFIC_SQL} {op} ${len(args)}")
     online = str(extra.get("online") or "").strip()
     online_sql = {
         "now": "INTERVAL '15 minutes'",
@@ -2818,6 +2847,11 @@ def _admin_users_filter(query: str, extra: dict | None = None) -> tuple[str, lis
             )
             """
         )
+    inactive_days = {"inactive_1d": 1, "inactive_7d": 7, "inactive_30d": 30}.get(online)
+    if inactive_days:
+        args.append(inactive_days)
+        clauses.append(f"""(SELECT MAX(d0.last_online_at) FROM devices d0
+            WHERE d0.telegram_id = u.telegram_id) < NOW() - (${len(args)} * INTERVAL '1 day')""")
     from_d = str(extra.get("from") or "").strip()
     to_d = str(extra.get("to") or "").strip()
     if from_d:
@@ -2883,23 +2917,7 @@ async def admin_list_users(
                    FROM devices d
                    WHERE d.telegram_id = u.telegram_id
                ) AS last_online_at,
-               GREATEST(
-                   COALESCE(
-                       (
-                           SELECT SUM(
-                               GREATEST(
-                                   COALESCE(d.used_traffic_bytes, 0),
-                                   COALESCE(d.lifetime_traffic_bytes, 0)
-                               )
-                           )::bigint
-                           FROM devices d
-                           WHERE d.telegram_id = u.telegram_id
-                       ),
-                       0
-                   ),
-                   COALESCE(u.used_traffic_bytes, 0),
-                   COALESCE(u.lifetime_traffic_bytes, 0)
-               ) AS used_traffic_bytes,
+               {_ADMIN_TRAFFIC_SQL} AS traffic_total_bytes,
                GREATEST(
                    COALESCE(
                        (
@@ -2938,7 +2956,7 @@ async def admin_list_users(
         FROM users u
         LEFT JOIN users ref ON ref.telegram_id = u.referred_by
         {where}
-        ORDER BY u.created_at DESC
+        ORDER BY {_admin_users_order(extra)}
         LIMIT ${len(args) + 1} OFFSET ${len(args) + 2}
     """
     total = await pool.fetchval(total_sql, *args)
@@ -2947,6 +2965,7 @@ async def admin_list_users(
     items = []
     for r in rows:
         item = _jsonable(dict(r))
+        item["used_traffic_bytes"] = item.pop("traffic_total_bytes", 0)
         codes = item.pop("paid_plan_codes", None) or []
         if isinstance(codes, str):
             try:

@@ -208,6 +208,9 @@ async def api_users(request: web.Request) -> web.Response:
         "trial",
         "devices",
         "online",
+        "sort",
+        "traffic_min",
+        "traffic_max",
         "bal_sign",
         "bal_min",
         "bal_max",
@@ -1117,7 +1120,7 @@ async def api_users_bulk(request: web.Request) -> web.Response:
     ids: list[int] = []
     if body.get("all_matching"):
         extra = {}
-        for key in ("status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to"):
+        for key in ("status", "trial", "devices", "online", "traffic_min", "traffic_max", "paid", "bal_sign", "bal_min", "bal_max", "from", "to"):
             val = str(body.get(key) or "").strip()
             if val:
                 extra[key] = val
