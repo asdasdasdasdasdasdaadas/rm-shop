@@ -221,3 +221,38 @@ async def save_shop_overlay(body: dict) -> dict:
     await db.set_welcome_sticker_file_id(str(cleaned.get("welcome_sticker_file_id") or ""))
     set_shop_overlay(cleaned)
     return snapshot()
+
+
+async def save_referral_settings(body: dict) -> dict:
+    """Save referral controls without validating unrelated shop integrations."""
+    current = get_settings()
+    enabled = body.get("referral_program_enabled")
+    if not isinstance(enabled, bool):
+        raise ValueError("Укажите, включена ли реферальная программа")
+    mode = str(body.get("referral_mode") or "classic")
+    if mode not in {"classic", "payout"}:
+        raise ValueError("Неизвестный режим реферальной программы")
+    if mode == "payout" and not current.balance_enabled:
+        raise ValueError("Вывод доступен только в режиме баланса")
+    changes = {
+        "referral_program_enabled": enabled,
+        "referral_mode": mode,
+        "referral_payout_enabled": mode == "payout",
+        "referral_reward_rub": 50,
+    }
+    for key, lo, hi, label in (
+        ("referral_invitee_reward_rub", 0, 100000, "Бонус другу"),
+        ("referral_payout_min", 1, 1000000, "Минимум вывода"),
+        ("referral_reward_days", 0, 365, "Дни пригласившему"),
+        ("referral_invitee_days", 0, 365, "Дни другу"),
+    ):
+        if key in body:
+            changes[key] = _as_int(body[key], lo, hi, label)
+    raw = await db.get_kv(KV_KEY)
+    saved = json.loads(raw) if raw and raw.strip() else {}
+    if not isinstance(saved, dict):
+        raise ValueError("Настройки магазина повреждены")
+    saved.update(changes)
+    await db.set_kv(KV_KEY, json.dumps(saved, ensure_ascii=False))
+    set_shop_overlay(saved)
+    return {"ok": True, "values": changes}

@@ -37,7 +37,7 @@ from app.backup import (
     seconds_until_msk_0001,
 )
 from app.config import ROOT, get_settings
-from app.shop_config import save_shop_overlay, snapshot as shop_snapshot
+from app.shop_config import save_shop_overlay, save_referral_settings, snapshot as shop_snapshot
 from app.keyboards import (
     blocked_keyboard,
     cabinet_keyboard,
@@ -1720,6 +1720,19 @@ async def api_announcement_image(request: web.Request) -> web.Response:
     )
 
 
+async def api_referral_settings(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        return web.json_response(await save_referral_settings(await request.json()))
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    except Exception:
+        logger.exception("Не удалось сохранить реферальную программу")
+        return web.json_response({"ok": False, "error": "Не удалось сохранить реферальную программу"}, status=500)
+
+
 async def api_settings(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2205,6 +2218,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/billing", api_billing)
     app.router.add_get("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/settings", api_settings)
+    app.router.add_post("/admin/api/settings/referrals", api_referral_settings)
     app.router.add_post("/admin/api/users/purge-bot-blockers", api_purge_bot_blockers)
     app.router.add_post("/admin/api/users/{telegram_id}/grant", api_grant)
     app.router.add_post("/admin/api/users/{telegram_id}/balance", api_balance)

@@ -2921,7 +2921,35 @@ if ($("promoForm")) {
 });
 syncRefModeUi();
 if ($("refModeSave")) {
-  $("refModeSave").onclick = () => saveShopSettings("refModeOut");
+  $("refModeSave").onclick = async () => {
+    const btn = $("refModeSave");
+    const out = $("refModeOut");
+    btn.disabled = true;
+    out.textContent = "Сохраняю...";
+    try {
+      const data = await api("/admin/api/settings/referrals", {
+        method: "POST",
+        body: JSON.stringify({
+          referral_program_enabled: $("setRefProgramOn").checked,
+          referral_mode: $("setRefModePayout").checked ? "payout" : "classic",
+          referral_invitee_reward_rub: $("setRefInviteeRub").value,
+          referral_payout_min: $("setRefPayoutMin").value || 2000,
+          referral_reward_days: $("setRefDays").value || 0,
+          referral_invitee_days: $("setRefInvitee").value || 0,
+        }),
+      });
+      const enabled = data.values.referral_program_enabled;
+      $("setRefProgramOn").checked = enabled;
+      out.textContent = enabled
+        ? "Сохранено: начисления включены — 50 ₽ + 5%."
+        : "Сохранено: начисления приостановлены.";
+      toast(out.textContent);
+    } catch (err) {
+      out.textContent = err.message || "Не удалось сохранить рефералку";
+    } finally {
+      btn.disabled = false;
+    }
+  };
 }
 
 async function saveShopSettings(outId) {
