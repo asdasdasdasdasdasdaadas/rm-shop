@@ -7,7 +7,7 @@ from aiogram import Bot
 
 from app import db
 from app.config import get_settings, referral_is_payout
-from app.keyboards import payout_mod_keyboard
+from app.keyboards import payout_mod_keyboard, with_referral_share
 from app.notices import notice_text
 from app.referrals import referral_payout_public
 from app.texts import rub_text
@@ -165,7 +165,7 @@ async def finish_referral_payout(bot: Bot, payout_id: int, action: str, admin_id
         text = notice_text("referral_payout_rejected", amount=amount)
         label = "Отказано"
     try:
-        await bot.send_message(telegram_id, text)
+        await bot.send_message(telegram_id, text, reply_markup=with_referral_share(telegram_id))
     except Exception:
         logger.debug("Не удалось написать %s про вывод", telegram_id, exc_info=True)
     await close_payout_admin_messages(bot, payout_id, label)

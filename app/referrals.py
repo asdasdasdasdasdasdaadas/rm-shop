@@ -9,7 +9,7 @@ from app import db
 from app.billing import expire_human
 from app.notices import notice_text, sub_block
 from app.config import get_settings, referral_is_payout
-from app.keyboards import back_profile_keyboard, cabinet_keyboard, connect_keyboard, share_keyboard
+from app.keyboards import with_referral_share, back_profile_keyboard, cabinet_keyboard, connect_keyboard, share_keyboard
 from app.remnawave import RemnawaveClient, RemnawaveError
 from app.texts import days_text, friends_acc, rub_text
 
@@ -128,6 +128,7 @@ async def maybe_reward_invitee(bot: Bot | None, telegram_id: int) -> int:
             await bot.send_message(
                 telegram_id,
                 notice_text("referral_invitee_paid", amount=rub_text(amount)),
+                reply_markup=with_referral_share(telegram_id, cabinet_keyboard()),
             )
         except Exception:
             pass
@@ -152,7 +153,8 @@ async def maybe_reward_referrer(
                 await bot.send_message(result['referrer_id'],
                     f"Друг {name} пополнил баланс. Вам начислено {rub_text(result['amount'])}: "
                     f"бонус за первую оплату {rub_text(result['bonus'])} и 5% от пополнения "
-                    f"({rub_text(result['percent'])}).", reply_markup=cabinet_keyboard())
+                    f"({rub_text(result['percent'])}).",
+                    reply_markup=with_referral_share(result["referrer_id"], cabinet_keyboard()))
             except Exception:
                 pass
         return
@@ -193,7 +195,7 @@ async def maybe_reward_referrer(
         await bot.send_message(
             referrer_id,
             text,
-            reply_markup=connect_keyboard(sub_url) if sub_url else back_profile_keyboard(),
+            reply_markup=with_referral_share(referrer_id, connect_keyboard(sub_url) if sub_url else back_profile_keyboard()),
         )
     except Exception:
         pass

@@ -45,6 +45,7 @@ from app.keyboards import (
     help_connect_keyboard,
     legal_keyboard,
     share_keyboard,
+    with_referral_share,
     story_nudge_keyboard,
     trial_nudge_keyboard,
 )
@@ -662,6 +663,8 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
         return None
     if kind == "nudge_payment":
         return payment_nudge_keyboard()
+    if kind.startswith("referral_"):
+        return with_referral_share(telegram_id, cabinet_keyboard())
     if kind == "nudge_invite":
         return share_keyboard(settings.bot_username, telegram_id)
     if kind == "nudge_trial":
@@ -1024,7 +1027,8 @@ async def api_purge_bot_blockers(request: web.Request) -> web.Response:
                 amount=rub_text(int(result["amount"])),
             )
             try:
-                await bot.send_message(int(result["referrer_id"]), text)
+                await bot.send_message(int(result["referrer_id"]), text,
+                    reply_markup=with_referral_share(int(result["referrer_id"])))
             except Exception:
                 logger.debug(
                     "Не удалось написать о возврате рефералки %s",

@@ -10,6 +10,7 @@ from aiogram.types import LinkPreviewOptions, Message
 
 from app import db
 from app.config import get_settings
+from app.keyboards import with_referral_share
 from app.keyboards import channel_keyboard, legal_text, profile_keyboard
 from app.notices import notice_text
 from app.referrals import trial_grant_days, trial_is_available
@@ -122,7 +123,8 @@ async def send_welcome_intro(
     local = await db.get_user(user.id)
     hello = notice_text("welcome_intro_hello", name=name, brand=brand)
     bonus = int(settings.referral_invitee_reward_rub or 0)
-    if settings.balance_enabled and bonus > 0 and local and local.get("referred_by"):
+    referral_bonus = settings.referral_program_enabled and settings.balance_enabled and bonus > 0 and local and local.get("referred_by")
+    if referral_bonus:
         hello += (
             f"\n\nВы пришли по ссылке друга. После первого пополнения на баланс ещё {rub_text(bonus)}."
         )
@@ -156,7 +158,7 @@ async def send_welcome_intro(
         await _pause(bot, chat_id)
         await message.answer(hi)
         await _pause(bot, chat_id)
-        await message.answer(hello)
+        await message.answer(hello, reply_markup=with_referral_share(user.id) if referral_bonus else None)
         await _pause(bot, chat_id)
         await message.answer(
             last, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)

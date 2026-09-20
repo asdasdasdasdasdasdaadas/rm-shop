@@ -366,19 +366,25 @@ def invite_copy_text(telegram_id: int, bot_username: str | None = None) -> str:
     return block[:256]
 
 
+def referral_share_button(telegram_id: int, bot_username: str | None = None) -> InlineKeyboardButton:
+    url = "https://t.me/share/url?" + urlencode({
+        "url": invite_url(telegram_id, bot_username),
+        "text": invite_share_text(),
+    })
+    return InlineKeyboardButton(text="Поделиться реферальной ссылкой", url=url, style="success")
+
+
+def with_referral_share(telegram_id: int, markup: InlineKeyboardMarkup | None = None) -> InlineKeyboardMarkup:
+    rows = [list(row) for row in markup.inline_keyboard] if markup else []
+    button = referral_share_button(telegram_id)
+    if not any(item.url == button.url for row in rows for item in row):
+        rows.insert(0, [button])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = False) -> InlineKeyboardMarkup:
-    share_text = invite_share_text()
-    link = invite_url(telegram_id, bot_username)
-    share_url = (
-        "https://t.me/share/url?url="
-        + quote(link)
-        + "&text="
-        + quote(share_text)
-    )
     builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="Отправить другу", url=share_url, style="success")
-    )
+    builder.row(referral_share_button(telegram_id, bot_username))
     builder.row(
         InlineKeyboardButton(
             text="Скопировать текст",

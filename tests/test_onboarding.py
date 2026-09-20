@@ -101,7 +101,7 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                 db.get_user = AsyncMock(return_value={})
                 db.mark_legal_notice = AsyncMock()
                 stack.enter_context(patch.object(welcome, 'get_settings', return_value=SimpleNamespace(
-                    brand_name='VPN', referral_invitee_reward_rub=0,
+                    brand_name='VPN', referral_invitee_reward_rub=0, referral_program_enabled=False,
                     balance_enabled=False, trial_enabled=False, trial_days=0)))
                 stack.enter_context(patch.object(welcome.logger, 'warning'))
                 stack.enter_context(patch.object(welcome, 'trial_is_available', return_value=False))

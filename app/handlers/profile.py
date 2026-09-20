@@ -19,6 +19,7 @@ from app.keyboards import (
     pay_keyboard,
     payment_nudge_keyboard,
     share_keyboard,
+    with_referral_share,
 )
 from app.remnawave import (
     RemnawaveClient,
@@ -77,7 +78,8 @@ async def share(callback: CallbackQuery) -> None:
     if not settings.referral_program_enabled:
         await callback.message.edit_text(
             "Реферальная программа приостановлена. Новые награды не начисляются. "
-            "Уже начисленный баланс сохраняется.", reply_markup=back_profile_keyboard())
+            "Уже начисленный баланс сохраняется.",
+            reply_markup=with_referral_share(callback.from_user.id, back_profile_keyboard()))
         return
     local = await db.get_user(callback.from_user.id)
     link = f"https://t.me/{settings.bot_username}?start=ref_{callback.from_user.id}"
@@ -106,7 +108,7 @@ async def share(callback: CallbackQuery) -> None:
             )
 
         body += (
-            "\n\n«Отправить другу» — шаринг Telegram. "
+            "\n\n«Поделиться реферальной ссылкой» — отправить приглашение через Telegram. "
             "«Скопировать текст» — готовое сообщение в личку, без слов про вашу награду."
         )
 
@@ -122,7 +124,7 @@ async def share(callback: CallbackQuery) -> None:
             f"Отправьте ссылку. Когда друг первый раз оплатит, вам начислят "
             f"<b>{days_text(settings.referral_reward_days)}</b>.{extra_line}\n\n"
             f"Ваша ссылка:\n<code>{link}</code>\n\n"
-            "«Отправить другу» — шаринг Telegram. "
+            "«Поделиться реферальной ссылкой» — отправить приглашение через Telegram. "
             "«Скопировать текст» — готовое сообщение в личку."
         )
     await callback.message.edit_text(
@@ -516,9 +518,9 @@ async def show_faq(callback: CallbackQuery) -> None:
 
     await ack(callback)
     try:
-        await callback.message.edit_text(faq_html(), reply_markup=faq_keyboard())
+        await callback.message.edit_text(faq_html(), reply_markup=with_referral_share(callback.from_user.id, faq_keyboard()))
     except Exception:
-        await callback.message.answer(faq_html(), reply_markup=faq_keyboard())
+        await callback.message.answer(faq_html(), reply_markup=with_referral_share(callback.from_user.id, faq_keyboard()))
 
 
 @router.callback_query(F.data == "vpn_down")
