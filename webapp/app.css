@@ -2808,6 +2808,19 @@ body:has(#webBack:not(.hidden)) .view-head {
   line-height: 1.45;
 }
 
+.trust-payment-btn {
+  width: 100%;
+  margin-top: 10px;
+  line-height: 1.4;
+  text-align: center;
+  white-space: normal;
+}
+
+.trust-payment-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .status-card > .cell {
   margin-top: 8px;
   padding-left: 0;
