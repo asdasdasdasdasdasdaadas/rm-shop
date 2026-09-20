@@ -4,9 +4,10 @@ import logging
 import uuid
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
+from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from app import db
+from app.checkout import resume_checkout
 from app.billing import expire_human, fulfill_rollypay_order, grant_plan, subscription_issued_text
 from app.config import get_settings, referral_is_payout
 from app.handlers.start import ack, gate_or_continue, show_profile
@@ -16,6 +17,7 @@ from app.keyboards import (
     connect_keyboard,
     faq_keyboard,
     pay_keyboard,
+    payment_nudge_keyboard,
     share_keyboard,
 )
 from app.remnawave import (
@@ -353,16 +355,37 @@ async def _create_plan_invoice(
         return
     if settings.stars_enabled:
         await ack(callback)
-        await callback.message.answer_invoice(
+        link = await callback.bot.create_invoice_link(
             title=f"Подписка {plan['title']}",
             description=f"Доступ на {days_text(plan['days'])}, трафик безлимитный.",
             payload=f"plan:{code}",
             currency="XTR",
             prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
         )
-        await db.track_checkout(callback.from_user.id)
+        await db.track_checkout(callback.from_user.id, pay_url=link)
+        await callback.message.answer("Счёт готов. Нажмите, чтобы оплатить:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Оплатить", url=link)]]))
         return
     await ack(callback, "Оплата не настроена", alert=True)
+
+
+@router.callback_query(F.data.startswith("resume_pay:"))
+async def resume_payment(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
+    if not await gate_or_continue(callback):
+        return
+    await ack(callback)
+    state, url = await resume_checkout(callback.from_user.id, callback.data.split(":", 1)[1], rp)
+    if state == "active":
+        await callback.message.answer("Ваш счёт ещё действует. Продолжите оплату:",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Оплатить счёт", url=url)
+            ]]))
+    elif state in {"unavailable", "processing"}:
+        await callback.message.answer("Платёж проверяется. Если деньги уже списались, не платите повторно. Попробуйте проверить позже или напишите в поддержку.")
+    elif state == "closed":
+        await callback.message.answer("Этот счёт уже закрыт. Если вы оплатили, дождитесь зачисления — повторная оплата не нужна.")
+    else:
+        await callback.message.answer("Этот счёт истёк или заменён новым. Откройте кабинет, чтобы создать новый счёт. Если деньги уже списались, дождитесь зачисления.",
+            reply_markup=payment_nudge_keyboard(label="Создать новый счёт"))
 
 
 @router.callback_query(F.data.startswith("rpc:"))

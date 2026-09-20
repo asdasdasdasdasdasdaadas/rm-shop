@@ -737,6 +737,7 @@ async def claim_trial_balance(telegram_id: int, amount: int, *, signup_only: boo
         f"""
         UPDATE users SET
             trial_used = TRUE,
+            gift_claimed_at = NOW(),
             balance_rub = COALESCE(balance_rub, 0) + $2,
             low_balance_notified_at = NULL
         WHERE telegram_id = $1
@@ -2104,14 +2105,14 @@ async def save_rollypay_order(
         payment_id,
         pay_url,
     )
-    await track_checkout(telegram_id, payment_id)
+    await track_checkout(telegram_id, payment_id, pay_url)
 
 
-async def track_checkout(telegram_id: int, payment_id: str | None = None) -> None:
+async def track_checkout(telegram_id: int, payment_id: str | None = None, pay_url: str | None = None) -> None:
     await _pool_req().execute(
         """UPDATE users SET checkout_token = $2, checkout_started_at = NOW(),
-           checkout_payment_id = $3, checkout_nudge_at = NULL WHERE telegram_id = $1""",
-        telegram_id, secrets.token_hex(16), payment_id,
+           checkout_payment_id = $3, checkout_url = $4, checkout_nudge_at = NULL WHERE telegram_id = $1""",
+        telegram_id, secrets.token_hex(16), payment_id, pay_url,
     )
 
 
@@ -3198,6 +3199,7 @@ async def list_due_trial_nudges(limit: int = 80, skip_ids: list[int] | None = No
         WHERE u.trial_nudge_sent_at IS NULL
           AND u.blocked_at IS NULL
           AND COALESCE(u.has_paid_topup, FALSE) = FALSE
+          AND COALESCE(u.trial_used, FALSE) = FALSE
           AND u.created_at <= timezone('utc', now()) - INTERVAL '24 hours'
           AND EXISTS (
               SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
@@ -3375,35 +3377,17 @@ async def restore_first_device_thanks(telegram_id: int) -> None:
 
 
 async def list_due_device_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
-    skip = [int(x) for x in (skip_ids or [])]
     rows = await _pool_req().fetch(
-        """
-        SELECT u.telegram_id, u.first_name, COALESCE(u.device_nudge_count, 0) AS device_nudge_count
+        """SELECT u.telegram_id, u.first_name, 0 AS device_nudge_count
         FROM users u
-        WHERE u.blocked_at IS NULL
-          AND u.accepted_legal_at IS NOT NULL
-          AND COALESCE(u.device_nudge_count, 0) < 3
-          AND NOT EXISTS (
-              SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
-          )
+        WHERE u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
+          AND u.bot_started_at IS NOT NULL
+          AND u.gift_claimed_at <= NOW() - INTERVAL '30 minutes'
+          AND u.first_online_at IS NULL
+          AND COALESCE(u.device_nudge_count, 0) = 0
           AND NOT (u.telegram_id = ANY($2::bigint[]))
-          AND (
-            (
-              COALESCE(u.device_nudge_count, 0) = 0
-              AND u.created_at <= timezone('utc', now()) - INTERVAL '30 minutes'
-              AND u.created_at > timezone('utc', now()) - INTERVAL '36 hours'
-            )
-            OR (
-              COALESCE(u.device_nudge_count, 0) IN (1, 2)
-              AND u.device_nudge_at IS NOT NULL
-              AND u.device_nudge_at <= timezone('utc', now()) - INTERVAL '24 hours'
-            )
-          )
-        ORDER BY u.created_at
-        LIMIT $1
-        """,
-        int(limit),
-        skip,
+        ORDER BY u.gift_claimed_at LIMIT $1""",
+        int(limit), [int(x) for x in (skip_ids or [])],
     )
     return [dict(r) for r in rows]
 
@@ -3579,19 +3563,22 @@ async def list_due_trial_end_nudges(
             u.first_name,
             COALESCE(u.balance_rub, 0) AS balance_rub,
             (
-                SELECT COUNT(*)::int FROM devices d WHERE d.telegram_id = u.telegram_id
+                SELECT COUNT(*)::int FROM devices d WHERE d.telegram_id = u.telegram_id AND COALESCE(d.kind, '') <> 'router'
             ) AS device_count
         FROM users u
         WHERE u.trial_end_nudge_at IS NULL
           AND u.blocked_at IS NULL
-          AND u.first_online_at IS NOT NULL
+          AND u.trial_used = TRUE
+          AND u.billing_paused_at IS NULL
+          AND u.bot_started_at IS NOT NULL
+          AND u.bot_blocked_at IS NULL
           AND COALESCE(u.has_paid_topup, FALSE) = FALSE
           AND COALESCE(u.balance_rub, 0) > 0
           AND EXISTS (
-              SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
+              SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id AND COALESCE(d.kind, '') <> 'router'
           )
           AND COALESCE(u.balance_rub, 0) <= $3 * GREATEST(
-              (SELECT COUNT(*)::int FROM devices d WHERE d.telegram_id = u.telegram_id),
+              (SELECT COUNT(*)::int FROM devices d WHERE d.telegram_id = u.telegram_id AND COALESCE(d.kind, '') <> 'router'),
               1
           )
           AND NOT (u.telegram_id = ANY($2::bigint[]))
@@ -4607,3 +4594,16 @@ async def admin_list_tickets(
         offset,
     )
     return [_jsonable(dict(r)) for r in rows], int(total or 0)
+
+
+async def nudge_suppressed_ids(hours: int = 24) -> list[int]:
+    """Persist cooldown across loop iterations and restarts; checkout has priority."""
+    rows = await _pool_req().fetch(
+        """SELECT u.telegram_id FROM users u
+        WHERE u.bot_started_at IS NULL OR u.blocked_at IS NOT NULL OR u.bot_blocked_at IS NOT NULL
+           OR u.checkout_started_at > NOW() - INTERVAL '20 minutes'
+           OR EXISTS (SELECT 1 FROM message_log m WHERE m.telegram_id = u.telegram_id
+               AND m.status = 'sent' AND (m.kind LIKE 'nudge_%' OR m.kind IN ('broadcast', 'low_balance'))
+               AND m.created_at > NOW() - ($1 * INTERVAL '1 hour'))""", hours,
+    )
+    return [int(r['telegram_id']) for r in rows]

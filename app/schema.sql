@@ -441,3 +441,6 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_nudge_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS users_checkout_nudge_idx ON users (checkout_started_at)
 WHERE checkout_started_at IS NOT NULL AND checkout_nudge_at IS NULL;
 INSERT INTO app_flags (key, value) VALUES ('payment_nudge', '1') ON CONFLICT (key) DO NOTHING;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS gift_claimed_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS checkout_url TEXT;

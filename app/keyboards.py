@@ -65,18 +65,22 @@ def cabinet_button() -> InlineKeyboardButton | None:
     )
 
 
-def payment_nudge_keyboard() -> InlineKeyboardMarkup:
+def payment_nudge_keyboard(token: str | None = None, *, label: str = "Продолжить оплату") -> InlineKeyboardMarkup:
+    if token:
+        return InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=label, callback_data=f"resume_pay:{token}")
+        ]])
     url = mini_app_url()
     if not url:
         return InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Продолжить оплату", callback_data="buy")
+            InlineKeyboardButton(text=label, callback_data="buy")
         ]])
     parts = urlsplit(url)
     query = dict(parse_qsl(parts.query))
     query["screen"] = "topup"
     url = urlunsplit(parts._replace(query=urlencode(query)))
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Продолжить оплату", web_app=WebAppInfo(url=url), style="success")
+        InlineKeyboardButton(text=label, web_app=WebAppInfo(url=url), style="success")
     ]])
 
 
@@ -215,9 +219,12 @@ def faq_keyboard() -> InlineKeyboardMarkup:
 
 def help_connect_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    button = cabinet_button()
+    if button:
+        builder.row(button.model_copy(update={"text": "Подключить VPN"}))
     builder.row(
         InlineKeyboardButton(
-            text="Не получается подключиться",
+            text="Нужна помощь",
             callback_data="help:connect",
         )
     )

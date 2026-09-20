@@ -67,7 +67,7 @@ class PaymentNudgeStorageTest(unittest.IsolatedAsyncioTestCase):
         conn.row_factory = sqlite3.Row
         conn.executescript("""
             CREATE TABLE users (telegram_id INTEGER PRIMARY KEY, checkout_token TEXT,
-                checkout_started_at TEXT, checkout_payment_id TEXT, checkout_nudge_at TEXT,
+                checkout_started_at TEXT, checkout_payment_id TEXT, checkout_url TEXT, checkout_nudge_at TEXT,
                 payment_nudge_at TEXT, bot_started_at TEXT, blocked_at TEXT, bot_blocked_at TEXT,
                 has_paid_topup INTEGER DEFAULT 0);
             CREATE TABLE payments (telegram_id INTEGER, created_at TEXT);

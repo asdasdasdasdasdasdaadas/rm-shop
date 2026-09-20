@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 
 from aiogram import Bot
 
@@ -217,6 +218,8 @@ async def send_story_offer_now(bot: Bot | None, telegram_id: int) -> bool:
         return False
     if await db.user_is_blocked(telegram_id):
         return False
+    if telegram_id in await db.nudge_suppressed_ids():
+        return False
     claimed = await db.take_story_nudge(telegram_id)
     if not claimed:
         return False
@@ -285,7 +288,7 @@ async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
                 source="auto",
                 telegram_id=telegram_id,
                 first_name=row.get("first_name"),
-                title=f"Напоминание: устройство {step}/3",
+                title="Подарок без первого подключения",
                 body=body,
                 status="sent",
                 extra={"step": step},
@@ -298,7 +301,7 @@ async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
                 source="auto",
                 telegram_id=telegram_id,
                 first_name=row.get("first_name"),
-                title=f"Напоминание: устройство {step}/3",
+                title="Подарок без первого подключения",
                 body=body,
                 status="failed",
                 extra=fail_extra(exc, {"step": step}),
@@ -411,16 +414,18 @@ async def send_due_first_online_nudges(bot: Bot, skip_ids: list[int] | None = No
 async def send_due_trial_end_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
     touched: list[int] = []
     settings = get_settings()
-    if not settings.balance_enabled:
+    if not settings.balance_enabled or await db.flag_on("billing_paused"):
         return 0, touched
     if await db.flag_on("maintenance"):
         return 0, touched
     sent = 0
     for row in await db.list_due_trial_end_nudges(settings.vpn_day_price_rub, NUDGE_BATCH, skip_ids):
         telegram_id = int(row["telegram_id"])
-        body = notice_text("trial_end_nudge")
+        devices = max(1, int(row.get("device_count") or 1))
+        hours = max(1, math.ceil(24 * int(row["balance_rub"]) / (devices * max(1, settings.vpn_day_price_rub))))
+        body = notice_text("trial_end_nudge", hours=hours, devices=devices)
         try:
-            await bot.send_message(telegram_id, body, reply_markup=share_keyboard(get_settings().bot_username, telegram_id))
+            await bot.send_message(telegram_id, body, reply_markup=payment_nudge_keyboard(label="Пополнить баланс"))
             await db.log_bot_message(
                 kind="nudge_trial_end",
                 source="auto",
@@ -510,7 +515,7 @@ async def send_due_payment_nudges(bot: Bot, rp=None) -> tuple[int, list[int]]:
             ok = await _deliver(
                 bot, kind="nudge_payment", telegram_id=uid, first_name=row.get("first_name"),
                 title="Незавершённая оплата", body=notice_text("payment_nudge"),
-                reply_markup=payment_nudge_keyboard(),
+                reply_markup=payment_nudge_keyboard(token),
             )
             sent += int(ok)
         except Exception:
@@ -525,18 +530,20 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
             n, skip = await send_due_payment_nudges(bot, rp)
             if n:
                 logger.info("Напоминание о незавершённой оплате: %s", n)
+            skip.extend(await db.nudge_suppressed_ids(hours=6))
+            n, ids = await send_due_trial_end_nudges(bot, skip)
+            skip.extend(ids)
+            if n:
+                logger.info("Предупреждение об окончании подарка: %s", n)
+            skip.extend(await db.nudge_suppressed_ids(hours=24))
             n, ids = await send_due_device_nudges(bot, skip)
             skip.extend(ids)
             if n:
-                logger.info("Напоминание добавить устройство: %s", n)
+                logger.info("Подарок без подключения: %s", n)
             n, ids = await send_due_first_online_nudges(bot, skip)
             skip.extend(ids)
             if n:
                 logger.info("Напоминание после первого онлайна: %s", n)
-            n, ids = await send_due_trial_end_nudges(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info("Напоминание за сутки до отключения: %s", n)
             n, ids = await send_due_idle_nudges(bot, skip)
             skip.extend(ids)
             if n:
