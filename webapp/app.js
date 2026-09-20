@@ -4261,6 +4261,21 @@ async function load() {
     showMaint(me.notice || "Доступ ограничен.");
     return;
   }
+  const entry = new URLSearchParams(window.location.search).get("screen");
+  if (!paymentEntryHandled && ["gift", "connect"].includes(entry)) {
+    paymentEntryHandled = true;
+    markIntroSeen();
+    window.__me = me;
+    const device = (me.devices || [])[0];
+    const gift = entry === "gift" && me.trial_available;
+    screen = gift ? "offer" : device ? "device" : "wizard";
+    paint(me);
+    if (gift) openOffer({ instant: true });
+    else if (device) showDevice(device);
+    else if (me.balance_enabled) startWizard({ instant: true });
+    else openHome();
+    return;
+  }
   if (!paymentEntryHandled && new URLSearchParams(window.location.search).get("screen") === "topup") {
     paymentEntryHandled = true;
     markIntroSeen();

@@ -3191,10 +3191,8 @@ async def list_due_trial_nudges(limit: int = 80, skip_ids: list[int] | None = No
           AND u.blocked_at IS NULL
           AND COALESCE(u.has_paid_topup, FALSE) = FALSE
           AND COALESCE(u.trial_used, FALSE) = FALSE
-          AND u.created_at <= timezone('utc', now()) - INTERVAL '24 hours'
-          AND EXISTS (
-              SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
-          )
+          AND u.bot_started_at <= timezone('utc', now()) - INTERVAL '24 hours'
+          AND u.bot_blocked_at IS NULL
           AND NOT (u.telegram_id = ANY($2::bigint[]))
         ORDER BY u.created_at
         LIMIT $1
@@ -3329,8 +3327,7 @@ async def mark_first_device_thanks_pending(telegram_id: int) -> None:
     await _pool_req().execute(
         """
         UPDATE users
-        SET first_device_thanks_pending = TRUE,
-            device_nudge_count = GREATEST(COALESCE(device_nudge_count, 0), 3)
+        SET first_device_thanks_pending = TRUE
         WHERE telegram_id = $1
           AND first_device_thanks_sent_at IS NULL
         """,
@@ -3369,13 +3366,14 @@ async def restore_first_device_thanks(telegram_id: int) -> None:
 
 async def list_due_device_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
     rows = await _pool_req().fetch(
-        """SELECT u.telegram_id, u.first_name, 0 AS device_nudge_count
+        """SELECT u.telegram_id, u.first_name, 0 AS device_nudge_count,
+            EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id) AS has_device
         FROM users u
         WHERE u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
           AND u.bot_started_at IS NOT NULL
           AND u.gift_claimed_at <= NOW() - INTERVAL '30 minutes'
           AND u.first_online_at IS NULL
-          AND COALESCE(u.device_nudge_count, 0) = 0
+          AND u.device_nudge_at IS NULL
           AND NOT (u.telegram_id = ANY($2::bigint[]))
         ORDER BY u.gift_claimed_at LIMIT $1""",
         int(limit), [int(x) for x in (skip_ids or [])],

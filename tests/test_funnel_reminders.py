@@ -47,14 +47,15 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
         conn.row_factory = sqlite3.Row
         conn.executescript('''
             CREATE TABLE users (telegram_id INTEGER, first_name TEXT, blocked_at TEXT, bot_blocked_at TEXT,
-                bot_started_at TEXT, gift_claimed_at TEXT, first_online_at TEXT, device_nudge_count INTEGER DEFAULT 0,
+                bot_started_at TEXT, gift_claimed_at TEXT, first_online_at TEXT, device_nudge_count INTEGER DEFAULT 0, device_nudge_at TEXT,
                 trial_end_nudge_at TEXT, trial_used INTEGER DEFAULT 1, billing_paused_at TEXT,
-                has_paid_topup INTEGER DEFAULT 0, balance_rub INTEGER DEFAULT 6, checkout_started_at TEXT);
+                has_paid_topup INTEGER DEFAULT 0, balance_rub INTEGER DEFAULT 6, checkout_started_at TEXT, created_at TEXT DEFAULT '2026-09-18', trial_nudge_sent_at TEXT);
             CREATE TABLE devices (telegram_id INTEGER, kind TEXT);
             CREATE TABLE message_log (telegram_id INTEGER, status TEXT, kind TEXT, created_at TEXT);
         ''')
         async def fetch(sql, *args):
             sql = sql.replace("timezone('utc', now())", 'NOW()').replace('::int', '')
+            sql = sql.replace("NOW() - INTERVAL '24 hours'", "'2026-09-19 12:00:00'")
             sql = sql.replace("NOW() - INTERVAL '30 minutes'", "'2026-09-20 11:30:00'")
             sql = sql.replace("NOW() - INTERVAL '20 minutes'", "'2026-09-20 11:40:00'")
             sql = sql.replace("NOW() - ($1 * INTERVAL '1 hour')", "datetime('2026-09-20 12:00:00', '-' || $1 || ' hours')")
@@ -65,12 +66,22 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
         for uid in range(1,7):
             conn.execute("INSERT INTO users (telegram_id, bot_started_at, gift_claimed_at) VALUES (?, '2026-09-19', '2026-09-20 11:00:00')", (uid,))
         conn.execute("UPDATE users SET first_online_at='2026-09-20 11:20:00' WHERE telegram_id=2")
-        conn.execute("UPDATE users SET device_nudge_count=1 WHERE telegram_id=3")
+        conn.execute("UPDATE users SET device_nudge_count=1, device_nudge_at='2026-09-20 10:00:00' WHERE telegram_id=3")
         conn.execute("UPDATE users SET gift_claimed_at='2026-09-20 11:45:00' WHERE telegram_id=4")
         conn.execute("UPDATE users SET billing_paused_at='2026-09-20' WHERE telegram_id=5")
         conn.executemany('INSERT INTO devices VALUES (?,?)', [(1,'phone'),(1,'phone'),(2,'router'),(5,'phone')])
         with patch.object(db, '_pool_req', return_value=SimpleNamespace(fetch=fetch)):
             self.assertEqual([r['telegram_id'] for r in await db.list_due_device_nudges(skip_ids=[5,6])], [1])
+            # Legacy device creation set count=3 without actually sending a reminder.
+            conn.execute("UPDATE users SET device_nudge_count=3 WHERE telegram_id=1")
+            rows = await db.list_due_device_nudges(skip_ids=[5,6])
+            self.assertEqual([r['telegram_id'] for r in rows], [1])
+            self.assertTrue(rows[0]['has_device'])
+            # An unclaimed gift is eligible without a device, even with a positive balance.
+            conn.execute("UPDATE users SET trial_used=0, gift_claimed_at=NULL WHERE telegram_id=6")
+            self.assertEqual([r['telegram_id'] for r in await db.list_due_trial_nudges()], [6])
+            conn.execute("UPDATE users SET trial_used=1 WHERE telegram_id=6")
+            self.assertEqual(await db.list_due_trial_nudges(), [])
             # At 3 rub/device/day, two phones consume 6 rub; a router, paused user, and no-device user do not qualify.
             self.assertEqual([r['telegram_id'] for r in await db.list_due_trial_end_nudges(3)], [1])
             conn.execute("UPDATE users SET checkout_started_at='2026-09-20 11:55:00' WHERE telegram_id=1")

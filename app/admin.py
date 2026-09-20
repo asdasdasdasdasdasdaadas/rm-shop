@@ -42,6 +42,7 @@ from app.keyboards import (
     blocked_keyboard,
     cabinet_keyboard,
     payment_nudge_keyboard,
+    onboarding_keyboard,
     help_connect_keyboard,
     legal_keyboard,
     share_keyboard,
@@ -669,14 +670,14 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
         return share_keyboard(settings.bot_username, telegram_id)
     if kind == "nudge_trial":
         user = await db.get_user(telegram_id)
-        already = bool(user and (user.get("trial_used") or int(user.get("balance_rub") or 0) > 0))
-        return trial_nudge_keyboard(trial_available=not already)
+        already = bool(user and user.get("trial_used"))
+        return onboarding_keyboard(gift=not already)
     if kind == "nudge_story":
         return story_nudge_keyboard()
     if kind == "first_device_thanks":
         return cabinet_keyboard()
     if kind == "nudge_device":
-        return help_connect_keyboard()
+        return onboarding_keyboard(has_device=True)
     if kind == "nudge_legal":
         return legal_keyboard()
     if kind in {"low_balance", "nudge_first_online", "nudge_trial_end"}:

@@ -10,6 +10,7 @@ from app import db
 from app.config import get_settings
 from app.keyboards import (
     cabinet_keyboard,
+    onboarding_keyboard,
     payment_nudge_keyboard,
     help_connect_keyboard,
     share_keyboard,
@@ -130,7 +131,7 @@ async def send_due_trial_nudges(bot: Bot, skip_ids: list[int] | None = None) -> 
     sent = 0
     for row in await db.list_due_trial_nudges(NUDGE_BATCH, skip_ids):
         telegram_id = int(row["telegram_id"])
-        already = bool(row.get("trial_used")) or int(row.get("balance_rub") or 0) > 0
+        already = bool(row.get("trial_used"))
         body = trial_nudge_text(row.get("first_name"), already_granted=already)
         ok = await _deliver(
             bot,
@@ -139,7 +140,7 @@ async def send_due_trial_nudges(bot: Bot, skip_ids: list[int] | None = None) -> 
             first_name=row.get("first_name"),
             title="Напоминание: триал",
             body=body,
-            reply_markup=trial_nudge_keyboard(trial_available=not already),
+            reply_markup=onboarding_keyboard(gift=True),
         )
         touched.append(telegram_id)
         if ok:
@@ -209,9 +210,9 @@ async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
     for row in await db.list_due_device_nudges(NUDGE_BATCH, skip_ids):
         telegram_id = int(row["telegram_id"])
         step = min(3, int(row.get("device_nudge_count") or 0) + 1)
-        body = notice_text(f"device_nudge_{step}")
+        body = notice_text("device_setup_nudge" if row.get("has_device") else "device_nudge_1")
         try:
-            await bot.send_message(telegram_id, body, reply_markup=help_connect_keyboard())
+            await bot.send_message(telegram_id, body, reply_markup=onboarding_keyboard(has_device=bool(row.get("has_device"))))
             await db.log_bot_message(
                 kind="nudge_device",
                 source="auto",

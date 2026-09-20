@@ -204,6 +204,21 @@ def faq_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def onboarding_keyboard(*, gift: bool = False, has_device: bool = False) -> InlineKeyboardMarkup:
+    label = "Забрать подарок" if gift else "Продолжить подключение" if has_device else "Подключить VPN"
+    url = mini_app_url()
+    if url:
+        parts = urlsplit(url)
+        query = dict(parse_qsl(parts.query))
+        query["screen"] = "gift" if gift else "connect"
+        button = InlineKeyboardButton(text=label, web_app=WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query)))))
+    else:
+        button = InlineKeyboardButton(text=label, callback_data="trial" if gift else "help:connect")
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [button], [InlineKeyboardButton(text="Нужна помощь", callback_data="help:connect")]
+    ])
+
+
 def help_connect_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     button = cabinet_button()
