@@ -932,6 +932,7 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
         now,
     )
     await resolve_exit_feedback()
+    await track_reminder_connections()
     try:
         return int(str(result).split()[-1])
     except (TypeError, ValueError, IndexError):
@@ -1002,6 +1003,7 @@ async def set_device_last_online(device_id: int, online_at) -> None:
         online_at,
     )
     await resolve_exit_feedback()
+    await track_reminder_connections()
 
 
 async def list_panel_telegram_ids() -> list[int]:
@@ -2214,7 +2216,7 @@ async def get_rollypay_order_by_payment(payment_id: str) -> dict | None:
 async def mark_rollypay_paid(order_id: str) -> bool:
     row = await _pool_req().fetchrow(
         """
-        UPDATE rollypay_orders SET status = 'granted'
+        UPDATE rollypay_orders SET status = 'granted', paid_at = NOW()
         WHERE order_id = $1 AND status <> 'granted'
         RETURNING order_id
         """,
@@ -2620,6 +2622,7 @@ async def admin_stats() -> dict:
         "broadcast_unused": int(broadcast_unused or 0),
         "funnel": await admin_funnel(),
         "exit_feedback": await admin_exit_feedback(),
+        "reminder_results": await admin_reminder_results(),
     }
 
 
@@ -4701,3 +4704,85 @@ async def nudge_retry_suppressed_ids() -> list[int]:
 
 async def release_low_balance_notice(telegram_id: int) -> None:
     await _pool_req().execute("UPDATE users SET low_balance_notified_at=NULL WHERE telegram_id=$1", telegram_id)
+
+
+async def create_reminder_delivery(telegram_id: int, kind: str, title: str, body: str) -> str:
+    token=secrets.token_urlsafe(18)
+    await _pool_req().execute(
+        "INSERT INTO reminder_deliveries (token,telegram_id,kind,title,body) VALUES ($1,$2,$3,$4,$5)",
+        token,telegram_id,kind,title,body,
+    )
+    return token
+
+
+async def finish_reminder_delivery(token: str, status: str, message_id: int | None) -> None:
+    await _pool_req().execute(
+        """UPDATE reminder_deliveries SET status=$2,message_id=$3,
+        sent_at=CASE WHEN $2='sent' THEN NOW() ELSE NULL END WHERE token=$1""",token,status,message_id,
+    )
+
+
+async def record_reminder_click(telegram_id: int, *, token: str | None = None, message_id: int | None = None) -> None:
+    await _pool_req().execute(
+        """WITH clicked AS (
+            UPDATE reminder_deliveries SET clicked_at=COALESCE(clicked_at,NOW())
+            WHERE telegram_id=$1 AND status='sent'
+              AND (($2::text IS NOT NULL AND token=$2) OR ($3::bigint IS NOT NULL AND message_id=$3))
+              AND sent_at >= NOW() - INTERVAL '30 days' RETURNING token
+        ) INSERT INTO reminder_clicks (token) SELECT token FROM clicked""",telegram_id,token,message_id,
+    )
+
+
+_REMINDER_CLICKS_SQL = """
+WITH clicks AS (
+    SELECT c.id,c.token,c.clicked_at,r.telegram_id FROM reminder_clicks c
+    JOIN reminder_deliveries r ON r.token=c.token WHERE r.status='sent'
+)
+"""
+
+
+async def track_reminder_connections() -> None:
+    try:
+        await _pool_req().execute(_REMINDER_CLICKS_SQL + """
+        UPDATE reminder_deliveries SET connected_at=(
+            SELECT MIN(d.last_online_at) FROM devices d JOIN clicks c ON c.telegram_id=d.telegram_id
+            WHERE c.token=reminder_deliveries.token
+              AND d.last_online_at >= c.clicked_at AND d.last_online_at <= c.clicked_at + INTERVAL '7 days'
+              AND NOT EXISTS (SELECT 1 FROM clicks later WHERE later.telegram_id=c.telegram_id
+                  AND (later.clicked_at > c.clicked_at OR (later.clicked_at=c.clicked_at AND later.id>c.id))
+                  AND later.clicked_at <= d.last_online_at)
+        ) WHERE status='sent' AND clicked_at IS NOT NULL AND connected_at IS NULL
+            AND created_at >= NOW() - INTERVAL '38 days'""")
+
+    except Exception:
+        logging.getLogger("rm-shop.db").debug("Reminder connection tracking failed", exc_info=True)
+
+_REMINDER_RESULTS_SQL = _REMINDER_CLICKS_SQL.rstrip() + """,
+payments_seen AS (
+    SELECT telegram_id, created_at AS paid_at FROM payments
+    UNION ALL SELECT telegram_id, paid_at FROM rollypay_orders WHERE status='granted' AND paid_at IS NOT NULL
+), results AS (
+    SELECT r.*, EXISTS (SELECT 1 FROM payments_seen p JOIN clicks c ON c.telegram_id=p.telegram_id
+        WHERE c.token=r.token AND p.paid_at >= c.clicked_at AND p.paid_at <= c.clicked_at + INTERVAL '7 days'
+        AND NOT EXISTS (SELECT 1 FROM clicks later WHERE later.telegram_id=c.telegram_id
+            AND (later.clicked_at > c.clicked_at OR (later.clicked_at=c.clicked_at AND later.id>c.id))
+            AND later.clicked_at <= p.paid_at)) AS paid_after
+    FROM reminder_deliveries r WHERE r.created_at >= NOW() - INTERVAL '30 days'
+)
+"""
+
+
+async def admin_reminder_results() -> dict:
+    pool=_pool_req()
+    grouped=await pool.fetch(_REMINDER_RESULTS_SQL + """
+        SELECT kind, COUNT(*) FILTER (WHERE status='sent')::int AS sent,
+          COUNT(*) FILTER (WHERE status='failed')::int AS failed,
+          COUNT(DISTINCT telegram_id) FILTER (WHERE status='sent')::int AS recipients,
+          COUNT(DISTINCT telegram_id) FILTER (WHERE status='sent' AND clicked_at IS NOT NULL)::int AS clicked,
+          COUNT(DISTINCT telegram_id) FILTER (WHERE connected_at IS NOT NULL)::int AS connected,
+          COUNT(DISTINCT telegram_id) FILTER (WHERE paid_after)::int AS paid
+        FROM results GROUP BY kind ORDER BY sent DESC,kind""")
+    recent=await pool.fetch(_REMINDER_RESULTS_SQL + """
+        SELECT telegram_id,kind,title,body,created_at,status,clicked_at,connected_at,paid_after
+        FROM results ORDER BY created_at DESC LIMIT 30""")
+    return {"groups":[dict(row) for row in grouped],"recent":[_jsonable(dict(row)) for row in recent]}

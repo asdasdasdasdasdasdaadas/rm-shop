@@ -336,6 +336,15 @@
 
           <div id="dash-funnels" class="hidden">
             <p id="funnelInsight" class="funnel-insight"></p>
+            <details class="panel funnel-card" id="reminderResultsCard">
+              <summary><h3>Результаты напоминаний</h3><span class="funnel-open"></span></summary>
+              <p class="muted tight">Автоматические напоминания за последние 30 дней, начиная с установки этого обновления. «Отправлено» означает, что Telegram принял сообщение, а не что его прочитали.</p>
+              <div class="table-wrap"><table><thead><tr><th>Напоминание</th><th>Отправлено / ошибок</th><th>Получателей</th><th>Перешли</th><th>Доля переходов</th><th>Подключились</th><th>Оплатили</th></tr></thead><tbody id="reminderResultGroups"></tbody></table></div>
+              <p class="muted tight">Переход — открытие кабинета по ссылке из сообщения или нажатие кнопки, переданное боту. Нажатия «Поделиться» и «Скопировать» Telegram не передаёт. Пользователи считаются по одному внутри каждого типа напоминания.</p>
+              <p class="muted tight">Подключения и оплаты связаны с последним переходом в пределах 7 дней. Учитываются касса и Stars. Это связь по времени, а не доказательство эффективности сообщения. Свежие сообщения ещё не прошли полное окно наблюдения.</p>
+              <h4>Последние 30 сообщений</h4>
+              <div class="table-wrap"><table><thead><tr><th>Сообщение</th><th>Пользователь</th><th>Отправка</th><th>Переход</th><th>Подключение</th><th>Оплата после перехода</th></tr></thead><tbody id="reminderResultRows"></tbody></table></div>
+            </details>
             <details class="panel funnel-card" id="exitFeedbackCard">
               <summary><h3>Причины удаления последнего устройства</h3><span class="funnel-open"></span></summary>
               <p id="exitFeedbackSummary" class="muted tight"></p>
@@ -1400,6 +1409,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=86"></script>
+  <script src="app.js?v=87"></script>
 </body>
 </html>

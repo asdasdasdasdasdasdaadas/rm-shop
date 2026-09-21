@@ -480,3 +480,29 @@ CREATE INDEX IF NOT EXISTS device_exit_feedback_created_idx ON device_exit_feedb
 
 ALTER TABLE device_exit_feedback ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS device_exit_feedback_user_idx ON device_exit_feedback(telegram_id, created_at DESC);
+
+
+ALTER TABLE rollypay_orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
+CREATE TABLE IF NOT EXISTS reminder_deliveries (
+    token TEXT PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sent','failed')),
+    message_id BIGINT,
+    sent_at TIMESTAMPTZ,
+    clicked_at TIMESTAMPTZ,
+    connected_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS reminder_deliveries_user_click_idx ON reminder_deliveries(telegram_id,clicked_at DESC);
+CREATE INDEX IF NOT EXISTS reminder_deliveries_created_idx ON reminder_deliveries(created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS reminder_deliveries_message_idx ON reminder_deliveries(telegram_id,message_id) WHERE message_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS reminder_clicks (
+    id BIGSERIAL PRIMARY KEY,
+    token TEXT NOT NULL REFERENCES reminder_deliveries(token) ON DELETE CASCADE,
+    clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS reminder_clicks_token_idx ON reminder_clicks(token,clicked_at DESC);

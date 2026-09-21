@@ -101,7 +101,9 @@ async def main() -> None:
         runtime.webapp_url = ""
         logger.info("Mini App выключен (WEBAPP_ENABLED=false). Кабинет подключите на деплое.")
 
+    from app.reminder_tracking import ReminderClickMiddleware
     dp = Dispatcher()
+    dp.callback_query.outer_middleware(ReminderClickMiddleware())
     dp["rw"] = rw
     dp["rp"] = rp
     dp.update.outer_middleware(MaintenanceMiddleware())

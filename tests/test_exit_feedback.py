@@ -45,6 +45,8 @@ class ExitFeedbackStorageTest(unittest.IsolatedAsyncioTestCase):
             async def acquire(self): yield self
         self.patch=patch.object(db,'_pool_req',return_value=Connection())
         self.patch.start();self.addCleanup(self.patch.stop)
+        tracking = patch.object(db, "track_reminder_connections", AsyncMock())
+        tracking.start();self.addCleanup(tracking.stop)
 
     async def test_only_last_owned_device_creates_survey(self):
         self.assertIsNone(await db.delete_device(1,20))

@@ -1329,6 +1329,35 @@ function paintTopupPayers(items) {
   });
 }
 
+function paintReminderResults(data) {
+  const groups = $("reminderResultGroups"), rows = $("reminderResultRows");
+  if (!groups || !rows) return;
+  groups.replaceChildren(); rows.replaceChildren();
+  const value = data || {};
+  (value.groups || []).forEach(item => {
+    const row = document.createElement("tr");
+    [MSG_KIND_LABEL[item.kind] || item.kind, `${item.sent} / ${item.failed}`, item.recipients, item.clicked,
+      funnelPctText(funnelPct(item.clicked, item.recipients)), item.connected, item.paid]
+      .forEach(text => row.appendChild(tdText(String(text))));
+    groups.appendChild(row);
+  });
+  if (!(value.groups || []).length) groups.appendChild(emptyRow(7, "Новые напоминания ещё не отправлялись"));
+  (value.recent || []).forEach(item => {
+    const row = document.createElement("tr");
+    const textCell = document.createElement("td");
+    const detail = document.createElement("details"), title = document.createElement("summary"), body = document.createElement("p");
+    title.textContent = item.title || MSG_KIND_LABEL[item.kind] || item.kind;
+    body.textContent = item.body;
+    detail.append(title, body); textCell.appendChild(detail); row.appendChild(textCell);
+    [item.telegram_id, `${item.status === "sent" ? "Отправлено" : item.status === "failed" ? "Ошибка" : "Не подтверждено"} · ${fmt(item.created_at)}`,
+      item.clicked_at ? fmt(item.clicked_at) : "Не зафиксирован", item.connected_at ? fmt(item.connected_at) : "Не зафиксировано",
+      item.paid_after ? "Да" : "Не зафиксирована"]
+      .forEach(text => row.appendChild(tdText(String(text))));
+    rows.appendChild(row);
+  });
+  if (!(value.recent || []).length) rows.appendChild(emptyRow(6, "Сообщений пока нет"));
+}
+
 function paintExitFeedback(data) {
   const value = data || {};
   const reasons = value.reasons || [];
@@ -1366,6 +1395,7 @@ async function loadStats() {
     loadSubJob();
     const s = await api("/admin/api/stats");
     paintExitFeedback(s.exit_feedback);
+    paintReminderResults(s.reminder_results);
     const u = s.users || {};
     const fill = (id, rows) => {
       const box = $(id);

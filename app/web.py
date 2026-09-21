@@ -403,6 +403,12 @@ async def api_me(request: web.Request) -> web.Response:
                 "brand_name": settings.brand_name,
             }
         )
+    reminder_token = str(request.headers.get("X-Reminder-Token") or "")
+    if reminder_token and len(reminder_token) <= 100:
+        try:
+            await db.record_reminder_click(telegram_id, token=reminder_token)
+        except Exception:
+            logging.getLogger(__name__).debug("Reminder open tracking failed", exc_info=True)
     bot: Bot = request.app["bot"]
     rw: RemnawaveClient = request.app["rw"]
     tg_user = parsed.user if parsed else None

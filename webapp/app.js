@@ -645,11 +645,16 @@ function haptic(kind) {
   } catch (_e) {}
 }
 
+let reminderEntryTracked = false;
 async function api(path, opts = {}) {
   const headers = {
     "X-Init-Data": tg.initData || "",
     ...(opts.headers || {}),
   };
+  if (path === "/api/me" && !reminderEntryTracked) {
+    const token = new URLSearchParams(window.location.search).get("nt");
+    if (token) headers["X-Reminder-Token"] = token;
+  }
   if (lkToken) headers["X-Lk-Token"] = lkToken;
   if (!(opts.body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
@@ -662,6 +667,7 @@ async function api(path, opts = {}) {
   if (!res.ok || data.ok === false) {
     throw new Error(data.error || "Ошибка запроса");
   }
+  if (path === "/api/me" && !data.maintenance && !data.blocked) reminderEntryTracked = true;
   return data;
 }
 
