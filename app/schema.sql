@@ -545,3 +545,8 @@ CREATE TABLE IF NOT EXISTS referral_campaign_messages (
 );
 CREATE INDEX IF NOT EXISTS referral_campaign_messages_queue
     ON referral_campaign_messages (retry_at) WHERE status IN ('pending','sending');
+
+CREATE TABLE IF NOT EXISTS referral_campaign_schedule (
+    id INTEGER PRIMARY KEY CHECK (id=1),
+    scheduled_at TIMESTAMPTZ NOT NULL
+);

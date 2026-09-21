@@ -1756,9 +1756,12 @@ async def api_referral_campaigns(request: web.Request) -> web.Response:
     try:
         if request.method == 'POST':
             body = await request.json()
+            from app.campaigns import parse_campaign_moscow_time
+            scheduled_at = parse_campaign_moscow_time(body.get('scheduled_at')) if body.get('action') == 'schedule' else None
             await db.change_referral_campaign(body.get('action'),
-                int(body['campaign_id']) if body.get('campaign_id') else None)
+                int(body['campaign_id']) if body.get('campaign_id') else None, scheduled_at)
         return web.json_response({'items': await db.admin_referral_campaigns(),
+            'scheduled_at': await db.get_referral_campaign_schedule(),
             'next_reward_rub': int(get_settings().vpn_day_price_rub) * 90})
     except (ValueError, TypeError) as exc:
         return web.json_response({'error': str(exc)}, status=400)

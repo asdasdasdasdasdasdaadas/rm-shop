@@ -1,5 +1,6 @@
 import sqlite3
 import unittest
+from datetime import datetime, timezone, timedelta
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -17,6 +18,7 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
             bot_started_at TEXT DEFAULT CURRENT_TIMESTAMP, blocked_at TEXT, bot_blocked_at TEXT,
             referral_fraction INTEGER DEFAULT 0, referral_earned INTEGER DEFAULT 0, low_balance_notified_at TEXT);
           INSERT INTO users (telegram_id,referred_by) VALUES (1,NULL),(2,1),(3,1),(4,1),(5,1),(6,1),(7,1),(8,1);
+          CREATE TABLE referral_campaign_schedule (id INTEGER PRIMARY KEY, scheduled_at TEXT);
           CREATE TABLE referral_campaigns (id INTEGER PRIMARY KEY, started_at TEXT DEFAULT CURRENT_TIMESTAMP,
             stopped_at TEXT, reward_rub INTEGER);
           CREATE UNIQUE INDEX one_active ON referral_campaigns ((1)) WHERE stopped_at IS NULL;
@@ -125,3 +127,33 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(recipients,[1,5,6,7,8])
         await db.change_referral_campaign('stop',1)
         self.assertEqual(self.sql.execute("SELECT COUNT(*) FROM referral_campaign_messages WHERE status='pending'").fetchone()[0],0)
+
+    async def test_scheduled_start_waits_then_queues_once(self):
+        now = datetime(2030,1,1,12,tzinfo=timezone.utc)
+        with patch.object(db,'_utc_now',return_value=now):
+            await db.change_referral_campaign('schedule',scheduled_at=now+timedelta(minutes=10))
+            await db.change_referral_campaign('scheduled_start')
+        self.assertEqual(self.sql.execute('SELECT COUNT(*) FROM referral_campaigns').fetchone()[0],0)
+        self.assertEqual(self.sql.execute('SELECT COUNT(*) FROM referral_campaign_messages').fetchone()[0],0)
+        with patch.object(db,'_utc_now',return_value=now+timedelta(minutes=11)):
+            await db.change_referral_campaign('scheduled_start')
+            await db.change_referral_campaign('scheduled_start')
+        self.assertEqual(self.sql.execute('SELECT COUNT(*) FROM referral_campaigns').fetchone()[0],1)
+        self.assertEqual(self.sql.execute('SELECT COUNT(*) FROM referral_campaign_messages').fetchone()[0],8)
+        self.assertEqual(self.sql.execute('SELECT COUNT(*) FROM referral_campaign_schedule').fetchone()[0],0)
+
+    async def test_schedule_cancel_and_past_validation(self):
+        now = datetime(2030,1,1,12,tzinfo=timezone.utc)
+        with patch.object(db,'_utc_now',return_value=now):
+            with self.assertRaises(ValueError):
+                await db.change_referral_campaign('schedule',scheduled_at=now)
+            await db.change_referral_campaign('schedule',scheduled_at=now+timedelta(hours=1))
+            await db.change_referral_campaign('cancel_schedule')
+        with patch.object(db,'_utc_now',return_value=now+timedelta(days=1)):
+            await db.change_referral_campaign('scheduled_start')
+        self.assertEqual(self.sql.execute('SELECT COUNT(*) FROM referral_campaigns').fetchone()[0],0)
+
+    async def test_cannot_schedule_over_running_campaign(self):
+        await db.change_referral_campaign('start')
+        with self.assertRaises(ValueError):
+            await db.change_referral_campaign('schedule',scheduled_at=datetime.now(timezone.utc)+timedelta(days=1))

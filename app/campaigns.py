@@ -1,6 +1,8 @@
 """Durable announcement queue for manually launched referral campaigns."""
 import asyncio
 import logging
+import time
+from datetime import datetime, timezone, timedelta
 from html import escape
 from urllib.parse import urlencode
 
@@ -12,6 +14,14 @@ from app.keyboards import invite_url
 from app.tg_err import fail_extra
 
 logger = logging.getLogger(__name__)
+
+
+def parse_campaign_moscow_time(value: str) -> datetime:
+    try:
+        return datetime.strptime(value, '%Y-%m-%dT%H:%M').replace(
+            tzinfo=timezone(timedelta(hours=3))).astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        raise ValueError('Укажите дату и время запуска по МСК') from None
 
 
 def campaign_announcement(telegram_id: int, reward: int):
@@ -62,8 +72,12 @@ async def deliver_campaign_message(bot, row: dict) -> float:
 
 
 async def campaign_announcement_loop(bot) -> None:
+    next_schedule_check = 0
     while True:
         try:
+            if time.monotonic() >= next_schedule_check:
+                await db.change_referral_campaign('scheduled_start')
+                next_schedule_check = time.monotonic() + 2
             row = await db.claim_campaign_message()
             pause = await deliver_campaign_message(bot, row) if row else 2
         except Exception:

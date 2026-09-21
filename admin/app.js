@@ -4494,10 +4494,11 @@ document.querySelectorAll("#setNav [data-jump], #setNavSelect").forEach((control
 let activeReferralCampaign = null;
 async function loadReferralCampaigns(action) {
   const start = $('campaignStart'), stop = $('campaignStop'), refresh = $('campaignRefresh');
-  start.disabled = stop.disabled = refresh.disabled = true;
+  const schedule = $('campaignSchedule'), cancel = $('campaignCancelSchedule');
+  start.disabled = stop.disabled = refresh.disabled = schedule.disabled = cancel.disabled = true;
   try {
     const data = await api('/admin/api/referral-campaigns', action ? {
-      method: 'POST', body: JSON.stringify({action, campaign_id: activeReferralCampaign}),
+      method: 'POST', body: JSON.stringify({action, campaign_id: activeReferralCampaign, scheduled_at: $('campaignScheduleAt').value}),
     } : undefined);
     const active = data.items.find(item => !item.stopped_at);
     activeReferralCampaign = active ? active.id : null;
@@ -4506,10 +4507,17 @@ async function loadReferralCampaigns(action) {
       : `Акция выключена. При новом запуске подарок составит ${data.next_reward_rub} ₽.`;
     $('campaignHistory').textContent = data.items.filter(item => item.stopped_at)
       .map(item => `Акция №${item.id}: ${item.friends} друзей, ${item.awards} подарков по ${item.reward_rub} ₽. Рассылка: ${item.sent || 0} отправлено, ${item.failed || 0} ошибок.`).join(' ');
-    start.disabled = Boolean(active);
+    $('campaignScheduleStatus').textContent = data.scheduled_at
+      ? 'Запланировано: ' + new Intl.DateTimeFormat('ru-RU', {timeZone: 'Europe/Moscow', dateStyle: 'short', timeStyle: 'short'}).format(new Date(data.scheduled_at)) + ' МСК.'
+      : 'Запланированного запуска нет.';
+    schedule.textContent = data.scheduled_at ? 'Изменить время запуска' : 'Запланировать запуск';
+    schedule.disabled = Boolean(active);
+    cancel.disabled = !data.scheduled_at;
+    start.disabled = Boolean(active) || Boolean(data.scheduled_at);
     stop.disabled = !active;
   } catch (err) {
     $('campaignStatus').textContent = err.message || 'Не удалось загрузить акцию. Нажмите «Обновить».';
+    if (action) { toast(err.message || 'Не удалось сохранить'); await loadReferralCampaigns(); }
   } finally {
     refresh.disabled = false;
   }
@@ -4517,3 +4525,6 @@ async function loadReferralCampaigns(action) {
 $('campaignStart').onclick = () => loadReferralCampaigns('start');
 $('campaignStop').onclick = () => loadReferralCampaigns('stop');
 $('campaignRefresh').onclick = () => loadReferralCampaigns();
+
+$('campaignSchedule').onclick = () => loadReferralCampaigns('schedule');
+$('campaignCancelSchedule').onclick = () => loadReferralCampaigns('cancel_schedule');

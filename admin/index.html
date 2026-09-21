@@ -569,6 +569,14 @@
               <button id="campaignStop" type="button" disabled>Завершить акцию</button>
               <button id="campaignRefresh" type="button">Обновить</button>
             </div>
+            <label class="ops-label" for="campaignScheduleAt">Дата и время запуска — Москва (МСК, UTC+3)</label>
+            <input id="campaignScheduleAt" type="datetime-local" step="60">
+            <p class="muted">В назначенное время включится акция и начнётся рассылка. Время всегда московское, независимо от часового пояса устройства. Подарок рассчитывается по тарифу на момент запуска. Если бот был выключен, запуск произойдёт после его включения.</p>
+            <p id="campaignScheduleStatus" aria-live="polite"></p>
+            <div class="ops">
+              <button id="campaignSchedule" type="button" disabled>Запланировать запуск</button>
+              <button id="campaignCancelSchedule" type="button" disabled>Отменить расписание</button>
+            </div>
             <div id="campaignHistory" class="muted"></div>
           </div>
           <div class="panel" id="promo-ref">
@@ -1422,6 +1430,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=89"></script>
+  <script src="app.js?v=90"></script>
 </body>
 </html>

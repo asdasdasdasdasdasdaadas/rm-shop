@@ -52,3 +52,9 @@ class CampaignAnnouncementTest(unittest.IsolatedAsyncioTestCase):
         with self.assertLogs(campaigns.logger,level='ERROR'):
             await campaigns.deliver_campaign_message(self.bot,self.row)
         self.finish.assert_awaited_once_with(7,123,error=None,retry_seconds=None)
+
+    def test_moscow_input_is_converted_to_utc(self):
+        value=campaigns.parse_campaign_moscow_time('2030-01-02T18:30')
+        self.assertEqual(value.isoformat(),'2030-01-02T15:30:00+00:00')
+        for value in (None, '', '2030-01-02T18:30Z', '2030-02-31T12:00'):
+            with self.assertRaises(ValueError): campaigns.parse_campaign_moscow_time(value)

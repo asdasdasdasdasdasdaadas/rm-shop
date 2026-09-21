@@ -4804,16 +4804,37 @@ async def admin_referral_campaigns() -> list[dict]:
     return [_jsonable(dict(r)) for r in rows]
 
 
-async def change_referral_campaign(action: str, campaign_id: int | None = None) -> None:
-    if action not in ('start', 'stop'):
+async def change_referral_campaign(action: str, campaign_id: int | None = None,
+                                   scheduled_at: datetime | None = None) -> None:
+    if action not in ('start', 'stop', 'schedule', 'cancel_schedule', 'scheduled_start'):
         raise ValueError('Неизвестное действие')
     settings = get_settings()
-    if action == 'start' and (not settings.balance_enabled or settings.vpn_day_price_rub <= 0):
+    if action in ('start', 'schedule') and (not settings.balance_enabled or settings.vpn_day_price_rub <= 0):
         raise ValueError('Акция доступна при оплате с баланса и положительной цене дня')
     async with _pool_req().acquire() as conn:
         async with conn.transaction():
             await conn.execute('SELECT pg_advisory_xact_lock(73619420)')
+            if action == 'cancel_schedule':
+                await conn.execute('DELETE FROM referral_campaign_schedule WHERE id=1')
+                return
+            if action == 'schedule':
+                if scheduled_at is None or scheduled_at <= _utc_now():
+                    raise ValueError('Выберите дату и время в будущем по МСК')
+                if await conn.fetchval('SELECT id FROM referral_campaigns WHERE stopped_at IS NULL'):
+                    raise ValueError('Сначала завершите текущую акцию')
+                await conn.execute("""INSERT INTO referral_campaign_schedule (id,scheduled_at) VALUES (1,$1)
+                    ON CONFLICT (id) DO UPDATE SET scheduled_at=excluded.scheduled_at""", scheduled_at)
+                return
+            if action == 'scheduled_start':
+                due = await conn.fetchval("""DELETE FROM referral_campaign_schedule
+                    WHERE id=1 AND scheduled_at <= $1 RETURNING scheduled_at""", _utc_now())
+                if due is None:
+                    return
+                if not settings.balance_enabled or settings.vpn_day_price_rub <= 0:
+                    raise ValueError('Нельзя запустить акцию: проверьте режим баланса и цену дня')
+                action = 'start'
             if action == 'start':
+                await conn.execute('DELETE FROM referral_campaign_schedule WHERE id=1')
                 new_id = await conn.fetchval("""INSERT INTO referral_campaigns (reward_rub)
                     SELECT $1 WHERE NOT EXISTS
                     (SELECT 1 FROM referral_campaigns WHERE stopped_at IS NULL) RETURNING id""",
@@ -4892,3 +4913,8 @@ async def finish_campaign_message(campaign_id: int, telegram_id: int, *, error: 
         WHERE campaign_id=$1 AND telegram_id=$2""", campaign_id,telegram_id,
         'sent' if error is None else 'pending' if retry_seconds is not None else 'failed',
         error, retry_seconds or 0)
+
+
+async def get_referral_campaign_schedule() -> str | None:
+    value = await _pool_req().fetchval('SELECT scheduled_at FROM referral_campaign_schedule WHERE id=1')
+    return value.isoformat() if value else None
