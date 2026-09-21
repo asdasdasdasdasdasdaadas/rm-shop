@@ -1749,6 +1749,21 @@ async def api_announcement_image(request: web.Request) -> web.Response:
     )
 
 
+async def api_referral_campaigns(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        if request.method == 'POST':
+            body = await request.json()
+            await db.change_referral_campaign(body.get('action'),
+                int(body['campaign_id']) if body.get('campaign_id') else None)
+        return web.json_response({'items': await db.admin_referral_campaigns(),
+            'next_reward_rub': int(get_settings().vpn_day_price_rub) * 90})
+    except (ValueError, TypeError) as exc:
+        return web.json_response({'error': str(exc)}, status=400)
+
+
 async def api_referral_settings(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2247,6 +2262,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/billing", api_billing)
     app.router.add_get("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/settings", api_settings)
+    app.router.add_get("/admin/api/referral-campaigns", api_referral_campaigns)
+    app.router.add_post("/admin/api/referral-campaigns", api_referral_campaigns)
     app.router.add_post("/admin/api/settings/referrals", api_referral_settings)
     app.router.add_post("/admin/api/users/purge-bot-blockers", api_purge_bot_blockers)
     app.router.add_post("/admin/api/users/{telegram_id}/grant", api_grant)

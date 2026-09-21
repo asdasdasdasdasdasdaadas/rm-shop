@@ -1686,6 +1686,7 @@ async function runBulk(payload, confirmText) {
 }
 
 async function loadReferrals(page) {
+  loadReferralCampaigns();
   if (page) refPage = page;
   const f = { q: val("refQ"), reward: val("refReward"), from: val("refFrom"), to: val("refTo") };
   const reset = $("refReset");
@@ -4488,3 +4489,31 @@ document.querySelectorAll("#setNav [data-jump], #setNavSelect").forEach((control
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 });
+
+
+let activeReferralCampaign = null;
+async function loadReferralCampaigns(action) {
+  const start = $('campaignStart'), stop = $('campaignStop'), refresh = $('campaignRefresh');
+  start.disabled = stop.disabled = refresh.disabled = true;
+  try {
+    const data = await api('/admin/api/referral-campaigns', action ? {
+      method: 'POST', body: JSON.stringify({action, campaign_id: activeReferralCampaign}),
+    } : undefined);
+    const active = data.items.find(item => !item.stopped_at);
+    activeReferralCampaign = active ? active.id : null;
+    $('campaignStatus').textContent = active
+      ? `Акция №${active.id} запущена. Подарок: ${active.reward_rub} ₽. Оплативших друзей: ${active.friends}. Выдано подарков: ${active.awards}.`
+      : `Акция выключена. При новом запуске подарок составит ${data.next_reward_rub} ₽.`;
+    $('campaignHistory').textContent = data.items.filter(item => item.stopped_at)
+      .map(item => `Акция №${item.id}: ${item.friends} друзей, ${item.awards} подарков по ${item.reward_rub} ₽.`).join(' ');
+    start.disabled = Boolean(active);
+    stop.disabled = !active;
+  } catch (err) {
+    $('campaignStatus').textContent = err.message || 'Не удалось загрузить акцию. Нажмите «Обновить».';
+  } finally {
+    refresh.disabled = false;
+  }
+}
+$('campaignStart').onclick = () => loadReferralCampaigns('start');
+$('campaignStop').onclick = () => loadReferralCampaigns('stop');
+$('campaignRefresh').onclick = () => loadReferralCampaigns();

@@ -148,6 +148,17 @@ async def maybe_reward_referrer(
     if settings.balance_enabled:
         result = await db.reward_referral_payment(new_user_id, payment_key or "", topup_rub,
             enabled=settings.referral_program_enabled, first_payment=first_payment)
+        if result and result.get('campaign') and bot:
+            gift = result['campaign']
+            try:
+                await bot.send_message(gift['referrer_id'],
+                    "🎁 Трое ваших друзей впервые пополнили баланс — подарок ваш!\n\n"
+                    f"Начислили {rub_text(gift['amount'])} на VPN: это стоимость 30 дней на 3 устройства "
+                    "по тарифу на старте акции. При другом количестве устройств срок расходования баланса изменится.\n\n"
+                    "Подарок за эту акцию получен. Спасибо, что рекомендуете нас друзьям!",
+                    reply_markup=with_referral_share(gift['referrer_id'], cabinet_keyboard()))
+            except Exception:
+                pass
         if result and result['amount'] > 0 and bot:
             try:
                 await bot.send_message(result['referrer_id'],

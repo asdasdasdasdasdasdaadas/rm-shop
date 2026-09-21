@@ -11,7 +11,9 @@ class ReferralProgramTest(unittest.IsolatedAsyncioTestCase):
         self.conn = sqlite3.connect(':memory:')
         self.addCleanup(self.conn.close)
         self.conn.row_factory = sqlite3.Row
+        self.conn.create_function('pg_advisory_xact_lock',1,lambda _: None)
         self.conn.executescript('''
+            CREATE TABLE referral_campaigns (id INTEGER PRIMARY KEY, stopped_at TEXT, reward_rub INTEGER);
             CREATE TABLE users (telegram_id INTEGER PRIMARY KEY, referred_by INTEGER, referral_rewarded BOOLEAN DEFAULT FALSE,
                 referral_fraction INTEGER DEFAULT 0, balance_rub INTEGER DEFAULT 0, referral_earned INTEGER DEFAULT 0,
                 low_balance_notified_at TEXT);

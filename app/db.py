@@ -4628,6 +4628,7 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
         return None
     async with _pool_req().acquire() as conn:
         async with conn.transaction():
+            await conn.execute('SELECT pg_advisory_xact_lock(73619420)')
             invitee = await conn.fetchrow(
                 "SELECT referred_by, referral_rewarded FROM users WHERE telegram_id=$1 FOR UPDATE", invitee_id)
             if not invitee:
@@ -4637,8 +4638,11 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
                 """INSERT INTO referral_payment_rewards (payment_key, invitee_id, referrer_id, topup_rub, enabled)
                    VALUES ($1,$2,$3,$4,$5) ON CONFLICT (payment_key) DO NOTHING RETURNING payment_key""",
                 payment_key, invitee_id, referrer_id, amount, enabled)
-            if not inserted or not enabled or not referrer_id or referrer_id == invitee_id:
+            if not inserted:
                 return None
+            campaign = await _reward_campaign(conn, invitee_id, referrer_id, payment_key, first_payment)
+            if not enabled or not referrer_id or referrer_id == invitee_id:
+                return {'referrer_id': referrer_id, 'amount': 0, 'campaign': campaign} if campaign else None
             referrer = await conn.fetchrow(
                 "SELECT referral_fraction FROM users WHERE telegram_id=$1 FOR UPDATE", referrer_id)
             if not referrer:
@@ -4659,7 +4663,7 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
                     """INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
                        VALUES ($1,'referral','payment',$2,$3,$4)""", referrer_id,reward,after,
                     f"Друг {invitee_id}: первая оплата {bonus} ₽ + 5% от {amount} ₽; {payment_key}")
-            return {'referrer_id':referrer_id,'amount':reward,'bonus':bonus,'percent':percent}
+            return {'referrer_id':referrer_id,'amount':reward,'bonus':bonus,'percent':percent,'campaign':campaign}
 
 
 async def nudge_delivery_allowed(telegram_id: int, kind: str) -> bool:
@@ -4786,3 +4790,62 @@ async def admin_reminder_results() -> dict:
         SELECT telegram_id,kind,title,body,created_at,status,clicked_at,connected_at,paid_after
         FROM results ORDER BY created_at DESC LIMIT 30""")
     return {"groups":[dict(row) for row in grouped],"recent":[_jsonable(dict(row)) for row in recent]}
+
+
+async def admin_referral_campaigns() -> list[dict]:
+    rows = await _pool_req().fetch("""
+        SELECT c.*,
+          (SELECT COUNT(*) FROM referral_campaign_friends f WHERE f.campaign_id=c.id) AS friends,
+          (SELECT COUNT(*) FROM referral_campaign_awards a WHERE a.campaign_id=c.id) AS awards
+        FROM referral_campaigns c ORDER BY c.id DESC LIMIT 20""")
+    return [_jsonable(dict(r)) for r in rows]
+
+
+async def change_referral_campaign(action: str, campaign_id: int | None = None) -> None:
+    if action not in ('start', 'stop'):
+        raise ValueError('Неизвестное действие')
+    settings = get_settings()
+    if action == 'start' and (not settings.balance_enabled or settings.vpn_day_price_rub <= 0):
+        raise ValueError('Акция доступна при оплате с баланса и положительной цене дня')
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            await conn.execute('SELECT pg_advisory_xact_lock(73619420)')
+            if action == 'start':
+                await conn.execute("""INSERT INTO referral_campaigns (reward_rub)
+                    SELECT $1 WHERE NOT EXISTS
+                    (SELECT 1 FROM referral_campaigns WHERE stopped_at IS NULL)""",
+                    int(settings.vpn_day_price_rub) * 30 * 3)
+            else:
+                await conn.execute("""UPDATE referral_campaigns SET stopped_at=clock_timestamp()
+                    WHERE id=$1 AND stopped_at IS NULL""", campaign_id)
+
+
+async def _reward_campaign(conn, invitee_id: int, referrer_id: int | None,
+                           payment_key: str, first_payment: bool) -> dict | None:
+    # Caller holds the campaign advisory lock and provider-payment deduplication row.
+    if not first_payment or not referrer_id or referrer_id == invitee_id:
+        return None
+    campaign = await conn.fetchrow('SELECT * FROM referral_campaigns WHERE stopped_at IS NULL')
+    if not campaign:
+        return None
+    inserted = await conn.fetchval("""INSERT INTO referral_campaign_friends
+        (invitee_id,campaign_id,referrer_id,payment_key) VALUES ($1,$2,$3,$4)
+        ON CONFLICT DO NOTHING RETURNING invitee_id""",
+        invitee_id, campaign['id'], referrer_id, payment_key)
+    if not inserted:
+        return None
+    count = await conn.fetchval("""SELECT COUNT(*) FROM referral_campaign_friends
+        WHERE campaign_id=$1 AND referrer_id=$2""", campaign['id'], referrer_id)
+    if count < 3:
+        return None
+    amount = await conn.fetchval("""INSERT INTO referral_campaign_awards (campaign_id,referrer_id,amount)
+        VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING amount""",
+        campaign['id'], referrer_id, campaign['reward_rub'])
+    if amount is None:
+        return None
+    balance = await conn.fetchval("""UPDATE users SET balance_rub=COALESCE(balance_rub,0)+$2,
+        low_balance_notified_at=NULL WHERE telegram_id=$1 RETURNING balance_rub""", referrer_id, amount)
+    await conn.execute("""INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
+        VALUES ($1,'referral','campaign',$2,$3,$4)""", referrer_id, amount, balance,
+        f"Акция #{campaign['id']}: 3 друга, 30 дней на 3 устройства")
+    return {'referrer_id': referrer_id, 'amount': amount, 'campaign_id': campaign['id']}

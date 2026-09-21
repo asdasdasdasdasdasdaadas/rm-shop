@@ -506,3 +506,29 @@ CREATE TABLE IF NOT EXISTS reminder_clicks (
     clicked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS reminder_clicks_token_idx ON reminder_clicks(token,clicked_at DESC);
+
+-- Independent, manually launched three-friend promotion.
+CREATE TABLE IF NOT EXISTS referral_campaigns (
+    id BIGSERIAL PRIMARY KEY,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    stopped_at TIMESTAMPTZ,
+    reward_rub INTEGER NOT NULL CHECK (reward_rub > 0)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS referral_campaign_one_active
+    ON referral_campaigns ((1)) WHERE stopped_at IS NULL;
+CREATE TABLE IF NOT EXISTS referral_campaign_friends (
+    invitee_id BIGINT PRIMARY KEY REFERENCES users(telegram_id),
+    campaign_id BIGINT NOT NULL REFERENCES referral_campaigns(id),
+    referrer_id BIGINT NOT NULL REFERENCES users(telegram_id),
+    payment_key TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS referral_campaign_friends_progress
+    ON referral_campaign_friends (campaign_id, referrer_id);
+CREATE TABLE IF NOT EXISTS referral_campaign_awards (
+    campaign_id BIGINT NOT NULL REFERENCES referral_campaigns(id),
+    referrer_id BIGINT NOT NULL REFERENCES users(telegram_id),
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (campaign_id, referrer_id)
+);

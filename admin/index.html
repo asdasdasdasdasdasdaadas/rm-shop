@@ -558,6 +558,19 @@
         </section>
 
         <section id="tab-referrals" class="hidden">
+          <div class="panel">
+            <h3>Отдельная акция: 3 друга → месяц VPN</h3>
+            <p class="muted">За первую успешную оплату трёх разных друзей по реферальной ссылке — стоимость 30 дней на 3 устройства на баланс. Один подарок пользователю за запуск. Учитываются первые оплаты во время акции, в том числе от ранее приглашённых друзей. Оплаты роутера не учитываются.</p>
+            <p class="muted">Акция работает независимо от обычной реферальной программы. Подарок не доступен к выводу. Сумма фиксируется при запуске. В кабинете акция не отображается. Запуск не отправляет рассылку — анонс можно опубликовать отдельно.</p>
+            <p class="muted">Остановка завершает акцию. Следующий запуск начинает новый счётчик; ранее зачтённые друзья повторно не участвуют.</p>
+            <p id="campaignStatus" aria-live="polite">Загрузка…</p>
+            <div class="ops">
+              <button id="campaignStart" type="button" disabled>Запустить новую акцию</button>
+              <button id="campaignStop" type="button" disabled>Завершить акцию</button>
+              <button id="campaignRefresh" type="button">Обновить</button>
+            </div>
+            <div id="campaignHistory" class="muted"></div>
+          </div>
           <div class="panel" id="promo-ref">
             <h3>Реферальная программа</h3>
             <label class="check-row"><input id="setRefProgramOn" type="checkbox"><span>Начислять реферальные награды</span></label>
@@ -1409,6 +1422,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=87"></script>
+  <script src="app.js?v=88"></script>
 </body>
 </html>
