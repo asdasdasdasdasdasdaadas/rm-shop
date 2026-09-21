@@ -6131,3 +6131,8 @@ html.is-decoy .decoy:has(#decoySerp:not(.hidden)) .decoy-bar {
   .low-balance-sheet[open] { animation: none; }
   .low-balance-sheet button { transition: none; }
 }
+
+.exit-feedback-sheet { padding-top: 24px; }
+.exit-feedback-options { display: grid; gap: 10px; margin: 20px 0 12px; }
+.exit-feedback-options .btn, #exitFeedbackSkip { width: 100%; }
+#exitFeedbackError:empty { display: none; }

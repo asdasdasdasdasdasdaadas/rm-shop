@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=177">
+  <link rel="stylesheet" href="app.css?v=178">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -1056,6 +1056,20 @@
     <button type="button" id="appMainBtn" class="btn btn-primary"></button>
   </div>
 
+  <dialog id="exitFeedbackSheet" class="low-balance-sheet exit-feedback-sheet" aria-labelledby="exitFeedbackTitle" aria-describedby="exitFeedbackDescription">
+    <button type="button" id="exitFeedbackClose" class="low-balance-close" aria-label="Закрыть">✕</button>
+    <h2 id="exitFeedbackTitle">Что можно улучшить?</h2>
+    <p id="exitFeedbackDescription" class="low-balance-description">Вы удалили последнее устройство. Подскажете почему? Отвечать необязательно.</p>
+    <div class="exit-feedback-options">
+      <button type="button" class="btn btn-ghost" data-exit-reason="expensive">Дорого</button>
+      <button type="button" class="btn btn-ghost" data-exit-reason="not_working">Не работает — нужна помощь</button>
+      <button type="button" class="btn btn-ghost" data-exit-reason="not_needed">Больше не нужен</button>
+      <button type="button" class="btn btn-ghost" data-exit-reason="other">Другое</button>
+    </div>
+    <p id="exitFeedbackError" class="low-balance-description" role="status"></p>
+    <button type="button" id="exitFeedbackSkip" class="btn btn-ghost">Пропустить</button>
+  </dialog>
+
   <dialog id="lowBalanceSheet" class="low-balance-sheet" aria-labelledby="lowBalanceTitle" aria-describedby="lowBalanceDescription">
     <div id="lowBalanceGrab" class="low-balance-grab-zone"><div class="low-balance-grab" aria-hidden="true"></div></div>
     <button type="button" id="lowBalanceClose" class="low-balance-close" aria-label="Закрыть">✕</button>
@@ -1113,6 +1127,6 @@
 
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
-  <script src="app.js?v=160"></script>
+  <script src="app.js?v=161"></script>
 </body>
 </html>

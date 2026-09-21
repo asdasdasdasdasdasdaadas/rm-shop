@@ -1867,12 +1867,55 @@ async def get_device(telegram_id: int, device_id: int) -> dict | None:
 
 
 async def delete_device(telegram_id: int, device_id: int) -> dict | None:
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            # Serialize deletions by account: only the last one creates a survey.
+            await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id=$1 FOR UPDATE", telegram_id)
+            row = await conn.fetchrow(
+                "DELETE FROM devices WHERE id=$1 AND telegram_id=$2 RETURNING *", device_id, telegram_id,
+            )
+            if not row:
+                return None
+            result = dict(row)
+            remaining = await conn.fetchval("SELECT COUNT(*) FROM devices WHERE telegram_id=$1", telegram_id)
+            if not remaining:
+                token = secrets.token_urlsafe(24)
+                await conn.execute("INSERT INTO device_exit_feedback (token,telegram_id) VALUES ($1,$2)", token, telegram_id)
+                result["exit_feedback_token"] = token
+            return result
+
+
+EXIT_REASONS = {"expensive": "Дорого", "not_working": "Не работает", "not_needed": "Больше не нужен", "other": "Другое"}
+
+
+async def save_exit_feedback(telegram_id: int, token: str, reason: str) -> bool:
+    if reason not in EXIT_REASONS:
+        return False
     row = await _pool_req().fetchrow(
-        "DELETE FROM devices WHERE id = $1 AND telegram_id = $2 RETURNING *",
-        device_id,
-        telegram_id,
+        """UPDATE device_exit_feedback SET reason=$3, answered_at=COALESCE(answered_at,NOW())
+        WHERE token=$1 AND telegram_id=$2 AND created_at > NOW() - INTERVAL '1 day'
+          AND (reason IS NULL OR reason=$3)
+        RETURNING token""", token, telegram_id, reason,
     )
-    return _as_dict(row)
+    return row is not None
+
+
+async def admin_exit_feedback() -> dict:
+    pool = _pool_req()
+    counts = await pool.fetch(
+        """SELECT reason, COUNT(*)::int AS n FROM device_exit_feedback
+        WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY reason"""
+    )
+    recent = await pool.fetch(
+        """SELECT f.telegram_id, u.username, f.reason, f.answered_at
+        FROM device_exit_feedback f JOIN users u ON u.telegram_id=f.telegram_id
+        WHERE f.reason IS NOT NULL AND f.created_at >= NOW() - INTERVAL '30 days'
+        ORDER BY f.answered_at DESC LIMIT 30"""
+    )
+    by_reason = {r['reason']: int(r['n']) for r in counts}
+    return {"total": sum(by_reason.values()), "answered": sum(n for reason,n in by_reason.items() if reason),
+            "reasons": [{"key": key, "label": label, "count": by_reason.get(key,0)} for key,label in EXIT_REASONS.items()],
+            "recent": [_jsonable(dict(row)) for row in recent]}
 
 
 async def device_count(telegram_id: int) -> int:
@@ -2549,6 +2592,7 @@ async def admin_stats() -> dict:
         "broadcast_using": int(broadcast_using or 0),
         "broadcast_unused": int(broadcast_unused or 0),
         "funnel": await admin_funnel(),
+        "exit_feedback": await admin_exit_feedback(),
     }
 
 

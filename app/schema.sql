@@ -467,3 +467,13 @@ FROM (
         UNION ALL SELECT telegram_id, checkout_started_at AS created_at FROM users WHERE checkout_started_at IS NOT NULL
     ) history GROUP BY telegram_id
 ) h WHERE h.telegram_id=u.telegram_id AND u.first_checkout_at IS NULL;
+
+
+CREATE TABLE IF NOT EXISTS device_exit_feedback (
+    token TEXT PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    reason TEXT CHECK (reason IN ('expensive','not_working','not_needed','other')),
+    answered_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS device_exit_feedback_created_idx ON device_exit_feedback(created_at DESC);

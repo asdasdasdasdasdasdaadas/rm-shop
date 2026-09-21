@@ -969,6 +969,25 @@ async def api_delete_device(request: web.Request) -> web.Response:
         device_title=str(item.get("title") or ""),
         note="Устройство удалено",
     )
+    return web.json_response({"ok": True, "exit_feedback_token": removed.get("exit_feedback_token")})
+
+
+async def api_exit_feedback(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            return json_error("Некорректный ответ")
+        token = str(body.get("token") or "")
+        reason = str(body.get("reason") or "")
+    except (ValueError, TypeError):
+        return json_error("Некорректный ответ")
+    if not token or len(token) > 128 or reason not in db.EXIT_REASONS:
+        return json_error("Выберите причину")
+    if not await db.save_exit_feedback(telegram_id, token, reason):
+        return json_error("Опрос уже закрыт", 409)
     return web.json_response({"ok": True})
 
 
@@ -1244,6 +1263,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/devices", api_add_device)
         app.router.add_post("/api/devices/{device_id}/reissue", api_reissue_device)
         app.router.add_delete("/api/devices/{device_id}", api_delete_device)
+        app.router.add_post("/api/exit-feedback", api_exit_feedback)
         app.router.add_post("/api/subscription/reissue", api_reissue_subscription)
         app.router.add_post("/api/trust", api_trust)
         app.router.add_get("/api/billing", api_billing_history)

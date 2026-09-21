@@ -3903,11 +3903,12 @@ function renderRouter(me) {
     haptic();
     if (!(await askDeleteDevice())) return;
     try {
-      await api(`/api/devices/${device.id}`, { method: "DELETE" });
+      const deleted = await api(`/api/devices/${device.id}`, { method: "DELETE" });
       lastDevicesKey = "";
       markOnboardDone();
       await load();
       showToast("Устройство удалено");
+      showExitFeedback(deleted.exit_feedback_token);
     } catch (e) {
       showErr(e);
     }
@@ -4675,18 +4676,73 @@ function askDeleteDevice() {
   });
 }
 
+let exitFeedbackToken = "";
+let exitFeedbackBusy = false;
+
+function showExitFeedback(token) {
+  if (!token || (window.__me && (window.__me.devices || []).length)) return;
+  exitFeedbackToken = token;
+  $("exitFeedbackError").textContent = "";
+  $("exitFeedbackSheet").showModal();
+}
+
+function closeExitFeedback() {
+  exitFeedbackToken = "";
+  $("exitFeedbackSheet").close();
+}
+
+async function answerExitFeedback(reason) {
+  if (!exitFeedbackToken || exitFeedbackBusy) return;
+  exitFeedbackBusy = true;
+  const token = exitFeedbackToken;
+  let goToSupport = false;
+  const buttons = document.querySelectorAll("[data-exit-reason]");
+  buttons.forEach(button => button.disabled = true);
+  try {
+    await api("/api/exit-feedback", {method: "POST", body: JSON.stringify({token, reason})});
+    if (exitFeedbackToken === token) {
+      goToSupport = reason === "not_working";
+      closeExitFeedback();
+      if (reason !== "not_working") showToast("Спасибо за ответ");
+    }
+  } catch (_e) {
+    if (exitFeedbackToken === token) {
+      goToSupport = reason === "not_working";
+      $("exitFeedbackError").textContent = "Не удалось сохранить ответ. Можно повторить или пропустить.";
+    }
+  } finally {
+    // Support remains accessible even if saving the optional answer fails.
+    if (goToSupport) {
+      closeExitFeedback();
+      openSupport();
+      if (!$("supportText").value.trim()) $("supportText").value = "Не удалось подключить VPN. Удалил последнее устройство. Нужна помощь с настройкой.";
+      resizeSupportText();
+    }
+    exitFeedbackBusy = false;
+    buttons.forEach(button => button.disabled = false);
+  }
+}
+
+$("exitFeedbackClose").onclick = closeExitFeedback;
+$("exitFeedbackSkip").onclick = closeExitFeedback;
+$("exitFeedbackSheet").addEventListener("cancel", () => { exitFeedbackToken = ""; });
+document.querySelectorAll("[data-exit-reason]").forEach(button => {
+  button.onclick = () => answerExitFeedback(button.dataset.exitReason);
+});
+
 async function deleteDevice() {
   const d = openDevice;
   if (!d) return;
   haptic();
   if (!(await askDeleteDevice())) return;
   try {
-    await api(`/api/devices/${d.id}`, { method: "DELETE" });
+    const deleted = await api(`/api/devices/${d.id}`, { method: "DELETE" });
     lastDevicesKey = "";
     markOnboardDone();
     openHome();
     await load();
     showToast("Устройство удалено");
+    showExitFeedback(deleted.exit_feedback_token);
   } catch (e) {
     showErr(e);
   }

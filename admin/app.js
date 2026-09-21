@@ -1329,6 +1329,32 @@ function paintTopupPayers(items) {
   });
 }
 
+function paintExitFeedback(data) {
+  const value = data || {};
+  const reasons = value.reasons || [];
+  const counts = $("exitFeedbackCounts");
+  const rows = $("exitFeedbackRows");
+  if (!counts || !rows) return;
+  $("exitFeedbackSummary").textContent = `Ответили ${value.answered || 0} из ${value.total || 0}. Последние 30 ответов ниже.`;
+  counts.replaceChildren();
+  rows.replaceChildren();
+  reasons.forEach(reason => counts.appendChild(card(reason.label, reason.count || 0)));
+  const labels = Object.fromEntries(reasons.map(reason => [reason.key, reason.label]));
+  (value.recent || []).forEach(item => {
+    const row = document.createElement("tr");
+    row.className = "row-link";
+    row.appendChild(tdText(String(item.telegram_id) + (item.username ? " @" + item.username : "")));
+    row.appendChild(tdText(labels[item.reason] || item.reason));
+    row.appendChild(tdText(fmt(item.answered_at)));
+    row.onclick = () => {
+      applyUserFilters({q: String(item.telegram_id)});
+      switchTab("users", {skipFill: true});
+    };
+    rows.appendChild(row);
+  });
+  if (!(value.recent || []).length) rows.appendChild(emptyRow(3, "Ответов пока нет"));
+}
+
 async function loadStats() {
   const err = $("statsErr");
   if (err) {
@@ -1339,6 +1365,7 @@ async function loadStats() {
     await loadFlags();
     loadSubJob();
     const s = await api("/admin/api/stats");
+    paintExitFeedback(s.exit_feedback);
     const u = s.users || {};
     const fill = (id, rows) => {
       const box = $(id);

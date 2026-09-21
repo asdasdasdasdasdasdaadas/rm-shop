@@ -336,6 +336,13 @@
 
           <div id="dash-funnels" class="hidden">
             <p id="funnelInsight" class="funnel-insight"></p>
+            <details class="panel funnel-card" id="exitFeedbackCard">
+              <summary><h3>Причины удаления последнего устройства</h3><span class="funnel-open"></span></summary>
+              <p id="exitFeedbackSummary" class="muted tight"></p>
+              <div id="exitFeedbackCounts" class="cards"></div>
+              <p class="muted tight">За последние 30 дней. Ответ необязательный. Считаются удаления, а не уникальные пользователи; отсутствие ответа не означает причину ухода.</p>
+              <div class="table-wrap"><table><thead><tr><th>Пользователь</th><th>Причина</th><th>Дата ответа</th></tr></thead><tbody id="exitFeedbackRows"></tbody></table></div>
+            </details>
             <details class="panel funnel-panel funnel-card" id="funnelCardMain">
               <summary>
                 <h3>Путь новой когорты</h3>
@@ -1393,6 +1400,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=85"></script>
+  <script src="app.js?v=86"></script>
 </body>
 </html>
