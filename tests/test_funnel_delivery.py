@@ -89,6 +89,8 @@ class RetryPolicySqlTest(IsolatedAsyncioTestCase):
         conn = sqlite3.connect(':memory:')
         self.addCleanup(conn.close)
         conn.execute('CREATE TABLE message_log (telegram_id INTEGER, kind TEXT, status TEXT, created_at TEXT, extra TEXT)')
+        conn.execute('CREATE TABLE device_exit_feedback (token TEXT,telegram_id INTEGER,created_at TEXT,answered_at TEXT,reason TEXT,resolved_at TEXT)')
+        conn.execute('CREATE TABLE devices (telegram_id INTEGER,last_online_at TEXT)')
         class BoolOr:
             def __init__(self): self.value=False
             def step(self, value): self.value = self.value or bool(value)

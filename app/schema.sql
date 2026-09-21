@@ -477,3 +477,6 @@ CREATE TABLE IF NOT EXISTS device_exit_feedback (
     answered_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS device_exit_feedback_created_idx ON device_exit_feedback(created_at DESC);
+
+ALTER TABLE device_exit_feedback ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS device_exit_feedback_user_idx ON device_exit_feedback(telegram_id, created_at DESC);

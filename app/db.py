@@ -931,6 +931,7 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
         life,
         now,
     )
+    await resolve_exit_feedback()
     try:
         return int(str(result).split()[-1])
     except (TypeError, ValueError, IndexError):
@@ -1000,6 +1001,7 @@ async def set_device_last_online(device_id: int, online_at) -> None:
         device_id,
         online_at,
     )
+    await resolve_exit_feedback()
 
 
 async def list_panel_telegram_ids() -> list[int]:
@@ -1871,6 +1873,7 @@ async def delete_device(telegram_id: int, device_id: int) -> dict | None:
         async with conn.transaction():
             # Serialize deletions by account: only the last one creates a survey.
             await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id=$1 FOR UPDATE", telegram_id)
+            await resolve_exit_feedback(conn)
             row = await conn.fetchrow(
                 "DELETE FROM devices WHERE id=$1 AND telegram_id=$2 RETURNING *", device_id, telegram_id,
             )
@@ -1886,6 +1889,30 @@ async def delete_device(telegram_id: int, device_id: int) -> dict | None:
 
 
 EXIT_REASONS = {"expensive": "Дорого", "not_working": "Не работает", "not_needed": "Больше не нужен", "other": "Другое"}
+
+
+_EXIT_FEEDBACK_PAUSED_SQL = """
+SELECT f.telegram_id FROM device_exit_feedback f
+WHERE f.reason IN ('not_working','not_needed') AND f.resolved_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM device_exit_feedback newer
+      WHERE newer.telegram_id=f.telegram_id AND newer.reason IS NOT NULL
+        AND (newer.created_at > f.created_at OR (newer.created_at=f.created_at AND newer.token > f.token)))
+  AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=f.telegram_id AND d.last_online_at > f.answered_at)
+"""
+
+
+async def resolve_exit_feedback(conn=None) -> None:
+    await (conn or _pool_req()).execute(
+        """UPDATE device_exit_feedback SET resolved_at=NOW()
+        WHERE resolved_at IS NULL AND reason IN ('not_working','not_needed')
+          AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=device_exit_feedback.telegram_id
+              AND d.last_online_at > device_exit_feedback.answered_at)"""
+    )
+
+
+async def exit_feedback_suppressed_ids() -> list[int]:
+    rows = await _pool_req().fetch(_EXIT_FEEDBACK_PAUSED_SQL)
+    return [int(row['telegram_id']) for row in rows]
 
 
 async def save_exit_feedback(telegram_id: int, token: str, reason: str) -> bool:
@@ -4633,7 +4660,13 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
 
 
 async def nudge_delivery_allowed(telegram_id: int, kind: str) -> bool:
-    """At most three failed attempts per kind/day; respect Telegram retry delays."""
+    """Respect exit preferences and retry limits, including direct sender calls."""
+    if kind.startswith("nudge_") or kind == "low_balance":
+        paused = await _pool_req().fetchval(
+            f"SELECT EXISTS ({_EXIT_FEEDBACK_PAUSED_SQL} AND f.telegram_id=$1)", telegram_id,
+        )
+        if paused:
+            return False
     return bool(await _pool_req().fetchval(
         """SELECT COUNT(*) < 3
             AND COALESCE(MAX(created_at + GREATEST(120,

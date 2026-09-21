@@ -4703,7 +4703,7 @@ async function answerExitFeedback(reason) {
     if (exitFeedbackToken === token) {
       goToSupport = reason === "not_working";
       closeExitFeedback();
-      if (reason !== "not_working") showToast("Спасибо за ответ");
+      if (reason !== "not_working") showToast(reason === "not_needed" ? "Спасибо. Напоминания о возврате приостановлены до нового подключения." : "Спасибо за ответ");
     }
   } catch (_e) {
     if (exitFeedbackToken === token) {

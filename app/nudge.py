@@ -395,7 +395,9 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
     await asyncio.sleep(NUDGE_START_DELAY)
     while True:
         try:
+            await db.resolve_exit_feedback()
             retry_skip = await db.nudge_retry_suppressed_ids()
+            retry_skip.extend(await db.exit_feedback_suppressed_ids())
             n, skip = await send_due_payment_nudges(bot, rp, retry_skip)
             skip.extend(retry_skip)
             if n:
