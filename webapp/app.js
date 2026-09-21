@@ -4093,7 +4093,6 @@ function paint(me) {
   if (menuBilling) menuBilling.classList.toggle("hidden", !me.balance_enabled);
   const menuPromo = $("menuPromo");
   if (menuPromo) menuPromo.classList.toggle("hidden", !me.promo_enabled);
-  $("homePromoUnavailable").classList.toggle("hidden", me.promo_enabled !== false);
   const trustBtn = $("trustBtn");
   const trustOpen = $("trustOpen");
   const trustHelp = $("trustHelp");
