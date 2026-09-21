@@ -4,6 +4,7 @@ from html import escape
 
 from app.config import get_settings, referral_is_payout
 from app.texts import days_text, rub_text
+from app.referral_terms import referral_terms
 
 
 def faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
@@ -119,56 +120,14 @@ def faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
                 ),
             }
         )
-    if settings.balance_enabled:
-        rub = rub_text(settings.referral_reward_rub)
-        when_a = (
-            "После первой оплаты друга по вашей ссылке. "
-            "Пока друг только пришёл или взял бесплатный период, награды не будет."
-        )
-        how_a = (
-            f"Вам {rub} на баланс за каждого, кто оплатил. "
-            "Другу за переход эти деньги не начисляются."
-        )
-        friend = int(settings.referral_invitee_reward_rub or 0)
-        if friend > 0:
-            how_a += f" Другу после первой оплаты тоже {rub_text(friend)} на баланс."
-        if referral_is_payout():
-            how_a += (
-                f" Вывести можно от {rub_text(settings.referral_payout_min)} реферальных."
-            )
-        items.append(
-            {
-                "q": "Как пригласить друга?",
-                "a": (
-                    "Нажмите «Поделиться» или «Скопировать текст» — готовое сообщение со ссылкой. "
-                    "Друг должен открыть бота именно по ней. "
-                    "В пересылке другу — про сервис и его бонус за первую оплату, Вам начисление после его оплаты."
-                ),
-            }
-        )
-        items.append({"q": "Когда начислят за приглашённого друга?", "a": when_a})
-        items.append({"q": "Сколько дают за друга?", "a": how_a})
-    elif settings.referral_reward_days > 0:
-        mine = days_text(settings.referral_reward_days)
-        extra = days_text(settings.referral_invitee_days)
-        items.append(
-            {
-                "q": "Когда начислят за приглашённого друга?",
-                "a": (
-                    "После первой оплаты друга по вашей ссылке. "
-                    "Пока друг только пришёл или взял бесплатный период, дни вам не начислят."
-                ),
-            }
-        )
-        items.append(
-            {
-                "q": "Сколько дают за друга?",
-                "a": (
-                    f"Вам {mine}. Другу при бесплатном периоде +{extra}. "
-                    "За переход деньги не даём."
-                ),
-            }
-        )
+    terms = referral_terms(settings)
+    items.extend([
+        {"q": "Как пригласить друга?", "a": "Откройте раздел «Пригласить друга» и нажмите «Поделиться реферальной ссылкой». Друг должен запустить бота по вашей ссылке. " + terms["note"]},
+        {"q": "Когда начислят за приглашённого друга?", "a": terms["when"]},
+        {"q": "Сколько дают за друга?", "a": terms["how"] + (" " + terms["friend"] if terms["friend"] else "")},
+    ])
+    if settings.balance_enabled and referral_is_payout():
+        items.append({"q": "Можно вывести уже начисленные награды?", "a": f"Вывести можно от {rub_text(settings.referral_payout_min)} доступных реферальных средств. Заявка оформляется в кабинете."})
     if settings.balance_enabled and settings.trial_enabled and settings.trial_days > 0:
         items.append(
             {

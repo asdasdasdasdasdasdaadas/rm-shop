@@ -41,6 +41,7 @@ from app.keyboards import (
     share_keyboard,
     support_url,
 )
+from app.referral_terms import referral_terms
 from app.referrals import (
     after_topup_keyboard,
     referral_payout_public,
@@ -527,6 +528,7 @@ async def api_me(request: web.Request) -> web.Response:
             "referral_rewarded_count": int(refs.get("rewarded") or 0),
             "referral_reward_days": settings.referral_reward_days,
             "referral_invitee_days": settings.referral_invitee_days,
+            "referral_terms": referral_terms(settings),
             "referral_reward_rub": 50,
             "referral_program_enabled": settings.referral_program_enabled,
             "referral_percent": 5,

@@ -104,8 +104,7 @@ DEFAULT_NOTICES: dict[str, str] = {
     ),
     "broadcast_invite": (
         "Вы уже с нами. Пригласите друзей по своей ссылке.\n\n"
-        "За каждого, кто первый раз оплатит по вашей ссылке, начислим {reward}. "
-        "Другу за переход эти деньги не даём, после его первой оплаты ему тоже капнет на баланс.\n\n"
+        "{terms}\n\n"
         "Ваша ссылка:\n{link}"
     ),
     "broadcast_whitelist": (
@@ -298,7 +297,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "trust_collect", "title": "Списание обещанного платежа", "hint": "{amount}"},
     {"key": "trial_nudge", "title": "Напоминание взять триал", "hint": "{name} {extra}"},
     {"key": "invite_nudge", "title": "Пригласить друга", "hint": "{name} {reward} {when} {link}"},
-    {"key": "broadcast_invite", "title": "Рассылка: пользуются VPN", "hint": "{reward} {link}"},
+    {"key": "broadcast_invite", "title": "Рассылка: пользуются VPN", "hint": "{terms} {reward} {link}"},
     {"key": "broadcast_whitelist", "title": "Рассылка: белые списки включены", "hint": ""},
     {"key": "broadcast_unused", "title": "Рассылка: не подключались", "hint": ""},
     {"key": "info_nudge", "title": "Как у нас устроено", "hint": "{price}"},

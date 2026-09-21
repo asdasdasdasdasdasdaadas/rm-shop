@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.referral_terms import referral_terms
+
 import logging
 import uuid
 
@@ -75,58 +77,14 @@ async def share(callback: CallbackQuery) -> None:
         return
     await ack(callback)
     settings = get_settings()
-    if not settings.referral_program_enabled:
-        await callback.message.edit_text(
-            "Реферальная программа приостановлена. Новые награды не начисляются. "
-            "Уже начисленный баланс сохраняется.",
-            reply_markup=with_referral_share(callback.from_user.id, back_profile_keyboard()))
-        return
-    local = await db.get_user(callback.from_user.id)
+    terms = referral_terms(settings)
     link = f"https://t.me/{settings.bot_username}?start=ref_{callback.from_user.id}"
-    if settings.balance_enabled:
-        rub = 50
-        friend = int(settings.referral_invitee_reward_rub or 0)
-        friend_line = (
-            f" Другу после первой оплаты тоже <b>{rub_text(friend)}</b> на баланс."
-            if friend > 0
-            else " Другу за переход деньги не даём."
-        )
-        if referral_is_payout():
-            body = (
-                "<b>Приведи друга</b>\n\n"
-                f"Когда друг первый раз оплатит VPN по вашей ссылке, вам начислят "
-                f"<b>{rub_text(rub)}</b> на баланс плюс 5% с каждого его пополнения, включая первое.{friend_line} "
-                f"Вывести можно от <b>{rub_text(settings.referral_payout_min)}</b> реферальных.\n\n"
-                f"Ваша ссылка:\n<code>{link}</code>"
-            )
-        else:
-            body = (
-                "<b>Приведи друга</b>\n\n"
-                f"Когда друг первый раз оплатит VPN по вашей ссылке, вам начислят "
-                f"<b>{rub_text(rub)}</b> на баланс плюс 5% с каждого его пополнения, включая первое.{friend_line}\n\n"
-                f"Ваша ссылка:\n<code>{link}</code>"
-            )
-
-        body += (
-            "\n\n«Поделиться реферальной ссылкой» — отправить приглашение через Telegram. "
-            "«Скопировать текст» — готовое сообщение в личку, без слов про вашу награду."
-        )
-
-    else:
-        extra = settings.referral_invitee_days
-        extra_line = (
-            f" Другу при бесплатном периоде <b>+{days_text(extra)}</b>."
-            if extra > 0
-            else ""
-        )
-        body = (
-            "<b>Приведи друга</b>\n\n"
-            f"Отправьте ссылку. Когда друг первый раз оплатит, вам начислят "
-            f"<b>{days_text(settings.referral_reward_days)}</b>.{extra_line}\n\n"
-            f"Ваша ссылка:\n<code>{link}</code>\n\n"
-            "«Поделиться реферальной ссылкой» — отправить приглашение через Telegram. "
-            "«Скопировать текст» — готовое сообщение в личку."
-        )
+    body = "<b>Пригласить друга</b>\n\n" + "\n\n".join(
+        text for text in (terms["note"], terms["when"], terms["how"], terms["friend"]) if text
+    )
+    if settings.balance_enabled and referral_is_payout():
+        body += f"\n\nВывести уже начисленные реферальные средства можно от {rub_text(settings.referral_payout_min)}."
+    body += f"\n\nВаша ссылка:\n<code>{link}</code>"
     await callback.message.edit_text(
         body,
         reply_markup=share_keyboard(

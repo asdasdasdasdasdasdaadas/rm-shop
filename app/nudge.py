@@ -17,6 +17,7 @@ from app.keyboards import (
 )
 from app.notices import notice_text
 from app.referrals import trial_grant_rub
+from app.referral_terms import referral_terms
 from app.rollypay import payment_is_paid
 from app.texts import days_text, rub_text
 from app.tg_err import fail_extra
@@ -56,11 +57,14 @@ def invite_nudge_text(telegram_id: int, first_name: str | None) -> str:
         reward = "50 ₽ + 5% с каждого пополнения"
     else:
         reward = days_text(settings.referral_reward_days)
-    when = "Когда человек перейдёт по вашей ссылке и первый раз оплатит VPN, бонус придёт вам."
-    friend = int(settings.referral_invitee_reward_rub or 0)
-    if settings.balance_enabled and friend > 0:
-        when += f" Ему после первой оплаты тоже {rub_text(friend)} на баланс."
-    return notice_text("invite_nudge", name=name, reward=reward, link=link, when=when)
+    terms = referral_terms(settings)
+    when = terms["when"] + (" " + terms["friend"] if terms["friend"] else "")
+    if not settings.referral_program_enabled:
+        return terms["note"] + "\n\n" + terms["when"]
+    body = notice_text("invite_nudge", name=name, reward=reward, link=link, when=when)
+    if when not in body:
+        body += "\n\nАктуальные условия: " + when
+    return body
 
 
 def info_nudge_text() -> str:
@@ -163,6 +167,8 @@ async def send_due_invite_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
     sent = 0
     for row in await db.list_due_invite_nudges(NUDGE_BATCH, skip_ids):
         telegram_id = int(row["telegram_id"])
+        if not get_settings().referral_program_enabled:
+            break
         body = invite_nudge_text(telegram_id, row.get("first_name"))
         ok = await _deliver(
             bot,

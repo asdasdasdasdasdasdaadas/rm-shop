@@ -152,8 +152,8 @@ async def maybe_reward_referrer(
             try:
                 await bot.send_message(result['referrer_id'],
                     f"Друг {name} пополнил баланс. Вам начислено {rub_text(result['amount'])}: "
-                    f"бонус за первую оплату {rub_text(result['bonus'])} и 5% от пополнения "
-                    f"({rub_text(result['percent'])}).",
+                    + (f"бонус за первую оплату {rub_text(result['bonus'])} и " if result['bonus'] else "")
+                    + f"5% от пополнения ({rub_text(result['percent'])}).",
                     reply_markup=with_referral_share(result["referrer_id"], cabinet_keyboard()))
             except Exception:
                 pass

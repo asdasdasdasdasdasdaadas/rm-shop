@@ -363,7 +363,7 @@ def invite_share_text() -> str:
         text += ". Зайди по ссылке."
         bonus = int(settings.referral_invitee_reward_rub or 0)
         if settings.referral_program_enabled and bonus > 0:
-            text += f" После первой оплаты на баланс ещё {bonus} ₽."
+            text += f" После первой оплаты на баланс ещё {bonus} ₽, пока реферальная программа активна."
         return text
     extra = settings.referral_invitee_days
     text = (
@@ -372,13 +372,16 @@ def invite_share_text() -> str:
         "Зайди по ссылке."
     )
     if settings.referral_program_enabled and extra > 0:
-        text += f" На пробном периоде +{days_text(extra)}."
+        text += f" На пробном периоде +{days_text(extra)}, пока реферальная программа активна."
     return text
 
 
 def invite_copy_text(telegram_id: int, bot_username: str | None = None) -> str:
-    block = f"{invite_share_text()}\n\n{invite_url(telegram_id, bot_username)}"
-    return block[:256]
+    link = invite_url(telegram_id, bot_username)
+    text = invite_share_text()
+    if len(text) + len(link) + 2 > 256:
+        text = "Попробуй VPN по моей ссылке. Условия и доступный подарок — в боте."
+    return f"{text}\n\n{link}"
 
 
 def referral_share_button(telegram_id: int, bot_username: str | None = None) -> InlineKeyboardButton:

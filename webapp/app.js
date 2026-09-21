@@ -2615,64 +2615,19 @@ function paintReferrals(me) {
     if (earnEl) earnEl.textContent = String(days);
     if (earnLabel) earnLabel.textContent = daysWord(days);
   }
+  const terms = me.referral_terms || {
+    note: "Актуальные условия доступны в разделе «Пригласить друга» в боте.", when: "", how: "", friend: ""
+  };
   const note = $("refStatsNote");
-  if (note) {
-    if (me.balance_enabled && invited > rewarded) {
-      note.textContent = earned > 0
-        ? "Начислено за " + rewarded + " " + friendsWord(rewarded) + " с оплатой. Остальные ещё не оплатили."
-        : "Деньги придут после первой оплаты друга. Пока бонус не начислен.";
-    } else if (invited > 0 && rewarded === 0 && earned === 0) {
-      note.textContent = me.balance_enabled
-        ? "Друзья пришли, но ещё не оплатили — бонус после первой оплаты."
-        : "Друзья пришли. Дни начислятся после их первой оплаты.";
-    } else {
-      note.textContent = "";
-    }
-  }
   const when = $("refFaqWhen");
   const how = $("refFaqHow");
   const payWrap = $("refFaqPayoutWrap");
   const pay = $("refFaqPayout");
-  if (me.balance_enabled) {
-    const rub = me.referral_reward_rub || 50;
-    if (me.referral_payout_enabled) {
-      if (when) when.textContent = "Начисление после первой оплаты друга по вашей ссылке. Пока друг только пришёл и не оплатил, денег не будет.";
-      if (how) how.textContent = `Вам ${rub} ₽ за каждого, кто оплатил. Другу за переход бонус не начисляется.`
-        + (Number(me.referral_invitee_reward_rub) > 0
-          ? ` После первой оплаты другу ещё ${me.referral_invitee_reward_rub} ₽ на баланс.`
-          : "");
-      if (pay) pay.textContent = `Вывести можно от ${me.referral_payout_min || 2000} ₽ реферальных, которые ещё на балансе. Заявка уходит администратору.`;
-      if (payWrap) payWrap.classList.remove("hidden");
-    } else {
-      if (when) when.textContent = "Начисление после первой оплаты друга по вашей ссылке. Пока друг только пришёл и не оплатил, денег не будет.";
-      if (how) how.textContent = `Вам ${rub} ₽ на баланс за каждого, кто оплатил. Другу бонус за переход не начисляется.`
-        + (Number(me.referral_invitee_reward_rub) > 0
-          ? ` После первой оплаты другу ещё ${me.referral_invitee_reward_rub} ₽ на баланс.`
-          : "");
-      if (payWrap) payWrap.classList.add("hidden");
-    }
-  } else {
-    const mine = daysLabel(me.referral_reward_days || 7);
-    const friend = daysLabel(me.referral_invitee_days || 5);
-    if (me.referral_payout_enabled) {
-      if (when) when.textContent = "Дни придут после первой оплаты друга по вашей ссылке.";
-      if (how) how.textContent = `Вам ${mine}. Другу при бесплатном периоде +${friend}.`;
-    } else {
-      if (when) when.textContent = "Дни придут после первой оплаты друга по вашей ссылке.";
-      if (how) how.textContent = `Вам ${mine}. Другу при бесплатном периоде +${friend}.`;
-    }
-    if (payWrap) payWrap.classList.add("hidden");
-  }
-  if (me.balance_enabled) {
-    if (when) when.textContent = "50 ₽ за первую оплату друга и 5% с каждого пополнения, включая первое. Награды начисляются только пока программа включена.";
-    if (how) how.textContent = "Например, за первое пополнение на 300 ₽ вы получите 65 ₽, за следующее на 300 ₽ — 15 ₽. Доли рубля накапливаются до целого рубля.";
-    if (note) note.textContent = "Начисления за оплаты во время действия программы: " + earned + " ₽.";
-  }
-  if (!me.referral_program_enabled) {
-    if (note) note.textContent = "Программа приостановлена. Новые награды не начисляются, уже полученный баланс сохраняется.";
-    if (when) when.textContent = "Во время паузы начислений нет. После включения учитываются только новые пополнения, без выплат за период паузы.";
-    if (how) how.textContent = "Условия при включении: 50 ₽ за первую оплату нового друга + 5% с каждого пополнения. Если первая оплата прошла во время паузы, бонус 50 ₽ позже не начисляется.";
-  }
+  if (note) note.textContent = terms.note;
+  if (when) when.textContent = terms.when;
+  if (how) how.textContent = [terms.how, terms.friend].filter(Boolean).join(" ");
+  if (payWrap) payWrap.classList.toggle("hidden", !me.referral_payout_enabled);
+  if (pay) pay.textContent = `Вывести уже начисленные реферальные средства можно от ${me.referral_payout_min || 2000} ₽. Заявка уходит администратору.`;
   paintRefFriends(me);
   paintPayout(me);
 }

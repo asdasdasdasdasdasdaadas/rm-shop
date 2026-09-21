@@ -13,6 +13,7 @@ from aiohttp import web
 from aiogram import Bot
 from aiogram.types import FSInputFile
 
+from app.referral_terms import referral_terms
 from app import db, runtime
 from app.announcements import (
     DEFAULT_CLOSING,
@@ -708,6 +709,9 @@ async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
         return False, "Пользователь заблокирован в магазине"
     extra = row.get("extra") if isinstance(row.get("extra"), dict) else {}
     origin = "manual"
+    referral_invite = kind == "nudge_invite" or (kind == "broadcast" and extra.get("template") == "invite")
+    if referral_invite and not get_settings().referral_program_enabled:
+        return False, "Реферальная программа приостановлена: приглашение с обещанием награды не отправлено"
     if kind == "cabinet_link":
         from app.balance import send_cabinet_link_to
 
@@ -717,6 +721,11 @@ async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
             return False, str(exc)
         return (True, "") if ok else (False, "Не удалось отправить ссылку")
     body = str(row.get("body") or "").strip()
+    if kind == "nudge_invite":
+        from app.nudge import invite_nudge_text
+        body = invite_nudge_text(telegram_id, row.get("first_name"))
+    elif referral_invite:
+        body = _broadcast_payload("invite", "", telegram_id, row.get("first_name"), get_settings())[0]
     if not body:
         return False, "Пустой текст"
     markup = await _retry_markup(kind, telegram_id, extra)
@@ -1343,6 +1352,9 @@ async def _broadcast_all(
     for row in targets:
         if not job.get("running"):
             break
+        settings = get_settings()
+        if tpl == "invite" and not settings.referral_program_enabled:
+            break
         telegram_id = int(row["telegram_id"])
         body, markup = _broadcast_payload(tpl, text, telegram_id, row.get("first_name"), settings)
         extra = {"template": tpl or "custom"}
@@ -1426,13 +1438,20 @@ def _broadcast_payload(
     settings,
 ) -> tuple[str, object]:
     if template == "invite":
+        if not settings.referral_program_enabled:
+            return referral_terms(settings)["note"], share_keyboard(settings.bot_username, telegram_id)
+        terms = referral_terms(settings)
+        details = terms["when"] + (" " + terms["friend"] if terms["friend"] else "")
         link = f"https://t.me/{settings.bot_username}?start=ref_{telegram_id}"
         body = notice_text(
             "broadcast_invite",
             reward=_referral_reward_label(),
+            terms=details,
             link=link,
             name=escape(str(first_name or "друг")),
         )
+        if details not in body:
+            body += "\n\nАктуальные условия: " + details
         return body, share_keyboard(settings.bot_username, telegram_id)
     if template == "unused":
         body = notice_text(
@@ -1513,13 +1532,7 @@ def _start_broadcast_job(
 def _broadcast_template_preview(template: str) -> str:
     settings = get_settings()
     if template == "invite":
-        link = f"https://t.me/{settings.bot_username}?start=ref_…"
-        return notice_text(
-            "broadcast_invite",
-            reward=_referral_reward_label(),
-            link=link,
-            name="друг",
-        )
+        return _broadcast_payload("invite", "", 0, "друг", settings)[0].replace("ref_0", "ref_…")
     if template == "whitelist":
         return notice_text("broadcast_whitelist")
     if template == "unused":
