@@ -278,6 +278,10 @@ async def send_due_first_online_nudges(bot: Bot, skip_ids: list[int] | None = No
     sent = 0
     for row in await db.list_due_first_online_nudges(NUDGE_BATCH, skip_ids):
         telegram_id = int(row["telegram_id"])
+        if not await db.nudge_delivery_allowed(telegram_id, "nudge_first_online"):
+            continue
+        if not await db.claim_low_balance_notice(telegram_id):
+            continue
         body = notice_text("first_online_nudge", days=days_text(_days_left_from_row(row)))
         ok = await _deliver(
             bot, kind="nudge_first_online", telegram_id=telegram_id, first_name=row.get("first_name"),
@@ -285,6 +289,8 @@ async def send_due_first_online_nudges(bot: Bot, skip_ids: list[int] | None = No
         )
         if ok:
             await db.mark_first_online_nudge_sent(telegram_id)
+        else:
+            await db.release_low_balance_notice(telegram_id)
         touched.append(telegram_id)
         if ok:
             sent += 1
@@ -301,6 +307,10 @@ async def send_due_trial_end_nudges(bot: Bot, skip_ids: list[int] | None = None)
     sent = 0
     for row in await db.list_due_trial_end_nudges(settings.vpn_day_price_rub, NUDGE_BATCH, skip_ids):
         telegram_id = int(row["telegram_id"])
+        if not await db.nudge_delivery_allowed(telegram_id, "nudge_trial_end"):
+            continue
+        if not await db.claim_low_balance_notice(telegram_id):
+            continue
         devices = max(1, int(row.get("device_count") or 1))
         hours = max(1, math.ceil(24 * int(row["balance_rub"]) / (devices * max(1, settings.vpn_day_price_rub))))
         body = notice_text("trial_end_nudge", hours=hours, devices=devices)
@@ -310,6 +320,8 @@ async def send_due_trial_end_nudges(bot: Bot, skip_ids: list[int] | None = None)
         )
         if ok:
             await db.mark_trial_end_nudge_sent(telegram_id)
+        else:
+            await db.release_low_balance_notice(telegram_id)
         touched.append(telegram_id)
         if ok:
             sent += 1

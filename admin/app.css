@@ -1490,7 +1490,7 @@ label { font-size: 12px; color: var(--text-2); font-weight: 700; }
   .settings-nav { position: static; top: auto; }
   .grid2, .ops-grid, .form-grid, .ref-mode-pick, .funnel-split { grid-template-columns: 1fr; }
   .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .funnel-row { grid-template-columns: 1fr; gap: 8px; }
+  .funnel-row { grid-template-columns: 1fr; gap: 8px; height: auto; padding: 10px; }
   .funnel-nums { justify-content: flex-start; }
   .ops-card button:not(.switch),
   .panel.narrow button,

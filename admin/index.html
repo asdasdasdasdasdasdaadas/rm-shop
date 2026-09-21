@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=46">
+  <link rel="stylesheet" href="app.css?v=47">
 </head>
 <body>
   <div id="login" class="login-wrap">
@@ -341,7 +341,7 @@
                 <h3>Путь новой когорты</h3>
                 <span class="funnel-open"></span>
               </summary>
-              <p class="muted tight">Кто зарегистрировался в периоде. Основная цифра — доля от предыдущего шага. Наведите, чтобы увидеть долю от старта. Клик по шагу отфильтрует таблицу ниже.</p>
+              <p class="muted tight">Пользователи, впервые запустившие бота в периоде, и их дальнейшие действия на текущий момент. Процент показывает, какая доля участников предыдущего этапа достигла этого. Подарок можно пропустить, поэтому абсолютные числа не всегда убывают. Клик откроет точный список.</p>
               <div class="funnel-toolbar">
                 <div class="seg funnel-seg" data-funnel-card="main" role="group" aria-label="Период основной воронки">
                   <button type="button" data-funnel="1d">Сутки</button>
@@ -352,6 +352,8 @@
                 </div>
               </div>
               <div id="funnelMain"></div>
+              <p id="funnelPayments" class="muted tight"></p>
+              <p class="muted tight">Старые неоплаченные счета Stars могут быть учтены не полностью: раньше их история не сохранялась.</p>
             </details>
             <details class="panel funnel-panel funnel-card" id="funnelCardInvite">
               <summary>
@@ -372,7 +374,7 @@
             </details>
             <div class="panel">
               <h3>Клиенты шага</h3>
-              <p id="funnelClientHint" class="muted tight">Выберите шаг воронки. Список строится из текущих фильтров пользователей за период когорты.</p>
+              <p id="funnelClientHint" class="muted tight">Выберите этап, чтобы увидеть пользователей из выбранной когорты.</p>
               <div class="table-wrap">
                 <table class="table-as-cards">
                   <thead>
@@ -1391,6 +1393,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=84"></script>
+  <script src="app.js?v=85"></script>
 </body>
 </html>

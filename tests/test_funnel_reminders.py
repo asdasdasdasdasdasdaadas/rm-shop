@@ -48,7 +48,7 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
         conn.executescript('''
             CREATE TABLE users (telegram_id INTEGER, first_name TEXT, blocked_at TEXT, bot_blocked_at TEXT,
                 bot_started_at TEXT, gift_claimed_at TEXT, first_online_at TEXT, device_nudge_count INTEGER DEFAULT 0, device_nudge_at TEXT,
-                trial_end_nudge_at TEXT, trial_used INTEGER DEFAULT 1, billing_paused_at TEXT,
+                trial_end_nudge_at TEXT, low_balance_notified_at TEXT, trial_used INTEGER DEFAULT 1, billing_paused_at TEXT,
                 has_paid_topup INTEGER DEFAULT 0, balance_rub INTEGER DEFAULT 6, checkout_started_at TEXT, created_at TEXT DEFAULT '2026-09-18', trial_nudge_sent_at TEXT, invite_nudge_sent_at TEXT);
             CREATE TABLE devices (telegram_id INTEGER, kind TEXT);
             CREATE TABLE message_log (telegram_id INTEGER, status TEXT, kind TEXT, created_at TEXT);
@@ -103,6 +103,7 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
              patch.object(nudge, 'get_settings', return_value=settings), \
              patch.object(db, 'flag_on', AsyncMock(return_value=False)), \
              patch.object(db, 'list_due_trial_end_nudges', AsyncMock(return_value=[{'telegram_id':1,'balance_rub':6,'device_count':2}])), \
+             patch.object(db, 'claim_low_balance_notice', AsyncMock(return_value=True)), \
              patch.object(db, 'mark_trial_end_nudge_sent', AsyncMock()), \
              patch.object(db, 'log_bot_message', AsyncMock()), \
              patch.object(nudge, 'payment_nudge_keyboard', return_value='topup'), \

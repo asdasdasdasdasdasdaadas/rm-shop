@@ -14,6 +14,7 @@ class TopupMessageButtonsTest(unittest.IsolatedAsyncioTestCase):
         self.stack.enter_context(patch.object(db, "nudge_delivery_allowed", AsyncMock(return_value=True)))
         self.stack.enter_context(patch('app.keyboards.mini_app_url', return_value='https://example.com/app?theme=green'))
         self.stack.enter_context(patch.object(db, 'log_bot_message', AsyncMock()))
+        self.stack.enter_context(patch.object(db, "claim_low_balance_notice", AsyncMock(return_value=True)))
         self.bot = SimpleNamespace(send_message=AsyncMock())
 
     def assert_topup(self, markup):

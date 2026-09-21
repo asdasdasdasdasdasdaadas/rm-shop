@@ -1412,10 +1412,15 @@ async def claim_low_balance_notice(telegram_id: int) -> bool:
         UPDATE users
         SET low_balance_notified_at = timezone('utc', now())
         WHERE telegram_id = $1
+          AND bot_started_at IS NOT NULL AND bot_blocked_at IS NULL
+          AND blocked_at IS NULL AND billing_paused_at IS NULL
           AND (
             low_balance_notified_at IS NULL
             OR low_balance_notified_at <= timezone('utc', now()) - INTERVAL '24 hours'
           )
+          AND NOT EXISTS (SELECT 1 FROM message_log m WHERE m.telegram_id=users.telegram_id
+              AND m.status='sent' AND m.kind IN ('low_balance','nudge_trial_end','cabinet_link','nudge_first_online')
+              AND m.created_at > timezone('utc', now()) - INTERVAL '24 hours')
         RETURNING telegram_id
         """,
         telegram_id,
@@ -2084,7 +2089,8 @@ async def save_rollypay_order(
 async def track_checkout(telegram_id: int, payment_id: str | None = None, pay_url: str | None = None) -> None:
     await _pool_req().execute(
         """UPDATE users SET checkout_token = $2, checkout_started_at = NOW(),
-           checkout_payment_id = $3, checkout_url = $4, checkout_nudge_at = NULL WHERE telegram_id = $1""",
+           checkout_payment_id = $3, checkout_url = $4, checkout_nudge_at = NULL,
+           first_checkout_at = COALESCE(first_checkout_at, NOW()) WHERE telegram_id = $1""",
         telegram_id, secrets.token_hex(16), payment_id, pay_url,
     )
 
@@ -2546,137 +2552,60 @@ async def admin_stats() -> dict:
     }
 
 
-_FUNNEL_SQL = """
-WITH cohort AS (
-    SELECT
-        u.telegram_id,
-        u.trial_used,
-        u.accepted_legal_at,
-        u.referred_by,
-        u.ad_link_id,
-        u.blocked_at,
-        COALESCE(u.has_paid_topup, FALSE) AS has_paid
-    FROM users u
-    WHERE ($1::timestamptz IS NULL OR u.created_at >= $1)
-      AND ($2::timestamptz IS NULL OR u.created_at < $2)
-),
-flags AS (
-    SELECT
-        c.telegram_id,
-        c.referred_by IS NOT NULL AS from_ref,
-        c.ad_link_id IS NOT NULL AS from_ad,
-        c.referred_by IS NULL AND c.ad_link_id IS NULL AS organic,
-        c.accepted_legal_at IS NOT NULL AS legal,
-        COALESCE(c.trial_used, FALSE) AS trial,
-        c.blocked_at IS NOT NULL AS blocked,
-        EXISTS (
-            SELECT 1 FROM devices d WHERE d.telegram_id = c.telegram_id
-        ) AS has_device,
-        EXISTS (
-            SELECT 1 FROM devices d
-            WHERE d.telegram_id = c.telegram_id AND d.last_online_at IS NOT NULL
-        ) AS connected,
-        EXISTS (
-            SELECT 1 FROM rollypay_orders o WHERE o.telegram_id = c.telegram_id
-        ) AS checkout,
-        (
-            c.has_paid
-            OR EXISTS (
-                SELECT 1 FROM rollypay_orders o
-                WHERE o.telegram_id = c.telegram_id AND o.status = 'granted'
-            )
-            OR EXISTS (
-                SELECT 1 FROM payments p WHERE p.telegram_id = c.telegram_id
-            )
-        ) AS paid,
-        (
-            SELECT COUNT(*)::int FROM rollypay_orders o
-            WHERE o.telegram_id = c.telegram_id AND o.status = 'granted'
-        ) >= 2 AS repeat_paid,
-        EXISTS (
-            SELECT 1 FROM users inv WHERE inv.referred_by = c.telegram_id
-        ) AS invited,
-        EXISTS (
-            SELECT 1 FROM promo_uses p WHERE p.telegram_id = c.telegram_id
-        ) AS promo
-    FROM cohort c
-),
-invitees AS (
-    SELECT
-        u.telegram_id,
+# One set of predicates powers both counters and drill-down lists.
+_FUNNEL_CTE = """
+WITH all_flags AS (
+    SELECT u.telegram_id, u.bot_started_at, u.referred_by,
+        u.referred_by IS NOT NULL AS from_ref,
+        u.ad_link_id IS NOT NULL AS from_ad,
+        u.referred_by IS NULL AND u.ad_link_id IS NULL AS organic,
         u.accepted_legal_at IS NOT NULL AS legal,
         COALESCE(u.trial_used, FALSE) AS trial,
-        EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id) AS has_device,
-        EXISTS (
-            SELECT 1 FROM devices d
-            WHERE d.telegram_id = u.telegram_id AND d.last_online_at IS NOT NULL
-        ) AS connected,
-        EXISTS (SELECT 1 FROM rollypay_orders o WHERE o.telegram_id = u.telegram_id) AS checkout,
-        (
-            COALESCE(u.has_paid_topup, FALSE)
-            OR EXISTS (
-                SELECT 1 FROM rollypay_orders o
-                WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
-            )
-            OR EXISTS (
-                SELECT 1 FROM payments p WHERE p.telegram_id = u.telegram_id
-            )
-        ) AS paid
+        u.blocked_at IS NOT NULL AS blocked,
+        EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id) AS has_device,
+        u.first_online_at IS NOT NULL AS connected,
+        (u.first_checkout_at IS NOT NULL OR EXISTS (
+            SELECT 1 FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id)) AS checkout,
+        (COALESCE(u.has_paid_topup,FALSE) OR
+            EXISTS (SELECT 1 FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted') OR
+            EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id=u.telegram_id)) AS paid,
+        ((SELECT COUNT(*) FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted') +
+         (SELECT COUNT(*) FROM payments p WHERE p.telegram_id=u.telegram_id)) >= 2 AS repeat_paid,
+        EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id=u.telegram_id) AS paid_stars,
+        EXISTS (SELECT 1 FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted') AS paid_rollypay,
+        EXISTS (SELECT 1 FROM users inv WHERE inv.referred_by=u.telegram_id AND inv.bot_started_at IS NOT NULL) AS invited,
+        EXISTS (SELECT 1 FROM promo_uses p WHERE p.telegram_id=u.telegram_id) AS promo
     FROM users u
-    WHERE u.referred_by IN (SELECT telegram_id FROM cohort)
+), flags AS (
+    SELECT * FROM all_flags WHERE bot_started_at IS NOT NULL
+        AND ($1::timestamptz IS NULL OR bot_started_at >= $1)
+        AND ($2::timestamptz IS NULL OR bot_started_at < $2)
+), invitees AS (
+    SELECT * FROM all_flags WHERE bot_started_at IS NOT NULL
+        AND referred_by IN (SELECT telegram_id FROM flags)
 )
-SELECT
-    (SELECT COUNT(*) FROM flags)::int AS entered,
-    (SELECT COUNT(*) FROM flags WHERE from_ref)::int AS from_ref,
-    (SELECT COUNT(*) FROM flags WHERE from_ad)::int AS from_ad,
-    (SELECT COUNT(*) FROM flags WHERE organic)::int AS organic,
-    (SELECT COUNT(*) FROM flags WHERE legal)::int AS legal,
-    (SELECT COUNT(*) FROM flags WHERE trial)::int AS trial,
-    (SELECT COUNT(*) FROM flags WHERE has_device)::int AS device,
-    (SELECT COUNT(*) FROM flags WHERE connected)::int AS connected,
-    (SELECT COUNT(*) FROM flags WHERE checkout OR paid)::int AS checkout,
-    (SELECT COUNT(*) FROM flags WHERE paid)::int AS paid,
-    (SELECT COUNT(*) FROM flags WHERE repeat_paid)::int AS repeat_paid,
-    (SELECT COUNT(*) FROM flags WHERE invited)::int AS referred,
-    (SELECT COUNT(*) FROM flags WHERE promo)::int AS promo,
-    (SELECT COUNT(*) FROM flags WHERE blocked)::int AS blocked,
-    (SELECT COUNT(*) FROM flags WHERE has_device AND NOT connected)::int AS device_no_online,
-    (SELECT COUNT(*) FROM flags WHERE (checkout OR paid) AND NOT paid)::int AS checkout_drop,
-    (SELECT COUNT(*) FROM flags WHERE NOT legal)::int AS no_legal,
-    (SELECT COUNT(*) FROM invitees)::int AS inv_entered,
-    (SELECT COUNT(*) FROM invitees WHERE legal)::int AS inv_legal,
-    (SELECT COUNT(*) FROM invitees WHERE trial)::int AS inv_trial,
-    (SELECT COUNT(*) FROM invitees WHERE has_device)::int AS inv_device,
-    (SELECT COUNT(*) FROM invitees WHERE connected)::int AS inv_connected,
-    (SELECT COUNT(*) FROM invitees WHERE checkout OR paid)::int AS inv_checkout,
-    (SELECT COUNT(*) FROM invitees WHERE paid)::int AS inv_paid
 """
-
-_FUNNEL_KEYS = (
-    "entered",
-    "from_ref",
-    "from_ad",
-    "organic",
-    "legal",
-    "trial",
-    "device",
-    "connected",
-    "checkout",
-    "paid",
-    "repeat_paid",
-    "referred",
-    "promo",
-    "blocked",
-    "device_no_online",
-    "checkout_drop",
-    "no_legal",
-    "inv_entered",
-    "inv_legal",
-    "inv_trial",
-    "inv_device",
-    "inv_connected",
-    "inv_checkout",
-    "inv_paid",
+_FUNNEL_PREDICATES = {
+    "entered": "TRUE", "from_ref": "from_ref", "from_ad": "from_ad", "organic": "organic",
+    "legal": "legal", "trial": "trial", "device": "has_device", "connected": "connected",
+    "checkout": "checkout OR paid", "paid": "paid", "repeat_paid": "repeat_paid",
+    "paid_stars": "paid_stars", "paid_rollypay": "paid_rollypay",
+    "referred": "invited", "promo": "promo", "blocked": "blocked",
+    "device_no_online": "has_device AND NOT connected",
+    "checkout_drop": "checkout AND NOT paid", "no_legal": "NOT legal",
+    "no_gift": "NOT trial AND NOT paid", "gift_no_online": "trial AND NOT connected",
+    "online_no_paid": "connected AND NOT paid", "paid_no_repeat": "paid AND NOT repeat_paid",
+    "trial_transition": "trial", "connected_transition": "trial AND connected",
+    "checkout_transition": "connected AND (checkout OR paid)",
+    "paid_transition": "paid", "repeat_paid_transition": "repeat_paid",
+}
+_FUNNEL_INV_KEYS = ("entered", "legal", "trial", "device", "connected", "checkout", "paid")
+_FUNNEL_KEYS = tuple(_FUNNEL_PREDICATES) + tuple("inv_" + k for k in _FUNNEL_INV_KEYS)
+_FUNNEL_SQL = _FUNNEL_CTE + "SELECT " + ",\n".join(
+    [f"(SELECT COUNT(*) FROM flags WHERE {condition})::int AS {key}"
+     for key, condition in _FUNNEL_PREDICATES.items()] +
+    [f"(SELECT COUNT(*) FROM invitees WHERE {_FUNNEL_PREDICATES[key]})::int AS inv_{key}"
+     for key in _FUNNEL_INV_KEYS]
 )
 
 
@@ -2688,7 +2617,7 @@ def _funnel_row(row) -> dict:
 
 async def admin_funnel() -> dict:
     pool = _pool_req()
-    now = await pool.fetchval("SELECT timezone('utc', now())")
+    now = await pool.fetchval("SELECT now()")
 
     async def window(start, end):
         row = await pool.fetchrow(_FUNNEL_SQL, start, end)
@@ -2698,7 +2627,7 @@ async def admin_funnel() -> dict:
     d7 = timedelta(days=7)
     d30 = timedelta(days=30)
     d90 = timedelta(days=90)
-    return {
+    result = {
         "1d": {
             "label": "сутки",
             "compare": "к предыдущим суткам",
@@ -2730,6 +2659,10 @@ async def admin_funnel() -> dict:
             "previous": None,
         },
     }
+    for key, duration in (("1d", d1), ("7d", d7), ("30d", d30), ("90d", d90)):
+        result[key]["from"] = (now - duration).isoformat()
+        result[key]["to"] = now.isoformat()
+    return result
 
 
 _ADMIN_TRAFFIC_SQL = """CAST(GREATEST(
@@ -2753,6 +2686,17 @@ def _admin_users_filter(query: str, extra: dict | None = None) -> tuple[str, lis
     args: list = []
     q = (query or "").strip()
     extra = extra or {}
+    stage = str(extra.get("funnel_step") or "")
+    if stage and stage not in _FUNNEL_KEYS:
+        raise ValueError("Unknown funnel stage")
+    if stage in _FUNNEL_KEYS:
+        invited = stage.startswith("inv_")
+        key = stage[4:] if invited else stage
+        start = datetime.fromisoformat(extra["funnel_from"]) if extra.get("funnel_from") else None
+        end = datetime.fromisoformat(extra["funnel_to"]) if extra.get("funnel_to") else None
+        args.extend([start, end])
+        dataset = "invitees" if invited else "flags"
+        clauses.append(f"u.telegram_id IN ({_FUNNEL_CTE} SELECT telegram_id FROM {dataset} WHERE {_FUNNEL_PREDICATES[key]})")
     if q.lower() in {"блок", "blocked", "ban"}:
         clauses.append("u.blocked_at IS NOT NULL")
     elif q:
@@ -2945,6 +2889,8 @@ async def admin_list_users(
                    FROM rollypay_orders o
                    WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
                ) AS paid_topup_count,
+               (SELECT COUNT(*)::int FROM payments p WHERE p.telegram_id=u.telegram_id) AS stars_payment_count,
+               (SELECT COALESCE(SUM(p.stars),0) FROM payments p WHERE p.telegram_id=u.telegram_id) AS paid_stars_amount,
                (
                    SELECT MAX(o.created_at)
                    FROM rollypay_orders o
@@ -3559,13 +3505,12 @@ async def list_due_trial_end_nudges(
                 SELECT COUNT(*)::int FROM devices d WHERE d.telegram_id = u.telegram_id AND COALESCE(d.kind, '') <> 'router'
             ) AS device_count
         FROM users u
-        WHERE u.trial_end_nudge_at IS NULL
+        WHERE TRUE
+          AND (u.low_balance_notified_at IS NULL OR u.low_balance_notified_at <= NOW() - INTERVAL '24 hours')
           AND u.blocked_at IS NULL
-          AND u.trial_used = TRUE
           AND u.billing_paused_at IS NULL
           AND u.bot_started_at IS NOT NULL
           AND u.bot_blocked_at IS NULL
-          AND COALESCE(u.has_paid_topup, FALSE) = FALSE
           AND COALESCE(u.balance_rub, 0) > 0
           AND EXISTS (
               SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id AND COALESCE(d.kind, '') <> 'router'
@@ -4675,3 +4620,7 @@ async def nudge_retry_suppressed_ids() -> list[int]:
             OR BOOL_OR(COALESCE((extra->>'permanent')::boolean, FALSE))"""
     )
     return [int(row['telegram_id']) for row in rows if row['telegram_id'] is not None]
+
+
+async def release_low_balance_notice(telegram_id: int) -> None:
+    await _pool_req().execute("UPDATE users SET low_balance_notified_at=NULL WHERE telegram_id=$1", telegram_id)

@@ -59,6 +59,8 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
     if not bot or tg_id in warned:
         return
     warned.add(tg_id)
+    if not await db.nudge_delivery_allowed(tg_id, "low_balance"):
+        return
     if await db.claim_low_balance_notice(tg_id):
         body = notice_text("low_balance", price=rub_text(price))
         try:
@@ -72,6 +74,7 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
                 status="sent",
             )
         except Exception as exc:
+            await db.release_low_balance_notice(tg_id)
             logger.warning("Не удалось отправить «мало баланса» %s", tg_id, exc_info=True)
             await db.log_bot_message(
                 kind="low_balance",
@@ -82,7 +85,6 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
                 status="failed",
                 extra=fail_extra(exc),
             )
-    await send_cabinet_link_to(bot, tg_id, force=True)
 
 
 async def _bill_due_device(
@@ -543,7 +545,6 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
             "seconds": round(time.monotonic() - started, 1),
         },
     )
-    await send_low_balance_cabinet_links(bot)
 
 
 async def _sync_router_slots(rw: RemnawaveClient) -> None:
@@ -631,7 +632,6 @@ async def sync_user_billing(
             result["disabled"] += 1
     if bot:
         await db.purge_expired_cabinet_tokens()
-        await send_cabinet_link_to(bot, telegram_id)
     return result
 
 
@@ -651,27 +651,6 @@ async def send_cabinet_link_to(
             return False
     sent = await _issue_and_send_cabinet_link(bot, telegram_id, source=source)
     return sent > 0
-
-
-async def send_low_balance_cabinet_links(bot: Bot | None) -> int:
-    settings = get_settings()
-    if not bot or not settings.balance_enabled:
-        return 0
-    await db.purge_expired_cabinet_tokens()
-    price = max(1, settings.vpn_day_price_rub)
-    ids = await db.users_needing_cabinet_link(price)
-    if not ids:
-        return 0
-    sem = asyncio.Semaphore(4)
-
-    async def one(telegram_id: int) -> int:
-        async with sem:
-            return await _issue_and_send_cabinet_link(bot, telegram_id)
-
-    sent = sum(await asyncio.gather(*[one(tid) for tid in ids]))
-    if sent:
-        logger.info("Ссылки на кабинет из браузера: %s", sent)
-    return sent
 
 
 def _cabinet_public_base() -> str:

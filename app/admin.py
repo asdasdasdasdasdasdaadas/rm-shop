@@ -206,6 +206,7 @@ async def api_users(request: web.Request) -> web.Response:
     limit = min(100, max(1, int(request.query.get("limit") or 30)))
     extra = _query_extra(
         request,
+        "funnel_step", "funnel_from", "funnel_to",
         "status",
         "trial",
         "devices",
@@ -220,7 +221,10 @@ async def api_users(request: web.Request) -> web.Response:
         "to",
         "paid",
     )
-    items, total = await db.admin_list_users(q, limit, (page - 1) * limit, extra)
+    try:
+        items, total = await db.admin_list_users(q, limit, (page - 1) * limit, extra)
+    except ValueError:
+        return web.json_response({"ok": False, "error": "Некорректный период"}, status=400)
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 

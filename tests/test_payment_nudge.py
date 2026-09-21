@@ -74,7 +74,7 @@ class PaymentNudgeStorageTest(unittest.IsolatedAsyncioTestCase):
         conn.row_factory = sqlite3.Row
         conn.executescript("""
             CREATE TABLE users (telegram_id INTEGER PRIMARY KEY, checkout_token TEXT,
-                checkout_started_at TEXT, checkout_payment_id TEXT, checkout_url TEXT, checkout_nudge_at TEXT,
+                first_checkout_at TEXT, checkout_started_at TEXT, checkout_payment_id TEXT, checkout_url TEXT, checkout_nudge_at TEXT,
                 payment_nudge_at TEXT, bot_started_at TEXT, blocked_at TEXT, bot_blocked_at TEXT,
                 has_paid_topup INTEGER DEFAULT 0);
             CREATE TABLE payments (telegram_id INTEGER, created_at TEXT);
@@ -101,5 +101,10 @@ class PaymentNudgeStorageTest(unittest.IsolatedAsyncioTestCase):
             await db.track_checkout(1)
             conn.execute("UPDATE users SET checkout_started_at='2026-09-19 11:00:00' WHERE telegram_id=1")
             self.assertEqual(await db.list_due_payment_nudges(),[])  # Daily cooldown survives new invoices.
+            first = conn.execute('SELECT first_checkout_at FROM users WHERE telegram_id=1').fetchone()[0]
+            self.assertIsNotNone(first)
+            await db.mark_paid_topup(1)
+            await db.track_checkout(1)
+            self.assertEqual(conn.execute('SELECT first_checkout_at FROM users WHERE telegram_id=1').fetchone()[0],first)
             await db.mark_paid_topup(2)
             self.assertIsNone(conn.execute('SELECT checkout_started_at FROM users WHERE telegram_id=2').fetchone()[0])

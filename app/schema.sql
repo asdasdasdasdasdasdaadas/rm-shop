@@ -455,3 +455,15 @@ CREATE TABLE IF NOT EXISTS referral_payment_rewards (
     reward_rub INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
+-- Retain checkout entry after a successful payment clears the active invoice.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_checkout_at TIMESTAMPTZ;
+UPDATE users u SET first_checkout_at = h.started
+FROM (
+    SELECT telegram_id, MIN(created_at) AS started FROM (
+        SELECT telegram_id, created_at FROM rollypay_orders
+        UNION ALL SELECT telegram_id, created_at FROM payments
+        UNION ALL SELECT telegram_id, checkout_started_at AS created_at FROM users WHERE checkout_started_at IS NOT NULL
+    ) history GROUP BY telegram_id
+) h WHERE h.telegram_id=u.telegram_id AND u.first_checkout_at IS NULL;

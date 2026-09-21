@@ -304,7 +304,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "info_nudge", "title": "Как у нас устроено", "hint": "{price}"},
     {"key": "first_device_thanks", "title": "После первого устройства", "hint": ""},
     {"key": "first_online_nudge", "title": "После первого онлайна", "hint": "{days}"},
-    {"key": "trial_end_nudge", "title": "Заканчивается подарок", "hint": "{hours} {devices}"},
+    {"key": "trial_end_nudge", "title": "Баланс: осталось меньше суток", "hint": "{hours} {devices}"},
     {"key": "device_setup_nudge", "title": "Устройство есть, первого подключения нет", "hint": ""},
     {"key": "device_nudge_1", "title": "Подарок без подключения: 30 минут", "hint": ""},
     {"key": "device_nudge_2", "title": "Нет устройства: сутки после первого", "hint": ""},

@@ -9,7 +9,7 @@ let selectedUsers = new Set();
 let lastUserItems = [];
 const TABS = ["overview", "users", "referrals", "ads", "orders", "billing", "tickets", "messages", "broadcast", "announcements", "promo", "backups", "settings"];
 const TAB_KEYS = {
-  overview: ["dash", "fp", "fs", "fl", "fi", "step"],
+  overview: ["dash", "fp", "fs", "fl", "fi", "step", "fc"],
   users: ["q", "status", "trial", "devices", "online", "bal_sign", "bal_min", "bal_max", "from", "to", "paid"],
   referrals: ["q", "reward", "from", "to"],
   orders: ["q", "status", "from", "to"],
@@ -690,15 +690,12 @@ async function loadFlags() {
 }
 
 const FUNNEL_MAIN = [
-  ["entered", "Зашли в бота", "регистрация"],
-  ["legal", "Приняли оферту", "обязательный шаг"],
-  ["trial", "Взяли триал", "можно пропустить и сразу платить"],
-  ["device", "Добавили устройство", "создали в кабинете"],
-  ["connected", "Реально подключались", "есть онлайн в панели"],
-  ["checkout", "Начали оплату", "создали заказ в кассе"],
-  ["paid", "Оплатили", "успешный платёж кассы"],
-  ["repeat_paid", "Пополнили ещё раз", "два и больше granted"],
-  ["referred", "Привели друга", "хотя бы один пришёл по ссылке"],
+  ["entered", "Запустили бота", "первый запуск бота в выбранном периоде"],
+  ["trial", "Забрали подарок", "подарок можно пропустить"],
+  ["connected", "Подключились к VPN", "первый онлайн, включая удалённые позже устройства"],
+  ["checkout", "Начали оплату", "создали счёт через кассу или Telegram Stars"],
+  ["paid", "Оплатили", "хотя бы один платёж"],
+  ["repeat_paid", "Пополнили повторно", "два платежа, включая разные способы оплаты"],
 ];
 const FUNNEL_SOURCE = [
   ["entered", "Всего зашли", "старт"],
@@ -708,10 +705,12 @@ const FUNNEL_SOURCE = [
   ["promo", "Ввели промокод", "хотя бы один код"],
 ];
 const FUNNEL_LEAK = [
-  ["no_legal", "Без оферты", "ещё не приняли"],
-  ["device_no_online", "Устройство без онлайна", "создали, но не коннектились"],
-  ["checkout_drop", "Бросили оплату", "заказ есть, granted нет"],
-  ["blocked", "Заблокированы", "из этой когорты"],
+  ["no_gift", "Без подарка и оплаты", "запустили бота, но ещё не начали пользоваться"],
+  ["gift_no_online", "Подарок без подключения", "забрали подарок, первого онлайна нет"],
+  ["device_no_online", "Устройство без онлайна", "добавили, но не подключились"],
+  ["online_no_paid", "Подключались, но не оплатили", "первый онлайн есть, платежей нет"],
+  ["checkout_drop", "Счёт без оплаты", "создали счёт, ни одного платежа нет"],
+  ["paid_no_repeat", "Без повторного пополнения", "пока только один платёж"],
 ];
 const FUNNEL_INV = [
   ["inv_entered", "Пришли по ссылке", "когорта кого-то привела"],
@@ -727,6 +726,7 @@ let funnelCache = null;
 let lastStats = null;
 let overviewDash = "check";
 let funnelStep = "";
+let funnelSelectionCard = "main";
 const FUNNEL_PERIODS = ["1d", "7d", "30d", "90d", "all"];
 let funnelPeriods = {
   main: localStorage.getItem("way-funnel-period") || "30d",
@@ -749,6 +749,7 @@ function collectOverviewParams() {
     fl: funnelPeriods.leak !== "30d" ? funnelPeriods.leak : "",
     fi: funnelPeriods.invite !== "30d" ? funnelPeriods.invite : "",
     step: funnelStep || "",
+    fc: funnelSelectionCard !== "main" ? funnelSelectionCard : "",
   };
 }
 
@@ -763,6 +764,8 @@ function applyOverviewRoute(params) {
   funnelPeriod = funnelPeriods.main;
   const step = params.get("step") || "";
   funnelStep = step === "payment" ? "paid" : step;
+  const selection = params.get("fc");
+  funnelSelectionCard = ["main", "source", "leak", "invite"].includes(selection) ? selection : "main";
   paintOverviewDash();
 }
 
@@ -813,22 +816,6 @@ function worstDropIndex(steps, convs) {
   return worst;
 }
 
-const FUNNEL_STEP_FILTER = {
-  trial: { trial: "yes" },
-  device: { devices: "yes" },
-  connected: { online: "30d" },
-  paid: { paid: "yes" },
-  repeat_paid: { paid: "yes" },
-  blocked: { status: "block" },
-  device_no_online: { devices: "yes", online: "never" },
-  checkout_drop: { paid: "no" },
-  no_legal: { trial: "no" },
-  inv_trial: { trial: "yes" },
-  inv_device: { devices: "yes" },
-  inv_connected: { online: "30d" },
-  inv_paid: { paid: "yes" },
-};
-
 function sourceHoverText(cur) {
   if (!cur) return "";
   const entered = Number(cur.entered) || 0;
@@ -859,6 +846,7 @@ function mapFunnelSteps(spec, row) {
     title,
     hint,
     n: Number((row && row[key]) || 0),
+    transition: row && row[key + "_transition"] != null ? Number(row[key + "_transition"]) : null,
   }));
 }
 
@@ -875,13 +863,13 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode, opts) {
   const startN = steps[0] ? steps[0].n : 0;
   const convs = steps.map((s, i) => {
     if (share) return i === 0 ? 100 : funnelPct(s.n, startN);
-    return i === 0 ? 100 : funnelPct(s.n, steps[i - 1].n);
+    return i === 0 ? 100 : funnelPct(s.transition ?? s.n, steps[i - 1].n);
   });
   const startShare = steps.map((s, i) => (i === 0 ? 100 : funnelPct(s.n, startN)));
   const prevConvs = (prevSteps || []).map((s, i) => {
     if (!prevSteps || !prevSteps.length) return null;
     if (share) return i === 0 ? 100 : funnelPct(s.n, prevSteps[0].n);
-    return i === 0 ? 100 : funnelPct(s.n, prevSteps[i - 1].n);
+    return i === 0 ? 100 : funnelPct(s.transition ?? s.n, prevSteps[i - 1].n);
   });
   const worst = share ? -1 : worstDropIndex(steps, convs);
   const maxN = Math.max(...steps.map((s) => s.n), 1);
@@ -905,7 +893,7 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode, opts) {
         deltaTxt = "без сдвига " + compareLabel;
       }
     }
-    const lost = !share && i ? Math.max(0, steps[i - 1].n - s.n) : 0;
+    const lost = !share && i ? Math.max(0, steps[i - 1].n - (s.transition ?? s.n)) : 0;
     row.className =
       "funnel-row" +
       (i === worst ? " is-drop" : deltaCls === "up" ? " is-up" : "") +
@@ -914,9 +902,9 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode, opts) {
     const tips = [];
     if (i === 0) tips.push(share ? s.hint || "старт" : "старт когорты");
     else {
-      tips.push("от предыдущего шага " + funnelPctText(conv));
+      tips.push((share ? "от когорты " : "из участников предыдущего этапа дошли ") + funnelPctText(conv));
       tips.push("от старта " + funnelPctText(fromStart));
-      if (lost) tips.push("ушло " + lost);
+      if (lost) tips.push("ещё не дошли " + lost);
       if (s.hint) tips.push(s.hint);
     }
     if (srcHint) tips.push(srcHint);
@@ -929,7 +917,7 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode, opts) {
       (deltaTxt ? '<span class="funnel-delta"></span>' : "") +
       "</div>";
     row.querySelector(".funnel-name").textContent = s.title;
-    row.querySelector(".funnel-meta").textContent = lost ? "ушло " + lost : "";
+    row.querySelector(".funnel-meta").textContent = lost ? "ещё не дошли " + lost : "";
     row.querySelector(".funnel-fill").style.width = bar + "%";
     row.querySelector(".funnel-count").textContent = String(s.n);
     row.querySelector(".funnel-conv").textContent = i === 0 && !share ? "100%" : funnelPctText(conv);
@@ -939,6 +927,7 @@ function paintFunnelRows(boxId, steps, prevSteps, compareLabel, mode, opts) {
       dEl.classList.add(deltaCls);
     }
     row.onclick = () => {
+      funnelSelectionCard = ({funnelMain:"main", funnelSource:"source", funnelLeak:"leak", funnelInvite:"invite"})[boxId] || "main";
       funnelStep = funnelStep === s.key ? "" : s.key;
       if (funnelStep && overviewDash !== "funnels" && overviewDash !== "sources") {
         overviewDash = "funnels";
@@ -989,7 +978,7 @@ function paintFunnelInsight(pack, main, convs, worst) {
   const leakBits = [];
   if (cur.checkout_drop) leakBits.push("не дожали оплату: " + cur.checkout_drop);
   if (cur.device_no_online) leakBits.push("устройство без онлайна: " + cur.device_no_online);
-  if (cur.no_legal) leakBits.push("без оферты: " + cur.no_legal);
+  if (cur.gift_no_online) leakBits.push("подарок без подключения: " + cur.gift_no_online);
   if (leakBits.length) {
     bits.push(document.createTextNode(" Потери: " + leakBits.join(", ") + "."));
   }
@@ -1000,7 +989,7 @@ function paintFunnelInsight(pack, main, convs, worst) {
     let bestD = 0;
     convs.forEach((c, i) => {
       if (!i || c == null) return;
-      const pc = funnelPct(prev[FUNNEL_MAIN[i][0]], prev[FUNNEL_MAIN[i - 1][0]]);
+      const pc = funnelPct(prev[FUNNEL_MAIN[i][0] + "_transition"] ?? prev[FUNNEL_MAIN[i][0]], prev[FUNNEL_MAIN[i - 1][0]]);
       if (pc == null) return;
       const d = c - pc;
       if (d > bestD) {
@@ -1059,6 +1048,10 @@ function paintFunnel(data) {
     if (insight) insight.textContent = "";
     return;
   }
+  const paymentInfo = $("funnelPayments");
+  if (paymentInfo) paymentInfo.textContent = "Оплатили через кассу: " + (pack.current.paid_rollypay || 0) +
+    " · через Telegram Stars: " + (pack.current.paid_stars || 0) +
+    ". Один пользователь может быть в обеих группах; в основной воронке он считается один раз.";
   const compare = pack.compare || "";
   const main = mapFunnelSteps(FUNNEL_MAIN, pack.current);
   const prevMain = pack.previous ? mapFunnelSteps(FUNNEL_MAIN, pack.previous) : null;
@@ -1087,7 +1080,8 @@ function paintFunnel(data) {
     "funnelInvite",
     mapFunnelSteps(FUNNEL_INV, invPack.current || {}),
     invPack.previous ? mapFunnelSteps(FUNNEL_INV, invPack.previous) : null,
-    invPack.compare || compare
+    invPack.compare || compare,
+    "share"
   );
   paintFunnelInsight(pack, main, (painted && painted.convs) || [], painted ? painted.worst : -1);
 }
@@ -1165,7 +1159,7 @@ function paintProblemsBadge(s) {
 function worstMainKey(row) {
   if (!row) return "";
   const steps = mapFunnelSteps(FUNNEL_MAIN, row);
-  const convs = steps.map((s, i) => (i === 0 ? 100 : funnelPct(s.n, steps[i - 1].n)));
+  const convs = steps.map((s, i) => (i === 0 ? 100 : funnelPct(s.transition ?? s.n, steps[i - 1].n)));
   const idx = worstDropIndex(steps, convs);
   return idx > 0 ? steps[idx].key : "";
 }
@@ -1227,17 +1221,12 @@ async function loadFunnelClients() {
   if (!body) return;
   body.innerHTML = "";
   if (!funnelStep) {
-    if (hint) hint.textContent = "Выберите шаг воронки. Список строится из текущих фильтров пользователей за период когорты.";
+    if (hint) hint.textContent = "Выберите этап, чтобы увидеть пользователей из выбранной когорты.";
     body.appendChild(emptyRow(5, "Шаг не выбран"));
     return;
   }
   if ($("funnelCardMain")) $("funnelCardMain").open = true;
-  const period = funnelPeriods.main;
-  const range = cohortRange(period);
-  const extra = { ...(FUNNEL_STEP_FILTER[funnelStep] || {}) };
-  if ((funnelStep === "connected" || funnelStep === "inv_connected") && extra.online === "30d") {
-    extra.online = period === "1d" || period === "7d" ? period : "30d";
-  }
+  const pack = packFor(funnelSelectionCard) || packFor("main") || {};
   const title = (
     FUNNEL_MAIN.find((x) => x[0] === funnelStep) ||
     FUNNEL_SOURCE.find((x) => x[0] === funnelStep) ||
@@ -1245,26 +1234,20 @@ async function loadFunnelClients() {
     FUNNEL_INV.find((x) => x[0] === funnelStep) ||
     [funnelStep, funnelStep]
   )[1];
-  if (hint) {
-    hint.textContent =
-      "Приближение по полям списка пользователей для шага «" +
-      title +
-      "»" +
-      (range.from ? ", когорта " + range.from + " — " + range.to : "") +
-      ". Это не точная выборка воронки.";
-  }
+  if (hint) hint.textContent = "Пользователи этапа «" + title + "». Условия и период совпадают со счётчиком. Показаны первые 100.";
   try {
     const data = await api(
       `/admin/api/users?${queryString({
-        ...extra,
-        from: range.from,
-        to: range.to,
+        funnel_step: funnelStep,
+        funnel_from: pack.from || "",
+        funnel_to: pack.to || "",
         page: 1,
+        limit: 100,
       })}`
     );
     const items = data.items || [];
     if (!items.length) {
-      body.appendChild(emptyRow(5, "Никого не нашли по этому приближению"));
+      body.appendChild(emptyRow(5, "На этом этапе пользователей нет"));
       return;
     }
     items.forEach((u) => {
@@ -1296,8 +1279,11 @@ async function loadFunnelClients() {
 function paidLine(u) {
   const n = Number(u && u.paid_topup_count) || 0;
   const sum = Number(u && u.paid_topup_rub) || 0;
-  if (!n && !sum) return "нет";
-  return sum + " ₽ · " + n + (n === 1 ? " раз" : " раз");
+  const starsCount = Number(u && u.stars_payment_count) || 0;
+  const parts = [];
+  if (n || sum) parts.push(sum + " ₽ · " + n + " платеж(ей)");
+  if (starsCount) parts.push((Number(u.paid_stars_amount) || 0) + " Stars · " + starsCount + " платеж(ей)");
+  return parts.join("; ") || "нет";
 }
 
 function paintModalPaid(u) {
