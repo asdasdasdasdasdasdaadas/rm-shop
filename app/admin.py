@@ -675,14 +675,19 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
     if kind == "nudge_story":
         return story_nudge_keyboard()
     if kind == "first_device_thanks":
-        return cabinet_keyboard()
+        return onboarding_keyboard(has_device=True)
     if kind == "nudge_device":
         return onboarding_keyboard(has_device=True)
     if kind == "nudge_legal":
         return legal_keyboard()
     if kind in {"low_balance", "nudge_first_online", "nudge_trial_end"}:
         return payment_nudge_keyboard(label="Пополнить баланс")
-    if kind in {"nudge_info", "nudge_idle", "welcome_intro"}:
+    if kind == "nudge_idle":
+        if extra.get("segment") == "topup":
+            return payment_nudge_keyboard(label="Пополнить баланс")
+        user = await db.get_user(telegram_id)
+        return onboarding_keyboard(gift=extra.get("segment") == "setup" and not (user or {}).get("trial_used"), has_device=True)
+    if kind in {"nudge_info", "welcome_intro"}:
         return cabinet_keyboard()
     return None
 

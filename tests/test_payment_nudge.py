@@ -11,6 +11,7 @@ class PaymentNudgeTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
+        self.stack.enter_context(patch.object(db, "nudge_delivery_allowed", AsyncMock(return_value=True)))
         self.flags = self.stack.enter_context(patch.object(db, 'flag_on', AsyncMock(side_effect=lambda key, **kw: key == 'payment_nudge')))
         self.rows = self.stack.enter_context(patch.object(db, 'list_due_payment_nudges', AsyncMock(return_value=[
             {'telegram_id': 1, 'checkout_token': 'current', 'checkout_payment_id': 'pay-1'}])))
@@ -20,6 +21,12 @@ class PaymentNudgeTest(unittest.IsolatedAsyncioTestCase):
         self.stack.enter_context(patch.object(nudge, 'payment_nudge_keyboard', return_value=None))
         self.stack.enter_context(patch.object(nudge, 'notice_text', return_value='Reminder'))
         self.rp = SimpleNamespace(get_payment=AsyncMock(return_value={'status':'pending'}))
+
+    async def test_delivery_failure_releases_current_invoice_for_retry(self):
+        self.deliver.return_value=False
+        with patch.object(db, 'release_payment_nudge', AsyncMock()) as release:
+            self.assertEqual(await nudge.send_due_payment_nudges(None,self.rp),(0,[1]))
+            release.assert_awaited_once_with(1,'current')
 
     async def test_pending_payment_sends_once_claimed(self):
         self.assertEqual(await nudge.send_due_payment_nudges(None, self.rp), (1, [1]))

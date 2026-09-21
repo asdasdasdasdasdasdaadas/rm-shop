@@ -49,12 +49,13 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
             CREATE TABLE users (telegram_id INTEGER, first_name TEXT, blocked_at TEXT, bot_blocked_at TEXT,
                 bot_started_at TEXT, gift_claimed_at TEXT, first_online_at TEXT, device_nudge_count INTEGER DEFAULT 0, device_nudge_at TEXT,
                 trial_end_nudge_at TEXT, trial_used INTEGER DEFAULT 1, billing_paused_at TEXT,
-                has_paid_topup INTEGER DEFAULT 0, balance_rub INTEGER DEFAULT 6, checkout_started_at TEXT, created_at TEXT DEFAULT '2026-09-18', trial_nudge_sent_at TEXT);
+                has_paid_topup INTEGER DEFAULT 0, balance_rub INTEGER DEFAULT 6, checkout_started_at TEXT, created_at TEXT DEFAULT '2026-09-18', trial_nudge_sent_at TEXT, invite_nudge_sent_at TEXT);
             CREATE TABLE devices (telegram_id INTEGER, kind TEXT);
             CREATE TABLE message_log (telegram_id INTEGER, status TEXT, kind TEXT, created_at TEXT);
         ''')
         async def fetch(sql, *args):
             sql = sql.replace("timezone('utc', now())", 'NOW()').replace('::int', '')
+            sql = sql.replace("NOW() - INTERVAL '48 hours'", "'2026-09-18 12:00:00'")
             sql = sql.replace("NOW() - INTERVAL '24 hours'", "'2026-09-19 12:00:00'")
             sql = sql.replace("NOW() - INTERVAL '30 minutes'", "'2026-09-20 11:30:00'")
             sql = sql.replace("NOW() - INTERVAL '20 minutes'", "'2026-09-20 11:40:00'")
@@ -82,6 +83,13 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([r['telegram_id'] for r in await db.list_due_trial_nudges()], [6])
             conn.execute("UPDATE users SET trial_used=1 WHERE telegram_id=6")
             self.assertEqual(await db.list_due_trial_nudges(), [])
+            # Payment or device alone is not enough to ask for recommendations.
+            conn.execute("UPDATE users SET has_paid_topup=1 WHERE telegram_id=6")
+            self.assertEqual(await db.list_due_invite_nudges(), [])
+            conn.execute("UPDATE users SET first_online_at='2026-09-18 10:00:00' WHERE telegram_id=6")
+            self.assertEqual([r['telegram_id'] for r in await db.list_due_invite_nudges()], [6])
+            conn.execute("UPDATE users SET invite_nudge_sent_at='2026-09-20' WHERE telegram_id=6")
+            self.assertEqual(await db.list_due_invite_nudges(), [])
             # At 3 rub/device/day, two phones consume 6 rub; a router, paused user, and no-device user do not qualify.
             self.assertEqual([r['telegram_id'] for r in await db.list_due_trial_end_nudges(3)], [1])
             conn.execute("UPDATE users SET checkout_started_at='2026-09-20 11:55:00' WHERE telegram_id=1")
@@ -91,7 +99,8 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_low_balance_message_has_hours_and_topup(self):
         settings = SimpleNamespace(balance_enabled=True, vpn_day_price_rub=6)
-        with patch.object(nudge, 'get_settings', return_value=settings), \
+        with patch.object(db, 'nudge_delivery_allowed', AsyncMock(return_value=True)), \
+             patch.object(nudge, 'get_settings', return_value=settings), \
              patch.object(db, 'flag_on', AsyncMock(return_value=False)), \
              patch.object(db, 'list_due_trial_end_nudges', AsyncMock(return_value=[{'telegram_id':1,'balance_rub':6,'device_count':2}])), \
              patch.object(db, 'mark_trial_end_nudge_sent', AsyncMock()), \

@@ -2100,9 +2100,11 @@ _PAYMENT_NUDGE_DUE = """
 """
 
 
-async def list_due_payment_nudges(limit: int = 80) -> list[dict]:
+async def list_due_payment_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
+    skip_clause = " AND NOT (u.telegram_id = ANY($2::bigint[]))" if skip_ids else ""
+    args = [int(limit)] + ([skip_ids] if skip_ids else [])
     rows = await _pool_req().fetch(
-        f"SELECT u.* FROM users u WHERE {_PAYMENT_NUDGE_DUE} ORDER BY u.checkout_started_at LIMIT $1", limit,
+        f"SELECT u.* FROM users u WHERE {_PAYMENT_NUDGE_DUE}{skip_clause} ORDER BY u.checkout_started_at LIMIT $1", *args,
     )
     return [dict(row) for row in rows]
 
@@ -3211,12 +3213,9 @@ async def list_due_invite_nudges(limit: int = 80, skip_ids: list[int] | None = N
         FROM users u
         WHERE u.invite_nudge_sent_at IS NULL
           AND u.blocked_at IS NULL
-          AND u.created_at <= timezone('utc', now()) - INTERVAL '48 hours'
+          AND u.first_online_at <= timezone('utc', now()) - INTERVAL '48 hours'
+          AND u.bot_started_at IS NOT NULL AND u.bot_blocked_at IS NULL
           AND NOT (u.telegram_id = ANY($2::bigint[]))
-          AND (
-            COALESCE(u.has_paid_topup, FALSE)
-            OR EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)
-          )
         ORDER BY u.created_at
         LIMIT $1
         """,
@@ -3440,38 +3439,43 @@ async def list_due_idle_nudges(limit: int = 80, skip_ids: list[int] | None = Non
     skip = [int(x) for x in (skip_ids or [])]
     rows = await _pool_req().fetch(
         """
-        SELECT q.telegram_id, q.first_name, q.idle_days
+        SELECT q.*
         FROM (
             SELECT
                 u.telegram_id,
-                u.first_name,
+                u.first_name, u.first_online_at, u.balance_rub, u.trial_used,
+                EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id) AS has_device,
                 CASE
-                    WHEN seen.last_seen <= timezone('utc', now()) - INTERVAL '20 days'
+                    WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '20 days'
                          AND step.v < 20 THEN 20
-                    WHEN seen.last_seen <= timezone('utc', now()) - INTERVAL '15 days'
+                    WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '15 days'
                          AND step.v < 15 THEN 15
-                    WHEN seen.last_seen <= timezone('utc', now()) - INTERVAL '10 days'
+                    WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '10 days'
                          AND step.v < 10 THEN 10
-                    WHEN seen.last_seen <= timezone('utc', now()) - INTERVAL '7 days'
+                    WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '7 days'
                          AND step.v < 7 THEN 7
                     ELSE NULL
                 END AS idle_days
             FROM users u
-            JOIN (
+            LEFT JOIN (
                 SELECT telegram_id, MAX(last_online_at) AS last_seen
                 FROM devices
                 WHERE last_online_at IS NOT NULL
                 GROUP BY telegram_id
             ) seen ON seen.telegram_id = u.telegram_id
             CROSS JOIN LATERAL (
+                SELECT COALESCE(seen.last_seen, u.first_online_at, u.bot_started_at) AS last_seen
+            ) activity
+            CROSS JOIN LATERAL (
                 SELECT CASE
-                    WHEN u.idle_nudge_at IS NULL OR seen.last_seen > u.idle_nudge_at
+                    WHEN u.idle_nudge_at IS NULL OR activity.last_seen > u.idle_nudge_at
                     THEN 0
                     ELSE COALESCE(u.idle_nudge_step, 0)
                 END AS v
             ) step
             WHERE u.blocked_at IS NULL
-              AND u.first_online_at IS NOT NULL
+              AND u.bot_started_at IS NOT NULL AND u.bot_blocked_at IS NULL
+              AND u.billing_paused_at IS NULL
               AND NOT (u.telegram_id = ANY($2::bigint[]))
         ) q
         WHERE q.idle_days IS NOT NULL
@@ -4637,3 +4641,37 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
                        VALUES ($1,'referral','payment',$2,$3,$4)""", referrer_id,reward,after,
                     f"Друг {invitee_id}: первая оплата {bonus} ₽ + 5% от {amount} ₽; {payment_key}")
             return {'referrer_id':referrer_id,'amount':reward,'bonus':bonus,'percent':percent}
+
+
+async def nudge_delivery_allowed(telegram_id: int, kind: str) -> bool:
+    """At most three failed attempts per kind/day; respect Telegram retry delays."""
+    return bool(await _pool_req().fetchval(
+        """SELECT COUNT(*) < 3
+            AND COALESCE(MAX(created_at + GREATEST(120,
+                COALESCE((extra->>'retry_after')::int, 120)) * INTERVAL '1 second') <= NOW(), TRUE)
+            AND NOT COALESCE(BOOL_OR(COALESCE((extra->>'permanent')::boolean, FALSE)), FALSE)
+        FROM message_log WHERE telegram_id=$1 AND kind=$2 AND status='failed'
+          AND created_at > NOW() - INTERVAL '24 hours'""", telegram_id, kind,
+    ))
+
+
+async def release_payment_nudge(telegram_id: int, token: str) -> None:
+    await _pool_req().execute(
+        """UPDATE users SET checkout_nudge_at=NULL, payment_nudge_at=NULL
+        WHERE telegram_id=$1 AND checkout_token=$2""", telegram_id, token,
+    )
+
+
+async def nudge_retry_suppressed_ids() -> list[int]:
+    """Exclude recipients before batching so failed chats cannot starve the queue."""
+    rows = await _pool_req().fetch(
+        """SELECT DISTINCT telegram_id FROM message_log
+        WHERE status='failed' AND created_at > NOW() - INTERVAL '24 hours'
+          AND (kind LIKE 'nudge_%' OR kind='first_device_thanks')
+        GROUP BY telegram_id, kind
+        HAVING COUNT(*) >= 3
+            OR MAX(created_at + GREATEST(120, COALESCE((extra->>'retry_after')::int, 120))
+                * INTERVAL '1 second') > NOW()
+            OR BOOL_OR(COALESCE((extra->>'permanent')::boolean, FALSE))"""
+    )
+    return [int(row['telegram_id']) for row in rows if row['telegram_id'] is not None]
