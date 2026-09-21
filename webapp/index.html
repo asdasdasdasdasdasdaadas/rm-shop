@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=178">
+  <link rel="stylesheet" href="app.css?v=179">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -576,6 +576,15 @@
         </div>
       </div>
 
+      <section id="homePromoCard" class="section home-promo hidden" aria-labelledby="homePromoTitle">
+        <div class="section-head"><label id="homePromoTitle" class="h" for="homePromo">Ввести промокод</label></div>
+        <form id="homePromoForm" class="promo-inner">
+          <input id="homePromo" type="text" placeholder="Введите промокод" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+          <button type="submit" id="homePromoBtn">Применить</button>
+        </form>
+        <p id="homePromoResult" class="home-promo-result hidden" role="status" aria-live="polite"></p>
+      </section>
+
       <div id="connectWrap" class="section hidden">
         <div class="section-head"><span class="h">Подключение</span></div>
         <div id="connectBody" class="stack"></div>
@@ -1127,6 +1136,6 @@
 
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
-  <script src="app.js?v=163"></script>
+  <script src="app.js?v=164"></script>
 </body>
 </html>

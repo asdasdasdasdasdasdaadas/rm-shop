@@ -4093,6 +4093,7 @@ function paint(me) {
   if (menuBilling) menuBilling.classList.toggle("hidden", !me.balance_enabled);
   const menuPromo = $("menuPromo");
   if (menuPromo) menuPromo.classList.toggle("hidden", !me.promo_enabled);
+  $("homePromoCard").classList.toggle("hidden", !me.promo_enabled);
   const trustBtn = $("trustBtn");
   const trustOpen = $("trustOpen");
   const trustHelp = $("trustHelp");
@@ -4513,19 +4514,44 @@ if ($("refPayoutBtn")) {
   };
 }
 
-$("promoBtn").onclick = async () => {
+let promoSubmitting = false;
+async function applyPromo(inputId, buttonId, resultId) {
+  if (promoSubmitting) return;
+  const input = $(inputId), button = $(buttonId);
+  const result = resultId ? $(resultId) : null;
+  const code = input.value.trim();
+  if (!code) { input.focus(); return; }
   haptic();
+  promoSubmitting = true;
+  button.disabled = true;
+  const label = button.textContent;
+  button.textContent = "Применяем…";
+  if (result) { result.textContent = ""; result.classList.add("hidden"); }
   try {
-    await api("/api/promo", {
-      method: "POST",
-      body: JSON.stringify({ code: $("promo").value }),
-    });
-    $("promo").value = "";
+    await api("/api/promo", {method: "POST", body: JSON.stringify({code})});
+    input.value = "";
+    if (result) {
+      result.textContent = "Промокод применён";
+      result.classList.remove("hidden");
+    } else {
+      tg.showAlert("Промокод применён");
+    }
     await load();
-    tg.showAlert("Промокод применён");
   } catch (e) {
-    showErr(e);
+    if (result) {
+      result.textContent = e.message || "Не удалось применить промокод";
+      result.classList.remove("hidden");
+    } else { showErr(e); }
+  } finally {
+    promoSubmitting = false;
+    button.disabled = false;
+    button.textContent = label;
   }
+}
+$("promoBtn").onclick = () => applyPromo("promo", "promoBtn");
+$("homePromoForm").onsubmit = (event) => {
+  event.preventDefault();
+  return applyPromo("homePromo", "homePromoBtn", "homePromoResult");
 };
 
 if ($("menuPromo")) {

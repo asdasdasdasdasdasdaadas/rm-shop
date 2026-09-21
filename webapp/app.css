@@ -6136,3 +6136,16 @@ html.is-decoy .decoy:has(#decoySerp:not(.hidden)) .decoy-bar {
 .exit-feedback-options { display: grid; gap: 10px; margin: 20px 0 12px; }
 .exit-feedback-options .btn, #exitFeedbackSkip { width: 100%; }
 #exitFeedbackError:empty { display: none; }
+
+
+.home-promo { padding: 20px; }
+.home-promo .section-head { margin-bottom: 14px; }
+.home-promo .promo-inner { margin: 0; padding: 0; }
+.home-promo .promo-inner input { min-width: 0; width: 100%; font-size: 16px; }
+.home-promo .promo-inner input:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.home-promo .promo-inner button { flex-shrink: 0; min-height: 44px; }
+.home-promo .promo-inner button:disabled { opacity: .6; cursor: wait; }
+.home-promo-result { margin: 12px 0 0; font-size: 13px; color: var(--text-secondary); }
+@media (max-width: 360px) {
+  .home-promo .promo-inner { flex-direction: column; }
+}
