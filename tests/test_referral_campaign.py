@@ -14,11 +14,13 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
         self.sql.executescript('''
           CREATE TABLE users (telegram_id INTEGER PRIMARY KEY, referred_by INTEGER,
             referral_rewarded BOOLEAN DEFAULT FALSE, balance_rub INTEGER DEFAULT 0,
+            bot_started_at TEXT DEFAULT CURRENT_TIMESTAMP, blocked_at TEXT, bot_blocked_at TEXT,
             referral_fraction INTEGER DEFAULT 0, referral_earned INTEGER DEFAULT 0, low_balance_notified_at TEXT);
           INSERT INTO users (telegram_id,referred_by) VALUES (1,NULL),(2,1),(3,1),(4,1),(5,1),(6,1),(7,1),(8,1);
           CREATE TABLE referral_campaigns (id INTEGER PRIMARY KEY, started_at TEXT DEFAULT CURRENT_TIMESTAMP,
             stopped_at TEXT, reward_rub INTEGER);
           CREATE UNIQUE INDEX one_active ON referral_campaigns ((1)) WHERE stopped_at IS NULL;
+          CREATE TABLE referral_campaign_messages (campaign_id INTEGER,telegram_id INTEGER,status TEXT DEFAULT 'pending',PRIMARY KEY(campaign_id,telegram_id));
           CREATE TABLE referral_campaign_friends (invitee_id INTEGER PRIMARY KEY,campaign_id INTEGER,
             referrer_id INTEGER,payment_key TEXT UNIQUE);
           CREATE TABLE referral_campaign_awards (campaign_id INTEGER,referrer_id INTEGER,amount INTEGER,
@@ -112,3 +114,14 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
         self.sql.execute('DROP TRIGGER reject_ledger')
         await self.pay(4)
         self.assertEqual(self.balance(),540)
+
+    async def test_start_queues_only_reachable_users_once(self):
+        self.sql.execute("UPDATE users SET bot_started_at=NULL WHERE telegram_id=2")
+        self.sql.execute("UPDATE users SET blocked_at='now' WHERE telegram_id=3")
+        self.sql.execute("UPDATE users SET bot_blocked_at='now' WHERE telegram_id=4")
+        await db.change_referral_campaign('start')
+        await db.change_referral_campaign('start')
+        recipients = [r[0] for r in self.sql.execute('SELECT telegram_id FROM referral_campaign_messages ORDER BY telegram_id')]
+        self.assertEqual(recipients,[1,5,6,7,8])
+        await db.change_referral_campaign('stop',1)
+        self.assertEqual(self.sql.execute("SELECT COUNT(*) FROM referral_campaign_messages WHERE status='pending'").fetchone()[0],0)

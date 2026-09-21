@@ -4502,10 +4502,10 @@ async function loadReferralCampaigns(action) {
     const active = data.items.find(item => !item.stopped_at);
     activeReferralCampaign = active ? active.id : null;
     $('campaignStatus').textContent = active
-      ? `Акция №${active.id} запущена. Подарок: ${active.reward_rub} ₽. Оплативших друзей: ${active.friends}. Выдано подарков: ${active.awards}.`
+      ? `Акция №${active.id} запущена. Подарок: ${active.reward_rub} ₽. Оплативших друзей: ${active.friends}. Выдано подарков: ${active.awards}. Рассылка: отправлено ${active.sent || 0}, в очереди ${active.pending || 0}, ошибок ${active.failed || 0}.`
       : `Акция выключена. При новом запуске подарок составит ${data.next_reward_rub} ₽.`;
     $('campaignHistory').textContent = data.items.filter(item => item.stopped_at)
-      .map(item => `Акция №${item.id}: ${item.friends} друзей, ${item.awards} подарков по ${item.reward_rub} ₽.`).join(' ');
+      .map(item => `Акция №${item.id}: ${item.friends} друзей, ${item.awards} подарков по ${item.reward_rub} ₽. Рассылка: ${item.sent || 0} отправлено, ${item.failed || 0} ошибок.`).join(' ');
     start.disabled = Boolean(active);
     stop.disabled = !active;
   } catch (err) {

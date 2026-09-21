@@ -532,3 +532,16 @@ CREATE TABLE IF NOT EXISTS referral_campaign_awards (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (campaign_id, referrer_id)
 );
+
+CREATE TABLE IF NOT EXISTS referral_campaign_messages (
+    campaign_id BIGINT NOT NULL REFERENCES referral_campaigns(id),
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id),
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    sent_at TIMESTAMPTZ,
+    error TEXT,
+    PRIMARY KEY (campaign_id, telegram_id)
+);
+CREATE INDEX IF NOT EXISTS referral_campaign_messages_queue
+    ON referral_campaign_messages (retry_at) WHERE status IN ('pending','sending');

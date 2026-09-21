@@ -4796,7 +4796,10 @@ async def admin_referral_campaigns() -> list[dict]:
     rows = await _pool_req().fetch("""
         SELECT c.*,
           (SELECT COUNT(*) FROM referral_campaign_friends f WHERE f.campaign_id=c.id) AS friends,
-          (SELECT COUNT(*) FROM referral_campaign_awards a WHERE a.campaign_id=c.id) AS awards
+          (SELECT COUNT(*) FROM referral_campaign_awards a WHERE a.campaign_id=c.id) AS awards,
+          (SELECT COUNT(*) FROM referral_campaign_messages m WHERE m.campaign_id=c.id AND m.status='sent') AS sent,
+          (SELECT COUNT(*) FROM referral_campaign_messages m WHERE m.campaign_id=c.id AND m.status='failed') AS failed,
+          (SELECT COUNT(*) FROM referral_campaign_messages m WHERE m.campaign_id=c.id AND m.status IN ('pending','sending')) AS pending
         FROM referral_campaigns c ORDER BY c.id DESC LIMIT 20""")
     return [_jsonable(dict(r)) for r in rows]
 
@@ -4811,13 +4814,19 @@ async def change_referral_campaign(action: str, campaign_id: int | None = None) 
         async with conn.transaction():
             await conn.execute('SELECT pg_advisory_xact_lock(73619420)')
             if action == 'start':
-                await conn.execute("""INSERT INTO referral_campaigns (reward_rub)
+                new_id = await conn.fetchval("""INSERT INTO referral_campaigns (reward_rub)
                     SELECT $1 WHERE NOT EXISTS
-                    (SELECT 1 FROM referral_campaigns WHERE stopped_at IS NULL)""",
+                    (SELECT 1 FROM referral_campaigns WHERE stopped_at IS NULL) RETURNING id""",
                     int(settings.vpn_day_price_rub) * 30 * 3)
+                if new_id:
+                    await conn.execute("""INSERT INTO referral_campaign_messages (campaign_id,telegram_id)
+                        SELECT $1,telegram_id FROM users WHERE bot_started_at IS NOT NULL
+                        AND blocked_at IS NULL AND bot_blocked_at IS NULL""", new_id)
             else:
                 await conn.execute("""UPDATE referral_campaigns SET stopped_at=clock_timestamp()
                     WHERE id=$1 AND stopped_at IS NULL""", campaign_id)
+                await conn.execute("""UPDATE referral_campaign_messages SET status='cancelled'
+                    WHERE campaign_id=$1 AND status='pending'""", campaign_id)
 
 
 async def _reward_campaign(conn, invitee_id: int, referrer_id: int | None,
@@ -4849,3 +4858,37 @@ async def _reward_campaign(conn, invitee_id: int, referrer_id: int | None,
         VALUES ($1,'referral','campaign',$2,$3,$4)""", referrer_id, amount, balance,
         f"Акция #{campaign['id']}: 3 друга, 30 дней на 3 устройства")
     return {'referrer_id': referrer_id, 'amount': amount, 'campaign_id': campaign['id']}
+
+
+async def claim_campaign_message() -> dict | None:
+    await _pool_req().execute("""UPDATE referral_campaign_messages m SET status='cancelled'
+        WHERE (m.status='pending' OR (m.status='sending' AND m.retry_at <= NOW()))
+          AND (EXISTS (SELECT 1 FROM referral_campaigns c WHERE c.id=m.campaign_id AND c.stopped_at IS NOT NULL)
+            OR EXISTS (SELECT 1 FROM users u WHERE u.telegram_id=m.telegram_id
+                AND (u.blocked_at IS NOT NULL OR u.bot_blocked_at IS NOT NULL)))""")
+    row = await _pool_req().fetchrow("""
+        WITH next AS (
+            SELECT m.campaign_id,m.telegram_id FROM referral_campaign_messages m
+            JOIN referral_campaigns c ON c.id=m.campaign_id
+            JOIN users u ON u.telegram_id=m.telegram_id
+            WHERE c.stopped_at IS NULL AND m.status IN ('pending','sending')
+              AND m.retry_at <= NOW() AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
+            ORDER BY m.retry_at,m.telegram_id FOR UPDATE OF m SKIP LOCKED LIMIT 1
+        ), claimed AS (
+            UPDATE referral_campaign_messages m SET status='sending',attempts=attempts+1,
+                retry_at=NOW()+INTERVAL '5 minutes'
+            FROM next n WHERE m.campaign_id=n.campaign_id AND m.telegram_id=n.telegram_id
+            RETURNING m.*
+        ) SELECT claimed.*,c.reward_rub FROM claimed JOIN referral_campaigns c ON c.id=claimed.campaign_id
+    """)
+    return dict(row) if row else None
+
+
+async def finish_campaign_message(campaign_id: int, telegram_id: int, *, error: str | None = None,
+                                  retry_seconds: int | None = None) -> None:
+    await _pool_req().execute("""UPDATE referral_campaign_messages
+        SET status=$3,error=$4,sent_at=CASE WHEN $3='sent' THEN NOW() ELSE NULL END,
+            retry_at=NOW()+($5 * INTERVAL '1 second')
+        WHERE campaign_id=$1 AND telegram_id=$2""", campaign_id,telegram_id,
+        'sent' if error is None else 'pending' if retry_seconds is not None else 'failed',
+        error, retry_seconds or 0)

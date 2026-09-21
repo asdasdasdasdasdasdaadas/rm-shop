@@ -147,6 +147,8 @@ async def main() -> None:
         sync_task = asyncio.create_task(panel_sync_loop(rw), name="panel-sync")
         charge_task = asyncio.create_task(balance_charge_loop(rw, bot), name="balance-charge")
         dump_task = asyncio.create_task(backup_loop(bot), name="backup")
+        from app.campaigns import campaign_announcement_loop
+        campaign_task = asyncio.create_task(campaign_announcement_loop(bot), name="campaign-announcements")
         nudge_task = asyncio.create_task(trial_nudge_loop(bot, rp), name="trial-nudge")
         try:
             await dp.start_polling(
@@ -159,6 +161,8 @@ async def main() -> None:
             charge_task.cancel()
             dump_task.cancel()
             nudge_task.cancel()
+            campaign_task.cancel()
+            await asyncio.gather(campaign_task, return_exceptions=True)
     finally:
         await runner.cleanup()
         if rp is not None:
