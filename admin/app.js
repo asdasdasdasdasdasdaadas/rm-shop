@@ -3303,7 +3303,7 @@ if ($("adShowArchived")) $("adShowArchived").onchange = () => loadAds();
 function randomPromoCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const chunk = (n) => Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
-  return `${chunk(4)}-${chunk(4)}`;
+  return `${chunk(4)}-${chunk(4)}-${chunk(4)}`;
 }
 
 if ($("promoGen")) {

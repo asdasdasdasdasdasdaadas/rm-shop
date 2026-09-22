@@ -2241,7 +2241,7 @@ def normalize_promo_code(raw: str) -> str:
 
 def generate_promo_code() -> str:
     chunk = lambda n: "".join(secrets.choice(_PROMO_GEN_ALPHABET) for _ in range(n))
-    return f"{chunk(4)}-{chunk(4)}"
+    return f"{chunk(4)}-{chunk(4)}-{chunk(4)}"
 
 
 async def list_promo_codes(*, include_archived: bool = False) -> list[dict]:
