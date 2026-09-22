@@ -6149,3 +6149,30 @@ html.is-decoy .decoy:has(#decoySerp:not(.hidden)) .decoy-bar {
 @media (max-width: 360px) {
   .home-promo .promo-inner { flex-direction: column; }
 }
+
+
+/* Keep referral terms readable instead of squeezing a sentence into a pill. */
+.ref-banner-invite .ref-banner-copy { padding-right: 0; }
+.ref-banner-invite .ref-banner-title {
+  padding-right: 76px;
+  font-size: 20px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+.ref-banner-invite .ref-banner-pill {
+  max-width: calc(100% - 76px);
+  border-radius: var(--radius-sm);
+  line-height: 1.4;
+  color: var(--accent);
+}
+.ref-banner-invite .ref-banner-art,
+.ref-banner-invite .ref-banner-frog { width: 64px; height: 64px; }
+.ref-banner-invite .ref-banner-art { right: 4px; top: 10px; }
+.ref-banner-note {
+  margin: 14px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.55;
+  text-wrap: pretty;
+}

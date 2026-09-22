@@ -3722,8 +3722,13 @@ function paintRefBanner(me) {
   if (!pill) return;
   const active = Boolean(me && me.referral_program_enabled);
   const title = $("inviteBannerTitle");
-  if (title) title.textContent = active ? "Приглашай друзей и зарабатывай" : "Реферальная программа";
-  pill.textContent = active ? "50 ₽ за первую оплату + 5% с каждого пополнения" : "Начисления приостановлены";
+  if (title) title.textContent = active ? "Приглашай друзей" : "Реферальная программа";
+  pill.textContent = active ? "50 ₽ + 5% на баланс" : "Начисления приостановлены";
+  const note = $("inviteBannerNote");
+  if (note) {
+    note.textContent = active ? "50 ₽ за первую оплату друга и 5% с каждого его пополнения, пока программа действует." : "";
+    note.classList.toggle("hidden", !active);
+  }
 
 }
 
