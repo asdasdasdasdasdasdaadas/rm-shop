@@ -1748,9 +1748,15 @@ async def delete_user(telegram_id: int) -> bool:
     pool = _pool_req()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            exists = await conn.fetchval("SELECT 1 FROM users WHERE telegram_id = $1", telegram_id)
+            # Serialize with campaign enrollment/awards and lock the parent before cleanup.
+            await conn.execute('SELECT pg_advisory_xact_lock(73619420)')
+            exists = await conn.fetchval("SELECT 1 FROM users WHERE telegram_id = $1 FOR UPDATE", telegram_id)
             if not exists:
                 return False
+            await conn.execute("DELETE FROM referral_campaign_messages WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM referral_campaign_awards WHERE referrer_id = $1", telegram_id)
+            await conn.execute("DELETE FROM referral_campaign_friends WHERE invitee_id = $1 OR referrer_id = $1", telegram_id)
+            await conn.execute("DELETE FROM cabinet_login_challenges WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM trust_loans WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM vpn_reports WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM promo_uses WHERE telegram_id = $1", telegram_id)
