@@ -6138,7 +6138,16 @@ html.is-decoy .decoy:has(#decoySerp:not(.hidden)) .decoy-bar {
 #exitFeedbackError:empty { display: none; }
 
 
-.home-promo { padding: 20px; }
+.home-promo {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  align-self: stretch;
+  justify-self: stretch;
+  grid-column: 1 / -1;
+  padding: 20px;
+}
 .home-promo .section-head { margin-bottom: 14px; }
 .home-promo .promo-inner { margin: 0; padding: 0; }
 .home-promo .promo-inner input { min-width: 0; width: 100%; font-size: 16px; }
