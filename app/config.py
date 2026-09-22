@@ -317,9 +317,11 @@ def _env_settings() -> Settings:
 
 def get_settings() -> Settings:
     base = _env_settings()
-    if not _overlay:
+    if not _overlay and base.promo_enabled:
         return base
     update = dict(_overlay)
+    # Promo redemption is always available, including installations with an old disabled setting.
+    update["promo_enabled"] = True
     update.pop("vpn_apps", None)
     update.pop("pay_methods", None)
     update.pop("notices", None)

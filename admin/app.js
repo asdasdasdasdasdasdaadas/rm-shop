@@ -2690,7 +2690,6 @@ async function loadSettings() {
   set("setRefInvitee", v.referral_invitee_days);
   set("setTrialOn", v.trial_enabled);
   set("setTrialDays", v.trial_days);
-  set("setPromoOn", v.promo_enabled);
   renderVpnApps(Array.isArray(v.vpn_apps) ? v.vpn_apps : []);
   renderPayMethodsAdmin(Array.isArray(v.pay_methods) ? v.pay_methods : []);
   renderNotices(s.notice_fields || [], v.notices || {});
@@ -3033,7 +3032,7 @@ async function saveShopSettings(outId) {
     referral_invitee_days: num("setRefInvitee"),
     trial_enabled: $("setTrialOn").checked,
     trial_days: num("setTrialDays"),
-    promo_enabled: $("setPromoOn").checked,
+    promo_enabled: true,
     vpn_apps: collectVpnApps(),
     pay_methods: collectPayMethodsAdmin(),
     notices: collectNotices(),

@@ -90,7 +90,7 @@ def validate_shop(body: dict) -> dict:
     out["balance_topup_step"] = _as_int(body.get("balance_topup_step"), 1, 100000, "Шаг пополнения")
     if out["balance_topup_max"] < out["balance_topup_min"]:
         raise ValueError("Максимум пополнения не меньше минимума")
-    out["promo_enabled"] = bool(body.get("promo_enabled"))
+    out["promo_enabled"] = True
     if "router_enabled" in body:
         out["router_enabled"] = bool(body.get("router_enabled"))
     else:
