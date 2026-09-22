@@ -4502,6 +4502,16 @@ async function loadReferralCampaigns(action) {
     } : undefined);
     const active = data.items.find(item => !item.stopped_at);
     activeReferralCampaign = active ? active.id : null;
+    const select = $('campaignStatsSelect'), previous = select.value;
+    select.replaceChildren();
+    for (const item of data.items) {
+      const option = document.createElement('option');
+      option.value = item.id;
+      option.textContent = `Акция №${item.id} · ${campaignMoscowDate(item.started_at)} · ${item.stopped_at ? 'завершена' : 'идёт'}`;
+      select.append(option);
+    }
+    if (data.items.some(item => String(item.id) === previous)) select.value = previous;
+    await loadCampaignStats(1);
     $('campaignStatus').textContent = active
       ? `Акция №${active.id} запущена. Подарок: ${active.reward_rub} ₽. Оплативших друзей: ${active.friends}. Выдано подарков: ${active.awards}. Рассылка: отправлено ${active.sent || 0}, в очереди ${active.pending || 0}, ошибок ${active.failed || 0}.`
       : `Акция выключена. При новом запуске подарок составит ${data.next_reward_rub} ₽.`;
@@ -4528,3 +4538,49 @@ $('campaignRefresh').onclick = () => loadReferralCampaigns();
 
 $('campaignSchedule').onclick = () => loadReferralCampaigns('schedule');
 $('campaignCancelSchedule').onclick = () => loadReferralCampaigns('cancel_schedule');
+
+
+let campaignStatsPage = 1;
+let campaignStatsRequest = 0;
+function campaignMoscowDate(value) {
+  if (!value) return '—';
+  return new Intl.DateTimeFormat('ru-RU', {timeZone:'Europe/Moscow',dateStyle:'short',timeStyle:'short'}).format(new Date(value));
+}
+async function loadCampaignStats(page = 1) {
+  const request = ++campaignStatsRequest;
+  const id = $('campaignStatsSelect').value;
+  $('campaignStatsPrev').disabled = $('campaignStatsNext').disabled = true;
+  $('campaignStatsRows').replaceChildren();
+  $('campaignStatsPage').textContent = '';
+  if (!id) { $('campaignStatsSummary').textContent = 'Статистика появится после запуска акции.'; return; }
+  $('campaignStatsSummary').textContent = 'Загрузка статистики…';
+  try {
+    const data = await api(`/admin/api/referral-campaigns?campaign_id=${encodeURIComponent(id)}&page=${page}`);
+    if (request !== campaignStatsRequest) return;
+    const s=data.summary, a=data.awards, d=data.delivery;
+    $('campaignStatsSummary').textContent = `Участников: ${s.participants}. Прогресс: 1/3 — ${s.one_friend}, 2/3 — ${s.two_friends}, 3/3 и больше — ${s.completed}. `
+      + `Оплативших друзей: ${s.friends}. Первые оплаты: ${s.paid_rub} ₽. Выдано подарков: ${a.awards} на ${a.awarded_rub} ₽. `
+      + `Рассылка: получателей ${d.recipients}, отправлено ${d.sent}, в очереди ${d.pending}, ошибок ${d.failed}, отменено ${d.cancelled}.`;
+    for (const item of data.items) {
+      const row=document.createElement('tr');
+      const name = [item.first_name, item.username ? '@'+item.username : '', item.referrer_id].filter(Boolean).join(' · ');
+      for (const text of [name, `${item.friends} / 3`, `${item.paid_rub} ₽`, item.award_rub ? `${item.award_rub} ₽ · ${campaignMoscowDate(item.awarded_at)}` : 'Не получен', campaignMoscowDate(item.last_payment_at)]) {
+        const cell=document.createElement('td'); cell.textContent=text; row.append(cell);
+      }
+      $('campaignStatsRows').append(row);
+    }
+    if (!data.items.length) {
+      const row=document.createElement('tr'), cell=document.createElement('td');
+      cell.colSpan=5; cell.textContent='Зачтённых оплат пока нет.'; row.append(cell); $('campaignStatsRows').append(row);
+    }
+    campaignStatsPage=data.page;
+    $('campaignStatsPage').textContent=`Страница ${data.page} из ${Math.max(1,Math.ceil(s.participants/data.limit))}`;
+    $('campaignStatsPrev').disabled=data.page<=1;
+    $('campaignStatsNext').disabled=data.page*data.limit>=s.participants;
+  } catch (err) {
+    if (request === campaignStatsRequest) $('campaignStatsSummary').textContent=err.message || 'Не удалось загрузить статистику';
+  }
+}
+$('campaignStatsSelect').onchange=()=>loadCampaignStats(1);
+$('campaignStatsPrev').onclick=()=>loadCampaignStats(campaignStatsPage-1);
+$('campaignStatsNext').onclick=()=>loadCampaignStats(campaignStatsPage+1);

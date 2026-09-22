@@ -578,6 +578,20 @@
               <button id="campaignCancelSchedule" type="button" disabled>Отменить расписание</button>
             </div>
             <div id="campaignHistory" class="muted"></div>
+            <h3>Статистика акции</h3>
+            <label class="ops-label" for="campaignStatsSelect">Запуск акции</label>
+            <select id="campaignStatsSelect"><option value="">Акций пока нет</option></select>
+            <p id="campaignStatsSummary" aria-live="polite" class="muted"></p>
+            <p class="muted">Участники — пригласившие хотя бы одного друга с зачтённой первой оплатой. Сумма оплат включает только эти первые пополнения, не повторные. Отправка сообщения не означает прочтение. Удалённые пользователи и их записи акции исключаются из статистики.</p>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Участник</th><th>Оплатившие друзья</th><th>Первые оплаты друзей</th><th>Подарок</th><th>Последняя оплата, МСК</th></tr></thead>
+              <tbody id="campaignStatsRows"></tbody>
+            </table></div>
+            <div class="ops">
+              <button id="campaignStatsPrev" type="button" disabled>Назад</button>
+              <span id="campaignStatsPage"></span>
+              <button id="campaignStatsNext" type="button" disabled>Далее</button>
+            </div>
           </div>
           <div class="panel" id="promo-ref">
             <h3>Реферальная программа</h3>
@@ -1430,6 +1444,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=90"></script>
+  <script src="app.js?v=91"></script>
 </body>
 </html>

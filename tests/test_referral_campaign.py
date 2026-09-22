@@ -13,7 +13,7 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
         self.sql.row_factory = sqlite3.Row
         self.addCleanup(self.sql.close)
         self.sql.executescript('''
-          CREATE TABLE users (telegram_id INTEGER PRIMARY KEY, referred_by INTEGER,
+          CREATE TABLE users (telegram_id INTEGER PRIMARY KEY, referred_by INTEGER, first_name TEXT, username TEXT,
             referral_rewarded BOOLEAN DEFAULT FALSE, balance_rub INTEGER DEFAULT 0,
             bot_started_at TEXT DEFAULT CURRENT_TIMESTAMP, blocked_at TEXT, bot_blocked_at TEXT,
             referral_fraction INTEGER DEFAULT 0, referral_earned INTEGER DEFAULT 0, low_balance_notified_at TEXT);
@@ -24,8 +24,8 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
           CREATE UNIQUE INDEX one_active ON referral_campaigns ((1)) WHERE stopped_at IS NULL;
           CREATE TABLE referral_campaign_messages (campaign_id INTEGER,telegram_id INTEGER,status TEXT DEFAULT 'pending',PRIMARY KEY(campaign_id,telegram_id));
           CREATE TABLE referral_campaign_friends (invitee_id INTEGER PRIMARY KEY,campaign_id INTEGER,
-            referrer_id INTEGER,payment_key TEXT UNIQUE);
-          CREATE TABLE referral_campaign_awards (campaign_id INTEGER,referrer_id INTEGER,amount INTEGER,
+            referrer_id INTEGER,payment_key TEXT UNIQUE,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+          CREATE TABLE referral_campaign_awards (campaign_id INTEGER,referrer_id INTEGER,amount INTEGER,created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY(campaign_id,referrer_id));
           CREATE TABLE referral_payment_rewards (payment_key TEXT PRIMARY KEY,invitee_id INTEGER,
             referrer_id INTEGER,topup_rub INTEGER,enabled BOOLEAN,reward_rub INTEGER);
@@ -39,6 +39,7 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
                 statement = statement.replace(' FOR UPDATE','').replace('clock_timestamp()', 'CURRENT_TIMESTAMP')
                 return sql.execute(statement, {str(i): v for i,v in enumerate(args,1)})
             async def execute(self, statement, *args): return self.query(statement,args)
+            async def fetch(self, statement, *args): return self.query(statement,args).fetchall()
             async def fetchrow(self, statement, *args): return self.query(statement,args).fetchone()
             async def fetchval(self, statement, *args):
                 row = await self.fetchrow(statement,*args)
@@ -157,3 +158,28 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
         await db.change_referral_campaign('start')
         with self.assertRaises(ValueError):
             await db.change_referral_campaign('schedule',scheduled_at=datetime.now(timezone.utc)+timedelta(days=1))
+
+    async def test_campaign_stats_separate_first_payments_and_runs(self):
+        await db.change_referral_campaign('start')
+        for user in (2,3,4): await self.pay(user,amount=100)
+        await self.pay(2,'repeat-payment',first=False,amount=900)
+        stats=await db.admin_referral_campaign_stats(1)
+        self.assertEqual(stats['summary'],dict(participants=1,one_friend=0,two_friends=0,completed=1,friends=3,paid_rub=300))
+        self.assertEqual(stats['awards'],dict(awards=1,awarded_rub=540))
+        self.assertEqual(stats['delivery']['recipients'],8)
+        self.assertEqual(stats['items'][0]['referrer_id'],1)
+        self.assertEqual(stats['items'][0]['award_rub'],540)
+        await db.change_referral_campaign('stop',1)
+        await db.change_referral_campaign('start')
+        await self.pay(5,amount=200)
+        self.assertEqual((await db.admin_referral_campaign_stats(2))['summary']['one_friend'],1)
+        self.assertEqual((await db.admin_referral_campaign_stats(1))['summary']['paid_rub'],300)
+        self.assertEqual((await db.admin_referral_campaign_stats(1,2))['items'],[])
+        with self.assertRaises(ValueError): await db.admin_referral_campaign_stats(999)
+
+    async def test_empty_campaign_stats_are_zero(self):
+        await db.change_referral_campaign('start')
+        stats=await db.admin_referral_campaign_stats(1)
+        self.assertEqual(stats['summary']['paid_rub'],0)
+        self.assertEqual(stats['summary']['participants'],0)
+        self.assertEqual(stats['items'],[])

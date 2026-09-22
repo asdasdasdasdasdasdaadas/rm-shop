@@ -4924,3 +4924,45 @@ async def finish_campaign_message(campaign_id: int, telegram_id: int, *, error: 
 async def get_referral_campaign_schedule() -> str | None:
     value = await _pool_req().fetchval('SELECT scheduled_at FROM referral_campaign_schedule WHERE id=1')
     return value.isoformat() if value else None
+
+
+_CAMPAIGN_PROGRESS_SQL = """
+    SELECT f.referrer_id,COUNT(*) AS friends,
+        COALESCE(SUM(p.topup_rub),0) AS paid_rub,
+        MAX(f.created_at) AS last_payment_at
+    FROM referral_campaign_friends f
+    LEFT JOIN referral_payment_rewards p ON p.payment_key=f.payment_key
+    WHERE f.campaign_id=$1 GROUP BY f.referrer_id
+"""
+
+
+async def admin_referral_campaign_stats(campaign_id: int, page: int = 1) -> dict:
+    pool = _pool_req()
+    campaign = await pool.fetchrow('SELECT * FROM referral_campaigns WHERE id=$1', campaign_id)
+    if not campaign:
+        raise ValueError('Акция не найдена')
+    summary = await pool.fetchrow("WITH progress AS (" + _CAMPAIGN_PROGRESS_SQL + """)
+        SELECT COUNT(*) AS participants,
+          COUNT(*) FILTER (WHERE friends=1) AS one_friend,
+          COUNT(*) FILTER (WHERE friends=2) AS two_friends,
+          COUNT(*) FILTER (WHERE friends>=3) AS completed,
+          COALESCE(SUM(friends),0) AS friends,
+          COALESCE(SUM(paid_rub),0) AS paid_rub FROM progress""", campaign_id)
+    awards = await pool.fetchrow("""SELECT COUNT(*) AS awards,COALESCE(SUM(amount),0) AS awarded_rub
+        FROM referral_campaign_awards WHERE campaign_id=$1""", campaign_id)
+    delivery = await pool.fetchrow("""SELECT COUNT(*) AS recipients,
+        COUNT(*) FILTER (WHERE status='sent') AS sent,
+        COUNT(*) FILTER (WHERE status IN ('pending','sending')) AS pending,
+        COUNT(*) FILTER (WHERE status='failed') AS failed,
+        COUNT(*) FILTER (WHERE status='cancelled') AS cancelled
+        FROM referral_campaign_messages WHERE campaign_id=$1""", campaign_id)
+    page = max(1,page)
+    rows = await pool.fetch("WITH progress AS (" + _CAMPAIGN_PROGRESS_SQL + """)
+        SELECT p.*,u.first_name,u.username,COALESCE(a.amount,0) AS award_rub,a.created_at AS awarded_at
+        FROM progress p JOIN users u ON u.telegram_id=p.referrer_id
+        LEFT JOIN referral_campaign_awards a ON a.campaign_id=$1 AND a.referrer_id=p.referrer_id
+        ORDER BY p.friends DESC,p.last_payment_at DESC,p.referrer_id
+        LIMIT 50 OFFSET $2""",campaign_id,(page-1)*50)
+    return {'campaign':_jsonable(dict(campaign)), 'summary':{key:int(value) for key,value in dict(summary).items()},
+            'awards':dict(awards),'delivery':dict(delivery),
+            'items':[_jsonable(dict(row)) for row in rows], 'page':page,'limit':50}

@@ -1754,6 +1754,9 @@ async def api_referral_campaigns(request: web.Request) -> web.Response:
     if denied:
         return denied
     try:
+        if request.method == 'GET' and request.query.get('campaign_id'):
+            return web.json_response(await db.admin_referral_campaign_stats(
+                int(request.query['campaign_id']), int(request.query.get('page','1'))))
         if request.method == 'POST':
             body = await request.json()
             from app.campaigns import parse_campaign_moscow_time
