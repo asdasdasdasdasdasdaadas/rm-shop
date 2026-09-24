@@ -4548,6 +4548,8 @@ function campaignMoscowDate(value) {
 async function loadCampaignStats(page = 1) {
   const request = ++campaignStatsRequest;
   const id = $('campaignStatsSelect').value;
+  $('campaignRetryFailed').disabled=true;
+  $('campaignStatsErrors').textContent='';
   $('campaignStatsPrev').disabled = $('campaignStatsNext').disabled = true;
   $('campaignStatsRows').replaceChildren();
   $('campaignStatsPage').textContent = '';
@@ -4557,6 +4559,9 @@ async function loadCampaignStats(page = 1) {
     const data = await api(`/admin/api/referral-campaigns?campaign_id=${encodeURIComponent(id)}&page=${page}`);
     if (request !== campaignStatsRequest) return;
     const s=data.summary, a=data.awards, d=data.delivery;
+    $('campaignStatsErrors').textContent=(data.failures || []).map(item => `${item.count} — ${item.error || 'Неизвестная ошибка'} (${item.retryable ? 'временная' : 'без повтора'})`).join('; ') || 'Ошибок доставки нет.';
+    $('campaignRetryFailed').disabled=Boolean(data.campaign.stopped_at) || !data.retryable_count;
+    $('campaignRetryFailed').textContent=`Повторить временные ошибки (${data.retryable_count || 0})`;
     $('campaignStatsSummary').textContent = `Участников: ${s.participants}. Прогресс: 1/3 — ${s.one_friend}, 2/3 — ${s.two_friends}, 3/3 и больше — ${s.completed}. `
       + `Оплативших друзей: ${s.friends}. Первые оплаты: ${s.paid_rub} ₽. Выдано подарков: ${a.awards} на ${a.awarded_rub} ₽. `
       + `Рассылка: получателей ${d.recipients}, отправлено ${d.sent}, в очереди ${d.pending}, ошибок ${d.failed}, отменено ${d.cancelled}.`;
@@ -4583,3 +4588,13 @@ async function loadCampaignStats(page = 1) {
 $('campaignStatsSelect').onchange=()=>loadCampaignStats(1);
 $('campaignStatsPrev').onclick=()=>loadCampaignStats(campaignStatsPage-1);
 $('campaignStatsNext').onclick=()=>loadCampaignStats(campaignStatsPage+1);
+
+$('campaignRetryFailed').onclick=async()=>{
+  const id=$('campaignStatsSelect').value;
+  $('campaignRetryFailed').disabled=true;
+  try {
+    const data=await api('/admin/api/referral-campaigns',{method:'POST',body:JSON.stringify({action:'retry_failed',campaign_id:Number(id)})});
+    toast(`Поставлено в очередь: ${data.queued}`);
+  } catch (err) { toast(err.message || 'Не удалось повторить'); }
+  await loadCampaignStats(campaignStatsPage);
+};

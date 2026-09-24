@@ -550,3 +550,5 @@ CREATE TABLE IF NOT EXISTS referral_campaign_schedule (
     id INTEGER PRIMARY KEY CHECK (id=1),
     scheduled_at TIMESTAMPTZ NOT NULL
 );
+
+ALTER TABLE referral_campaign_messages ADD COLUMN IF NOT EXISTS retryable BOOLEAN NOT NULL DEFAULT FALSE;

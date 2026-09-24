@@ -160,7 +160,7 @@
           <div id="kpiStrip" class="kpi-strip"></div>
           <div class="seg dash-tabs" id="overviewDash" role="tablist" aria-label="Разделы обзора">
             <button type="button" data-dash="check" class="active">Обзор</button>
-            <button type="button" data-dash="funnels">Воронки</button>
+            <button type="button" data-dash="funnels">Конверсия</button>
             <button type="button" data-dash="sources">Источники</button>
             <button type="button" data-dash="issues">Проблемы</button>
           </div>
@@ -335,6 +335,25 @@
           </div>
 
           <div id="dash-funnels" class="hidden">
+            <details class="panel funnel-panel funnel-card" id="funnelCardMain" open>
+              <summary>
+                <h3>Конверсия пользователей</h3>
+                <span class="funnel-open"></span>
+              </summary>
+              <p class="muted tight">Пользователи, впервые запустившие бота в периоде, и их дальнейшие действия на текущий момент. Процент показывает, какая доля участников предыдущего этапа достигла этого. Подарок можно пропустить, поэтому абсолютные числа не всегда убывают. Клик откроет точный список.</p>
+              <div class="funnel-toolbar">
+                <div class="seg funnel-seg" data-funnel-card="main" role="group" aria-label="Период основной воронки">
+                  <button type="button" data-funnel="1d">Сутки</button>
+                  <button type="button" data-funnel="7d">7 дней</button>
+                  <button type="button" data-funnel="30d" class="active">30 дней</button>
+                  <button type="button" data-funnel="90d">90 дней</button>
+                  <button type="button" data-funnel="all">Всё время</button>
+                </div>
+              </div>
+              <div id="funnelMain"></div>
+              <p id="funnelPayments" class="muted tight"></p>
+              <p class="muted tight">Старые неоплаченные счета Stars могут быть учтены не полностью: раньше их история не сохранялась.</p>
+            </details>
             <p id="funnelInsight" class="funnel-insight"></p>
             <details class="panel funnel-card" id="reminderResultsCard">
               <summary><h3>Результаты напоминаний</h3><span class="funnel-open"></span></summary>
@@ -352,25 +371,7 @@
               <p class="muted tight">За последние 30 дней. Ответ необязательный. Считаются удаления, а не уникальные пользователи; отсутствие ответа не означает причину ухода. Ответы «Не работает» и «Больше не нужен» приостанавливают автоматические напоминания до нового успешного подключения.</p>
               <div class="table-wrap"><table><thead><tr><th>Пользователь</th><th>Причина</th><th>Дата ответа</th></tr></thead><tbody id="exitFeedbackRows"></tbody></table></div>
             </details>
-            <details class="panel funnel-panel funnel-card" id="funnelCardMain">
-              <summary>
-                <h3>Путь новой когорты</h3>
-                <span class="funnel-open"></span>
-              </summary>
-              <p class="muted tight">Пользователи, впервые запустившие бота в периоде, и их дальнейшие действия на текущий момент. Процент показывает, какая доля участников предыдущего этапа достигла этого. Подарок можно пропустить, поэтому абсолютные числа не всегда убывают. Клик откроет точный список.</p>
-              <div class="funnel-toolbar">
-                <div class="seg funnel-seg" data-funnel-card="main" role="group" aria-label="Период основной воронки">
-                  <button type="button" data-funnel="1d">Сутки</button>
-                  <button type="button" data-funnel="7d">7 дней</button>
-                  <button type="button" data-funnel="30d" class="active">30 дней</button>
-                  <button type="button" data-funnel="90d">90 дней</button>
-                  <button type="button" data-funnel="all">Всё время</button>
-                </div>
-              </div>
-              <div id="funnelMain"></div>
-              <p id="funnelPayments" class="muted tight"></p>
-              <p class="muted tight">Старые неоплаченные счета Stars могут быть учтены не полностью: раньше их история не сохранялась.</p>
-            </details>
+
             <details class="panel funnel-panel funnel-card" id="funnelCardInvite">
               <summary>
                 <h3>Кого привела эта когорта</h3>
@@ -583,6 +584,8 @@
             <select id="campaignStatsSelect"><option value="">Акций пока нет</option></select>
             <p id="campaignStatsSummary" aria-live="polite" class="muted"></p>
             <p class="muted">Участники — пригласившие хотя бы одного друга с зачтённой первой оплатой. Сумма оплат включает только эти первые пополнения, не повторные. Отправка сообщения не означает прочтение. Удалённые пользователи и их записи акции исключаются из статистики.</p>
+            <p id="campaignStatsErrors" class="muted" aria-live="polite"></p>
+            <button id="campaignRetryFailed" type="button" disabled>Повторить временные ошибки</button>
             <div class="table-wrap"><table>
               <thead><tr><th>Участник</th><th>Оплатившие друзья</th><th>Первые оплаты друзей</th><th>Подарок</th><th>Последняя оплата, МСК</th></tr></thead>
               <tbody id="campaignStatsRows"></tbody>
@@ -1435,6 +1438,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=93"></script>
+  <script src="app.js?v=94"></script>
 </body>
 </html>

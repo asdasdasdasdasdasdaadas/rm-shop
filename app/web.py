@@ -782,7 +782,9 @@ async def api_promo(request: web.Request) -> web.Response:
         return json_error(str(exc))
     rw: RemnawaveClient = request.app["rw"]
     if settings.balance_enabled:
-        await db.add_balance_rub(telegram_id, days * max(1, settings.vpn_day_price_rub))
+        amount = days * max(1, settings.vpn_day_price_rub)
+        balance = await db.add_balance_rub(telegram_id, amount)
+        return web.json_response({"ok": True, "days": days, "credited_rub": amount, "balance_rub": balance})
     else:
         local = await db.get_user(telegram_id)
         panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None

@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from html import escape
 from urllib.parse import urlencode
 
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter, TelegramNetworkError, TelegramServerError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions
 
 from app import db
@@ -44,6 +44,7 @@ def campaign_announcement(telegram_id: int, reward: int):
 async def deliver_campaign_message(bot, row: dict) -> float:
     text, markup = campaign_announcement(row['telegram_id'], row['reward_rub'])
     error = None
+    retryable = False
     retry = None
     pause = 0.05
     try:
@@ -51,17 +52,18 @@ async def deliver_campaign_message(bot, row: dict) -> float:
                                link_preview_options=LinkPreviewOptions(is_disabled=True))
     except Exception as exc:
         error = str(exc)[:400]
+        retryable = isinstance(exc, (TelegramRetryAfter, TelegramNetworkError, TelegramServerError, OSError, TimeoutError))
         if isinstance(exc, TelegramRetryAfter):
             retry = max(1, int(exc.retry_after))
             pause = retry
-        elif not isinstance(exc, (TelegramForbiddenError, TelegramBadRequest)) and row['attempts'] < 3:
+        elif retryable and row['attempts'] < 3:
             retry = 60
         extra = fail_extra(exc, {'campaign_id': row['campaign_id']})
     else:
         extra = {'campaign_id': row['campaign_id']}
     # Persist delivery before optional audit logging: logging failure must not resend.
     await db.finish_campaign_message(row['campaign_id'], row['telegram_id'],
-                                    error=error, retry_seconds=retry)
+                                    error=error, retry_seconds=retry, retryable=retryable)
     try:
         await db.log_bot_message(kind='broadcast', source='campaign', telegram_id=row['telegram_id'],
             title='Акция: три друга — месяц VPN', body=text,

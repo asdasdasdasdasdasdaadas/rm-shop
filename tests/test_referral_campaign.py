@@ -22,7 +22,7 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
           CREATE TABLE referral_campaigns (id INTEGER PRIMARY KEY, started_at TEXT DEFAULT CURRENT_TIMESTAMP,
             stopped_at TEXT, reward_rub INTEGER);
           CREATE UNIQUE INDEX one_active ON referral_campaigns ((1)) WHERE stopped_at IS NULL;
-          CREATE TABLE referral_campaign_messages (campaign_id INTEGER,telegram_id INTEGER,status TEXT DEFAULT 'pending',PRIMARY KEY(campaign_id,telegram_id));
+          CREATE TABLE referral_campaign_messages (campaign_id INTEGER,telegram_id INTEGER,status TEXT DEFAULT 'pending',retryable BOOLEAN DEFAULT FALSE,error TEXT,attempts INTEGER DEFAULT 0,retry_at TEXT,PRIMARY KEY(campaign_id,telegram_id));
           CREATE TABLE referral_campaign_friends (invitee_id INTEGER PRIMARY KEY,campaign_id INTEGER,
             referrer_id INTEGER,payment_key TEXT UNIQUE,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
           CREATE TABLE referral_campaign_awards (campaign_id INTEGER,referrer_id INTEGER,amount INTEGER,created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -36,7 +36,7 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
             def query(self, statement, args):
                 if 'pg_advisory_xact_lock' in statement:
                     return sql.execute('SELECT 1')
-                statement = statement.replace(' FOR UPDATE','').replace('clock_timestamp()', 'CURRENT_TIMESTAMP')
+                statement = statement.replace(' FOR UPDATE','').replace('clock_timestamp()', 'CURRENT_TIMESTAMP').replace('NOW()', 'CURRENT_TIMESTAMP')
                 return sql.execute(statement, {str(i): v for i,v in enumerate(args,1)})
             async def execute(self, statement, *args): return self.query(statement,args)
             async def fetch(self, statement, *args): return self.query(statement,args).fetchall()
@@ -183,3 +183,16 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['summary']['paid_rub'],0)
         self.assertEqual(stats['summary']['participants'],0)
         self.assertEqual(stats['items'],[])
+
+    async def test_manual_retry_only_temporary_failed_reachable_and_active(self):
+        await db.change_referral_campaign('start')
+        self.sql.execute("UPDATE referral_campaign_messages SET status='failed',retryable=TRUE WHERE telegram_id IN (1,2,3)")
+        self.sql.execute("UPDATE referral_campaign_messages SET status='sent',retryable=TRUE WHERE telegram_id=4")
+        self.sql.execute("UPDATE users SET bot_blocked_at='now' WHERE telegram_id=2")
+        self.sql.execute("UPDATE referral_campaign_messages SET retryable=FALSE WHERE telegram_id=3")
+        self.sql.commit()
+        self.assertEqual(await db.retry_campaign_failures(1),1)
+        self.assertEqual(await db.retry_campaign_failures(1),0)
+        self.assertEqual(self.sql.execute('SELECT status FROM referral_campaign_messages WHERE telegram_id=4').fetchone()[0],'sent')
+        await db.change_referral_campaign('stop',1)
+        with self.assertRaises(ValueError): await db.retry_campaign_failures(1)

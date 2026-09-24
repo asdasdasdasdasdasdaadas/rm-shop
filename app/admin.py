@@ -700,6 +700,8 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
 async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
     kind = str(row.get("kind") or "")
     telegram_id = row.get("telegram_id")
+    if row.get("source") == "campaign":
+        return False, "Повторите временные ошибки в статистике акции: там исключаются доставленные сообщения"
     if kind in _MSG_RETRY_SKIP:
         return False, "Это входящее обращение, его нельзя отправить"
     if not telegram_id:
@@ -1759,6 +1761,9 @@ async def api_referral_campaigns(request: web.Request) -> web.Response:
                 int(request.query['campaign_id']), int(request.query.get('page','1'))))
         if request.method == 'POST':
             body = await request.json()
+            if body.get('action') == 'retry_failed':
+                count = await db.retry_campaign_failures(int(body.get('campaign_id') or 0))
+                return web.json_response({'ok': True, 'queued': count})
             from app.campaigns import parse_campaign_moscow_time
             scheduled_at = parse_campaign_moscow_time(body.get('scheduled_at')) if body.get('action') == 'schedule' else None
             await db.change_referral_campaign(body.get('action'),

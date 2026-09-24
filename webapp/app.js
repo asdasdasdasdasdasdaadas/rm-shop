@@ -4532,15 +4532,20 @@ async function applyPromo(inputId, buttonId, resultId) {
   button.textContent = "Применяем…";
   if (result) { result.textContent = ""; result.classList.add("hidden"); }
   try {
-    await api("/api/promo", {method: "POST", body: JSON.stringify({code})});
+    const applied = await api("/api/promo", {method: "POST", body: JSON.stringify({code})});
+    const message = applied.credited_rub != null
+      ? `Начислено ${Number(applied.credited_rub).toLocaleString("ru-RU")} ₽. Баланс: ${Number(applied.balance_rub).toLocaleString("ru-RU")} ₽.`
+      : `Промокод применён. Добавлено дней: ${applied.days}.`;
     input.value = "";
     if (result) {
-      result.textContent = "Промокод применён";
+      result.textContent = message;
       result.classList.remove("hidden");
     } else {
-      tg.showAlert("Промокод применён");
+      tg.showAlert(message);
     }
-    await load();
+    try { await load(); } catch (_e) {
+      if (result) result.textContent = message + " Обновите кабинет, чтобы увидеть изменения.";
+    }
   } catch (e) {
     if (result) {
       result.textContent = e.message || "Не удалось применить промокод";

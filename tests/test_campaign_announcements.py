@@ -25,7 +25,7 @@ class CampaignAnnouncementTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(args.kwargs['link_preview_options'].is_disabled)
         button=args.kwargs['reply_markup'].inline_keyboard[0][0]
         self.assertEqual(parse_qs(urlparse(button.url).query)['url'],['https://t.me/test_bot?start=ref_123'])
-        self.finish.assert_awaited_once_with(7,123,error=None,retry_seconds=None)
+        self.finish.assert_awaited_once_with(7,123,error=None,retry_seconds=None,retryable=False)
 
     async def test_rate_limit_requeues_and_pauses_worker(self):
         self.bot.send_message.side_effect=TelegramRetryAfter(method=SendMessage(chat_id=123,text='x'),message='limited',retry_after=8)
@@ -51,7 +51,7 @@ class CampaignAnnouncementTest(unittest.IsolatedAsyncioTestCase):
         self.log.side_effect=OSError('audit unavailable')
         with self.assertLogs(campaigns.logger,level='ERROR'):
             await campaigns.deliver_campaign_message(self.bot,self.row)
-        self.finish.assert_awaited_once_with(7,123,error=None,retry_seconds=None)
+        self.finish.assert_awaited_once_with(7,123,error=None,retry_seconds=None,retryable=False)
 
     def test_moscow_input_is_converted_to_utc(self):
         value=campaigns.parse_campaign_moscow_time('2030-01-02T18:30')

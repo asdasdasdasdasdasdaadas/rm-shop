@@ -4912,13 +4912,13 @@ async def claim_campaign_message() -> dict | None:
 
 
 async def finish_campaign_message(campaign_id: int, telegram_id: int, *, error: str | None = None,
-                                  retry_seconds: int | None = None) -> None:
+                                  retry_seconds: int | None = None, retryable: bool = False) -> None:
     await _pool_req().execute("""UPDATE referral_campaign_messages
-        SET status=$3,error=$4,sent_at=CASE WHEN $3='sent' THEN NOW() ELSE NULL END,
+        SET status=$3,error=$4,retryable=$6,sent_at=CASE WHEN $3='sent' THEN NOW() ELSE NULL END,
             retry_at=NOW()+($5 * INTERVAL '1 second')
         WHERE campaign_id=$1 AND telegram_id=$2""", campaign_id,telegram_id,
         'sent' if error is None else 'pending' if retry_seconds is not None else 'failed',
-        error, retry_seconds or 0)
+        error, retry_seconds or 0, retryable)
 
 
 async def get_referral_campaign_schedule() -> str | None:
@@ -4963,6 +4963,30 @@ async def admin_referral_campaign_stats(campaign_id: int, page: int = 1) -> dict
         LEFT JOIN referral_campaign_awards a ON a.campaign_id=$1 AND a.referrer_id=p.referrer_id
         ORDER BY p.friends DESC,p.last_payment_at DESC,p.referrer_id
         LIMIT 50 OFFSET $2""",campaign_id,(page-1)*50)
-    return {'campaign':_jsonable(dict(campaign)), 'summary':{key:int(value) for key,value in dict(summary).items()},
+    failures = await pool.fetch("""SELECT error,retryable,COUNT(*) AS count
+        FROM referral_campaign_messages WHERE campaign_id=$1 AND status='failed'
+        GROUP BY error,retryable ORDER BY count DESC,error LIMIT 30""",campaign_id)
+    retryable_count = await pool.fetchval("""SELECT COUNT(*) FROM referral_campaign_messages m
+        JOIN users u ON u.telegram_id=m.telegram_id
+        WHERE m.campaign_id=$1 AND m.status='failed' AND m.retryable=TRUE
+          AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL""",campaign_id)
+    return {'failures':[dict(row) for row in failures], 'retryable_count':int(retryable_count),
+            'campaign':_jsonable(dict(campaign)), 'summary':{key:int(value) for key,value in dict(summary).items()},
             'awards':dict(awards),'delivery':dict(delivery),
             'items':[_jsonable(dict(row)) for row in rows], 'page':page,'limit':50}
+
+
+async def retry_campaign_failures(campaign_id: int) -> int:
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            await conn.execute('SELECT pg_advisory_xact_lock(73619420)')
+            active = await conn.fetchval('SELECT id FROM referral_campaigns WHERE id=$1 AND stopped_at IS NULL',campaign_id)
+            if not active:
+                raise ValueError('Повтор доступен только для действующей акции')
+            rows = await conn.fetch("""UPDATE referral_campaign_messages AS m
+                SET status='pending',attempts=0,retry_at=NOW()
+                WHERE campaign_id=$1 AND status='failed' AND retryable=TRUE
+                  AND EXISTS (SELECT 1 FROM users u WHERE u.telegram_id=m.telegram_id
+                    AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL)
+                RETURNING telegram_id""",campaign_id)
+    return len(rows)
