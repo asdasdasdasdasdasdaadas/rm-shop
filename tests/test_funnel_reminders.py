@@ -90,6 +90,7 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([r['telegram_id'] for r in await db.list_due_invite_nudges()], [6])
             conn.execute("UPDATE users SET invite_nudge_sent_at='2026-09-20' WHERE telegram_id=6")
             self.assertEqual(await db.list_due_invite_nudges(), [])
+            conn.execute("UPDATE users SET first_online_at='2026-09-18' WHERE telegram_id=1")
             # At 3 rub/device/day, two phones consume 6 rub; a router, paused user, and no-device user do not qualify.
             self.assertEqual([r['telegram_id'] for r in await db.list_due_trial_end_nudges(3)], [1])
             conn.execute("UPDATE users SET checkout_started_at='2026-09-20 11:55:00' WHERE telegram_id=1")
@@ -97,13 +98,13 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
             conn.execute("INSERT INTO message_log VALUES (3,'failed','nudge_invite','2026-09-20 10:00:00')")
             self.assertEqual(await db.nudge_suppressed_ids(), [1,2])
 
-    async def test_low_balance_message_has_hours_and_topup(self):
+    async def test_low_balance_message_has_no_inaccurate_hours(self):
         settings = SimpleNamespace(balance_enabled=True, vpn_day_price_rub=6)
         with patch.object(db, 'nudge_delivery_allowed', AsyncMock(return_value=True)), \
              patch.object(nudge, 'get_settings', return_value=settings), \
              patch.object(db, 'flag_on', AsyncMock(return_value=False)), \
              patch.object(db, 'list_due_trial_end_nudges', AsyncMock(return_value=[{'telegram_id':1,'balance_rub':6,'device_count':2}])), \
-             patch.object(db, 'claim_low_balance_notice', AsyncMock(return_value=True)), \
+             patch.object(db, 'claim_balance_ending_notice', AsyncMock(return_value=True)), \
              patch.object(db, 'mark_trial_end_nudge_sent', AsyncMock()), \
              patch.object(db, 'log_bot_message', AsyncMock()), \
              patch.object(nudge, 'payment_nudge_keyboard', return_value='topup'), \
@@ -111,5 +112,5 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
              patch.object(nudge.asyncio, 'sleep', AsyncMock()):
             bot = SimpleNamespace(send_message=AsyncMock())
             self.assertEqual(await nudge.send_due_trial_end_nudges(bot), (1,[1]))
-            text.assert_called_once_with('trial_end_nudge', hours=12, devices=2)
+            text.assert_called_once_with('balance_ending_nudge')
             bot.send_message.assert_awaited_once_with(1,'message',reply_markup='topup')

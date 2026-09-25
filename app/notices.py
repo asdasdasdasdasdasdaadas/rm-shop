@@ -137,6 +137,7 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Сюда можно зайти из бота даже без VPN.\n\n"
         "Если нужна помощь с подключением, напишите в поддержку."
     ),
+    "balance_ending_nudge": "Баланс заканчивается. Пополните его, чтобы VPN продолжил работать.",
     "trial_end_nudge": (
         "Подарочный баланс заканчивается. Его хватит примерно на {hours} ч. "
         "при текущем количестве устройств: {devices}.\n\n"
@@ -303,7 +304,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "info_nudge", "title": "Как у нас устроено", "hint": "{price}"},
     {"key": "first_device_thanks", "title": "После первого устройства", "hint": ""},
     {"key": "first_online_nudge", "title": "После первого онлайна", "hint": "{days}"},
-    {"key": "trial_end_nudge", "title": "Баланс: осталось меньше суток", "hint": "{hours} {devices}"},
+    {"key": "balance_ending_nudge", "title": "Баланс заканчивается", "hint": "Одно предупреждение до следующего пополнения"},
     {"key": "device_setup_nudge", "title": "Устройство есть, первого подключения нет", "hint": ""},
     {"key": "device_nudge_1", "title": "Подарок без подключения: 30 минут", "hint": ""},
     {"key": "device_nudge_2", "title": "Нет устройства: сутки после первого", "hint": ""},

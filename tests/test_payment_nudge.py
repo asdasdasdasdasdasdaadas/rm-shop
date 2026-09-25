@@ -103,8 +103,14 @@ class PaymentNudgeStorageTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await db.list_due_payment_nudges(),[])  # Daily cooldown survives new invoices.
             first = conn.execute('SELECT first_checkout_at FROM users WHERE telegram_id=1').fetchone()[0]
             self.assertIsNotNone(first)
-            await db.mark_paid_topup(1)
+            conn.execute('ALTER TABLE users ADD COLUMN balance_rub INTEGER DEFAULT 0')
+            conn.execute('ALTER TABLE users ADD COLUMN trial_end_nudge_at TEXT')
+            conn.execute('CREATE TABLE devices (telegram_id INTEGER,kind TEXT)')
+            conn.create_function('GREATEST',2,max)
+            with patch.object(db,'get_settings',return_value=SimpleNamespace(vpn_day_price_rub=6)):
+                await db.mark_paid_topup(1)
             await db.track_checkout(1)
             self.assertEqual(conn.execute('SELECT first_checkout_at FROM users WHERE telegram_id=1').fetchone()[0],first)
-            await db.mark_paid_topup(2)
+            with patch.object(db,'get_settings',return_value=SimpleNamespace(vpn_day_price_rub=6)):
+                await db.mark_paid_topup(2)
             self.assertIsNone(conn.execute('SELECT checkout_started_at FROM users WHERE telegram_id=2').fetchone()[0])

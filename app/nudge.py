@@ -316,19 +316,15 @@ async def send_due_trial_end_nudges(bot: Bot, skip_ids: list[int] | None = None)
         telegram_id = int(row["telegram_id"])
         if not await db.nudge_delivery_allowed(telegram_id, "nudge_trial_end"):
             continue
-        if not await db.claim_low_balance_notice(telegram_id):
+        if not await db.claim_balance_ending_notice(telegram_id, settings.vpn_day_price_rub):
             continue
-        devices = max(1, int(row.get("device_count") or 1))
-        hours = max(1, math.ceil(24 * int(row["balance_rub"]) / (devices * max(1, settings.vpn_day_price_rub))))
-        body = notice_text("trial_end_nudge", hours=hours, devices=devices)
+        body = notice_text("balance_ending_nudge")
         ok = await _deliver(
             bot, kind="nudge_trial_end", telegram_id=telegram_id, first_name=row.get("first_name"),
-            title="Напоминание: сутки до отключения", body=body, reply_markup=payment_nudge_keyboard(label="Пополнить баланс"), extra=None,
+            title="Баланс заканчивается", body=body, reply_markup=payment_nudge_keyboard(label="Пополнить баланс"), extra=None,
         )
-        if ok:
-            await db.mark_trial_end_nudge_sent(telegram_id)
-        else:
-            await db.release_low_balance_notice(telegram_id)
+        if not ok:
+            await db.release_balance_ending_notice(telegram_id)
         touched.append(telegram_id)
         if ok:
             sent += 1

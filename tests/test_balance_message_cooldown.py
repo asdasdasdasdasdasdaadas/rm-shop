@@ -25,7 +25,7 @@ class BalanceMessageCooldownTest(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await db.claim_low_balance_notice(1))
             self.assertFalse(await db.claim_low_balance_notice(1))
             await db.release_low_balance_notice(1)
-            for kind in ['nudge_trial_end','low_balance','cabinet_link','nudge_first_online']:
+            for kind in ['low_balance','cabinet_link','nudge_first_online']:
                 conn.execute('DELETE FROM message_log')
                 conn.execute('INSERT INTO message_log VALUES (1,?,?,?)',('sent',kind,'2026-09-21 11:00:00'))
                 self.assertFalse(await db.claim_low_balance_notice(1))
@@ -58,7 +58,7 @@ class BalanceMessageCooldownTest(unittest.IsolatedAsyncioTestCase):
             stack.enter_context(patch.object(nudge,'get_settings',return_value=SimpleNamespace(balance_enabled=True,vpn_day_price_rub=6)))
             stack.enter_context(patch.object(db,'flag_on',AsyncMock(return_value=False)))
             stack.enter_context(patch.object(db,'nudge_delivery_allowed',AsyncMock(return_value=True)))
-            stack.enter_context(patch.object(db,'claim_low_balance_notice',AsyncMock(return_value=False)))
+            stack.enter_context(patch.object(db,'claim_balance_ending_notice',AsyncMock(return_value=False)))
             stack.enter_context(patch.object(db,'list_due_trial_end_nudges',AsyncMock(return_value=[{'telegram_id':1}])))
             bot=SimpleNamespace(send_message=AsyncMock())
             self.assertEqual(await nudge.send_due_trial_end_nudges(bot),(0,[]))

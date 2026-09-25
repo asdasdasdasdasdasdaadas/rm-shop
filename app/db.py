@@ -1423,7 +1423,7 @@ async def claim_low_balance_notice(telegram_id: int) -> bool:
             OR low_balance_notified_at <= timezone('utc', now()) - INTERVAL '24 hours'
           )
           AND NOT EXISTS (SELECT 1 FROM message_log m WHERE m.telegram_id=users.telegram_id
-              AND m.status='sent' AND m.kind IN ('low_balance','nudge_trial_end','cabinet_link','nudge_first_online')
+              AND m.status='sent' AND m.kind IN ('low_balance','cabinet_link','nudge_first_online')
               AND m.created_at > timezone('utc', now()) - INTERVAL '24 hours')
         RETURNING telegram_id
         """,
@@ -1434,8 +1434,11 @@ async def claim_low_balance_notice(telegram_id: int) -> bool:
 
 async def mark_paid_topup(telegram_id: int) -> None:
     await _pool_req().execute(
-        "UPDATE users SET has_paid_topup = TRUE, checkout_started_at = NULL WHERE telegram_id = $1",
-        telegram_id,
+        """UPDATE users SET has_paid_topup = TRUE, checkout_started_at = NULL,
+        trial_end_nudge_at=CASE WHEN COALESCE(balance_rub,0) > $2 * GREATEST(1,
+          (SELECT COUNT(*) FROM devices WHERE telegram_id=$1 AND COALESCE(kind,'') <> 'router'))
+          THEN NULL ELSE trial_end_nudge_at END WHERE telegram_id = $1""",
+        telegram_id, max(1,get_settings().vpn_day_price_rub),
     )
 
 
@@ -3585,7 +3588,8 @@ async def list_due_trial_end_nudges(
                 SELECT COUNT(*)::int FROM devices d WHERE d.telegram_id = u.telegram_id AND COALESCE(d.kind, '') <> 'router'
             ) AS device_count
         FROM users u
-        WHERE TRUE
+        WHERE u.trial_end_nudge_at IS NULL
+          AND u.first_online_at IS NOT NULL
           AND (u.low_balance_notified_at IS NULL OR u.low_balance_notified_at <= NOW() - INTERVAL '24 hours')
           AND u.blocked_at IS NULL
           AND u.billing_paused_at IS NULL
@@ -4990,3 +4994,22 @@ async def retry_campaign_failures(campaign_id: int) -> int:
                     AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL)
                 RETURNING telegram_id""",campaign_id)
     return len(rows)
+
+
+async def claim_balance_ending_notice(telegram_id: int, day_price: int) -> bool:
+    row = await _pool_req().fetchrow("""UPDATE users AS u SET trial_end_nudge_at=NOW()
+        WHERE telegram_id=$1 AND trial_end_nudge_at IS NULL
+          AND bot_started_at IS NOT NULL AND first_online_at IS NOT NULL
+          AND bot_blocked_at IS NULL AND blocked_at IS NULL AND billing_paused_at IS NULL
+          AND COALESCE(balance_rub,0)>0
+          AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'')<>'router')
+          AND balance_rub <= $2 * (SELECT COUNT(*) FROM devices d
+              WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'')<>'router')
+          AND NOT EXISTS (SELECT 1 FROM message_log m WHERE m.telegram_id=u.telegram_id
+              AND m.kind='nudge_trial_end' AND m.status='sent' AND m.created_at>NOW()-INTERVAL '24 hours')
+        RETURNING telegram_id""", telegram_id,max(1,day_price))
+    return row is not None
+
+
+async def release_balance_ending_notice(telegram_id: int) -> None:
+    await _pool_req().execute('UPDATE users SET trial_end_nudge_at=NULL WHERE telegram_id=$1',telegram_id)
