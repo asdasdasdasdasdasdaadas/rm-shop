@@ -13,6 +13,7 @@ from app.keyboards import legal_text, profile_text, welcome_text
 class OnboardingTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.stack = ExitStack()
+        self.stack.enter_context(patch.object(start, "show_pending_welcome", AsyncMock(return_value=False)))
         self.addCleanup(self.stack.close)
         self.db = self.stack.enter_context(patch.object(start, 'db'))
         for name in ('upsert_user', 'claim_welcome_intro', 'mark_legal_notice',
@@ -120,6 +121,8 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                 if failed:
                     db.mark_legal_notice.assert_not_awaited()
                 else:
+                    db.mark_legal_notice.assert_not_awaited()
+                    await welcome.send_welcome_continuation(message,123,in_channel=True)
                     db.mark_legal_notice.assert_awaited_once_with(123)
                     keyboard.assert_called_once()
                     self.assertEqual(message.answer.call_args.kwargs['reply_markup'], 'full-menu')

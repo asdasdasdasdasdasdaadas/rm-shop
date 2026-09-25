@@ -20,6 +20,5 @@ class WelcomeSupportTest(unittest.IsolatedAsyncioTestCase):
                 stack.enter_context(patch.object(welcome,name,AsyncMock()))
             self.assertTrue(await welcome.send_welcome_intro(message,in_channel=True))
         calls=message.answer.call_args_list
-        self.assertEqual([call.args[0] for call in calls],['welcome_intro_hi','welcome_intro_hello','support_welcome','welcome_intro_try\n\nlegal'])
-        self.assertEqual(calls[2].kwargs['reply_markup'].inline_keyboard[0][0].callback_data,'help:feedback')
-        self.assertEqual(calls[3].kwargs['reply_markup'],'cabinet')
+        self.assertEqual([call.args[0] for call in calls],['welcome_intro_hi','welcome_intro_hello','support_welcome'])
+        self.assertEqual(calls[2].kwargs['reply_markup'].inline_keyboard[0][0].callback_data,'welcome:continue')

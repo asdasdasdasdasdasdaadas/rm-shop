@@ -453,5 +453,5 @@ def payout_mod_keyboard(
 
 def support_welcome_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="🤝 Я помогу", callback_data="help:feedback")
+        InlineKeyboardButton(text="🤝 Я помогу", callback_data="welcome:continue")
     ]])

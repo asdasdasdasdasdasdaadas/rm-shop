@@ -666,7 +666,7 @@ async def claim_welcome_intro(telegram_id: int) -> bool:
     row = await _pool_req().fetchrow(
         """
         UPDATE users
-        SET welcome_intro_sent_at = timezone('utc', now())
+        SET welcome_intro_sent_at = timezone('utc', now()), welcome_support_pending=TRUE
         WHERE telegram_id = $1
           AND welcome_intro_sent_at IS NULL
         RETURNING telegram_id
@@ -5013,3 +5013,7 @@ async def claim_balance_ending_notice(telegram_id: int, day_price: int) -> bool:
 
 async def release_balance_ending_notice(telegram_id: int) -> None:
     await _pool_req().execute('UPDATE users SET trial_end_nudge_at=NULL WHERE telegram_id=$1',telegram_id)
+
+
+async def complete_welcome_support(telegram_id: int) -> None:
+    await _pool_req().execute('UPDATE users SET welcome_support_pending=FALSE WHERE telegram_id=$1',telegram_id)

@@ -138,6 +138,30 @@ async def send_welcome_intro(
         if trial_on
         else notice_text("welcome_intro_hi_plain", name=name)
     )
+    support = notice_text("support_welcome", brand=escape(brand))
+    parts = [hi, hello, support]
+    try:
+        await send_welcome_sticker(bot, chat_id)
+        await _pause(bot, chat_id)
+        await message.answer(hi)
+        await _pause(bot, chat_id)
+        await message.answer(hello, reply_markup=with_referral_share(user.id) if referral_bonus else None)
+        await _pause(bot, chat_id)
+        await message.answer(support, reply_markup=support_welcome_keyboard(),
+                             link_preview_options=LinkPreviewOptions(is_disabled=True))
+        await _log(user.id, user.first_name, "\n\n".join(parts), ok=True)
+        return True
+    except Exception as exc:
+        logger.warning("Приветствие первого запуска не ушло %s", user.id, exc_info=True)
+        await _log(user.id, user.first_name, "\n\n".join(parts), ok=False, exc=exc)
+        return False
+
+
+async def send_welcome_continuation(message: Message, telegram_id: int, *, in_channel: bool) -> None:
+    settings=get_settings()
+    local=await db.get_user(telegram_id)
+    trial_on=trial_is_available(local)
+    days=days_text(trial_grant_days(local) if trial_on and not settings.balance_enabled else settings.trial_days)
     if settings.balance_enabled and trial_on:
         try_body = notice_text("welcome_intro_try", days=days)
     else:
@@ -153,25 +177,14 @@ async def send_welcome_intro(
             story_offer=False,
         )
     last += "\n\n" + legal_text()
-    support = notice_text("support_welcome", brand=escape(brand))
-    parts = [hi, hello, support, last]
-    try:
-        await send_welcome_sticker(bot, chat_id)
-        await _pause(bot, chat_id)
-        await message.answer(hi)
-        await _pause(bot, chat_id)
-        await message.answer(hello, reply_markup=with_referral_share(user.id) if referral_bonus else None)
-        await _pause(bot, chat_id)
-        await message.answer(support, reply_markup=support_welcome_keyboard(),
-                             link_preview_options=LinkPreviewOptions(is_disabled=True))
-        await _pause(bot, chat_id)
-        await message.answer(
-            last, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
-        )
-        await db.mark_legal_notice(user.id)
-        await _log(user.id, user.first_name, "\n\n".join(parts), ok=True)
-        return True
-    except Exception as exc:
-        logger.warning("Приветствие первого запуска не ушло %s", user.id, exc_info=True)
-        await _log(user.id, user.first_name, "\n\n".join(parts), ok=False, exc=exc)
+    await message.answer(last, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True))
+    await db.mark_legal_notice(telegram_id)
+
+
+async def show_pending_welcome(message: Message, telegram_id: int) -> bool:
+    local=await db.get_user(telegram_id)
+    if not local or not local.get('welcome_support_pending'):
         return False
+    await message.answer(notice_text('support_welcome',brand=escape(get_settings().brand_name)),
+                         reply_markup=support_welcome_keyboard(),link_preview_options=LinkPreviewOptions(is_disabled=True))
+    return True

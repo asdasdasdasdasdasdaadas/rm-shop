@@ -552,3 +552,5 @@ CREATE TABLE IF NOT EXISTS referral_campaign_schedule (
 );
 
 ALTER TABLE referral_campaign_messages ADD COLUMN IF NOT EXISTS retryable BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS welcome_support_pending BOOLEAN NOT NULL DEFAULT FALSE;
