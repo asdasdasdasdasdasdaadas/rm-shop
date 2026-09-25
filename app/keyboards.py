@@ -449,3 +449,9 @@ def payout_mod_keyboard(
         ),
     )
     return builder.as_markup()
+
+
+def support_welcome_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🤝 Я помогу", callback_data="help:feedback")
+    ]])

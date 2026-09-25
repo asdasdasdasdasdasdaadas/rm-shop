@@ -33,6 +33,14 @@ async def help_connect(callback: CallbackQuery) -> None:
     )
 
 
+@router.callback_query(F.data == "help:feedback")
+async def help_feedback(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await callback.message.answer(
+        "Спасибо! Напишите здесь, что стоит улучшить или с какой проблемой вы столкнулись. "
+        "Можно приложить скриншот — ваше сообщение получит поддержка.")
+
+
 @router.callback_query(F.data == "help:other")
 async def help_other(callback: CallbackQuery) -> None:
     await callback.answer()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from html import escape
 
 from aiogram import Bot
 from aiogram.enums import ChatAction
@@ -10,7 +11,7 @@ from aiogram.types import LinkPreviewOptions, Message
 
 from app import db
 from app.config import get_settings
-from app.keyboards import with_referral_share
+from app.keyboards import with_referral_share, support_welcome_keyboard
 from app.keyboards import channel_keyboard, legal_text, profile_keyboard
 from app.notices import notice_text
 from app.referrals import trial_grant_days, trial_is_available
@@ -152,13 +153,17 @@ async def send_welcome_intro(
             story_offer=False,
         )
     last += "\n\n" + legal_text()
-    parts = [hi, hello, last]
+    support = notice_text("support_welcome", brand=escape(brand))
+    parts = [hi, hello, support, last]
     try:
         await send_welcome_sticker(bot, chat_id)
         await _pause(bot, chat_id)
         await message.answer(hi)
         await _pause(bot, chat_id)
         await message.answer(hello, reply_markup=with_referral_share(user.id) if referral_bonus else None)
+        await _pause(bot, chat_id)
+        await message.answer(support, reply_markup=support_welcome_keyboard(),
+                             link_preview_options=LinkPreviewOptions(is_disabled=True))
         await _pause(bot, chat_id)
         await message.answer(
             last, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
