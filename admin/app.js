@@ -514,6 +514,7 @@ function switchTab(name, opts = {}) {
     if (name === "promo") loadPromos();
   }
   setNavOpen(false);
+  window.dispatchEvent(new CustomEvent("admin:navigate", {detail:name}));
 }
 
 function card(label, value, tab, extra) {

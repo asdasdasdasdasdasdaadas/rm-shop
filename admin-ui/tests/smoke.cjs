@@ -1,0 +1,60 @@
+const {chromium}=require('playwright');
+const fs=require('node:fs'),assert=require('node:assert/strict'),path=require('node:path'),os=require('node:os');
+const screenshots=fs.mkdtempSync(path.join(os.tmpdir(),'admin-ui-smoke-'));
+(async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+ const current={entered:1248,trial:902,connected:740,checkout:428,paid:356,repeat_paid:182,paid_stars:50,paid_rollypay:306,trial_transition:902,connected_transition:720,checkout_transition:400,paid_transition:356,repeat_paid_transition:182};
+ const funnel=Object.fromEntries(['1d','7d','30d','90d','all'].map(k=>[k,{current,previous:null,from:'2026-09-01T00:00:00Z',to:'2026-09-26T00:00:00Z'}]));
+ const rows=[{telegram_id:123,first_name:'Александр',username:'alex',balance_rub:240,device_count:2,trial_used:true,has_paid_topup:true,created_at:'2026-09-20T12:00:00Z',last_online_at:'2026-09-25T21:00:00Z',devices:[]},{telegram_id:456,first_name:'Мария',username:'maria',balance_rub:36,device_count:1,trial_used:true,created_at:'2026-09-21T12:00:00Z',devices:[]}];
+ await page.route('http://admin.test/**',async r=>{
+  const u=new URL(r.request().url());
+  if(u.pathname.startsWith('/admin/api/')){
+   let data={ok:true,items:[],total:0,page:1,limit:25};
+   if(u.pathname.endsWith('/stats'))data={ok:true,total:1248,users:1248,devices:906,paid_users:356,funnel};
+   if(u.pathname.endsWith('/settings'))data={values:{brand_name:'WAY VPN',max_devices:5,vpn_day_price_rub:6,referral_mode:'classic',referral_program_enabled:true},notices:[],plans:[],apps:[],pay_methods:[]};
+   if(u.pathname.endsWith('/users'))data={ok:true,items:rows,total:2,page:1,limit:25};
+   if(u.pathname.endsWith('/referral-campaigns'))data={items:[],next_reward_rub:540,scheduled_at:null};
+   if(u.pathname.endsWith('/broadcast'))data={ok:true,running:false,total:0,sent:0,failed:0,audiences:{all:1248,using:740,unused:508},previews:{}};
+   if(u.pathname.endsWith('/backups'))data={ok:true,items:[],enabled:true};
+   return r.fulfill({json:data});
+  }
+  let rel=u.pathname.replace('/admin/','').replace(/^static\//,'')||'index.html';
+  const asset=path.resolve(__dirname,'../../admin',rel);
+  return fs.existsSync(asset)?r.fulfill({path:asset}):r.fulfill({status:404,body:''});
+ });
+ await page.goto('http://admin.test/admin/');
+ await page.waitForSelector('.shadcn-ready');
+ await page.waitForSelector('#sidebar .admin-nav-item');
+ await page.evaluate(()=>applyTheme('light'));
+ await page.screenshot({path:path.join(screenshots,'admin-overview-light.png'),fullPage:true});
+ const ids=['users','referrals','ads','orders','billing','tickets','messages','broadcast','announcements','promo','backups','settings','overview'];
+ for(const id of ids){await page.locator(`#sidebar [data-tab="${id}"]`).click();await page.locator(`#tab-${id}`).waitFor({state:'visible'});}
+ await page.locator('#sidebar [data-tab="users"]').click();
+ await page.screenshot({path:path.join(screenshots,'admin-users-light.png'),fullPage:true});
+ await page.locator('#adminNavSearch').fill('Промокоды');
+ assert.equal(await page.locator('#sidebar [data-tab]:visible').count(),1);
+ await page.locator('#adminNavSearch').fill('');
+ await page.locator('#adminCommand button').click();
+ await page.getByPlaceholder('Пользователи, платежи, промокоды…').fill('Промокоды');
+ await page.getByRole('option').first().click();
+ await page.locator('#tab-promo').waitFor({state:'visible'});
+ await page.waitForFunction(()=>document.querySelector('#sidebar [data-tab=promo]').getAttribute('aria-current')==='page');
+ await page.waitForTimeout(200);
+ assert.equal(await page.locator('#sidebar [data-tab=promo]').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(244, 244, 245)');
+ await page.evaluate(()=>{window.confirmResult=null;window.confirmAction('Удалить пользователя?','Данные будут удалены.',true).then(x=>window.confirmResult=x)});
+ await page.getByRole('dialog').waitFor();await page.keyboard.press('Escape');
+ await page.waitForFunction(()=>window.confirmResult===false);
+ await page.evaluate(()=>applyTheme('dark'));
+ await page.waitForTimeout(600);assert.equal(await page.locator('#promoCode').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(17, 17, 19)');
+ await page.screenshot({path:path.join(screenshots,'admin-promo-dark.png'),fullPage:true});
+ await page.setViewportSize({width:390,height:844});
+ await page.locator('#navToggle').click();
+ await page.locator('#sidebar [data-tab="users"]').click();
+ await page.waitForTimeout(350);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.screenshot({path:path.join(screenshots,'admin-users-mobile.png'),fullPage:true});
+ assert.equal(await page.locator('#tab-users .check-col').first().isVisible(),true);
+ assert.deepEqual(errors,[]);
+ await browser.close();console.log('Screenshots:',screenshots);console.log('13 sections, command navigation, dialog cancel, themes and mobile verified');
+})().catch(e=>{console.error(e);process.exit(1)});

@@ -13,3 +13,5 @@ backups/*.gz
 *.db
 .idea/
 .vscode/
+
+admin-ui/node_modules/
