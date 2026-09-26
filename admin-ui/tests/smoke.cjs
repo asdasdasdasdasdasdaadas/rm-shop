@@ -294,6 +294,29 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
             },
           ],
         };
+      if (key === "broadcast-results")
+        data = {
+          items: [
+            {
+              id: 42,
+              title: "Рассылка",
+              body: "Тест результатов",
+              created_at: "2026-09-27T10:00:00Z",
+              finished_at: "2026-09-27T10:01:00Z",
+              total: 100,
+              sent: 90,
+              failed: 10,
+              tracked: 90,
+              clicked: 18,
+              connected: 8,
+              payers: 3,
+              payments: 4,
+              rub: 600,
+              stars: 50,
+            },
+          ],
+          total: 1,
+        };
       if (key === "broadcast")
         data = {
           ok: true,
@@ -531,6 +554,10 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await page.getByRole("heading", { name: "Настройки", exact: true }).waitFor();
   await page.getByRole("button", { name: "Отменить", exact: true }).click();
   await nav("Рассылки");
+  await page.getByRole("button", { name: "Рассылка #42", exact: true }).click();
+  await page.getByText("Тест результатов", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Скрыть подробности" }).click();
+
   await page.getByRole("button", { name: "Продолжить", exact: true }).click();
   await page
     .getByLabel("Текст рассылки", { exact: true })

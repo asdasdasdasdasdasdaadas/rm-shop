@@ -14,6 +14,7 @@ from aiogram import Bot
 from aiogram.types import FSInputFile
 
 from app.referral_terms import referral_terms
+from app.reminder_tracking import tracked_keyboard, _finish as finish_tracked_delivery
 from app import db, runtime
 from app.announcements import (
     DEFAULT_CLOSING,
@@ -123,7 +124,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "98"})
+    return web.json_response({"ok": True, "build": "99"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -1361,6 +1362,8 @@ async def _broadcast_all(
     else:
         targets = await db.list_broadcast_targets("all")
     job["total"] = len(targets)
+    if job.get("run_id"):
+        await db.update_broadcast_run(job["run_id"], job)
     settings = get_settings()
     for row in targets:
         if not job.get("running"):
@@ -1370,58 +1373,64 @@ async def _broadcast_all(
             break
         telegram_id = int(row["telegram_id"])
         body, markup = _broadcast_payload(tpl, text, telegram_id, row.get("first_name"), settings)
-        extra = {"template": tpl or "custom"}
+        extra = {"template": tpl or "custom", "broadcast_id": job.get("run_id")}
+        token = None
+        if job.get("run_id"):
+            try:
+                token = await db.create_reminder_delivery(telegram_id, "broadcast", _broadcast_title(tpl), body, broadcast_id=job["run_id"])
+                # Keep scenario buttons and add a trackable cabinet entry when absent.
+                cabinet = cabinet_keyboard()
+                if markup is None:
+                    markup = cabinet
+                elif not any(button.web_app for row in markup.inline_keyboard for button in row):
+                    markup = markup.model_copy(update={"inline_keyboard": markup.inline_keyboard + cabinet.inline_keyboard})
+                markup = tracked_keyboard(markup, token)
+            except Exception:
+                logger.exception("Broadcast tracking setup failed")
         image_name = str(job.get("image_name") or "").strip()
         if image_name:
             extra["image_name"] = image_name
         photo = announcement_photo_path(image_name) if tpl == "update" else None
         try:
-            await _deliver_broadcast(bot, telegram_id, body, markup, photo)
-            job["sent"] = int(job.get("sent") or 0) + 1
-            await db.log_bot_message(
-                kind="broadcast",
-                source="manual",
-                telegram_id=telegram_id,
-                first_name=row.get("first_name"),
-                title=_broadcast_title(tpl),
-                body=body,
-                status="sent",
-                extra=extra,
-            )
+            message = await _deliver_broadcast(bot, telegram_id, body, markup, photo)
         except Exception as exc:
             job["failed"] = int(job.get("failed") or 0) + 1
-            await db.log_bot_message(
-                kind="broadcast",
-                source="manual",
-                telegram_id=telegram_id,
-                first_name=row.get("first_name"),
-                title=_broadcast_title(tpl),
-                body=body,
-                status="failed",
-                extra=fail_extra(exc, extra),
-            )
+            status = "failed"
+            extra = fail_extra(exc, extra)
+            if token:
+                await finish_tracked_delivery(token, status, None)
+        else:
+            job["sent"] = int(job.get("sent") or 0) + 1
+            status = "sent"
+            if token:
+                await finish_tracked_delivery(token, status, getattr(message, "message_id", None))
+        try:
+            await db.log_bot_message(kind="broadcast", source="manual", telegram_id=telegram_id,
+                first_name=row.get("first_name"), title=_broadcast_title(tpl), body=body, status=status, extra=extra)
+            if job.get("run_id"):
+                await db.update_broadcast_run(job["run_id"], job)
+        except Exception:
+            logger.exception("Broadcast progress persistence failed")
         await asyncio.sleep(0.035)
 
 
-async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup, photo) -> None:
+async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup, photo):
     if photo is None:
-        await bot.send_message(telegram_id, body, reply_markup=markup)
-        return
+        return await bot.send_message(telegram_id, body, reply_markup=markup)
     if len(body) <= 1024:
-        await bot.send_photo(
+        return await bot.send_photo(
             telegram_id,
             FSInputFile(photo),
             caption=body,
             parse_mode=None,
             reply_markup=markup,
         )
-        return
     await bot.send_photo(
         telegram_id,
         FSInputFile(photo),
         parse_mode=None,
     )
-    await bot.send_message(telegram_id, body, reply_markup=markup)
+    return await bot.send_message(telegram_id, body, reply_markup=markup)
 
 
 def _broadcast_title(template: str) -> str:
@@ -1488,6 +1497,7 @@ async def _run_broadcast_job(
     job = _bc_job(app)
     bot: Bot = app["bot"]
     try:
+        job["run_id"] = await db.create_broadcast_run(_broadcast_title(template or ""), text, template or "custom", job.get("scope", "all"))
         await _broadcast_all(bot, text, job, ids, template)
         prefix = "Выбранным. " if job.get("scope") == "selected" else ""
         job["message"] = f"{prefix}Отправлено: {job.get('sent') or 0}, ошибок: {job.get('failed') or 0}"
@@ -1497,11 +1507,17 @@ async def _run_broadcast_job(
         job["message"] = f"Сбой: {exc}"
     finally:
         job["running"] = False
+        if job.get("run_id"):
+            try:
+                await db.update_broadcast_run(job["run_id"], job, finished=True)
+            except Exception:
+                logger.exception("Broadcast completion persistence failed")
 
 
 def _new_bc_job() -> dict:
     return {
         "running": False,
+        "run_id": None,
         "scope": "all",
         "template": "",
         "image_name": "",
@@ -1551,6 +1567,17 @@ def _broadcast_template_preview(template: str) -> str:
     if template == "unused":
         return notice_text("broadcast_unused", name="друг")
     return ""
+
+
+async def api_broadcast_results(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        page = max(1, int(request.query.get("page", "1")))
+    except ValueError:
+        return web.json_response({"ok": False, "error": "Некорректная страница"}, status=400)
+    return web.json_response({"ok": True, **await db.admin_broadcast_results(page)})
 
 
 async def api_broadcast(request: web.Request) -> web.Response:
@@ -2302,6 +2329,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/maintenance", api_maintenance_save)
     app.router.add_get("/admin/api/maintenance/photo", api_maintenance_photo)
     app.router.add_delete("/admin/api/maintenance/photo", api_maintenance_photo)
+    app.router.add_get("/admin/api/broadcast-results", api_broadcast_results)
     app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
     app.router.add_get("/admin/api/announcements", api_announcements)

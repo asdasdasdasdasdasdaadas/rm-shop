@@ -4782,11 +4782,11 @@ async def release_low_balance_notice(telegram_id: int) -> None:
     await _pool_req().execute("UPDATE users SET low_balance_notified_at=NULL WHERE telegram_id=$1", telegram_id)
 
 
-async def create_reminder_delivery(telegram_id: int, kind: str, title: str, body: str) -> str:
+async def create_reminder_delivery(telegram_id: int, kind: str, title: str, body: str, *, broadcast_id: int | None = None) -> str:
     token=secrets.token_urlsafe(18)
     await _pool_req().execute(
-        "INSERT INTO reminder_deliveries (token,telegram_id,kind,title,body) VALUES ($1,$2,$3,$4,$5)",
-        token,telegram_id,kind,title,body,
+        "INSERT INTO reminder_deliveries (token,telegram_id,kind,title,body,broadcast_id) VALUES ($1,$2,$3,$4,$5,$6)",
+        token,telegram_id,kind,title,body,broadcast_id,
     )
     return token
 
@@ -5079,3 +5079,63 @@ async def release_balance_ending_notice(telegram_id: int) -> None:
 
 async def complete_welcome_support(telegram_id: int) -> None:
     await _pool_req().execute('UPDATE users SET welcome_support_pending=FALSE WHERE telegram_id=$1',telegram_id)
+
+
+async def create_broadcast_run(title: str, body: str, template: str, scope: str) -> int:
+    return int(await _pool_req().fetchval(
+        'INSERT INTO broadcast_runs(title,body,template,scope) VALUES ($1,$2,$3,$4) RETURNING id',
+        title, body, template, scope,
+    ))
+
+
+async def update_broadcast_run(run_id: int, job: dict, *, finished: bool = False) -> None:
+    await _pool_req().execute('''UPDATE broadcast_runs SET total=$2,sent=$3,failed=$4,error=$5,
+        finished_at=CASE WHEN $6 THEN NOW() ELSE finished_at END WHERE id=$1''',
+        run_id, int(job.get('total') or 0), int(job.get('sent') or 0), int(job.get('failed') or 0), job.get('error'), finished)
+
+
+_BROADCAST_PAYMENTS_SQL = _REMINDER_CLICKS_SQL.rstrip() + ''', payment_events AS (
+    SELECT 'rub' AS currency, plan_code, telegram_id, paid_at, 0::bigint AS stars
+    FROM rollypay_orders WHERE status='granted' AND paid_at IS NOT NULL
+    UNION ALL SELECT 'stars', plan_code, telegram_id, created_at, stars FROM payments
+), attributed AS (
+    SELECT p.*, r.broadcast_id FROM payment_events p
+    JOIN reminder_deliveries r ON r.token=(
+        SELECT c.token FROM clicks c WHERE c.telegram_id=p.telegram_id
+          AND c.clicked_at <= p.paid_at AND c.clicked_at >= p.paid_at - INTERVAL '7 days'
+        ORDER BY c.clicked_at DESC,c.id DESC LIMIT 1
+    )
+    WHERE r.broadcast_id=ANY($1::bigint[])
+)
+'''
+
+
+async def admin_broadcast_results(page: int = 1) -> dict:
+    pool = _pool_req()
+    total = int(await pool.fetchval('SELECT COUNT(*) FROM broadcast_runs') or 0)
+    rows = await pool.fetch('''SELECT b.*,
+        COUNT(r.token) FILTER (WHERE r.status='sent')::int AS tracked,
+        COUNT(DISTINCT r.telegram_id) FILTER (WHERE r.status='sent' AND r.clicked_at IS NOT NULL)::int AS clicked,
+        COUNT(DISTINCT r.telegram_id) FILTER (WHERE r.connected_at IS NOT NULL)::int AS connected
+        FROM (SELECT * FROM broadcast_runs ORDER BY id DESC LIMIT 20 OFFSET $1) b
+        LEFT JOIN reminder_deliveries r ON r.broadcast_id=b.id
+        GROUP BY b.id,b.title,b.body,b.template,b.scope,b.created_at,b.finished_at,b.total,b.sent,b.failed,b.error
+        ORDER BY b.id DESC''', (page - 1) * 20)
+    items = {r['id']: dict(r, payers=0, payments=0, rub=0, stars=0) for r in rows}
+    if items:
+        amounts = await pool.fetch(_BROADCAST_PAYMENTS_SQL + '''
+            SELECT broadcast_id,currency,plan_code,COUNT(*)::int AS n,COALESCE(SUM(stars),0)::bigint AS stars
+            FROM attributed GROUP BY broadcast_id,currency,plan_code''', list(items))
+        payers = await pool.fetch(_BROADCAST_PAYMENTS_SQL + '''
+            SELECT broadcast_id,COUNT(DISTINCT telegram_id)::int AS n FROM attributed GROUP BY broadcast_id''', list(items))
+        settings = get_settings()
+        for row in amounts:
+            item = items[row['broadcast_id']]
+            item['payments'] += row['n']
+            if row['currency'] == 'rub':
+                item['rub'] += settings.topup_rub_for_code(row['plan_code']) * row['n']
+            else:
+                item['stars'] += int(row['stars'])
+        for row in payers:
+            items[row['broadcast_id']]['payers'] = row['n']
+    return {'items': [_jsonable(item) for item in items.values()], 'total': total, 'page': page, 'limit': 20}

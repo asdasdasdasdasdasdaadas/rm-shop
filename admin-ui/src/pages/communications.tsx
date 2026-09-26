@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, date, useResource, type Data } from "@/lib/api";
+import { api, date, money, useResource, type Data } from "@/lib/api";
 import {
   ActionButton,
   Choice,
@@ -8,6 +8,7 @@ import {
   Field,
   Loading,
   Panel,
+  Pager,
   useConfirm,
   useDirty,
   useNavigate,
@@ -63,6 +64,109 @@ function Delivery({ data }: { data: Data }) {
     </div>
   );
 }
+function BroadcastResults() {
+  const [page, setPage] = useState(1),
+    [selected, setSelected] = useState<number | null>(null);
+  const resource = useResource(`broadcast-results?page=${page}`, 15000);
+  const rows = resource.data?.items || [];
+  const current = rows.find((r: Data) => r.id === selected);
+  const percent = (a: number, b: number) =>
+    b ? `${((100 * a) / b).toFixed(1)}%` : "—";
+  return (
+    <Panel
+      title="Результаты ручных рассылок"
+      description="Каждый запуск учитывается отдельно. Переходы — нажатия отслеживаемых кнопок, не прочтения сообщений."
+    >
+      {resource.error ? (
+        <Failure message={resource.error} retry={resource.reload} />
+      ) : !resource.data ? (
+        <Loading />
+      ) : (
+        <>
+          <DataTable
+            rows={rows}
+            empty="Новых рассылок пока нет. Отслеживание начнётся со следующего запуска."
+            columns={[
+              {
+                key: "title",
+                label: "Рассылка",
+                cell: (r) => (
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-left whitespace-normal"
+                    onClick={() => setSelected(selected === r.id ? null : r.id)}
+                  >
+                    {r.title} #{r.id}
+                  </Button>
+                ),
+              },
+              {
+                key: "created_at",
+                label: "Дата · МСК",
+                cell: (r) => date(r.created_at),
+              },
+              { key: "sent", label: "Доставлено" },
+              { key: "failed", label: "Ошибки" },
+              { key: "clicked", label: "Перешли" },
+              {
+                key: "ctr",
+                label: "CTR",
+                cell: (r) => percent(r.clicked, r.sent),
+              },
+              { key: "connected", label: "Пользовались VPN" },
+              { key: "payers", label: "Оплатили" },
+              { key: "rub", label: "Сумма, ₽", cell: (r) => money(r.rub) },
+              { key: "stars", label: "Stars" },
+            ]}
+          />
+          <Pager
+            page={page}
+            total={resource.data.total || 0}
+            limit={20}
+            onChange={(p) => {
+              setPage(p);
+              setSelected(null);
+            }}
+          />
+          {current && (
+            <div className="rounded-lg border p-4 space-y-3 mt-3">
+              <h3 className="font-semibold">
+                {current.title} #{current.id}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {current.finished_at
+                  ? "Отправка завершена"
+                  : "Отправка не завершена"}{" "}
+                · Получателей: {current.total} · С отслеживанием:{" "}
+                {current.tracked} · Оплат: {current.payments} · Оплатили после
+                перехода: {percent(current.payers, current.clicked)}
+              </p>
+              {current.error && (
+                <p className="text-sm text-destructive">
+                  Ошибка отправки: {current.error}
+                </p>
+              )}
+              <p className="whitespace-pre-wrap break-words rounded-lg bg-muted p-4 text-sm">
+                {current.body}
+              </p>
+              <Button variant="outline" onClick={() => setSelected(null)}>
+                Скрыть подробности
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+      <p className="mt-4 text-xs text-muted-foreground">
+        Подключения и оплаты учитываются в течение 7 дней после последнего
+        отслеживаемого перехода, в том числе из автоматических сообщений. Это
+        связь по времени, а не доказанный прирост продаж. Рубли рассчитаны по
+        кодам платежей; для старых тарифов — по текущей цене. Stars отдельно.
+        Старые рассылки без меток не восстановить; удаление пользователей
+        удаляет их события.
+      </p>
+    </Panel>
+  );
+}
 export function BroadcastPage() {
   const resource = useResource("broadcast", 5000),
     [step, setStep] = useState(0),
@@ -105,6 +209,7 @@ export function BroadcastPage() {
     });
   return (
     <div className="space-y-6">
+      <BroadcastResults />
       {resource.error && (
         <Failure message={resource.error} retry={resource.reload} />
       )}{" "}
@@ -287,13 +392,13 @@ export function BroadcastPage() {
                   <div className="rounded-xl bg-background border p-4 text-sm whitespace-pre-wrap break-words min-h-40">
                     {body || "Здесь появится текст сообщения."}
                   </div>
-                  {template && (
+                  {
                     <div className="border rounded-lg mt-2 p-3 text-center text-sm text-muted-foreground">
                       {template === "invite"
-                        ? "Поделиться реферальной ссылкой"
+                        ? "Поделиться реферальной ссылкой · Войти в кабинет"
                         : "Войти в кабинет"}
                     </div>
-                  )}
+                  }
                 </div>
               </Panel>
             </div>
