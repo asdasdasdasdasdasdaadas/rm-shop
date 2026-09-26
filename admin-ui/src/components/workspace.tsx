@@ -199,6 +199,7 @@ export function Empty({
   );
 }
 export type Column = {
+  sortDirection?: "ascending" | "descending" | "none";
   key: string;
   label: ReactNode;
   cell?: (row: Data) => ReactNode;
@@ -221,7 +222,11 @@ export function DataTable({
         <TableHeader>
           <TableRow>
             {columns.map((c) => (
-              <TableHead key={c.key} className={c.className}>
+              <TableHead
+                key={c.key}
+                className={c.className}
+                aria-sort={c.sortDirection}
+              >
                 {c.label}
               </TableHead>
             ))}

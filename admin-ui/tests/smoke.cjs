@@ -361,6 +361,43 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   });
   await accessibility("Overview");
   await nav("Клиенты");
+  for (const [key, label] of [
+    ["balance", "Баланс"],
+    ["devices", "Устройства"],
+    ["online", "Последний онлайн · МСК"],
+    ["traffic", "Трафик"],
+    ["status", "Доступ"],
+  ]) {
+    for (const [direction, action, aria] of [
+      ["desc", "убыванию", "descending"],
+      ["asc", "возрастанию", "ascending"],
+    ]) {
+      const request = page.waitForRequest(
+        (r) =>
+          r.url().includes("/admin/api/users?") &&
+          new URL(r.url()).searchParams.get("sort") === `${key}_${direction}`,
+      );
+      await page
+        .getByRole("button", {
+          name: `${label}: сортировать по ${action}`,
+          exact: true,
+        })
+        .click();
+      const sent = await request;
+      assert.equal(new URL(sent.url()).searchParams.get("page"), "1");
+      assert.equal(
+        await page
+          .getByRole("columnheader")
+          .filter({ hasText: label })
+          .getAttribute("aria-sort"),
+        aria,
+      );
+      await page
+        .getByRole("button", { name: "Открыть", exact: true })
+        .waitFor();
+    }
+  }
+
   await page.getByRole("button", { name: "Открыть", exact: true }).click();
   await page.getByLabel("Сумма изменения баланса").fill("-40");
   await page.getByRole("button", { name: "Применить", exact: true }).click();

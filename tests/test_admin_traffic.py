@@ -34,6 +34,27 @@ class AdminTrafficTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(args,[int(1.5*1024**3)])
         self.assertNotIn('1,5',where)
 
+    def test_header_sorts_cover_all_rows_with_stable_pagination(self):
+        conn = sqlite3.connect(':memory:')
+        self.addCleanup(conn.close)
+        conn.execute('CREATE TABLE users (telegram_id INTEGER, balance_rub INTEGER, device_count INTEGER, blocked_at TEXT, bot_blocked_at TEXT, billing_paused_at TEXT, panel_status TEXT)')
+        conn.executemany('INSERT INTO users VALUES (?,?,?,?,?,?,?)', [
+            (1, 100, 2, None, None, None, 'ACTIVE'),
+            (2, -10, 0, '2026-01-01', None, None, 'ACTIVE'),
+            (3, 100, 3, None, None, '2026-01-01', 'ACTIVE'),
+        ])
+        for key, descending, ascending in [
+            ('balance', [3, 1, 2], [2, 3, 1]),
+            ('devices', [3, 1, 2], [2, 1, 3]),
+            ('status', [1, 3, 2], [2, 3, 1]),
+        ]:
+            for direction, expected in [('desc', descending), ('asc', ascending)]:
+                with self.subTest(key=key, direction=direction):
+                    order = db._admin_users_order({'sort': f'{key}_{direction}'})
+                    sql = f'SELECT u.telegram_id, device_count FROM users u ORDER BY {order}'
+                    self.assertEqual([r[0] for r in conn.execute(sql)], expected)
+                    self.assertEqual(conn.execute(sql + ' LIMIT 1 OFFSET 1').fetchone()[0], expected[1])
+
     async def test_list_sorts_before_pagination_and_returns_display_total(self):
         pool = SimpleNamespace(fetchval=AsyncMock(return_value=1), fetch=AsyncMock(return_value=[
             {'telegram_id':1,'used_traffic_bytes':0,'traffic_total_bytes':123,'paid_plan_codes':[]}]))

@@ -123,7 +123,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "96"})
+    return web.json_response({"ok": True, "build": "97"})
 
 
 async def api_login(request: web.Request) -> web.Response:

@@ -2756,7 +2756,19 @@ _ADMIN_TRAFFIC_SQL = """CAST(GREATEST(
 
 
 def _admin_users_order(extra: dict | None = None) -> str:
+    access = """CASE
+        WHEN u.blocked_at IS NOT NULL THEN 0
+        WHEN u.bot_blocked_at IS NOT NULL THEN 1
+        WHEN u.billing_paused_at IS NOT NULL THEN 2
+        WHEN u.panel_status = 'ACTIVE' THEN 4
+        ELSE 3 END"""
     return {
+        "balance_desc": "COALESCE(u.balance_rub, 0) DESC, u.telegram_id DESC",
+        "balance_asc": "COALESCE(u.balance_rub, 0) ASC, u.telegram_id DESC",
+        "devices_desc": "device_count DESC, u.telegram_id DESC",
+        "devices_asc": "device_count ASC, u.telegram_id DESC",
+        "status_desc": f"{access} DESC, u.telegram_id DESC",
+        "status_asc": f"{access} ASC, u.telegram_id DESC",
         "traffic_desc": "traffic_total_bytes DESC, u.telegram_id DESC",
         "traffic_asc": "traffic_total_bytes ASC, u.telegram_id DESC",
         "online_desc": "last_online_at DESC NULLS LAST, u.telegram_id DESC",

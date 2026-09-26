@@ -42,6 +42,8 @@ import {
   X,
   Copy,
   ArrowDownUp,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { billKinds } from "./records";
@@ -137,6 +139,12 @@ const filters: {
 ];
 const sort: [string, string][] = [
   ["", "Сначала новые"],
+  ["balance_desc", "Больше денег на балансе"],
+  ["balance_asc", "Меньше денег на балансе"],
+  ["devices_desc", "Больше устройств"],
+  ["devices_asc", "Меньше устройств"],
+  ["status_desc", "Сначала активный доступ"],
+  ["status_asc", "Сначала заблокированные"],
   ["traffic_desc", "Больше трафика"],
   ["traffic_asc", "Меньше трафика"],
   ["online_desc", "Недавно в сети"],
@@ -205,6 +213,38 @@ export function UsersPage() {
     setSearch(next.q || "");
     setPage(1);
     setSelected([]);
+  };
+  const sortable = (key: string, label: string) => {
+    const direction =
+      values.sort === `${key}_desc`
+        ? "descending"
+        : values.sort === `${key}_asc`
+          ? "ascending"
+          : "none";
+    const next = direction === "descending" ? "asc" : "desc";
+    const Icon =
+      direction === "descending"
+        ? ArrowDown
+        : direction === "ascending"
+          ? ArrowUp
+          : ArrowDownUp;
+    return {
+      sortDirection: direction as "ascending" | "descending" | "none",
+      label: (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={`-ml-3 whitespace-nowrap ${direction !== "none" ? "text-foreground bg-accent" : "text-muted-foreground"}`}
+          title={`Сортировать по ${next === "asc" ? "возрастанию" : "убыванию"}`}
+          aria-label={`${label}: сортировать по ${next === "asc" ? "возрастанию" : "убыванию"}`}
+          onClick={() => apply({ ...values, sort: `${key}_${next}` })}
+        >
+          {label}
+          <Icon className="size-3.5" aria-hidden="true" />
+        </Button>
+      ),
+    };
   };
   const bulk = (action: string, label: string) =>
     confirm({
@@ -502,7 +542,7 @@ export function UsersPage() {
                 },
                 {
                   key: "balance",
-                  label: "Баланс",
+                  ...sortable("balance", "Баланс"),
                   cell: (u) => (
                     <span
                       className={
@@ -517,12 +557,12 @@ export function UsersPage() {
                 },
                 {
                   key: "devices",
-                  label: "Устройства",
+                  ...sortable("devices", "Устройства"),
                   cell: (u) => u.devices_count ?? u.device_count ?? 0,
                 },
                 {
                   key: "online",
-                  label: "Последний онлайн · МСК",
+                  ...sortable("online", "Последний онлайн · МСК"),
                   cell: (u) => (
                     <span className="whitespace-nowrap">
                       {date(u.last_online_at)}
@@ -531,17 +571,12 @@ export function UsersPage() {
                 },
                 {
                   key: "traffic",
-                  label: (
-                    <span className="inline-flex gap-1 items-center">
-                      Трафик
-                      <ArrowDownUp className="size-3" />
-                    </span>
-                  ),
+                  ...sortable("traffic", "Трафик"),
                   cell: traffic,
                 },
                 {
                   key: "status",
-                  label: "Доступ",
+                  ...sortable("status", "Доступ"),
                   cell: (u) => (
                     <Status
                       value={
