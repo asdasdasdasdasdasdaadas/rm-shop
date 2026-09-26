@@ -123,7 +123,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "97"})
+    return web.json_response({"ok": True, "build": "98"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -160,6 +160,17 @@ async def api_session(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "auth": False}, status=401)
     settings = get_settings()
     return web.json_response({"ok": True, "auth": True, "brand": settings.brand_name})
+
+
+async def api_statistics(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        data = await db.admin_statistics(int(request.query.get("days", "30")))
+    except ValueError:
+        return web.json_response({"ok": False, "error": "Выберите период: 7, 30, 90 или 365 дней"}, status=400)
+    return web.json_response({"ok": True, **data})
 
 
 async def api_stats(request: web.Request) -> web.Response:
@@ -2246,6 +2257,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/logout", api_logout)
     app.router.add_get("/admin/api/session", api_session)
     app.router.add_get("/admin/api/stats", api_stats)
+    app.router.add_get("/admin/api/statistics", api_statistics)
     app.router.add_get("/admin/api/users", api_users)
     app.router.add_get("/admin/api/users/{telegram_id}/devices", api_user_devices)
     app.router.add_post("/admin/api/users/bulk", api_users_bulk)

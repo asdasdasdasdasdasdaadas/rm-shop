@@ -66,6 +66,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { UsersPage } from "@/pages/users";
+import { StatisticsPage } from "@/pages/statistics";
 import { OverviewPage } from "@/pages/overview";
 import { RecordsPage, BackupsPage } from "@/pages/records";
 import { SettingsPage } from "@/pages/settings";
@@ -78,6 +79,13 @@ import {
 import { BroadcastPage, AnnouncementsPage } from "@/pages/communications";
 import "./theme.css";
 const sections = [
+  {
+    id: "statistics",
+    label: "Статистика",
+    description: "Динамика сервиса, платежи и конверсия",
+    group: "Аналитика",
+    icon: LayoutDashboard,
+  },
   {
     id: "overview",
     label: "Обзор",
@@ -181,7 +189,11 @@ const groups = [...new Set(sections.map((s) => s.group))];
 function readRoute() {
   const raw =
     location.hash.slice(1) ||
-    (location.pathname.endsWith("/promo") ? "promo" : "overview");
+    (location.pathname.endsWith("/stats")
+      ? "statistics"
+      : location.pathname.endsWith("/promo")
+        ? "promo"
+        : "overview");
   return sections.some((s) => s.id === raw.split("?")[0]) ? raw : "overview";
 }
 class ErrorBoundary extends Component<
@@ -470,6 +482,9 @@ function Workspace({
   const params = new URLSearchParams(route.split("?")[1] || "");
   let page: ReactNode;
   switch (current.id) {
+    case "statistics":
+      page = <StatisticsPage />;
+      break;
     case "overview":
       page = <OverviewPage />;
       break;

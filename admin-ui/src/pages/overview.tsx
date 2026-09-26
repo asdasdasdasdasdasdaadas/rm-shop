@@ -47,8 +47,15 @@ const invites = [
   ["inv_checkout", "Начали оплату"],
   ["inv_paid", "Оплатили"],
 ];
-export function OverviewPage() {
-  const resource = useResource("stats"),
+export function OverviewPage({
+  analyticsOnly = false,
+  statsResource,
+}: {
+  analyticsOnly?: boolean;
+  statsResource?: ReturnType<typeof useResource>;
+}) {
+  const fetched = useResource(statsResource ? null : "stats");
+  const resource = statsResource || fetched,
     navigate = useNavigate();
   const [period, setPeriod] = useState("30d");
   if (resource.error)
@@ -98,113 +105,117 @@ export function OverviewPage() {
   );
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          [
-            "Пользователи",
-            u.users_total || 0,
-            "Всего зарегистрировано",
-            "users",
-          ],
-          [
-            "Онлайн за сутки",
-            s.online?.day || 0,
-            "Пользовались VPN за 24 часа",
-            "users?online=1d",
-          ],
-          [
-            "Сумма пополнений",
-            money(s.topups?.amount_rub || s.revenue_rub),
-            "За всё время",
-            "orders?status=granted",
-          ],
-          [
-            "Оплатившие клиенты",
-            s.topups?.payers || 0,
-            "Хотя бы одно пополнение",
-            "users?paid=yes",
-          ],
-        ].map(([label, value, hint, path]) => (
-          <Card key={String(label)}>
-            <CardContent className="pt-5">
-              <button
-                className="w-full text-left"
-                onClick={() => navigate(String(path))}
-              >
-                <div className="flex justify-between text-muted-foreground">
-                  <span className="text-sm">{label}</span>
-                  <ArrowUpRight className="size-4" />
-                </div>
-                <p className="text-3xl font-semibold tracking-tight my-3">
-                  {value}
-                </p>
-                <p className="text-xs text-muted-foreground">{hint}</p>
-              </button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,1fr)]">
-        <Panel
-          title="Требуют внимания"
-          description="Рабочая очередь администратора."
-        >
-          <div className="divide-y">
+      {!analyticsOnly && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
               [
-                "Обращения без ответа",
-                s.tickets_open || 0,
-                "tickets?status=open",
+                "Пользователи",
+                u.users_total || 0,
+                "Всего зарегистрировано",
+                "users",
               ],
               [
-                "Заявки на вывод наград",
-                u.payouts_pending || 0,
-                "referrals?view=payouts",
+                "Онлайн за сутки",
+                s.online?.day || 0,
+                "Пользовались VPN за 24 часа",
+                "users?online=1d",
               ],
               [
-                "Заблокировали бота",
-                u.bot_blocked || 0,
-                "users?status=bot_block",
+                "Сумма пополнений",
+                money(s.topups?.amount_rub || s.revenue_rub),
+                "За всё время",
+                "orders?status=granted",
               ],
-            ].map(([label, count, path]) => (
-              <button
-                key={String(label)}
-                className="w-full py-4 flex items-center justify-between gap-3 text-sm hover:text-primary"
-                onClick={() => navigate(String(path))}
-              >
-                <span>{label}</span>
-                <span className="flex items-center gap-4 font-medium">
-                  {count}
-                  <ArrowRight className="size-4" />
-                </span>
-              </button>
+              [
+                "Оплатившие клиенты",
+                s.topups?.payers || 0,
+                "Хотя бы одно пополнение",
+                "users?paid=yes",
+              ],
+            ].map(([label, value, hint, path]) => (
+              <Card key={String(label)}>
+                <CardContent className="pt-5">
+                  <button
+                    className="w-full text-left"
+                    onClick={() => navigate(String(path))}
+                  >
+                    <div className="flex justify-between text-muted-foreground">
+                      <span className="text-sm">{label}</span>
+                      <ArrowUpRight className="size-4" />
+                    </div>
+                    <p className="text-3xl font-semibold tracking-tight my-3">
+                      {value}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{hint}</p>
+                  </button>
+                </CardContent>
+              </Card>
             ))}
           </div>
-        </Panel>
-        <Panel
-          title="Быстрые действия"
-          description="Частые задачи без поиска по настройкам."
-        >
-          <div className="grid gap-3">
-            {[
-              ["Найти клиента", "users"],
-              ["Создать промокод", "promo"],
-              ["Подготовить рассылку", "broadcast"],
-              ["Запустить акцию", "campaigns"],
-            ].map(([label, path]) => (
-              <Button
-                key={path}
-                variant="outline"
-                className="justify-between"
-                onClick={() => navigate(path)}
-              >
-                {label}
-                <ArrowRight />
-              </Button>
-            ))}
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,1fr)]">
+            <Panel
+              title="Требуют внимания"
+              description="Рабочая очередь администратора."
+            >
+              <div className="divide-y">
+                {[
+                  [
+                    "Обращения без ответа",
+                    s.tickets_open || 0,
+                    "tickets?status=open",
+                  ],
+                  [
+                    "Заявки на вывод наград",
+                    u.payouts_pending || 0,
+                    "referrals?view=payouts",
+                  ],
+                  [
+                    "Заблокировали бота",
+                    u.bot_blocked || 0,
+                    "users?status=bot_block",
+                  ],
+                ].map(([label, count, path]) => (
+                  <button
+                    key={String(label)}
+                    className="w-full py-4 flex items-center justify-between gap-3 text-sm hover:text-primary"
+                    onClick={() => navigate(String(path))}
+                  >
+                    <span>{label}</span>
+                    <span className="flex items-center gap-4 font-medium">
+                      {count}
+                      <ArrowRight className="size-4" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </Panel>
+            <Panel
+              title="Быстрые действия"
+              description="Частые задачи без поиска по настройкам."
+            >
+              <div className="grid gap-3">
+                {[
+                  ["Найти клиента", "users"],
+                  ["Создать промокод", "promo"],
+                  ["Подготовить рассылку", "broadcast"],
+                  ["Запустить акцию", "campaigns"],
+                ].map(([label, path]) => (
+                  <Button
+                    key={path}
+                    variant="outline"
+                    className="justify-between"
+                    onClick={() => navigate(path)}
+                  >
+                    {label}
+                    <ArrowRight />
+                  </Button>
+                ))}
+              </div>
+            </Panel>
           </div>
-        </Panel>
-      </div>
+        </>
+      )}
       <Tabs defaultValue="conversion" className="space-y-5">
         <div className="flex flex-wrap justify-between items-center gap-3">
           <TabsList className="max-w-full overflow-x-auto justify-start">

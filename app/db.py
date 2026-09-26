@@ -2523,6 +2523,56 @@ async def log_bot_message(
             logging.getLogger("rm-shop.db").debug("Не удалось отметить блок бота %s", telegram_id, exc_info=True)
 
 
+async def admin_statistics(days: int = 30) -> dict:
+    """Calendar-day event history in Moscow; no synthetic online history."""
+    if days not in (7, 30, 90, 365):
+        raise ValueError("Unsupported statistics period")
+    from zoneinfo import ZoneInfo
+    today = _utc_now().astimezone(ZoneInfo("Europe/Moscow")).date()
+    start_day = today - timedelta(days=days - 1)
+    start = datetime.combine(start_day, datetime.min.time(), ZoneInfo("Europe/Moscow"))
+    end = _utc_now()
+    rows = await _pool_req().fetch(
+        """
+        WITH events AS (
+            SELECT created_at AS at, 'registered' AS kind, '' AS code, 1::bigint AS value FROM users
+            UNION ALL SELECT bot_started_at, 'started', '', 1 FROM users
+            UNION ALL SELECT first_online_at, 'connected', '', 1 FROM users
+            UNION ALL SELECT created_at, 'referred', '', 1 FROM users WHERE referred_by IS NOT NULL
+            UNION ALL SELECT created_at, 'devices', '', 1 FROM devices
+            UNION ALL SELECT created_at, 'promo', '', 1 FROM promo_uses
+            UNION ALL SELECT COALESCE(paid_at, created_at), 'payments', plan_code, 1
+                FROM rollypay_orders WHERE status = 'granted'
+            UNION ALL SELECT created_at, 'stars', '', stars FROM payments
+            UNION ALL SELECT created_at, 'star_payments', '', 1 FROM payments
+        )
+        SELECT (at AT TIME ZONE 'Europe/Moscow')::date AS day, kind, code, SUM(value)::bigint AS value
+        FROM events WHERE at >= $1 AND at < $2
+        GROUP BY 1, 2, 3 ORDER BY 1
+        """, start, end,
+    )
+    keys = ('registered', 'started', 'connected', 'referred', 'devices', 'promo', 'payments', 'stars', 'star_payments', 'rub')
+    series = {(start_day + timedelta(days=i)).isoformat(): dict.fromkeys(keys, 0) for i in range(days)}
+    settings = get_settings()
+    for row in rows:
+        point = series.get(row['day'].isoformat())
+        if point is None:
+            continue
+        point[row['kind']] += int(row['value'])
+        if row['kind'] == 'payments':
+            point['rub'] += settings.topup_rub_for_code(row['code']) * int(row['value'])
+    snapshot = await _pool_req().fetchrow(f'''
+        SELECT COALESCE(SUM({_ADMIN_TRAFFIC_SQL}), 0)::bigint AS traffic_bytes,
+            (SELECT COUNT(*) FROM devices)::int AS devices_total FROM users u
+    ''')
+    return {
+        'snapshot': dict(snapshot) if snapshot else {},
+        'days': days, 'from': start.isoformat(), 'to': end.isoformat(),
+        'series': [dict(day=day, **point) for day, point in series.items()],
+        'totals': {key: sum(point[key] for point in series.values()) for key in keys},
+    }
+
+
 async def admin_stats() -> dict:
     pool = _pool_req()
     users = await pool.fetchrow(

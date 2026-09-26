@@ -158,6 +158,35 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
         limit: 25,
       };
       if (key === "stats") data = stats;
+      if (key === "statistics") {
+        const days = Number(url.searchParams.get("days"));
+        const series = Array.from({ length: days }, (_, i) => ({
+          day: new Date(Date.UTC(2026, 8, 27 - days + i))
+            .toISOString()
+            .slice(0, 10),
+          registered: i % 7,
+          started: i % 5,
+          connected: i % 3,
+          rub: (i % 4) * 100,
+          payments: i % 4,
+          referred: i % 2,
+          promo: i % 3,
+          stars: (i % 2) * 50,
+          star_payments: i % 2,
+          devices: i % 5,
+        }));
+        data = {
+          days,
+          series,
+          totals: Object.fromEntries(
+            Object.keys(series[0])
+              .filter((k) => k !== "day")
+              .map((k) => [k, series.reduce((a, r) => a + r[k], 0)]),
+          ),
+          snapshot: { devices_total: 75, traffic_bytes: 107374182400 },
+        };
+      }
+
       if (key === "settings") {
         if (method === "POST") {
           if (failSettings) {
@@ -360,6 +389,48 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     fullPage: true,
   });
   await accessibility("Overview");
+  await nav("Статистика");
+  await page.getByText("Привлечение и подключение", { exact: true }).waitFor();
+  await page.getByRole("combobox", { name: "Период статистики" }).click();
+  const periodRequest = page.waitForRequest((r) =>
+    r.url().includes("statistics?days=7"),
+  );
+  await page.getByRole("option", { name: "7 дней", exact: true }).click();
+  await periodRequest;
+  await page.getByText("Привлечение и подключение", { exact: true }).waitFor();
+  const downloadReady = page.waitForEvent("download");
+  await page.getByRole("button", { name: "CSV", exact: true }).click();
+  const download = await downloadReady;
+  const csv = fs.readFileSync(await download.path(), "utf8");
+  assert.equal(csv.trim().split("\r\n").length, 8);
+  assert.match(csv, /Оплачено Stars/);
+  await page.getByRole("button", { name: "Показать данные по дням" }).click();
+  assert.equal(
+    await page
+      .getByRole("columnheader", { name: "Дата · МСК", exact: true })
+      .count(),
+    1,
+  );
+  await page.getByRole("button", { name: "Скрыть данные по дням" }).click();
+  await accessibility("Statistics");
+  await page.screenshot({
+    path: path.join(screenshots, "statistics.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(300);
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+  );
+  await page.screenshot({
+    path: path.join(screenshots, "mobile-statistics.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1440, height: 1080 });
+
   await nav("Клиенты");
   for (const [key, label] of [
     ["balance", "Баланс"],
