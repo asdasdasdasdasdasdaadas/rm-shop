@@ -35,7 +35,7 @@ test('thresholds, prepaid time, trial, routers and paused billing', () => {
     [{hours_left: 8, balance_rub: 0}, 'empty'], [{hours_left: 0, balance_rub: -6}, 'empty'],
     [{billing_paused: true, hours_left: 0}, ''], [{balance_enabled: false}, ''],
     [{devices: [{kind: 'router'}], hours_left: 0}, ''],
-    [{devices: [], balance_rub: 0, trial_available: true}, 'empty'],
+    [{devices: [], balance_rub: 0, trial_available: true}, ''],
     [{devices: [], balance_rub: 0, trial_available: false}, 'empty'],
   ]) assert.equal(ctx.balanceAlertState({...base, ...fields}), expected);
 });
@@ -149,4 +149,23 @@ test('intro exit checks balance and low balance skips intro entirely', () => {
   ctx.finishIntro();
   assert.equal(checks,1);
   assert.equal(node.inert,false);
+});
+
+test('pending gift suppresses zero-balance popup before offer and closes an existing popup', () => {
+  const {ctx,el} = setup();
+  ctx.window.__me={...base,devices:[],balance_rub:0};
+  ctx.maybeShowLowBalance();
+  assert.equal(el('lowBalanceSheet').open,true);
+  for (const screen of ['home','offer','wizard']) {
+    ctx.screen=screen;
+    for (const gift of [{trial_available:true}, {trial_notice:{kind:'claim'}}, {trial_notice:{kind:'start_bot'}}]) {
+      ctx.window.__me={...base,devices:[],balance_rub:0,...gift};
+      ctx.maybeShowLowBalance();
+      assert.equal(el('lowBalanceSheet').open,false);
+    }
+  }
+  ctx.screen='home';
+  for (const existing of [{first_online_at:'2026-09-27'}, {has_paid_topup:true}, {devices:[{id:1}]}]) {
+    assert.equal(ctx.balanceAlertState({...base,devices:[],balance_rub:0,trial_available:true,...existing}), 'empty');
+  }
 });

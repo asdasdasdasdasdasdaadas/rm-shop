@@ -55,3 +55,12 @@ test('direct Web App entry opens bot instead of claiming or adding a device', as
   await ctx.startOfferTry();
   assert.deepEqual(calls,[['bot',me.bot_start_url]]);
 });
+
+test('unclaimed gift wins over stale completed onboarding for the same account', () => {
+  const me = {...newcomer, balance_rub: 0, trial_available: true, trial_notice: {kind:'claim'}};
+  const {ctx} = setup(me);
+  ctx.markOnboardDone();
+  assert.equal(ctx.shouldShowOffer(me), true);
+  assert.equal(ctx.shouldShowOffer({...me, trial_available:false, trial_notice:{kind:'start_bot'}}), true);
+  assert.equal(ctx.shouldShowOffer({...me, trial_available:false, trial_notice:null}), false);
+});

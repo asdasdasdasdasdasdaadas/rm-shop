@@ -965,6 +965,10 @@ function balanceAlertState(me) {
   // Router subscriptions have a separate payment cycle.
   if (!devices.length && (me.devices || []).length) return "";
   const balance = Number(me.balance_rub) || 0;
+  // An unclaimed welcome gift is the next step, not a payment requirement.
+  // Check server eligibility before screen/storage state, including initial render.
+  const pendingGift = me.trial_available || (me.trial_notice && ["claim", "start_bot"].includes(me.trial_notice.kind));
+  if (balance >= 0 && pendingGift && !devices.length && !me.first_online_at && !me.has_paid_topup) return "";
   if (balance <= 0) return "empty";
   const daily = Math.max(1, Number(me.vpn_day_price_rub) || 1) * Math.max(1, devices.length);
   if (balance <= daily || (devices.length && remainHours(me) <= 24)) return "low";
@@ -1047,8 +1051,6 @@ function maybeShowLowBalance() {
     return;
   }
   if (!["home", "wizard", "device", "offer"].includes(screen)) return;
-  if (screen === "offer" && Number(me.balance_rub) === 0 &&
-      me.trial_notice && ["claim", "start_bot"].includes(me.trial_notice.kind)) return;
   const key = `way_balance_alert_${me.user && (me.user.id || me.user.telegram_id) || "user"}_${state}`;
   const alreadyOpen = sheet.open;
   if (!alreadyOpen) {
@@ -1358,10 +1360,11 @@ function skipOffer() {
 function shouldShowOffer(me) {
   if (!me) return false;
   if ((me.devices || []).length || me.first_online_at || me.has_paid_topup) return false;
+  const kind = me.trial_notice && me.trial_notice.kind;
+  // Server eligibility wins over stale local flags (e.g. after an account reset).
+  if (me.trial_available || kind === "claim" || kind === "start_bot") return true;
   if (offerSkipped() || onboardDone()) return false;
   // Signup may have already credited the gift before the first cabinet visit.
-  if (me.trial_available) return true;
-  const kind = me.trial_notice && me.trial_notice.kind;
   return kind === "claim" || kind === "granted" || kind === "start_bot";
 }
 
