@@ -1,27 +1,16 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const vm = require('node:vm');
-const source = fs.readFileSync(require('node:path').join(__dirname,'../admin/app.js'),'utf8');
-const handler = source.slice(source.indexOf('if ($("refModeSave"))'),source.indexOf('async function saveShopSettings'));
-test('referral save uses only own controls and shows success/failure',async () => {
-  const elements = Object.fromEntries(['refModeSave','refModeOut','setRefProgramOn','setRefModePayout','setRefInviteeRub','setRefPayoutMin','setRefDays','setRefInvitee'].map(id=>[id,{value:'',checked:false}]));
-  elements.setRefProgramOn.checked=true;
-  elements.setRefInviteeRub.value='30';
-  let calls=0;
-  const context = { $:id=>{assert.ok(elements[id],id);return elements[id]}, toast:()=>{}, api:async (path,opts)=> {
-    calls++;
-    assert.equal(path,'/admin/api/settings/referrals');
-    assert.equal(JSON.parse(opts.body).referral_program_enabled,true);
-    return {values:{referral_program_enabled:true}};
-  }};
-  vm.runInNewContext(handler,context);
-  await elements.refModeSave.onclick();
-  assert.equal(calls,1);
-  assert.match(elements.refModeOut.textContent,/начисления включены/);
-  assert.equal(elements.refModeSave.disabled,false);
-  context.api=async()=>{throw Error('Ошибка сервера')};
-  await elements.refModeSave.onclick();
-  assert.equal(elements.refModeOut.textContent,'Ошибка сервера');
-  assert.equal(elements.refModeSave.disabled,false);
+const test=require('node:test'),assert=require('node:assert/strict');
+const modulePromise=import('../admin-ui/src/lib/contracts.mjs');
+test('referral settings use isolated endpoint and preserve unrelated settings',async()=>{
+ const {saveSettingsPatchWith}=await modulePromise;const calls=[];
+ const result=await saveSettingsPatchWith(async(path,body)=>{calls.push({path,body});if(path==='settings')return {balance_enabled:true,values:{brand_name:'VPN',referral_program_enabled:false,referral_mode:'classic',referral_payout_min:2000}};assert.equal(path,'settings/referrals');assert.equal(body.brand_name,undefined);return {values:{...body,referral_reward_rub:50}}},{referral_program_enabled:true});
+ assert.equal(calls.length,2);assert.equal(result.values.brand_name,'VPN');assert.equal(result.values.referral_program_enabled,true);
+});
+test('settings save merges only edited fields into fresh server snapshot',async()=>{
+ const {saveSettingsPatchWith}=await modulePromise;
+ const result=await saveSettingsPatchWith(async(path,body)=>body?{values:body}:{values:{brand_name:'Old',router_rub:590,promo_enabled:false}},{brand_name:'New'});
+ assert.equal(result.values.router_rub,590);assert.equal(result.values.brand_name,'New');assert.equal(result.values.promo_enabled,true);
+});
+test('failed settings save is propagated, never reported as success',async()=>{
+ const {saveSettingsPatchWith}=await modulePromise;
+ await assert.rejects(()=>saveSettingsPatchWith(async(path,body)=>{if(body)throw Error('Ошибка сервера');return {values:{referral_program_enabled:false,referral_mode:'classic'}}},{referral_program_enabled:true}),/Ошибка сервера/);
 });
