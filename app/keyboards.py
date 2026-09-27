@@ -403,7 +403,6 @@ def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = F
             copy_text=CopyTextButton(text=invite_copy_text(telegram_id, bot_username)),
         )
     )
-    add_cabinet_row(builder)
     story_btn = story_webapp_button(story_offer=story_offer)
     if story_btn:
         builder.row(story_btn)
