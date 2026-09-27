@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     billing_bulk_chunk: int = 80
     promo_enabled: bool = True
     promo_codes: str = "TEST:3"
-    router_enabled: bool = True
+    router_enabled: bool = False
     router_rub: int = 490
     router_days: int = 30
     webapp_enabled: bool = False

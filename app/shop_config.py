@@ -195,17 +195,17 @@ def snapshot() -> dict:
 
 async def load_shop_overlay() -> None:
     raw = (await db.get_kv(KV_KEY)).strip()
-    if not raw:
-        set_shop_overlay({})
-        return
     try:
-        data = json.loads(raw)
+        data = json.loads(raw) if raw else {}
     except ValueError:
-        set_shop_overlay({})
-        return
+        data = {}
     if not isinstance(data, dict):
-        set_shop_overlay({})
-        return
+        data = {}
+    # One-time withdrawal of the unfinished router offer. Later manual enabling persists.
+    if not await db.get_kv("router_offer_hidden_v1"):
+        data["router_enabled"] = False
+        await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
+        await db.set_kv("router_offer_hidden_v1", "1")
     try:
         max_n = int(data.get("balance_topup_max") or 0)
     except (TypeError, ValueError):
