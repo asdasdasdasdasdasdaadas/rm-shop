@@ -413,14 +413,18 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   });
   await accessibility("Overview");
   await nav("Статистика");
-  await page.getByText("Привлечение и подключение", { exact: true }).waitFor();
+  await page
+    .getByRole("button", { name: "Привлечение и подключение", exact: true })
+    .waitFor();
   await page.getByRole("combobox", { name: "Период статистики" }).click();
   const periodRequest = page.waitForRequest((r) =>
     r.url().includes("statistics?days=7"),
   );
   await page.getByRole("option", { name: "7 дней", exact: true }).click();
   await periodRequest;
-  await page.getByText("Привлечение и подключение", { exact: true }).waitFor();
+  await page
+    .getByRole("button", { name: "Привлечение и подключение", exact: true })
+    .waitFor();
   const downloadReady = page.waitForEvent("download");
   await page.getByRole("button", { name: "CSV", exact: true }).click();
   const download = await downloadReady;
@@ -435,6 +439,29 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     1,
   );
   await page.getByRole("button", { name: "Скрыть данные по дням" }).click();
+  await page
+    .getByRole("button", { name: "Оплаты в рублях", exact: true })
+    .click();
+  assert.equal(await page.locator(".recharts-wrapper").count(), 1);
+  await page.getByRole("tab", { name: "Воронка", exact: true }).click();
+  await page.getByText("Основная воронка", { exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole("combobox", { name: "Период статистики" }).count(),
+    0,
+  );
+  await accessibility("Statistics funnel");
+  await page
+    .getByRole("tab", { name: "Возврат клиентов", exact: true })
+    .click();
+  await page
+    .getByText("Результаты автоматических сообщений", { exact: true })
+    .waitFor();
+  await page.getByRole("tab", { name: "Сервис сейчас", exact: true }).click();
+  await page.getByText("Состояние сервиса сейчас", { exact: true }).waitFor();
+  await page.getByRole("tab", { name: "Динамика", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Привлечение и подключение", exact: true })
+    .click();
   await accessibility("Statistics");
   await page.screenshot({
     path: path.join(screenshots, "statistics.png"),

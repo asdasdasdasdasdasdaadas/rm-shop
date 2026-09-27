@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { date, money, qs, useResource, type Data } from "@/lib/api";
 import {
   Choice,
@@ -50,8 +50,10 @@ const invites = [
 export function OverviewPage({
   analyticsOnly = false,
   statsResource,
+  analyticsView,
 }: {
   analyticsOnly?: boolean;
+  analyticsView?: "conversion" | "retention";
   statsResource?: ReturnType<typeof useResource>;
 }) {
   const fetched = useResource(statsResource ? null : "stats");
@@ -65,6 +67,24 @@ export function OverviewPage({
     u = s.users || {},
     pack = s.funnel?.[period] || {},
     cur = pack.current || {};
+  const Content = ({
+    value,
+    children,
+    className,
+  }: {
+    value: string;
+    children: ReactNode;
+    className?: string;
+  }) =>
+    analyticsView ? (
+      analyticsView === value ? (
+        <div className={className}>{children}</div>
+      ) : null
+    ) : (
+      <TabsContent value={value} className={className}>
+        {children}
+      </TabsContent>
+    );
   const clients = (step: string) => navigate(funnelRoute(step, pack));
   const funnel = (steps: string[][], transitions = false) => (
     <div className="space-y-1">
@@ -216,19 +236,25 @@ export function OverviewPage({
           </div>
         </>
       )}
-      <Tabs defaultValue="conversion" className="space-y-5">
-        <div className="flex flex-wrap justify-between items-center gap-3">
-          <TabsList className="max-w-full overflow-x-auto justify-start">
-            <TabsTrigger value="conversion">Конверсия</TabsTrigger>
-            <TabsTrigger value="retention">Возврат клиентов</TabsTrigger>
-            <TabsTrigger value="system">Состояние системы</TabsTrigger>
-          </TabsList>
-          <Button variant="ghost" onClick={() => void resource.reload()}>
-            <RefreshCw />
-            Обновить
-          </Button>
-        </div>
-        <TabsContent value="conversion" className="space-y-5">
+      <Tabs
+        defaultValue="conversion"
+        value={analyticsView}
+        className="space-y-5"
+      >
+        {!analyticsView && (
+          <div className="flex flex-wrap justify-between items-center gap-3">
+            <TabsList className="max-w-full overflow-x-auto justify-start">
+              <TabsTrigger value="conversion">Конверсия</TabsTrigger>
+              <TabsTrigger value="retention">Возврат клиентов</TabsTrigger>
+              <TabsTrigger value="system">Состояние системы</TabsTrigger>
+            </TabsList>
+            <Button variant="ghost" onClick={() => void resource.reload()}>
+              <RefreshCw />
+              Обновить
+            </Button>
+          </div>
+        )}
+        <Content value="conversion" className="space-y-5">
           <div className="flex flex-wrap justify-between items-center gap-3">
             <div>
               <h2 className="font-semibold">
@@ -286,8 +312,8 @@ export function OverviewPage({
               </div>
             </>
           )}
-        </TabsContent>
-        <TabsContent value="retention" className="space-y-5">
+        </Content>
+        <Content value="retention" className="space-y-5">
           <Panel
             title="Результаты автоматических сообщений"
             description="Клики, подключения и оплаты после сообщений. Оплата в течение 7 дней — связь по времени, а не доказанный эффект рассылки."
@@ -351,8 +377,8 @@ export function OverviewPage({
               ]}
             />
           </Panel>
-        </TabsContent>
-        <TabsContent value="system">
+        </Content>
+        <Content value="system">
           <Panel
             title="Фоновые задачи"
             description="Последние отчёты тарификации и синхронизации VPN."
@@ -390,7 +416,7 @@ export function OverviewPage({
               <ArrowRight />
             </Button>
           </Panel>
-        </TabsContent>
+        </Content>
       </Tabs>
     </div>
   );
