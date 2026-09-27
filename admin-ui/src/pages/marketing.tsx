@@ -506,13 +506,15 @@ export function CampaignsPage() {
         ) : (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
-              <Badge variant={active ? "default" : "secondary"}>
-                {active
-                  ? "Акция идёт"
-                  : resource.data.scheduled_at
-                    ? "Запланирована"
-                    : "Не запущена"}
-              </Badge>
+              <Status
+                value={
+                  active
+                    ? "Акция идёт"
+                    : resource.data.scheduled_at
+                      ? "Запланирована"
+                      : "Не запущена"
+                }
+              />
               <span className="text-sm">
                 Подарок:{" "}
                 {money(active?.reward_rub ?? resource.data.next_reward_rub)} на

@@ -210,7 +210,11 @@ async def _decide_user_devices(devices: list[dict], price: int, paused: bool) ->
         return [], []
     if paused:
         return list(devices), []
-    paid = await db.take_device_charges(int(devices[0]["telegram_id"]), price, len(devices))
+    balances: list[int] = []
+    paid = await db.take_device_charges(int(devices[0]["telegram_id"]), price, len(devices), balances=balances)
+    devices = [dict(item) for item in devices]
+    for item, after in zip(devices[:paid], balances):
+        item["charge_balance_after"] = after
     return devices[:paid], devices[paid:]
 
 
@@ -233,6 +237,7 @@ async def _extend_already_charged(
             "pause" if paused else "charge",
             source=source,
             amount=0 if paused else -price,
+            balance_after=item.get("charge_balance_after") if not paused else None,
             device_id=device_id,
             device_title=title,
             note="Пауза тарификации, сутки без списания" if paused else "Списание за сутки VPN",
@@ -294,6 +299,7 @@ async def _commit_extends(
                     "kind": kind,
                     "source": source,
                     "amount": amount,
+                    "balance_after": item.get("charge_balance_after") if not paused else None,
                     "device_id": int(item["id"]),
                     "device_title": str(item.get("title") or ""),
                     "note": note,

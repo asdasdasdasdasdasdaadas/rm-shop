@@ -288,7 +288,7 @@ export function Pager({
     </div>
   );
 }
-export function Status({ value }: { value: unknown }) {
+export function Status({ value, label }: { value: unknown; label?: string }) {
   const labels: Data = {
     granted: "Оплачено",
     paid: "Оплачено",
@@ -296,23 +296,57 @@ export function Status({ value }: { value: unknown }) {
     created: "Создан",
     expired: "Истёк",
     failed: "Ошибка",
+    error: "Ошибка",
     sent: "Доставлено",
     open: "Ждёт ответа",
     closed: "Закрыто",
-    ACTIVE: "Активен",
-    DISABLED: "Отключён",
-    EXPIRED: "Истёк",
+    active: "Активен",
+    disabled: "Отключён",
+    canceled: "Отменён",
+    cancelled: "Отменён",
+    rejected: "Отклонено",
+    processing: "В обработке",
+    sending: "Отправляется",
+    scheduled: "Запланировано",
+    paused: "Приостановлено",
   };
-  const s = String(value || "—");
+  const raw = String(value || "—"),
+    s = raw.toLowerCase();
+  const color = [
+    "granted",
+    "paid",
+    "sent",
+    "active",
+    "enabled",
+    "success",
+    "акция идёт",
+  ].includes(s)
+    ? "border-emerald-600/30 bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+    : [
+          "failed",
+          "error",
+          "disabled",
+          "expired",
+          "rejected",
+          "blocked",
+          "бот заблокирован",
+        ].includes(s)
+      ? "border-red-600/30 bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300"
+      : [
+            "pending",
+            "open",
+            "paused",
+            "без списаний",
+            "запланирована",
+            "scheduled",
+          ].includes(s)
+        ? "border-amber-600/30 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-300"
+        : ["created", "processing", "sending"].includes(s)
+          ? "border-blue-600/30 bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+          : "border-border bg-muted text-muted-foreground";
   return (
-    <Badge
-      variant={
-        ["failed", "DISABLED", "EXPIRED"].includes(s)
-          ? "destructive"
-          : "secondary"
-      }
-    >
-      {labels[s] || s}
+    <Badge variant="outline" className={color}>
+      {label || labels[s] || raw}
     </Badge>
   );
 }

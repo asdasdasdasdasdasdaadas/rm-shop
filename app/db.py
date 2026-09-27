@@ -1790,7 +1790,7 @@ async def spend_balance_rub(telegram_id: int, amount: int) -> bool:
     return row is not None
 
 
-async def take_device_charges(telegram_id: int, price: int, count: int) -> int:
+async def take_device_charges(telegram_id: int, price: int, count: int, *, balances: list[int] | None = None) -> int:
     n = max(0, int(count))
     unit = max(0, int(price))
     if n < 1:
@@ -1819,6 +1819,8 @@ async def take_device_charges(telegram_id: int, price: int, count: int) -> int:
                 telegram_id,
                 paid * unit,
             )
+            if balances is not None:
+                balances.extend(int(row["bal"]) - unit * (i + 1) for i in range(paid))
             return paid
 
 
@@ -4122,7 +4124,7 @@ async def log_billing_events(events: list[dict]) -> None:
             INSERT INTO billing_events (
                 telegram_id, kind, source, amount, balance_after, device_id, device_title, note
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            VALUES ($1, $2, $3, $4, COALESCE($5::integer, (SELECT balance_rub FROM users WHERE telegram_id=$1)), $6, $7, $8)
             """,
             rows,
         )
