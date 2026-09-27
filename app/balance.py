@@ -568,6 +568,8 @@ async def sync_user_billing(
     rw: RemnawaveClient,
     telegram_id: int,
     bot: Bot | None = None,
+    *,
+    source: str = "admin",
 ) -> dict:
     settings = get_settings()
     result = {"extended": 0, "disabled": 0, "revived": 0}
@@ -596,7 +598,7 @@ async def sync_user_billing(
             "title": item.get("title") or "",
         }
         if paused or not _billed_recently(item.get("last_billed_at"), item.get("last_billed_on")):
-            status = await _bill_due_device(rw, bot, row, price, paused, warned, source="admin")
+            status = await _bill_due_device(rw, bot, row, price, paused, warned, source=source)
             if status == "extended":
                 result["extended"] += 1
             elif status == "disabled":
@@ -629,7 +631,7 @@ async def sync_user_billing(
             await db.log_billing_event(
                 telegram_id,
                 "revive",
-                source="admin",
+                source=source,
                 device_id=int(item["id"]),
                 device_title=str(item.get("title") or ""),
                 note="Включили устройство: оплаченные сутки ещё не кончились",

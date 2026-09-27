@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot
 
-from app import db
+from app import db, runtime
 from app.config import get_settings
 from app.notices import notice_text, sub_block
 from app.remnawave import RemnawaveClient, parse_expire, panel_lease_until
+
+logger = logging.getLogger(__name__)
 
 _fulfill_guard = asyncio.Lock()
 _order_locks: dict[str, asyncio.Lock] = {}
@@ -131,6 +134,16 @@ async def grant_plan(
         )
         await db.save_panel_snapshot(telegram_id, user)
     await db.mark_paid_topup(telegram_id)
+    if settings.balance_enabled and not plan.get("router"):
+        # Serialize with the scheduled billing cycle to avoid charging the same day twice.
+        # A panel outage must not make an already credited payment fail and be credited again.
+        from app.balance import sync_user_billing
+
+        try:
+            async with runtime.panel_cron_lock():
+                await sync_user_billing(rw, telegram_id, bot, source="pay")
+        except Exception:
+            logger.exception("Immediate VPN activation failed after topup telegram=%s; scheduled billing will retry", telegram_id)
     from app.live import paid as live_paid
 
     who = dict(local or {})
