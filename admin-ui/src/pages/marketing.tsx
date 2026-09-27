@@ -343,6 +343,14 @@ export function AdsPage() {
             { key: "clicks", label: "Переходы" },
             { key: "users", label: "Пользователи" },
             { key: "trial", label: "Пробный доступ" },
+            {
+              key: "connected",
+              label: (
+                <span title="Уникальные пользователи, хотя бы раз подключившиеся к VPN">
+                  Вышли онлайн
+                </span>
+              ),
+            },
             { key: "paid", label: "Оплатили" },
             {
               key: "actions",

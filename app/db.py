@@ -392,6 +392,7 @@ async def list_ad_links(*, include_archived: bool = False, kind: str = "manual")
             l.archived_at,
             COUNT(u.telegram_id)::int AS users,
             COUNT(u.telegram_id) FILTER (WHERE u.trial_used)::int AS trial,
+            COUNT(u.telegram_id) FILTER (WHERE u.first_online_at IS NOT NULL)::int AS connected,
             COUNT(u.telegram_id) FILTER (WHERE COALESCE(u.has_paid_topup, FALSE))::int AS paid
         FROM ad_links l
         LEFT JOIN users u ON u.ad_link_id = l.id
