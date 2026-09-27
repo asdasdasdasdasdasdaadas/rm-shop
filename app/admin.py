@@ -124,7 +124,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "104"})
+    return web.json_response({"ok": True, "build": "105"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -645,6 +645,20 @@ async def api_orders(request: web.Request) -> web.Response:
         q, limit, (page - 1) * limit, _query_extra(request, "status", "from", "to")
     )
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+
+
+async def api_user_messages(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+        page = max(1, int(request.query.get("page", "1")))
+    except (ValueError, KeyError):
+        return web.json_response({"ok": False, "error": "Некорректный пользователь или страница"}, status=400)
+    extra = {"telegram_id": telegram_id, **_query_extra(request, "source", "status")}
+    items, total = await db.admin_list_messages("", 20, (page - 1) * 20, extra)
+    return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": 20})
 
 
 async def api_messages(request: web.Request) -> web.Response:
@@ -2300,6 +2314,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/payouts", api_payouts)
     app.router.add_post("/admin/api/payouts/{payout_id}", api_payout_resolve)
     app.router.add_get("/admin/api/orders", api_orders)
+    app.router.add_get("/admin/api/users/{telegram_id}/messages", api_user_messages)
     app.router.add_get("/admin/api/messages", api_messages)
     app.router.add_post("/admin/api/messages/retry-failed", api_messages_retry_failed)
     app.router.add_post("/admin/api/messages/{msg_id}/retry", api_message_retry)

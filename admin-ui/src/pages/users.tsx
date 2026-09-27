@@ -46,7 +46,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner";
-import { billKinds } from "./records";
+import { billKinds, messageKinds } from "./records";
 import { paymentSummary } from "@/lib/contracts.mjs";
 import {
   Accordion,
@@ -838,10 +838,11 @@ function UserDetail({
         </div>
       </div>
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="w-full">
+        <TabsList className="w-full h-auto flex-wrap justify-start">
           <TabsTrigger value="summary">Профиль</TabsTrigger>
           <TabsTrigger value="devices">Устройства</TabsTrigger>
           <TabsTrigger value="history">Операции</TabsTrigger>
+          <TabsTrigger value="bot-messages">Сообщения бота</TabsTrigger>
           <TabsTrigger value="message">Написать</TabsTrigger>
         </TabsList>
         <TabsContent value="summary" className="space-y-5 pt-4">
@@ -1065,6 +1066,9 @@ function UserDetail({
             ))}
           </Accordion>
         )}
+        <TabsContent value="bot-messages" className="pt-4">
+          <UserBotMessages telegramId={u.telegram_id} />
+        </TabsContent>
         <TabsContent value="history" className="pt-4">
           {billing.error ? (
             <Failure message={billing.error} retry={billing.reload} />
@@ -1142,6 +1146,104 @@ function UserDetail({
           </Button>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function UserBotMessages({ telegramId }: { telegramId: number }) {
+  const [page, setPage] = useState(1),
+    [source, setSource] = useState(""),
+    [status, setStatus] = useState("");
+  const resource = useResource(
+    `users/${telegramId}/messages?${qs({ page, source, status })}`,
+  );
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Сохранённые исходящие сообщения, от новых к старым. Даты по Москве.
+        Сообщения, которые раньше не записывались в журнал, здесь отсутствуют.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Choice
+          label="Источник сообщения"
+          value={source}
+          options={[
+            ["", "Все сообщения"],
+            ["auto", "Автоматические"],
+            ["manual", "Ручные"],
+          ]}
+          onChange={(v) => {
+            setSource(v);
+            setPage(1);
+          }}
+        />
+        <Choice
+          label="Статус доставки"
+          value={status}
+          options={[
+            ["", "Любой статус"],
+            ["sent", "Доставлено"],
+            ["failed", "Ошибка"],
+          ]}
+          onChange={(v) => {
+            setStatus(v);
+            setPage(1);
+          }}
+        />
+      </div>
+      <Button
+        variant="outline"
+        disabled={resource.loading}
+        onClick={() => void resource.reload()}
+      >
+        Обновить историю
+      </Button>
+      {resource.error ? (
+        <Failure message={resource.error} retry={resource.reload} />
+      ) : !resource.data ? (
+        <Loading />
+      ) : (
+        <>
+          {!resource.data.items?.length ? (
+            <Empty
+              title="Сообщений пока нет"
+              description="Попробуйте изменить фильтры. Здесь появятся сообщения, сохранённые ботом."
+            />
+          ) : (
+            resource.data.items.map((m: Data) => (
+              <article key={m.id} className="rounded-lg border p-4 space-y-3">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-medium">
+                      {m.title || messageKinds[m.kind] || m.kind}
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {date(m.created_at)} ·{" "}
+                      {m.source === "manual" ? "Ручное" : "Автоматическое"} · #
+                      {m.id}
+                    </p>
+                  </div>
+                  <Status value={m.status} />
+                </div>
+                <p className="text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                  {m.body || "Без текста"}
+                </p>
+                {m.status === "failed" && m.extra?.error && (
+                  <p className="text-xs text-destructive break-words">
+                    {String(m.extra.error)}
+                  </p>
+                )}
+              </article>
+            ))
+          )}
+          <Pager
+            page={page}
+            total={resource.data.total || 0}
+            limit={20}
+            onChange={setPage}
+          />
+        </>
+      )}
     </div>
   );
 }

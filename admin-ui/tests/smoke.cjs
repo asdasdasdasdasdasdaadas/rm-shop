@@ -243,6 +243,20 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
           ],
         };
       }
+      if (key === "users/123/messages")
+        data = {
+          items: [
+            {
+              id: 7,
+              title: "Напоминание о подарке",
+              body: "Заберите подарок в кабинете",
+              source: "auto",
+              status: "sent",
+              created_at: "2026-09-27T10:00:00Z",
+            },
+          ],
+          total: 1,
+        };
       if (key === "users") {
         if (failUsers)
           return route.fulfill({
@@ -578,6 +592,20 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     .click();
   await confirmation.waitFor({ state: "hidden" });
   assert.equal(user.balance_rub, 200);
+  await page.getByRole("tab", { name: "Сообщения бота", exact: true }).click();
+  await page
+    .getByText("Заберите подарок в кабинете", { exact: true })
+    .waitFor();
+  await page
+    .getByRole("combobox", { name: "Статус доставки", exact: true })
+    .click();
+  const messageFilter = page.waitForRequest(
+    (r) =>
+      r.url().includes("/users/123/messages?") &&
+      new URL(r.url()).searchParams.get("status") === "failed",
+  );
+  await page.getByRole("option", { name: "Ошибка", exact: true }).click();
+  await messageFilter;
   await page.getByRole("tab", { name: "Устройства", exact: true }).click();
   await page.getByText("iPhone", { exact: true }).waitFor();
   await page.keyboard.press("Escape");

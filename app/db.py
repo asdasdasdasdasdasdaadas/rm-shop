@@ -4332,6 +4332,9 @@ def _message_log_filters(query: str, extra: dict | None = None) -> tuple[list[st
     extra = extra or {}
     clauses: list[str] = []
     args: list = []
+    if extra.get("telegram_id") is not None:
+        args.append(int(extra["telegram_id"]))
+        clauses.append(f"telegram_id = ${len(args)}")
     channel = str(extra.get("channel") or "").strip()
     if channel == "announce":
         clauses.append("kind NOT IN ('maintenance_hit', 'maintenance_out')")
