@@ -80,7 +80,7 @@ def payment_nudge_keyboard(token: str | None = None, *, label: str = "Продо
     query["screen"] = "topup"
     url = urlunsplit(parts._replace(query=urlencode(query)))
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=label, web_app=WebAppInfo(url=url), style="success")
+        InlineKeyboardButton(text=label, web_app=WebAppInfo(url=url))
     ]])
 
 
@@ -91,7 +91,6 @@ def cabinet_login_keyboard(challenge_id: str) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     text="Подтвердить",
                     callback_data=f"lk:y:{challenge_id}",
-                    style="success",
                 ),
                 InlineKeyboardButton(
                     text="Отклонить",
@@ -123,7 +122,6 @@ def channel_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text="Проверить подписку",
             callback_data="check_sub",
-            style="success",
         )
     )
     return builder.as_markup()
@@ -143,7 +141,6 @@ def legal_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text="Принимаю",
             callback_data="accept_legal",
-            style="success",
         )
     )
     return builder.as_markup()
@@ -167,7 +164,6 @@ def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bo
             InlineKeyboardButton(
                 text="Пополнить баланс",
                 callback_data="buy",
-                style="success",
             ),
             InlineKeyboardButton(
                 text="Приведи друга",
@@ -285,7 +281,6 @@ def trial_nudge_keyboard(*, trial_available: bool = True) -> InlineKeyboardMarku
             InlineKeyboardButton(
                 text="Попробовать бесплатно",
                 callback_data="trial",
-                style="success",
             )
         )
     add_cabinet_row(builder)
@@ -319,7 +314,6 @@ def buy_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text="Пополнить",
                 web_app=WebAppInfo(url=runtime.webapp_url),
-                style="success",
             )
         )
         builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
@@ -338,7 +332,7 @@ def buy_keyboard() -> InlineKeyboardMarkup:
 
 def pay_keyboard(pay_url: str, order_id: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="Оплатить", url=pay_url, style="success"))
+    builder.row(InlineKeyboardButton(text="Оплатить", url=pay_url))
     builder.row(InlineKeyboardButton(text="Проверить оплату", callback_data=f"rpc:{order_id}"))
     builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
     return builder.as_markup()
@@ -389,7 +383,7 @@ def referral_share_button(telegram_id: int, bot_username: str | None = None) -> 
         "url": invite_url(telegram_id, bot_username),
         "text": invite_share_text(),
     })
-    return InlineKeyboardButton(text="Поделиться реферальной ссылкой", url=url, style="success")
+    return InlineKeyboardButton(text="Поделиться реферальной ссылкой", url=url)
 
 
 def with_referral_share(telegram_id: int, markup: InlineKeyboardMarkup | None = None) -> InlineKeyboardMarkup:
@@ -440,7 +434,6 @@ def payout_mod_keyboard(
         InlineKeyboardButton(
             text="Выплачено",
             callback_data=f"po_ok:{payout_id}",
-            style="success",
         ),
         InlineKeyboardButton(
             text="Отказать",

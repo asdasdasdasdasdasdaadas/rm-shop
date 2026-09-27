@@ -681,7 +681,7 @@ async def _issue_and_send_cabinet_link(bot: Bot, telegram_id: int, *, source: st
     url = f"{base}/?t={token}"
     text = notice_text("cabinet_link", url=escape(url, quote=True))
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Открыть кабинет", url=url)]]
+        inline_keyboard=[[InlineKeyboardButton(text="Открыть кабинет", url=url, style="success")]]
     )
     origin = "manual" if source == "manual" else "auto"
     try:
