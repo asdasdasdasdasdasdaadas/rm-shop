@@ -586,3 +586,11 @@ CREATE TABLE IF NOT EXISTS onboarding_tracking_epoch (
     started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 INSERT INTO onboarding_tracking_epoch(singleton) VALUES(TRUE) ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS pending_legal_messages (
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    message_id BIGINT NOT NULL,
+    body TEXT NOT NULL,
+    markup TEXT,
+    PRIMARY KEY (telegram_id, message_id)
+);

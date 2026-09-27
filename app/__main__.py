@@ -90,6 +90,8 @@ async def main() -> None:
     rw = RemnawaveClient()
     rp = RollyPayClient() if settings.rollypay_configured else None
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    from app.legal_notice import LegalNoticeRequestMiddleware, LegalNoticeInteractionMiddleware
+    bot.session.middleware(LegalNoticeRequestMiddleware())
     runtime.bot = bot
     if not str(settings.admin_live_chat_id or "").strip():
         logger.warning("ADMIN_LIVE_CHAT_ID пуст: живые события в канал не пойдут")
@@ -103,6 +105,8 @@ async def main() -> None:
 
     from app.reminder_tracking import ReminderClickMiddleware
     dp = Dispatcher()
+    dp.message.outer_middleware(LegalNoticeInteractionMiddleware())
+    dp.callback_query.outer_middleware(LegalNoticeInteractionMiddleware())
     dp.callback_query.outer_middleware(ReminderClickMiddleware())
     dp["rw"] = rw
     dp["rp"] = rp

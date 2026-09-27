@@ -415,6 +415,8 @@ async def api_me(request: web.Request) -> web.Response:
     if tg_user:
         await db.upsert_user(telegram_id, tg_user.username, tg_user.first_name)
     await db.accept_legal_after_notice(telegram_id)
+    from app.legal_notice import hide_legal_messages
+    await hide_legal_messages(bot, telegram_id)
     local = await db.get_user(telegram_id)
     panel = await fetch_panel(rw, telegram_id, local=local, allow_stale=True)
 

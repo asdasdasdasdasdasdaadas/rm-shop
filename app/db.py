@@ -5234,3 +5234,24 @@ async def admin_cohort_outcomes() -> dict:
             item[metric + '_rate'] = round(item[metric + '_success'] * 100 / mature, 1) if mature else None
         items.append(_jsonable(item))
     return {'items': items, 'started_at': epoch.isoformat()}
+
+
+async def remember_legal_message(telegram_id: int, message_id: int, body: str, markup: str | None) -> None:
+    await _pool_req().execute(
+        """INSERT INTO pending_legal_messages (telegram_id, message_id, body, markup)
+           VALUES ($1, $2, $3, $4) ON CONFLICT (telegram_id, message_id)
+           DO UPDATE SET body = EXCLUDED.body, markup = EXCLUDED.markup""",
+        telegram_id, message_id, body, markup,
+    )
+
+
+async def pending_legal_messages(telegram_id: int) -> list[dict]:
+    return [dict(row) for row in await _pool_req().fetch(
+        "SELECT message_id, body, markup FROM pending_legal_messages WHERE telegram_id = $1", telegram_id,
+    )]
+
+
+async def forget_legal_message(telegram_id: int, message_id: int) -> None:
+    await _pool_req().execute(
+        "DELETE FROM pending_legal_messages WHERE telegram_id = $1 AND message_id = $2", telegram_id, message_id,
+    )
