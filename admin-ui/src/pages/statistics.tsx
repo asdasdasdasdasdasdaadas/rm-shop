@@ -18,7 +18,7 @@ import {
   Pager,
   useNavigate,
 } from "@/components/workspace";
-import { money, useResource, type Data } from "@/lib/api";
+import { date, money, useResource, type Data } from "@/lib/api";
 import { OverviewPage } from "./overview";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Download, RefreshCw } from "lucide-react";
@@ -372,7 +372,117 @@ export function StatisticsPage() {
           </div>
         </details>
       </TabsContent>
-      <TabsContent value="onboarding">
+      <TabsContent value="onboarding" className="space-y-5">
+        <Panel
+          title="Результат изменений воронки"
+          description="Сравнение пользователей за 28 дней до и за первые 28 дней после включения новой воронки. Для каждого показателя учитываются только пользователи с завершённым окном наблюдения."
+        >
+          {snapshot.error ? (
+            <Failure message={snapshot.error} retry={snapshot.reload} />
+          ) : !snapshot.data ? (
+            <Loading />
+          ) : (
+            <>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Начало измерений · МСК: {date(s.cohort_outcomes?.started_at)}
+              </p>
+              <DataTable
+                rows={s.cohort_outcomes?.items || []}
+                empty="Измерения ещё не начались"
+                columns={[
+                  {
+                    key: "period",
+                    label: "Когорта",
+                    cell: (r) => (
+                      <div>
+                        <strong>
+                          {r.period === "before"
+                            ? "До изменений"
+                            : "После изменений"}
+                        </strong>
+                        <p className="text-xs text-muted-foreground">
+                          {date(r.starts)} — {date(r.ends)} (не включая конец)
+                        </p>
+                      </div>
+                    ),
+                  },
+                  { key: "users", label: "Всего" },
+                  {
+                    key: "online_rate",
+                    label: "Первый онлайн за 24 ч",
+                    cell: (r) => (
+                      <div className="space-y-1">
+                        <strong>
+                          {r.online_rate == null
+                            ? "Ждём данные"
+                            : `${r.online_rate}%`}
+                        </strong>
+                        <p className="text-xs text-muted-foreground">
+                          {r.online_success} из {r.online_mature} · ещё
+                          наблюдаем: {r.online_pending}
+                        </p>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: "paid_rate",
+                    label: "Первая оплата за 7 дней",
+                    cell: (r) => (
+                      <div className="space-y-1">
+                        <strong>
+                          {r.paid_rate == null
+                            ? "Ждём данные"
+                            : `${r.paid_rate}%`}
+                        </strong>
+                        <p className="text-xs text-muted-foreground">
+                          {r.paid_success} из {r.paid_mature} · ещё наблюдаем:{" "}
+                          {r.paid_pending}
+                        </p>
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+              <div className="grid gap-3 sm:grid-cols-2 mt-4">
+                {[
+                  ["online", "Изменение подключения"],
+                  ["paid", "Изменение оплаты"],
+                ].map(([key, label]) => {
+                  const before = s.cohort_outcomes?.items?.find(
+                      (r: Data) => r.period === "before",
+                    ),
+                    after = s.cohort_outcomes?.items?.find(
+                      (r: Data) => r.period === "after",
+                    );
+                  const delta =
+                    before?.[key + "_rate"] != null &&
+                    after?.[key + "_rate"] != null
+                      ? after[key + "_rate"] - before[key + "_rate"]
+                      : null;
+                  return (
+                    <div key={key} className="rounded-lg bg-muted p-4">
+                      <p className="text-sm">{label}</p>
+                      <p className="font-semibold mt-1">
+                        {delta == null
+                          ? "Недостаточно завершённых наблюдений"
+                          : `${delta > 0 ? "+" : ""}${delta.toFixed(1)} п. п.`}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground">
+                Даже уже оплатившие новые пользователи попадут в расчёт только
+                через 7 дней после запуска бота. Текущая когорта
+                предварительная, пока не завершатся все окна. Удалённые
+                пользователи и старые платежи без даты оплаты не учитываются.
+                Исторические даты первого онлайна могли быть восстановлены.
+                Сравнение не доказывает причинность: учитывайте объём выборки и
+                состав источников трафика.
+              </p>
+            </>
+          )}
+        </Panel>
         <Panel
           title="Шаги до первого подключения"
           description="Новые пользователи после включения измерений, за последние 30 дней. Каждый человек учитывается на шаге один раз. Процент — от запустивших бота; некоторые шаги можно пропустить."

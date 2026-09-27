@@ -93,6 +93,39 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     inv_paid: 96,
   };
   const stats = {
+    cohort_outcomes: {
+      started_at: "2026-09-20T00:00:00Z",
+      items: [
+        {
+          period: "before",
+          starts: "2026-08-23T00:00:00Z",
+          ends: "2026-09-20T00:00:00Z",
+          users: 100,
+          online_mature: 100,
+          online_success: 40,
+          online_pending: 0,
+          online_rate: 40,
+          paid_mature: 100,
+          paid_success: 10,
+          paid_pending: 0,
+          paid_rate: 10,
+        },
+        {
+          period: "after",
+          starts: "2026-09-20T00:00:00Z",
+          ends: "2026-09-27T00:00:00Z",
+          users: 20,
+          online_mature: 10,
+          online_success: 6,
+          online_pending: 10,
+          online_rate: 60,
+          paid_mature: 0,
+          paid_success: 0,
+          paid_pending: 20,
+          paid_rate: null,
+        },
+      ],
+    },
     users: { users_total: 1248, payouts_pending: 3, bot_blocked: 18 },
     online: { day: 410 },
     topups: { payers: 356, amount_rub: 184250 },
@@ -447,6 +480,11 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await page
     .getByText("Шаги до первого подключения", { exact: true })
     .waitFor();
+  await page.getByText("+20.0 п. п.", { exact: true }).waitFor();
+  await page
+    .getByText("Недостаточно завершённых наблюдений", { exact: true })
+    .waitFor();
+  await page.getByText("Ждём данные", { exact: true }).waitFor();
   await accessibility("Onboarding steps");
   await page.getByRole("tab", { name: "Воронка", exact: true }).click();
   await page.getByText("Основная воронка", { exact: true }).waitFor();

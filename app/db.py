@@ -2684,6 +2684,7 @@ async def admin_stats() -> dict:
         "broadcast_unused": int(broadcast_unused or 0),
         "funnel": await admin_funnel(),
         "onboarding_steps": await admin_onboarding_steps(),
+        "cohort_outcomes": await admin_cohort_outcomes(),
         "exit_feedback": await admin_exit_feedback(),
         "reminder_results": await admin_reminder_results(),
     }
@@ -5188,3 +5189,45 @@ async def admin_onboarding_steps() -> dict:
           FILTER (WHERE first_online_at >= bot_started_at) AS median_minutes
         FROM users WHERE bot_started_at >= GREATEST(NOW() - INTERVAL '30 days', (SELECT started_at FROM onboarding_tracking_epoch WHERE singleton)) ''')
     return {'stages':{r['stage']:r['users'] for r in rows}, **dict(summary or {})}
+
+
+_COHORT_OUTCOMES_SQL = """
+WITH first_payments AS (
+    SELECT telegram_id, MIN(paid_at) AS first_paid_at FROM (
+        SELECT telegram_id, created_at AS paid_at FROM payments
+        UNION ALL
+        SELECT telegram_id, paid_at FROM rollypay_orders WHERE status='granted' AND paid_at IS NOT NULL
+    ) p GROUP BY telegram_id
+), periods AS (
+    SELECT 'before' AS period, $1::timestamptz - INTERVAL '28 days' AS starts, $1::timestamptz AS ends
+    UNION ALL SELECT 'after', $1::timestamptz, LEAST($1::timestamptz + INTERVAL '28 days', $2::timestamptz)
+)
+SELECT p.period,p.starts,p.ends,COUNT(u.telegram_id)::int AS users,
+    COUNT(u.telegram_id) FILTER (WHERE u.bot_started_at <= $2 - INTERVAL '24 hours')::int AS online_mature,
+    COUNT(u.telegram_id) FILTER (WHERE u.bot_started_at <= $2 - INTERVAL '24 hours'
+        AND u.first_online_at >= u.bot_started_at AND u.first_online_at <= u.bot_started_at + INTERVAL '24 hours')::int AS online_success,
+    COUNT(u.telegram_id) FILTER (WHERE u.bot_started_at <= $2 - INTERVAL '7 days')::int AS paid_mature,
+    COUNT(u.telegram_id) FILTER (WHERE u.bot_started_at <= $2 - INTERVAL '7 days'
+        AND f.first_paid_at >= u.bot_started_at AND f.first_paid_at <= u.bot_started_at + INTERVAL '7 days')::int AS paid_success
+FROM periods p LEFT JOIN users u ON u.bot_started_at >= p.starts AND u.bot_started_at < p.ends
+    AND u.bot_started_at < $2
+LEFT JOIN first_payments f ON f.telegram_id=u.telegram_id
+GROUP BY p.period,p.starts,p.ends ORDER BY p.period DESC
+"""
+
+
+async def admin_cohort_outcomes() -> dict:
+    pool = _pool_req()
+    epoch = await pool.fetchval('SELECT started_at FROM onboarding_tracking_epoch WHERE singleton')
+    if not epoch:
+        return {'items': [], 'started_at': None}
+    rows = await pool.fetch(_COHORT_OUTCOMES_SQL, epoch, _utc_now())
+    items = []
+    for row in rows:
+        item = dict(row)
+        for metric in ('online', 'paid'):
+            mature = int(item[metric + '_mature'])
+            item[metric + '_pending'] = int(item['users']) - mature
+            item[metric + '_rate'] = round(item[metric + '_success'] * 100 / mature, 1) if mature else None
+        items.append(_jsonable(item))
+    return {'items': items, 'started_at': epoch.isoformat()}
