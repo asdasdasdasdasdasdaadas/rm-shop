@@ -472,13 +472,17 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
 async def show_faq(callback: CallbackQuery) -> None:
     if not await gate_or_continue(callback):
         return
-    from app.faq import faq_html
+    from app.faq import faq_pages
 
     await ack(callback)
+    pages = faq_pages()
     try:
-        await callback.message.edit_text(faq_html(), reply_markup=with_referral_share(callback.from_user.id, faq_keyboard()))
+        await callback.message.edit_text(pages[0], reply_markup=faq_keyboard())
     except Exception:
-        await callback.message.answer(faq_html(), reply_markup=with_referral_share(callback.from_user.id, faq_keyboard()))
+        await callback.message.answer(pages[0], reply_markup=faq_keyboard())
+    for page in pages[1:]:
+        await callback.message.answer(page, reply_markup=faq_keyboard())
+
 
 
 @router.callback_query(F.data == "vpn_down")

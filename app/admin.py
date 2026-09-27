@@ -124,7 +124,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "107"})
+    return web.json_response({"ok": True, "build": "108"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -408,6 +408,58 @@ async def api_device_reissue(request: web.Request) -> web.Response:
     except Exception:
         logger.exception("Cannot log device reissue notification telegram=%s device=%s", telegram_id, device_id)
     return web.json_response({"ok": True, "notified": not bool(error), "error": error, "warning": warning})
+
+
+async def api_funnel_test(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app.funnel_test import catalog, SCENARIOS, test_keyboard
+    admins = sorted(get_settings().admin_id_set)
+    if request.method == "GET":
+        rows = catalog(admins[0] if admins else 0)
+        return web.json_response({"ok": True, "admins": admins,
+            "messages": [{k: v for k, v in row.items() if k != "markup"} for row in rows],
+            "scenarios": [{"id": key, "title": title, "steps": steps} for key, (title, steps) in SCENARIOS.items()]})
+    try:
+        body = await request.json()
+        recipient = int(body.get("telegram_id"))
+    except (ValueError, TypeError, AttributeError):
+        return web.json_response({"ok": False, "error": "Выберите администратора"}, status=400)
+    if recipient not in admins:
+        return web.json_response({"ok": False, "error": "Тест доступен только для ADMIN_IDS"}, status=403)
+    rows = {row["id"]: row for row in catalog(recipient)}
+    scenario = str(body.get("scenario") or "")
+    message_id = str(body.get("message_id") or "")
+    if scenario in SCENARIOS and not message_id:
+        ids = SCENARIOS[scenario][1]
+    elif message_id in rows and not scenario:
+        ids = [message_id]
+    else:
+        return web.json_response({"ok": False, "error": "Выберите сообщение или сценарий"}, status=400)
+    lock = request.app.get("funnel_test_lock")
+    if lock is None:
+        lock = asyncio.Lock()
+        request.app["funnel_test_lock"] = lock
+    if lock.locked():
+        return web.json_response({"ok": False, "error": "Дождитесь завершения предыдущего теста"}, status=409)
+    sent = 0
+    error = ""
+    async with lock:
+        for index, key in enumerate(ids, 1):
+            row = rows[key]
+            text = (f"🧪 <b>ТЕСТ {index}/{len(ids)} · {escape(row['title'])}</b>\n"
+                    f"{escape(row['condition'])}\n<i>Кнопки тестовые, действий с аккаунтом нет.</i>\n\n" + row["body"])
+            try:
+                await request.app["bot"].send_message(recipient, text, parse_mode="HTML",
+                    reply_markup=test_keyboard(row["markup"]), link_preview_options=LinkPreviewOptions(is_disabled=True))
+                sent += 1
+            except Exception as exc:
+                error = telegram_fail_reason(exc)
+                break
+            if index < len(ids):
+                await asyncio.sleep(1.1)
+    return web.json_response({"ok": True, "sent": sent, "total": len(ids), "error": error})
 
 
 async def api_referrals(request: web.Request) -> web.Response:
@@ -2402,6 +2454,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/maintenance", api_maintenance_save)
     app.router.add_get("/admin/api/maintenance/photo", api_maintenance_photo)
     app.router.add_delete("/admin/api/maintenance/photo", api_maintenance_photo)
+    app.router.add_get("/admin/api/funnel-test", api_funnel_test)
+    app.router.add_post("/admin/api/funnel-test", api_funnel_test)
     app.router.add_get("/admin/api/broadcast-results", api_broadcast_results)
     app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)

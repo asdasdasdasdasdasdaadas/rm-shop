@@ -167,6 +167,116 @@ function BroadcastResults() {
     </Panel>
   );
 }
+function FunnelTest() {
+  const resource = useResource("funnel-test");
+  const [recipient, setRecipient] = useState(""),
+    [selection, setSelection] = useState("scenario:start"),
+    [result, setResult] = useState<Data | null>(null);
+  const confirm = useConfirm();
+  if (resource.error)
+    return <Failure message={resource.error} retry={resource.reload} />;
+  if (!resource.data) return <Loading />;
+  const data = resource.data,
+    target = recipient || String(data.admins?.[0] || "");
+  const [mode, id] = selection.split(":");
+  const ids =
+    mode === "scenario"
+      ? data.scenarios?.find((r: Data) => r.id === id)?.steps || []
+      : [id];
+  const steps = ids
+    .map((key: string) => data.messages?.find((r: Data) => r.id === key))
+    .filter(Boolean);
+  return (
+    <Panel
+      title="Тест воронки"
+      description="Отправка только администраторам из ADMIN_IDS. Сценарии отправляются сразу, без ожидания дней. Тест проверяет тексты и порядок, а не условия автоматического запуска. Кнопки не меняют аккаунт, статистика не затрагивается."
+    >
+      <div className="space-y-4">
+        <Field label="Получатель теста">
+          <Choice
+            label="Получатель теста"
+            value={target}
+            onChange={setRecipient}
+            options={(data.admins || []).map((id: number) => [
+              String(id),
+              `Админ · ${id}`,
+            ])}
+          />
+        </Field>
+        {!target && (
+          <p className="text-sm text-destructive">
+            Добавьте Telegram ID администратора в ADMIN_IDS и запустите бота от
+            его имени.
+          </p>
+        )}
+        <Field label="Что проверить">
+          <Choice
+            label="Что проверить"
+            value={selection}
+            onChange={setSelection}
+            options={[
+              ...(data.scenarios || []).map((r: Data) => [
+                `scenario:${r.id}`,
+                `Сценарий: ${r.title}`,
+              ]),
+              ...(data.messages || []).map((r: Data) => [
+                `message:${r.id}`,
+                r.title,
+              ]),
+            ]}
+          />
+        </Field>
+        <div className="space-y-2">
+          {steps.map((r: Data, i: number) => (
+            <details key={r.id} className="rounded-lg border p-3">
+              <summary className="cursor-pointer text-sm font-medium">
+                {i + 1}. {r.title}
+              </summary>
+              <p className="text-xs text-muted-foreground my-2">
+                {r.condition}
+              </p>
+              <p className="whitespace-pre-wrap text-sm">
+                {r.body.replace(/<[^>]*>/g, "")}
+              </p>
+            </details>
+          ))}
+        </div>
+        <Button
+          disabled={!target || !steps.length}
+          onClick={() =>
+            confirm({
+              title: "Отправить тест админу?",
+              description: `Получатель: ${target}. Сообщений: ${steps.length}. Администратор должен предварительно запустить бота.`,
+              label: "Отправить тест",
+              action: async () => {
+                const response = await api("funnel-test", {
+                  telegram_id: Number(target),
+                  ...(mode === "scenario"
+                    ? { scenario: id }
+                    : { message_id: id }),
+                });
+                setResult(response);
+                if (response.error) toast.error(response.error);
+                else toast.success("Тестовые сообщения отправлены");
+              },
+            })
+          }
+        >
+          Отправить тест админу
+        </Button>
+        {result && (
+          <p role="status" className="text-sm">
+            Отправлено: {result.sent} из {result.total}.
+            {result.error
+              ? ` Остановлено: ${result.error}. Повторная отправка запустит выбранный сценарий сначала.`
+              : ""}
+          </p>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 export function BroadcastPage() {
   const resource = useResource("broadcast", 5000),
     [step, setStep] = useState(0),
@@ -209,6 +319,7 @@ export function BroadcastPage() {
     });
   return (
     <div className="space-y-6">
+      <FunnelTest />
       <BroadcastResults />
       {resource.error && (
         <Failure message={resource.error} retry={resource.reload} />

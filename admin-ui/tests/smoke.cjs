@@ -233,6 +233,7 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
         }
         data = {
           values: settings,
+          faq_defaults: [{q: "Как подключиться?", a: "Откройте кабинет"}],
           balance_enabled: true,
           notice_fields: [
             {
@@ -343,6 +344,10 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
             },
           ],
         };
+      if (key === "funnel-test") data = method === "POST" ? {ok:true,sent:1,total:1} : {
+        admins: [123], scenarios:[{id:"start",title:"Первое подключение",steps:["welcome"]}],
+        messages:[{id:"welcome",title:"Приветствие",condition:"Первый запуск",body:"Здравствуйте"}],
+      };
       if (key === "broadcast-results")
         data = {
           items: [
@@ -657,7 +662,16 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await page.getByRole("button", { name: "Отмена", exact: true }).click();
   await page.getByRole("heading", { name: "Настройки", exact: true }).waitFor();
   await page.getByRole("button", { name: "Отменить", exact: true }).click();
+  await page.getByRole("button", {name:"Частые вопросы", exact:true}).click();
+  await page.getByLabel("Вопрос 1", {exact:true}).fill("Как включить VPN?");
+  await page.getByRole("button", {name:"Сохранить изменения", exact:true}).click();
+  await page.getByText("Есть несохранённые изменения", {exact:true}).waitFor({state:"hidden"});
+  assert.equal(settings.faq_items[0].q, "Как включить VPN?");
   await nav("Рассылки");
+  await page.getByRole("button", {name:"Отправить тест админу", exact:true}).click();
+  await page.getByRole("button", {name:"Отправить тест", exact:true}).click();
+  await page.getByText("Отправлено: 1 из 1.", {exact:true}).waitFor();
+  assert.deepEqual(posts.find(p => p.key === "funnel-test").payload, {telegram_id:123,scenario:"start"});
   await page.getByRole("button", { name: "Рассылка #42", exact: true }).click();
   await page.getByText("Тест результатов", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Скрыть подробности" }).click();

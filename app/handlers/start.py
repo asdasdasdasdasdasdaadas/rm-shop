@@ -276,3 +276,8 @@ async def cmd_admin(message: Message) -> None:
         return
     base = (settings.webapp_public_url or "").rstrip("/") or f"http://127.0.0.1:{settings.webapp_port}"
     await message.answer(f"Админка: {base}/admin")
+
+
+@router.callback_query(F.data == "funnel_test:click")
+async def funnel_test_click(callback: CallbackQuery) -> None:
+    await ack(callback, "Тестовая кнопка. Действия с аккаунтом не выполняются.", alert=True)

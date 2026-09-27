@@ -40,6 +40,8 @@ class LegalNoticeRequestMiddleware(BaseRequestMiddleware):
 
 class LegalNoticeInteractionMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
+        if isinstance(event, CallbackQuery) and event.data == "funnel_test:click":
+            return await handler(event, data)
         if not isinstance(event, (Message, CallbackQuery)) or not event.from_user:
             return await handler(event, data)
         message = event.message if isinstance(event, CallbackQuery) else event

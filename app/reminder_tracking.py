@@ -51,6 +51,8 @@ async def _finish(token,status,message_id):
 
 class ReminderClickMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
+        if getattr(event, "data", None) == "funnel_test:click":
+            return await handler(event, data)
         message=getattr(event,'message',None)
         if message and getattr(event,'from_user',None):
             try:

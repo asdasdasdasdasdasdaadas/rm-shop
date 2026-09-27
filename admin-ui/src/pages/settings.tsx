@@ -282,6 +282,7 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
           ["payments", "Способы оплаты"],
           ["apps", "VPN-приложения"],
           ["notices", "Тексты бота"],
+          ["faq", "Частые вопросы"],
           ["automation", "Автоматические сообщения"],
           ["system", "Работа системы"],
         ].map(([id, label]) => (
@@ -420,6 +421,115 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
             values={values.notices || {}}
             onChange={(v) => update("notices", v)}
           />
+        )}
+        {section === "faq" && (
+          <Panel
+            title="Частые вопросы"
+            description="Вопросы и ответы для бота и личного кабинета. Обычный текст без HTML. Изменения применятся после сохранения; свои ответы нужно обновлять вручную при изменении тарифов."
+          >
+            <div className="space-y-4">
+              {(values.faq_items ?? resource.data?.faq_defaults ?? []).map(
+                (item: Data, index: number) => {
+                  const list =
+                    values.faq_items ?? resource.data?.faq_defaults ?? [];
+                  const change = (key: string, value: string) =>
+                    update(
+                      "faq_items",
+                      list.map((r: Data, i: number) =>
+                        i === index ? { ...r, [key]: value } : r,
+                      ),
+                    );
+                  return (
+                    <div
+                      key={index}
+                      className="rounded-lg border p-4 space-y-3"
+                    >
+                      <Field label={`Вопрос ${index + 1}`}>
+                        <Input
+                          maxLength={150}
+                          value={item.q}
+                          onChange={(e) => change("q", e.target.value)}
+                        />
+                      </Field>
+                      <Field label="Ответ">
+                        <Textarea
+                          maxLength={1200}
+                          value={item.a}
+                          onChange={(e) => change("a", e.target.value)}
+                        />
+                      </Field>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          disabled={index === 0}
+                          onClick={() => {
+                            const next = [...list];
+                            [next[index - 1], next[index]] = [
+                              next[index],
+                              next[index - 1],
+                            ];
+                            update("faq_items", next);
+                          }}
+                        >
+                          Выше
+                        </Button>
+                        <Button
+                          variant="outline"
+                          disabled={index === list.length - 1}
+                          onClick={() => {
+                            const next = [...list];
+                            [next[index + 1], next[index]] = [
+                              next[index],
+                              next[index + 1],
+                            ];
+                            update("faq_items", next);
+                          }}
+                        >
+                          Ниже
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            update(
+                              "faq_items",
+                              list.filter((_: Data, i: number) => i !== index),
+                            )
+                          }
+                        >
+                          Удалить
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                },
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  disabled={
+                    (values.faq_items ?? resource.data?.faq_defaults ?? [])
+                      .length >= 25
+                  }
+                  onClick={() =>
+                    update("faq_items", [
+                      ...(values.faq_items ??
+                        resource.data?.faq_defaults ??
+                        []),
+                      { q: "", a: "" },
+                    ])
+                  }
+                >
+                  Добавить вопрос
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => update("faq_items", null)}
+                >
+                  Вернуть стандартные вопросы
+                </Button>
+              </div>
+            </div>
+          </Panel>
         )}
         {section === "automation" && <Automation />}
         {section === "system" && <SystemSettings />}

@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from html import escape
 
-from app.config import get_settings, referral_is_payout
+from app.config import get_settings, referral_is_payout, shop_overlay
 from app.texts import days_text, rub_text
 from app.referral_terms import referral_terms
 
 
 def faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
+    custom = shop_overlay().get("faq_items")
+    if custom is not None:
+        return [dict(item) for item in custom]
+    return default_faq_items(trial_days=trial_days)
+
+
+def default_faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
     settings = get_settings()
     price = rub_text(settings.vpn_day_price_rub)
     trial = days_text(trial_days if trial_days is not None else settings.trial_days)
@@ -159,3 +166,32 @@ def faq_html() -> str:
         lines.append("")
     lines.append("Если не помогло — напишите в поддержку.")
     return "\n".join(lines).strip()
+
+
+def validate_faq(value):
+    if value is None:
+        return None
+    if not isinstance(value, list) or len(value) > 25:
+        raise ValueError("Частые вопросы: максимум 25 вопросов")
+    result = []
+    for item in value:
+        if not isinstance(item, dict) or not isinstance(item.get("q"), str) or not isinstance(item.get("a"), str):
+            raise ValueError("Укажите вопрос и ответ")
+        q, a = item["q"].strip(), item["a"].strip()
+        if not q or not a or len(q) > 150 or len(a) > 1200:
+            raise ValueError("Вопрос: 1–150 символов. Ответ: 1–1200 символов.")
+        result.append({"q": q, "a": a})
+    return result
+
+
+def faq_pages() -> list[str]:
+    header = "<b>Частые вопросы</b>"
+    pages, current = [], header
+    for item in faq_items():
+        block = f"\n\n<b>{escape(item['q'])}</b>\n{escape(item['a'])}"
+        if len((current + block).encode('utf-16-le')) // 2 > 3800:
+            pages.append(current)
+            current = header
+        current += block
+    pages.append(current + "\n\nЕсли не помогло — напишите в поддержку.")
+    return pages
