@@ -280,6 +280,8 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
         user = { ...user, balance_rub: user.balance_rub + payload.amount };
         data = { ok: true, balance_rub: user.balance_rub };
       }
+      if (key === "users/123/devices/1/reissue")
+        data = { ok: true, notified: true };
       if (key === "users/123/devices")
         data = {
           items: [
@@ -608,6 +610,10 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await messageFilter;
   await page.getByRole("tab", { name: "Устройства", exact: true }).click();
   await page.getByText("iPhone", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Перевыпустить ссылку", exact: true }).click();
+  await page.getByRole("button", { name: "Перевыпустить и отправить", exact: true }).click();
+  await page.getByText("Ссылка перевыпущена и отправлена пользователю", { exact: true }).waitFor();
+
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Фильтры", exact: true }).click();
   await page.getByRole("combobox", { name: "Оплаты", exact: true }).click();

@@ -1012,6 +1012,43 @@ function UserDetail({
                   cell: (r) => date(r.last_online_at),
                 },
                 { key: "traffic", label: "Трафик", cell: traffic },
+                {
+                  key: "actions",
+                  label: "Действия",
+                  cell: (r) => (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!r.id}
+                      onClick={() =>
+                        confirm({
+                          title: `Перевыпустить ссылку: ${r.title || "Устройство"}?`,
+                          description:
+                            "Старая ссылка перестанет работать. Пользователь получит в чат новую ссылку от поддержки и инструкцию по замене подписки.",
+                          label: "Перевыпустить и отправить",
+                          action: async () => {
+                            const result = await api(
+                              `users/${u.telegram_id}/devices/${r.id}/reissue`,
+                              {},
+                            );
+                            if (result.notified)
+                              toast.success(
+                                "Ссылка перевыпущена и отправлена пользователю",
+                              );
+                            else
+                              toast.error(
+                                `Ссылка перевыпущена, но сообщение не отправлено: ${result.error || "ошибка доставки"}. Повторите отправку в разделе «Сообщения», не перевыпуская ссылку снова.`,
+                                { duration: 15000 },
+                              );
+                            void devices.reload();
+                          },
+                        })
+                      }
+                    >
+                      Перевыпустить ссылку
+                    </Button>
+                  ),
+                },
               ]}
             />
           )}

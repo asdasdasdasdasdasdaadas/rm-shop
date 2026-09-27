@@ -11,7 +11,7 @@ from html import escape
 
 from aiohttp import web
 from aiogram import Bot
-from aiogram.types import FSInputFile
+from aiogram.types import FSInputFile, LinkPreviewOptions
 
 from app.referral_terms import referral_terms
 from app.reminder_tracking import tracked_keyboard, _finish as finish_tracked_delivery
@@ -124,7 +124,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "105"})
+    return web.json_response({"ok": True, "build": "106"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -351,6 +351,58 @@ async def api_user_devices(request: web.Request) -> web.Response:
 
     items = await asyncio.gather(*(one(row) for row in rows)) if rows else []
     return web.json_response({"ok": True, "items": list(items)})
+
+
+async def api_device_reissue(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+        device_id = int(request.match_info["device_id"])
+    except (KeyError, TypeError, ValueError):
+        return web.json_response({"ok": False, "error": "Устройство не найдено"}, status=404)
+    item = await db.get_device(telegram_id, device_id)
+    if not item or not item.get("remnawave_id"):
+        return web.json_response({"ok": False, "error": "Устройство не найдено"}, status=404)
+    rw = request.app["rw"]
+    try:
+        panel = await rw.get_user_by_id(int(item["remnawave_id"]))
+        if not panel:
+            return web.json_response({"ok": False, "error": "Устройство не найдено в панели"}, status=404)
+        updated = await rw.revoke_subscription(panel)
+    except RemnawaveError:
+        return web.json_response({"ok": False, "error": "Не удалось перевыпустить ссылку в панели"}, status=502)
+    await db.save_device_subscription(int(item["remnawave_id"]), updated)
+    url = str(updated.get("subscriptionUrl") or "")
+    title = str(item.get("title") or "Устройство")
+    if not url:
+        return web.json_response({"ok": True, "notified": False, "error": "Панель перевыпустила ссылку, но не вернула новый адрес. Проверьте устройство в панели."})
+    body = (
+        "🔑 <b>Поддержка перевыпустила вашу ссылку</b>\n\n"
+        f"Устройство: {escape(title)}\n\n"
+        f"Новая ссылка для подключения:\n<code>{escape(url)}</code>\n\n"
+        "Старая ссылка больше не действует. Замените подписку в VPN-приложении новой ссылкой и подключитесь снова."
+    )
+    extra = {"device_id": device_id}
+    error = ""
+    try:
+        await request.app["bot"].send_message(
+            telegram_id, body, parse_mode="HTML", reply_markup=cabinet_keyboard(),
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
+        )
+    except Exception as exc:
+        error = telegram_fail_reason(exc)
+        extra = fail_extra(exc, extra)
+    try:
+        await db.log_bot_message(
+            kind="device_reissued", source="manual", telegram_id=telegram_id,
+            title="Поддержка перевыпустила ссылку", body=body,
+            status="failed" if error else "sent", extra=extra,
+        )
+    except Exception:
+        logger.exception("Cannot log device reissue notification telegram=%s device=%s", telegram_id, device_id)
+    return web.json_response({"ok": True, "notified": not bool(error), "error": error})
 
 
 async def api_referrals(request: web.Request) -> web.Response:
@@ -2301,6 +2353,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/statistics", api_statistics)
     app.router.add_get("/admin/api/users", api_users)
     app.router.add_get("/admin/api/users/{telegram_id}/devices", api_user_devices)
+    app.router.add_post("/admin/api/users/{telegram_id}/devices/{device_id}/reissue", api_device_reissue)
     app.router.add_post("/admin/api/users/bulk", api_users_bulk)
     app.router.add_get("/admin/api/referrals", api_referrals)
     app.router.add_get("/admin/api/ads", api_ad_links)

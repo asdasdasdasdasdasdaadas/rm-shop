@@ -47,6 +47,7 @@ export const billKinds: Data = {
   error: "Ошибка",
 };
 export const messageKinds: Data = {
+  device_reissued: "Перевыпуск ссылки поддержкой",
   broadcast: "Рассылка",
   admin_dm: "Сообщение администратора",
   nudge_trial: "Пробный доступ",
