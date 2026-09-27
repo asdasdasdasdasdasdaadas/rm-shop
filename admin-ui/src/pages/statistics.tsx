@@ -169,9 +169,10 @@ export function StatisticsPage() {
   const s = snapshot.data || {};
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-      <TabsList className="h-auto w-full grid grid-cols-2 sm:grid-cols-4">
+      <TabsList className="h-auto w-full grid grid-cols-2 sm:grid-cols-5">
         <TabsTrigger value="dynamics">Динамика</TabsTrigger>
         <TabsTrigger value="funnel">Воронка</TabsTrigger>
+        <TabsTrigger value="onboarding">Первый вход</TabsTrigger>
         <TabsTrigger value="retention">Возврат клиентов</TabsTrigger>
         <TabsTrigger value="current">Сервис сейчас</TabsTrigger>
       </TabsList>
@@ -370,6 +371,63 @@ export function StatisticsPage() {
             </p>
           </div>
         </details>
+      </TabsContent>
+      <TabsContent value="onboarding">
+        <Panel
+          title="Шаги до первого подключения"
+          description="Новые пользователи после включения измерений, за последние 30 дней. Каждый человек учитывается на шаге один раз. Процент — от запустивших бота; некоторые шаги можно пропустить."
+        >
+          {snapshot.error ? (
+            <Failure message={snapshot.error} retry={snapshot.reload} />
+          ) : !snapshot.data ? (
+            <Loading />
+          ) : (
+            <>
+              <p className="mb-4 text-sm">
+                Медианное время до первого онлайна:{" "}
+                <strong>
+                  {s.onboarding_steps?.median_minutes == null
+                    ? "пока нет данных"
+                    : `${Math.round(s.onboarding_steps.median_minutes)} мин`}
+                </strong>{" "}
+                · среди подключившихся
+              </p>
+              <DataTable
+                rows={[
+                  ["started", "Запустили бота"],
+                  ["welcome_continue", "Нажали «Я помогу»"],
+                  ["channel_passed", "Прошли проверку канала"],
+                  ["cabinet", "Открыли кабинет"],
+                  ["gift_view", "Увидели подарок"],
+                  ["gift_claimed", "Забрали подарок"],
+                  ["wizard_1", "Открыли выбор устройства"],
+                  ["wizard_2", "Открыли выбор приложения"],
+                  ["wizard_3", "Дошли до создания устройства"],
+                  ["wizard_4", "Получили инструкцию подключения"],
+                  ["connected", "Впервые вышли онлайн"],
+                ].map(([key, label]) => ({
+                  label,
+                  count:
+                    s.onboarding_steps?.[key] ??
+                    s.onboarding_steps?.stages?.[key] ??
+                    0,
+                }))}
+                columns={[
+                  { key: "label", label: "Шаг" },
+                  { key: "count", label: "Пользователи" },
+                  {
+                    key: "share",
+                    label: "Доля",
+                    cell: (r) =>
+                      s.onboarding_steps?.started
+                        ? `${Math.round((r.count * 100) / s.onboarding_steps.started)}%`
+                        : "—",
+                  },
+                ]}
+              />
+            </>
+          )}
+        </Panel>
       </TabsContent>
       <TabsContent value="funnel">
         <OverviewPage

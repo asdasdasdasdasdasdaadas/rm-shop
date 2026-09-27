@@ -11,6 +11,7 @@ from app import db
 from app.config import get_settings
 from app.keyboards import (
     cabinet_keyboard,
+    vpn_feedback_keyboard,
     onboarding_keyboard,
     payment_nudge_keyboard,
     share_keyboard,
@@ -244,7 +245,7 @@ async def send_due_idle_nudges(bot: Bot, skip_ids: list[int] | None = None) -> t
     for row in await db.list_due_idle_nudges(NUDGE_BATCH, skip_ids):
         telegram_id = int(row["telegram_id"])
         days = int(row.get("idle_days") or 0)
-        if days not in {7, 10, 15, 20}:
+        if days not in {7, 20}:
             continue
         if row.get("first_online_at") is None:
             segment = "setup"
@@ -254,8 +255,10 @@ async def send_due_idle_nudges(bot: Bot, skip_ids: list[int] | None = None) -> t
             markup = payment_nudge_keyboard(label="Пополнить баланс")
         else:
             segment = "return"
-            markup = onboarding_keyboard(has_device=bool(row.get("has_device")))
+            markup = vpn_feedback_keyboard(returning=True)
         body = notice_text(f"idle_{segment}_{days}")
+        if segment == "return":
+            body = notice_text("return_check" if days == 7 else "return_last")
         title = f"Напоминание: не пользуется {days} дн."
         ok = await _deliver(
             bot, kind="nudge_idle", telegram_id=telegram_id, first_name=row.get("first_name"),
@@ -287,17 +290,13 @@ async def send_due_first_online_nudges(bot: Bot, skip_ids: list[int] | None = No
         telegram_id = int(row["telegram_id"])
         if not await db.nudge_delivery_allowed(telegram_id, "nudge_first_online"):
             continue
-        if not await db.claim_low_balance_notice(telegram_id):
-            continue
-        body = notice_text("first_online_nudge", days=days_text(_days_left_from_row(row)))
+        body = notice_text("vpn_quality_check")
         ok = await _deliver(
             bot, kind="nudge_first_online", telegram_id=telegram_id, first_name=row.get("first_name"),
-            title="Напоминание: после первого онлайна", body=body, reply_markup=payment_nudge_keyboard(label="Пополнить баланс"), extra=None,
+            title="Напоминание: после первого онлайна", body=body, reply_markup=vpn_feedback_keyboard(), extra=None,
         )
         if ok:
             await db.mark_first_online_nudge_sent(telegram_id)
-        else:
-            await db.release_low_balance_notice(telegram_id)
         touched.append(telegram_id)
         if ok:
             sent += 1

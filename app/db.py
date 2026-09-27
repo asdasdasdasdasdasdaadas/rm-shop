@@ -2683,6 +2683,7 @@ async def admin_stats() -> dict:
         "broadcast_using": int(broadcast_using or 0),
         "broadcast_unused": int(broadcast_unused or 0),
         "funnel": await admin_funnel(),
+        "onboarding_steps": await admin_onboarding_steps(),
         "exit_feedback": await admin_exit_feedback(),
         "reminder_results": await admin_reminder_results(),
     }
@@ -3308,6 +3309,13 @@ async def list_due_invite_nudges(limit: int = 80, skip_ids: list[int] | None = N
         WHERE u.invite_nudge_sent_at IS NULL
           AND u.blocked_at IS NULL
           AND u.first_online_at <= timezone('utc', now()) - INTERVAL '48 hours'
+          AND (u.vpn_feedback='ok' OR (
+              u.vpn_feedback IS DISTINCT FROM 'help' AND EXISTS (
+                SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id
+                AND d.last_online_at >= u.first_online_at + INTERVAL '24 hours'
+                AND d.last_online_at >= NOW() - INTERVAL '7 days')))
+          AND u.vpn_feedback IS DISTINCT FROM 'help'
+          AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status='open')
           AND u.bot_started_at IS NOT NULL AND u.bot_blocked_at IS NULL
           AND NOT (u.telegram_id = ANY($2::bigint[]))
         ORDER BY u.created_at
@@ -3542,10 +3550,6 @@ async def list_due_idle_nudges(limit: int = 80, skip_ids: list[int] | None = Non
                 CASE
                     WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '20 days'
                          AND step.v < 20 THEN 20
-                    WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '15 days'
-                         AND step.v < 15 THEN 15
-                    WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '10 days'
-                         AND step.v < 10 THEN 10
                     WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '7 days'
                          AND step.v < 7 THEN 7
                     ELSE NULL
@@ -3570,6 +3574,9 @@ async def list_due_idle_nudges(limit: int = 80, skip_ids: list[int] | None = Non
             WHERE u.blocked_at IS NULL
               AND u.bot_started_at IS NOT NULL AND u.bot_blocked_at IS NULL
               AND u.billing_paused_at IS NULL
+              AND (u.idle_snoozed_at IS NULL OR activity.last_seen > u.idle_snoozed_at)
+              AND u.vpn_feedback IS DISTINCT FROM 'help'
+              AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status='open')
               AND NOT (u.telegram_id = ANY($2::bigint[]))
         ) q
         WHERE q.idle_days IS NOT NULL
@@ -3609,9 +3616,13 @@ async def list_due_first_online_nudges(limit: int = 80, skip_ids: list[int] | No
         FROM users u
         WHERE u.first_online_nudge_at IS NULL
           AND u.blocked_at IS NULL
+          AND u.bot_started_at IS NOT NULL AND u.bot_blocked_at IS NULL
+          AND u.billing_paused_at IS NULL
           AND u.first_online_at IS NOT NULL
           AND u.first_online_at <= timezone('utc', now()) - INTERVAL '20 hours'
-          AND COALESCE(u.has_paid_topup, FALSE) = FALSE
+          AND u.first_online_at >= NOW() - INTERVAL '7 days'
+          AND u.vpn_feedback_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status='open')
           AND EXISTS (
               SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
           )
@@ -5142,3 +5153,38 @@ async def admin_broadcast_results(page: int = 1) -> dict:
         for row in payers:
             items[row['broadcast_id']]['payers'] = row['n']
     return {'items': [_jsonable(item) for item in items.values()], 'total': total, 'page': page, 'limit': 20}
+
+
+async def save_vpn_feedback(telegram_id: int, value: str) -> None:
+    if value not in {'ok', 'help', 'later'}:
+        raise ValueError('Unknown feedback')
+    await _pool_req().execute('''UPDATE users SET
+        vpn_feedback=CASE WHEN $2='later' THEN vpn_feedback ELSE $2 END,
+        vpn_feedback_at=CASE WHEN $2='later' THEN vpn_feedback_at ELSE NOW() END,
+        idle_snoozed_at=CASE WHEN $2='later' THEN NOW() ELSE idle_snoozed_at END
+        WHERE telegram_id=$1''', telegram_id, value)
+
+
+async def record_onboarding_event(telegram_id: int, stage: str) -> None:
+    if stage not in {'welcome_continue','channel_passed','cabinet','gift_view','wizard_1','wizard_2','wizard_3','wizard_4'}:
+        raise ValueError('Unknown onboarding stage')
+    try:
+        await _pool_req().execute('''INSERT INTO onboarding_events(telegram_id,stage)
+            SELECT telegram_id,$2 FROM users WHERE telegram_id=$1
+            ON CONFLICT (telegram_id,stage) DO NOTHING''', telegram_id, stage)
+    except Exception:
+        logging.getLogger(__name__).debug('Onboarding event unavailable', exc_info=True)
+
+
+async def admin_onboarding_steps() -> dict:
+    rows = await _pool_req().fetch('''WITH cohort AS (
+        SELECT * FROM users WHERE bot_started_at >= GREATEST(NOW() - INTERVAL '30 days', (SELECT started_at FROM onboarding_tracking_epoch WHERE singleton))
+    ) SELECT e.stage,COUNT(*)::int AS users FROM onboarding_events e
+      JOIN cohort u ON u.telegram_id=e.telegram_id GROUP BY e.stage''')
+    summary = await _pool_req().fetchrow('''SELECT COUNT(*)::int AS started,
+        COUNT(*) FILTER (WHERE trial_used)::int AS gift_claimed,
+        COUNT(*) FILTER (WHERE first_online_at IS NOT NULL)::int AS connected,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM first_online_at-bot_started_at)/60)
+          FILTER (WHERE first_online_at >= bot_started_at) AS median_minutes
+        FROM users WHERE bot_started_at >= GREATEST(NOW() - INTERVAL '30 days', (SELECT started_at FROM onboarding_tracking_epoch WHERE singleton)) ''')
+    return {'stages':{r['stage']:r['users'] for r in rows}, **dict(summary or {})}

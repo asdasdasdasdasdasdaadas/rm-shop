@@ -51,7 +51,7 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
             ('2026-09-01', 0, True, 'topup', 'topup'),
             ('2026-09-01', 20, True, 'return', {'has_device':False}),
         ]:
-            for days in [7,10,15,20]:
+            for days in [7,20]:
                 with self.subTest(segment=segment, days=days), \
                      patch.object(db, 'list_due_idle_nudges', AsyncMock(return_value=[dict(telegram_id=1,first_online_at=online,balance_rub=balance,trial_used=trial,idle_days=days)])), \
                      patch.object(db, 'mark_idle_nudge_sent', AsyncMock()) as mark, \
@@ -61,8 +61,8 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
                     mark.assert_not_awaited()
                     await nudge.send_due_idle_nudges(self.bot)
                     mark.assert_awaited_once_with(1,days)
-                    text.assert_called_with(f'idle_{segment}_{days}')
-                    self.assertEqual(self.bot.send_message.call_args.kwargs['reply_markup'],markup)
+                    text.assert_called_with(('return_check' if days == 7 else 'return_last') if segment == 'return' else f'idle_{segment}_{days}')
+                    self.assertEqual(self.bot.send_message.call_args.kwargs['reply_markup'], nudge.vpn_feedback_keyboard(returning=True) if segment == 'return' else markup)
 
     async def test_device_created_message_is_next_step_and_skips_connected(self):
         with patch.object(db, 'user_is_blocked', AsyncMock(return_value=False)), \
@@ -133,6 +133,7 @@ class IdleSelectionSqlTest(IsolatedAsyncioTestCase):
                 billing_paused_at TEXT, idle_nudge_at TEXT, idle_nudge_step INTEGER);
             CREATE TABLE devices (telegram_id INTEGER, last_online_at TEXT);
         ''')
+        conn.executescript("ALTER TABLE users ADD COLUMN idle_snoozed_at TEXT; ALTER TABLE users ADD COLUMN vpn_feedback TEXT; CREATE TABLE tickets(telegram_id INTEGER,status TEXT);")
         async def fetch(sql,*args):
             # SQLite lacks LATERAL; inline the two scalar expressions without changing the selection rules.
             sql=re.sub(r'            CROSS JOIN LATERAL \(.*?\) step', '', sql, flags=re.S)
@@ -152,9 +153,17 @@ class IdleSelectionSqlTest(IsolatedAsyncioTestCase):
         with patch.object(db,'_pool_req',return_value=SimpleNamespace(fetch=fetch)):
             rows=await db.list_due_idle_nudges()
             self.assertEqual([r['telegram_id'] for r in rows],[1,2])
-            self.assertEqual([r['idle_days'] for r in rows],[10,10])
+            self.assertEqual([r['idle_days'] for r in rows],[7,7])
             self.assertFalse(rows[1]['has_device'])
             self.assertEqual([r['telegram_id'] for r in await db.list_due_idle_nudges(skip_ids=[1])],[2])
+            conn.execute("UPDATE users SET idle_snoozed_at='2026-09-20' WHERE telegram_id=1")
+            self.assertEqual([r['telegram_id'] for r in await db.list_due_idle_nudges()],[2])
+            conn.execute("INSERT INTO tickets VALUES (2,'open')")
+            self.assertEqual(await db.list_due_idle_nudges(),[])
+            conn.execute("DELETE FROM tickets")
+            conn.execute("UPDATE users SET vpn_feedback='help' WHERE telegram_id=2")
+            self.assertEqual(await db.list_due_idle_nudges(),[])
+            conn.execute("UPDATE users SET idle_snoozed_at=NULL,vpn_feedback=NULL")
             # A new successful connection resets the old completed sequence.
             conn.execute("INSERT INTO devices VALUES (6,'2026-09-13')")
             conn.execute("UPDATE users SET idle_nudge_at='2026-09-01' WHERE telegram_id=6")

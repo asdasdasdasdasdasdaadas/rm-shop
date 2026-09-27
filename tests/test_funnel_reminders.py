@@ -53,6 +53,7 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
             CREATE TABLE devices (telegram_id INTEGER, kind TEXT);
             CREATE TABLE message_log (telegram_id INTEGER, status TEXT, kind TEXT, created_at TEXT);
         ''')
+        conn.executescript("ALTER TABLE users ADD COLUMN vpn_feedback TEXT; ALTER TABLE devices ADD COLUMN last_online_at TEXT; CREATE TABLE tickets(telegram_id INTEGER,status TEXT);")
         async def fetch(sql, *args):
             sql = sql.replace("timezone('utc', now())", 'NOW()').replace('::int', '')
             sql = sql.replace("NOW() - INTERVAL '48 hours'", "'2026-09-18 12:00:00'")
@@ -60,6 +61,8 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
             sql = sql.replace("NOW() - INTERVAL '30 minutes'", "'2026-09-20 11:30:00'")
             sql = sql.replace("NOW() - INTERVAL '20 minutes'", "'2026-09-20 11:40:00'")
             sql = sql.replace("NOW() - ($1 * INTERVAL '1 hour')", "datetime('2026-09-20 12:00:00', '-' || $1 || ' hours')")
+            sql = sql.replace("u.first_online_at + INTERVAL '24 hours'", "datetime(u.first_online_at, '+24 hours')")
+            sql = sql.replace("NOW() - INTERVAL '7 days'", "'2026-09-13 12:00:00'")
             sql = sql.replace('GREATEST(', 'MAX(')
             sql = sql.replace('u.telegram_id = ANY($2::bigint[])', 'u.telegram_id IN (SELECT value FROM json_each($2))')
             import json
@@ -70,7 +73,7 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
         conn.execute("UPDATE users SET device_nudge_count=1, device_nudge_at='2026-09-20 10:00:00' WHERE telegram_id=3")
         conn.execute("UPDATE users SET gift_claimed_at='2026-09-20 11:45:00' WHERE telegram_id=4")
         conn.execute("UPDATE users SET billing_paused_at='2026-09-20' WHERE telegram_id=5")
-        conn.executemany('INSERT INTO devices VALUES (?,?)', [(1,'phone'),(1,'phone'),(2,'router'),(5,'phone')])
+        conn.executemany('INSERT INTO devices (telegram_id,kind) VALUES (?,?)', [(1,'phone'),(1,'phone'),(2,'router'),(5,'phone')])
         with patch.object(db, '_pool_req', return_value=SimpleNamespace(fetch=fetch)):
             self.assertEqual([r['telegram_id'] for r in await db.list_due_device_nudges(skip_ids=[5,6])], [1])
             # Legacy device creation set count=3 without actually sending a reminder.
@@ -87,7 +90,17 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
             conn.execute("UPDATE users SET has_paid_topup=1 WHERE telegram_id=6")
             self.assertEqual(await db.list_due_invite_nudges(), [])
             conn.execute("UPDATE users SET first_online_at='2026-09-18 10:00:00' WHERE telegram_id=6")
+            self.assertEqual(await db.list_due_invite_nudges(), [])
+            conn.execute("UPDATE users SET vpn_feedback='ok' WHERE telegram_id=6")
             self.assertEqual([r['telegram_id'] for r in await db.list_due_invite_nudges()], [6])
+            conn.execute("UPDATE users SET vpn_feedback='help' WHERE telegram_id=6")
+            self.assertEqual(await db.list_due_invite_nudges(), [])
+            conn.execute("UPDATE users SET vpn_feedback=NULL WHERE telegram_id=6")
+            conn.execute("INSERT INTO devices (telegram_id,kind,last_online_at) VALUES (6,'phone','2026-09-20 10:00:00')")
+            self.assertEqual([r['telegram_id'] for r in await db.list_due_invite_nudges()], [6])
+            conn.execute("INSERT INTO tickets VALUES (6,'open')")
+            self.assertEqual(await db.list_due_invite_nudges(), [])
+            conn.execute("DELETE FROM tickets")
             conn.execute("UPDATE users SET invite_nudge_sent_at='2026-09-20' WHERE telegram_id=6")
             self.assertEqual(await db.list_due_invite_nudges(), [])
             conn.execute("UPDATE users SET first_online_at='2026-09-18' WHERE telegram_id=1")

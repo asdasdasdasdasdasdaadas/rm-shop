@@ -443,6 +443,11 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     .getByRole("button", { name: "Оплаты в рублях", exact: true })
     .click();
   assert.equal(await page.locator(".recharts-wrapper").count(), 1);
+  await page.getByRole("tab", { name: "Первый вход", exact: true }).click();
+  await page
+    .getByText("Шаги до первого подключения", { exact: true })
+    .waitFor();
+  await accessibility("Onboarding steps");
   await page.getByRole("tab", { name: "Воронка", exact: true }).click();
   await page.getByText("Основная воронка", { exact: true }).waitFor();
   assert.equal(

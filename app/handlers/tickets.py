@@ -88,3 +88,16 @@ async def ticket_from_chat(message: Message) -> None:
         )
     except ValueError:
         return
+
+
+@router.callback_query(F.data.in_({"vpn_feedback:ok", "vpn_feedback:help", "vpn_feedback:later"}))
+async def vpn_feedback(callback: CallbackQuery) -> None:
+    value = callback.data.split(':')[1]
+    await db.save_vpn_feedback(callback.from_user.id, value)
+    await callback.answer("Спасибо, учли ваш ответ")
+    if value == 'help':
+        await callback.message.answer("Напишите, что не работает. Можно приложить скриншот — поддержка поможет разобраться.", reply_markup=help_connect_reply_keyboard())
+    elif value == 'later':
+        await callback.message.answer("Хорошо, остановили напоминания о возвращении до следующего подключения. Если устройства остаются добавленными, списания продолжаются — ненужные можно удалить в кабинете.")
+    else:
+        await callback.message.answer("Отлично! Если возникнут вопросы, напишите сюда — поможем.")

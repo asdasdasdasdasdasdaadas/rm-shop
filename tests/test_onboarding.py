@@ -17,7 +17,7 @@ class OnboardingTest(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.stack.close)
         self.db = self.stack.enter_context(patch.object(start, 'db'))
         for name in ('upsert_user', 'claim_welcome_intro', 'mark_legal_notice',
-                     'accept_legal_after_notice', 'accept_legal', 'touch_ad_link', 'mark_bot_started'):
+                     'record_onboarding_event', 'accept_legal_after_notice', 'accept_legal', 'touch_ad_link', 'mark_bot_started'):
             setattr(self.db, name, AsyncMock())
         self.db.upsert_user.return_value = {}
         self.db.claim_welcome_intro.return_value = True

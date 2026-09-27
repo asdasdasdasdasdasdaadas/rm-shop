@@ -2753,10 +2753,22 @@ function paintOffer(me) {
   }
 }
 
+const onboardingEventsSent = new Set();
+function trackOnboarding(stage) {
+  const me = window.__me;
+  if (!me || !me.user) return;
+  const key = `${me.user.id || me.user.telegram_id}:${stage}`;
+  if (onboardingEventsSent.has(key)) return;
+  onboardingEventsSent.add(key);
+  void api("/api/onboarding-event", {method:"POST", body:JSON.stringify({stage})})
+    .catch(() => onboardingEventsSent.delete(key));
+}
+
 function openOffer(opts) {
   const me = window.__me;
   if (!me) return;
   hideCoach();
+  trackOnboarding("gift_view");
   screen = "offer";
   switchView("view-offer", opts && opts.instant ? "fade" : "push");
   setMain("");
@@ -3079,6 +3091,7 @@ function renderWizard() {
   $("wizStep").classList.toggle("hidden", wiz.step >= 4);
   replayAnim($("wizTitle"), "title-in");
   setWizProgress(wiz.step);
+  trackOnboarding(`wizard_${wiz.step}`);
 
   if (wiz.step === 1) {
     $("wizStep").textContent = "Шаг 1 из 3";
@@ -4145,6 +4158,7 @@ function paint(me) {
   renderConnect(me);
   renderDevices(me);
   window.__me = me;
+  trackOnboarding("cabinet");
   if (me.first_device_thanks_pending) armThanksOnClose();
   if (screen === "device" && openDevice) {
     const fresh = me.devices.find((x) => x.id === openDevice.id);

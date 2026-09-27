@@ -123,6 +123,7 @@ async def gate_or_continue(event: Message | CallbackQuery) -> bool:
         await db.mark_legal_notice(user.id)
         return False
     await db.accept_legal_after_notice(user.id)
+    await db.record_onboarding_event(user.id, "channel_passed")
     return True
 
 
@@ -171,6 +172,9 @@ async def welcome_continue(callback: CallbackQuery) -> None:
     await send_welcome_continuation(callback.message, callback.from_user.id,
         in_channel=await is_channel_member(callback.bot,callback.from_user.id))
     await db.complete_welcome_support(callback.from_user.id)
+    await db.record_onboarding_event(callback.from_user.id, "welcome_continue")
+    if await is_channel_member(callback.bot, callback.from_user.id):
+        await db.record_onboarding_event(callback.from_user.id, "channel_passed")
     try:
         await callback.message.edit_reply_markup(reply_markup=None)
     except TelegramBadRequest:
@@ -191,6 +195,7 @@ async def check_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         await ack(callback, "Подписка не найдена. Подпишитесь и нажмите ещё раз.", alert=True)
         return
     await db.accept_legal_after_notice(callback.from_user.id)
+    await db.record_onboarding_event(callback.from_user.id, "channel_passed")
     await show_profile(callback, rw)
 
 

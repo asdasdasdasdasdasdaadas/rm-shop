@@ -571,3 +571,18 @@ CREATE TABLE IF NOT EXISTS broadcast_runs (
 );
 ALTER TABLE reminder_deliveries ADD COLUMN IF NOT EXISTS broadcast_id BIGINT REFERENCES broadcast_runs(id);
 CREATE INDEX IF NOT EXISTS reminder_deliveries_broadcast_idx ON reminder_deliveries(broadcast_id) WHERE broadcast_id IS NOT NULL;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS vpn_feedback TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS vpn_feedback_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS idle_snoozed_at TIMESTAMPTZ;
+CREATE TABLE IF NOT EXISTS onboarding_events (
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    stage TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(telegram_id,stage)
+);
+CREATE TABLE IF NOT EXISTS onboarding_tracking_epoch (
+    singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton),
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+INSERT INTO onboarding_tracking_epoch(singleton) VALUES(TRUE) ON CONFLICT DO NOTHING;

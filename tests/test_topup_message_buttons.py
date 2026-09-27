@@ -24,14 +24,14 @@ class TopupMessageButtonsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(button.callback_data)
         self.assertEqual(parse_qs(urlsplit(button.web_app.url).query), {'theme':['green'], 'screen':['topup']})
 
-    async def test_first_online_notification_opens_topup(self):
+    async def test_first_online_notification_checks_quality(self):
         self.stack.enter_context(patch.object(nudge, 'get_settings', return_value=SimpleNamespace(balance_enabled=True, vpn_day_price_rub=6)))
         self.stack.enter_context(patch.object(db, 'flag_on', AsyncMock(return_value=False)))
         self.stack.enter_context(patch.object(db, 'list_due_first_online_nudges', AsyncMock(return_value=[{'telegram_id':1,'balance_rub':12,'device_count':1}])))
         self.stack.enter_context(patch.object(db, 'mark_first_online_nudge_sent', AsyncMock()))
         self.stack.enter_context(patch.object(nudge.asyncio, 'sleep', AsyncMock()))
         self.assertEqual(await nudge.send_due_first_online_nudges(self.bot), (1,[1]))
-        self.assert_topup(self.bot.send_message.call_args.kwargs['reply_markup'])
+        self.assertEqual([b.callback_data for row in self.bot.send_message.call_args.kwargs['reply_markup'].inline_keyboard for b in row], ['vpn_feedback:ok','vpn_feedback:help'])
 
     async def test_empty_balance_notification_has_own_topup_button(self):
         self.stack.enter_context(patch.object(db, 'claim_low_balance_notice', AsyncMock(return_value=True)))

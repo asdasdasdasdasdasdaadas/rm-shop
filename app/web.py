@@ -622,6 +622,21 @@ async def api_announcement_image(request: web.Request) -> web.Response:
     )
 
 
+async def api_onboarding_event(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        body = await request.json()
+    except (ValueError, TypeError):
+        return json_error("Некорректное событие", 400)
+    stage = body.get("stage") if isinstance(body, dict) else None
+    if not isinstance(stage, str) or stage not in {"cabinet", "gift_view", "wizard_1", "wizard_2", "wizard_3", "wizard_4"}:
+        return json_error("Некорректное событие", 400)
+    await db.record_onboarding_event(telegram_id, stage)
+    return web.json_response({"ok": True})
+
+
 async def api_trial(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tg(request)
     if denied:
@@ -1266,6 +1281,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/api/avatar", api_avatar)
         app.router.add_get("/api/announcements/{ann_id}/image", api_announcement_image)
         app.router.add_post("/api/trial", api_trial)
+        app.router.add_post("/api/onboarding-event", api_onboarding_event)
         app.router.add_post("/api/invoice", api_invoice)
         app.router.add_post("/api/promo", api_promo)
         app.router.add_post("/api/devices", api_add_device)
