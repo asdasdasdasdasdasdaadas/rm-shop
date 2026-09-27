@@ -770,7 +770,7 @@ async def save_panel_snapshot(telegram_id: int, panel: dict | None) -> None:
             subscription_url = $6,
             last_synced_at = $7,
             used_traffic_bytes = COALESCE($8, used_traffic_bytes),
-            lifetime_traffic_bytes = GREATEST(COALESCE($9, 0), COALESCE(lifetime_traffic_bytes, 0))
+            lifetime_traffic_bytes = GREATEST(COALESCE($9::bigint, 0::bigint), COALESCE(lifetime_traffic_bytes, 0::bigint))
         WHERE telegram_id = $1
         """,
         telegram_id,
@@ -788,7 +788,7 @@ async def save_panel_snapshot(telegram_id: int, panel: dict | None) -> None:
             """
             UPDATE devices SET
                 used_traffic_bytes = COALESCE($2, used_traffic_bytes),
-                lifetime_traffic_bytes = GREATEST(COALESCE($3, 0), COALESCE(lifetime_traffic_bytes, 0))
+                lifetime_traffic_bytes = GREATEST(COALESCE($3::bigint, 0::bigint), COALESCE(lifetime_traffic_bytes, 0::bigint))
             WHERE remnawave_id = $1
             """,
             remnawave_id,
@@ -972,7 +972,7 @@ async def save_device_subscription(remnawave_id: int, panel: dict | None) -> str
             expire_at = COALESCE($4, expire_at),
             panel_status = COALESCE($5, panel_status),
             used_traffic_bytes = COALESCE($6, used_traffic_bytes),
-            lifetime_traffic_bytes = GREATEST(COALESCE($7, 0), COALESCE(lifetime_traffic_bytes, 0))
+            lifetime_traffic_bytes = GREATEST(COALESCE($7::bigint, 0::bigint), COALESCE(lifetime_traffic_bytes, 0::bigint))
         WHERE remnawave_id = $1
         RETURNING title
         """,

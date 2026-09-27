@@ -15,11 +15,21 @@ export async function api(
     body:
       body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
   });
-  const data = await response
-    .json()
-    .catch(() => ({ error: "Сервер вернул некорректный ответ" }));
   if (response.status === 401)
     window.dispatchEvent(new Event("admin:unauthorized"));
+  let data: Data;
+  try {
+    data = await response.json();
+    if (!data || typeof data !== "object" || Array.isArray(data))
+      throw new Error("Invalid JSON response");
+  } catch {
+    const hint = [404, 405].includes(response.status)
+      ? "Обработчик запроса недоступен. После обновления кода пересоберите и перезапустите контейнер bot."
+      : "Не удалось получить результат операции. Проверьте состояние устройства и логи bot перед повтором.";
+    throw new Error(
+      `Сервер вернул некорректный ответ (HTTP ${response.status}). ${hint}`,
+    );
+  }
   if (!response.ok || data.ok === false)
     throw new Error(
       data.error || `Не удалось выполнить запрос (${response.status})`,

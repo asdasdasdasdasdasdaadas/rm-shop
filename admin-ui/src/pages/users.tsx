@@ -1040,6 +1040,10 @@ function UserDetail({
                                 `Ссылка перевыпущена, но сообщение не отправлено: ${result.error || "ошибка доставки"}. Повторите отправку в разделе «Сообщения», не перевыпуская ссылку снова.`,
                                 { duration: 15000 },
                               );
+                            if (result.warning)
+                              toast.warning(result.warning, {
+                                duration: 15000,
+                              });
                             void devices.reload();
                           },
                         })

@@ -124,7 +124,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "106"})
+    return web.json_response({"ok": True, "build": "107"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -373,7 +373,12 @@ async def api_device_reissue(request: web.Request) -> web.Response:
         updated = await rw.revoke_subscription(panel)
     except RemnawaveError:
         return web.json_response({"ok": False, "error": "Не удалось перевыпустить ссылку в панели"}, status=502)
-    await db.save_device_subscription(int(item["remnawave_id"]), updated)
+    warning = ""
+    try:
+        await db.save_device_subscription(int(item["remnawave_id"]), updated)
+    except Exception:
+        logger.exception("Cannot save reissued device telegram=%s device=%s", telegram_id, device_id)
+        warning = "Ссылка уже перевыпущена в панели, но не сохранена в базе. Проверьте логи bot; повторный перевыпуск не нужен."
     url = str(updated.get("subscriptionUrl") or "")
     title = str(item.get("title") or "Устройство")
     if not url:
@@ -402,7 +407,7 @@ async def api_device_reissue(request: web.Request) -> web.Response:
         )
     except Exception:
         logger.exception("Cannot log device reissue notification telegram=%s device=%s", telegram_id, device_id)
-    return web.json_response({"ok": True, "notified": not bool(error), "error": error})
+    return web.json_response({"ok": True, "notified": not bool(error), "error": error, "warning": warning})
 
 
 async def api_referrals(request: web.Request) -> web.Response:
