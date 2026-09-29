@@ -578,12 +578,8 @@
       </div>
 
       <section id="homePromoCard" class="section home-promo" aria-labelledby="homePromoTitle">
-        <div class="section-head"><label id="homePromoTitle" class="h" for="homePromo">Ввести промокод</label></div>
-        <form id="homePromoForm" class="promo-inner">
-          <input id="homePromo" type="text" placeholder="Введите промокод" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
-          <button type="submit" id="homePromoBtn">Применить</button>
-        </form>
-        <p id="homePromoResult" class="home-promo-result hidden" role="status" aria-live="polite"></p>
+        <div class="section-head"><span id="homePromoTitle" class="h">Промокод</span></div>
+        <button type="button" id="homePromoOpen" class="ref-banner-btn">Ввести промокод</button>
       </section>
 
       <div id="connectWrap" class="section hidden">
@@ -1138,6 +1134,6 @@
 
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
-  <script src="app.js?v=171"></script>
+  <script src="app.js?v=172"></script>
 </body>
 </html>

@@ -4633,9 +4633,9 @@ async function applyPromo(inputId, buttonId, resultId) {
   }
 }
 $("promoBtn").onclick = () => applyPromo("promo", "promoBtn");
-$("homePromoForm").onsubmit = (event) => {
-  event.preventDefault();
-  return applyPromo("homePromo", "homePromoBtn", "homePromoResult");
+$("homePromoOpen").onclick = () => {
+  haptic();
+  openPromo();
 };
 
 if ($("menuPromo")) {
