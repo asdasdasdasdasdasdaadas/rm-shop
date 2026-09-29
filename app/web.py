@@ -500,6 +500,8 @@ async def api_me(request: web.Request) -> web.Response:
             "brand_name": settings.brand_name,
             "balance_enabled": settings.balance_enabled,
             "promo_enabled": settings.promo_enabled,
+            "notification_settings_available": bool((local or {}).get("has_paid_topup")),
+            "quiet_notifications": bool((local or {}).get("quiet_notifications")),
             "trial_available": trial_is_available(local),
             "bot_start_url": f"https://t.me/{settings.bot_username}?start=gift",
             "trial_days": trial_grant_days(local) if not settings.balance_enabled else settings.trial_days,
@@ -1117,6 +1119,24 @@ async def api_ticket_send(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "current": {**ticket, "messages": messages}, "items": items})
 
 
+async def api_notification_settings(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        body = await request.json()
+    except (ValueError, TypeError):
+        return json_error("Некорректный запрос", 400)
+    if not isinstance(body, dict) or type(body.get("quiet")) is not bool:
+        return json_error("Укажите режим уведомлений", 400)
+    quiet = body["quiet"]
+    if quiet and body.get("confirmed") is not True:
+        return json_error("Подтвердите включение режима тишины", 400)
+    if not await db.set_quiet_notifications(telegram_id, quiet):
+        return json_error("Настройка доступна после первой успешной оплаты", 403)
+    return web.json_response({"ok": True, "quiet_notifications": quiet})
+
+
 async def api_ticket_action(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tickets(request)
     if denied:
@@ -1326,6 +1346,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/api/billing", api_billing_history)
         app.router.add_post("/api/vpn-report", api_vpn_report)
         app.router.add_get("/api/tickets", api_tickets)
+        app.router.add_post("/api/notification-settings", api_notification_settings)
         app.router.add_post("/api/tickets", api_ticket_send)
         app.router.add_post("/api/tickets/{ticket_id}/action", api_ticket_action)
         app.router.add_get("/api/tickets/files/{att_id}", api_ticket_file)

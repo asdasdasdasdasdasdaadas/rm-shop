@@ -12,7 +12,7 @@ class CampaignAnnouncementTest(unittest.IsolatedAsyncioTestCase):
         self.bot = AsyncMock()
         self.finish = AsyncMock()
         self.log = AsyncMock()
-        for target,value in [('finish_campaign_message',self.finish),('log_bot_message',self.log)]:
+        for target,value in [('notification_allowed',AsyncMock(return_value=True)),('finish_campaign_message',self.finish),('log_bot_message',self.log)]:
             p=patch.object(campaigns.db,target,value);p.start();self.addCleanup(p.stop)
         p=patch.object(campaigns,'invite_url',return_value='https://t.me/test_bot?start=ref_123')
         p.start();self.addCleanup(p.stop)

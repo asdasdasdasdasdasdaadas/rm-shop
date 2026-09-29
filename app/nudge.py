@@ -394,7 +394,8 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
             await db.resolve_exit_feedback()
             retry_skip = await db.nudge_retry_suppressed_ids()
             retry_skip.extend(await db.exit_feedback_suppressed_ids())
-            n, skip = await send_due_payment_nudges(bot, rp, retry_skip)
+            quiet_ids = await db.quiet_notification_ids()
+            n, skip = await send_due_payment_nudges(bot, rp, retry_skip + quiet_ids)
             skip.extend(retry_skip)
             if n:
                 logger.info("Напоминание о незавершённой оплате: %s", n)
@@ -403,6 +404,7 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
             skip.extend(ids)
             if n:
                 logger.info("Предупреждение об окончании подарка: %s", n)
+            skip.extend(quiet_ids)
             skip.extend(await db.nudge_suppressed_ids(hours=24))
             n, ids = await send_due_device_nudges(bot, skip)
             skip.extend(ids)

@@ -14,7 +14,7 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.sql.close)
         self.sql.executescript('''
           CREATE TABLE users (telegram_id INTEGER PRIMARY KEY, referred_by INTEGER, first_name TEXT, username TEXT,
-            referral_rewarded BOOLEAN DEFAULT FALSE, balance_rub INTEGER DEFAULT 0,
+            quiet_notifications BOOLEAN DEFAULT FALSE, referral_rewarded BOOLEAN DEFAULT FALSE, balance_rub INTEGER DEFAULT 0,
             bot_started_at TEXT DEFAULT CURRENT_TIMESTAMP, blocked_at TEXT, bot_blocked_at TEXT,
             referral_fraction INTEGER DEFAULT 0, referral_earned INTEGER DEFAULT 0, low_balance_notified_at TEXT);
           INSERT INTO users (telegram_id,referred_by) VALUES (1,NULL),(2,1),(3,1),(4,1),(5,1),(6,1),(7,1),(8,1);

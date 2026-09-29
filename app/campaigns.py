@@ -42,6 +42,9 @@ def campaign_announcement(telegram_id: int, reward: int):
 
 
 async def deliver_campaign_message(bot, row: dict) -> float:
+    if not await db.notification_allowed(row['telegram_id'], 'referral_campaign_start'):
+        await db.cancel_quiet_campaign_message(row['campaign_id'], row['telegram_id'])
+        return 0.05
     text, markup = campaign_announcement(row['telegram_id'], row['reward_rub'])
     error = None
     retryable = False

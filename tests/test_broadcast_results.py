@@ -6,6 +6,10 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from app import admin, db
 
 class BroadcastTrackingTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        p = patch.object(db, "notification_allowed", AsyncMock(return_value=True))
+        p.start(); self.addCleanup(p.stop)
+
     async def test_custom_broadcast_adds_tracked_button_and_records_delivery(self):
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text='Кабинет', web_app=WebAppInfo(url='https://example.com/'))]])
         job = {'running':True, 'run_id':42}

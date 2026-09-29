@@ -663,8 +663,15 @@
     <div id="view-settings" class="view hidden">
       <div class="view-head">
         <p class="wiz-kicker">Настройки</p>
-        <h1 class="wiz-title">Оформление</h1>
+        <h1 class="wiz-title">Настройки</h1>
       </div>
+      <section id="notificationSettings" class="section hidden" aria-labelledby="notificationTitle">
+        <div class="section-head"><span id="notificationTitle" class="h">Уведомления бота</span></div>
+        <p id="notificationSummary" class="section-note"></p>
+        <p class="section-note">В режиме тишины остаются предупреждения о балансе, сообщения об оплате и начислениях, ответы поддержки и важные действия с аккаунтом.</p>
+        <button type="button" id="notificationToggle" class="support-faq"></button>
+        <p id="notificationResult" class="section-note" role="status" aria-live="polite"></p>
+      </section>
       <p class="section-note topup-hint">Тема оформления. Запоминается на этом устройстве.</p>
       <div id="themeList" class="group theme-list">
         <button type="button" class="theme-swatch" data-theme-id="green">
@@ -1134,6 +1141,6 @@
 
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
-  <script src="app.js?v=172"></script>
+  <script src="app.js?v=173"></script>
 </body>
 </html>

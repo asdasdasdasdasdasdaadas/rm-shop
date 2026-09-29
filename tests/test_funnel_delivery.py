@@ -83,6 +83,10 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
 
 
 class RetryPolicySqlTest(IsolatedAsyncioTestCase):
+    def setUp(self):
+        p = patch.object(db, "notification_allowed", AsyncMock(return_value=True))
+        p.start(); self.addCleanup(p.stop)
+
     async def test_budget_delay_and_permanent_errors(self):
         import sqlite3
         import json

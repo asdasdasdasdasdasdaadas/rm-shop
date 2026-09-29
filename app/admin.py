@@ -842,6 +842,8 @@ async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
     if not telegram_id:
         return False, "Нет получателя"
     telegram_id = int(telegram_id)
+    if not await db.notification_allowed(telegram_id, kind):
+        return False, "Пользователь включил режим тишины"
     if await db.user_is_blocked(telegram_id):
         return False, "Пользователь заблокирован в магазине"
     extra = row.get("extra") if isinstance(row.get("extra"), dict) else {}
@@ -1495,6 +1497,8 @@ async def _broadcast_all(
         if tpl == "invite" and not settings.referral_program_enabled:
             break
         telegram_id = int(row["telegram_id"])
+        if not await db.notification_allowed(telegram_id, "broadcast"):
+            continue
         body, markup = _broadcast_payload(tpl, text, telegram_id, row.get("first_name"), settings)
         extra = {"template": tpl or "custom", "broadcast_id": job.get("run_id")}
         token = None

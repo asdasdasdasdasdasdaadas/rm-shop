@@ -13,11 +13,11 @@ class ExitFeedbackStorageTest(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(conn.close)
         conn.row_factory=sqlite3.Row
         conn.executescript('''
-            CREATE TABLE users (telegram_id INTEGER PRIMARY KEY,username TEXT);
+            CREATE TABLE users (telegram_id INTEGER PRIMARY KEY,username TEXT, quiet_notifications BOOLEAN DEFAULT FALSE);
             CREATE TABLE devices (id INTEGER PRIMARY KEY,telegram_id INTEGER,last_online_at TEXT);
             CREATE TABLE device_exit_feedback (token TEXT PRIMARY KEY,telegram_id INTEGER,
                 created_at TEXT DEFAULT '2026-09-21 12:00:00',reason TEXT,answered_at TEXT,resolved_at TEXT);
-            INSERT INTO users VALUES (1,'user1'),(2,'user2');
+            INSERT INTO users (telegram_id,username) VALUES (1,'user1'),(2,'user2');
             INSERT INTO devices (id,telegram_id) VALUES (10,1),(11,1),(20,2);
         ''')
         class Connection:

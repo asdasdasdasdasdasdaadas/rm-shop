@@ -3706,13 +3706,13 @@ async def broadcast_audience_counts() -> dict:
     row = await _pool_req().fetchrow(
         """
         SELECT
-            COUNT(*) FILTER (WHERE blocked_at IS NULL)::int AS all_n,
+            COUNT(*) FILTER (WHERE blocked_at IS NULL AND quiet_notifications = FALSE)::int AS all_n,
             COUNT(*) FILTER (
-                WHERE blocked_at IS NULL
+                WHERE blocked_at IS NULL AND quiet_notifications = FALSE
                   AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)
             )::int AS using_n,
             COUNT(*) FILTER (
-                WHERE blocked_at IS NULL
+                WHERE blocked_at IS NULL AND quiet_notifications = FALSE
                   AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)
             )::int AS unused_n
         FROM users
@@ -3736,7 +3736,7 @@ async def list_broadcast_targets(audience: str = "all") -> list[dict]:
         f"""
         SELECT telegram_id, first_name
         FROM users
-        WHERE blocked_at IS NULL
+        WHERE blocked_at IS NULL AND quiet_notifications = FALSE
         {extra}
         ORDER BY telegram_id
         """
@@ -4758,6 +4758,8 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
 
 async def nudge_delivery_allowed(telegram_id: int, kind: str) -> bool:
     """Respect exit preferences and retry limits, including direct sender calls."""
+    if not await notification_allowed(telegram_id, kind):
+        return False
     if kind.startswith("nudge_") or kind == "low_balance":
         paused = await _pool_req().fetchval(
             f"SELECT EXISTS ({_EXIT_FEEDBACK_PAUSED_SQL} AND f.telegram_id=$1)", telegram_id,
@@ -4932,7 +4934,7 @@ async def change_referral_campaign(action: str, campaign_id: int | None = None,
                 if new_id:
                     await conn.execute("""INSERT INTO referral_campaign_messages (campaign_id,telegram_id)
                         SELECT $1,telegram_id FROM users WHERE bot_started_at IS NOT NULL
-                        AND blocked_at IS NULL AND bot_blocked_at IS NULL""", new_id)
+                        AND blocked_at IS NULL AND bot_blocked_at IS NULL AND quiet_notifications = FALSE""", new_id)
             else:
                 await conn.execute("""UPDATE referral_campaigns SET stopped_at=clock_timestamp()
                     WHERE id=$1 AND stopped_at IS NULL""", campaign_id)
@@ -4976,14 +4978,14 @@ async def claim_campaign_message() -> dict | None:
         WHERE (m.status='pending' OR (m.status='sending' AND m.retry_at <= NOW()))
           AND (EXISTS (SELECT 1 FROM referral_campaigns c WHERE c.id=m.campaign_id AND c.stopped_at IS NOT NULL)
             OR EXISTS (SELECT 1 FROM users u WHERE u.telegram_id=m.telegram_id
-                AND (u.blocked_at IS NOT NULL OR u.bot_blocked_at IS NOT NULL)))""")
+                AND (u.blocked_at IS NOT NULL OR u.bot_blocked_at IS NOT NULL OR u.quiet_notifications)))""")
     row = await _pool_req().fetchrow("""
         WITH next AS (
             SELECT m.campaign_id,m.telegram_id FROM referral_campaign_messages m
             JOIN referral_campaigns c ON c.id=m.campaign_id
             JOIN users u ON u.telegram_id=m.telegram_id
             WHERE c.stopped_at IS NULL AND m.status IN ('pending','sending')
-              AND m.retry_at <= NOW() AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
+              AND m.retry_at <= NOW() AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL AND u.quiet_notifications = FALSE
             ORDER BY m.retry_at,m.telegram_id FOR UPDATE OF m SKIP LOCKED LIMIT 1
         ), claimed AS (
             UPDATE referral_campaign_messages m SET status='sending',attempts=attempts+1,
@@ -5071,7 +5073,7 @@ async def retry_campaign_failures(campaign_id: int) -> int:
                 SET status='pending',attempts=0,retry_at=NOW()
                 WHERE campaign_id=$1 AND status='failed' AND retryable=TRUE
                   AND EXISTS (SELECT 1 FROM users u WHERE u.telegram_id=m.telegram_id
-                    AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL)
+                    AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL AND u.quiet_notifications = FALSE)
                 RETURNING telegram_id""",campaign_id)
     return len(rows)
 
@@ -5275,3 +5277,28 @@ async def rate_user_ticket(telegram_id: int, ticket_id: int, rating: int) -> dic
              AND support_rating IS NULL RETURNING *""", ticket_id, telegram_id, rating,
     )
     return _jsonable(dict(row)) if row else None
+
+
+async def notification_allowed(telegram_id: int, kind: str) -> bool:
+    optional = (kind.startswith('nudge_') and kind != 'nudge_trial_end') or kind in {'broadcast', 'referral_campaign_start', 'first_device_thanks'}
+    if not optional:
+        return True
+    return not bool(await _pool_req().fetchval(
+        "SELECT quiet_notifications FROM users WHERE telegram_id=$1", telegram_id))
+
+
+async def quiet_notification_ids() -> list[int]:
+    rows = await _pool_req().fetch("SELECT telegram_id FROM users WHERE quiet_notifications = TRUE")
+    return [int(row['telegram_id']) for row in rows]
+
+
+async def set_quiet_notifications(telegram_id: int, quiet: bool) -> bool:
+    row = await _pool_req().fetchrow(
+        """UPDATE users SET quiet_notifications=$2 WHERE telegram_id=$1
+           AND COALESCE(has_paid_topup,FALSE) = TRUE RETURNING telegram_id""", telegram_id, quiet)
+    return row is not None
+
+
+async def cancel_quiet_campaign_message(campaign_id: int, telegram_id: int) -> None:
+    await _pool_req().execute("""UPDATE referral_campaign_messages SET status='cancelled', retryable=FALSE
+        WHERE campaign_id=$1 AND telegram_id=$2 AND status='sending'""", campaign_id, telegram_id)

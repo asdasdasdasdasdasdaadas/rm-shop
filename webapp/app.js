@@ -2421,7 +2421,38 @@ function openFaq(from) {
   paintFaq(me);
 }
 
+let notificationSaving = false;
+function paintNotificationSettings() {
+  const me = window.__me || {};
+  const box = $("notificationSettings");
+  if (!box) return;
+  box.classList.toggle("hidden", !me.notification_settings_available);
+  const quiet = Boolean(me.quiet_notifications);
+  $("notificationSummary").textContent = quiet ? "Режим тишины включён. Только важные сообщения." : "Включены все уведомления.";
+  const button = $("notificationToggle");
+  button.textContent = quiet ? "Включить все уведомления" : "Отключить необязательные уведомления";
+  button.disabled = notificationSaving;
+}
+async function toggleNotificationSettings() {
+  if (notificationSaving || !(window.__me || {}).notification_settings_available) return;
+  const quiet = !window.__me.quiet_notifications;
+  notificationSaving = true;
+  paintNotificationSettings();
+  try {
+    if (quiet) {
+      const confirmed = await new Promise((resolve) => tg.showConfirm("Включить режим тишины? Приглашения друзей, акции, напоминания о подключении и возврате больше не придут. Предупреждения о балансе, оплата и поддержка останутся.", resolve));
+      if (!confirmed) return;
+    }
+    const result = await api("/api/notification-settings", {method:"POST", body:JSON.stringify({quiet, confirmed:quiet})});
+    window.__me.quiet_notifications = result.quiet_notifications;
+    $("notificationResult").textContent = quiet ? "Режим тишины включён." : "Все уведомления включены.";
+  } catch (e) { showErr(e); }
+  finally { notificationSaving = false; paintNotificationSettings(); }
+}
+$("notificationToggle").onclick = toggleNotificationSettings;
+
 function openSettings() {
+  paintNotificationSettings();
   hideCoach();
   stopSupportPoll();
   screen = "settings";
@@ -4235,6 +4266,7 @@ function paint(me) {
   if (screen === "pay" && pendingPayPlan) renderPayMethod(pendingPayPlan);
   if (screen === "router") renderRouter(me);
   if (screen === "promo" && !me.promo_enabled) openHome();
+  if (screen === "settings") paintNotificationSettings();
   if (firstRunBusy) return;
   if (!$("intro").classList.contains("hidden")) return;
   if (shouldShowIntro()) showIntro(me);
