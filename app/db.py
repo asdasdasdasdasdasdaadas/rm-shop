@@ -5255,3 +5255,23 @@ async def forget_legal_message(telegram_id: int, message_id: int) -> None:
     await _pool_req().execute(
         "DELETE FROM pending_legal_messages WHERE telegram_id = $1 AND message_id = $2", telegram_id, message_id,
     )
+
+
+async def close_user_ticket(telegram_id: int, ticket_id: int) -> dict | None:
+    row = await _pool_req().fetchrow(
+        """UPDATE tickets SET status = 'closed', closed_at = timezone('utc', now())
+           WHERE id = $1 AND telegram_id = $2 AND status <> 'closed' RETURNING *""",
+        ticket_id, telegram_id,
+    )
+    return _jsonable(dict(row)) if row else None
+
+
+async def rate_user_ticket(telegram_id: int, ticket_id: int, rating: int) -> dict | None:
+    if type(rating) is not int or not 1 <= rating <= 5:
+        raise ValueError("Выберите оценку от 1 до 5")
+    row = await _pool_req().fetchrow(
+        """UPDATE tickets SET support_rating = $3, rated_at = timezone('utc', now())
+           WHERE id = $1 AND telegram_id = $2 AND status = 'closed'
+             AND support_rating IS NULL RETURNING *""", ticket_id, telegram_id, rating,
+    )
+    return _jsonable(dict(row)) if row else None

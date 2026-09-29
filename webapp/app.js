@@ -2204,7 +2204,65 @@ function ticketTimeLabel(d) {
   return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
 
+let supportActionBusy = false;
+async function actOnSupport(ticket, action, rating) {
+  if (supportActionBusy) return;
+  supportActionBusy = true;
+  try {
+    if (action === "close") {
+      const confirmed = await new Promise((resolve) => tg.showConfirm("Закрыть обращение? Если понадобится помощь, можно написать снова.", resolve));
+      if (!confirmed) return;
+    }
+    const box = $("supportActions");
+    if (box) box.querySelectorAll("button").forEach((b) => b.disabled = true);
+    await api(`/api/tickets/${ticket.id}/action`, {method: "POST", body: JSON.stringify({action, rating})});
+    await loadSupport();
+  } catch (e) { showErr(e); }
+  finally {
+    supportActionBusy = false;
+    const box = $("supportActions");
+    if (box) box.querySelectorAll("button").forEach((b) => b.disabled = false);
+  }
+}
+function paintSupportActions(current) {
+  const box = $("supportActions");
+  if (!box) return;
+  box.innerHTML = "";
+  box.classList.toggle("hidden", !current);
+  if (!current) return;
+  if (current.status !== "closed") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "support-faq";
+    button.textContent = "Вопрос решён — закрыть обращение";
+    button.disabled = supportActionBusy;
+    button.onclick = () => actOnSupport(current, "close");
+    box.appendChild(button);
+    return;
+  }
+  const title = document.createElement("p");
+  title.className = "support-meta";
+  title.textContent = current.support_rating ? `Спасибо! Ваша оценка: ${current.support_rating} из 5.` : "Оцените помощь поддержки: 1 — плохо, 5 — отлично.";
+  box.appendChild(title);
+  if (current.support_rating) return;
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;gap:8px;margin:12px 0";
+  for (let rating = 1; rating <= 5; rating++) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "support-faq";
+    button.style.cssText = "justify-content:center;flex:1;padding:12px 4px";
+    button.textContent = `${rating} ★`;
+    button.setAttribute("aria-label", `Оценить поддержку на ${rating} из 5`);
+    button.disabled = supportActionBusy;
+    button.onclick = () => actOnSupport(current, "rate", rating);
+    row.appendChild(button);
+  }
+  box.appendChild(row);
+}
+
 function paintSupportChrome(current) {
+  paintSupportActions(current);
   const title = $("supportTitle");
   if (title) title.textContent = current ? "Обращение в поддержку" : "Чат поддержки";
   const status = $("supportStatus");

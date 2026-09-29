@@ -56,6 +56,60 @@ async def _open_help_ticket(callback: CallbackQuery, body: str) -> None:
     await callback.message.answer(notice_text("help_other"))
 
 
+@router.callback_query(F.data.startswith("ticket_close:"))
+async def user_close_prompt(callback: CallbackQuery) -> None:
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    try:
+        ticket_id = int(callback.data.split(":")[1])
+    except (ValueError, IndexError):
+        await callback.answer("Некорректное обращение", show_alert=True)
+        return
+    ticket = await db.get_ticket(ticket_id)
+    if not ticket or int(ticket["telegram_id"]) != callback.from_user.id:
+        await callback.answer("Обращение не найдено", show_alert=True)
+        return
+    await callback.answer()
+    await callback.message.answer("Закрыть обращение? Новое сообщение откроет следующее.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Да, закрыть", callback_data=f"ticket_finish:{ticket_id}"),
+        InlineKeyboardButton(text="Отмена", callback_data="ticket_cancel")]]))
+
+
+@router.callback_query(F.data == "ticket_cancel")
+async def user_close_cancel(callback: CallbackQuery) -> None:
+    await callback.answer("Отменено")
+    await callback.message.edit_text("Закрытие отменено.")
+
+
+@router.callback_query(F.data.startswith("ticket_finish:"))
+async def user_close_ticket(callback: CallbackQuery) -> None:
+    from app.tickets import ticket_rating_keyboard
+    try:
+        ticket_id = int(callback.data.split(":")[1])
+    except (ValueError, IndexError):
+        await callback.answer("Некорректное обращение", show_alert=True)
+        return
+    updated = await db.close_user_ticket(callback.from_user.id, ticket_id)
+    if not updated:
+        await callback.answer("Обращение уже закрыто или недоступно", show_alert=True)
+        return
+    await callback.answer("Обращение закрыто")
+    await callback.message.edit_text(f"Обращение №{ticket_id} закрыто.\nОцените помощь: 1 — плохо, 5 — отлично.", reply_markup=ticket_rating_keyboard(ticket_id))
+
+
+@router.callback_query(F.data.startswith("ticket_rate:"))
+async def user_rate_ticket(callback: CallbackQuery) -> None:
+    try:
+        _, raw_id, raw_rating = callback.data.split(":")
+        updated = await db.rate_user_ticket(callback.from_user.id, int(raw_id), int(raw_rating))
+    except (ValueError, TypeError):
+        updated = None
+    if not updated:
+        await callback.answer("Оценка уже поставлена или обращение недоступно", show_alert=True)
+        return
+    await callback.answer("Спасибо за оценку!")
+    await callback.message.edit_text(f"Обращение №{updated['id']} закрыто. Ваша оценка: {updated['support_rating']} из 5. Спасибо!")
+
+
 @router.message(F.chat.type == "private")
 async def ticket_from_chat(message: Message) -> None:
     if not message.from_user or message.from_user.is_bot:

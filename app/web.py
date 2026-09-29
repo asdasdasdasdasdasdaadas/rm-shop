@@ -1117,6 +1117,37 @@ async def api_ticket_send(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "current": {**ticket, "messages": messages}, "items": items})
 
 
+async def api_ticket_action(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tickets(request)
+    if denied:
+        return denied
+    try:
+        ticket_id = int(request.match_info["ticket_id"])
+        body = await request.json()
+    except (ValueError, TypeError, KeyError):
+        return json_error("Некорректный запрос", 400)
+    if not isinstance(body, dict):
+        return json_error("Некорректный запрос", 400)
+    ticket = await db.get_ticket(ticket_id)
+    if not ticket or int(ticket["telegram_id"]) != telegram_id:
+        return json_error("Обращение не найдено", 404)
+    if body.get("action") == "close":
+        updated = await db.close_user_ticket(telegram_id, ticket_id)
+        if updated:
+            from app.tickets import notify_ticket_closed
+            await notify_ticket_closed(request.app.get("bot"), updated)
+    elif body.get("action") == "rate":
+        try:
+            updated = await db.rate_user_ticket(telegram_id, ticket_id, body.get("rating"))
+        except ValueError as exc:
+            return json_error(str(exc), 400)
+        if not updated:
+            return json_error("Оценка уже поставлена или обращение ещё не закрыто", 409)
+    else:
+        return json_error("Неизвестное действие", 400)
+    return web.json_response({"ok": True})
+
+
 async def api_ticket_file(request: web.Request) -> web.StreamResponse:
     from app.ticket_files import file_token_ok
     from app.tickets import http_file_response
@@ -1296,6 +1327,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/vpn-report", api_vpn_report)
         app.router.add_get("/api/tickets", api_tickets)
         app.router.add_post("/api/tickets", api_ticket_send)
+        app.router.add_post("/api/tickets/{ticket_id}/action", api_ticket_action)
         app.router.add_get("/api/tickets/files/{att_id}", api_ticket_file)
         app.router.add_post("/api/cabinet-leave", api_cabinet_leave)
         app.router.add_post("/api/story-share", api_story_share)

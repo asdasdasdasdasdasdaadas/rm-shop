@@ -594,3 +594,6 @@ CREATE TABLE IF NOT EXISTS pending_legal_messages (
     markup TEXT,
     PRIMARY KEY (telegram_id, message_id)
 );
+
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS support_rating SMALLINT CHECK (support_rating BETWEEN 1 AND 5);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS rated_at TIMESTAMPTZ;

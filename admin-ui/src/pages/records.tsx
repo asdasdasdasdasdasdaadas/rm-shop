@@ -226,6 +226,11 @@ export function RecordsPage({
         cell: (r) => <Status value={r.status} />,
       },
       {
+        key: "support_rating",
+        label: "Оценка поддержки",
+        cell: (r) => (r.support_rating ? `${r.support_rating} / 5 ★` : "—"),
+      },
+      {
         key: "last_body",
         label: "Последнее сообщение",
         cell: (r) => (
@@ -610,6 +615,11 @@ function Ticket({
     <div className="space-y-4 pt-5">
       <div className="flex justify-between">
         <Status value={resource.data.ticket?.status} />
+        {resource.data.ticket?.support_rating && (
+          <span className="text-sm">
+            Оценка: {resource.data.ticket.support_rating} / 5 ★
+          </span>
+        )}
         <Button
           variant="outline"
           size="sm"

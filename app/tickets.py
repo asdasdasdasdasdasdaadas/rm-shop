@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 from aiohttp import web
 from aiogram import Bot
-from aiogram.types import FSInputFile, Message
+from aiogram.types import FSInputFile, Message, InlineKeyboardMarkup, InlineKeyboardButton
 
 from app import db
 from app.config import get_settings
@@ -130,9 +130,10 @@ async def receive_user_message(
                 await bot.send_message(
                     telegram_id,
                     "Тикет открыт. Пишите сюда, если нужно уточнить. Можно прислать скриншот. Ответ придёт в этот чат.",
+                    reply_markup=ticket_close_keyboard(ticket_id),
                 )
             else:
-                await bot.send_message(telegram_id, "Сообщение добавлено в тикет.")
+                await bot.send_message(telegram_id, "Сообщение добавлено в тикет.", reply_markup=ticket_close_keyboard(ticket_id))
         except Exception:
             logger.debug("Не удалось подтвердить тикет %s", telegram_id, exc_info=True)
     if notify_admins and bot:
@@ -167,9 +168,33 @@ async def receive_admin_reply(
                 saved,
                 prefix="Ответ поддержки",
             )
+            await bot.send_message(int(ticket["telegram_id"]), "Если вопрос решён, можно закрыть обращение.", reply_markup=ticket_close_keyboard(ticket_id))
         except Exception:
             logger.debug("Не удалось отправить ответ тикета %s", ticket_id, exc_info=True)
     return ticket
+
+
+def ticket_close_keyboard(ticket_id: int):
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Закрыть обращение", callback_data=f"ticket_close:{ticket_id}")]])
+
+
+def ticket_rating_keyboard(ticket_id: int):
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=f"{score} ★", callback_data=f"ticket_rate:{ticket_id}:{score}")
+        for score in range(1, 6)]])
+
+
+async def notify_ticket_closed(bot, ticket: dict):
+    if not bot:
+        return
+    try:
+        await bot.send_message(int(ticket["telegram_id"]),
+            f"Обращение №{ticket['id']} закрыто. Если проблема вернётся — напишите снова.\n\n"
+            "Как вам помощь поддержки? Оцените от 1 (плохо) до 5 (отлично).",
+            reply_markup=ticket_rating_keyboard(int(ticket["id"])) if not ticket.get("support_rating") else None)
+    except Exception:
+        logger.warning("Cannot deliver ticket closure ticket=%s", ticket["id"], exc_info=True)
 
 
 async def close_ticket(bot: Bot | None, ticket_id: int, *, notify_user: bool = True) -> dict:
@@ -180,11 +205,8 @@ async def close_ticket(bot: Bot | None, ticket_id: int, *, notify_user: bool = T
         return ticket
     await db.set_ticket_status(ticket_id, "closed")
     ticket = await db.get_ticket(ticket_id)
-    if notify_user and bot and ticket:
-        try:
-            await bot.send_message(int(ticket["telegram_id"]), "Тикет закрыт. Если проблема вернётся — напишите снова.")
-        except Exception:
-            logger.debug("Не удалось закрыть тикет у пользователя %s", ticket_id, exc_info=True)
+    if notify_user and ticket:
+        await notify_ticket_closed(bot, ticket)
     return ticket
 
 
