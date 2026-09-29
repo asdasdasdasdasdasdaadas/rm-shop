@@ -28,3 +28,11 @@ class RouterOfferTest(unittest.IsolatedAsyncioTestCase):
         store = {}
         self.assertFalse((await self.load(store))['router_enabled'])
         self.assertEqual(store['router_offer_hidden_v1'], '1')
+
+    async def test_device_limit_upgrade_preserves_later_admin_changes(self):
+        store = {shop_config.KV_KEY: json.dumps({'max_devices': 5})}
+        first = await self.load(store)
+        self.assertEqual(first['max_devices'], 12)
+        first['max_devices'] = 15
+        store[shop_config.KV_KEY] = json.dumps(first)
+        self.assertEqual((await self.load(store))['max_devices'], 15)
