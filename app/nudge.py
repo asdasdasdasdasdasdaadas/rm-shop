@@ -41,13 +41,11 @@ def trial_nudge_text(first_name: str | None, *, already_granted: bool) -> str:
             "Пробные средства уже на балансе. Добавьте устройство в кабинете — "
             "без него VPN не включится, деньги не спишутся."
         )
-    elif settings.balance_enabled:
+    else:
         extra = (
             f"Заберите подарок в личном кабинете — {rub_text(trial_grant_rub())} на {days}. "
             "Нажмите «Принять подарок», и средства поступят на баланс."
         )
-    else:
-        extra = f"Бесплатный период — {days}."
     return notice_text("trial_nudge", name=name, extra=extra)
 
 
@@ -55,10 +53,7 @@ def invite_nudge_text(telegram_id: int, first_name: str | None) -> str:
     settings = get_settings()
     name = first_name or "привет"
     link = f"https://t.me/{settings.bot_username}?start=ref_{telegram_id}"
-    if settings.balance_enabled:
-        reward = "50 ₽ + 5% с каждого пополнения"
-    else:
-        reward = days_text(settings.referral_reward_days)
+    reward = "50 ₽ + 5% с каждого пополнения"
     terms = referral_terms(settings)
     when = terms["when"] + (" " + terms["friend"] if terms["friend"] else "")
     if not settings.referral_program_enabled:
@@ -71,10 +66,7 @@ def invite_nudge_text(telegram_id: int, first_name: str | None) -> str:
 
 def info_nudge_text() -> str:
     settings = get_settings()
-    if settings.balance_enabled:
-        price = rub_text(settings.vpn_day_price_rub)
-    else:
-        price = days_text(1)
+    price = rub_text(settings.vpn_day_price_rub)
     return notice_text("info_nudge", price=price, story="")
 
 
@@ -250,7 +242,7 @@ async def send_due_idle_nudges(bot: Bot, skip_ids: list[int] | None = None) -> t
         if row.get("first_online_at") is None:
             segment = "setup"
             markup = onboarding_keyboard(gift=not row.get("trial_used"), has_device=bool(row.get("has_device")))
-        elif get_settings().balance_enabled and int(row.get("balance_rub") or 0) <= 0:
+        elif int(row.get("balance_rub") or 0) <= 0:
             segment = "topup"
             markup = payment_nudge_keyboard(label="Пополнить баланс")
         else:
@@ -281,8 +273,6 @@ def _days_left_from_row(row: dict) -> int:
 
 async def send_due_first_online_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
     touched: list[int] = []
-    if not get_settings().balance_enabled:
-        return 0, touched
     if await db.flag_on("maintenance"):
         return 0, touched
     sent = 0
@@ -306,7 +296,7 @@ async def send_due_first_online_nudges(bot: Bot, skip_ids: list[int] | None = No
 async def send_due_trial_end_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
     touched: list[int] = []
     settings = get_settings()
-    if not settings.balance_enabled or await db.flag_on("billing_paused"):
+    if await db.flag_on("billing_paused"):
         return 0, touched
     if await db.flag_on("maintenance"):
         return 0, touched

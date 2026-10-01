@@ -8,7 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.config import get_settings
 from app.notices import notice_text
-from app.texts import days_text, rub_text
+from app.texts import rub_text
 from app import runtime
 
 def support_url() -> str:
@@ -39,14 +39,11 @@ def welcome_text() -> str:
 def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> str:
     name = first_name or "друг"
     settings = get_settings()
-    if settings.balance_enabled:
-        rub = 0 if balance_rub is None else balance_rub
-        body = notice_text(
-            "profile_balance", name=name, balance=rub_text(rub),
-            price=rub_text(settings.vpn_day_price_rub),
-        )
-    else:
-        body = notice_text("profile_days", name=name)
+    rub = 0 if balance_rub is None else balance_rub
+    body = notice_text(
+        "profile_balance", name=name, balance=rub_text(rub),
+        price=rub_text(settings.vpn_day_price_rub),
+    )
     return body + "\n\n" + legal_text()
 
 
@@ -151,7 +148,6 @@ def story_webapp_button(*, story_offer: bool) -> InlineKeyboardButton | None:
 
 
 def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bool = True) -> InlineKeyboardMarkup:
-    settings = get_settings()
     builder = InlineKeyboardBuilder()
     if trial_available:
         url = mini_app_url()
@@ -159,29 +155,16 @@ def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bo
             InlineKeyboardButton(text="Забрать подарок", web_app=WebAppInfo(url=url))
             if url else InlineKeyboardButton(text="Забрать подарок", callback_data="trial")
         )
-    if settings.balance_enabled:
-        builder.row(
-            InlineKeyboardButton(
-                text="Пополнить баланс",
-                callback_data="buy",
-            ),
-            InlineKeyboardButton(
-                text="Приведи друга",
-                callback_data="share",
-            ),
-        )
-    else:
-        builder.row(InlineKeyboardButton(text="Купить подписку", callback_data="buy"))
-        days = settings.referral_reward_days
-        builder.row(
-            InlineKeyboardButton(
-                text=f"Приведи друга — {days_text(days)}",
-                callback_data="share",
-            )
-        )
-        if has_access:
-            builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_sub"))
-            builder.row(InlineKeyboardButton(text="Подключиться", callback_data="connect"))
+    builder.row(
+        InlineKeyboardButton(
+            text="Пополнить баланс",
+            callback_data="buy",
+        ),
+        InlineKeyboardButton(
+            text="Приведи друга",
+            callback_data="share",
+        ),
+    )
     story_btn = story_webapp_button(story_offer=story_offer)
     if story_btn:
         builder.row(story_btn)
@@ -295,21 +278,10 @@ def back_profile_keyboard(*, cabinet: bool = False) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def connect_keyboard(sub_url: str) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    if sub_url.startswith("http://") or sub_url.startswith("https://"):
-        builder.row(InlineKeyboardButton(text="Открыть ссылку подписки", url=sub_url))
-    buy_title = "Пополнить баланс" if get_settings().balance_enabled else "Купить подписку"
-    builder.row(InlineKeyboardButton(text="Перевыпустить ссылку", callback_data="reissue_sub"))
-    builder.row(InlineKeyboardButton(text=buy_title, callback_data="buy"))
-    builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
-    return builder.as_markup()
-
-
 def buy_keyboard() -> InlineKeyboardMarkup:
     settings = get_settings()
     builder = InlineKeyboardBuilder()
-    if settings.balance_enabled and runtime.webapp_url:
+    if runtime.webapp_url:
         builder.row(
             InlineKeyboardButton(
                 text="Пополнить",
@@ -346,27 +318,17 @@ def invite_url(telegram_id: int, bot_username: str | None = None) -> str:
 def invite_share_text() -> str:
     settings = get_settings()
     brand = (settings.brand_name or "VPN").strip() or "VPN"
-    if settings.balance_enabled:
-        price = int(settings.vpn_day_price_rub or 0)
-        text = (
-            f"Попробуй {brand}: быстрый VPN в Telegram. "
-            "Подключается за минуту, платишь только за свои устройства"
-        )
-        if price > 0:
-            text += f" (от {price} ₽/сутки)"
-        text += ". Зайди по ссылке."
-        bonus = int(settings.referral_invitee_reward_rub or 0)
-        if settings.referral_program_enabled and bonus > 0:
-            text += f" После первой оплаты на баланс ещё {bonus} ₽, пока реферальная программа активна."
-        return text
-    extra = settings.referral_invitee_days
+    price = int(settings.vpn_day_price_rub or 0)
     text = (
         f"Попробуй {brand}: быстрый VPN в Telegram. "
-        "Подключается за минуту, ссылку подписки всегда можно взять в кабинете. "
-        "Зайди по ссылке."
+        "Подключается за минуту, платишь только за свои устройства"
     )
-    if settings.referral_program_enabled and extra > 0:
-        text += f" На пробном периоде +{days_text(extra)}, пока реферальная программа активна."
+    if price > 0:
+        text += f" (от {price} ₽/сутки)"
+    text += ". Зайди по ссылке."
+    bonus = int(settings.referral_invitee_reward_rub or 0)
+    if settings.referral_program_enabled and bonus > 0:
+        text += f" После первой оплаты на баланс ещё {bonus} ₽, пока реферальная программа активна."
     return text
 
 

@@ -132,9 +132,9 @@ def _guess(local: dict | None, devices: list[dict], panels: list[dict], flags: d
         reasons.append("Тарификация на паузе")
     if flags.get("user_billing_paused"):
         reasons.append("Тарификация отключена этому пользователю")
-    if not devices and get_settings().balance_enabled:
+    if not devices:
         reasons.append("В кабинете нет устройств")
-    if local and get_settings().balance_enabled and int(local.get("balance_rub") or 0) <= 0 and devices:
+    if local and int(local.get("balance_rub") or 0) <= 0 and devices:
         reasons.append("Баланс 0, устройства могут быть отключены")
     if not panels:
         reasons.append("В Remnawave нет учётки")

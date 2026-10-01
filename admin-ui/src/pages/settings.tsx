@@ -95,25 +95,6 @@ const groups: {
         type: "number",
         min: 1,
       },
-      {
-        key: "plan_1m_rub",
-        label: "Тариф на месяц, ₽",
-        type: "number",
-        min: 1,
-      },
-      {
-        key: "plan_3m_rub",
-        label: "Тариф на 3 месяца, ₽",
-        type: "number",
-        min: 1,
-      },
-      {
-        key: "plan_6m_rub",
-        label: "Тариф на 6 месяцев, ₽",
-        type: "number",
-        min: 1,
-      },
-      { key: "plan_12m_rub", label: "Тариф на год, ₽", type: "number", min: 1 },
     ],
   },
   {
@@ -213,20 +194,6 @@ const groups: {
         type: "number",
         min: 1,
       },
-      {
-        key: "referral_reward_days",
-        label: "Дни пригласившему",
-        type: "number",
-        min: 0,
-        max: 365,
-      },
-      {
-        key: "referral_invitee_days",
-        label: "Дни приглашённому",
-        type: "number",
-        min: 0,
-        max: 365,
-      },
     ],
   },
 ];
@@ -320,20 +287,7 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
               }}
             >
               <div className="grid gap-6 sm:grid-cols-2">
-                {group.fields
-                  .filter((f) => {
-                    if (f.key.startsWith("plan_"))
-                      return !resource.data?.balance_enabled;
-                    if (
-                      [
-                        "referral_reward_days",
-                        "referral_invitee_days",
-                      ].includes(f.key)
-                    )
-                      return !resource.data?.balance_enabled;
-                    return true;
-                  })
-                  .map((f) => (
+                {group.fields.map((f) => (
                     <Field key={f.key} label={f.label} hint={f.hint}>
                       {f.type === "switch" ? (
                         <div className="flex gap-3 items-center">
@@ -381,14 +335,7 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
                       value={values.referral_mode || "classic"}
                       options={[
                         ["classic", "Только на баланс"],
-                        ...(resource.data.balance_enabled
-                          ? [
-                              ["payout", "На баланс или вывод"] as [
-                                string,
-                                string,
-                              ],
-                            ]
-                          : []),
+                        ["payout", "На баланс или вывод"],
                       ]}
                       onChange={(v) => {
                         update("referral_mode", v);

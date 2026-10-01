@@ -6,12 +6,11 @@ from math import ceil
 from aiogram import Bot
 
 from app import db
-from app.billing import expire_human
-from app.notices import notice_text, sub_block
+from app.notices import notice_text
 from app.config import get_settings, referral_is_payout
-from app.keyboards import with_referral_share, back_profile_keyboard, cabinet_keyboard, connect_keyboard, share_keyboard
-from app.remnawave import RemnawaveClient, RemnawaveError
-from app.texts import days_text, friends_acc, rub_text
+from app.keyboards import with_referral_share, cabinet_keyboard, share_keyboard
+from app.remnawave import RemnawaveClient
+from app.texts import friends_acc, rub_text
 
 
 def invitee_extra_days(local: dict | None) -> int:
@@ -51,7 +50,7 @@ def referral_payout_public(wallet: dict | None = None) -> dict:
         "pending": 0,
         "available": 0,
     }
-    enabled = bool(settings.balance_enabled and referral_is_payout())
+    enabled = bool(referral_is_payout())
     minimum = max(1, int(settings.referral_payout_min or 2000))
     pending = int(data.get("pending") or 0)
     available = int(data.get("available") or 0)
@@ -106,7 +105,7 @@ def topup_ok_text(amount: str, *, can_share: bool) -> str:
 
 async def maybe_reward_invitee(bot: Bot | None, telegram_id: int) -> int:
     settings = get_settings()
-    if not settings.balance_enabled or not settings.referral_program_enabled:
+    if not settings.referral_program_enabled:
         return 0
     amount = int(settings.referral_invitee_reward_rub or 0)
     if amount < 1:
@@ -143,70 +142,26 @@ async def maybe_reward_referrer(
     *, payment_key: str | None = None, topup_rub: int = 0, first_payment: bool = False,
 ) -> None:
     settings = get_settings()
-    payout = referral_is_payout()
     name = escape(friend_name or "друг")
-    if settings.balance_enabled:
-        result = await db.reward_referral_payment(new_user_id, payment_key or "", topup_rub,
-            enabled=settings.referral_program_enabled, first_payment=first_payment)
-        if result and result.get('campaign') and bot:
-            gift = result['campaign']
-            try:
-                await bot.send_message(gift['referrer_id'],
-                    "🎁 Трое ваших друзей впервые пополнили баланс — подарок ваш!\n\n"
-                    f"Начислили {rub_text(gift['amount'])} на VPN: это стоимость 30 дней на 3 устройства "
-                    "по тарифу на старте акции. При другом количестве устройств срок расходования баланса изменится.\n\n"
-                    "Подарок за эту акцию получен. Спасибо, что рекомендуете нас друзьям!",
-                    reply_markup=with_referral_share(gift['referrer_id'], cabinet_keyboard()))
-            except Exception:
-                pass
-        if result and result['amount'] > 0 and bot:
-            try:
-                await bot.send_message(result['referrer_id'],
-                    f"Друг {name} пополнил баланс. Вам начислено {rub_text(result['amount'])}: "
-                    + (f"бонус за первую оплату {rub_text(result['bonus'])} и " if result['bonus'] else "")
-                    + f"5% от пополнения ({rub_text(result['percent'])}).",
-                    reply_markup=with_referral_share(result["referrer_id"], cabinet_keyboard()))
-            except Exception:
-                pass
-        return
-    if not settings.referral_program_enabled:
-        return
-    days = settings.referral_reward_days
-    if days < 1:
-        return
-    referrer_id = await db.claim_referral_reward(new_user_id, require_paid=True)
-    if not referrer_id:
-        return
-    try:
-        local = await db.get_user(referrer_id)
-        panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
-        user = await rw.extend_subscription(
-            referrer_id,
-            days,
-            tag="REF",
-            panel_user_id=panel_id,
-        )
-        await db.save_panel_snapshot(referrer_id, user)
-        extra = user.get("subscriptionUrl") or ""
-        key = "referral_referrer_paid_days" if payout else "referral_referrer_days"
-        text = notice_text(
-            key,
-            name=name,
-            days=days_text(days),
-            expire=expire_human(user),
-            sub_block=sub_block(extra),
-        )
-        sub_url = extra
-    except RemnawaveError:
-        await db.unclaim_referral_reward(new_user_id)
-        return
-    if not bot:
-        return
-    try:
-        await bot.send_message(
-            referrer_id,
-            text,
-            reply_markup=with_referral_share(referrer_id, connect_keyboard(sub_url) if sub_url else back_profile_keyboard()),
-        )
-    except Exception:
-        pass
+    result = await db.reward_referral_payment(new_user_id, payment_key or "", topup_rub,
+        enabled=settings.referral_program_enabled, first_payment=first_payment)
+    if result and result.get('campaign') and bot:
+        gift = result['campaign']
+        try:
+            await bot.send_message(gift['referrer_id'],
+                "🎁 Трое ваших друзей впервые пополнили баланс — подарок ваш!\n\n"
+                f"Начислили {rub_text(gift['amount'])} на VPN: это стоимость 30 дней на 3 устройства "
+                "по тарифу на старте акции. При другом количестве устройств срок расходования баланса изменится.\n\n"
+                "Подарок за эту акцию получен. Спасибо, что рекомендуете нас друзьям!",
+                reply_markup=with_referral_share(gift['referrer_id'], cabinet_keyboard()))
+        except Exception:
+            pass
+    if result and result['amount'] > 0 and bot:
+        try:
+            await bot.send_message(result['referrer_id'],
+                f"Друг {name} пополнил баланс. Вам начислено {rub_text(result['amount'])}: "
+                + (f"бонус за первую оплату {rub_text(result['bonus'])} и " if result['bonus'] else "")
+                + f"5% от пополнения ({rub_text(result['percent'])}).",
+                reply_markup=with_referral_share(result["referrer_id"], cabinet_keyboard()))
+        except Exception:
+            pass

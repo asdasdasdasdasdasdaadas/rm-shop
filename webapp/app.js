@@ -1874,16 +1874,6 @@ function periodTopupRub(me, days) {
 }
 
 function periodTopupPlans(me) {
-  if (!me.balance_enabled) {
-    const order = { "1m": 1, "3m": 2, "6m": 3, "12m": 4 };
-    return (me.plans || [])
-      .filter((p) => order[p.code])
-      .sort((a, b) => order[a.code] - order[b.code])
-      .map((p) => Object.assign({}, p, {
-        label: p.title,
-        hit: p.code === "6m",
-      }));
-  }
   const day = Math.max(1, Number(me.vpn_day_price_rub) || 1);
   const min = Number(me.topup_min) || 1;
   const max = Number(me.topup_max) || 5000;
@@ -1913,45 +1903,35 @@ function monthTopupPlan(me) {
 }
 
 function currentTopupPlan(me) {
-  if (me.balance_enabled) {
-    const min = Number(me.topup_min) || 1;
-    const max = Number(me.topup_max) || min;
-    const n = Number(topupCustomRub);
-    if (!Number.isFinite(n) || n < min || n > max) return null;
-    return {
-      code: "b" + n,
-      title: n + " рублей",
-      topup_rub: n,
-      rub: n,
-    };
-  }
-  const plans = periodTopupPlans(me);
-  return plans.find((p) => p.code === topupCode) || plans.find((p) => p.hit) || plans[0] || null;
+  const min = Number(me.topup_min) || 1;
+  const max = Number(me.topup_max) || min;
+  const n = Number(topupCustomRub);
+  if (!Number.isFinite(n) || n < min || n > max) return null;
+  return {
+    code: "b" + n,
+    title: n + " рублей",
+    topup_rub: n,
+    rub: n,
+  };
 }
 
 function ensureTopupCode(me) {
   const plans = periodTopupPlans(me);
   if (!plans.length) return;
-  if (me.balance_enabled) {
-    const min = Number(me.topup_min) || 1;
-    const max = Number(me.topup_max) || min;
-    if (!Number.isFinite(topupCustomRub) || topupCustomRub < min || topupCustomRub > max) {
-      const hit = plans.find((p) => p.hit) || plans[0];
-      topupCustomRub = planRub(hit) || min;
-    }
-    topupCode = "b" + topupCustomRub;
-    return;
+  const min = Number(me.topup_min) || 1;
+  const max = Number(me.topup_max) || min;
+  if (!Number.isFinite(topupCustomRub) || topupCustomRub < min || topupCustomRub > max) {
+    const hit = plans.find((p) => p.hit) || plans[0];
+    topupCustomRub = planRub(hit) || min;
   }
-  if (plans.some((p) => p.code === topupCode)) return;
-  const hit = plans.find((p) => p.hit);
-  topupCode = (hit || plans[0] || {}).code || "";
+  topupCode = "b" + topupCustomRub;
 }
 
 function updateTopupCta(me) {
   const plan = currentTopupPlan(me);
   if (!plan) {
     const min = Number(me.topup_min) || 1;
-    setMain(me.balance_enabled ? `Укажите сумму от ${min} ₽` : "Выберите сумму");
+    setMain(`Укажите сумму от ${min} ₽`);
     const btn = $("appMainBtn");
     if (btn) btn.disabled = true;
     return;
@@ -1964,11 +1944,7 @@ function updateTopupCta(me) {
     return;
   }
   const useMethods = methods.length > 0;
-  const label = useMethods
-    ? "Выбрать способ оплаты"
-    : me.balance_enabled
-      ? "Оплатить"
-      : `Оплатить · ${plan.title}`;
+  const label = useMethods ? "Выбрать способ оплаты" : "Оплатить";
   setMain(label, async () => {
     haptic();
     if (useMethods) {
@@ -1995,16 +1971,12 @@ function paintTopupSum(me) {
     const amount = planRub(plan);
     sumEl.textContent = `${amount} ₽`;
     sumEl.classList.remove("is-empty");
-    if (me.balance_enabled) {
-      hintEl.textContent = `≈ ${daysLabel(topupDaysFor(me, amount))}`;
-    } else {
-      hintEl.textContent = plan.label || plan.title || "Выбранный тариф";
-    }
+    hintEl.textContent = `≈ ${daysLabel(topupDaysFor(me, amount))}`;
     return;
   }
   sumEl.textContent = "0 ₽";
   sumEl.classList.add("is-empty");
-  hintEl.textContent = me.balance_enabled ? "Введите или выберите сумму" : "Выберите сумму";
+  hintEl.textContent = "Введите или выберите сумму";
 }
 function browserCabinet() {
   return Boolean(lkToken) && !tg.initData;
@@ -2698,21 +2670,14 @@ function paintReferrals(me) {
   if (!me) return;
   const invited = Number(me.invited_count) || 0;
   const earned = Number(me.referral_earned) || 0;
-  const rewarded = Number(me.referral_rewarded_count) || 0;
   const countEl = $("refCountValue");
   const countLabel = $("refCountLabel");
   const earnEl = $("refEarnValue");
   const earnLabel = $("refEarnLabel");
   if (countEl) countEl.textContent = String(invited);
   if (countLabel) countLabel.textContent = friendsWord(invited);
-  if (me.balance_enabled) {
-    if (earnEl) earnEl.textContent = earned + " ₽";
-    if (earnLabel) earnLabel.textContent = "получено";
-  } else {
-    const days = rewarded * (Number(me.referral_reward_days) || 0);
-    if (earnEl) earnEl.textContent = String(days);
-    if (earnLabel) earnLabel.textContent = daysWord(days);
-  }
+  if (earnEl) earnEl.textContent = earned + " ₽";
+  if (earnLabel) earnLabel.textContent = "получено";
   const terms = me.referral_terms || {
     note: "Актуальные условия доступны в разделе «Пригласить друга» в боте.", when: "", how: "", friend: ""
   };
@@ -3014,7 +2979,7 @@ function renderPayMethod(plan) {
   const amount = planRub(plan);
   const title = document.querySelector("#view-pay .pay-title");
   if (title) {
-    title.textContent = me && me.balance_enabled ? "Пополнение баланса" : "Оплата подписки";
+    title.textContent = "Пополнение баланса";
   }
   const num = $("payAmountNum");
   if (num) num.textContent = String(amount || 0);
@@ -3055,61 +3020,35 @@ function renderTopup(me) {
   renderPaymentBalance(me);
   ensureTopupCode(me);
   const plans = periodTopupPlans(me);
-  const canCustom = Boolean(me.balance_enabled);
+  const canCustom = true;
   const customPanel = $("customPanel");
-  if (customPanel) customPanel.classList.toggle("hidden", !canCustom);
+  if (customPanel) customPanel.classList.remove("hidden");
   const titleEl = document.querySelector("#view-topup .topup-title");
-  if (titleEl) {
-    titleEl.textContent = me.balance_enabled ? "Пополнение баланса" : "Оплата подписки";
-  }
-  $("topupHint").textContent = me.balance_enabled
-    ? "Зачисление средств может занять до 15 минут!"
-    : "Выберите срок. Оплата откроется в следующем шаге.";
+  if (titleEl) titleEl.textContent = "Пополнение баланса";
+  $("topupHint").textContent = "Зачисление средств может занять до 15 минут!";
   const legal = $("topupLegal");
   if (legal) {
-    legal.textContent = me.balance_enabled
-      ? "Пополнение баланса является однократной операцией (не подписка). Мы не имеем доступа к вашим личным и платежным данным."
-      : "Оплата оформляется один раз за выбранный срок. Мы не имеем доступа к вашим личным и платежным данным.";
+    legal.textContent = "Пополнение баланса является однократной операцией (не подписка). Мы не имеем доступа к вашим личным и платежным данным.";
   }
   const grid = $("topupGrid");
-  grid.classList.toggle("topup-amounts", Boolean(me.balance_enabled));
+  grid.classList.add("topup-amounts");
   grid.innerHTML = "";
   plans.forEach((plan) => {
     const amount = planRub(plan);
-    const selected = me.balance_enabled
-      ? amount === Number(topupCustomRub)
-      : plan.code === topupCode;
+    const selected = amount === Number(topupCustomRub);
     const b = document.createElement("button");
     b.type = "button";
     b.className = "pay-card" + (selected ? " on" : "") + (plan.hit ? " hit" : "");
-    if (!me.balance_enabled && plan.hit) {
-      const badge = document.createElement("span");
-      badge.className = "pay-badge hot";
-      badge.textContent = "Хит";
-      b.appendChild(badge);
-    }
     const amt = document.createElement("div");
     amt.className = "pay-amount";
     amt.textContent = `${amount} ₽`;
     b.appendChild(amt);
-    if (!me.balance_enabled) {
-      const days = document.createElement("div");
-      days.className = "pay-days";
-      days.textContent = plan.label || daysLabel(plan.days);
-      b.appendChild(days);
-      const rateEl = document.createElement("div");
-      rateEl.className = "pay-rate";
-      rateEl.textContent = plan.rub ? `${plan.rub} ₽` : `${plan.stars} звёзд`;
-      b.appendChild(rateEl);
-    }
     b.onclick = () => {
       haptic();
       topupCode = plan.code;
-      if (me.balance_enabled) {
-        topupCustomRub = amount;
-        const inp = $("topupAmount");
-        if (inp) inp.value = String(amount);
-      }
+      topupCustomRub = amount;
+      const inp = $("topupAmount");
+      if (inp) inp.value = String(amount);
       renderTopup(me);
     };
     grid.appendChild(b);
@@ -3644,49 +3583,10 @@ function showDevice(d) {
   setMain("");
 }
 
-function renderConnect(me) {
+function renderConnect() {
   const wrap = $("connectWrap");
-  const body = $("connectBody");
-  if (me.balance_enabled) {
-    wrap.classList.add("hidden");
-    lastConnectUrl = null;
-    return;
-  }
-  wrap.classList.remove("hidden");
-  const url = me.subscription_url || "";
-  if (url === lastConnectUrl && body.childElementCount) return;
-  lastConnectUrl = url;
-  body.innerHTML = "";
-  if (!me.subscription_url) {
-    const p = document.createElement("p");
-    p.className = "muted";
-    p.textContent = "Ссылка появится после бесплатного периода или оплаты.";
-    body.appendChild(p);
-    return;
-  }
-  const copyRow = document.createElement("button");
-  copyRow.type = "button";
-  copyRow.className = "cell copy-cell";
-  copyRow.textContent = me.subscription_url;
-  const copyBtn = document.createElement("button");
-  copyBtn.type = "button";
-  copyBtn.className = "cell action";
-  copyBtn.textContent = "Скопировать ссылку";
-  const copy = () => {
-    haptic();
-    navigator.clipboard.writeText(me.subscription_url);
-    tg.showAlert("Ссылка скопирована");
-  };
-  copyRow.onclick = copy;
-  copyBtn.onclick = copy;
-  const reissueBtn = document.createElement("button");
-  reissueBtn.type = "button";
-  reissueBtn.className = "cell action";
-  reissueBtn.textContent = "Перевыпустить ссылку";
-  reissueBtn.onclick = () => reissueSubscription();
-  body.appendChild(copyRow);
-  body.appendChild(copyBtn);
-  body.appendChild(reissueBtn);
+  if (wrap) wrap.classList.add("hidden");
+  lastConnectUrl = null;
 }
 
 function isRouterDevice(d) {
@@ -3711,11 +3611,6 @@ let lastDevicesKey = "";
 
 function renderDevices(me) {
   const block = $("devicesBlock");
-  if (!me.balance_enabled) {
-    block.classList.add("hidden");
-    lastDevicesKey = "";
-    return;
-  }
   block.classList.remove("hidden");
   const n = me.devices.length;
   const phoneN = phoneDevices(me).length;
@@ -4177,6 +4072,7 @@ function paintTrialNotice(me) {
 }
 
 function paint(me) {
+  if (me) me.balance_enabled = true;
   applyVpnApps(me.vpn_apps);
   if (me.brand_name) document.title = me.brand_name;
   $("name").textContent = me.user.name;
@@ -4238,9 +4134,7 @@ function paint(me) {
   if (me.trial_available && offerSkipped()) {
     const trialHomeBtn = $("trialHomeBtn");
     trialHomeBtn.classList.remove("hidden");
-    trialHomeBtn.textContent = me.balance_enabled
-      ? `Попробовать бесплатно · ${rublesLabel(me.trial_rub)}`
-      : `Попробовать бесплатно · ${daysLabel(me.trial_days)}`;
+    trialHomeBtn.textContent = `Попробовать бесплатно · ${rublesLabel(me.trial_rub)}`;
   } else {
     $("trialHomeBtn").classList.add("hidden");
   }
@@ -4326,6 +4220,7 @@ async function load() {
   }
   const seq = ++loadSeq;
   const me = await api("/api/me");
+  if (me) me.balance_enabled = true;
   if (seq !== loadSeq) return;
   if (me.maintenance) {
     showMaint(me.notice);
@@ -4346,8 +4241,7 @@ async function load() {
     paint(me);
     if (gift) openOffer({ instant: true });
     else if (device) showDevice(device);
-    else if (me.balance_enabled) startWizard({ instant: true });
-    else openHome();
+    else startWizard({ instant: true });
     return;
   }
   if (!paymentEntryHandled && new URLSearchParams(window.location.search).get("screen") === "topup") {

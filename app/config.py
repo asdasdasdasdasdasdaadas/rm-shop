@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     rollypay_crypto_enabled: bool = False
     rollypay_crypto_method: str = "usdt"
 
-    balance_enabled: bool = False
+    balance_enabled: bool = True
     vpn_day_price_rub: int = 6
     max_devices: int = 12
     balance_topup_min: int = 50
@@ -153,8 +153,6 @@ class Settings(BaseSettings):
 
     @property
     def shop_plans(self) -> dict[str, dict]:
-        if not self.balance_enabled:
-            return self.plans
         result: dict[str, dict] = {}
         amount = self.balance_topup_min
         step = max(1, self.balance_topup_step)
@@ -171,7 +169,7 @@ class Settings(BaseSettings):
         return result
 
     def router_plan(self) -> dict | None:
-        if not self.router_enabled or not self.balance_enabled:
+        if not self.router_enabled:
             return None
         days = max(1, int(self.router_days or 30))
         try:
@@ -199,7 +197,22 @@ class Settings(BaseSettings):
         plan = self.shop_plans.get(key)
         if plan:
             return plan
-        if not self.balance_enabled or not key.startswith("b"):
+        legacy = self.plans.get(key)
+        if legacy:
+            try:
+                rub = int(round(float(legacy.get("rub") or 0)))
+            except (TypeError, ValueError):
+                rub = 0
+            if rub < 1:
+                return None
+            return {
+                **legacy,
+                "days": 0,
+                "topup_rub": rub,
+                "rub": float(rub),
+                "rub_str": f"{rub:.2f}",
+            }
+        if not key.startswith("b"):
             return None
         raw = key[1:]
         if not raw.isdigit():
@@ -318,11 +331,10 @@ def _env_settings() -> Settings:
 
 def get_settings() -> Settings:
     base = _env_settings()
-    if not _overlay and base.promo_enabled:
-        return base
     update = dict(_overlay)
     # Promo redemption is always available, including installations with an old disabled setting.
     update["promo_enabled"] = True
+    update["balance_enabled"] = True
     update.pop("vpn_apps", None)
     update.pop("pay_methods", None)
     update.pop("notices", None)

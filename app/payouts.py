@@ -99,8 +99,7 @@ async def notify_admins_payout(bot: Bot, user: dict, payout: dict) -> None:
 
 
 async def request_referral_payout(bot: Bot, telegram_id: int, details: str) -> tuple[bool, str]:
-    settings = get_settings()
-    if not (settings.balance_enabled and referral_is_payout()):
+    if not referral_is_payout():
         return False, "Вывод реферальных сейчас выключен"
     note = (details or "").strip()
     if len(note) < 6:

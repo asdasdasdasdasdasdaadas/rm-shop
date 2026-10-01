@@ -37,7 +37,7 @@ logger = logging.getLogger("rm-shop")
 async def balance_charge_loop(rw: RemnawaveClient, bot: Bot) -> None:
     settings = get_settings()
     interval = settings.balance_charge_interval
-    if not settings.balance_enabled or interval <= 0:
+    if interval <= 0:
         return
     await asyncio.sleep(min(20, interval))
     while True:

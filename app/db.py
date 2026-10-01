@@ -1633,8 +1633,6 @@ async def mark_bot_blocked(telegram_id: int) -> bool:
 
 async def clawback_idle_referral(invitee_id: int) -> dict | None:
     settings = get_settings()
-    if not settings.balance_enabled:
-        return None
     amount = int(settings.referral_reward_rub or 0)
     if amount < 1:
         return None
@@ -4901,8 +4899,8 @@ async def change_referral_campaign(action: str, campaign_id: int | None = None,
     if action not in ('start', 'stop', 'schedule', 'cancel_schedule', 'scheduled_start'):
         raise ValueError('Неизвестное действие')
     settings = get_settings()
-    if action in ('start', 'schedule') and (not settings.balance_enabled or settings.vpn_day_price_rub <= 0):
-        raise ValueError('Акция доступна при оплате с баланса и положительной цене дня')
+    if action in ('start', 'schedule') and settings.vpn_day_price_rub <= 0:
+        raise ValueError('Акция доступна при положительной цене дня')
     async with _pool_req().acquire() as conn:
         async with conn.transaction():
             await conn.execute('SELECT pg_advisory_xact_lock(73619420)')
@@ -4922,8 +4920,8 @@ async def change_referral_campaign(action: str, campaign_id: int | None = None,
                     WHERE id=1 AND scheduled_at <= $1 RETURNING scheduled_at""", _utc_now())
                 if due is None:
                     return
-                if not settings.balance_enabled or settings.vpn_day_price_rub <= 0:
-                    raise ValueError('Нельзя запустить акцию: проверьте режим баланса и цену дня')
+                if settings.vpn_day_price_rub <= 0:
+                    raise ValueError('Нельзя запустить акцию: проверьте цену дня')
                 action = 'start'
             if action == 'start':
                 await conn.execute('DELETE FROM referral_campaign_schedule WHERE id=1')

@@ -65,10 +65,6 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Пока устройств нет, баланс не списывается. "
         "Сюда можно зайти даже если VPN уже не работает."
     ),
-    "profile_days": (
-        "Здравствуйте, {name}.\n"
-        "Выберите действие. Кнопка «Открыть кабинет» внизу — там подписка и подключение."
-    ),
     "low_balance": (
         "На балансе не хватает средств на сутки VPN. "
         "Стоимость: {price} за устройство в день. "
@@ -225,22 +221,10 @@ DEFAULT_NOTICES: dict[str, str] = {
     "referral_invitee_paid": (
         "За первую оплату по ссылке друга на баланс ещё <b>{amount}</b>."
     ),
-    "referral_referrer_days": (
-        "<b>Поздравляем</b>\n\n"
-        "Друг {name} первый раз оплатил VPN по вашей ссылке.\n"
-        "Вам начислено <b>{days}</b> подписки.\n\n"
-        "Действует до: <b>{expire}</b>{sub_block}"
-    ),
     "referral_referrer_paid": (
         "<b>Поздравляем</b>\n\n"
         "Друг {name} первый раз оплатил VPN по вашей ссылке.\n"
         "Вам начислено <b>{amount}</b> на баланс. Это реферальные: их можно вывести при накоплении порога."
-    ),
-    "referral_referrer_paid_days": (
-        "<b>Поздравляем</b>\n\n"
-        "Друг {name} первый раз оплатил VPN по вашей ссылке.\n"
-        "Вам начислено <b>{days}</b> подписки.\n\n"
-        "Действует до: <b>{expire}</b>{sub_block}"
     ),
     "referral_payout_submitted": (
         "Заявка на вывод <b>{amount}</b> принята. "
@@ -259,10 +243,6 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Роутер оплачен на {days} дн., до {expire}. "
         "Создайте устройство в кабинете и вставьте ссылку в настройки роутера. "
         "С баланса телефонов эта сумма не списывается."
-    ),
-    "subscription_issued": (
-        "<b>{title}</b>\n\n"
-        "Действует до: <b>{expire}</b>{sub_block}"
     ),
     "sub_reissued": (
         "Ссылка подписки обновлена. Старая больше не работает.\n\n"
@@ -298,8 +278,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "welcome_intro_channel", "title": "Первый запуск: подписка на канал", "hint": ""},
     {"key": "welcome_intro_legal", "title": "Первый запуск: оферта", "hint": ""},
     {"key": "legal", "title": "Оферта и политика", "hint": ""},
-    {"key": "profile_balance", "title": "Профиль (режим баланса)", "hint": "{name} {balance} {price}"},
-    {"key": "profile_days", "title": "Профиль (режим подписки)", "hint": "{name}"},
+    {"key": "profile_balance", "title": "Профиль", "hint": "{name} {balance} {price}"},
     {"key": "low_balance", "title": "Не хватает денег на сутки", "hint": "{price}"},
     {"key": "cabinet_link", "title": "Запасная ссылка без VPN", "hint": "{url}"},
     {"key": "cabinet_login", "title": "Подтверждение входа на сайт", "hint": ""},
@@ -337,16 +316,13 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "referral_referrer_balance", "title": "Реферал: пригласившему (оплата, баланс)", "hint": "{name} {amount} {nxt}"},
     {"key": "referral_invitee_balance", "title": "Реферал: другу (устарело)", "hint": "{amount}"},
     {"key": "referral_invitee_paid", "title": "Реферал: другу за первую оплату", "hint": "{amount}"},
-    {"key": "referral_referrer_days", "title": "Реферал: пригласившему дни (оплата)", "hint": "{name} {days} {expire} {sub_block}"},
     {"key": "referral_referrer_paid", "title": "Реферал: пригласившему (оплата)", "hint": "{name} {amount} {nxt}"},
-    {"key": "referral_referrer_paid_days", "title": "Реферал: пригласившему дни (оплата)", "hint": "{name} {days} {expire} {sub_block}"},
     {"key": "referral_payout_submitted", "title": "Реферал: заявка на вывод", "hint": "{amount}"},
     {"key": "referral_payout_paid", "title": "Реферал: выплата прошла", "hint": "{amount}"},
     {"key": "referral_payout_rejected", "title": "Реферал: выплата отклонена", "hint": "{amount}"},
     {"key": "referral_clawback", "title": "Реферал: возврат за блок бота", "hint": "{name} {amount}"},
     {"key": "topup_ok", "title": "Баланс пополнен", "hint": "{amount}"},
     {"key": "router_ok", "title": "Роутер оплачен", "hint": "{amount} {days} {expire}"},
-    {"key": "subscription_issued", "title": "Подписка оформлена", "hint": "{title} {expire} {sub_block}"},
     {"key": "sub_reissued", "title": "Ссылка подписки перевыпущена", "hint": "{links}"},
     {"key": "blocked", "title": "Пользователь заблокирован", "hint": ""},
     {"key": "payment_nudge", "title": "Незавершённая оплата: 10 минут", "hint": ""},

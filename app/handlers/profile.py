@@ -10,13 +10,12 @@ from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
 
 from app import db
 from app.checkout import resume_checkout
-from app.billing import expire_human, fulfill_rollypay_order, grant_plan, subscription_issued_text
+from app.billing import fulfill_rollypay_order, grant_plan
 from app.config import get_settings, referral_is_payout
 from app.handlers.start import ack, gate_or_continue, show_profile
 from app.keyboards import (
     back_profile_keyboard,
     buy_keyboard,
-    connect_keyboard,
     faq_keyboard,
     pay_keyboard,
     payment_nudge_keyboard,
@@ -26,7 +25,6 @@ from app.keyboards import (
 from app.remnawave import (
     RemnawaveClient,
     RemnawaveError,
-    is_subscription_active,
 )
 from app.referrals import (
     after_topup_keyboard,
@@ -35,20 +33,11 @@ from app.referrals import (
 )
 from app.reports import ReportCooldown, submit_vpn_report
 from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, resolve_payment_method
-from app.sync import fetch_panel
 from app.notices import notice_text
-from app.texts import days_text, minutes_text, rub_text
+from app.texts import minutes_text, rub_text
 
 router = Router()
 logger = logging.getLogger("rm-shop.profile")
-
-
-def _status_human(user: dict | None) -> str:
-    if not user:
-        return "не создана"
-    if is_subscription_active(user):
-        return "активна"
-    return str(user.get("status") or "неактивна")
 
 
 @router.callback_query(F.data == "trial")
@@ -82,7 +71,7 @@ async def share(callback: CallbackQuery) -> None:
     body = "<b>Пригласить друга</b>\n\n" + "\n\n".join(
         text for text in (terms["note"], terms["when"], terms["how"], terms["friend"]) if text
     )
-    if settings.balance_enabled and referral_is_payout():
+    if referral_is_payout():
         body += f"\n\nВывести уже начисленные реферальные средства можно от {rub_text(settings.referral_payout_min)}."
     body += f"\n\nВаша ссылка:\n<code>{link}</code>"
     await callback.message.edit_text(
@@ -94,43 +83,23 @@ async def share(callback: CallbackQuery) -> None:
     )
 
 
-async def _panel_user(rw: RemnawaveClient, telegram_id: int) -> dict | None:
-    return await fetch_panel(rw, telegram_id)
-
-
 @router.callback_query(F.data == "my_sub")
 async def my_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await gate_or_continue(callback):
         return
     await ack(callback)
     settings = get_settings()
-    if settings.balance_enabled:
-        local = await db.get_user(callback.from_user.id)
-        rub = int((local or {}).get("balance_rub") or 0)
-        n = await db.device_count(callback.from_user.id)
-        await callback.message.edit_text(
-            "<b>Баланс</b>\n\n"
-            f"Сейчас: <b>{rub_text(rub)}</b>\n"
-            f"Устройств: <b>{n}</b>\n"
-            f"Списание: <b>{rub_text(settings.vpn_day_price_rub)}</b> в сутки за устройство, "
-            "только пока есть хотя бы одно устройство.\n"
-            "Устройства добавляются в кабинете.",
-            reply_markup=buy_keyboard(),
-        )
-        return
-    try:
-        user = await _panel_user(rw, callback.from_user.id)
-    except RemnawaveError as exc:
-        await callback.message.edit_text(str(exc), reply_markup=back_profile_keyboard())
-        return
-    sub_url = (user or {}).get("subscriptionUrl") or ""
-    extra = f"\n\nСсылка подписки:\n<code>{sub_url}</code>" if sub_url and is_subscription_active(user) else ""
+    local = await db.get_user(callback.from_user.id)
+    rub = int((local or {}).get("balance_rub") or 0)
+    n = await db.device_count(callback.from_user.id)
     await callback.message.edit_text(
-        "<b>Моя подписка</b>\n\n"
-        f"Статус: <b>{_status_human(user)}</b>\n"
-        f"Действует до: <b>{expire_human(user)}</b>"
-        f"{extra}",
-        reply_markup=connect_keyboard(sub_url) if sub_url else buy_keyboard(),
+        "<b>Баланс</b>\n\n"
+        f"Сейчас: <b>{rub_text(rub)}</b>\n"
+        f"Устройств: <b>{n}</b>\n"
+        f"Списание: <b>{rub_text(settings.vpn_day_price_rub)}</b> в сутки за устройство, "
+        "только пока есть хотя бы одно устройство.\n"
+        "Устройства добавляются в кабинете.",
+        reply_markup=buy_keyboard(),
     )
 
 
@@ -139,30 +108,9 @@ async def connect(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await gate_or_continue(callback):
         return
     await ack(callback)
-    try:
-        user = await _panel_user(rw, callback.from_user.id)
-    except RemnawaveError as exc:
-        await callback.message.edit_text(str(exc), reply_markup=back_profile_keyboard())
-        return
-    sub_url = (user or {}).get("subscriptionUrl")
-    if not user or not sub_url:
-        await callback.message.edit_text(
-            "Подписка ещё не создана. Нажмите «Попробовать бесплатно» или купите подписку.",
-            reply_markup=buy_keyboard(),
-        )
-        return
-    if not is_subscription_active(user):
-        await callback.message.edit_text(
-            "Подписка неактивна. Оформите тариф ниже.",
-            reply_markup=buy_keyboard(),
-        )
-        return
     await callback.message.edit_text(
-        "<b>Подключение</b>\n\n"
-        "1. Установите клиент (Happ / v2RayTun / Streisand).\n"
-        "2. Импортируйте ссылку подписки.\n\n"
-        f"<code>{sub_url}</code>",
-        reply_markup=connect_keyboard(sub_url),
+        "Подключение — в кабинете: добавьте устройство и откройте его ссылку.",
+        reply_markup=back_profile_keyboard(cabinet=True),
     )
 
 
@@ -171,32 +119,9 @@ async def reissue_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await gate_or_continue(callback):
         return
     await ack(callback)
-    settings = get_settings()
-    if settings.balance_enabled:
-        await callback.message.edit_text(
-            "Ссылку подписки можно обновить в кабинете, на экране устройства.",
-            reply_markup=back_profile_keyboard(),
-        )
-        return
-    try:
-        user = await _panel_user(rw, callback.from_user.id)
-        if not user:
-            await callback.message.edit_text(
-                "Подписка ещё не создана.",
-                reply_markup=buy_keyboard(),
-            )
-            return
-        user = await rw.revoke_subscription(user)
-    except RemnawaveError as exc:
-        await callback.message.edit_text(str(exc), reply_markup=back_profile_keyboard())
-        return
-    await db.save_panel_snapshot(callback.from_user.id, user)
-    sub_url = user.get("subscriptionUrl") or ""
     await callback.message.edit_text(
-        "<b>Ссылка перевыпущена</b>\n\n"
-        "Старая больше не действует. Обновите подписку в клиенте.\n\n"
-        f"<code>{sub_url}</code>",
-        reply_markup=connect_keyboard(sub_url) if sub_url else back_profile_keyboard(),
+        "Ссылку подписки можно обновить в кабинете, на экране устройства.",
+        reply_markup=back_profile_keyboard(),
     )
 
 
@@ -205,24 +130,12 @@ async def buy_menu(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await gate_or_continue(callback):
         return
     await ack(callback)
-    try:
-        user = await _panel_user(rw, callback.from_user.id)
-    except RemnawaveError:
-        user = None
     settings = get_settings()
-    if settings.balance_enabled:
-        text = (
-            "<b>Пополнение баланса</b>\n\n"
-            f"Сутки на одно устройство: {rub_text(settings.vpn_day_price_rub)}. "
-            "Пока устройств нет, баланс не списывается."
-        )
-    else:
-        text = (
-            "<b>Покупка подписки</b>\n\n"
-            f"Сейчас: <b>{_status_human(user)}</b>\n"
-            f"До: <b>{expire_human(user)}</b>\n\n"
-            "Если подписка ещё действует, оплаченный срок добавится к текущей дате."
-        )
+    text = (
+        "<b>Пополнение баланса</b>\n\n"
+        f"Сутки на одно устройство: {rub_text(settings.vpn_day_price_rub)}. "
+        "Пока устройств нет, баланс не списывается."
+    )
     await callback.message.edit_text(text, reply_markup=buy_keyboard())
 
 
@@ -308,8 +221,8 @@ async def _create_plan_invoice(
     if settings.stars_enabled:
         await ack(callback)
         link = await callback.bot.create_invoice_link(
-            title=f"Подписка {plan['title']}",
-            description=f"Доступ на {days_text(plan['days'])}, трафик безлимитный.",
+            title=f"Пополнение: {plan['title']}",
+            description=f"Пополнение на {plan.get('title') or plan['rub_str']}.",
             payload=f"plan:{code}",
             currency="XTR",
             prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
@@ -375,27 +288,14 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
             reply_markup=back_profile_keyboard(),
         )
         return
-    if user is None and not settings.balance_enabled:
-        await callback.message.edit_text(
-            notice_text("payment_duplicate"),
-            reply_markup=back_profile_keyboard(),
-        )
-        return
-    if settings.balance_enabled:
-        local = await db.get_user(callback.from_user.id)
-        can_share = bool(local and local.get("first_online_at"))
-        await callback.message.edit_text(
-            topup_ok_text(
-                rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
-                can_share=can_share,
-            ),
-            reply_markup=await after_topup_keyboard(callback.from_user.id),
-        )
-        return
-    sub_url = (user or {}).get("subscriptionUrl") or ""
+    local = await db.get_user(callback.from_user.id)
+    can_share = bool(local and local.get("first_online_at"))
     await callback.message.edit_text(
-        subscription_issued_text(user or {}, f"Подписка оформлена: {plan.get('title')}"),
-        reply_markup=connect_keyboard(sub_url) if sub_url else back_profile_keyboard(),
+        topup_ok_text(
+            rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
+            can_share=can_share,
+        ),
+        reply_markup=await after_topup_keyboard(callback.from_user.id),
     )
 
 
@@ -450,21 +350,14 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
     except RemnawaveError as exc:
         await message.answer(notice_text("payment_panel_error", error=exc))
         return
-    if settings.balance_enabled:
-        local = await db.get_user(message.from_user.id)
-        can_share = bool(local and local.get("first_online_at"))
-        await message.answer(
-            topup_ok_text(
-                rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
-                can_share=can_share,
-            ),
-            reply_markup=await after_topup_keyboard(message.from_user.id),
-        )
-        return
-    sub_url = (user or {}).get("subscriptionUrl") or ""
+    local = await db.get_user(message.from_user.id)
+    can_share = bool(local and local.get("first_online_at"))
     await message.answer(
-        subscription_issued_text(user or {}, f"Подписка оформлена: {plan['title']}"),
-        reply_markup=connect_keyboard(sub_url) if sub_url else back_profile_keyboard(),
+        topup_ok_text(
+            rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
+            can_share=can_share,
+        ),
+        reply_markup=await after_topup_keyboard(message.from_user.id),
     )
 
 

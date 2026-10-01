@@ -85,7 +85,7 @@ class LegalCopyTest(unittest.TestCase):
     def test_links_are_in_welcome_and_profile_even_with_custom_copy(self):
         settings = SimpleNamespace(legal_offer_url='https://example.com/offer?a=1&b=2',
                                    legal_privacy_url='https://example.com/privacy',
-                                   brand_name='VPN', balance_enabled=False)
+                                   brand_name='VPN', balance_enabled=True, vpn_day_price_rub=6)
         with patch('app.keyboards.get_settings', return_value=settings), patch('app.keyboards.notice_text', return_value='Custom'):
             for body in (welcome_text(), profile_text('Test')):
                 self.assertIn('https://example.com/offer?a=1&amp;b=2', body)

@@ -132,7 +132,7 @@ def admin_pay_methods() -> list[dict[str, Any]]:
 
 
 def stars_price(plan: dict) -> int:
-    """One Star per balance ruble; subscription plans have explicit Star prices."""
+    """One Star per balance ruble."""
     from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
     try:
         value = plan.get("stars") or plan.get("topup_rub") or plan.get("rub") or 0

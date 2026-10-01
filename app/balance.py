@@ -455,8 +455,6 @@ async def _commit_disables(
 
 async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> None:
     settings = get_settings()
-    if not settings.balance_enabled:
-        return
     await collect_due_trusts(bot)
     flags = await db.get_flags()
     maintenance = bool(flags.get("maintenance"))
@@ -573,8 +571,6 @@ async def sync_user_billing(
 ) -> dict:
     settings = get_settings()
     result = {"extended": 0, "disabled": 0, "revived": 0}
-    if not settings.balance_enabled:
-        return result
     if await db.user_is_blocked(telegram_id):
         return result
     price = max(1, settings.vpn_day_price_rub)
@@ -652,8 +648,6 @@ async def send_cabinet_link_to(
     source: str = "auto",
 ) -> bool:
     settings = get_settings()
-    if not settings.balance_enabled:
-        return False
     if not force:
         price = max(1, settings.vpn_day_price_rub)
         if telegram_id not in await db.users_needing_cabinet_link(price):

@@ -60,10 +60,8 @@ async def trust_info(telegram_id: int, local: dict | None, device_count: int) ->
     paid = bool((local or {}).get("has_paid_topup"))
     reason = ""
     available = False
-    enabled = bool(settings.balance_enabled and settings.trust_enabled)
-    if not settings.balance_enabled:
-        reason = "Обещанный платёж доступен только в режиме баланса"
-    elif not settings.trust_enabled:
+    enabled = bool(settings.trust_enabled)
+    if not settings.trust_enabled:
         reason = "Обещанный платёж выключен"
     elif open_loan:
         reason = "Уже есть незакрытый обещанный платёж"
@@ -90,7 +88,7 @@ async def trust_info(telegram_id: int, local: dict | None, device_count: int) ->
 
 async def take_trust(telegram_id: int) -> dict:
     settings = get_settings()
-    if not settings.balance_enabled or not settings.trust_enabled:
+    if not settings.trust_enabled:
         raise ValueError("Обещанный платёж недоступен")
     local = await db.get_user(telegram_id)
     if not local:

@@ -66,7 +66,7 @@ from app.remnawave import (
     panel_used_traffic_bytes,
     panel_user_agent,
 )
-from app.texts import days_text, rub_text, subscription_reissued_text
+from app.texts import rub_text, subscription_reissued_text
 from app.tg_err import fail_extra, telegram_fail_reason
 
 logger = logging.getLogger("rm-shop.admin")
@@ -1060,28 +1060,17 @@ async def api_grant(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Укажите число от 1 до 3650"}, status=400)
     if not await db.get_user(telegram_id):
         return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
-    settings = get_settings()
-    if settings.balance_enabled:
-        total = await db.add_balance_rub(telegram_id, days)
-        await db.log_billing_event(
-            telegram_id,
-            "admin_grant",
-            source="admin",
-            amount=days,
-            balance_after=total,
-            note="Начисление из админки",
-        )
-        billing = await sync_user_billing(request.app["rw"], telegram_id, request.app.get("bot"))
-        return web.json_response({"ok": True, "balance_rub": total, "billing": billing})
-    rw: RemnawaveClient = request.app["rw"]
-    local = await db.get_user(telegram_id)
-    panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
-    try:
-        user = await rw.extend_subscription(telegram_id, days, tag="ADMIN", panel_user_id=panel_id)
-    except RemnawaveError as exc:
-        return web.json_response({"ok": False, "error": str(exc)}, status=502)
-    await db.save_panel_snapshot(telegram_id, user)
-    return web.json_response({"ok": True, "expire_at": user.get("expireAt")})
+    total = await db.add_balance_rub(telegram_id, days)
+    await db.log_billing_event(
+        telegram_id,
+        "admin_grant",
+        source="admin",
+        amount=days,
+        balance_after=total,
+        note="Начисление из админки",
+    )
+    billing = await sync_user_billing(request.app["rw"], telegram_id, request.app.get("bot"))
+    return web.json_response({"ok": True, "balance_rub": total, "billing": billing})
 
 
 async def api_balance(request: web.Request) -> web.Response:
@@ -1573,10 +1562,7 @@ def _broadcast_title(template: str) -> str:
 
 
 def _referral_reward_label() -> str:
-    settings = get_settings()
-    if settings.balance_enabled:
-        return "50 ₽ + 5% с каждого пополнения"
-    return days_text(settings.referral_reward_days)
+    return "50 ₽ + 5% с каждого пополнения"
 
 
 def _broadcast_payload(
@@ -2207,8 +2193,6 @@ async def _persist_subscription(telegram_id: int, panel: dict, account: dict) ->
     if local and panel_id is not None and local.get("remnawave_id") is not None:
         if int(local["remnawave_id"]) == int(panel_id):
             await db.save_panel_snapshot(telegram_id, panel)
-    elif local and not get_settings().balance_enabled:
-        await db.save_panel_snapshot(telegram_id, panel)
     if panel_id is not None:
         device_title = await db.save_device_subscription(int(panel_id), panel)
         if device_title:

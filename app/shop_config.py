@@ -235,15 +235,12 @@ async def save_shop_overlay(body: dict) -> dict:
 
 async def save_referral_settings(body: dict) -> dict:
     """Save referral controls without validating unrelated shop integrations."""
-    current = get_settings()
     enabled = body.get("referral_program_enabled")
     if not isinstance(enabled, bool):
         raise ValueError("Укажите, включена ли реферальная программа")
     mode = str(body.get("referral_mode") or "classic")
     if mode not in {"classic", "payout"}:
         raise ValueError("Неизвестный режим реферальной программы")
-    if mode == "payout" and not current.balance_enabled:
-        raise ValueError("Вывод доступен только в режиме баланса")
     changes = {
         "referral_program_enabled": enabled,
         "referral_mode": mode,

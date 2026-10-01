@@ -14,7 +14,7 @@ from app.config import get_settings
 from app.keyboards import with_referral_share, support_welcome_keyboard
 from app.keyboards import channel_keyboard, legal_text, profile_keyboard
 from app.notices import notice_text
-from app.referrals import trial_grant_days, trial_is_available
+from app.referrals import trial_is_available
 from app.texts import days_text, rub_text
 from app.tg_err import fail_extra
 
@@ -124,15 +124,13 @@ async def send_welcome_intro(
     local = await db.get_user(user.id)
     hello = notice_text("welcome_intro_hello", name=name, brand=brand)
     bonus = int(settings.referral_invitee_reward_rub or 0)
-    referral_bonus = settings.referral_program_enabled and settings.balance_enabled and bonus > 0 and local and local.get("referred_by")
+    referral_bonus = settings.referral_program_enabled and bonus > 0 and local and local.get("referred_by")
     if referral_bonus:
         hello += (
             f"\n\nВы пришли по ссылке друга. После первого пополнения на баланс ещё {rub_text(bonus)}."
         )
     trial_on = trial_is_available(local)
-    days = days_text(
-        trial_grant_days(local) if trial_on and not settings.balance_enabled else settings.trial_days
-    )
+    days = days_text(settings.trial_days)
     hi = (
         notice_text("welcome_intro_hi", name=name, days=days)
         if trial_on
@@ -161,8 +159,8 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
     settings=get_settings()
     local=await db.get_user(telegram_id)
     trial_on=trial_is_available(local)
-    days=days_text(trial_grant_days(local) if trial_on and not settings.balance_enabled else settings.trial_days)
-    if settings.balance_enabled and trial_on:
+    days=days_text(settings.trial_days)
+    if trial_on:
         try_body = notice_text("welcome_intro_try", days=days)
     else:
         try_body = notice_text("welcome_intro_try_no_trial")
@@ -173,7 +171,7 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
         last = try_body
         kb = profile_keyboard(
             trial_available=trial_on,
-            has_access=bool(local and (local.get("subscription_url") or local.get("balance_rub") or local.get("balance_days"))),
+            has_access=bool(local and local.get("balance_rub")),
             story_offer=False,
         )
     last += "\n\n" + legal_text()

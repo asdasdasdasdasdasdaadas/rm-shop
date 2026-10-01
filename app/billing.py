@@ -9,7 +9,6 @@ from aiogram import Bot
 
 from app import db, runtime
 from app.config import get_settings
-from app.notices import notice_text, sub_block
 from app.remnawave import RemnawaveClient, parse_expire, panel_lease_until
 
 logger = logging.getLogger(__name__)
@@ -25,15 +24,6 @@ def expire_human(user: dict | None) -> str:
     if not dt:
         return "нет"
     return dt.astimezone().strftime("%d.%m.%Y %H:%M")
-
-
-def subscription_issued_text(user: dict, title: str) -> str:
-    return notice_text(
-        "subscription_issued",
-        title=title,
-        expire=expire_human(user),
-        sub_block=sub_block((user or {}).get("subscriptionUrl")),
-    )
 
 
 def _aware(dt: datetime | None) -> datetime | None:
@@ -88,7 +78,6 @@ async def grant_plan(
         raise ValueError("unknown plan")
     local = await db.get_user(telegram_id)
     repeat = bool(local and local.get("has_paid_topup"))
-    user = None
     amount = 0
     if plan.get("router"):
         days = max(1, int(plan.get("days") or settings.router_days or 30))
@@ -108,7 +97,7 @@ async def grant_plan(
             await apply_router_slot(rw, telegram_id, expire)
         except Exception:
             pass
-    elif settings.balance_enabled:
+    else:
         amount = int(plan.get("topup_rub") or 0)
         if amount < 1:
             raise ValueError("unknown plan")
@@ -120,21 +109,8 @@ async def grant_plan(
             amount=amount,
             note=plan_code,
         )
-    else:
-        try:
-            amount = int(round(float(plan.get("rub") or 0)))
-        except (TypeError, ValueError):
-            amount = 0
-        panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
-        user = await rw.extend_subscription(
-            telegram_id,
-            plan["days"],
-            tag="PAID",
-            panel_user_id=panel_id,
-        )
-        await db.save_panel_snapshot(telegram_id, user)
     await db.mark_paid_topup(telegram_id)
-    if settings.balance_enabled and not plan.get("router"):
+    if not plan.get("router"):
         # Serialize with the scheduled billing cycle to avoid charging the same day twice.
         # A panel outage must not make an already credited payment fail and be credited again.
         from app.balance import sync_user_billing
@@ -161,7 +137,7 @@ async def grant_plan(
         payment_key=payment_key, topup_rub=amount if not plan.get("router") else 0, first_payment=not repeat)
     if not repeat:
         await maybe_reward_invitee(bot, telegram_id)
-    return user
+    return None
 
 
 async def _lock_for(order_id: str) -> asyncio.Lock:

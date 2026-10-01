@@ -27,14 +27,11 @@ from app.billing import (
     apply_router_slot,
     fulfill_rollypay_order,
     router_panel_until,
-    subscription_issued_text,
 )
 from app.config import ROOT, get_settings
 from app.faq import faq_items
 from app.keyboards import (
-    back_profile_keyboard,
     cabinet_login_keyboard,
-    connect_keyboard,
     invite_copy_text,
     invite_share_text,
     invite_url,
@@ -46,7 +43,6 @@ from app.referrals import (
     after_topup_keyboard,
     referral_payout_public,
     topup_ok_text,
-    trial_grant_days,
     trial_grant_rub,
     trial_is_available,
 )
@@ -55,7 +51,6 @@ from app.remnawave import (
     RemnawaveClient,
     RemnawaveError,
     days_remaining,
-    hours_remaining,
     is_subscription_active,
     parse_dt,
     parse_expire,
@@ -271,12 +266,11 @@ def _trial_notice(
     if trial_is_available(local, require_bot_start=False):
         return {
             "kind": "claim" if local.get("bot_started_at") else "start_bot",
-            "rub": trial_grant_rub() if settings.balance_enabled else 0,
-            "days": trial_grant_days(local) if not settings.balance_enabled else settings.trial_days,
+            "rub": trial_grant_rub(),
+            "days": settings.trial_days,
         }
     if (
-        settings.balance_enabled
-        and local
+        local
         and local.get("trial_used")
         and not local.get("has_paid_topup")
         and not devices
@@ -418,30 +412,27 @@ async def api_me(request: web.Request) -> web.Response:
     from app.legal_notice import hide_legal_messages
     await hide_legal_messages(bot, telegram_id)
     local = await db.get_user(telegram_id)
-    panel = await fetch_panel(rw, telegram_id, local=local, allow_stale=True)
+    await fetch_panel(rw, telegram_id, local=local, allow_stale=True)
 
-    days = int(local["balance_days"] or 0) if settings.balance_enabled and local else days_remaining(panel)
     balance_rub = int((local or {}).get("balance_rub") or 0) if local else 0
-    sub_url = (panel or {}).get("subscriptionUrl") or ""
+    raw_devices = await db.list_devices(telegram_id)
     devices = []
-    if settings.balance_enabled:
-        raw_devices = await db.list_devices(telegram_id)
-        for item in raw_devices:
-            panel_dev = _device_as_panel(item)
-            expire = parse_expire(panel_dev.get("expireAt"))
-            devices.append(
-                {
-                    "id": item["id"],
-                    "title": item["title"],
-                    "username": panel_dev.get("username") or "",
-                    "subscription_url": panel_dev.get("subscriptionUrl") or "",
-                    "days": days_remaining(panel_dev),
-                    "active": is_subscription_active(panel_dev),
-                    "expire_at": expire.isoformat() if expire else None,
-                    "platform": item.get("platform") or "",
-                    "kind": "router" if _is_router_device(item) else "",
-                }
-            )
+    for item in raw_devices:
+        panel_dev = _device_as_panel(item)
+        expire = parse_expire(panel_dev.get("expireAt"))
+        devices.append(
+            {
+                "id": item["id"],
+                "title": item["title"],
+                "username": panel_dev.get("username") or "",
+                "subscription_url": panel_dev.get("subscriptionUrl") or "",
+                "days": days_remaining(panel_dev),
+                "active": is_subscription_active(panel_dev),
+                "expire_at": expire.isoformat() if expire else None,
+                "platform": item.get("platform") or "",
+                "kind": "router" if _is_router_device(item) else "",
+            }
+        )
 
     photo = await _avatar_url(bot, telegram_id)
 
@@ -452,14 +443,14 @@ async def api_me(request: web.Request) -> web.Response:
         username = nick if nick.startswith("@") else f"@{nick}"
     trust = await trust_info(
         telegram_id, local, sum(1 for d in devices if d.get("kind") != "router")
-    ) if settings.balance_enabled else None
+    )
     price = max(1, settings.vpn_day_price_rub)
-    billable_raw = [item for item in (raw_devices if settings.balance_enabled else []) if not _is_router_device(item)]
+    billable_raw = [item for item in raw_devices if not _is_router_device(item)]
     router_expire = (local or {}).get("router_expire_at") if local else None
     if router_expire is not None and getattr(router_expire, "tzinfo", None) is None:
         router_expire = router_expire.replace(tzinfo=timezone.utc)
     router_active = bool(router_expire and router_expire > datetime.now(timezone.utc))
-    if settings.balance_enabled and billable_raw:
+    if billable_raw:
         hours_money = int(balance_rub) * 24 // (price * len(billable_raw))
         paid = []
         for item in billable_raw:
@@ -468,24 +459,20 @@ async def api_me(request: web.Request) -> web.Response:
                 paid.append(_hours_until(billed + timedelta(hours=24)))
         hours_left = hours_money + (min(paid) if paid else 0)
         days_left = hours_left // 24
-    elif settings.balance_enabled:
-        hours_left = int(balance_rub) * 24 // price
-        days_left = hours_left // 24
     else:
-        hours_left = hours_remaining(panel)
+        hours_left = int(balance_rub) * 24 // price
         days_left = hours_left // 24
     days_left = max(0, int(days_left))
     hours_left = max(0, int(hours_left))
-    wallet = await db.referral_wallet(telegram_id) if settings.balance_enabled else None
+    wallet = await db.referral_wallet(telegram_id)
     refs = await db.referral_stats(telegram_id)
     friends = await db.list_referred_friends(telegram_id)
     ref_view = referral_payout_public(wallet)
-    if settings.balance_enabled:
-        from_events = await db.referral_credit_sum(telegram_id)
-        earned = max(int(ref_view.get("referral_earned") or 0), from_events)
-        if earned > int(ref_view.get("referral_earned") or 0):
-            await db.ensure_referral_earned(telegram_id, earned)
-        ref_view["referral_earned"] = earned
+    from_events = await db.referral_credit_sum(telegram_id)
+    earned = max(int(ref_view.get("referral_earned") or 0), from_events)
+    if earned > int(ref_view.get("referral_earned") or 0):
+        await db.ensure_referral_earned(telegram_id, earned)
+    ref_view["referral_earned"] = earned
 
     return web.json_response(
         {
@@ -498,24 +485,24 @@ async def api_me(request: web.Request) -> web.Response:
                 "photo": photo,
             },
             "brand_name": settings.brand_name,
-            "balance_enabled": settings.balance_enabled,
+            "balance_enabled": True,
             "promo_enabled": settings.promo_enabled,
             "notification_settings_available": bool((local or {}).get("has_paid_topup")),
             "quiet_notifications": bool((local or {}).get("quiet_notifications")),
             "trial_available": trial_is_available(local),
             "bot_start_url": f"https://t.me/{settings.bot_username}?start=gift",
-            "trial_days": trial_grant_days(local) if not settings.balance_enabled else settings.trial_days,
-            "trial_rub": trial_grant_rub() if settings.balance_enabled else 0,
+            "trial_days": settings.trial_days,
+            "trial_rub": trial_grant_rub(),
             "trial_notice": _trial_notice(
                 local,
                 devices=devices,
                 balance_rub=balance_rub,
                 days_left=days_left,
             ),
-            "days": days,
+            "days": days_left,
             "days_left": days_left,
             "hours_left": hours_left,
-            "billing_active": bool(settings.balance_enabled and billable_raw),
+            "billing_active": bool(billable_raw),
             "billing_paused": bool((local or {}).get("billing_paused_at")),
             "balance_rub": balance_rub,
             "vpn_day_price_rub": settings.vpn_day_price_rub,
@@ -523,13 +510,8 @@ async def api_me(request: web.Request) -> web.Response:
             "pay_methods": public_pay_methods(),
             "traffic_limit_gb": int(settings.remnawave_traffic_limit_gb or 0),
             "max_devices": settings.max_devices,
-            "has_access": bool(
-                (settings.balance_enabled and (balance_rub > 0 or devices or router_active))
-                or days > 0
-                or is_subscription_active(panel)
-                or devices
-            ),
-            "subscription_url": sub_url if not settings.balance_enabled else "",
+            "has_access": bool(balance_rub > 0 or devices or router_active),
+            "subscription_url": "",
             "invite_url": invite_url(telegram_id),
             "invite_share_text": invite_share_text(),
             "invite_copy_text": invite_copy_text(telegram_id),
@@ -543,7 +525,7 @@ async def api_me(request: web.Request) -> web.Response:
             "referral_program_enabled": settings.referral_program_enabled,
             "referral_percent": 5,
             "referral_invitee_reward_rub": (
-                int(settings.referral_invitee_reward_rub or 0) if settings.balance_enabled and settings.referral_program_enabled else 0
+                int(settings.referral_invitee_reward_rub or 0) if settings.referral_program_enabled else 0
             ),
             "referred": bool((local or {}).get("referred_by")),
             **ref_view,
@@ -570,12 +552,12 @@ async def api_me(request: web.Request) -> web.Response:
                 }
                 for code, p in settings.shop_plans.items()
             ],
-            "topup_min": settings.balance_topup_min if settings.balance_enabled else 0,
-            "topup_max": settings.balance_topup_max if settings.balance_enabled else 0,
-            "topup_step": settings.balance_topup_step if settings.balance_enabled else 0,
+            "topup_min": settings.balance_topup_min,
+            "topup_max": settings.balance_topup_max,
+            "topup_step": settings.balance_topup_step,
             "devices": devices,
             "router": {
-                "enabled": bool(settings.balance_enabled and settings.router_enabled),
+                "enabled": bool(settings.router_enabled),
                 "rub": int(settings.router_rub or 0),
                 "days": int(settings.router_days or 30),
                 "expire_at": router_expire.isoformat() if router_expire else None,
@@ -653,33 +635,19 @@ async def api_trial(request: web.Request) -> web.Response:
         return json_error("Вы уже пробовали бесплатно")
     if not trial_is_available(local):
         return json_error("Сейчас нельзя попробовать бесплатно")
-    rw: RemnawaveClient = request.app["rw"]
     try:
-        if settings.balance_enabled:
-            amount = trial_grant_rub()
-            after = await db.claim_trial_balance(telegram_id, amount)
-            if after is None:
-                return json_error("Вы уже пробовали бесплатно")
-            await db.log_billing_event(
-                telegram_id,
-                "trial",
-                source="user",
-                amount=amount,
-                balance_after=after,
-                note=f"Триал {settings.trial_days} дн.",
-            )
-        else:
-            panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
-            user = await rw.extend_subscription(
-                telegram_id,
-                trial_grant_days(local),
-                tag="TRIAL",
-                panel_user_id=panel_id,
-            )
-            rw_id = user.get("id")
-            panel_pk = int(rw_id) if rw_id is not None and str(rw_id).isdigit() else None
-            await db.mark_trial_used(telegram_id, panel_pk)
-            await db.save_panel_snapshot(telegram_id, user)
+        amount = trial_grant_rub()
+        after = await db.claim_trial_balance(telegram_id, amount)
+        if after is None:
+            return json_error("Вы уже пробовали бесплатно")
+        await db.log_billing_event(
+            telegram_id,
+            "trial",
+            source="user",
+            amount=amount,
+            balance_after=after,
+            note=f"Триал {settings.trial_days} дн.",
+        )
     except RemnawaveError as exc:
         return json_error(str(exc), 502)
     return web.json_response({"ok": True})
@@ -763,7 +731,7 @@ async def api_invoice(request: web.Request) -> web.Response:
         except ValueError as exc:
             return json_error(str(exc))
         bot: Bot = request.app["bot"]
-        title = "Пополнение" if settings.balance_enabled else "Подписка"
+        title = "Пополнение"
         days = int(plan.get("days") or 0)
         desc = (
             f"{days_text(days)}, трафик безлимитный."
@@ -799,20 +767,9 @@ async def api_promo(request: web.Request) -> web.Response:
         days = await db.claim_promo_code(telegram_id, code)
     except ValueError as exc:
         return json_error(str(exc))
-    rw: RemnawaveClient = request.app["rw"]
-    if settings.balance_enabled:
-        amount = days * max(1, settings.vpn_day_price_rub)
-        balance = await db.add_balance_rub(telegram_id, amount)
-        return web.json_response({"ok": True, "days": days, "credited_rub": amount, "balance_rub": balance})
-    else:
-        local = await db.get_user(telegram_id)
-        panel_id = int(local["remnawave_id"]) if local and local.get("remnawave_id") else None
-        try:
-            user = await rw.extend_subscription(telegram_id, days, tag="PROMO", panel_user_id=panel_id)
-            await db.save_panel_snapshot(telegram_id, user)
-        except RemnawaveError as exc:
-            return json_error(str(exc), 502)
-    return web.json_response({"ok": True, "days": days})
+    amount = days * max(1, settings.vpn_day_price_rub)
+    balance = await db.add_balance_rub(telegram_id, amount)
+    return web.json_response({"ok": True, "days": days, "credited_rub": amount, "balance_rub": balance})
 
 
 async def api_add_device(request: web.Request) -> web.Response:
@@ -820,8 +777,6 @@ async def api_add_device(request: web.Request) -> web.Response:
     if denied:
         return denied
     settings = get_settings()
-    if not settings.balance_enabled:
-        return json_error("Баланс выключен")
     telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
@@ -937,9 +892,6 @@ async def api_reissue_device(request: web.Request) -> web.Response:
     denied = await _if_down()
     if denied:
         return denied
-    settings = get_settings()
-    if not settings.balance_enabled:
-        return json_error("Баланс выключен")
     telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
@@ -966,9 +918,6 @@ async def api_delete_device(request: web.Request) -> web.Response:
     denied = await _if_down()
     if denied:
         return denied
-    settings = get_settings()
-    if not settings.balance_enabled:
-        return json_error("Баланс выключен")
     telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
@@ -1213,9 +1162,6 @@ async def api_billing_history(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
-    settings = get_settings()
-    if not settings.balance_enabled:
-        return json_error("История доступна в режиме баланса", 404)
     items = await db.user_billing_history(telegram_id, days=7)
     charged = 0
     for item in items:
@@ -1289,7 +1235,7 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
                 parse_mode=ParseMode.HTML,
                 reply_markup=await after_topup_keyboard(telegram_id),
             )
-        elif settings.balance_enabled:
+        else:
             local = await db.get_user(telegram_id)
             can_share = bool(local and local.get("first_online_at"))
             await bot.send_message(
@@ -1299,14 +1245,6 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
                     can_share=can_share,
                 ),
                 reply_markup=await after_topup_keyboard(telegram_id),
-            )
-        elif user:
-            sub_url = user.get("subscriptionUrl") or ""
-            await bot.send_message(
-                telegram_id,
-                subscription_issued_text(user, f"Подписка оформлена: {plan.get('title')}"),
-                parse_mode=ParseMode.HTML,
-                reply_markup=connect_keyboard(sub_url) if sub_url else back_profile_keyboard(),
             )
     except Exception:
         logger.exception("Не удалось уведомить пользователя %s об оплате", telegram_id)
