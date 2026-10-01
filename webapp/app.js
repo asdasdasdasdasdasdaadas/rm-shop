@@ -969,7 +969,7 @@ function balanceAlertState(me) {
   // Check server eligibility before screen/storage state, including initial render.
   const pendingGift = me.trial_available || (me.trial_notice && ["claim", "start_bot"].includes(me.trial_notice.kind));
   if (balance >= 0 && pendingGift && !devices.length && !me.first_online_at && !me.has_paid_topup) return "";
-  if (balance <= 0) return "empty";
+  if (balance <= 0) return devices.some(d => d.active !== false) && remainHours(me) > 0 ? "low" : "empty";
   const daily = Math.max(1, Number(me.vpn_day_price_rub) || 1) * Math.max(1, devices.length);
   if (balance <= daily || (devices.length && remainHours(me) <= 24)) return "low";
   return "";
@@ -979,7 +979,7 @@ let lowBalanceSelected = 0;
 function lowBalanceAmounts(me) {
   const min = Math.max(1, Number(me.topup_min) || 1);
   const max = Math.max(min, Number(me.topup_max) || 5000);
-  const amounts = [300, 500, 1000, 2000].filter(n => n >= min && n <= max);
+  const amounts = [...new Set(me.has_paid_topup ? [min, 300, 500, 1000] : [min, 100, 300, 500])].filter(n => n >= min && n <= max).sort((a, b) => a - b);
   return amounts.length ? amounts : [min];
 }
 function paintLowBalance(me, state) {
@@ -990,7 +990,7 @@ function paintLowBalance(me, state) {
   $("lowBalanceDescription").textContent = `Баланс — ${balance}. ` + (stopped
     ? "Пополните его, чтобы снова пользоваться VPN на своих устройствах."
     : state === "empty" ? "Средств на дальнейшее подключение не хватает. Пополните баланс, чтобы продолжить."
-    : "Осталось не больше суток доступа. Пополните сейчас, чтобы устройства оставались на связи.");
+    : `Оплаченного доступа осталось примерно ${hoursLabel(Math.max(1, Math.ceil(remainHours(me))))}. Пополните баланс для продолжения.`);
   const strip = $("lowBalanceDevices");
   strip.replaceChildren();
   strip.classList.toggle("hidden", !devices.length);
@@ -1014,7 +1014,7 @@ function paintLowBalance(me, state) {
     chip.append(icon, label); strip.append(chip);
   }
   const amounts = lowBalanceAmounts(me);
-  if (!amounts.includes(lowBalanceSelected)) lowBalanceSelected = amounts.includes(1000) ? 1000 : amounts[0];
+  if (!amounts.includes(lowBalanceSelected)) lowBalanceSelected = me.has_paid_topup && amounts.includes(300) ? 300 : amounts.includes(100) ? 100 : amounts[0];
   const grid = $("lowBalanceAmounts"); grid.replaceChildren();
   for (const amount of amounts) {
     const button = document.createElement("button"); button.type = "button";
@@ -1055,6 +1055,7 @@ function maybeShowLowBalance() {
   const alreadyOpen = sheet.open;
   if (!alreadyOpen) {
     if (lowBalanceShown.has(key)) return;
+    try { if (Date.now() - Number(localStorage.getItem(key) || 0) < 24 * 3600 * 1000) return; } catch (_) {}
     if (document.querySelector("dialog[open]")) return;
   }
   sheet.dataset.state = state;
@@ -1071,6 +1072,7 @@ function maybeShowLowBalance() {
   lowBalanceScroll = document.body.style.overflow;
   document.body.style.overflow = "hidden";
   sheet.showModal();
+  try { localStorage.setItem(key, String(Date.now())); } catch (_) {}
 }
 $("lowBalanceClose").onclick = closeLowBalance;
 $("lowBalanceLater").onclick = closeLowBalance;

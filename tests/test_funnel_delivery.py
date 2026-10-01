@@ -10,6 +10,8 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
     def setUp(self):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
+        self.stack.enter_context(patch.object(db, 'reserve_optional_message', AsyncMock(return_value=1)))
+        self.stack.enter_context(patch.object(db, 'finish_optional_message', AsyncMock()))
         self.allowed = self.stack.enter_context(patch.object(db, 'nudge_delivery_allowed', AsyncMock(return_value=True)))
         self.log = self.stack.enter_context(patch.object(db, 'log_bot_message', AsyncMock()))
         self.mark = self.stack.enter_context(patch.object(db, 'mark_nudge_sent', AsyncMock()))

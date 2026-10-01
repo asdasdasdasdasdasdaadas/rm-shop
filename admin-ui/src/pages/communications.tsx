@@ -51,14 +51,14 @@ function Delivery({ data }: { data: Data }) {
       <Progress
         value={
           data.total
-            ? ((Number(data.sent || 0) + Number(data.failed || 0)) /
+            ? ((Number(data.sent || 0) + Number(data.failed || 0) + Number(data.skipped || 0)) /
                 data.total) *
               100
             : 0
         }
       />
       <p className="text-xs text-muted-foreground">
-        Доставлено: {data.sent || 0} · ошибок: {data.failed || 0}
+        Доставлено: {data.sent || 0} · ошибок: {data.failed || 0} · пропущено: {data.skipped || 0}
         {data.message ? " · " + data.message : ""}
       </p>
     </div>
@@ -107,6 +107,7 @@ function BroadcastResults() {
               },
               { key: "sent", label: "Доставлено" },
               { key: "failed", label: "Ошибки" },
+              { key: "skipped", label: "Пропущено по условиям" },
               { key: "clicked", label: "Перешли" },
               {
                 key: "ctr",
@@ -238,6 +239,12 @@ function FunnelTest() {
               <p className="whitespace-pre-wrap text-sm">
                 {r.body.replace(/<[^>]*>/g, "")}
               </p>
+              <p className="text-xs text-muted-foreground mt-2">{r.exclusions}</p>
+              {r.kind && <p className="text-xs text-muted-foreground mt-2">
+                Отправлено за 7 дней: {r.delivery?.sent || 0}. Ошибок: {r.delivery?.failed || 0}.
+                Последняя отправка: {r.delivery?.last_sent ? date(r.delivery.last_sent) : "нет данных"}.
+                {r.kind === "nudge_idle" ? " Статистика общая для всех веток возврата." : ""}
+              </p>}
             </details>
           ))}
         </div>

@@ -18,7 +18,7 @@ function setup() {
     document: {body: {style: {}}, activeElement: null, querySelector: () => null, createElement: () => el(Symbol())},
     localStorage: {getItem: (k) => saved.get(k), setItem: (k, v) => saved.set(k, v)},
     hideCoach() {}, openTopup() {ctx.screen = 'topup';},
-    platIconSvg: () => '<svg></svg>', daysLabel: n => `${n} дней`, topupCustomRub: 0,
+    hoursLabel: n => `${n} ч`, platIconSvg: () => '<svg></svg>', daysLabel: n => `${n} дней`, topupCustomRub: 0,
     currentTopupPlan: () => ({topup_rub: ctx.topupCustomRub}),
     openPayMethod(plan) {ctx.screen = 'pay'; ctx.plan = plan;},
   });
@@ -32,7 +32,7 @@ test('thresholds, prepaid time, trial, routers and paused billing', () => {
   const {ctx} = setup();
   for (const [fields, expected] of [
     [{}, 'low'], [{hours_left: 25, balance_rub: 100}, ''], [{hours_left: 0, balance_rub: 0}, 'empty'],
-    [{hours_left: 8, balance_rub: 0}, 'empty'], [{hours_left: 0, balance_rub: -6}, 'empty'],
+    [{hours_left: 8, balance_rub: 0}, 'low'], [{hours_left: 0, balance_rub: -6}, 'empty'],
     [{billing_paused: true, hours_left: 0}, ''], [{balance_enabled: false}, ''],
     [{devices: [{kind: 'router'}], hours_left: 0}, ''],
     [{devices: [], balance_rub: 0, trial_available: true}, ''],
@@ -53,7 +53,7 @@ test('low and empty have independent suppression; CTA opens topup', () => {
   assert.equal(el('lowBalanceSheet').dataset.state, 'empty');
   el('lowBalancePay').onclick();
   assert.equal(ctx.screen, 'pay');
-  assert.equal(ctx.plan.topup_rub, 1000);
+  assert.equal(ctx.plan.topup_rub, 100);
   assert.equal(el('lowBalanceSheet').open, false);
 });
 test('payment refresh closes alert and payment view is never interrupted', () => {
@@ -73,9 +73,9 @@ test('preset limits and device consumption are taken from the account', () => {
   const {ctx, el} = setup();
   const me = {...base, topup_min:400, topup_max:800, balance_rub:-20,
     devices:[{kind:'',active:false,title:'<script>'},{kind:'',active:false},{kind:'router'}]};
-  assert.deepEqual(Array.from(ctx.lowBalanceAmounts(me)),[500]);
+  assert.deepEqual(Array.from(ctx.lowBalanceAmounts(me)),[400,500]);
   ctx.paintLowBalance(me,'empty');
-  assert.match(el('lowBalanceRunway').textContent,/40 дней/);
+  assert.match(el('lowBalanceRunway').textContent,/31 дней/);
   assert.equal(el('lowBalanceDevices').children.length,2);
   assert.equal(el('lowBalanceDevices').children[0].children[1].textContent,'<script>');
   assert.equal(el('lowBalanceTitle').textContent,'Устройства отключены');
@@ -87,7 +87,7 @@ test('changing amount changes payment, custom amount opens input', () => {
   ctx.maybeShowLowBalance();
   el('lowBalanceAmounts').children[0].onclick();
   el('lowBalancePay').onclick();
-  assert.equal(ctx.plan.topup_rub,300);
+  assert.equal(ctx.plan.topup_rub,1);
   el('lowBalanceCustom').onclick();
   assert.equal(ctx.screen,'topup');
 });
@@ -99,10 +99,13 @@ test('new user with exhausted gift is warned in the device wizard', () => {
   ctx.maybeShowLowBalance();
   assert.equal(el('lowBalanceSheet').open,true);
 });
-test('fresh session shows zero balance despite previously dismissed alert', () => {
+test('fresh session respects persistent daily cooldown', () => {
   const {ctx,el} = setup();
   ctx.localStorage.getItem=()=>String(Date.now());
   ctx.window.__me={...base,balance_rub:0};
+  ctx.maybeShowLowBalance();
+  assert.equal(el('lowBalanceSheet').open,false);
+  ctx.localStorage.getItem=()=>String(Date.now()-25*3600000);
   ctx.maybeShowLowBalance();
   assert.equal(el('lowBalanceSheet').open,true);
 });
@@ -166,6 +169,6 @@ test('pending gift suppresses zero-balance popup before offer and closes an exis
   }
   ctx.screen='home';
   for (const existing of [{first_online_at:'2026-09-27'}, {has_paid_topup:true}, {devices:[{id:1}]}]) {
-    assert.equal(ctx.balanceAlertState({...base,devices:[],balance_rub:0,trial_available:true,...existing}), 'empty');
+    assert.equal(ctx.balanceAlertState({...base,devices:[],balance_rub:0,trial_available:true,...existing}), existing.devices ? 'low' : 'empty');
   }
 });

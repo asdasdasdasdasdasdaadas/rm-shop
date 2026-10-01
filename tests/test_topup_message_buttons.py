@@ -11,6 +11,8 @@ class TopupMessageButtonsTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
+        self.stack.enter_context(patch.object(db, 'reserve_optional_message', AsyncMock(return_value=1)))
+        self.stack.enter_context(patch.object(db, 'finish_optional_message', AsyncMock()))
         self.stack.enter_context(patch.object(db, "nudge_delivery_allowed", AsyncMock(return_value=True)))
         self.stack.enter_context(patch('app.keyboards.mini_app_url', return_value='https://example.com/app?theme=green'))
         self.stack.enter_context(patch.object(db, 'log_bot_message', AsyncMock()))

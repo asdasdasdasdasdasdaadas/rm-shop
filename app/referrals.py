@@ -88,40 +88,36 @@ def referrer_next_line(rewarded: int) -> str:
 async def after_topup_keyboard(telegram_id: int):
     settings = get_settings()
     local = await db.get_user(telegram_id)
-    if settings.referral_program_enabled and local and local.get("first_online_at"):
-        return share_keyboard(settings.bot_username, telegram_id)
+    if settings.referral_program_enabled and local and local.get("first_online_at") and not local.get("quiet_notifications"):
+        markup = with_referral_share(telegram_id, cabinet_keyboard())
+        return markup.model_copy(update={"inline_keyboard": markup.inline_keyboard[1:] + markup.inline_keyboard[:1]})
     return cabinet_keyboard()
 
 
-def topup_ok_text(amount: str, *, can_share: bool) -> str:
+def topup_ok_text(amount: str, *, can_share: bool, local: dict | None = None) -> str:
     body = notice_text("topup_ok", amount=amount)
+    if local is not None:
+        body += "\nБаланс: " + rub_text(int(local.get("balance_rub") or 0)) + "."
+        body += "\nОткройте кабинет, чтобы проверить доступ и подключить устройство."
+        can_share = can_share and not local.get("quiet_notifications")
     if can_share and get_settings().referral_program_enabled:
         body += (
-            "\n\nЕсли VPN уже нужен — отправьте ссылку другу. "
+            "\n\nЕсли VPN вам подходит, можете порекомендовать его другу. "
             "Вам 50 ₽ за первую оплату друга и 5% с каждого его пополнения, пока программа активна."
         )
     return body
 
 
-async def maybe_reward_invitee(bot: Bot | None, telegram_id: int) -> int:
+async def maybe_reward_invitee(bot: Bot | None, telegram_id: int, *, enabled: bool | None = None, amount: int | None = None) -> int:
     settings = get_settings()
-    if not settings.referral_program_enabled:
+    if not (settings.referral_program_enabled if enabled is None else enabled):
         return 0
-    amount = int(settings.referral_invitee_reward_rub or 0)
+    amount = int(settings.referral_invitee_reward_rub or 0) if amount is None else amount
     if amount < 1:
         return 0
-    claimed = await db.claim_invitee_payment_bonus(telegram_id)
-    if not claimed:
+    after = await db.credit_invitee_bonus_once(telegram_id, amount)
+    if after is None:
         return 0
-    after = await db.add_balance_rub(telegram_id, amount)
-    await db.log_billing_event(
-        telegram_id,
-        "referral",
-        source="invitee",
-        amount=amount,
-        balance_after=after,
-        note="Бонус другу за первую оплату по ссылке",
-    )
     if bot:
         try:
             await bot.send_message(
@@ -139,12 +135,13 @@ async def maybe_reward_referrer(
     rw: RemnawaveClient,
     new_user_id: int,
     friend_name: str | None,
-    *, payment_key: str | None = None, topup_rub: int = 0, first_payment: bool = False,
+    *, payment_key: str | None = None, topup_rub: int = 0, first_payment: bool = False, enabled: bool | None = None, paid_at=None,
 ) -> None:
     settings = get_settings()
     name = escape(friend_name or "друг")
     result = await db.reward_referral_payment(new_user_id, payment_key or "", topup_rub,
-        enabled=settings.referral_program_enabled, first_payment=first_payment)
+        enabled=settings.referral_program_enabled if enabled is None else enabled, first_payment=first_payment,
+        **({"paid_at": paid_at} if paid_at is not None else {}))
     if result and result.get('campaign') and bot:
         gift = result['campaign']
         try:

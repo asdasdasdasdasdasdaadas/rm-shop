@@ -7,6 +7,9 @@ from app import admin, db
 
 class BroadcastTrackingTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        for name, value in [('reserve_optional_message', 1), ('finish_optional_message', None)]:
+            p = patch.object(db, name, AsyncMock(return_value=value))
+            p.start(); self.addCleanup(p.stop)
         p = patch.object(db, "notification_allowed", AsyncMock(return_value=True))
         p.start(); self.addCleanup(p.stop)
 

@@ -15,6 +15,7 @@ from app.keyboards import (
     onboarding_keyboard,
     payment_nudge_keyboard,
     share_keyboard,
+    support_welcome_keyboard, channel_keyboard,
 )
 from app.notices import notice_text
 from app.referrals import trial_grant_rub
@@ -70,7 +71,22 @@ def info_nudge_text() -> str:
     return notice_text("info_nudge", price=price, story="")
 
 
-async def _deliver(
+async def _deliver(bot: Bot, **kwargs) -> bool:
+    kind = kwargs['kind']
+    if not db.is_marketing_message(kind):
+        return await _deliver_unbudgeted(bot, **kwargs)
+    slot = await db.reserve_optional_message(kwargs['telegram_id'], kind)
+    if slot is None:
+        return False
+    sent = False
+    try:
+        sent = await _deliver_unbudgeted(bot, **kwargs)
+        return sent
+    finally:
+        await db.finish_optional_message(slot, sent)
+
+
+async def _deliver_unbudgeted(
     bot: Bot,
     *,
     kind: str,
@@ -85,33 +101,19 @@ async def _deliver(
         return False
     try:
         await send_reminder(bot, telegram_id, body, kind=kind, title=title, reply_markup=reply_markup)
-        await db.log_bot_message(
-            kind=kind,
-            source="auto",
-            telegram_id=telegram_id,
-            first_name=first_name,
-            title=title,
-            body=body,
-            status="sent",
-            extra=extra,
-        )
         ok = True
     except Exception as exc:
         logger.debug("Напоминание %s не ушло %s", kind, telegram_id, exc_info=True)
-        await db.log_bot_message(
-            kind=kind,
-            source="auto",
-            telegram_id=telegram_id,
-            first_name=first_name,
-            title=title,
-            body=body,
-            status="failed",
-            extra=fail_extra(exc, {**(extra or {}),
-                "retry_after": int(getattr(exc, "retry_after", 120)),
-                "permanent": isinstance(exc, (TelegramBadRequest, TelegramForbiddenError)),
-            }),
-        )
+        extra = fail_extra(exc, {**(extra or {}),
+            "retry_after": int(getattr(exc, "retry_after", 120)),
+            "permanent": isinstance(exc, (TelegramBadRequest, TelegramForbiddenError)),
+        })
         ok = False
+    try:
+        await db.log_bot_message(kind=kind, source="auto", telegram_id=telegram_id,
+            first_name=first_name, title=title, body=body, status="sent" if ok else "failed", extra=extra)
+    except Exception:
+        logger.exception("Could not log reminder delivery %s", kind)
     mark = {
         "nudge_trial": "trial",
         "nudge_invite": "invite",
@@ -121,6 +123,11 @@ async def _deliver(
         await db.mark_nudge_sent(telegram_id, mark)
     await asyncio.sleep(0.035)
     return ok
+
+
+async def _trial_channel_ready(bot: Bot, telegram_id: int) -> bool:
+    from app.access import is_channel_member
+    return await is_channel_member(bot, telegram_id)
 
 
 async def send_due_trial_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
@@ -137,6 +144,13 @@ async def send_due_trial_nudges(bot: Bot, skip_ids: list[int] | None = None) -> 
         telegram_id = int(row["telegram_id"])
         already = bool(row.get("trial_used"))
         body = trial_nudge_text(row.get("first_name"), already_granted=already)
+        markup = onboarding_keyboard(gift=True)
+        if row.get('welcome_support_pending'):
+            body = notice_text('trial_resume_welcome')
+            markup = support_welcome_keyboard()
+        elif not await _trial_channel_ready(bot, telegram_id):
+            body = notice_text('trial_resume_channel')
+            markup = channel_keyboard()
         ok = await _deliver(
             bot,
             kind="nudge_trial",
@@ -144,7 +158,7 @@ async def send_due_trial_nudges(bot: Bot, skip_ids: list[int] | None = None) -> 
             first_name=row.get("first_name"),
             title="Напоминание: триал",
             body=body,
-            reply_markup=onboarding_keyboard(gift=True),
+            reply_markup=markup,
         )
         touched.append(telegram_id)
         if ok:
@@ -308,6 +322,10 @@ async def send_due_trial_end_nudges(bot: Bot, skip_ids: list[int] | None = None)
         if not await db.claim_balance_ending_notice(telegram_id, settings.vpn_day_price_rub):
             continue
         body = notice_text("balance_ending_nudge")
+        count = max(1, int(row.get("device_count") or 1))
+        body += (f"\n\nБаланс: {rub_text(int(row.get('balance_rub') or 0))}. "
+                 f"Устройств: {count}. Расход: {rub_text(count * settings.vpn_day_price_rub)} в сутки."
+                 "\nОстаток оплаченного времени — в кабинете.")
         ok = await _deliver(
             bot, kind="nudge_trial_end", telegram_id=telegram_id, first_name=row.get("first_name"),
             title="Баланс заканчивается", body=body, reply_markup=payment_nudge_keyboard(label="Пополнить баланс"), extra=None,
@@ -382,6 +400,7 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
     while True:
         try:
             await db.resolve_exit_feedback()
+            await db.resolve_recovered_vpn_feedback()
             retry_skip = await db.nudge_retry_suppressed_ids()
             retry_skip.extend(await db.exit_feedback_suppressed_ids())
             quiet_ids = await db.quiet_notification_ids()
@@ -395,6 +414,7 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
             if n:
                 logger.info("Предупреждение об окончании подарка: %s", n)
             skip.extend(quiet_ids)
+            skip.extend(await db.marketing_suppressed_ids())
             skip.extend(await db.nudge_suppressed_ids(hours=24))
             n, ids = await send_due_device_nudges(bot, skip)
             skip.extend(ids)

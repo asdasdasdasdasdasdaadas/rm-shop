@@ -45,6 +45,10 @@ async def deliver_campaign_message(bot, row: dict) -> float:
     if not await db.notification_allowed(row['telegram_id'], 'referral_campaign_start'):
         await db.cancel_quiet_campaign_message(row['campaign_id'], row['telegram_id'])
         return 0.05
+    slot = await db.reserve_optional_message(row['telegram_id'], 'referral_campaign_start')
+    if slot is None:
+        await db.defer_campaign_message(row['campaign_id'], row['telegram_id'])
+        return 0.05
     text, markup = campaign_announcement(row['telegram_id'], row['reward_rub'])
     error = None
     retryable = False
@@ -64,6 +68,7 @@ async def deliver_campaign_message(bot, row: dict) -> float:
         extra = fail_extra(exc, {'campaign_id': row['campaign_id']})
     else:
         extra = {'campaign_id': row['campaign_id']}
+    await db.finish_optional_message(slot, error is None)
     # Persist delivery before optional audit logging: logging failure must not resend.
     await db.finish_campaign_message(row['campaign_id'], row['telegram_id'],
                                     error=error, retry_seconds=retry, retryable=retryable)

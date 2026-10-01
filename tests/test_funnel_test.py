@@ -9,7 +9,7 @@ from app import admin, funnel_test, faq, keyboards, nudge, config, referrals
 
 class FunnelTest(unittest.IsolatedAsyncioTestCase):
     def test_catalog_uses_current_texts_and_inert_buttons(self):
-        settings = config.Settings.model_construct(bot_username='test_bot', balance_enabled=True, webapp_public_url='https://example.org')
+        settings = config.Settings.model_construct(bot_username='test_bot', balance_enabled=True, webapp_public_url='https://example.org',required_channel_url='https://t.me/test_channel')
         with ExitStack() as stack:
             for module in (funnel_test, keyboards, nudge, referrals):
                 stack.enter_context(patch.object(module, 'get_settings', return_value=settings))

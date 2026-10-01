@@ -418,6 +418,9 @@ async def api_funnel_test(request: web.Request) -> web.Response:
     admins = sorted(get_settings().admin_id_set)
     if request.method == "GET":
         rows = catalog(admins[0] if admins else 0)
+        stats = await db.funnel_message_stats()
+        for row in rows:
+            row['delivery'] = stats.get(row.get('kind'), {})
         return web.json_response({"ok": True, "admins": admins,
             "messages": [{k: v for k, v in row.items() if k != "markup"} for row in rows],
             "scenarios": [{"id": key, "title": title, "steps": steps} for key, (title, steps) in SCENARIOS.items()]})
@@ -876,12 +879,19 @@ async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
         log_extra["image_name"] = extra.get("image_name")
     if extra.get("step") is not None:
         log_extra["step"] = extra.get("step")
+    slot = None
+    if db.is_marketing_message(kind):
+        slot = await db.reserve_optional_message(telegram_id, kind)
+        if slot is None:
+            return False, "Отправка отложена: лимит сообщений, незавершённая оплата или обращение в поддержку"
     try:
         photo = None
         if extra.get("template") == "update" and extra.get("image_name"):
             photo = announcement_photo_path(str(extra.get("image_name") or ""))
         await _deliver_broadcast(bot, telegram_id, body, markup, photo)
     except Exception as exc:
+        if slot is not None:
+            await db.finish_optional_message(slot, False)
         await db.log_bot_message(
             kind=kind,
             source=origin,
@@ -894,6 +904,8 @@ async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
             extra=fail_extra(exc, log_extra),
         )
         return False, telegram_fail_reason(exc)
+    if slot is not None:
+        await db.finish_optional_message(slot, True)
     await db.log_bot_message(
         kind=kind,
         source=origin,
@@ -1487,6 +1499,11 @@ async def _broadcast_all(
             break
         telegram_id = int(row["telegram_id"])
         if not await db.notification_allowed(telegram_id, "broadcast"):
+            job["skipped"] = int(job.get("skipped") or 0) + 1
+            continue
+        slot = await db.reserve_optional_message(telegram_id, "broadcast")
+        if slot is None:
+            job["skipped"] = int(job.get("skipped") or 0) + 1
             continue
         body, markup = _broadcast_payload(tpl, text, telegram_id, row.get("first_name"), settings)
         extra = {"template": tpl or "custom", "broadcast_id": job.get("run_id")}
@@ -1520,6 +1537,7 @@ async def _broadcast_all(
             status = "sent"
             if token:
                 await finish_tracked_delivery(token, status, getattr(message, "message_id", None))
+        await db.finish_optional_message(slot, status == "sent")
         try:
             await db.log_bot_message(kind="broadcast", source="manual", telegram_id=telegram_id,
                 first_name=row.get("first_name"), title=_broadcast_title(tpl), body=body, status=status, extra=extra)

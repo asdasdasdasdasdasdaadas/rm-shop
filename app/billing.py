@@ -66,78 +66,64 @@ async def apply_router_slot(
 
 
 async def grant_plan(
-    telegram_id: int,
-    plan_code: str,
-    rw: RemnawaveClient,
-    bot: Bot | None = None,
-    payment_key: str | None = None,
+    telegram_id: int, plan_code: str, rw: RemnawaveClient,
+    bot: Bot | None = None, payment_key: str | None = None, *, stars: int = 0,
 ) -> dict | None:
     settings = get_settings()
     plan = settings.plan_by_code(plan_code)
-    if not plan:
-        raise ValueError("unknown plan")
-    local = await db.get_user(telegram_id)
-    repeat = bool(local and local.get("has_paid_topup"))
-    amount = 0
-    if plan.get("router"):
-        days = max(1, int(plan.get("days") or settings.router_days or 30))
-        try:
-            amount = int(round(float(plan.get("rub") or 0)))
-        except (TypeError, ValueError):
-            amount = int(settings.router_rub or 0)
-        expire = await db.extend_router_expire(telegram_id, days)
-        await db.log_billing_event(
-            telegram_id,
-            "router",
-            source="pay",
-            amount=amount,
-            note=plan_code,
-        )
-        try:
-            await apply_router_slot(rw, telegram_id, expire)
-        except Exception:
-            pass
-    else:
-        amount = int(plan.get("topup_rub") or 0)
-        if amount < 1:
-            raise ValueError("unknown plan")
-        await db.add_balance_rub(telegram_id, amount)
-        await db.log_billing_event(
-            telegram_id,
-            "topup",
-            source="pay",
-            amount=amount,
-            note=plan_code,
-        )
-    await db.mark_paid_topup(telegram_id)
-    if not plan.get("router"):
-        # Serialize with the scheduled billing cycle to avoid charging the same day twice.
-        # A panel outage must not make an already credited payment fail and be credited again.
-        from app.balance import sync_user_billing
-
-        try:
-            async with runtime.panel_cron_lock():
-                await sync_user_billing(rw, telegram_id, bot, source="pay")
-        except Exception:
-            logger.exception("Immediate VPN activation failed after topup telegram=%s; scheduled billing will retry", telegram_id)
+    if not plan or not payment_key:
+        raise ValueError("Unknown plan or missing payment key")
+    router_days = max(1, int(plan.get("days") or settings.router_days or 30)) if plan.get("router") else 0
+    amount = int(round(float(plan.get("rub") or 0))) if router_days else int(plan.get("topup_rub") or 0)
+    receipt = await db.credit_payment_once(telegram_id, plan_code, payment_key, amount, router_days, stars)
+    if receipt is None:
+        return None
+    # Never expose a side-effect failure as a failed payment after the transaction committed.
+    try:
+        await apply_payment_effects(receipt, rw, bot)
+    except Exception:
+        logger.exception("Payment %s credited; effects will retry", payment_key)
     from app.live import paid as live_paid
+    try:
+        local = await db.get_user(telegram_id)
+        live_paid(dict(local or {}, telegram_id=telegram_id), amount=amount,
+                  title=str(plan.get("title") or plan_code), repeat=not receipt['first_payment'])
+    except Exception:
+        logger.exception("Could not publish payment event %s", payment_key)
+    return receipt
 
-    who = dict(local or {})
-    who.setdefault("telegram_id", telegram_id)
-    live_paid(
-        who,
-        amount=amount,
-        title=str(plan.get("title") or plan_code),
-        repeat=repeat,
-    )
+
+async def apply_payment_effects(receipt: dict, rw: RemnawaveClient, bot: Bot | None) -> None:
+    key, uid = receipt['payment_key'], int(receipt['telegram_id'])
+    if not await db.claim_payment_effects(key):
+        return
+    from app.balance import sync_user_billing
     from app.referrals import maybe_reward_invitee, maybe_reward_referrer
+    local = await db.get_user(uid)
+    await maybe_reward_referrer(bot, rw, uid, (local or {}).get('first_name'), payment_key=key,
+        topup_rub=receipt['amount'] if not receipt['router_days'] else 0,
+        first_payment=receipt['first_payment'], enabled=receipt['referral_enabled'], paid_at=receipt.get('created_at'))
+    if receipt['first_payment']:
+        await maybe_reward_invitee(bot, uid, enabled=receipt['referral_enabled'], amount=receipt['invitee_bonus'])
+    async with runtime.panel_cron_lock():
+        if receipt['router_days']:
+            await apply_router_slot(rw, uid)
+        else:
+            await sync_user_billing(rw, uid, bot, source="pay")
+    await db.finish_payment_effects(key)
 
-    local = await db.get_user(telegram_id)
-    await maybe_reward_referrer(bot, rw, telegram_id, (local or {}).get("first_name"),
-        payment_key=payment_key, topup_rub=amount if not plan.get("router") else 0, first_payment=not repeat)
-    if not repeat:
-        await maybe_reward_invitee(bot, telegram_id)
-    return None
+
+async def payment_effects_loop(rw: RemnawaveClient, bot: Bot) -> None:
+    while True:
+        try:
+            for receipt in await db.pending_payment_effects():
+                try:
+                    await apply_payment_effects(receipt, rw, bot)
+                except Exception:
+                    logger.exception("Payment effects will retry: %s", receipt['payment_key'])
+        except Exception:
+            logger.exception("Could not load pending payment effects")
+        await asyncio.sleep(60)
 
 
 async def _lock_for(order_id: str) -> asyncio.Lock:
@@ -160,5 +146,4 @@ async def fulfill_rollypay_order(
         if order["status"] == "granted":
             return None
         user = await grant_plan(int(order["telegram_id"]), order["plan_code"], rw, bot=bot, payment_key=f"rollypay:{order_id}")
-        await db.mark_rollypay_paid(order_id)
         return user

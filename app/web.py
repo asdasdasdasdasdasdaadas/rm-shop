@@ -1216,6 +1216,8 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
     except RemnawaveError as exc:
         logger.exception("RollyPay fulfill failed: %s", exc)
         return web.Response(status=500, text="fulfill failed")
+    if user is None:
+        return web.Response(text="OK")
     telegram_id = int(order["telegram_id"])
     try:
         if plan.get("router"):
@@ -1242,7 +1244,7 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
                 telegram_id,
                 topup_ok_text(
                     rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
-                    can_share=can_share,
+                    can_share=can_share, local=local,
                 ),
                 reply_markup=await after_topup_keyboard(telegram_id),
             )

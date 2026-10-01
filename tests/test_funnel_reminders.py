@@ -48,7 +48,7 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
         conn.executescript('''
             CREATE TABLE users (telegram_id INTEGER, first_name TEXT, blocked_at TEXT, bot_blocked_at TEXT,
                 bot_started_at TEXT, gift_claimed_at TEXT, first_online_at TEXT, device_nudge_count INTEGER DEFAULT 0, device_nudge_at TEXT,
-                trial_end_nudge_at TEXT, low_balance_notified_at TEXT, trial_used INTEGER DEFAULT 1, billing_paused_at TEXT,
+                trial_end_nudge_at TEXT, low_balance_notified_at TEXT, trial_used INTEGER DEFAULT 1, billing_paused_at TEXT, welcome_support_pending BOOLEAN DEFAULT FALSE,
                 has_paid_topup INTEGER DEFAULT 0, balance_rub INTEGER DEFAULT 6, checkout_started_at TEXT, created_at TEXT DEFAULT '2026-09-18', trial_nudge_sent_at TEXT, invite_nudge_sent_at TEXT);
             CREATE TABLE devices (telegram_id INTEGER, kind TEXT);
             CREATE TABLE message_log (telegram_id INTEGER, status TEXT, kind TEXT, created_at TEXT);
@@ -126,4 +126,7 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
             bot = SimpleNamespace(send_message=AsyncMock())
             self.assertEqual(await nudge.send_due_trial_end_nudges(bot), (1,[1]))
             text.assert_called_once_with('balance_ending_nudge')
-            bot.send_message.assert_awaited_once_with(1,'message',reply_markup='topup')
+            bot.send_message.assert_awaited_once()
+            self.assertIn('Баланс: 6', bot.send_message.call_args.args[1])
+            self.assertIn('Расход: 12', bot.send_message.call_args.args[1])
+            self.assertEqual(bot.send_message.call_args.kwargs['reply_markup'], 'topup')

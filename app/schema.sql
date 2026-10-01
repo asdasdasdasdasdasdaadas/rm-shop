@@ -599,3 +599,32 @@ ALTER TABLE tickets ADD COLUMN IF NOT EXISTS support_rating SMALLINT CHECK (supp
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS rated_at TIMESTAMPTZ;
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS quiet_notifications BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Durable payment receipts: credit and receipt commit together; side effects can retry.
+CREATE TABLE IF NOT EXISTS payment_receipts (
+    payment_key TEXT PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    plan_code TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    router_days INTEGER NOT NULL DEFAULT 0,
+    first_payment BOOLEAN NOT NULL,
+    referral_enabled BOOLEAN NOT NULL,
+    invitee_bonus INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    effects_done_at TIMESTAMPTZ,
+    retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS payment_receipts_pending_idx ON payment_receipts(retry_at)
+    WHERE effects_done_at IS NULL;
+
+-- Reservations serialize optional messages from all workers, including multiple processes.
+CREATE TABLE IF NOT EXISTS optional_message_slots (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    sent_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS optional_message_slots_user_idx ON optional_message_slots(telegram_id, created_at);
+
+ALTER TABLE broadcast_runs ADD COLUMN IF NOT EXISTS skipped INTEGER NOT NULL DEFAULT 0;

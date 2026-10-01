@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from html import escape, unescape
+
 from typing import Any
 
 from app.config import shop_overlay
@@ -63,7 +65,7 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Сутки VPN на одно устройство: <b>{price}</b>\n\n"
         "Чтобы включить VPN, нажмите «Открыть кабинет» и добавьте устройство. "
         "Пока устройств нет, баланс не списывается. "
-        "Сюда можно зайти даже если VPN уже не работает."
+        "Сохраните ссылку на кабинет на случай проблем с подключением."
     ),
     "low_balance": (
         "На балансе не хватает средств на сутки VPN. "
@@ -87,10 +89,12 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Списан обещанный платёж: {amount}. "
         "Если баланс ушёл в минус, пополните его."
     ),
+    "trial_resume_welcome": "Вы начали знакомство с сервисом. Продолжить? Нажмите «Я помогу» — после этого покажем следующий шаг подключения.",
+    "trial_resume_channel": "До подключения остался шаг: подпишитесь на канал и нажмите кнопку проверки подписки. Затем можно перейти в кабинет за подарком.",
     "trial_nudge": (
         "{name}, Вы заглянули к нам, но VPN ещё не пробовали.\n\n"
         "Давайте попробуем: {extra} "
-        "Платите только за свои устройства. Если не зайдёт — просто не продлевайте."
+        "За каждое добавленное устройство списывается суточная стоимость, даже без подключения. Ненужные устройства можно удалить в кабинете."
     ),
     "invite_nudge": (
         "{name}, за друга можно получить {reward}.\n\n"
@@ -109,7 +113,7 @@ DEFAULT_NOTICES: dict[str, str] = {
         "Если нужна помощь, напишите в поддержку."
     ),
     "broadcast_unused": (
-        "Вы так и не воспользовались VPN.\n\n"
+        "Нужна помощь с первым подключением?\n\n"
         "Нажмите «Открыть кабинет» и добавьте одно устройство. Пока его нет, баланс не списывается."
     ),
     "vpn_quality_check": "Вы уже подключились к VPN. Всё работает как ожидали?\n\nЕсли сайты не открываются или соединение обрывается, поможем разобраться.",
@@ -125,9 +129,9 @@ DEFAULT_NOTICES: dict[str, str] = {
     ),
     "info_nudge": (
         "Как у нас устроено.\n\n"
-        "Сутки VPN списываются только с добавленных устройств, по {price} за каждое в день. "
+        "За каждое добавленное устройство списывается {price} в сутки, даже когда вы не подключены. "
         "Пока устройств нет, баланс не тратится.\n\n"
-        "Сюда всегда можно зайти из бота, даже если VPN вдруг отключится. "
+        "Сохраните ссылку на кабинет заранее. "
         "Поддержка тоже здесь."
         "{story}"
     ),
@@ -141,7 +145,7 @@ DEFAULT_NOTICES: dict[str, str] = {
         "VPN уже работал. Всё ли в порядке?\n\n"
         "Если да — пополните баланс, чтобы не отключилось. "
         "Осталось примерно {days}. "
-        "Сюда можно зайти из бота даже без VPN.\n\n"
+        "Кабинет можно открыть по кнопке ниже.\n\n"
         "Если нужна помощь с подключением, напишите в поддержку."
     ),
     "balance_ending_nudge": "Баланс заканчивается. Пополните его, чтобы VPN продолжил работать.",
@@ -198,7 +202,7 @@ DEFAULT_NOTICES: dict[str, str] = {
     ),
     "idle_nudge_7": (
         "Неделю VPN не подключался. Если что-то сломалось — напишите в поддержку, разберёмся.\n\n"
-        "Сюда можно зайти из бота даже без VPN. Можно пополнить баланс или проверить устройство."
+        "Кабинет можно открыть по кнопке ниже. Можно пополнить баланс или проверить устройство."
     ),
     "idle_nudge_10": (
         "Уже десять дней без подключения. Если VPN всё ещё нужен, зайдите и проверьте устройство.\n\n"
@@ -286,6 +290,8 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "cabinet_login_no", "title": "Вход на сайт отклонён", "hint": ""},
     {"key": "cabinet_login_gone", "title": "Заявка на вход устарела", "hint": ""},
     {"key": "trust_collect", "title": "Списание обещанного платежа", "hint": "{amount}"},
+    {"key": "trial_resume_welcome", "title": "Напоминание: не завершил приветствие", "hint": ""},
+    {"key": "trial_resume_channel", "title": "Напоминание: не подписался на канал", "hint": ""},
     {"key": "trial_nudge", "title": "Напоминание взять триал", "hint": "{name} {extra}"},
     {"key": "invite_nudge", "title": "Пригласить друга", "hint": "{name} {reward} {when} {link}"},
     {"key": "broadcast_invite", "title": "Рассылка: пользуются VPN", "hint": "{terms} {reward} {link}"},
@@ -337,6 +343,20 @@ class _SafeMap(dict):
         return "{" + key + "}"
 
 
+# Preserve saved legacy templates, but do not offer inactive chains as live settings.
+ARCHIVED_NOTICE_KEYS = {
+    'welcome_intro_legal', 'legal', 'referral_referrer_balance', 'referral_referrer_paid',
+    'first_device_thanks', 'first_online_nudge', 'device_nudge_2', 'device_nudge_3',
+    'legal_nudge_1', 'legal_nudge_2', 'legal_nudge_3', 'referral_invitee_balance',
+    *(f'idle_{segment}_{day}' for segment in ('setup','topup','return') for day in (10,15)),
+    *(f'idle_return_{day}' for day in (7,20)),
+    *(f'idle_nudge_{day}' for day in (7,10,15,20)),
+}
+NOTICE_FIELDS = [field for field in NOTICE_FIELDS if field['key'] not in ARCHIVED_NOTICE_KEYS]
+
+
+LEGACY_NOTICE_DEFAULTS = {'profile_balance': 'Здравствуйте, {name}.\n\nБаланс: <b>{balance}</b>\nСутки VPN на одно устройство: <b>{price}</b>\n\nЧтобы включить VPN, нажмите «Открыть кабинет» и добавьте устройство. Пока устройств нет, баланс не списывается. Сюда можно зайти даже если VPN уже не работает.', 'trial_nudge': '{name}, Вы заглянули к нам, но VPN ещё не пробовали.\n\nДавайте попробуем: {extra} Платите только за свои устройства. Если не зайдёт — просто не продлевайте.', 'broadcast_unused': 'Вы так и не воспользовались VPN.\n\nНажмите «Открыть кабинет» и добавьте одно устройство. Пока его нет, баланс не списывается.', 'info_nudge': 'Как у нас устроено.\n\nСутки VPN списываются только с добавленных устройств, по {price} за каждое в день. Пока устройств нет, баланс не тратится.\n\nСюда всегда можно зайти из бота, даже если VPN вдруг отключится. Поддержка тоже здесь.{story}', 'first_online_nudge': 'VPN уже работал. Всё ли в порядке?\n\nЕсли да — пополните баланс, чтобы не отключилось. Осталось примерно {days}. Сюда можно зайти из бота даже без VPN.\n\nЕсли нужна помощь с подключением, напишите в поддержку.', 'idle_nudge_7': 'Неделю VPN не подключался. Если что-то сломалось — напишите в поддержку, разберёмся.\n\nСюда можно зайти из бота даже без VPN. Можно пополнить баланс или проверить устройство.'}
+
 def public_notices() -> dict[str, str]:
     raw = shop_overlay().get("notices")
     overlay = raw if isinstance(raw, dict) else {}
@@ -344,13 +364,14 @@ def public_notices() -> dict[str, str]:
     for key, default in DEFAULT_NOTICES.items():
         val = overlay.get(key)
         text = str(val).strip() if isinstance(val, str) else ""
-        out[key] = text or default
+        out[key] = default if text == LEGACY_NOTICE_DEFAULTS.get(key) else text or default
     return out
 
 
 def notice_text(key: str, **kwargs: Any) -> str:
     tpl = public_notices().get(key) or DEFAULT_NOTICES.get(key) or ""
-    data = {k: "" if v is None else v for k, v in kwargs.items()}
+    data = {k: "" if v is None else (escape(unescape(str(v)), quote=True)
+            if k in {"name", "brand", "error", "link", "url"} else v) for k, v in kwargs.items()}
     try:
         return tpl.format_map(_SafeMap(data))
     except Exception:

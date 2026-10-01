@@ -3,7 +3,7 @@ from html import escape
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from app.config import get_settings
 from app.keyboards import (cabinet_keyboard, onboarding_keyboard, payment_nudge_keyboard,
-                           share_keyboard, vpn_feedback_keyboard, support_welcome_keyboard)
+                           share_keyboard, vpn_feedback_keyboard, support_welcome_keyboard, channel_keyboard)
 from app.notices import notice_text
 from app.nudge import trial_nudge_text, invite_nudge_text, info_nudge_text
 from app.texts import days_text, rub_text
@@ -23,13 +23,17 @@ def catalog(telegram_id: int) -> list[dict]:
         notice_text('support_welcome', brand=escape(s.brand_name)), support_welcome_keyboard())
     add('gift', 'start', 'Подарок ещё не забрали', 'Напоминание о пробном доступе; подарок не получен',
         trial_nudge_text('Тестовый пользователь', already_granted=False), onboarding_keyboard(gift=True))
+    add('resume_welcome', 'start', 'Не завершил приветствие', 'Через 24 часа; не нажал «Я помогу»',
+        notice_text('trial_resume_welcome'), support_welcome_keyboard())
+    add('resume_channel', 'start', 'Не подписался на канал', 'Через 24 часа; приветствие завершено, подписка на канал не подтверждена',
+        notice_text('trial_resume_channel'), channel_keyboard())
     add('gift_claimed', 'start', 'Подарок получен, устройства нет', 'Альтернативная ветка: подарок уже на балансе',
         trial_nudge_text('Тестовый пользователь', already_granted=True), onboarding_keyboard(gift=True))
     add('device', 'start', 'Устройство добавлено', 'Сразу после добавления устройства',
         notice_text('device_created_next_step'), onboarding_keyboard(has_device=True))
     add('setup', 'start', 'Нет первого подключения', 'Устройство есть, но пользователь ещё не вышел онлайн',
         notice_text('device_setup_nudge'), onboarding_keyboard(has_device=True))
-    add('quality', 'start', 'Проверка качества VPN', 'После первого онлайна, при выполнении условий напоминания',
+    add('quality', 'start', 'Проверка качества VPN', 'От 20 часов до 7 дней после первого онлайна; ещё не ответил на опрос',
         notice_text('vpn_quality_check'), vpn_feedback_keyboard())
     add('ending', 'payment', 'Баланс заканчивается', 'Пользователь подходит к концу оплаченного доступа',
         notice_text('balance_ending_nudge'), payment_nudge_keyboard(label='Пополнить баланс'))
@@ -38,10 +42,10 @@ def catalog(telegram_id: int) -> list[dict]:
     add('invoice', 'payment', 'Счёт не оплачен', 'Через 10 минут после создания неоплаченного счёта',
         notice_text('payment_nudge'), payment_nudge_keyboard('test'))
     add('paid', 'payment', 'Успешное пополнение', 'Пример: подтверждён платёж 100 ₽; реального зачисления нет',
-        topup_ok_text(rub_text(100), can_share=False), cabinet_keyboard())
-    add('invite', 'referral', 'Приглашение друзей', 'После использования VPN; учитываются текущие условия программы',
+        topup_ok_text(rub_text(100), can_share=False, local={'balance_rub':100}), cabinet_keyboard())
+    add('invite', 'referral', 'Приглашение друзей', 'Через 48 часов после первого онлайна; положительный отзыв или повторное использование; программа включена',
         invite_nudge_text(telegram_id, 'Тестовый пользователь'), share_keyboard(s.bot_username, telegram_id))
-    add('info', 'referral', 'Как устроен сервис', 'Информационное автоматическое сообщение',
+    add('info', 'referral', 'Как устроен сервис', 'Через 96 часов после первого онлайна; пользовался за последние 7 дней; нет нерешённой проблемы',
         info_nudge_text(), cabinet_keyboard())
     for days in (7, 20):
         for segment, label in [('setup', 'не подключился'), ('topup', 'закончились деньги'), ('return', 'баланс есть')]:
@@ -49,7 +53,26 @@ def catalog(telegram_id: int) -> list[dict]:
             key = ('return_check' if days == 7 else 'return_last') if segment == 'return' else f'idle_{segment}_{days}'
             add(f'{segment}_{days}', f'return_{segment}', f'Возврат: {label}, {days} дней',
                 f'{days} дней без использования; ветка «{label}»', notice_text(key), markup)
+    for row in rows:
+        kind = MESSAGE_KINDS.get(row['id'])
+        row['kind'] = kind
+        row['exclusions'] = (
+            'Тишина, незакрытый тикет, оплата в последние 20 минут, недавнее сообщение; максимум 1 в сутки и 3 за неделю.'
+            if kind and (kind.startswith('nudge_') and kind not in {'nudge_trial_end', 'nudge_payment'})
+            else 'Финансовые и запрошенные действия не расходуют лимит рекламных сообщений.'
+        )
+        if row['id'] == 'gift_claimed':
+            row['condition'] = 'Только пример текста. Отдельное автоматическое напоминание этого типа не отправляется.'
     return rows
+
+
+MESSAGE_KINDS = {
+    'welcome': 'welcome_intro', 'intro': 'welcome_intro', 'support': 'welcome_intro',
+    'resume_welcome': 'nudge_trial', 'resume_channel': 'nudge_trial', 'gift': 'nudge_trial', 'device': 'first_device_thanks', 'setup': 'nudge_device',
+    'quality': 'nudge_first_online', 'ending': 'nudge_trial_end', 'empty': 'low_balance',
+    'invoice': 'nudge_payment', 'invite': 'nudge_invite', 'info': 'nudge_info',
+    **{f'{segment}_{day}': 'nudge_idle' for segment in ('setup','topup','return') for day in (7,20)},
+}
 
 
 SCENARIOS = {

@@ -293,7 +293,7 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
     await callback.message.edit_text(
         topup_ok_text(
             rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
-            can_share=can_share,
+            can_share=can_share, local=local,
         ),
         reply_markup=await after_topup_keyboard(callback.from_user.id),
     )
@@ -335,27 +335,21 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
     if not plan:
         await message.answer(notice_text("payment_unknown"))
         return
-    inserted = await db.save_payment(
-        message.from_user.id,
-        code,
-        payment.total_amount,
-        payment.telegram_payment_charge_id,
-    )
-    if not inserted:
-        await message.answer(notice_text("payment_duplicate"))
-        return
     try:
         user = await grant_plan(message.from_user.id, code, rw, bot=message.bot,
-            payment_key=f"stars:{payment.telegram_payment_charge_id}")
+            payment_key=f"stars:{payment.telegram_payment_charge_id}", stars=payment.total_amount)
     except RemnawaveError as exc:
         await message.answer(notice_text("payment_panel_error", error=exc))
+        return
+    if user is None:
+        await message.answer(notice_text("payment_duplicate"))
         return
     local = await db.get_user(message.from_user.id)
     can_share = bool(local and local.get("first_online_at"))
     await message.answer(
         topup_ok_text(
             rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
-            can_share=can_share,
+            can_share=can_share, local=local,
         ),
         reply_markup=await after_topup_keyboard(message.from_user.id),
     )
