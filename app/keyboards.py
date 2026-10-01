@@ -218,6 +218,14 @@ def help_connect_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def help_ticket_cancel_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[
+            InlineKeyboardButton(text="Отменить", callback_data="help_ticket_cancel"),
+        ]]
+    )
+
+
 def help_connect_reply_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     add_cabinet_row(builder)

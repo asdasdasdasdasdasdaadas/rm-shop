@@ -4,7 +4,7 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
 from app import db
-from app.keyboards import help_connect_reply_keyboard
+from app.keyboards import help_connect_reply_keyboard, help_ticket_cancel_keyboard
 from app.notices import notice_text
 from app.tickets import attachments_from_message, receive_user_message
 
@@ -53,7 +53,16 @@ async def help_other(callback: CallbackQuery) -> None:
 async def _open_help_ticket(callback: CallbackQuery, body: str) -> None:
     # Viewing help is not a support request: the message handler opens
     # the ticket only when the user sends actual text or an attachment.
-    await callback.message.answer(notice_text("help_other"))
+    await callback.message.answer(
+        notice_text("help_other"),
+        reply_markup=help_ticket_cancel_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "help_ticket_cancel")
+async def help_ticket_cancel(callback: CallbackQuery) -> None:
+    await callback.answer("Отменено")
+    await callback.message.edit_text("Обращение отменено. Если понадобится помощь — напишите снова.")
 
 
 @router.callback_query(F.data.startswith("ticket_close:"))
