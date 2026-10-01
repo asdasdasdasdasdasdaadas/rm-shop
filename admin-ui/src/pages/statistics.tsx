@@ -594,6 +594,25 @@ export function StatisticsPage() {
             </div>
           )}
         </Panel>
+        {snapshot.data && (
+          <Panel
+            title="Скоро понадобится оплата"
+            description="Уже пользовались VPN. Баланса хватит не больше чем на 3 суток по обычным устройствам, либо есть незакрытый обещанный платёж. Роутер в расход не входит. Один человек может попасть в оба списка."
+          >
+            <div className="grid gap-5 sm:grid-cols-3">
+              {[
+                ["Всего", s.pay_soon?.total],
+                ["Баланс заканчивается", s.pay_soon?.low_balance],
+                ["Обещанный платёж", s.pay_soon?.trust],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <p className="text-sm text-muted-foreground">{label}</p>
+                  <p className="text-2xl font-semibold mt-1">{number(value)}</p>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        )}
         {history.data && (
           <Panel
             title="Устройства и трафик сейчас"

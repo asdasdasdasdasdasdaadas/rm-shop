@@ -2574,6 +2574,52 @@ async def admin_statistics(days: int = 30) -> dict:
     }
 
 
+PAY_SOON_DAYS = 3
+
+
+async def admin_pay_soon_counts(day_price: int) -> dict:
+    """Online users whose balance covers at most three days, or who have an open trust loan."""
+    price = max(1, int(day_price or 1))
+    row = await _pool_req().fetchrow(
+        """
+        SELECT
+            COUNT(*) FILTER (WHERE low_balance OR trust_open)::int AS total,
+            COUNT(*) FILTER (WHERE low_balance)::int AS low_balance,
+            COUNT(*) FILTER (WHERE trust_open)::int AS trust
+        FROM (
+            SELECT
+                EXISTS (
+                    SELECT 1 FROM trust_loans t
+                    WHERE t.telegram_id = u.telegram_id AND t.collected_at IS NULL
+                ) AS trust_open,
+                (
+                    u.billing_paused_at IS NULL
+                    AND dev.n > 0
+                    AND COALESCE(u.balance_rub, 0) <= $1::int * dev.n
+                ) AS low_balance
+            FROM users u
+            CROSS JOIN LATERAL (
+                SELECT COUNT(*)::int AS n
+                FROM devices d
+                WHERE d.telegram_id = u.telegram_id
+                  AND COALESCE(d.kind, '') <> 'router'
+            ) dev
+            WHERE u.first_online_at IS NOT NULL
+              AND u.blocked_at IS NULL
+              AND u.bot_blocked_at IS NULL
+        ) s
+        """,
+        PAY_SOON_DAYS * price,
+    )
+    return {
+        "days": PAY_SOON_DAYS,
+        "day_price_rub": price,
+        "total": int((row and row["total"]) or 0),
+        "low_balance": int((row and row["low_balance"]) or 0),
+        "trust": int((row and row["trust"]) or 0),
+    }
+
+
 async def admin_stats() -> dict:
     pool = _pool_req()
     users = await pool.fetchrow(
@@ -2680,6 +2726,7 @@ async def admin_stats() -> dict:
         "broadcast_users": int(broadcast_users or 0),
         "broadcast_using": int(broadcast_using or 0),
         "broadcast_unused": int(broadcast_unused or 0),
+        "pay_soon": await admin_pay_soon_counts(get_settings().vpn_day_price_rub),
         "funnel": await admin_funnel(),
         "onboarding_steps": await admin_onboarding_steps(),
         "cohort_outcomes": await admin_cohort_outcomes(),

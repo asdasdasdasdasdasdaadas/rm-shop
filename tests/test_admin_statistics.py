@@ -4,6 +4,20 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from app import db
 
+class PaySoonStatisticsTest(unittest.IsolatedAsyncioTestCase):
+    async def test_counts_online_users_near_zero_or_on_trust(self):
+        pool = SimpleNamespace(fetchrow=AsyncMock(return_value={'total': 4, 'low_balance': 3, 'trust': 2}))
+        with patch.object(db, '_pool_req', return_value=pool):
+            result = await db.admin_pay_soon_counts(6)
+        self.assertEqual(result, {'days': 3, 'day_price_rub': 6, 'total': 4, 'low_balance': 3, 'trust': 2})
+        sql, horizon = pool.fetchrow.call_args.args
+        self.assertEqual(horizon, 18)
+        self.assertIn('first_online_at IS NOT NULL', sql)
+        self.assertIn('trust_loans', sql)
+        self.assertIn("COALESCE(d.kind, '') <> 'router'", sql)
+        self.assertIn('billing_paused_at IS NULL', sql)
+
+
 class AdminStatisticsTest(unittest.IsolatedAsyncioTestCase):
     async def test_moscow_days_zero_fill_and_separate_currencies(self):
         pool = SimpleNamespace(fetch=AsyncMock(return_value=[
