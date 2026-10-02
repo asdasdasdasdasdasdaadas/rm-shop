@@ -18,7 +18,7 @@ import {
   Pager,
   useNavigate,
 } from "@/components/workspace";
-import { date, money, useResource, type Data } from "@/lib/api";
+import { date, money, useResource, who, type Data } from "@/lib/api";
 import { OverviewPage } from "./overview";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Download, RefreshCw } from "lucide-react";
@@ -611,6 +611,58 @@ export function StatisticsPage() {
                 </div>
               ))}
             </div>
+            <details className="mt-5 rounded-lg border p-4">
+              <summary className="cursor-pointer font-medium">
+                Показать людей ({number(s.pay_soon?.total)})
+              </summary>
+              <div className="mt-4">
+                <DataTable
+                  rows={s.pay_soon?.people || []}
+                  empty="Таких людей сейчас нет"
+                  columns={[
+                    {
+                      key: "telegram_id",
+                      label: "Человек",
+                      cell: (r) => (
+                        <Button
+                          variant="link"
+                          className="h-auto px-0"
+                          onClick={() => navigate("users?q=" + r.telegram_id)}
+                        >
+                          {who(r)}
+                        </Button>
+                      ),
+                    },
+                    {
+                      key: "balance_rub",
+                      label: "Баланс",
+                      cell: (r) => money(r.balance_rub),
+                    },
+                    {
+                      key: "days_left",
+                      label: "Хватит",
+                      cell: (r) =>
+                        r.days_left == null
+                          ? "—"
+                          : `${number(r.days_left)} сут.`,
+                    },
+                    {
+                      key: "reason",
+                      label: "Почему в списке",
+                      cell: (r) => (
+                        <span>
+                          {r.reason}
+                          {r.trust_open && r.trust_amount != null
+                            ? `, ${money(r.trust_amount)}`
+                            : ""}
+                          {r.due_at ? `, до ${date(r.due_at)}` : ""}
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
+              </div>
+            </details>
           </Panel>
         )}
         {history.data && (

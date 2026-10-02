@@ -2577,21 +2577,19 @@ async def admin_statistics(days: int = 30) -> dict:
 PAY_SOON_DAYS = 3
 
 
-async def admin_pay_soon_counts(day_price: int) -> dict:
-    """Online users whose balance covers at most three days, or who have an open trust loan."""
-    price = max(1, int(day_price or 1))
-    row = await _pool_req().fetchrow(
-        """
-        SELECT
-            COUNT(*) FILTER (WHERE low_balance OR trust_open)::int AS total,
-            COUNT(*) FILTER (WHERE low_balance)::int AS low_balance,
-            COUNT(*) FILTER (WHERE trust_open)::int AS trust
+def _pay_soon_sql(select: str) -> str:
+    return f"""
+        SELECT {select}
         FROM (
             SELECT
-                EXISTS (
-                    SELECT 1 FROM trust_loans t
-                    WHERE t.telegram_id = u.telegram_id AND t.collected_at IS NULL
-                ) AS trust_open,
+                u.telegram_id,
+                COALESCE(u.username, '') AS username,
+                COALESCE(u.first_name, '') AS first_name,
+                COALESCE(u.balance_rub, 0)::int AS balance_rub,
+                dev.n AS devices,
+                loan.amount AS trust_amount,
+                loan.due_at,
+                (loan.amount IS NOT NULL) AS trust_open,
                 (
                     u.billing_paused_at IS NULL
                     AND dev.n > 0
@@ -2604,11 +2602,45 @@ async def admin_pay_soon_counts(day_price: int) -> dict:
                 WHERE d.telegram_id = u.telegram_id
                   AND COALESCE(d.kind, '') <> 'router'
             ) dev
+            LEFT JOIN LATERAL (
+                SELECT t.amount, t.due_at
+                FROM trust_loans t
+                WHERE t.telegram_id = u.telegram_id AND t.collected_at IS NULL
+                LIMIT 1
+            ) loan ON TRUE
             WHERE u.first_online_at IS NOT NULL
               AND u.blocked_at IS NULL
               AND u.bot_blocked_at IS NULL
         ) s
-        """,
+        WHERE s.low_balance OR s.trust_open
+    """
+
+
+def _pay_soon_person(row, price: int) -> dict:
+    item = _jsonable(dict(row))
+    devices = int(item.get("devices") or 0)
+    balance = int(item.get("balance_rub") or 0)
+    item["days_left"] = round(balance / (price * devices), 1) if devices else None
+    reasons = []
+    if item.get("low_balance"):
+        reasons.append("Баланс заканчивается")
+    if item.get("trust_open"):
+        reasons.append("Обещанный платёж")
+    item["reason"] = " · ".join(reasons)
+    return item
+
+
+async def admin_pay_soon_counts(day_price: int) -> dict:
+    """Online users whose balance covers at most three days, or who have an open trust loan."""
+    price = max(1, int(day_price or 1))
+    row = await _pool_req().fetchrow(
+        _pay_soon_sql(
+            """
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE low_balance)::int AS low_balance,
+            COUNT(*) FILTER (WHERE trust_open)::int AS trust
+            """
+        ),
         PAY_SOON_DAYS * price,
     )
     return {
@@ -2618,6 +2650,26 @@ async def admin_pay_soon_counts(day_price: int) -> dict:
         "low_balance": int((row and row["low_balance"]) or 0),
         "trust": int((row and row["trust"]) or 0),
     }
+
+
+async def admin_list_pay_soon(day_price: int) -> list[dict]:
+    price = max(1, int(day_price or 1))
+    rows = await _pool_req().fetch(
+        _pay_soon_sql(
+            """
+            telegram_id, username, first_name, balance_rub, devices,
+            trust_open, trust_amount, due_at, low_balance
+            """
+        )
+        + """
+        ORDER BY
+            CASE WHEN devices > 0 THEN balance_rub::numeric / devices ELSE 1000000 END,
+            due_at NULLS LAST,
+            telegram_id
+        """,
+        PAY_SOON_DAYS * price,
+    )
+    return [_pay_soon_person(row, price) for row in rows]
 
 
 async def admin_stats() -> dict:
@@ -2726,7 +2778,10 @@ async def admin_stats() -> dict:
         "broadcast_users": int(broadcast_users or 0),
         "broadcast_using": int(broadcast_using or 0),
         "broadcast_unused": int(broadcast_unused or 0),
-        "pay_soon": await admin_pay_soon_counts(get_settings().vpn_day_price_rub),
+        "pay_soon": {
+            **await admin_pay_soon_counts(get_settings().vpn_day_price_rub),
+            "people": await admin_list_pay_soon(get_settings().vpn_day_price_rub),
+        },
         "funnel": await admin_funnel(),
         "onboarding_steps": await admin_onboarding_steps(),
         "cohort_outcomes": await admin_cohort_outcomes(),

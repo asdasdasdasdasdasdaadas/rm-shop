@@ -17,6 +17,26 @@ class PaySoonStatisticsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("COALESCE(d.kind, '') <> 'router'", sql)
         self.assertIn('billing_paused_at IS NULL', sql)
 
+    async def test_lists_people_soonest_balance_first(self):
+        pool = SimpleNamespace(fetch=AsyncMock(return_value=[{
+            'telegram_id': 7,
+            'username': 'ann',
+            'first_name': 'Анна',
+            'balance_rub': 12,
+            'devices': 1,
+            'trust_open': True,
+            'trust_amount': 18,
+            'due_at': datetime(2026, 10, 4, 9, tzinfo=timezone.utc),
+            'low_balance': True,
+        }]))
+        with patch.object(db, '_pool_req', return_value=pool):
+            people = await db.admin_list_pay_soon(6)
+        self.assertEqual(people[0]['telegram_id'], 7)
+        self.assertEqual(people[0]['days_left'], 2.0)
+        self.assertEqual(people[0]['reason'], 'Баланс заканчивается · Обещанный платёж')
+        self.assertEqual(pool.fetch.call_args.args[1], 18)
+        self.assertIn('ORDER BY', pool.fetch.call_args.args[0])
+
 
 class AdminStatisticsTest(unittest.IsolatedAsyncioTestCase):
     async def test_moscow_days_zero_fill_and_separate_currencies(self):
