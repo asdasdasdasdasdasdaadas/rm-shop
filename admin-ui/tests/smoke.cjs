@@ -190,6 +190,44 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
         page: Number(url.searchParams.get("page") || 1),
         limit: 25,
       };
+      if (key === "statistics/winback")
+        data = {
+          ...data,
+          summary: {
+            total: 1,
+            sent: 1,
+            recipients: 1,
+            activated: 1,
+            connected: 1,
+            paid: 1,
+            mature: 0,
+            observing: 1,
+            pending: 0,
+            expired: 0,
+            available: 0,
+            gift_rub: 30,
+            debt_rub: 12,
+            unknown_debt: 0,
+            paid_credit_rub: 100,
+          },
+          series: [
+            { day: "2026-10-03", sent: 1, activated: 1, connected: 1, paid: 1 },
+          ],
+          items: [
+            {
+              telegram_id: 123,
+              first_name: "Александр",
+              code: "ABCD-EFGH-JKLM",
+              state: "activated",
+              gift_rub: 30,
+              device_count: 1,
+              payments: 1,
+              paid_credit_rub: 100,
+              debt_repaid_rub: 12,
+            },
+          ],
+          total: 1,
+        };
       if (key === "stats") data = stats;
       if (key === "statistics") {
         const days = Number(url.searchParams.get("days"));
@@ -233,7 +271,7 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
         }
         data = {
           values: settings,
-          faq_defaults: [{q: "Как подключиться?", a: "Откройте кабинет"}],
+          faq_defaults: [{ q: "Как подключиться?", a: "Откройте кабинет" }],
           balance_enabled: true,
           notice_fields: [
             {
@@ -344,10 +382,28 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
             },
           ],
         };
-      if (key === "funnel-test") data = method === "POST" ? {ok:true,sent:1,total:1} : {
-        admins: [123], scenarios:[{id:"start",title:"Первое подключение",steps:["welcome"]}],
-        messages:[{id:"welcome",title:"Приветствие",condition:"Первый запуск",body:"Здравствуйте"}],
-      };
+      if (key === "funnel-test")
+        data =
+          method === "POST"
+            ? { ok: true, sent: 1, total: 1 }
+            : {
+                admins: [123],
+                scenarios: [
+                  {
+                    id: "start",
+                    title: "Первое подключение",
+                    steps: ["welcome"],
+                  },
+                ],
+                messages: [
+                  {
+                    id: "welcome",
+                    title: "Приветствие",
+                    condition: "Первый запуск",
+                    body: "Здравствуйте",
+                  },
+                ],
+              };
       if (key === "broadcast-results")
         data = {
           items: [
@@ -520,6 +576,12 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await page
     .getByText("Результаты автоматических сообщений", { exact: true })
     .waitFor();
+  await page.getByText("ABCD-EFGH-JKLM", { exact: true }).waitFor();
+  await accessibility("Winback statistics");
+  await page.screenshot({
+    path: path.join(screenshots, "winback.png"),
+    fullPage: true,
+  });
   await page.getByRole("tab", { name: "Сервис сейчас", exact: true }).click();
   await page.getByText("Состояние сервиса сейчас", { exact: true }).waitFor();
   await page.getByRole("tab", { name: "Динамика", exact: true }).click();
@@ -615,9 +677,15 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await messageFilter;
   await page.getByRole("tab", { name: "Устройства", exact: true }).click();
   await page.getByText("iPhone", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "Перевыпустить ссылку", exact: true }).click();
-  await page.getByRole("button", { name: "Перевыпустить и отправить", exact: true }).click();
-  await page.getByText("Ссылка перевыпущена и отправлена пользователю", { exact: true }).waitFor();
+  await page
+    .getByRole("button", { name: "Перевыпустить ссылку", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Перевыпустить и отправить", exact: true })
+    .click();
+  await page
+    .getByText("Ссылка перевыпущена и отправлена пользователю", { exact: true })
+    .waitFor();
 
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Фильтры", exact: true }).click();
@@ -662,16 +730,29 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await page.getByRole("button", { name: "Отмена", exact: true }).click();
   await page.getByRole("heading", { name: "Настройки", exact: true }).waitFor();
   await page.getByRole("button", { name: "Отменить", exact: true }).click();
-  await page.getByRole("button", {name:"Частые вопросы", exact:true}).click();
-  await page.getByLabel("Вопрос 1", {exact:true}).fill("Как включить VPN?");
-  await page.getByRole("button", {name:"Сохранить изменения", exact:true}).click();
-  await page.getByText("Есть несохранённые изменения", {exact:true}).waitFor({state:"hidden"});
+  await page
+    .getByRole("button", { name: "Частые вопросы", exact: true })
+    .click();
+  await page.getByLabel("Вопрос 1", { exact: true }).fill("Как включить VPN?");
+  await page
+    .getByRole("button", { name: "Сохранить изменения", exact: true })
+    .click();
+  await page
+    .getByText("Есть несохранённые изменения", { exact: true })
+    .waitFor({ state: "hidden" });
   assert.equal(settings.faq_items[0].q, "Как включить VPN?");
   await nav("Рассылки");
-  await page.getByRole("button", {name:"Отправить тест админу", exact:true}).click();
-  await page.getByRole("button", {name:"Отправить тест", exact:true}).click();
-  await page.getByText("Отправлено: 1 из 1.", {exact:true}).waitFor();
-  assert.deepEqual(posts.find(p => p.key === "funnel-test").payload, {telegram_id:123,scenario:"start"});
+  await page
+    .getByRole("button", { name: "Отправить тест админу", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Отправить тест", exact: true })
+    .click();
+  await page.getByText("Отправлено: 1 из 1.", { exact: true }).waitFor();
+  assert.deepEqual(posts.find((p) => p.key === "funnel-test").payload, {
+    telegram_id: 123,
+    scenario: "start",
+  });
   await page.getByRole("button", { name: "Рассылка #42", exact: true }).click();
   await page.getByText("Тест результатов", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Скрыть подробности" }).click();

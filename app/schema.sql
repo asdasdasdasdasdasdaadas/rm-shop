@@ -666,3 +666,29 @@ CREATE UNIQUE INDEX IF NOT EXISTS winback_offers_pending_user ON winback_offers(
 INSERT INTO app_flags(key,value) VALUES ('winback_promo','1') ON CONFLICT DO NOTHING;
 CREATE INDEX IF NOT EXISTS users_exhausted_balance_idx ON users(balance_exhausted_at,telegram_id)
     WHERE balance_rub <= 0;
+
+-- Durable results of personal return offers, independent of device removal.
+ALTER TABLE winback_offers ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ;
+ALTER TABLE winback_offers ADD COLUMN IF NOT EXISTS debt_repaid_rub INTEGER;
+ALTER TABLE winback_offers ADD COLUMN IF NOT EXISTS connected_at TIMESTAMPTZ;
+UPDATE winback_offers w SET activated_at=u.created_at FROM promo_codes p,promo_uses u
+WHERE w.promo_id=p.id AND u.code=p.code AND u.telegram_id=w.telegram_id AND w.activated_at IS NULL;
+CREATE OR REPLACE FUNCTION track_winback_connection() RETURNS trigger AS $$
+BEGIN
+    UPDATE winback_offers SET connected_at=NEW.last_online_at
+    WHERE telegram_id=NEW.telegram_id AND activated_at IS NOT NULL AND connected_at IS NULL
+      AND NEW.last_online_at>=activated_at AND NEW.last_online_at<activated_at+INTERVAL '7 days';
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS winback_connection ON devices;
+CREATE TRIGGER winback_connection AFTER INSERT OR UPDATE OF last_online_at ON devices
+FOR EACH ROW EXECUTE FUNCTION track_winback_connection();
+UPDATE winback_offers w SET connected_at=(SELECT MIN(d.last_online_at) FROM devices d
+WHERE d.telegram_id=w.telegram_id AND d.last_online_at>=w.activated_at
+AND d.last_online_at<w.activated_at+INTERVAL '7 days')
+WHERE w.activated_at IS NOT NULL AND w.connected_at IS NULL;
+CREATE INDEX IF NOT EXISTS winback_offers_sent_idx ON winback_offers(sent_at);
+CREATE INDEX IF NOT EXISTS payment_receipts_user_date_idx ON payment_receipts(telegram_id,created_at);
+CREATE INDEX IF NOT EXISTS winback_offers_connection_idx ON winback_offers(telegram_id,activated_at)
+WHERE activated_at IS NOT NULL AND connected_at IS NULL;

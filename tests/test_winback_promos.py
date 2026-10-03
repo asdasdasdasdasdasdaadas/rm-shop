@@ -142,3 +142,37 @@ class WinbackPostgresTest(unittest.IsolatedAsyncioTestCase):
         kb=bot.send_message.call_args.kwargs['reply_markup']
         self.assertEqual([row[0].text for row in kb.inline_keyboard],['Личный кабинет','Главное меню'])
         self.assertEqual(await self.pool.fetchval("SELECT COUNT(*) FROM optional_message_slots WHERE sent_at IS NOT NULL"),1)
+
+    async def test_statistics_redemption_payments_and_persistent_online(self):
+        await self.exhausted()
+        offer = await db.prepare_winback_offer(1,6)
+        await db.finish_winback_offer(offer['id'],True)
+        await self.pool.execute('UPDATE users SET balance_rub=-12 WHERE telegram_id=1')
+        await db.redeem_promo_code(1,offer['code'])
+        await self.pool.execute("INSERT INTO devices(telegram_id,title,last_online_at) VALUES(1,'phone',NOW())")
+        await self.pool.execute("INSERT INTO payment_receipts(payment_key,telegram_id,plan_code,amount,first_payment,referral_enabled) VALUES('stats1',1,'x',100,FALSE,FALSE),('stats2',1,'x',200,FALSE,FALSE)")
+        await self.pool.execute("INSERT INTO payment_receipts(payment_key,telegram_id,plan_code,amount,first_payment,referral_enabled,created_at) VALUES('before',1,'x',1000,FALSE,FALSE,NOW()-INTERVAL '1 day'),('late',1,'x',1000,FALSE,FALSE,NOW()+INTERVAL '8 days')")
+        await self.pool.execute('DELETE FROM devices WHERE telegram_id=1')
+        result = await db.admin_winback_statistics()
+        s=result['summary']
+        self.assertEqual((s['sent'],s['activated'],s['connected'],s['paid']),(1,1,1,1))
+        self.assertEqual((s['gift_rub'],s['debt_rub'],s['paid_credit_rub']),(30,12,300))
+        self.assertEqual(s['observing'],1)
+        self.assertEqual(result['items'][0]['payments'],2)
+        self.assertEqual(result['series'][0]['connected'],1)
+        self.assertEqual((await db.admin_winback_statistics(page=2))['items'],[])
+
+    async def test_statistics_empty_pending_expired_and_invalid_period(self):
+        self.assertEqual((await db.admin_winback_statistics())['summary']['total'],0)
+        with self.assertRaises(ValueError):
+            await db.admin_winback_statistics(2)
+        await self.exhausted()
+        offer=await db.prepare_winback_offer(1,6)
+        self.assertEqual((await db.admin_winback_statistics())['summary']['pending'],1)
+        await db.finish_winback_offer(offer['id'],True)
+        await self.pool.execute("UPDATE promo_codes SET expires_at=NOW()-INTERVAL '1 day' WHERE id=$1",offer['promo_id'])
+        s=(await db.admin_winback_statistics())['summary']
+        self.assertEqual((s['sent'],s['expired'],s['activated']),(1,1,0))
+        await self.pool.execute("UPDATE winback_offers SET sent_at=NOW()-INTERVAL '40 days'")
+        self.assertEqual((await db.admin_winback_statistics(30))['summary']['total'],0)
+        self.assertEqual((await db.admin_winback_statistics(90))['summary']['total'],1)

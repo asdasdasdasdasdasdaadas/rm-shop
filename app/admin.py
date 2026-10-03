@@ -163,6 +163,17 @@ async def api_session(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "auth": True, "brand": settings.brand_name})
 
 
+async def api_winback_statistics(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        data = await db.admin_winback_statistics(int(request.query.get("days", "30")), int(request.query.get("page", "1")))
+    except ValueError:
+        return web.json_response({"ok": False, "error": "Некорректный период или страница"}, status=400)
+    return web.json_response({"ok": True, **data})
+
+
 async def api_statistics(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2418,6 +2429,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/logout", api_logout)
     app.router.add_get("/admin/api/session", api_session)
     app.router.add_get("/admin/api/stats", api_stats)
+    app.router.add_get("/admin/api/statistics/winback", api_winback_statistics)
     app.router.add_get("/admin/api/statistics", api_statistics)
     app.router.add_get("/admin/api/users", api_users)
     app.router.add_get("/admin/api/users/{telegram_id}/devices", api_user_devices)

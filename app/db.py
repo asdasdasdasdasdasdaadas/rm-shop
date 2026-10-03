@@ -2407,6 +2407,8 @@ async def redeem_promo_code(telegram_id: int, code: str) -> dict:
             debt = max(0,-int(user['balance_rub'] or 0)) if row['recipient_id'] is not None else 0
             gift = int(row['gift_rub']) if row['recipient_id'] is not None else days*max(1,get_settings().vpn_day_price_rub)
             amount = gift+debt
+            if row['offer_id'] is not None:
+                await conn.execute("UPDATE winback_offers SET activated_at=NOW(),debt_repaid_rub=$2 WHERE id=$1",row['offer_id'],debt)
             balance = await conn.fetchval("""UPDATE users SET balance_rub=COALESCE(balance_rub,0)+$2,
                 low_balance_notified_at=NULL,trial_end_nudge_at=NULL WHERE telegram_id=$1 RETURNING balance_rub""",telegram_id,amount)
             await conn.execute('UPDATE promo_codes SET used_count=used_count+1 WHERE id=$1',row['id'])
@@ -5660,3 +5662,57 @@ async def finish_winback_offer(offer_id: int, sent: bool) -> None:
                 await conn.execute('UPDATE users SET winback_last_sent_at=NOW() WHERE telegram_id=$1',row['telegram_id'])
             elif row:
                 await conn.execute('UPDATE promo_codes SET enabled=FALSE WHERE id=$1',row['promo_id'])
+
+
+async def admin_winback_statistics(days: int = 30, page: int = 1) -> dict:
+    """Send-date cohorts; successful payments within seven days of activation."""
+    if days not in (7, 30, 90, 365) or page < 1:
+        raise ValueError('Invalid period or page')
+    query = '''WITH offers AS (
+        SELECT w.*,p.code,p.expires_at,u.first_name,u.username,
+          CASE WHEN w.activated_at IS NOT NULL THEN 'activated'
+               WHEN w.status='cancelled' OR p.archived_at IS NOT NULL THEN 'cancelled'
+               WHEN w.status<>'sent' THEN 'pending'
+               WHEN p.expires_at<=NOW() THEN 'expired' ELSE 'available' END AS state,
+          COALESCE(pay.n,0)::int AS payments,COALESCE(pay.amount,0)::bigint AS paid_credit_rub,
+          w.activated_at+INTERVAL '7 days'<=NOW() AS mature
+        FROM winback_offers w JOIN promo_codes p ON p.id=w.promo_id
+        JOIN users u ON u.telegram_id=w.telegram_id
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*) AS n,SUM(r.amount) AS amount FROM payment_receipts r
+          WHERE r.telegram_id=w.telegram_id AND r.created_at>=w.activated_at
+            AND r.created_at<w.activated_at+INTERVAL '7 days'
+        ) pay ON TRUE
+        WHERE COALESCE(w.sent_at,w.created_at)>=
+          (date_trunc('day',NOW() AT TIME ZONE 'Europe/Moscow')-($1-1)*INTERVAL '1 day') AT TIME ZONE 'Europe/Moscow'
+    ) '''
+    pool = _pool_req()
+    summary = dict(await pool.fetchrow(query+'''SELECT COUNT(*)::int AS total,
+      COUNT(*) FILTER(WHERE sent_at IS NOT NULL OR activated_at IS NOT NULL)::int AS sent,
+      COUNT(DISTINCT telegram_id) FILTER(WHERE sent_at IS NOT NULL OR activated_at IS NOT NULL)::int AS recipients,
+      COUNT(*) FILTER(WHERE activated_at IS NOT NULL)::int AS activated,
+      COUNT(*) FILTER(WHERE connected_at IS NOT NULL)::int AS connected,
+      COUNT(*) FILTER(WHERE payments>0)::int AS paid,
+      COUNT(*) FILTER(WHERE mature)::int AS mature,
+      COUNT(*) FILTER(WHERE activated_at IS NOT NULL AND NOT mature)::int AS observing,
+      COUNT(*) FILTER(WHERE state='pending')::int AS pending,
+      COUNT(*) FILTER(WHERE state='expired')::int AS expired,
+      COUNT(*) FILTER(WHERE state='available')::int AS available,
+      COALESCE(SUM(gift_rub) FILTER(WHERE activated_at IS NOT NULL),0)::bigint AS gift_rub,
+      COALESCE(SUM(debt_repaid_rub),0)::bigint AS debt_rub,
+      COUNT(*) FILTER(WHERE activated_at IS NOT NULL AND debt_repaid_rub IS NULL)::int AS unknown_debt,
+      COALESCE(SUM(paid_credit_rub),0)::bigint AS paid_credit_rub
+      FROM offers''',days))
+    items = [dict(r) for r in await pool.fetch(query+'''SELECT * FROM offers
+        ORDER BY COALESCE(sent_at,created_at) DESC,id DESC LIMIT 25 OFFSET $2''',days,(page-1)*25)]
+    series = [dict(r) for r in await pool.fetch(query+'''SELECT
+      to_char(COALESCE(sent_at,created_at) AT TIME ZONE 'Europe/Moscow','YYYY-MM-DD') AS day,
+      COUNT(*) FILTER(WHERE sent_at IS NOT NULL OR activated_at IS NOT NULL)::int AS sent,
+      COUNT(*) FILTER(WHERE activated_at IS NOT NULL)::int AS activated,
+      COUNT(*) FILTER(WHERE connected_at IS NOT NULL)::int AS connected,
+      COUNT(*) FILTER(WHERE payments>0)::int AS paid FROM offers GROUP BY 1 ORDER BY 1''',days)]
+    for row in items:
+        for key,value in row.items():
+            if hasattr(value,'isoformat'):
+                row[key]=value.isoformat()
+    return {'summary':summary,'items':items,'series':series,'page':page,'total':summary['total']}

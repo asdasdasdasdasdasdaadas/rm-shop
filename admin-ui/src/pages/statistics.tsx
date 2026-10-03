@@ -19,6 +19,7 @@ import {
   useNavigate,
 } from "@/components/workspace";
 import { date, money, useResource, who, type Data } from "@/lib/api";
+import { WinbackStatistics } from "./winback-statistics";
 import { OverviewPage } from "./overview";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Download, RefreshCw } from "lucide-react";
@@ -547,6 +548,7 @@ export function StatisticsPage() {
         />
       </TabsContent>
       <TabsContent value="retention" className="space-y-5">
+        <WinbackStatistics />
         <Panel
           title="Ручные рассылки"
           description="Сравните доставку, переходы и оплаты для каждого запуска."
