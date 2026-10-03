@@ -19,7 +19,7 @@ class RemovedStoriesTest(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(await db.start_story_check(123))
             pool.assert_not_called()
 
-    @patch("app.keyboards.get_settings", return_value=Settings.model_construct(balance_enabled=True, bot_username="test_bot", story_reward_enabled=True))
+    @patch("app.keyboards.get_settings", return_value=Settings.model_construct(balance_enabled=True, bot_username="test_bot", required_channel_url="https://t.me/test_channel", story_reward_enabled=True))
     @patch("app.keyboards.mini_app_url", return_value="https://example.com/app")
     def test_legacy_keyboard_request_never_shows_story(self, *_mocks):
         self.assertIsNone(story_webapp_button(story_offer=True))

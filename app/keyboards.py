@@ -44,6 +44,7 @@ def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> s
         "profile_balance", name=name, balance=rub_text(rub),
         price=rub_text(settings.vpn_day_price_rub),
     )
+    body = body.replace("«Открыть кабинет» внизу", "«Личный кабинет»").replace("«Открыть кабинет»", "«Личный кабинет»")
     return body + "\n\n" + legal_text()
 
 
@@ -148,31 +149,18 @@ def story_webapp_button(*, story_offer: bool) -> InlineKeyboardButton | None:
 
 
 def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bool = True) -> InlineKeyboardMarkup:
+    settings = get_settings()
     builder = InlineKeyboardBuilder()
-    if trial_available:
-        url = mini_app_url()
-        builder.row(
-            InlineKeyboardButton(text="Забрать подарок", web_app=WebAppInfo(url=url))
-            if url else InlineKeyboardButton(text="Забрать подарок", callback_data="trial")
-        )
+    cabinet = cabinet_button()
     builder.row(
-        InlineKeyboardButton(
-            text="Пополнить баланс",
-            callback_data="buy",
-        ),
-        InlineKeyboardButton(
-            text="Приведи друга",
-            callback_data="share",
-        ),
+        cabinet.model_copy(update={"text": "Личный кабинет"}) if cabinet else
+        InlineKeyboardButton(text="Личный кабинет", callback_data="help:connect", style="success")
     )
-    story_btn = story_webapp_button(story_offer=story_offer)
-    if story_btn:
-        builder.row(story_btn)
+    builder.row(InlineKeyboardButton(text="Новостной канал", url=settings.required_channel_url))
     builder.row(
-        InlineKeyboardButton(text="Частые вопросы", callback_data="faq"),
-        InlineKeyboardButton(text="Поддержка", callback_data="support_ticket"),
+        InlineKeyboardButton(text="Пригласить", callback_data="share"),
+        InlineKeyboardButton(text="О сервисе", callback_data="about_service"),
     )
-    add_cabinet_row(builder)
     return builder.as_markup()
 
 

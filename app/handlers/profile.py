@@ -6,7 +6,7 @@ import logging
 import uuid
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import LinkPreviewOptions, CallbackQuery, LabeledPrice, Message, PreCheckoutQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from app import db
 from app.checkout import resume_checkout
@@ -352,6 +352,22 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
             can_share=can_share, local=local,
         ),
         reply_markup=await after_topup_keyboard(message.from_user.id),
+    )
+
+
+@router.callback_query(F.data == "about_service")
+async def show_about_service(callback: CallbackQuery) -> None:
+    if not await gate_or_continue(callback):
+        return
+    await ack(callback)
+    settings = get_settings()
+    await callback.message.edit_text(
+        notice_text("about_service", brand=settings.brand_name,
+                    price=rub_text(settings.vpn_day_price_rub)),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="В главное меню", callback_data="profile")
+        ]]),
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
     )
 
 
