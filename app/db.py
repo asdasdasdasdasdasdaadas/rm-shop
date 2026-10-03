@@ -1484,6 +1484,7 @@ async def get_flags() -> dict:
         "payment_nudge": _on("payment_nudge"),
         "invite_nudge": _on("invite_nudge"),
         "info_nudge": _on("info_nudge"),
+        "winback_promo": _on("winback_promo"),
         "story_nudge": False,
         "legal_nudge": _on("legal_nudge"),
         "maintenance_notice": data.get("maintenance_notice") or "",
@@ -2252,7 +2253,7 @@ async def list_promo_codes(*, include_archived: bool = False) -> list[dict]:
     rows = await _pool_req().fetch(
         """
         SELECT
-            id, code, days, max_uses, used_count, enabled, expires_at, created_at, archived_at
+            id, code, days, max_uses, used_count, enabled, expires_at, created_at, archived_at, recipient_telegram_id
         FROM promo_codes
         WHERE ($1::bool OR archived_at IS NULL)
         ORDER BY created_at DESC, id DESC
@@ -2320,6 +2321,8 @@ async def update_promo_code(
     )
     if not row:
         return None
+    if row.get('recipient_telegram_id') is not None:
+        raise ValueError("Условия персонального подарка зафиксированы при отправке. Его можно отправить в архив.")
     next_days = int(row["days"] if days is None else days)
     if next_days < 1 or next_days > 3650:
         raise ValueError("Дни: от 1 до 3650")
@@ -2370,54 +2373,52 @@ async def archive_promo_code(promo_id: int) -> bool:
     return bool(row)
 
 
-async def claim_promo_code(telegram_id: int, code: str) -> int:
-    """Activate promo for user. Returns days granted. Raises ValueError on failure."""
+async def redeem_promo_code(telegram_id: int, code: str) -> dict:
+    """Consume the code and credit the balance in the same transaction."""
     clean = normalize_promo_code(code)
     if not clean:
         raise ValueError("Промокод не найден")
-    pool = _pool_req()
-    async with pool.acquire() as conn:
+    async with _pool_req().acquire() as conn:
         async with conn.transaction():
-            row = await conn.fetchrow(
-                """
-                SELECT id, code, days, max_uses, used_count, enabled, expires_at, archived_at
-                FROM promo_codes
-                WHERE code = $1
-                FOR UPDATE
-                """,
-                clean,
-            )
-            if not row or row["archived_at"] is not None:
+            user = await conn.fetchrow('SELECT balance_rub FROM users WHERE telegram_id=$1 FOR UPDATE',telegram_id)
+            if not user:
+                raise ValueError("Пользователь не найден")
+            row = await conn.fetchrow("""SELECT p.*,p.expires_at <= NOW() AS expired,
+                p.recipient_telegram_id AS recipient_id,w.gift_rub,w.device_count,w.id AS offer_id
+                FROM promo_codes p LEFT JOIN winback_offers w ON w.promo_id=p.id
+                WHERE p.code=$1 FOR UPDATE OF p""",clean)
+            if not row or row['archived_at'] is not None:
                 raise ValueError("Промокод не найден")
-            if not row["enabled"]:
+            if row['recipient_id'] is not None and int(row['recipient_id']) != telegram_id:
+                raise ValueError("Этот промокод предназначен другому пользователю")
+            if row['recipient_id'] is not None and row['offer_id'] is None:
+                raise ValueError("Промокод больше недоступен")
+            if not row['enabled']:
                 raise ValueError("Промокод выключен")
-            exp = row["expires_at"]
-            if exp is not None:
-                if getattr(exp, "tzinfo", None) is None:
-                    exp = exp.replace(tzinfo=timezone.utc)
-                if exp <= _utc_now():
-                    raise ValueError("Срок промокода истёк")
-            max_uses = row["max_uses"]
-            used = int(row["used_count"] or 0)
-            if max_uses is not None and used >= int(max_uses):
+            if row['expired']:
+                raise ValueError("Срок промокода истёк")
+            if row['max_uses'] is not None and row['used_count'] >= row['max_uses']:
                 raise ValueError("Лимит активаций исчерпан")
-            try:
-                await conn.execute(
-                    "INSERT INTO promo_uses (telegram_id, code) VALUES ($1, $2)",
-                    int(telegram_id),
-                    clean,
-                )
-            except asyncpg.exceptions.UniqueViolationError:
-                raise ValueError("Промокод уже использован") from None
-            await conn.execute(
-                """
-                UPDATE promo_codes
-                SET used_count = COALESCE(used_count, 0) + 1
-                WHERE id = $1
-                """,
-                int(row["id"]),
-            )
-            return int(row["days"])
+            taken = await conn.fetchval("""INSERT INTO promo_uses(telegram_id,code) VALUES ($1,$2)
+                ON CONFLICT DO NOTHING RETURNING code""",telegram_id,clean)
+            if not taken:
+                raise ValueError("Промокод уже использован")
+            days = int(row['days'])
+            debt = max(0,-int(user['balance_rub'] or 0)) if row['recipient_id'] is not None else 0
+            gift = int(row['gift_rub']) if row['recipient_id'] is not None else days*max(1,get_settings().vpn_day_price_rub)
+            amount = gift+debt
+            balance = await conn.fetchval("""UPDATE users SET balance_rub=COALESCE(balance_rub,0)+$2,
+                low_balance_notified_at=NULL,trial_end_nudge_at=NULL WHERE telegram_id=$1 RETURNING balance_rub""",telegram_id,amount)
+            await conn.execute('UPDATE promo_codes SET used_count=used_count+1 WHERE id=$1',row['id'])
+            await conn.execute("""INSERT INTO billing_events(telegram_id,kind,source,amount,balance_after,note)
+                VALUES($1,'promo','user',$2,$3,$4)""",telegram_id,amount,balance,
+                f"Промокод {clean}: подарок {gift} ₽, погашение минуса {debt} ₽")
+            return {'days':days,'credited_rub':amount,'balance_rub':int(balance),
+                    'gift_rub':gift,'debt_repaid_rub':debt,'device_count':row['device_count']}
+
+
+async def claim_promo_code(telegram_id: int, code: str) -> int:
+    return (await redeem_promo_code(telegram_id, code))['days']
 
 
 async def use_promo(telegram_id: int, code: str) -> bool:
@@ -5568,3 +5569,94 @@ async def marketing_suppressed_ids() -> list[int]:
             AND (m.kind='broadcast' OR (m.kind LIKE 'nudge_%' AND m.kind NOT IN ('nudge_payment','nudge_trial_end')))
             AND m.created_at > NOW()-INTERVAL '7 days') >= 3''')
     return [int(row['telegram_id']) for row in rows]
+
+
+async def backfill_balance_exhaustion() -> None:
+    # A historical crossing after the latest positive balance is reliable evidence.
+    # Without history we start observing now instead of inventing an old date.
+    await _pool_req().execute('''UPDATE users u SET balance_exhausted_at=COALESCE(
+        (SELECT MIN(e.created_at) FROM billing_events e WHERE e.telegram_id=u.telegram_id
+            AND e.balance_after <= 0 AND e.created_at >= COALESCE(
+                (SELECT MAX(p.created_at) FROM billing_events p WHERE p.telegram_id=u.telegram_id AND p.balance_after > 0),u.created_at)),
+        NOW()) WHERE u.balance_rub <= 0 AND u.balance_exhausted_at IS NULL
+        AND (u.trial_used OR u.has_paid_topup OR EXISTS (SELECT 1 FROM billing_events b
+            WHERE b.telegram_id=u.telegram_id AND b.kind='charge' AND b.amount < 0))''')
+
+
+_WINBACK_ELIGIBLE = '''u.balance_rub <= 0 AND u.balance_exhausted_at IS NOT NULL
+    AND u.bot_started_at IS NOT NULL AND u.bot_blocked_at IS NULL AND u.blocked_at IS NULL
+    AND u.billing_paused_at IS NULL AND NOT u.quiet_notifications
+    AND u.vpn_feedback IS DISTINCT FROM 'help'
+    AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
+    AND (u.checkout_started_at IS NULL OR u.checkout_started_at <= NOW()-INTERVAL '20 minutes')
+    AND NOT EXISTS (SELECT 1 FROM winback_offers w WHERE w.telegram_id=u.telegram_id AND w.status='cancelled' AND w.created_at > NOW()-INTERVAL '2 months')
+    AND (u.winback_last_sent_at IS NULL OR u.winback_last_sent_at <= NOW()-INTERVAL '2 months')
+    AND (u.trial_used OR u.has_paid_topup OR EXISTS (SELECT 1 FROM billing_events b
+        WHERE b.telegram_id=u.telegram_id AND b.kind='charge' AND b.amount < 0))
+    AND (
+        (u.first_online_at IS NULL AND COALESCE(u.lifetime_traffic_bytes,0)=0 AND COALESCE(u.used_traffic_bytes,0)=0
+         AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id
+             AND (COALESCE(d.lifetime_traffic_bytes,0)>0 OR COALESCE(d.used_traffic_bytes,0)>0 OR d.last_online_at IS NOT NULL)))
+        OR u.balance_exhausted_at <= NOW()-INTERVAL '48 hours'
+    )'''
+
+
+async def list_due_winback_offers(skip_ids: list[int]) -> list[dict]:
+    rows = await _pool_req().fetch(f'''SELECT u.telegram_id,u.first_name FROM users u
+        WHERE {_WINBACK_ELIGIBLE} AND NOT (u.telegram_id=ANY($1::bigint[]))
+          AND NOT EXISTS (SELECT 1 FROM winback_offers w WHERE w.telegram_id=u.telegram_id
+              AND w.status IN ('pending','sending') AND w.retry_at > NOW())
+        ORDER BY u.balance_exhausted_at,u.telegram_id LIMIT 80''',skip_ids)
+    return [dict(r) for r in rows]
+
+
+async def prepare_winback_offer(telegram_id: int, day_price: int) -> dict | None:
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            user = await conn.fetchrow(f'SELECT u.telegram_id FROM users u WHERE u.telegram_id=$1 AND {_WINBACK_ELIGIBLE} FOR UPDATE',telegram_id)
+            if not user:
+                return None
+            offer = await conn.fetchrow('''SELECT w.*,p.code,p.used_count,p.archived_at FROM winback_offers w
+                JOIN promo_codes p ON p.id=w.promo_id WHERE w.telegram_id=$1
+                AND w.status IN ('pending','sending') FOR UPDATE OF w,p''',telegram_id)
+            if offer and await conn.fetchval('SELECT retry_at > NOW() FROM winback_offers WHERE id=$1',offer['id']):
+                return None
+            if offer and offer['archived_at'] is not None:
+                await conn.execute("UPDATE winback_offers SET status='cancelled' WHERE id=$1",offer['id'])
+                return None
+            if offer and offer['used_count']:
+                # A timeout may hide successful delivery; never issue a second code.
+                await conn.execute("UPDATE winback_offers SET status='sent',sent_at=COALESCE(sent_at,NOW()) WHERE id=$1",offer['id'])
+                await conn.execute('UPDATE users SET winback_last_sent_at=NOW() WHERE telegram_id=$1',telegram_id)
+                return None
+            if not offer:
+                count = max(1,int(await conn.fetchval("SELECT COUNT(*) FROM devices WHERE telegram_id=$1 AND COALESCE(kind,'') <> 'router'",telegram_id)))
+                while True:
+                    code = generate_promo_code()
+                    promo = await conn.fetchval('''INSERT INTO promo_codes(code,days,max_uses,enabled,expires_at,recipient_telegram_id)
+                        VALUES ($1,5,1,TRUE,NOW()+INTERVAL '7 days',$2) ON CONFLICT(code) DO NOTHING RETURNING id''',code,telegram_id)
+                    if promo:
+                        break
+                offer = await conn.fetchrow('''INSERT INTO winback_offers(telegram_id,promo_id,device_count,gift_rub)
+                    VALUES($1,$2,$3,$4) RETURNING *''',telegram_id,promo,count,count*5*day_price)
+                offer = dict(offer,code=code)
+            await conn.execute("UPDATE promo_codes SET enabled=TRUE,expires_at=NOW()+INTERVAL '7 days' WHERE id=$1",offer['promo_id'])
+            await conn.execute("UPDATE winback_offers SET status='sending',attempts=attempts+1,retry_at=NOW()+INTERVAL '10 minutes' WHERE id=$1",offer['id'])
+            return dict(offer)
+
+
+async def finish_winback_offer(offer_id: int, sent: bool) -> None:
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            uid = await conn.fetchval('SELECT telegram_id FROM winback_offers WHERE id=$1',offer_id)
+            if uid is None:
+                return
+            await conn.execute('SELECT telegram_id FROM users WHERE telegram_id=$1 FOR UPDATE',uid)
+            row = await conn.fetchrow('''UPDATE winback_offers SET
+                status=CASE WHEN $2 THEN 'sent' ELSE 'pending' END,
+                sent_at=CASE WHEN $2 THEN NOW() ELSE sent_at END,
+                retry_at=NOW()+INTERVAL '1 hour' WHERE id=$1 RETURNING telegram_id,promo_id''',offer_id,sent)
+            if row and sent:
+                await conn.execute('UPDATE users SET winback_last_sent_at=NOW() WHERE telegram_id=$1',row['telegram_id'])
+            elif row:
+                await conn.execute('UPDATE promo_codes SET enabled=FALSE WHERE id=$1',row['promo_id'])

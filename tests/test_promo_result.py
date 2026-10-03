@@ -11,8 +11,9 @@ class PromoResultTest(unittest.IsolatedAsyncioTestCase):
         with patch.object(web,'_if_down',AsyncMock(return_value=None)), \
              patch.object(web,'_require_tg',AsyncMock(return_value=(42,None))), \
              patch.object(web,'get_settings',return_value=SimpleNamespace(promo_enabled=True,balance_enabled=True,vpn_day_price_rub=6)), \
-             patch.object(web.db,'claim_promo_code',AsyncMock(return_value=9)), \
-             patch.object(web.db,'add_balance_rub',AsyncMock(return_value=180)) as credit:
+             patch.object(web.db,'redeem_promo_code',AsyncMock(return_value={'days':9,'credited_rub':54,'balance_rub':180})) as credit, \
+             patch('app.balance.sync_user_billing',AsyncMock()), \
+             patch.object(web.db,'get_user',AsyncMock(return_value={'balance_rub':180})):
             response=await web.api_promo(request)
-        credit.assert_awaited_once_with(42,54)
+        credit.assert_awaited_once_with(42,'GIFT')
         self.assertEqual(json.loads(response.text),{'ok':True,'days':9,'credited_rub':54,'balance_rub':180})

@@ -502,6 +502,7 @@ def _promo_public(row: dict) -> dict:
     return {
         "id": int(row["id"]),
         "code": row.get("code") or "",
+        "recipient_telegram_id": row.get("recipient_telegram_id"),
         "days": int(row.get("days") or 0),
         "max_uses": int(max_uses) if max_uses is not None else None,
         "used_count": used,
@@ -838,6 +839,8 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
 async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
     kind = str(row.get("kind") or "")
     telegram_id = row.get("telegram_id")
+    if kind == "nudge_winback":
+        return False, "Персональный код повторяет автоматическая очередь с проверкой срока и лимитов"
     if row.get("source") == "campaign":
         return False, "Повторите временные ошибки в статистике акции: там исключаются доставленные сообщения"
     if kind in _MSG_RETRY_SKIP:
@@ -2016,6 +2019,8 @@ async def api_flags(request: web.Request) -> web.Response:
         await db.set_flag("trial_nudge", bool(body.get("trial_nudge")))
     if "invite_nudge" in body:
         await db.set_flag("invite_nudge", bool(body.get("invite_nudge")))
+    if "winback_promo" in body:
+        await db.set_flag("winback_promo", bool(body.get("winback_promo")))
     if "info_nudge" in body:
         await db.set_flag("info_nudge", bool(body.get("info_nudge")))
     if "story_nudge" in body:

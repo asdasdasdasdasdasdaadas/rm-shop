@@ -143,6 +143,7 @@ export function PromoPage() {
               ),
             },
             { key: "days", label: "Дней" },
+            { key: "recipient_telegram_id", label: "Получатель", cell: (r) => r.recipient_telegram_id ? `Только ${r.recipient_telegram_id}` : "Любой пользователь" },
             {
               key: "used",
               label: "Активации",
@@ -180,6 +181,8 @@ export function PromoPage() {
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={!!r.recipient_telegram_id}
+                    title={r.recipient_telegram_id ? "Условия персонального подарка фиксированы; доступно архивирование" : undefined}
                     onClick={() => {
                       setError("");
                       setEdit({

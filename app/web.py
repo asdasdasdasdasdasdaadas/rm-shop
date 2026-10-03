@@ -764,12 +764,20 @@ async def api_promo(request: web.Request) -> web.Response:
     body = await request.json()
     code = str(body.get("code") or "").strip().upper()
     try:
-        days = await db.claim_promo_code(telegram_id, code)
+        result = await db.redeem_promo_code(telegram_id, code)
     except ValueError as exc:
         return json_error(str(exc))
-    amount = days * max(1, settings.vpn_day_price_rub)
-    balance = await db.add_balance_rub(telegram_id, amount)
-    return web.json_response({"ok": True, "days": days, "credited_rub": amount, "balance_rub": balance})
+    from app.balance import sync_user_billing
+    try:
+        async with runtime.panel_cron_lock():
+            await sync_user_billing(request.app["rw"], telegram_id, request.app.get("bot"), source="promo")
+        local = await db.get_user(telegram_id)
+        if local:
+            result['balance_rub'] = int(local.get('balance_rub') or 0)
+    except Exception:
+        logger.exception("Promo credited, scheduled billing will retry activation for %s",telegram_id)
+    return web.json_response({"ok": True, **result})
+
 
 
 async def api_add_device(request: web.Request) -> web.Response:

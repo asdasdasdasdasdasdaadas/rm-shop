@@ -12,6 +12,7 @@ from app.referrals import topup_ok_text
 
 def catalog(telegram_id: int) -> list[dict]:
     s = get_settings()
+    from app.winback import message as winback_message, keyboard as winback_keyboard
     rows = []
     def add(key, group, title, condition, body, markup):
         rows.append(dict(id=key, group=group, title=title, condition=condition, body=body, markup=markup))
@@ -43,6 +44,9 @@ def catalog(telegram_id: int) -> list[dict]:
         notice_text('payment_nudge'), payment_nudge_keyboard('test'))
     add('paid', 'payment', 'Успешное пополнение', 'Пример: подтверждён платёж 100 ₽; реального зачисления нет',
         topup_ok_text(rub_text(100), can_share=False, local={'balance_rub':100}), cabinet_keyboard())
+    add('winback', 'winback', 'Персональный промокод: 5 дней',
+        'Пользовался — через 48 часов без баланса; не подключился — сразу. Не чаще раза в 2 месяца. Это образец, код не создаётся.',
+        winback_message('TEST-ONLY-CODE', 1, 5*s.vpn_day_price_rub), winback_keyboard())
     add('invite', 'referral', 'Приглашение друзей', 'Через 48 часов после первого онлайна; положительный отзыв или повторное использование; программа включена',
         invite_nudge_text(telegram_id, 'Тестовый пользователь'), share_keyboard(s.bot_username, telegram_id))
     add('info', 'referral', 'Как устроен сервис', 'Через 96 часов после первого онлайна; пользовался за последние 7 дней; нет нерешённой проблемы',
@@ -67,6 +71,7 @@ def catalog(telegram_id: int) -> list[dict]:
 
 
 MESSAGE_KINDS = {
+    'winback': 'nudge_winback',
     'welcome': 'welcome_intro', 'intro': 'welcome_intro', 'support': 'welcome_intro',
     'resume_welcome': 'nudge_trial', 'resume_channel': 'nudge_trial', 'gift': 'nudge_trial', 'device': 'first_device_thanks', 'setup': 'nudge_device',
     'quality': 'nudge_first_online', 'ending': 'nudge_trial_end', 'empty': 'low_balance',
@@ -76,6 +81,7 @@ MESSAGE_KINDS = {
 
 
 SCENARIOS = {
+    'winback': ('Возвращение с промокодом', ['winback']),
     'start': ('Первое подключение', ['welcome', 'intro', 'support', 'gift', 'device', 'setup', 'quality']),
     'payment': ('Баланс и неоплаченный счёт', ['ending', 'empty', 'invoice', 'paid']),
     'referral': ('Приглашение друзей', ['invite']),

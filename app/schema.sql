@@ -628,3 +628,41 @@ CREATE TABLE IF NOT EXISTS optional_message_slots (
 CREATE INDEX IF NOT EXISTS optional_message_slots_user_idx ON optional_message_slots(telegram_id, created_at);
 
 ALTER TABLE broadcast_runs ADD COLUMN IF NOT EXISTS skipped INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_exhausted_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS winback_last_sent_at TIMESTAMPTZ;
+
+-- Track actual crossings, not the date of the last notification.
+CREATE OR REPLACE FUNCTION track_balance_exhaustion() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.balance_rub > 0 THEN
+        NEW.balance_exhausted_at := NULL;
+    ELSIF OLD.balance_rub > 0 AND NEW.balance_rub <= 0 THEN
+        NEW.balance_exhausted_at := NOW();
+    END IF;
+    RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS users_balance_exhaustion ON users;
+CREATE TRIGGER users_balance_exhaustion BEFORE UPDATE OF balance_rub ON users
+    FOR EACH ROW EXECUTE FUNCTION track_balance_exhaustion();
+
+ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS recipient_telegram_id BIGINT;
+
+CREATE TABLE IF NOT EXISTS winback_offers (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    promo_id BIGINT NOT NULL UNIQUE REFERENCES promo_codes(id),
+    device_count INTEGER NOT NULL CHECK(device_count > 0),
+    gift_rub INTEGER NOT NULL CHECK(gift_rub > 0),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','sending','sent','cancelled')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    sent_at TIMESTAMPTZ,
+    retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    attempts INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS winback_offers_pending_user ON winback_offers(telegram_id)
+    WHERE status IN ('pending','sending');
+INSERT INTO app_flags(key,value) VALUES ('winback_promo','1') ON CONFLICT DO NOTHING;
+CREATE INDEX IF NOT EXISTS users_exhausted_balance_idx ON users(balance_exhausted_at,telegram_id)
+    WHERE balance_rub <= 0;

@@ -416,6 +416,11 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
             skip.extend(quiet_ids)
             skip.extend(await db.marketing_suppressed_ids())
             skip.extend(await db.nudge_suppressed_ids(hours=24))
+            from app.winback import send_due as send_due_winback
+            n, ids = await send_due_winback(bot, skip)
+            skip.extend(ids)
+            if n:
+                logger.info("Персональные промокоды для возвращения: %s", n)
             n, ids = await send_due_device_nudges(bot, skip)
             skip.extend(ids)
             if n:
