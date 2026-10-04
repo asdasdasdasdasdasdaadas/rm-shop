@@ -62,7 +62,7 @@ async def trust_info(telegram_id: int, local: dict | None, device_count: int) ->
     available = False
     enabled = bool(settings.trust_enabled)
     if not settings.trust_enabled:
-        reason = "Обещанный платёж выключен"
+        reason = "Обещанный платёж сейчас недоступен"
     elif open_loan:
         reason = "Уже есть незакрытый обещанный платёж"
     elif device_count < 1:
@@ -70,7 +70,7 @@ async def trust_info(telegram_id: int, local: dict | None, device_count: int) ->
     elif not paid and not (local or {}).get("first_online_at"):
         reason = "Сначала подключите VPN. Потом можно взять сутки в долг, если баланс на исходе"
     elif balance > day:
-        reason = "Баланс ещё не близок к нулю"
+        reason = "Средств пока достаточно. Обещанный платёж станет доступен, когда баланс будет заканчиваться"
     else:
         available = True
     return {

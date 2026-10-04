@@ -127,7 +127,7 @@ async def send_welcome_intro(
     referral_bonus = settings.referral_program_enabled and bonus > 0 and local and local.get("referred_by")
     if referral_bonus:
         hello += (
-            f"\n\nВы пришли по ссылке друга. После первого пополнения на баланс ещё {rub_text(bonus)}."
+            f"\n\nВы пришли по ссылке друга. После первой оплаты начислим ещё {rub_text(bonus)}."
         )
     trial_on = trial_is_available(local)
     days = days_text(settings.trial_days)

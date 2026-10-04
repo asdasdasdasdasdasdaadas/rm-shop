@@ -580,10 +580,10 @@ function paintStatus(me) {
     setGauge(0, "empty");
     badge.classList.add("hidden");
     pill.className = "status-pill";
-    pill.innerHTML = '<span class="dot"></span> Тариф не запущен';
+    pill.innerHTML = '<span class="dot"></span> Добавьте первое устройство';
     $("statusNote").textContent = me.balance_enabled
-      ? "Добавьте устройство — без него VPN не стартует, деньги лежат. Сутки только за то, что сами добавите."
-      : "Оформите доступ — лягушка возьмётся за дело и покажет срок подписки.";
+      ? "Добавьте устройство для подключения VPN. Пока устройств нет, списаний нет."
+      : "Оплатите доступ, чтобы подключить VPN.";
   } else if (balanceAlertState(me) === "empty") {
     setFrog("worried");
     setGauge(0, "empty");
@@ -609,7 +609,7 @@ function paintStatus(me) {
     badge.classList.remove("hidden");
     badge.textContent = remainLabel(me, { running });
     pill.className = "status-pill on";
-    pill.innerHTML = '<span class="dot"></span> Подключено';
+    pill.innerHTML = '<span class="dot"></span> Доступ активен';
     $("statusNote").textContent = me.balance_enabled
       ? `При текущем расходе баланса хватит примерно на ${remainLabel(me, { running })}.`
       : `Подписка действует ещё ${remainLabel(me, { running })}.`;
@@ -619,8 +619,8 @@ function paintStatus(me) {
     setGauge(1, "ok");
     badge.classList.add("hidden");
     pill.className = "status-pill on";
-    pill.innerHTML = '<span class="dot"></span> Подключено';
-    $("statusNote").textContent = "Тарификация отключена. Сутки с баланса не списываются.";
+    pill.innerHTML = '<span class="dot"></span> Доступ активен';
+    $("statusNote").textContent = "Списания приостановлены. VPN доступен.";
   }
   const add = $("ctaAdd");
   const topup = $("topupBtn");
@@ -1545,14 +1545,14 @@ function buildCoachSteps(me) {
         id: "trialHomeBtn",
         required: true,
         title: "Начните бесплатно",
-        text: "Пробные рубли сразу на баланс. Пока устройства нет — ничего не спишется. Так можно спокойно проверить, держит ли.",
+        text: "Заберите подарок и попробуйте VPN. Пока устройств нет, списаний нет.",
       });
     } else if ((me.balance_rub || 0) < 1 && coachElReady("topupBtn")) {
       steps.push({
         id: "topupBtn",
         required: true,
         title: "Пополните баланс",
-        text: "Без денег устройство не создать. Сутки спишутся только после подключения.",
+        text: "Пополните баланс для добавления устройства. Первые сутки спишутся при его создании.",
         action: "topup",
       });
     }
@@ -1562,7 +1562,7 @@ function buildCoachSteps(me) {
         id: addId,
         required: true,
         title: "Добавьте устройство",
-        text: "Без устройства VPN не заработает и баланс не начнёт тратиться. Три коротких шага — и устройство будет готово.",
+        text: "Выберите устройство и следуйте подсказкам для подключения VPN.",
         action: "wizard",
       });
     }
@@ -1620,7 +1620,7 @@ function buildWizCoachSteps() {
         wiz: true,
         required: true,
         title: "Выберите устройство",
-        text: "Телефон, компьютер или телевизор. Каждое — свои сутки, добавляйте только то, чем пользуетесь.",
+        text: "Выберите, где хотите пользоваться VPN. Каждое устройство оплачивается отдельно.",
       },
     ];
   }
@@ -1633,7 +1633,7 @@ function buildWizCoachSteps() {
         wiz: true,
         required: true,
         title: "Поставьте приложение",
-        text: "Скачайте клиент из магазина, если его ещё нет. Когда будет установлено, нажмите Продолжить внизу.",
+        text: "Установите VPN-приложение, затем нажмите «Продолжить».",
       },
     ];
   }
@@ -1644,7 +1644,7 @@ function buildWizCoachSteps() {
         wiz: true,
         required: true,
         title: "Назовите и создайте",
-        text: "Имя только для Вашего списка. Кнопка «Создать» спишет сутки с баланса и выдаст ссылку.",
+        text: "Назовите устройство. При создании спишем стоимость первых суток и выдадим ссылку.",
       },
     ];
   }
@@ -1655,7 +1655,7 @@ function buildWizCoachSteps() {
         wiz: true,
         required: true,
         title: "Откройте в приложении",
-        text: "Нажмите «Открыть» или вставьте ссылку вручную. После этого VPN заработает. Если что — напишите в поддержку.",
+        text: "Добавьте ссылку в VPN-приложение и включите VPN. Если нужна помощь — напишите нам.",
       },
     ];
   }
@@ -2245,7 +2245,7 @@ function paintSupportChrome(current) {
   const input = $("supportText");
   if (status) {
     status.textContent = current
-      ? `Тикет #${current.id}`
+      ? `Обращение №${current.id}`
       : "Обращение создастся после отправки сообщения или файла. Ответ придёт сюда и в чат бота.";
   }
   if (badge) {
@@ -2278,7 +2278,7 @@ function paintSupportThread(current) {
     empty.className = "support-empty";
     empty.textContent = current
       ? (current.status === "closed"
-        ? "Переписка пустая. Новое сообщение откроет следующий тикет."
+        ? "Нужна помощь? Напишите нам — откроем новое обращение."
         : "Здесь будет ваша переписка с поддержкой. Чтобы обратиться за помощью, отправьте сообщение.")
       : "Здесь будет ваша переписка с поддержкой. Чтобы обратиться за помощью, отправьте сообщение.";
     box.appendChild(empty);
@@ -2472,7 +2472,7 @@ const BILL_KIND = {
   trust_collect: "Возврат обещанного",
   device_delete: "Удаление устройства",
   referral: "Бонус за друга",
-  referral_payout: "Вывод рефералки",
+  referral_payout: "Вывод вознаграждения",
   referral_revoke: "Возврат за друга",
   story: "Награда за историю",
 };
@@ -2560,7 +2560,7 @@ function paintBilling(data) {
   if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "section bill-empty";
-    empty.innerHTML = '<div class="t">Пусто</div><div class="d">Когда спишется сутки VPN или придёт пополнение, запись появится здесь.</div>';
+    empty.innerHTML = '<div class="t">Пусто</div><div class="d">Здесь появятся списания и пополнения баланса.</div>';
     box.appendChild(empty);
     return;
   }
@@ -2793,7 +2793,7 @@ function paintOffer(me) {
   $("offerTry").textContent = needsBot ? "Запустить бота" : "Принять подарок";
   $("offerLead").textContent = needsBot
     ? "Чтобы забрать подарок, откройте бота и нажмите «Начать». Затем вернитесь в кабинет."
-    : "Сутки только за свои устройства. Заберите тест и подключитесь за минуту.";
+    : "Заберите подарок для одного устройства и попробуйте VPN.";
   const days = Number((me.trial_notice && me.trial_notice.days) || me.trial_days) || 3;
   $("offerDays").textContent = String(days);
   $("offerPrice").textContent = monthPriceLabel(me);
@@ -3027,10 +3027,10 @@ function renderTopup(me) {
   if (customPanel) customPanel.classList.remove("hidden");
   const titleEl = document.querySelector("#view-topup .topup-title");
   if (titleEl) titleEl.textContent = "Пополнение баланса";
-  $("topupHint").textContent = "Зачисление средств может занять до 15 минут!";
+  $("topupHint").textContent = "Зачисление может занять до 15 минут.";
   const legal = $("topupLegal");
   if (legal) {
-    legal.textContent = "Пополнение баланса является однократной операцией (не подписка). Мы не имеем доступа к вашим личным и платежным данным.";
+    legal.textContent = "Разовое пополнение — без автоматических платежей.";
   }
   const grid = $("topupGrid");
   grid.classList.add("topup-amounts");
@@ -3126,7 +3126,7 @@ function renderWizard() {
   if (wiz.step === 1) {
     $("wizStep").textContent = "Шаг 1 из 3";
     $("wizTitle").textContent = "Выбор устройства";
-    lead.textContent = "Каждое устройство — свои сутки. Добавляйте только то, чем пользуетесь.";
+    lead.textContent = "Выберите устройство для VPN. Каждое оплачивается отдельно.";
     const list = document.createElement("div");
     list.id = "wizPlatGrid";
     list.className = "wiz-radio";
@@ -3217,13 +3217,13 @@ function renderWizard() {
 
   if (wiz.step === 2) {
     $("wizStep").textContent = "Шаг 2 из 3";
-    $("wizTitle").textContent = "Установи приложение";
+    $("wizTitle").textContent = "Установите приложение";
     lead.textContent = step2Hint(wiz.platform);
     const list = clientsFor(wiz.platform);
     if (!list.length) {
       const empty = document.createElement("p");
       empty.className = "muted";
-      empty.textContent = "Для этой платформы нет приложений. Добавьте их в админке.";
+      empty.textContent = "Для этого устройства пока нет инструкции. Напишите в поддержку — поможем.";
       body.appendChild(empty);
       $("wizHint").textContent = "";
       replayAnim(body, "wiz-swap");
@@ -3390,11 +3390,11 @@ function renderWizard() {
   }
 
   $("wizStep").textContent = "";
-  $("wizTitle").textContent = "Готово, можно пользоваться";
+  $("wizTitle").textContent = "Осталось включить VPN";
   lead.textContent =
     "Ссылка привязана к «" +
     wiz.title +
-    "». Откройте её в приложении — VPN подключится.";
+    "». Добавьте её в VPN-приложение и включите VPN.";
   const ok = document.createElement("div");
   ok.id = "wizOkFloat";
   ok.className = "wiz-ok";
@@ -3493,7 +3493,7 @@ function renderWizard() {
   body.appendChild(linkLabel);
   body.appendChild(link);
   $("wizHint").textContent =
-    "Ссылку можно вставить вручную в Happ или Incy — она не сгорает.";
+    "Не удалось открыть приложение? Скопируйте ссылку и добавьте её вручную.";
   replayAnim(body, "wiz-swap");
   setMain("Готово", () => {
     haptic();
@@ -3643,7 +3643,7 @@ function renderDevices(me) {
     title.textContent = d.title || "Устройство";
     const st = document.createElement("div");
     st.className = "s" + (d.active ? "" : " off");
-    st.innerHTML = '<span class="dot"></span>' + (d.active ? "Подключено" : "Неактивно");
+    st.innerHTML = '<span class="dot"></span>' + (d.active ? "Доступ активен" : "Неактивно");
     if (isRouterDevice(d)) {
       st.innerHTML = '<span class="dot"></span>' + (d.active ? "Роутер · не с баланса" : "Роутер · неактивен");
     }
@@ -3684,15 +3684,15 @@ function paintPayout(me) {
   const avail = me.referral_available || 0;
   const pending = me.referral_pending || 0;
   const earned = me.referral_earned || 0;
-  $("refPayoutTitle").textContent = "Вывод реферальных";
+  $("refPayoutTitle").textContent = "Вывод вознаграждения";
   if (pending > 0) {
-    $("refPayoutNote").textContent = `Заявка на ${pending} ₽ на проверке. Пока ждите решения.`;
+    $("refPayoutNote").textContent = `Заявка на ${pending} ₽ на проверке. Сообщим о результате.`;
     form.classList.add("hidden");
     return;
   }
   $("refPayoutNote").textContent =
     `Накоплено ${earned} ₽, к выводу сейчас ${avail} ₽. Минимум ${min} ₽. ` +
-    "Выводится только реферальное, которое ещё на балансе.";
+    "Можно вывести неиспользованное вознаграждение за друзей.";
   if (me.referral_payout_can) {
     form.classList.remove("hidden");
     if (btn) btn.textContent = `Вывести ${avail} ₽`;
@@ -3724,7 +3724,7 @@ function paintRefBanner(me) {
   if (!pill) return;
   const active = Boolean(me && me.referral_program_enabled);
   const title = $("inviteBannerTitle");
-  if (title) title.textContent = active ? "Приглашай друзей" : "Реферальная программа";
+  if (title) title.textContent = active ? "Пригласите друзей" : "Реферальная программа";
   pill.textContent = active ? "50 ₽ + 5% на баланс" : "Начисления приостановлены";
   const note = $("inviteBannerNote");
   if (note) {
@@ -4078,7 +4078,7 @@ function paint(me) {
   applyVpnApps(me.vpn_apps);
   if (me.brand_name) document.title = me.brand_name;
   $("name").textContent = me.user.name;
-  $("login").textContent = me.user.username || "без username";
+  $("login").textContent = me.user.username || "имя пользователя не указано";
   const avatar = $("avatar");
   const photo = me.user.photo || "";
   if (photo) {
@@ -4430,7 +4430,7 @@ function openTrust() {
   const text =
     `Начислим ${credit} — ${daysLabel(t.days)} одного устройства.` +
     (fee > 0 ? ` За услугу спишется ещё ${rublesLabel(fee)}.` : "") +
-    ` Через ${daysLabel(t.days)} вернём ${repay}, даже если баланс уйдёт в минус.`;
+    ` Через ${daysLabel(t.days)} спишем ${repay} с баланса, даже если он станет отрицательным.`;
   const go = async () => {
     try {
       await api("/api/trust", { method: "POST", body: "{}" });
@@ -4451,7 +4451,7 @@ function openTrust() {
 function inviteShareText(me) {
   const fromApi = me && String(me.invite_share_text || "").trim();
   if (fromApi) return fromApi;
-  return "Попробуй VPN: быстрый сервис в Telegram. Подключается за минуту, платишь только за свои устройства. Зайди по ссылке.";
+  return "Вот ссылка на VPN для телефона и компьютера. Условия и подключение — в боте.";
 }
 
 function inviteCopyText(me) {
@@ -4697,7 +4697,7 @@ async function reissueSubscription(deviceId) {
       paintDevice(openDevice);
     }
     await load();
-    showToast("Ссылка перевыпущена. Обновите подписку в клиенте.");
+    showToast("🔑 Ссылка обновлена. Добавьте её заново в VPN-приложение.");
   } catch (e) {
     showErr(e);
   }
@@ -4909,14 +4909,14 @@ async function waitCabinetConfirm(waitId, username) {
       }
       if (data && data.status === "expired") {
         setLoginWaiting(false);
-        showLogin("Не дождались подтверждения. Попробуйте ещё раз.");
+        showLogin("Время подтверждения истекло. Попробуйте войти ещё раз.");
         return;
       }
     } catch (_e) {}
   }
   if (seq === loginWaitSeq) {
     setLoginWaiting(false);
-    showLogin("Не дождались подтверждения. Попробуйте ещё раз.");
+    showLogin("Время подтверждения истекло. Попробуйте войти ещё раз.");
   }
 }
 

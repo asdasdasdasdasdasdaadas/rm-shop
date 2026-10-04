@@ -50,7 +50,7 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         if local and local.get("trial_used"):
             await show_profile(callback, rw)
             return
-        await callback.message.edit_text("Сейчас нельзя попробовать бесплатно.", reply_markup=back_profile_keyboard())
+        await callback.message.edit_text("Подарок сейчас недоступен. Если нужна помощь — напишите в поддержку.", reply_markup=back_profile_keyboard())
         return
     await callback.message.edit_text(
         "🎁 <b>Вам подарок</b>\n\n"
@@ -69,7 +69,7 @@ async def share(callback: CallbackQuery) -> None:
     terms = referral_terms(settings)
     link = f"https://t.me/{settings.bot_username}?start=ref_{callback.from_user.id}"
     body = "<b>Пригласить друга</b>\n\n" + "\n\n".join(
-        text for text in (terms["note"], terms["when"], terms["how"], terms["friend"]) if text
+        text for text in (terms["note"], terms["when"], terms["friend"]) if text
     )
     if referral_is_payout():
         body += f"\n\nВывести уже начисленные реферальные средства можно от {rub_text(settings.referral_payout_min)}."
@@ -176,7 +176,7 @@ async def _create_plan_invoice(
         return
     if settings.rollypay_configured:
         if rp is None:
-            await ack(callback, "Оплата не настроена", alert=True)
+            await ack(callback, "Оплата временно недоступна. Попробуйте позже", alert=True)
             return
         try:
             pay_method = resolve_payment_method(method)
@@ -230,7 +230,7 @@ async def _create_plan_invoice(
         await db.track_checkout(callback.from_user.id, pay_url=link)
         await callback.message.answer("Счёт готов. Нажмите, чтобы оплатить:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Оплатить", url=link)]]))
         return
-    await ack(callback, "Оплата не настроена", alert=True)
+    await ack(callback, "Оплата временно недоступна. Попробуйте позже", alert=True)
 
 
 @router.callback_query(F.data.startswith("resume_pay:"))
@@ -263,7 +263,7 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
         await ack(callback, "Заказ не найден", alert=True)
         return
     if rp is None:
-        await ack(callback, "Оплата не настроена", alert=True)
+        await ack(callback, "Оплата временно недоступна. Попробуйте позже", alert=True)
         return
     settings = get_settings()
     plan = settings.plan_by_code(order["plan_code"]) or {"title": "пополнение"}
@@ -274,7 +274,7 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
         return
     status = str(payment.get("status") or "")
     if not payment_is_paid(payment):
-        await ack(callback, f"Статус оплаты: {status or 'неизвестно'}", alert=True)
+        await ack(callback, f"Подтверждение оплаты пока не пришло. Если деньги списались, повторно платить не нужно.", alert=True)
         return
     if order["status"] == "granted":
         await ack(callback, "Этот платёж уже обработан", alert=True)
@@ -417,4 +417,4 @@ async def vpn_down(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     except Exception:
         await ack(callback, "Не удалось отправить. Попробуйте позже.", alert=True)
         return
-    await ack(callback, "Принято. Мы уже смотрим.", alert=True)
+    await ack(callback, "✅ Сообщение отправлено в поддержку.", alert=True)

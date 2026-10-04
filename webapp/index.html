@@ -409,7 +409,7 @@
 
       <div id="trialNotice" class="trial-notice hidden" role="status">
         <button type="button" id="trialNoticeClose" class="trial-notice-close" aria-label="Закрыть"></button>
-        <div class="trial-notice-kicker">Тестовый баланс</div>
+        <div class="trial-notice-kicker">🎁 Подарок</div>
         <div id="trialNoticeTitle" class="trial-notice-title"></div>
         <p id="trialNoticeText" class="trial-notice-text"></p>
         <button type="button" id="trialNoticeAct" class="btn btn-primary">Получить</button>
@@ -444,7 +444,7 @@
             </svg>
           </div>
           <div class="t">Устройств пока нет</div>
-          <div class="d">Здесь сутки идут только с добавленных устройств, не «на всех сразу». Добавьте первое — займёт меньше минуты.</div>
+          <div class="d">Добавьте устройство, на котором хотите пользоваться VPN. Пока устройств нет, списаний нет.</div>
           <button type="button" id="addDeviceEmpty" class="btn btn-primary">+ Добавить устройство</button>
           <button type="button" id="coachReplay" class="coach-replay">Как это работает?</button>
         </div>
@@ -620,7 +620,7 @@
       <div id="supportActions" class="support-ticket-actions hidden"></div>
       <div id="supportThread" class="support-thread"></div>
       <div id="supportCompose" class="support-compose">
-        <p id="supportComposeNote" class="support-compose-note hidden">Тикет закрыт. Новое сообщение откроет следующий.</p>
+        <p id="supportComposeNote" class="support-compose-note hidden">Обращение закрыто. Если нужна помощь — напишите снова.</p>
         <div id="supportAttachList" class="support-attach-list"></div>
         <div class="support-compose-bar">
           <input id="supportFiles" type="file" class="hidden" multiple accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.zip,.txt,.mp4,.mov,.webm">
@@ -706,7 +706,7 @@
         <p class="wiz-kicker">Бонус</p>
         <h1 class="wiz-title">Промокод</h1>
       </div>
-      <p class="section-note topup-hint">Введите код — начисление придёт на баланс или продлит подписку, в зависимости от режима магазина.</p>
+      <p class="section-note topup-hint">Введите промокод, чтобы получить подарок на баланс.</p>
       <div class="section promo-card">
         <div class="promo-inner">
           <input id="promo" type="text" placeholder="Введите код" autocomplete="off" autocapitalize="characters">
@@ -749,7 +749,7 @@
       <div id="refFriendsList" class="section ref-friends hidden"></div>
       <div id="refPayoutCard" class="section promo-card hidden">
         <div class="txt">
-          <div id="refPayoutTitle" class="t">Вывод реферальных</div>
+          <div id="refPayoutTitle" class="t">Вывод вознаграждения</div>
           <div id="refPayoutNote" class="d"></div>
         </div>
         <div id="refPayoutForm" class="payout-form hidden">
@@ -763,7 +763,7 @@
       <div class="section ref-faq">
         <details>
           <summary>Как пригласить?</summary>
-          <p>Нажмите «Поделиться» или «Скопировать текст» — в буфер попадёт готовое сообщение со ссылкой. Там готовое приглашение в сервис. Друг должен открыть бота именно по этой ссылке.</p>
+          <p>Отправьте другу свою ссылку. Для участия он должен запустить бота по ней.</p>
         </details>
         <details>
           <summary>Почему звать сюда?</summary>
@@ -809,7 +809,7 @@
         </div>
         <p class="offer-kicker">Вам подарок</p>
         <h1 class="offer-title">Дарим <span id="offerDays">3</span> дня</h1>
-        <p id="offerLead" class="offer-lead">Сутки только за свои устройства. Заберите тест и подключитесь за минуту.</p>
+        <p id="offerLead" class="offer-lead">Заберите подарок для одного устройства и попробуйте VPN.</p>
         <div class="offer-card">
           <div class="offer-rows">
             <div class="offer-row"><span id="offerPrice">—</span><span class="k">Цена</span></div>
@@ -827,7 +827,7 @@
       <div class="payment-toolbar"><span class="payment-toolbar-balance hidden" aria-label="Текущий баланс"></span></div>
       <div class="view-head topup-head">
         <h1 class="wiz-title topup-title">Пополнение баланса</h1>
-        <p id="topupHint" class="topup-sub">Зачисление средств может занять до 15 минут!</p>
+        <p id="topupHint" class="topup-sub">Зачисление может занять до 15 минут.</p>
       </div>
 
       <div class="topup-card">
@@ -843,7 +843,7 @@
         <div id="topupGrid" class="pay-grid topup-amounts"></div>
       </div>
 
-      <p id="topupLegal" class="topup-legal">Пополнение баланса является однократной операцией (не подписка). Мы не имеем доступа к вашим личным и платежным данным.</p>
+      <p id="topupLegal" class="topup-legal">Разовое пополнение — без автоматических платежей.</p>
     </div>
 
     <div id="view-pay" class="view hidden">
@@ -856,7 +856,7 @@
       <div class="pay-method-label">Выберите способ оплаты:</div>
       <div id="payMethods" class="pay-methods" role="radiogroup" aria-label="Способ оплаты"></div>
       <p id="payMethodNote" class="pay-method-note"></p>
-      <p class="pay-vpn-warn">Не забудьте отключить VPN перед оплатой! Некоторые банки не работают с включенным VPN.</p>
+      <p class="pay-vpn-warn">Если страница банка не открывается, попробуйте временно отключить VPN.</p>
     </div>
 
     <div id="view-wizard" class="view hidden">
@@ -1030,7 +1030,7 @@
           </span>
           <div class="dev-warn-txt">
             <div class="dev-warn-title">Перестал работать VPN?</div>
-            <div class="dev-warn-sub">Попробуйте заменить настройки устройства</div>
+            <div class="dev-warn-sub">Можно выпустить новую ссылку для подключения</div>
           </div>
         </div>
         <button type="button" id="devReissue" class="dev-fix-btn">
@@ -1052,7 +1052,7 @@
             </svg>
           </span>
           <div class="dev-warn-txt">
-            <div class="dev-warn-title">Если вы не используете настройки VPN данного устройства</div>
+            <div class="dev-warn-title">Больше не пользуетесь устройством?</div>
             <div class="dev-warn-sub" id="devWarnSub">Удалите его, чтобы не расходовать баланс</div>
           </div>
         </div>
@@ -1141,6 +1141,6 @@
 
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
-  <script src="app.js?v=174"></script>
+  <script src="app.js?v=175"></script>
 </body>
 </html>

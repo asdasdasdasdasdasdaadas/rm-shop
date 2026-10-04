@@ -167,7 +167,7 @@ def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bo
 def faq_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     add_cabinet_row(builder)
-    builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+    builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
     return builder.as_markup()
 
 
@@ -268,7 +268,7 @@ def trial_nudge_keyboard(*, trial_available: bool = True) -> InlineKeyboardMarku
 
 def back_profile_keyboard(*, cabinet: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+    builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
     if cabinet:
         add_cabinet_row(builder)
     return builder.as_markup()
@@ -284,7 +284,7 @@ def buy_keyboard() -> InlineKeyboardMarkup:
                 web_app=WebAppInfo(url=runtime.webapp_url),
             )
         )
-        builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+        builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
         return builder.as_markup()
     for code, plan in settings.shop_plans.items():
         if settings.rollypay_configured:
@@ -294,7 +294,7 @@ def buy_keyboard() -> InlineKeyboardMarkup:
         else:
             label = plan["title"]
         builder.row(InlineKeyboardButton(text=label, callback_data=f"buy:{code}"))
-    builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+    builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
     return builder.as_markup()
 
 
@@ -302,7 +302,7 @@ def pay_keyboard(pay_url: str, order_id: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="Оплатить", url=pay_url))
     builder.row(InlineKeyboardButton(text="Проверить оплату", callback_data=f"rpc:{order_id}"))
-    builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+    builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
     return builder.as_markup()
 
 
@@ -316,12 +316,12 @@ def invite_share_text() -> str:
     brand = (settings.brand_name or "VPN").strip() or "VPN"
     price = int(settings.vpn_day_price_rub or 0)
     text = (
-        f"Попробуй {brand}: быстрый VPN в Telegram. "
-        "Подключается за минуту, платишь только за свои устройства"
+        f"Вот ссылка на {brand}. "
+        "VPN для телефона и компьютера"
     )
     if price > 0:
-        text += f" (от {price} ₽/сутки)"
-    text += ". Зайди по ссылке."
+        text += f" — {price} ₽ в сутки за устройство"
+    text += ". Подключение — по ссылке."
     bonus = int(settings.referral_invitee_reward_rub or 0)
     if settings.referral_program_enabled and bonus > 0:
         text += f" После первой оплаты на баланс ещё {bonus} ₽, пока реферальная программа активна."
@@ -341,7 +341,7 @@ def referral_share_button(telegram_id: int, bot_username: str | None = None) -> 
         "url": invite_url(telegram_id, bot_username),
         "text": invite_share_text(),
     })
-    return InlineKeyboardButton(text="Поделиться реферальной ссылкой", url=url)
+    return InlineKeyboardButton(text="Поделиться ссылкой", url=url)
 
 
 def with_referral_share(telegram_id: int, markup: InlineKeyboardMarkup | None = None) -> InlineKeyboardMarkup:
@@ -364,7 +364,7 @@ def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = F
     story_btn = story_webapp_button(story_offer=story_offer)
     if story_btn:
         builder.row(story_btn)
-    builder.row(InlineKeyboardButton(text="В профиль", callback_data="profile"))
+    builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
     return builder.as_markup()
 
 

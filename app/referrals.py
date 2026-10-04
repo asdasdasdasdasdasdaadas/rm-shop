@@ -98,11 +98,11 @@ def topup_ok_text(amount: str, *, can_share: bool, local: dict | None = None) ->
     body = notice_text("topup_ok", amount=amount)
     if local is not None:
         body += "\nБаланс: " + rub_text(int(local.get("balance_rub") or 0)) + "."
-        body += "\nОткройте кабинет, чтобы проверить доступ и подключить устройство."
+        body += "\nПодключение и состояние доступа — в кабинете."
         can_share = can_share and not local.get("quiet_notifications")
     if can_share and get_settings().referral_program_enabled:
         body += (
-            "\n\nЕсли VPN вам подходит, можете порекомендовать его другу. "
+            "\n\n🎁 Пригласите друга: "
             "Вам 50 ₽ за первую оплату друга и 5% с каждого его пополнения, пока программа активна."
         )
     return body
@@ -148,7 +148,7 @@ async def maybe_reward_referrer(
             await bot.send_message(gift['referrer_id'],
                 "🎁 Трое ваших друзей впервые пополнили баланс — подарок ваш!\n\n"
                 f"Начислили {rub_text(gift['amount'])} на VPN: это стоимость 30 дней на 3 устройства "
-                "по тарифу на старте акции. При другом количестве устройств срок расходования баланса изменится.\n\n"
+                "по цене на старте акции. Если устройств больше, подарка хватит на меньший срок.\n\n"
                 "Подарок за эту акцию получен. Спасибо, что рекомендуете нас друзьям!",
                 reply_markup=with_referral_share(gift['referrer_id'], cabinet_keyboard()))
         except Exception:

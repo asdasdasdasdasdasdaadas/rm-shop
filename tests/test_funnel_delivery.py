@@ -76,7 +76,7 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
             restore.assert_awaited_once_with(1)
             self.assertTrue(await nudge.send_first_device_thanks(self.bot,1))
             body = self.bot.send_message.call_args.args[1]
-            self.assertIn('Осталось подключить', body)
+            self.assertIn('включите VPN', body)
             self.assertNotIn('Всё готово', body)
             user.return_value={'first_online_at':'2026-09-21'}
             take.reset_mock()

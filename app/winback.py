@@ -22,12 +22,12 @@ def keyboard():
 def message(code: str, count: int, amount: int) -> str:
     body = notice_text('winback_promo', code=code, devices=str(count), amount=rub_text(amount))
     # Required redemption terms remain visible even with a short custom template.
-    body += (f'\n\nВаш код: <code>{code}</code>\n'
-             f'Подарок: {rub_text(amount)} — 5 дней для устройств: {count}. '
-             'При изменении числа устройств срок расходования баланса изменится. '
-             'Минус на балансе погасим отдельно.\n'
-             'Код только для вашего аккаунта, на одну активацию, действует 7 дней. '
-             'Введите его в разделе «Ввести промокод» в кабинете.')
+    body += (f'\n\n<code>{code}</code>\n\n'
+             f'Начислим {rub_text(amount)} — на 5 дней для ваших устройств: {count}. '
+             'Минус погасим отдельно.\n\n'
+             'Введите код в разделе «Промокод» в кабинете. '
+             'Он действует 7 дней, только для вас и один раз. '
+             'Если добавите устройства, подарка хватит на меньший срок.')
     return body
 
 

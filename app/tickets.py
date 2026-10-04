@@ -129,11 +129,11 @@ async def receive_user_message(
             if created:
                 await bot.send_message(
                     telegram_id,
-                    "Тикет открыт. Пишите сюда, если нужно уточнить. Можно прислать скриншот. Ответ придёт в этот чат.",
+                    "💬 Сообщение отправлено! Ответим в этом чате. Можно добавить детали или скриншот.",
                     reply_markup=ticket_close_keyboard(ticket_id),
                 )
             else:
-                await bot.send_message(telegram_id, "Сообщение добавлено в тикет.", reply_markup=ticket_close_keyboard(ticket_id))
+                await bot.send_message(telegram_id, "✅ Сообщение отправлено в поддержку.", reply_markup=ticket_close_keyboard(ticket_id))
         except Exception:
             logger.debug("Не удалось подтвердить тикет %s", telegram_id, exc_info=True)
     if notify_admins and bot:

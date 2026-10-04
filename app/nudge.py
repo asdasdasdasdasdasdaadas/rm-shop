@@ -39,8 +39,8 @@ def trial_nudge_text(first_name: str | None, *, already_granted: bool) -> str:
     days = days_text(settings.trial_days)
     if already_granted:
         extra = (
-            "Пробные средства уже на балансе. Добавьте устройство в кабинете — "
-            "без него VPN не включится, деньги не спишутся."
+            "Подарок уже на балансе. Добавьте устройство в кабинете — "
+            "там найдёте инструкцию для подключения."
         )
     else:
         extra = (

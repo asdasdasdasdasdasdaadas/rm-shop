@@ -25,7 +25,7 @@ class FunnelFixesTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(notices.notice_text('welcome_intro_hi',name='<b>A&B</b>'),'<b>&lt;b&gt;A&amp;B&lt;/b&gt;</b>, привет')
             self.assertEqual(notices.notice_text('welcome_intro_hi',name='A &amp; B'),'<b>A &amp; B</b>, привет')
         with patch.object(notices,'shop_overlay',return_value={'notices':{'broadcast_unused':notices.LEGACY_NOTICE_DEFAULTS['broadcast_unused']}}):
-            self.assertIn('Нужна помощь',notices.notice_text('broadcast_unused'))
+            self.assertIn('поддержка поможет',notices.notice_text('broadcast_unused'))
         with patch.object(notices,'shop_overlay',return_value={'notices':{'broadcast_unused':'Мой текст'}}):
             self.assertEqual(notices.notice_text('broadcast_unused'),'Мой текст')
 
