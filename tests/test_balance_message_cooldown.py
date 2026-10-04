@@ -1,3 +1,5 @@
+from aiogram.types import InlineKeyboardMarkup
+from app.funnel_ui import funnel_keyboard
 from contextlib import ExitStack
 from types import SimpleNamespace
 import sqlite3
@@ -42,7 +44,7 @@ class BalanceMessageCooldownTest(unittest.IsolatedAsyncioTestCase):
             release=stack.enter_context(patch.object(db,'release_low_balance_notice',AsyncMock()))
             stack.enter_context(patch.object(db,'log_bot_message',AsyncMock()))
             link=stack.enter_context(patch.object(balance,'send_cabinet_link_to',AsyncMock()))
-            stack.enter_context(patch.object(balance,'payment_nudge_keyboard',return_value='topup'))
+            stack.enter_context(patch.object(balance,'payment_nudge_keyboard',return_value=InlineKeyboardMarkup(inline_keyboard=[])))
             bot=SimpleNamespace(send_message=AsyncMock())
             await balance._notify_empty(bot,1,6,set())
             bot.send_message.assert_awaited_once()

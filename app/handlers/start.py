@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.funnel_ui import answer_funnel, edit_funnel
 
 import re
 
@@ -86,15 +87,15 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
     if isinstance(target, CallbackQuery):
         await ack(target)
         try:
-            await message.edit_text(
+            await edit_funnel(message,
                 text, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
             )
         except TelegramBadRequest:
-            await message.answer(
+            await answer_funnel(message,
                 text, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
             )
     else:
-        await message.answer(
+        await answer_funnel(message,
             text, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
     if from_user:
@@ -112,7 +113,7 @@ async def gate_or_continue(event: Message | CallbackQuery) -> bool:
         text = welcome_text()
         kb = channel_keyboard()
         if isinstance(event, CallbackQuery):
-            await event.message.edit_text(
+            await edit_funnel(event.message,
                 text, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True)
             )
             await ack(event, "Сначала подпишитесь на канал", alert=True)
@@ -155,7 +156,7 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
     if await show_pending_welcome(message, message.from_user.id):
         return
     if not in_channel:
-        await message.answer(
+        await answer_funnel(message,
             welcome_text(), reply_markup=channel_keyboard(), link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
         await db.mark_legal_notice(message.from_user.id)
@@ -205,7 +206,7 @@ async def accept_legal(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         await ack(callback)
         return
     if not await is_channel_member(callback.bot, callback.from_user.id):
-        await callback.message.edit_text(
+        await edit_funnel(callback.message,
             welcome_text(), reply_markup=channel_keyboard(), link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
         await ack(callback, "Сначала подпишитесь на канал", alert=True)
@@ -235,7 +236,7 @@ async def try_again(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     await ack(callback)
     await db.upsert_user(user.id, user.username, user.first_name)
     if not await is_channel_member(callback.bot, user.id):
-        await callback.message.answer(
+        await answer_funnel(callback.message,
             welcome_text(), reply_markup=channel_keyboard(), link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
         await db.mark_legal_notice(user.id)

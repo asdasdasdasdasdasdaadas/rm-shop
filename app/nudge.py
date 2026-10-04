@@ -97,6 +97,9 @@ async def _deliver_unbudgeted(
     reply_markup,
     extra: dict | None = None,
 ) -> bool:
+    from app.funnel_ui import funnel_body, funnel_keyboard
+    body = funnel_body(body)
+    reply_markup = funnel_keyboard(reply_markup)
     if not await db.nudge_delivery_allowed(telegram_id, kind):
         return False
     try:

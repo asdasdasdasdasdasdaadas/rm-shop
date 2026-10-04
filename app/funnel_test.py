@@ -15,6 +15,8 @@ def catalog(telegram_id: int) -> list[dict]:
     from app.winback import message as winback_message, keyboard as winback_keyboard
     rows = []
     def add(key, group, title, condition, body, markup):
+        from app.funnel_ui import funnel_body, funnel_keyboard
+        body, markup = funnel_body(body), funnel_keyboard(markup)
         rows.append(dict(id=key, group=group, title=title, condition=condition, body=body, markup=markup))
     add('welcome', 'start', 'Приветствие с подарком', 'Первый запуск; пробный доступ доступен',
         notice_text('welcome_intro_hi', name='Тестовый пользователь', days=days_text(s.trial_days)), None)

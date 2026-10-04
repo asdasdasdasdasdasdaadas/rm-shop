@@ -25,6 +25,9 @@ def tracked_keyboard(markup, token):
 
 
 async def send_reminder(bot, telegram_id, body, *, kind, title, reply_markup):
+    from app.funnel_ui import funnel_body, funnel_keyboard
+    body = funnel_body(body)
+    reply_markup = funnel_keyboard(reply_markup)
     token=None
     try:
         token=await db.create_reminder_delivery(telegram_id,kind,title,body)

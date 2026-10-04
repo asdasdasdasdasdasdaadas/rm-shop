@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.funnel_ui import send_funnel_message
 from html import escape
 from math import ceil
 
@@ -86,12 +87,13 @@ def referrer_next_line(rewarded: int) -> str:
 
 
 async def after_topup_keyboard(telegram_id: int):
+    from app.funnel_ui import funnel_keyboard
     settings = get_settings()
     local = await db.get_user(telegram_id)
+    markup = cabinet_keyboard()
     if settings.referral_program_enabled and local and local.get("first_online_at") and not local.get("quiet_notifications"):
-        markup = with_referral_share(telegram_id, cabinet_keyboard())
-        return markup.model_copy(update={"inline_keyboard": markup.inline_keyboard[1:] + markup.inline_keyboard[:1]})
-    return cabinet_keyboard()
+        markup = with_referral_share(telegram_id, markup)
+    return funnel_keyboard(markup)
 
 
 def topup_ok_text(amount: str, *, can_share: bool, local: dict | None = None) -> str:
@@ -105,7 +107,8 @@ def topup_ok_text(amount: str, *, can_share: bool, local: dict | None = None) ->
             "\n\n🎁 Пригласите друга: "
             "Вам 50 ₽ за первую оплату друга и 5% с каждого его пополнения, пока программа активна."
         )
-    return body
+    from app.funnel_ui import funnel_body
+    return funnel_body(body)
 
 
 async def maybe_reward_invitee(bot: Bot | None, telegram_id: int, *, enabled: bool | None = None, amount: int | None = None) -> int:
@@ -120,7 +123,7 @@ async def maybe_reward_invitee(bot: Bot | None, telegram_id: int, *, enabled: bo
         return 0
     if bot:
         try:
-            await bot.send_message(
+            await send_funnel_message(bot,
                 telegram_id,
                 notice_text("referral_invitee_paid", amount=rub_text(amount)),
                 reply_markup=with_referral_share(telegram_id, cabinet_keyboard()),
@@ -145,7 +148,7 @@ async def maybe_reward_referrer(
     if result and result.get('campaign') and bot:
         gift = result['campaign']
         try:
-            await bot.send_message(gift['referrer_id'],
+            await send_funnel_message(bot, gift['referrer_id'],
                 "🎁 Трое ваших друзей впервые пополнили баланс — подарок ваш!\n\n"
                 f"Начислили {rub_text(gift['amount'])} на VPN: это стоимость 30 дней на 3 устройства "
                 "по цене на старте акции. Если устройств больше, подарка хватит на меньший срок.\n\n"
@@ -155,7 +158,7 @@ async def maybe_reward_referrer(
             pass
     if result and result['amount'] > 0 and bot:
         try:
-            await bot.send_message(result['referrer_id'],
+            await send_funnel_message(bot, result['referrer_id'],
                 f"Друг {name} пополнил баланс. Вам начислено {rub_text(result['amount'])}: "
                 + (f"бонус за первую оплату {rub_text(result['bonus'])} и " if result['bonus'] else "")
                 + f"5% от пополнения ({rub_text(result['percent'])}).",

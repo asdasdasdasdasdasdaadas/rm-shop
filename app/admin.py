@@ -805,7 +805,7 @@ MSG_RETRY_MAX = 80
 _MSG_RETRY_SKIP = {"maintenance_hit", "nudge_payment", "nudge_story"}
 
 
-async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
+async def _retry_markup_base(kind: str, telegram_id: int, extra: dict | None):
     extra = extra if isinstance(extra, dict) else {}
     settings = get_settings()
     if kind == "broadcast":
@@ -847,6 +847,11 @@ async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
     return None
 
 
+async def _retry_markup(kind: str, telegram_id: int, extra: dict | None):
+    from app.funnel_ui import funnel_keyboard
+    return funnel_keyboard(await _retry_markup_base(kind, telegram_id, extra))
+
+
 async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
     kind = str(row.get("kind") or "")
     telegram_id = row.get("telegram_id")
@@ -884,6 +889,8 @@ async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
         body = _broadcast_payload("invite", "", telegram_id, row.get("first_name"), get_settings())[0]
     if not body:
         return False, "Пустой текст"
+    from app.funnel_ui import funnel_body
+    body = funnel_body(body)
     markup = await _retry_markup(kind, telegram_id, extra)
     title = str(row.get("title") or "")[:160]
     log_extra = {"retry_of": int(row["id"])}
@@ -1563,6 +1570,8 @@ async def _broadcast_all(
 
 
 async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup, photo):
+    from app.funnel_ui import funnel_body, funnel_keyboard
+    body, markup = funnel_body(body), funnel_keyboard(markup)
     if photo is None:
         return await bot.send_message(telegram_id, body, reply_markup=markup)
     if len(body) <= 1024:

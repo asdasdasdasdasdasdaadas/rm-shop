@@ -1,4 +1,5 @@
 """Durable announcement queue for manually launched referral campaigns."""
+from app.funnel_ui import send_funnel_message
 import asyncio
 import logging
 import time
@@ -55,7 +56,7 @@ async def deliver_campaign_message(bot, row: dict) -> float:
     retry = None
     pause = 0.05
     try:
-        await bot.send_message(row['telegram_id'], text, reply_markup=markup,
+        await send_funnel_message(bot, row['telegram_id'], text, reply_markup=markup,
                                link_preview_options=LinkPreviewOptions(is_disabled=True))
     except Exception as exc:
         error = str(exc)[:400]

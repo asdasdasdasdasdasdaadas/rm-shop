@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.funnel_ui import send_funnel_message
 from datetime import datetime, timedelta, timezone
 
 import asyncpg
@@ -131,7 +132,7 @@ async def collect_due_trusts(bot) -> None:
             continue
         if bot:
             try:
-                await bot.send_message(
+                await send_funnel_message(bot,
                     tg_id,
                     notice_text("trust_collect", amount=rub_text(amount)),
                 )

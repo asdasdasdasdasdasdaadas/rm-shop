@@ -21,7 +21,7 @@ class TopupMessageButtonsTest(unittest.IsolatedAsyncioTestCase):
 
     def assert_topup(self, markup):
         button = markup.inline_keyboard[0][0]
-        self.assertEqual(button.text, 'Пополнить баланс')
+        self.assertEqual(button.text, 'Личный кабинет')
         self.assertIsNone(button.url)
         self.assertIsNone(button.callback_data)
         self.assertEqual(parse_qs(urlsplit(button.web_app.url).query), {'theme':['green'], 'screen':['topup']})
@@ -33,7 +33,7 @@ class TopupMessageButtonsTest(unittest.IsolatedAsyncioTestCase):
         self.stack.enter_context(patch.object(db, 'mark_first_online_nudge_sent', AsyncMock()))
         self.stack.enter_context(patch.object(nudge.asyncio, 'sleep', AsyncMock()))
         self.assertEqual(await nudge.send_due_first_online_nudges(self.bot), (1,[1]))
-        self.assertEqual([b.callback_data for row in self.bot.send_message.call_args.kwargs['reply_markup'].inline_keyboard for b in row], ['vpn_feedback:ok','vpn_feedback:help'])
+        self.assertEqual([b.callback_data for row in self.bot.send_message.call_args.kwargs['reply_markup'].inline_keyboard for b in row], [None,'profile','vpn_feedback:ok','vpn_feedback:help'])
 
     async def test_empty_balance_notification_has_own_topup_button(self):
         self.stack.enter_context(patch.object(db, 'claim_low_balance_notice', AsyncMock(return_value=True)))

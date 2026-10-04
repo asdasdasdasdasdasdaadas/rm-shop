@@ -23,7 +23,7 @@ class CampaignAnnouncementTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('540 ₽',args.args[1])
         self.assertIn('впервые',args.args[1])
         self.assertTrue(args.kwargs['link_preview_options'].is_disabled)
-        button=args.kwargs['reply_markup'].inline_keyboard[0][0]
+        button=next(b for row in args.kwargs['reply_markup'].inline_keyboard for b in row if b.url and 'share/url' in b.url)
         self.assertEqual(parse_qs(urlparse(button.url).query)['url'],['https://t.me/test_bot?start=ref_123'])
         self.finish.assert_awaited_once_with(7,123,error=None,retry_seconds=None,retryable=False)
 

@@ -1,3 +1,5 @@
+from aiogram.types import InlineKeyboardMarkup
+from app.funnel_ui import funnel_keyboard
 from contextlib import ExitStack
 from types import SimpleNamespace
 from unittest import IsolatedAsyncioTestCase
@@ -18,8 +20,8 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
         self.stack.enter_context(patch.object(db, 'flag_on', AsyncMock(return_value=False)))
         self.stack.enter_context(patch.object(nudge.asyncio, 'sleep', AsyncMock()))
         self.stack.enter_context(patch.object(nudge, 'get_settings', return_value=SimpleNamespace(balance_enabled=True)))
-        self.stack.enter_context(patch.object(nudge, 'onboarding_keyboard', side_effect=lambda **kw: kw))
-        self.stack.enter_context(patch.object(nudge, 'payment_nudge_keyboard', return_value='topup'))
+        self.stack.enter_context(patch.object(nudge, 'onboarding_keyboard', side_effect=lambda **kw: InlineKeyboardMarkup(inline_keyboard=[])))
+        self.stack.enter_context(patch.object(nudge, 'payment_nudge_keyboard', return_value=InlineKeyboardMarkup(inline_keyboard=[])))
         self.bot = SimpleNamespace(send_message=AsyncMock())
 
     async def deliver(self):
@@ -50,7 +52,7 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
     async def test_return_messages_match_state_and_preserve_stage_on_failure(self):
         for online, balance, trial, segment, markup in [
             (None, 10, False, 'setup', {'gift':True,'has_device':False}),
-            ('2026-09-01', 0, True, 'topup', 'topup'),
+            ('2026-09-01', 0, True, 'topup', funnel_keyboard(InlineKeyboardMarkup(inline_keyboard=[]))),
             ('2026-09-01', 20, True, 'return', {'has_device':False}),
         ]:
             for days in [7,20]:
@@ -64,7 +66,7 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
                     await nudge.send_due_idle_nudges(self.bot)
                     mark.assert_awaited_once_with(1,days)
                     text.assert_called_with(('return_check' if days == 7 else 'return_last') if segment == 'return' else f'idle_{segment}_{days}')
-                    self.assertEqual(self.bot.send_message.call_args.kwargs['reply_markup'], nudge.vpn_feedback_keyboard(returning=True) if segment == 'return' else markup)
+                    self.assertEqual(self.bot.send_message.call_args.kwargs['reply_markup'], funnel_keyboard(nudge.vpn_feedback_keyboard(returning=True) if segment == 'return' else InlineKeyboardMarkup(inline_keyboard=[])))
 
     async def test_device_created_message_is_next_step_and_skips_connected(self):
         with patch.object(db, 'user_is_blocked', AsyncMock(return_value=False)), \

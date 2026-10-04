@@ -1,3 +1,5 @@
+from aiogram.types import InlineKeyboardMarkup
+from app.funnel_ui import funnel_keyboard
 """Onboarding transitions without Telegram, panel or database connections."""
 from contextlib import ExitStack
 from types import SimpleNamespace
@@ -108,7 +110,7 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                 stack.enter_context(patch.object(welcome, 'trial_is_available', return_value=False))
                 stack.enter_context(patch.object(welcome, 'notice_text', return_value='Hello'))
                 stack.enter_context(patch.object(welcome, 'legal_text', return_value='Legal links'))
-                keyboard = stack.enter_context(patch.object(welcome, 'profile_keyboard', return_value='full-menu'))
+                keyboard = stack.enter_context(patch.object(welcome, 'profile_keyboard', return_value=InlineKeyboardMarkup(inline_keyboard=[])))
                 for name in ('send_welcome_sticker', '_pause', '_log'):
                     stack.enter_context(patch.object(welcome, name, new_callable=AsyncMock))
                 message = AsyncMock()
@@ -125,7 +127,7 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                     await welcome.send_welcome_continuation(message,123,in_channel=True)
                     db.mark_legal_notice.assert_awaited_once_with(123)
                     keyboard.assert_called_once()
-                    self.assertEqual(message.answer.call_args.kwargs['reply_markup'], 'full-menu')
+                    self.assertEqual(message.answer.call_args.kwargs['reply_markup'], funnel_keyboard(InlineKeyboardMarkup(inline_keyboard=[])))
                     self.assertIn('Legal links', message.answer.call_args.args[0])
                     self.assertTrue(message.answer.call_args.kwargs['link_preview_options'].is_disabled)
 

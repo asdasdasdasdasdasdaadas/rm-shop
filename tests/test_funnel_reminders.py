@@ -1,3 +1,5 @@
+from aiogram.types import InlineKeyboardMarkup
+from app.funnel_ui import funnel_keyboard
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 import sqlite3
@@ -120,7 +122,7 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
              patch.object(db, 'claim_balance_ending_notice', AsyncMock(return_value=True)), \
              patch.object(db, 'mark_trial_end_nudge_sent', AsyncMock()), \
              patch.object(db, 'log_bot_message', AsyncMock()), \
-             patch.object(nudge, 'payment_nudge_keyboard', return_value='topup'), \
+             patch.object(nudge, 'payment_nudge_keyboard', return_value=InlineKeyboardMarkup(inline_keyboard=[])), \
              patch.object(nudge, 'notice_text', return_value='message') as text, \
              patch.object(nudge.asyncio, 'sleep', AsyncMock()):
             bot = SimpleNamespace(send_message=AsyncMock())
@@ -129,4 +131,4 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
             bot.send_message.assert_awaited_once()
             self.assertIn('Баланс: 6', bot.send_message.call_args.args[1])
             self.assertIn('Расход: 12', bot.send_message.call_args.args[1])
-            self.assertEqual(bot.send_message.call_args.kwargs['reply_markup'], 'topup')
+            self.assertEqual(bot.send_message.call_args.kwargs['reply_markup'], funnel_keyboard(InlineKeyboardMarkup(inline_keyboard=[])))

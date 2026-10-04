@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.funnel_ui import answer_funnel, edit_funnel
 
 from app.referral_terms import referral_terms
 
@@ -50,9 +51,9 @@ async def activate_trial(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         if local and local.get("trial_used"):
             await show_profile(callback, rw)
             return
-        await callback.message.edit_text("Подарок сейчас недоступен. Если нужна помощь — напишите в поддержку.", reply_markup=back_profile_keyboard())
+        await edit_funnel(callback.message, "Подарок сейчас недоступен. Если нужна помощь — напишите в поддержку.", reply_markup=back_profile_keyboard())
         return
-    await callback.message.edit_text(
+    await edit_funnel(callback.message,
         "🎁 <b>Вам подарок</b>\n\n"
         "Откройте личный кабинет и нажмите «Принять подарок». "
         "После этого сразу перейдёте к добавлению устройства.",
@@ -74,7 +75,7 @@ async def share(callback: CallbackQuery) -> None:
     if referral_is_payout():
         body += f"\n\nВывести уже начисленные реферальные средства можно от {rub_text(settings.referral_payout_min)}."
     body += f"\n\nВаша ссылка:\n<code>{link}</code>"
-    await callback.message.edit_text(
+    await edit_funnel(callback.message,
         body,
         reply_markup=share_keyboard(
             settings.bot_username,
@@ -92,7 +93,7 @@ async def my_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     local = await db.get_user(callback.from_user.id)
     rub = int((local or {}).get("balance_rub") or 0)
     n = await db.device_count(callback.from_user.id)
-    await callback.message.edit_text(
+    await edit_funnel(callback.message,
         "<b>Баланс</b>\n\n"
         f"Сейчас: <b>{rub_text(rub)}</b>\n"
         f"Устройств: <b>{n}</b>\n"
@@ -108,7 +109,7 @@ async def connect(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await gate_or_continue(callback):
         return
     await ack(callback)
-    await callback.message.edit_text(
+    await edit_funnel(callback.message,
         "Подключение — в кабинете: добавьте устройство и откройте его ссылку.",
         reply_markup=back_profile_keyboard(cabinet=True),
     )
@@ -119,7 +120,7 @@ async def reissue_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
     if not await gate_or_continue(callback):
         return
     await ack(callback)
-    await callback.message.edit_text(
+    await edit_funnel(callback.message,
         "Ссылку подписки можно обновить в кабинете, на экране устройства.",
         reply_markup=back_profile_keyboard(),
     )
@@ -136,7 +137,7 @@ async def buy_menu(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         f"Сутки на одно устройство: {rub_text(settings.vpn_day_price_rub)}. "
         "Пока устройств нет, баланс не списывается."
     )
-    await callback.message.edit_text(text, reply_markup=buy_keyboard())
+    await edit_funnel(callback.message, text, reply_markup=buy_keyboard())
 
 
 @router.callback_query(F.data.startswith("buy:"))
@@ -196,7 +197,7 @@ async def _create_plan_invoice(
             )
         except RollyPayError as exc:
             logger.exception("RollyPay create failed: %s", exc)
-            await callback.message.edit_text(
+            await edit_funnel(callback.message,
                 "Не удалось создать платёж.",
                 reply_markup=back_profile_keyboard(),
             )
@@ -204,7 +205,7 @@ async def _create_plan_invoice(
         pay_url = str(data.get("pay_url") or "")
         payment_id = str(data.get("payment_id") or "")
         if not pay_url or not payment_id:
-            await callback.message.edit_text(
+            await edit_funnel(callback.message,
                 "Не удалось получить ссылку на оплату.",
                 reply_markup=back_profile_keyboard(),
             )
@@ -212,7 +213,7 @@ async def _create_plan_invoice(
         await db.save_rollypay_order(
             order_id, callback.from_user.id, code, payment_id, pay_url
         )
-        await callback.message.edit_text(
+        await edit_funnel(callback.message,
             f"<b>{plan['title']}</b> — {plan['rub_str']} рублей\n\n"
             "Нажмите «Оплатить», затем вернитесь и нажмите «Проверить оплату».",
             reply_markup=pay_keyboard(pay_url, order_id),
@@ -228,7 +229,7 @@ async def _create_plan_invoice(
             prices=[LabeledPrice(label=plan["title"], amount=plan["stars"])],
         )
         await db.track_checkout(callback.from_user.id, pay_url=link)
-        await callback.message.answer("Счёт готов. Нажмите, чтобы оплатить:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Оплатить", url=link)]]))
+        await answer_funnel(callback.message, "Счёт готов. Нажмите, чтобы оплатить:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Оплатить", url=link)]]))
         return
     await ack(callback, "Оплата временно недоступна. Попробуйте позже", alert=True)
 
@@ -240,16 +241,16 @@ async def resume_payment(callback: CallbackQuery, rp: RollyPayClient | None) -> 
     await ack(callback)
     state, url = await resume_checkout(callback.from_user.id, callback.data.split(":", 1)[1], rp)
     if state == "active":
-        await callback.message.answer("Ваш счёт ещё действует. Продолжите оплату:",
+        await answer_funnel(callback.message, "Ваш счёт ещё действует. Продолжите оплату:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text="Оплатить счёт", url=url)
             ]]))
     elif state in {"unavailable", "processing"}:
-        await callback.message.answer("Платёж проверяется. Если деньги уже списались, не платите повторно. Попробуйте проверить позже или напишите в поддержку.")
+        await answer_funnel(callback.message, "Платёж проверяется. Если деньги уже списались, не платите повторно. Попробуйте проверить позже или напишите в поддержку.")
     elif state == "closed":
-        await callback.message.answer("Этот счёт уже закрыт. Если вы оплатили, дождитесь зачисления — повторная оплата не нужна.")
+        await answer_funnel(callback.message, "Этот счёт уже закрыт. Если вы оплатили, дождитесь зачисления — повторная оплата не нужна.")
     else:
-        await callback.message.answer("Этот счёт истёк или заменён новым. Откройте кабинет, чтобы создать новый счёт. Если деньги уже списались, дождитесь зачисления.",
+        await answer_funnel(callback.message, "Этот счёт истёк или заменён новым. Откройте кабинет, чтобы создать новый счёт. Если деньги уже списались, дождитесь зачисления.",
             reply_markup=payment_nudge_keyboard(label="Создать новый счёт"))
 
 
@@ -283,14 +284,14 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
     try:
         user = await fulfill_rollypay_order(order_id, rw, bot=callback.bot)
     except RemnawaveError as exc:
-        await callback.message.edit_text(
+        await edit_funnel(callback.message,
             notice_text("payment_panel_error", error=exc),
             reply_markup=back_profile_keyboard(),
         )
         return
     local = await db.get_user(callback.from_user.id)
     can_share = bool(local and local.get("first_online_at"))
-    await callback.message.edit_text(
+    await edit_funnel(callback.message,
         topup_ok_text(
             rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
             can_share=can_share, local=local,
@@ -333,20 +334,20 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
     settings = get_settings()
     plan = settings.plan_by_code(code)
     if not plan:
-        await message.answer(notice_text("payment_unknown"))
+        await answer_funnel(message, notice_text("payment_unknown"))
         return
     try:
         user = await grant_plan(message.from_user.id, code, rw, bot=message.bot,
             payment_key=f"stars:{payment.telegram_payment_charge_id}", stars=payment.total_amount)
     except RemnawaveError as exc:
-        await message.answer(notice_text("payment_panel_error", error=exc))
+        await answer_funnel(message, notice_text("payment_panel_error", error=exc))
         return
     if user is None:
-        await message.answer(notice_text("payment_duplicate"))
+        await answer_funnel(message, notice_text("payment_duplicate"))
         return
     local = await db.get_user(message.from_user.id)
     can_share = bool(local and local.get("first_online_at"))
-    await message.answer(
+    await answer_funnel(message,
         topup_ok_text(
             rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
             can_share=can_share, local=local,
@@ -361,7 +362,7 @@ async def show_about_service(callback: CallbackQuery) -> None:
         return
     await ack(callback)
     settings = get_settings()
-    await callback.message.edit_text(
+    await edit_funnel(callback.message,
         notice_text("about_service", brand=settings.brand_name,
                     price=rub_text(settings.vpn_day_price_rub)),
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
@@ -380,11 +381,11 @@ async def show_faq(callback: CallbackQuery) -> None:
     await ack(callback)
     pages = faq_pages()
     try:
-        await callback.message.edit_text(pages[0], reply_markup=faq_keyboard())
+        await edit_funnel(callback.message, pages[0], reply_markup=faq_keyboard())
     except Exception:
-        await callback.message.answer(pages[0], reply_markup=faq_keyboard())
+        await answer_funnel(callback.message, pages[0], reply_markup=faq_keyboard())
     for page in pages[1:]:
-        await callback.message.answer(page, reply_markup=faq_keyboard())
+        await answer_funnel(callback.message, page, reply_markup=faq_keyboard())
 
 
 

@@ -14,7 +14,7 @@ class FunnelFixesTest(unittest.IsolatedAsyncioTestCase):
                 local={'first_online_at':'2026-10-01','quiet_notifications':quiet,'balance_rub':94}
                 with patch.object(db,'get_user',AsyncMock(return_value=local)):
                     markup=await referrals.after_topup_keyboard(1)
-                self.assertEqual(markup.inline_keyboard[0][0].text,'Открыть кабинет')
+                self.assertEqual(markup.inline_keyboard[0][0].text,'Личный кабинет')
                 self.assertEqual(any(b.url and 'share/url' in b.url for row in markup.inline_keyboard for b in row),not quiet)
                 body=referrals.topup_ok_text('100 ₽',can_share=True,local=local)
                 self.assertIn('94',body)

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.funnel_ui import answer_funnel
 
 import asyncio
 import logging
@@ -141,11 +142,11 @@ async def send_welcome_intro(
     try:
         await send_welcome_sticker(bot, chat_id)
         await _pause(bot, chat_id)
-        await message.answer(hi)
+        await answer_funnel(message, hi)
         await _pause(bot, chat_id)
-        await message.answer(hello, reply_markup=with_referral_share(user.id) if referral_bonus else None)
+        await answer_funnel(message, hello, reply_markup=with_referral_share(user.id) if referral_bonus else None)
         await _pause(bot, chat_id)
-        await message.answer(support, reply_markup=support_welcome_keyboard(),
+        await answer_funnel(message, support, reply_markup=support_welcome_keyboard(),
                              link_preview_options=LinkPreviewOptions(is_disabled=True))
         await _log(user.id, user.first_name, "\n\n".join(parts), ok=True)
         return True
@@ -175,7 +176,7 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
             story_offer=False,
         )
     last += "\n\n" + legal_text()
-    await message.answer(last, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True))
+    await answer_funnel(message, last, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True))
     await db.mark_legal_notice(telegram_id)
 
 
@@ -183,6 +184,6 @@ async def show_pending_welcome(message: Message, telegram_id: int) -> bool:
     local=await db.get_user(telegram_id)
     if not local or not local.get('welcome_support_pending'):
         return False
-    await message.answer(notice_text('support_welcome',brand=escape(get_settings().brand_name)),
+    await answer_funnel(message, notice_text('support_welcome',brand=escape(get_settings().brand_name)),
                          reply_markup=support_welcome_keyboard(),link_preview_options=LinkPreviewOptions(is_disabled=True))
     return True
