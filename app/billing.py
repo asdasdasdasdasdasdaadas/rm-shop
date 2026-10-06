@@ -83,6 +83,11 @@ async def grant_plan(
         await apply_payment_effects(receipt, rw, bot)
     except Exception:
         logger.exception("Payment %s credited; effects will retry", payment_key)
+    from app.payment_notice import deliver_payment_notice
+    try:
+        await deliver_payment_notice(bot, receipt)
+    except Exception:
+        logger.exception("Payment confirmation queued: %s", payment_key)
     from app.live import paid as live_paid
     try:
         local = await db.get_user(telegram_id)
@@ -123,6 +128,15 @@ async def payment_effects_loop(rw: RemnawaveClient, bot: Bot) -> None:
                     logger.exception("Payment effects will retry: %s", receipt['payment_key'])
         except Exception:
             logger.exception("Could not load pending payment effects")
+        try:
+            from app.payment_notice import deliver_payment_notice
+            for receipt in await db.pending_payment_notices():
+                try:
+                    await deliver_payment_notice(bot, receipt)
+                except Exception:
+                    logger.exception("Payment notice retry failed: %s", receipt["payment_key"])
+        except Exception:
+            logger.exception("Could not load payment confirmations")
         await asyncio.sleep(60)
 
 

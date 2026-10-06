@@ -289,15 +289,6 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
             reply_markup=back_profile_keyboard(),
         )
         return
-    local = await db.get_user(callback.from_user.id)
-    can_share = bool(local and local.get("first_online_at"))
-    await edit_funnel(callback.message,
-        topup_ok_text(
-            rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
-            can_share=can_share, local=local,
-        ),
-        reply_markup=await after_topup_keyboard(callback.from_user.id),
-    )
 
 
 @router.pre_checkout_query()
@@ -342,18 +333,6 @@ async def successful_payment(message: Message, rw: RemnawaveClient) -> None:
     except RemnawaveError as exc:
         await answer_funnel(message, notice_text("payment_panel_error", error=exc))
         return
-    if user is None:
-        await answer_funnel(message, notice_text("payment_duplicate"))
-        return
-    local = await db.get_user(message.from_user.id)
-    can_share = bool(local and local.get("first_online_at"))
-    await answer_funnel(message,
-        topup_ok_text(
-            rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
-            can_share=can_share, local=local,
-        ),
-        reply_markup=await after_topup_keyboard(message.from_user.id),
-    )
 
 
 @router.callback_query(F.data == "about_service")

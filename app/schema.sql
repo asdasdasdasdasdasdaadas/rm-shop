@@ -692,3 +692,10 @@ CREATE INDEX IF NOT EXISTS winback_offers_sent_idx ON winback_offers(sent_at);
 CREATE INDEX IF NOT EXISTS payment_receipts_user_date_idx ON payment_receipts(telegram_id,created_at);
 CREATE INDEX IF NOT EXISTS winback_offers_connection_idx ON winback_offers(telegram_id,activated_at)
 WHERE activated_at IS NOT NULL AND connected_at IS NULL;
+
+-- Only new receipts enter this outbox; do not resend historical payments on deploy.
+ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS notice_status TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS notice_retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS notice_sent_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS payment_receipts_notice_pending ON payment_receipts(notice_retry_at)
+WHERE notice_status='pending';

@@ -6,7 +6,8 @@ from typing import Any
 
 from app.config import shop_overlay
 
-DEFAULT_NOTICES = {'device_created_next_step': '📱 Устройство добавлено — осталось включить VPN!\n'
+DEFAULT_NOTICES = {'paid_setup_nudge': '📱 Баланс пополнен — попробуем VPN в деле?\n\nДобавьте устройство в кабинете и следуйте инструкции. Если нужна помощь — напишите нам.',
+'device_created_next_step': '📱 Устройство добавлено — осталось включить VPN!\n'
                              '\n'
                              'Откройте его в кабинете, добавьте ссылку в VPN-приложение и включите VPN. '
                              'Затем попробуйте открыть любимый сайт.',
@@ -241,6 +242,7 @@ DEFAULT_NOTICES = {'device_created_next_step': '📱 Устройство доб
                         'Повторно платить не нужно.'}
 
 NOTICE_FIELDS: list[dict[str, str]] = [
+    {"key":"paid_setup_nudge","title":"После оплаты: устройство не добавлено","hint":""},
     {"key": "winback_promo", "title": "Возвращение: персональный промокод на 5 дней", "hint": "{code} {devices} {amount}. Условия и срок добавляются автоматически."},
     {"key": "about_service", "title": "О сервисе — главное меню", "hint": "{brand} {price}"},
     {'key': 'device_created_next_step', 'title': 'Устройство добавлено: продолжить настройку', 'hint': ''},

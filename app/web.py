@@ -1226,38 +1226,6 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
         return web.Response(status=500, text="fulfill failed")
     if user is None:
         return web.Response(text="OK")
-    telegram_id = int(order["telegram_id"])
-    try:
-        if plan.get("router"):
-            local = await db.get_user(telegram_id)
-            exp = (local or {}).get("router_expire_at")
-            if exp is not None and getattr(exp, "tzinfo", None) is None:
-                exp = exp.replace(tzinfo=timezone.utc)
-            when = exp.astimezone().strftime("%d.%m.%Y") if exp else "—"
-            await bot.send_message(
-                telegram_id,
-                notice_text(
-                    "router_ok",
-                    amount=rub_text(int(round(float(plan.get("rub") or 0)))),
-                    days=str(int(plan.get("days") or 30)),
-                    expire=when,
-                ),
-                parse_mode=ParseMode.HTML,
-                reply_markup=await after_topup_keyboard(telegram_id),
-            )
-        else:
-            local = await db.get_user(telegram_id)
-            can_share = bool(local and local.get("first_online_at"))
-            await bot.send_message(
-                telegram_id,
-                topup_ok_text(
-                    rub_text(int(plan.get("topup_rub") or 0)) if plan.get("topup_rub") else plan.get("title"),
-                    can_share=can_share, local=local,
-                ),
-                reply_markup=await after_topup_keyboard(telegram_id),
-            )
-    except Exception:
-        logger.exception("Не удалось уведомить пользователя %s об оплате", telegram_id)
     return web.Response(text="OK")
 
 

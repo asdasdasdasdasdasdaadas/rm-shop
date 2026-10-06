@@ -3574,16 +3574,16 @@ async def restore_first_device_thanks(telegram_id: int) -> None:
 
 async def list_due_device_nudges(limit: int = 80, skip_ids: list[int] | None = None) -> list[dict]:
     rows = await _pool_req().fetch(
-        """SELECT u.telegram_id, u.first_name, 0 AS device_nudge_count,
+        """SELECT u.telegram_id, u.first_name, u.has_paid_topup, u.gift_claimed_at, 0 AS device_nudge_count,
             EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id) AS has_device
         FROM users u
         WHERE u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
           AND u.bot_started_at IS NOT NULL
-          AND u.gift_claimed_at <= NOW() - INTERVAL '30 minutes'
+          AND COALESCE(u.gift_claimed_at, (SELECT MIN(p.created_at) FROM payment_receipts p WHERE p.telegram_id=u.telegram_id AND p.router_days=0)) <= NOW() - INTERVAL '30 minutes'
           AND u.first_online_at IS NULL
           AND u.device_nudge_at IS NULL
           AND NOT (u.telegram_id = ANY($2::bigint[]))
-        ORDER BY u.gift_claimed_at LIMIT $1""",
+        ORDER BY COALESCE(u.gift_claimed_at, (SELECT MIN(p.created_at) FROM payment_receipts p WHERE p.telegram_id=u.telegram_id AND p.router_days=0)) LIMIT $1""",
         int(limit), [int(x) for x in (skip_ids or [])],
     )
     return [dict(r) for r in rows]
@@ -5445,8 +5445,8 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
             else:
                 raise ValueError('Unknown payment provider')
             receipt = await conn.fetchrow('''INSERT INTO payment_receipts
-                (payment_key,telegram_id,plan_code,amount,router_days,first_payment,referral_enabled,invitee_bonus)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *''',
+                (payment_key,telegram_id,plan_code,amount,router_days,first_payment,referral_enabled,invitee_bonus,notice_status)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending') RETURNING *''',
                 payment_key,telegram_id,plan_code,amount,router_days,not local['has_paid_topup'],
                 settings.referral_program_enabled, max(0, settings.referral_invitee_reward_rub))
             if router_days:
@@ -5716,3 +5716,17 @@ async def admin_winback_statistics(days: int = 30, page: int = 1) -> dict:
             if hasattr(value,'isoformat'):
                 row[key]=value.isoformat()
     return {'summary':summary,'items':items,'series':series,'page':page,'total':summary['total']}
+
+
+async def pending_payment_notices() -> list[dict]:
+    return [dict(r) for r in await _pool_req().fetch("SELECT * FROM payment_receipts WHERE notice_status='pending' AND notice_retry_at<=NOW() ORDER BY created_at LIMIT 50")]
+
+
+async def claim_payment_notice(key: str) -> bool:
+    return bool(await _pool_req().fetchval("UPDATE payment_receipts SET notice_retry_at=NOW()+INTERVAL '5 minutes' WHERE payment_key=$1 AND notice_status='pending' AND notice_retry_at<=NOW() RETURNING payment_key",key))
+
+
+async def finish_payment_notice(key: str, status: str, delay: int = 300) -> None:
+    await _pool_req().execute("""UPDATE payment_receipts SET notice_status=$2,
+        notice_sent_at=CASE WHEN $2='sent' THEN NOW() ELSE notice_sent_at END,
+        notice_retry_at=NOW()+($3::int*INTERVAL '1 second') WHERE payment_key=$1""",key,status,delay)

@@ -233,7 +233,7 @@ async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
     for row in await db.list_due_device_nudges(NUDGE_BATCH, skip_ids):
         telegram_id = int(row["telegram_id"])
         step = min(3, int(row.get("device_nudge_count") or 0) + 1)
-        body = notice_text("device_setup_nudge" if row.get("has_device") else "device_nudge_1")
+        body = notice_text("device_setup_nudge" if row.get("has_device") else "paid_setup_nudge" if row.get("has_paid_topup") and not row.get("gift_claimed_at") else "device_nudge_1")
         ok = await _deliver(
             bot, kind="nudge_device", telegram_id=telegram_id, first_name=row.get("first_name"),
             title="Подарок без первого подключения", body=body, reply_markup=onboarding_keyboard(has_device=bool(row.get("has_device"))), extra={"step": step},
