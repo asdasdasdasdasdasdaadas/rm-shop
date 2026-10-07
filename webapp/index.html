@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <script src="/static/appearance.js?v=1"></script>
+  <script src="/static/appearance.js?v=2"></script>
   <link rel="stylesheet" href="app.css?v=182">
-  <link rel="stylesheet" href="/static/modern.css?v=1">
+  <link rel="stylesheet" href="/static/modern.css?v=2">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -1165,6 +1165,11 @@
     <span id="appToastText">Ссылка скопирована</span>
   </div>
 
+  <nav id="modernNav" class="modern-nav" aria-label="Навигация кабинета" hidden>
+    <button type="button" data-modern-screen="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="6"/><path d="M8 16v-4m4 4V8m4 8v-6"/></svg><span>Кабинет</span></button>
+    <button type="button" data-modern-screen="topup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="5"/><path d="M3 10h18m-9 3v3m-1.5-1.5h3"/></svg><span>Пополнить</span></button>
+    <button type="button" data-modern-screen="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="var(--bg-surface)"/><circle cx="15" cy="17" r="3" fill="var(--bg-surface)"/></svg><span>Настройки</span></button>
+  </nav>
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
   <script src="app.js?v=178"></script>
