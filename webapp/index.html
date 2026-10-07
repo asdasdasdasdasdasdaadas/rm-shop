@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <script src="/static/appearance.js?v=3"></script>
+  <script src="/static/appearance.js?v=4"></script>
   <link rel="stylesheet" href="app.css?v=182">
-  <link rel="stylesheet" href="/static/modern.css?v=3">
+  <link rel="stylesheet" href="/static/modern.css?v=4">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -435,7 +435,7 @@
       <div id="devicesBlock" class="section">
         <div class="section-head">
           <span class="h">Устройства <span id="deviceCount" class="count">· 0</span></span>
-          <button type="button" id="addDevice" class="add-device-btn hidden">
+          <button type="button" id="addDevice" aria-label="Добавить устройство" class="add-device-btn hidden">
             <span class="add-device-plus" aria-hidden="true"></span>
             Добавить
           </button>
@@ -453,7 +453,7 @@
           </div>
           <div class="t">Устройств пока нет</div>
           <div class="d">Добавьте устройство, на котором хотите пользоваться VPN. Пока устройств нет, списаний нет.</div>
-          <button type="button" id="addDeviceEmpty" class="btn btn-primary">+ Добавить устройство</button>
+          <button type="button" id="addDeviceEmpty" aria-label="Добавить устройство" class="btn btn-primary">+ Добавить устройство</button>
           <button type="button" id="coachReplay" class="coach-replay">Как это работает?</button>
         </div>
         <div id="devicesBody" class="device-list hidden"></div>
@@ -535,6 +535,7 @@
       <div class="section ref-banner ref-banner-invite" id="refHomeCard">
         <img class="modern-only modern-card-art" src="/static/glass-invite.svg" alt="" aria-hidden="true">
         <div class="ref-banner-copy">
+          <div class="modern-only modern-invite-title">Пригласить</div>
           <div id="inviteBannerTitle" class="ref-banner-title">Реферальная программа</div>
           <div id="inviteBannerPill" class="ref-banner-pill">Начисления приостановлены</div>
           <p id="inviteBannerNote" class="ref-banner-note hidden"></p>
@@ -583,6 +584,7 @@
             </svg>
             Скопировать
           </button>
+          <button type="button" id="modernReferralDetails" class="modern-only ref-banner-btn" aria-label="Условия приглашения друзей">ⓘ</button>
         </div>
       </div>
 
@@ -1174,11 +1176,6 @@
     <span id="appToastText">Ссылка скопирована</span>
   </div>
 
-  <nav id="modernNav" class="modern-nav" aria-label="Навигация кабинета" hidden>
-    <button type="button" data-modern-screen="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="6"/><path d="M8 16v-4m4 4V8m4 8v-6"/></svg><span>Кабинет</span></button>
-    <button type="button" data-modern-screen="topup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="5"/><path d="M3 10h18m-9 3v3m-1.5-1.5h3"/></svg><span>Пополнить</span></button>
-    <button type="button" data-modern-screen="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="var(--bg-surface)"/><circle cx="15" cy="17" r="3" fill="var(--bg-surface)"/></svg><span>Настройки</span></button>
-  </nav>
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
   <script src="app.js?v=179"></script>
