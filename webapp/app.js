@@ -834,6 +834,7 @@ function showBoot() {
 }
 
 function showFail(message, opts = {}) {
+  setMain("");
   hideCoach();
   hideIntro();
   hideDecoy();
@@ -2374,11 +2375,18 @@ function paintFaq(me) {
     btn.appendChild(arrow);
     const ans = document.createElement("div");
     ans.className = "faq-a";
+    ans.id = "faq-answer-" + box.children.length;
+    btn.setAttribute("aria-controls", ans.id);
+    btn.setAttribute("aria-expanded", "false");
     ans.textContent = item.a || "";
     btn.onclick = () => {
       haptic();
       const open = wrap.classList.contains("on");
-      box.querySelectorAll(".faq-item").forEach((el) => el.classList.remove("on"));
+      box.querySelectorAll(".faq-item").forEach((el) => {
+        el.classList.remove("on");
+        el.querySelector("button").setAttribute("aria-expanded", "false");
+      });
+      btn.setAttribute("aria-expanded", String(!open));
       if (!open) wrap.classList.add("on");
     };
     wrap.appendChild(btn);
@@ -2942,6 +2950,7 @@ function paintPayMethods() {
     btn.type = "button";
     btn.className = "pay-method" + (on ? " on" : "");
     btn.setAttribute("data-method", item.id);
+    btn.setAttribute("aria-pressed", String(on));
     btn.innerHTML =
       '<span class="pay-method-ico">' +
       payMethodIcon(item.id) +
@@ -3028,7 +3037,10 @@ function renderTopup(me) {
   if (!me) return;
   renderPaymentBalance(me);
   ensureTopupCode(me);
-  const plans = periodTopupPlans(me);
+  const allPlans = periodTopupPlans(me);
+  const compactPlans = allPlans.filter(plan => [100, 300, 500, 1000].includes(planRub(plan)));
+  const plans = document.documentElement.dataset.design === "modern"
+    ? (compactPlans.length ? compactPlans : allPlans.slice(0, 4)) : allPlans;
   const canCustom = true;
   const customPanel = $("customPanel");
   if (customPanel) customPanel.classList.remove("hidden");
@@ -3048,6 +3060,7 @@ function renderTopup(me) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "pay-card" + (selected ? " on" : "") + (plan.hit ? " hit" : "");
+    b.setAttribute("aria-pressed", String(selected));
     const amt = document.createElement("div");
     amt.className = "pay-amount";
     amt.textContent = `${amount} ₽`;
@@ -3145,6 +3158,7 @@ function renderWizard() {
       const b = document.createElement("button");
       b.type = "button";
       b.className = "wiz-radio-row" + (on ? " on" : "");
+      b.setAttribute("aria-pressed", String(on));
 
       const ico = document.createElement("span");
       ico.className = "wiz-radio-ico";

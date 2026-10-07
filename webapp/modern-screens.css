@@ -1,0 +1,132 @@
+/* Shared interior screens for the opt-in beta. Home composition lives in modern.css. */
+html[data-design="modern"] { --danger: #b42318; --danger-soft: #fff0ed; --screen-gap: 20px; }
+html[data-design="modern"][data-color-scheme="dark"] { --danger: #ffb4a9; --danger-soft: #342325; }
+html[data-design="modern"] #app .view:not(#view-home) { padding-bottom: 24px; }
+html[data-design="modern"] .view:not(#view-home) .view-head { padding: 16px 0 20px; margin: 0; }
+html[data-design="modern"] .view:not(#view-home) .wiz-title { font-size: clamp(26px,7vw,34px); line-height: 1.08; font-weight: 780; letter-spacing: -.045em; text-wrap: balance; }
+html[data-design="modern"] .wiz-kicker { color: var(--text-secondary); font-size: 10px; letter-spacing: .12em; margin-bottom: 10px; }
+html[data-design="modern"] :is(.section-note,.topup-hint,.support-meta,.article-copy) { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+html[data-design="modern"] .view:not(#view-home) > .section { margin-bottom: var(--screen-gap); }
+html[data-design="modern"] :is(.topup-card,.pay-methods,.wiz-radio,.wiz-app,.wiz-name-box,.dev-info,.dev-link,.dev-fix,.dev-warn,.ref-stat,.bill-summary,.faq-item,.support-compose-bar,.router-schema,.router-brand) {
+ background: linear-gradient(145deg,var(--liquid-glint),transparent 48%),var(--liquid-surface); border: 1px solid var(--liquid-edge); border-radius: 28px; box-shadow: var(--liquid-shadow); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+html[data-design="modern"] :is(.btn,.dev-lbtn,.wiz-app-dl,.wiz-chip,.support-faq,.promo-inner button,.cell.action) { min-height: 46px; font-size: 14px; }
+html[data-design="modern"] :is(button,input,textarea,select) { -webkit-tap-highlight-color: transparent; }
+html[data-design="modern"] button:disabled { opacity: .48; cursor: not-allowed; transform: none; }
+html[data-design="modern"] :is(input,textarea) { font-size: 16px; }
+html[data-design="modern"] :is(.wiz-chip,.wiz-app-dl,.wiz-dice,.dev-lbtn,.support-faq,.support-icon-btn) { background: var(--liquid-fill); border: 1px solid var(--liquid-edge); color: var(--text-primary); box-shadow: var(--glass-shine); border-radius: 999px; }
+html[data-design="modern"] :is(.dev-lbtn.primary,.wiz-chip.on,.support-send) { background: var(--accent); color: var(--btn-text); border-color: var(--accent); }
+html[data-design="modern"] .web-back { min-height: 44px; width: fit-content; padding: 10px 16px; border: 1px solid var(--liquid-edge); border-radius: 999px; background: var(--liquid-surface); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); font-size: 13px; margin: 8px 0; }
+html[data-design="modern"] .app-main-bar { left: 50%; right: auto; transform: translateX(-50%); width: min(480px,100%); padding: 12px 20px calc(12px + var(--app-safe-bottom,0px)); background: linear-gradient(transparent,var(--bg-app) 45%); box-sizing: border-box; }
+html[data-design="modern"] .app-main-bar .btn { width: 100%; min-height: 52px; }
+html[data-design="modern"] body.has-main-btn #app { padding-bottom: calc(100px + var(--app-safe-bottom,0px)); }
+/* Amount first, then a compact choice; selected items always have a visible border. */
+html[data-design="modern"] :is(.topup-title,.pay-title) { font-size: 28px !important; font-weight: 780; }
+html[data-design="modern"] .topup-card { padding: 24px 18px 18px; margin: 0 0 20px; }
+html[data-design="modern"] :is(.topup-sum,.pay-amount-hero) { font-size: clamp(40px,12vw,56px); letter-spacing: -.05em; font-weight: 750; overflow-wrap: anywhere; }
+html[data-design="modern"] #topupGrid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+html[data-design="modern"] #topupGrid .pay-card { min-height: 54px; border-radius: 18px; background: var(--liquid-fill); border: 1px solid var(--liquid-edge); }
+html[data-design="modern"] #topupGrid .pay-card.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+html[data-design="modern"] #topupGrid .pay-amount { font-size: 16px; }
+html[data-design="modern"] .topup-custom-field { min-height: 52px; background: var(--bg-surface-soft); border-color: var(--divider); border-radius: 18px; }
+html[data-design="modern"] .topup-custom-field:focus-within { border-color: var(--link); box-shadow: 0 0 0 2px var(--accent-soft); }
+html[data-design="modern"] .pay-method { min-height: 70px; padding: 14px 18px; }
+html[data-design="modern"] .pay-method.on { background: var(--accent-soft); }
+html[data-design="modern"] .radio { border-color: var(--text-tertiary); }
+html[data-design="modern"] .radio.on { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 4px var(--bg-surface); }
+html[data-design="modern"] .pay-vpn-warn { padding: 14px; background: var(--warning-soft); color: var(--warning); border-radius: 18px; margin: 16px 0; }
+/* Setup is a sequence of readable choices, not a stack of primary buttons. */
+html[data-design="modern"] .wiz-progress { gap: 6px; margin-bottom: 20px; }
+html[data-design="modern"] .wiz-seg { height: 3px; background: var(--divider); }
+html[data-design="modern"] .wiz-seg i { background: var(--accent); box-shadow: none; }
+html[data-design="modern"] .wiz-radio { overflow: hidden; }
+html[data-design="modern"] .wiz-radio-row { min-height: 68px; padding: 14px 16px; }
+html[data-design="modern"] .wiz-radio-block.on { background: var(--accent-soft); }
+html[data-design="modern"] .wiz-radio-ico { background: var(--liquid-fill); border-radius: 14px; color: var(--text-primary); }
+html[data-design="modern"] .wiz-radio-name { font-size: 14px; }
+html[data-design="modern"] .wiz-radio-sub { font-size: 11px; color: var(--text-secondary); font-weight: 400; }
+html[data-design="modern"] .wiz-app { padding: 16px; margin-bottom: 12px; }
+html[data-design="modern"] .wiz-app-dl { padding: 10px 14px; }
+html[data-design="modern"] .wiz-name-box { padding: 20px; }
+html[data-design="modern"] .wiz-name-row input { min-width: 0; min-height: 50px; background: var(--bg-surface-soft); border: 1px solid var(--divider); border-radius: 16px; }
+html[data-design="modern"] .wiz-chips { gap: 8px; flex-wrap: wrap; }
+html[data-design="modern"] .wiz-chip { padding: 8px 14px; }
+html[data-design="modern"] .wiz-ok { background: var(--success-soft); color: var(--success); box-shadow: none; }
+html[data-design="modern"] .wiz-recap { border-radius: 20px; padding: 14px; background: var(--liquid-fill); }
+/* Device: connection first; repair and deletion retain separate visual priorities. */
+html[data-design="modern"] .dev-hero { padding: 16px 0 24px; }
+html[data-design="modern"] #view-device #devTitle { font-size: 28px; overflow-wrap: anywhere; }
+html[data-design="modern"] .dev-hero-txt { min-width: 0; }
+html[data-design="modern"] .dev-link-text { background: var(--bg-surface-soft); color: var(--link); border-color: var(--divider); font-family: ui-monospace,monospace !important; font-size: 12px; }
+html[data-design="modern"] .dev-link-actions { display: flex; flex-wrap: wrap; }
+html[data-design="modern"] .dev-link-actions .dev-lbtn { flex: 1 1 140px; }
+html[data-design="modern"] .dev-link-actions .primary { order: -1; flex-basis: 100%; }
+html[data-design="modern"] .dev-info-row { border-color: var(--divider); gap: 14px; }
+html[data-design="modern"] .dev-info-row .v { text-align: right; overflow-wrap: anywhere; }
+html[data-design="modern"] .dev-fix-btn { background: var(--liquid-fill); color: var(--text-primary); border: 1px solid var(--liquid-edge); box-shadow: none; }
+html[data-design="modern"] :is(.dev-warn-btn,.dev-warn-ico,.bad,.bill-item-amt.negative) { color: var(--danger); }
+html[data-design="modern"] :is(.dev-warn-btn,.dev-warn-ico) { background: var(--danger-soft); border-color: transparent; }
+/* Rewards, account history and settings. */
+html[data-design="modern"] .ref-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+html[data-design="modern"] .ref-stat { padding: 22px 16px; min-width: 0; }
+html[data-design="modern"] .ref-stat-value { font-size: 30px; font-weight: 750; overflow-wrap: anywhere; }
+html[data-design="modern"] .ref-stat-label { color: var(--text-secondary); font-size: 12px; }
+html[data-design="modern"] .ref-stats-note { padding: 16px 2px; line-height: 1.55; color: var(--text-secondary); }
+html[data-design="modern"] .ref-actions { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 28px; }
+html[data-design="modern"] :is(.ref-friends-empty,.support-empty,.bill-empty) { padding: 24px 20px; border: 1px dashed var(--divider); border-radius: 24px; color: var(--text-secondary); line-height: 1.6; text-align: center; }
+html[data-design="modern"] .ref-faq summary { min-height: 46px; display: flex; align-items: center; font-size: 14px; cursor: pointer; }
+html[data-design="modern"] .ref-faq details p { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+html[data-design="modern"] .bill-summary { padding: 24px; margin-bottom: 20px; }
+html[data-design="modern"] .bill-summary-value { font-size: 36px; font-weight: 750; }
+html[data-design="modern"] .bill-item { gap: 10px; padding: 16px 0; }
+html[data-design="modern"] .bill-item-main { min-width: 0; }
+html[data-design="modern"] .bill-item-title { font-size: 13px; overflow-wrap: anywhere; }
+html[data-design="modern"] .bill-item-side { flex-shrink: 0; }
+html[data-design="modern"] .appearance-settings h2 { font-size: 16px; font-weight: 700; }
+html[data-design="modern"] .appearance-options { border-radius: 22px; }
+html[data-design="modern"] .appearance-options button { border-radius: 17px; font-size: 12px; }
+html[data-design="modern"] #view-settings .wiz-kicker { display: none; }
+html[data-design="modern"] :is(.promo-inner,.payout-form .promo-inner) { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; }
+html[data-design="modern"] .promo-inner input { width: 100%; min-height: 52px; box-sizing: border-box; border-radius: 18px; }
+html[data-design="modern"] .promo-inner button { width: 100%; min-height: 48px; }
+html[data-design="modern"] .amb-stats { gap: 20px 12px; }
+html[data-design="modern"] .amb-card input { min-height: 50px; border-radius: 16px; background: var(--bg-surface-soft); }
+/* Support uses an opaque reading surface inside the glass shell. */
+html[data-design="modern"] .support-title-row { flex-wrap: wrap; gap: 10px; }
+html[data-design="modern"] .support-bubble.admin { background: var(--bg-surface); border-color: var(--divider); box-shadow: none; }
+html[data-design="modern"] .support-bubble.user { background: var(--accent-soft); border-color: var(--accent-soft-border); }
+html[data-design="modern"] .support-bubble-body { font-size: 14px; line-height: 1.55; }
+html[data-design="modern"] .support-compose { background: transparent; padding-bottom: max(8px,var(--app-safe-bottom,0px)); }
+html[data-design="modern"] .support-compose-bar { border-radius: 28px; padding: 8px; }
+html[data-design="modern"] :is(.support-icon-btn,.support-send) { width: 44px; height: 44px; flex: 0 0 44px; }
+html[data-design="modern"] .support-compose-bar textarea { border: 0; border-radius: 0; background: transparent; min-width: 0; }
+html[data-design="modern"] .faq-item { margin-bottom: 12px; overflow: hidden; }
+html[data-design="modern"] .faq-item button { min-height: 60px; padding: 16px 18px; font-size: 14px; text-align: left; }
+html[data-design="modern"] .faq-a { color: var(--text-secondary); font-size: 13px; line-height: 1.65; padding-left: 18px; padding-right: 18px; }
+html[data-design="modern"] .sheet { width: min(360px,calc(100% - 32px)); min-width: 0; max-height: calc(100dvh - 100px); overflow-y: auto; right: max(16px,calc((100vw - 480px)/2)); }
+html[data-design="modern"] .sheet :is(button,a) { min-height: 48px; font-size: 14px; }
+html[data-design="modern"] .scrim { background: rgba(8,12,20,.35); }
+html[data-design="modern"] .low-balance-sheet { width: min(480px,100%); box-sizing: border-box; max-height: 90dvh; overflow-y: auto; background: var(--bg-surface); }
+html[data-design="modern"] .low-balance-sheet::backdrop { background: rgba(8,12,20,.5); backdrop-filter: blur(6px); }
+html[data-design="modern"] .low-balance-amounts { gap: 8px; }
+html[data-design="modern"] .offer-stage { padding-top: 24px; }
+html[data-design="modern"] .offer-stage::before { content: ""; width: 120px; height: 120px; background: url('/static/glass-promo.svg') center/contain no-repeat; border-radius: 0; box-shadow: none; margin-bottom: 16px; }
+html[data-design="modern"] .offer-title { font-size: 36px; font-weight: 780; letter-spacing: -.04em; }
+html[data-design="modern"] .offer-row { font-size: 13px; padding: 14px 0; }
+html[data-design="modern"] .router-steps { grid-template-columns: 1fr; }
+html[data-design="modern"] .router-steps li { min-height: 0; background: var(--liquid-fill); border-color: var(--liquid-edge); border-radius: 20px; }
+html[data-design="modern"] .router-brands { grid-template-columns: 1fr; }
+@media (max-width: 359px) {
+ html[data-design="modern"] .view:not(#view-home) .wiz-title { font-size: 26px; }
+ html[data-design="modern"] .support-compose-bar { gap: 4px; }
+ html[data-design="modern"] .ref-stat { padding: 18px 12px; }
+}
+
+html[data-design="modern"] #topupGrid { display: grid; grid-auto-rows: minmax(54px,auto); row-gap: 10px; }
+html[data-design="modern"] .offer-cta { animation: none !important; }
+html[data-design="modern"] .article-image { border-radius: 24px; }
+html[data-design="modern"] .article-copy li { margin-bottom: 12px; }
+html[data-design="modern"] .login-card { width: min(440px,100%); margin-inline: auto; padding: 24px; }
+html[data-design="modern"] .login-form input { min-height: 50px; }
+html[data-design="modern"] .maint-title { font-size: 30px; }
+html[data-design="modern"] .app-toast { color: var(--text-primary); background: var(--bg-surface); border-color: var(--divider); }
