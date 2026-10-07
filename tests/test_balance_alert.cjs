@@ -145,9 +145,13 @@ test('intro exit checks balance and low balance skips intro entirely', () => {
     introTimer:0,clearIntroTimers(){},markIntroSeen(){},maybeOpenFirstRun(){},
     hideIntro(){},scheduleCoach(){},reducedMotion:()=>true,
     setTimeout(fn){fn();return 1;},maybeShowLowBalance(){checks++;},
-    introSeen:()=>false,balanceAlertState:()=> 'low'});
+    document:{documentElement:{dataset:{design:'classic'}}},introSeen:()=>false,balanceAlertState:()=> 'low'});
   vm.runInContext(source.slice(source.indexOf('function finishIntro()'),source.indexOf('function reducedMotion()')),ctx);
   vm.runInContext(source.slice(source.indexOf('function shouldShowIntro()'),source.indexOf('function showIntro(')),ctx);
+  assert.equal(ctx.shouldShowIntro(),false);
+  ctx.balanceAlertState=()=>null;
+  assert.equal(ctx.shouldShowIntro(),true);
+  ctx.document.documentElement.dataset.design='modern';
   assert.equal(ctx.shouldShowIntro(),false);
   ctx.finishIntro();
   assert.equal(checks,1);

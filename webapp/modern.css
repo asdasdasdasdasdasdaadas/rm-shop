@@ -1,0 +1,85 @@
+/* Opt-in neutral beta. All application behavior and classic styles stay shared. */
+.appearance-settings { padding: 20px; margin-bottom: 16px; }
+.appearance-settings h2 { font-size: 16px; margin: 0 0 8px; }
+.appearance-settings p { font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+.appearance-options { display: flex; gap: 8px; margin: 14px 0; }
+.appearance-options button { flex: 1; min-width: 0; min-height: 48px; padding: 10px; font: inherit; font-size: 13px; border-radius: 10px; border: 1px solid var(--divider); color: var(--text-primary); background: var(--bg-surface-raised); cursor: pointer; }
+.appearance-options button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.appearance-options button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.appearance-beta { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-left: 5px; }
+.appearance-settings [hidden], #classicThemeSettings[hidden] { display: none !important; }
+html[data-design="modern"] {
+  color-scheme: light;
+  --bg-app: #f6f7f9; --bg-surface: #ffffff; --bg-surface-raised: #f0f1f4; --bg-surface-soft: #f8f9fb;
+  --text-primary: #181b22; --text-secondary: #535b6b; --text-tertiary: #687184;
+  --accent: #252b37; --accent-strong: #111827; --accent-soft: #edf0f5; --accent-soft-border: #c9ced9;
+  --accent-rgb: 37,43,55; --accent-strong-rgb: 17,24,39;
+  --divider: #e0e3e9; --glass-border: #e0e3e9; --glass: #f0f1f4; --glass-strong: #e9ecf1; --glass-tint: #f0f1f4;
+  --glass-shine: none; --glass-blur: 0px; --glass-sat: 1; --panel: #ffffff;
+  --warning: #915500; --warning-soft: #fff3dc; --success: #315caa; --success-soft: #edf3ff;
+  --btn-text: #ffffff; --link: #315caa; --radius-lg: 18px; --radius-md: 14px; --radius-sm: 10px; --radius-pill: 10px;
+}
+html[data-design="modern"][data-color-scheme="dark"] {
+  color-scheme: dark;
+  --bg-app: #101114; --bg-surface: #191b20; --bg-surface-raised: #252830; --bg-surface-soft: #15171b;
+  --text-primary: #f0f1f4; --text-secondary: #b0b6c4; --text-tertiary: #9aa2b2;
+  --accent: #e7eaf0; --accent-strong: #ffffff; --accent-soft: #292e39; --accent-soft-border: #515968;
+  --accent-rgb: 231,234,240; --accent-strong-rgb: 255,255,255;
+  --divider: #333740; --glass-border: #333740; --glass: #252830; --glass-strong: #30343e; --glass-tint: #252830;
+  --panel: #191b20; --btn-text: #191b20; --link: #a8c7ff;
+  --warning: #efbe70; --warning-soft: #352b1e; --success: #a8c7ff; --success-soft: #202e45;
+}
+html[data-design="modern"] body { color-scheme: inherit; background: var(--bg-app); color: var(--text-primary); }
+html[data-design="modern"] :is(.app-bg,.frog-avatar,.login-frog,.maint-frog-wrap,.maint-glow,.ref-banner-art,.offer-confetti,.offer-chest,.offer-glow,.intro-scene,.empty-devices > .glyph) { display: none !important; }
+html[data-design="modern"] :is(.status-card,.section,.group,.trial-notice,.update-notice,.sheet,.low-balance-sheet,.ref-banner,.offer-card,.login-card) { background: var(--bg-surface); border: 1px solid var(--divider); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+html[data-design="modern"] :is(.status-card,.ref-banner,.trial-notice,.update-notice,.offer-card)::before,
+html[data-design="modern"] :is(.status-card,.ref-banner,.trial-notice,.update-notice,.offer-card)::after { display: none; }
+html[data-design="modern"] :is(h1,h2,h3,.balance,.wiz-title,.section-title,.offer-title,.trial-notice-title,.ref-banner-title,.ref-stat-value,.days-badge,.name,.btn) { font-family: Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing: -.02em; }
+html[data-design="modern"] :is(.btn,.pay-card,.icon-btn,.trust-btn,.promo-inner button) { border-radius: 10px; box-shadow: none; text-shadow: none; }
+html[data-design="modern"] :is(.btn-primary,.promo-inner button) { background: var(--accent); color: var(--btn-text); border: 1px solid var(--accent); }
+html[data-design="modern"] :is(.btn-primary,.btn-ghost,.pay-card)::before,
+html[data-design="modern"] :is(.btn-primary,.btn-ghost,.pay-card)::after { display: none; }
+html[data-design="modern"] .btn-ghost { background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--divider); }
+html[data-design="modern"] :is(input,textarea,select) { background-color: var(--bg-surface-soft); color: var(--text-primary); border-color: var(--divider); border-radius: 10px; }
+html[data-design="modern"] :is(input,textarea)::placeholder { color: var(--text-tertiary); opacity: 1; }
+html[data-design="modern"] :is(button,a,input,textarea,summary):focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
+html[data-design="modern"] .balance { font-size: clamp(28px,7vw,40px); font-weight: 700; }
+html[data-design="modern"] .balance span { display: block; margin-top: 4px; font-size: 13px; font-weight: 400; color: var(--text-secondary); }
+html[data-design="modern"] .status-top { align-items: flex-start; }
+html[data-design="modern"] .gauge-wrap { width: 84px; height: 84px; flex: 0 0 84px; }
+html[data-design="modern"] .ring { width: 84px; height: 84px; }
+html[data-design="modern"] .days-badge { left: 50%; top: 50%; bottom: auto; transform: translate(-50%,-50%); background: none; border: none; color: var(--text-primary); font-size: 10px; padding: 0; }
+html[data-design="modern"] .gauge-track { stroke: var(--divider); }
+html[data-design="modern"] .gauge-wrap::after { content: "VPN"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; font-weight: 600; color: var(--text-secondary); pointer-events: none; }
+html[data-design="modern"] .gauge-wrap:has(.days-badge:not(.hidden))::after { display: none; }
+html[data-design="modern"] :is(.ref-banner,.router-banner) { min-height: 0; padding: 20px; }
+html[data-design="modern"] :is(.ref-banner-copy,.ref-banner-content) { max-width: none; padding-right: 0; }
+html[data-design="modern"] .empty-devices { padding: 24px 20px; }
+html[data-design="modern"] .login-field input { padding-left: 14px; }
+html[data-design="modern"] .low-balance-sheet { border-radius: 18px 18px 0 0; }
+html[data-design="modern"] :is(.status-pill,.plan-strip,.days-badge,.device-row .glyph.sm) { background-color: var(--bg-surface-raised); color: var(--text-secondary); }
+html[data-design="modern"] .status-pill .dot { background: currentColor; box-shadow: none; }
+html[data-design="modern"] .device-row { min-height: 76px; }
+html[data-design="modern"] :is(.trial-notice-title,.ref-banner-title,.wiz-title) { font-weight: 650; }
+html[data-design="modern"] .theme-list { display: none; }
+@media (prefers-reduced-motion: reduce) { html[data-design="modern"] * { scroll-behavior: auto !important; } }
+
+html[data-design="modern"] .offer-hero { display: none; }
+html[data-design="modern"] .offer-stage { min-height: 0; padding-top: 32px; }
+html[data-design="modern"] .offer-stage::before { content: "✦"; display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 24px; background: var(--bg-surface-raised); color: var(--text-primary); border-radius: 16px; font-size: 32px; }
+html[data-design="modern"] .status-pill { border-color: var(--divider); }
+html[data-design="modern"] .status-pill.on { background: var(--success-soft); color: var(--success); border-color: var(--divider); }
+html[data-design="modern"] .status-pill.warn { background: var(--warning-soft); color: var(--warning); }
+html[data-design="modern"] :is(.pay-amount,.pay-days,.pay-rate,.topup-amount,.ref-banner-btn,.offer-row,.maint-title,.bill-amount) { font-family: Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+html[data-design="modern"] :is(.ref-banner-btn,.support-send) { background: var(--bg-surface-raised); color: var(--text-primary); border: 1px solid var(--divider); box-shadow: none; border-radius: 10px; }
+html[data-design="modern"] .ref-banner-btn.primary { background: var(--accent); color: var(--btn-text); }
+html[data-design="modern"] :is(#app,.state,.sheet,dialog) * { font-family: Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+html[data-design="modern"] .ref-banner-pill { background: var(--bg-surface-raised); color: var(--text-secondary); }
+html[data-design="modern"] :is(.view-head,.web-back)::before { background: var(--bg-app); backdrop-filter: none; -webkit-backdrop-filter: none; mask-image: none; -webkit-mask-image: none; }
+html[data-design="modern"] :is(.view-head,.web-back)::after { display: none; }
+html[data-design="modern"] :is(.bad,.dev-danger) { color: #b42318; }
+html[data-design="modern"][data-color-scheme="dark"] :is(.bad,.dev-danger) { color: #ffb4a9; }
+html[data-design="modern"] .pay-card { background: var(--bg-surface); border-color: var(--divider); }
+html[data-design="modern"] .pay-card.on { background: var(--accent-soft); border-color: var(--accent); }
+html[data-design="modern"] .low-balance-amounts .pay-card { min-height: 56px; padding: 12px 8px; align-items: center; justify-content: center; }
+html[data-design="modern"] .offer-cta { font-style: normal; transform: none; }

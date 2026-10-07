@@ -8,7 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <script src="/static/appearance.js?v=1"></script>
   <link rel="stylesheet" href="app.css?v=182">
+  <link rel="stylesheet" href="/static/modern.css?v=1">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -672,6 +674,24 @@
         <button type="button" id="notificationToggle" class="support-faq"></button>
         <p id="notificationResult" class="section-note" role="status" aria-live="polite"></p>
       </section>
+      <section class="section appearance-settings" aria-labelledby="appearanceTitle">
+        <h2 id="appearanceTitle">Дизайн кабинета</h2>
+        <p>Попробуйте новый интерфейс. Вернуться к привычному можно в любой момент.</p>
+        <div class="appearance-options" role="group" aria-label="Дизайн кабинета">
+          <button type="button" data-design-choice="classic" aria-pressed="true">Привычный</button>
+          <button type="button" data-design-choice="modern" aria-pressed="false">Новый <span class="appearance-beta">Бета</span></button>
+        </div>
+        <div id="modernThemeSettings" hidden>
+          <h2>Тема</h2>
+          <div class="appearance-options" role="group" aria-label="Тема нового дизайна">
+            <button type="button" data-mode-choice="system" aria-pressed="true">Авто</button>
+            <button type="button" data-mode-choice="light" aria-pressed="false">Светлая</button>
+            <button type="button" data-mode-choice="dark" aria-pressed="false">Тёмная</button>
+          </div>
+          <p>Авто — как в Telegram или системе. Выбор сохраняется на этом устройстве.</p>
+        </div>
+      </section>
+      <div id="classicThemeSettings">
       <p class="section-note topup-hint">Тема оформления. Запоминается на этом устройстве.</p>
       <div id="themeList" class="group theme-list">
         <button type="button" class="theme-swatch" data-theme-id="green">
@@ -698,6 +718,7 @@
           <span class="theme-dot t-yellow"></span>
           <span>Жёлтая</span>
         </button>
+      </div>
       </div>
     </div>
 
@@ -1146,6 +1167,6 @@
 
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
-  <script src="app.js?v=177"></script>
+  <script src="app.js?v=178"></script>
 </body>
 </html>

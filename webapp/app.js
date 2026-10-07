@@ -637,7 +637,11 @@ function paintStatus(me) {
 }
 
 applyTheme();
-if (tg.onEvent) tg.onEvent("themeChanged", applyTheme);
+window.addEventListener("appearancechange", applyTheme);
+if (tg.onEvent) tg.onEvent("themeChanged", () => {
+  if (window.WayAppearance) window.WayAppearance.apply();
+  applyTheme();
+});
 
 function haptic(kind) {
   try {
@@ -1181,7 +1185,7 @@ function reducedMotion() {
 }
 
 function shouldShowIntro() {
-  return !introSeen() && !balanceAlertState(window.__me);
+  return document.documentElement.dataset.design !== "modern" && !introSeen() && !balanceAlertState(window.__me);
 }
 
 function showIntro(me) {
