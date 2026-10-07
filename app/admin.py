@@ -163,6 +163,25 @@ async def api_session(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "auth": True, "brand": settings.brand_name})
 
 
+async def api_ambassadors(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied is not None:
+        return denied
+    from app import ambassadors
+
+    try:
+        if request.method == "POST":
+            data = await request.json()
+            if not isinstance(data, dict):
+                raise ValueError("Некорректные данные")
+            await ambassadors.admin_action(data)
+        page = max(1, int(request.query.get("page", "1")))
+        uid = int(request.query.get("uid", "0")) or None
+        return web.json_response({"ok": True, **await ambassadors.admin_data(page, uid)})
+    except (ValueError, TypeError) as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+
+
 async def api_winback_statistics(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2439,6 +2458,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/session", api_session)
     app.router.add_get("/admin/api/stats", api_stats)
     app.router.add_get("/admin/api/statistics/winback", api_winback_statistics)
+    app.router.add_get("/admin/api/ambassadors", api_ambassadors)
+    app.router.add_post("/admin/api/ambassadors", api_ambassadors)
     app.router.add_get("/admin/api/statistics", api_statistics)
     app.router.add_get("/admin/api/users", api_users)
     app.router.add_get("/admin/api/users/{telegram_id}/devices", api_user_devices)

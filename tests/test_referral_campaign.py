@@ -13,6 +13,7 @@ class CampaignTest(unittest.IsolatedAsyncioTestCase):
         self.sql.row_factory = sqlite3.Row
         self.addCleanup(self.sql.close)
         self.sql.executescript('''
+          CREATE TABLE ambassador_clients (telegram_id INTEGER PRIMARY KEY);
           CREATE TABLE users (telegram_id INTEGER PRIMARY KEY, referred_by INTEGER, first_name TEXT, username TEXT,
             quiet_notifications BOOLEAN DEFAULT FALSE, referral_rewarded BOOLEAN DEFAULT FALSE, balance_rub INTEGER DEFAULT 0,
             bot_started_at TEXT DEFAULT CURRENT_TIMESTAMP, blocked_at TEXT, bot_blocked_at TEXT,

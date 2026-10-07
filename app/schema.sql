@@ -699,3 +699,53 @@ ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS notice_retry_at TIMESTAMPT
 ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS notice_sent_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS payment_receipts_notice_pending ON payment_receipts(notice_retry_at)
 WHERE notice_status='pending';
+
+-- Ambassador accounting is independent of VPN balances and survives user deletion.
+CREATE TABLE IF NOT EXISTS ambassador_settings (
+ id INTEGER PRIMARY KEY CHECK(id=1), recruitment BOOLEAN NOT NULL DEFAULT FALSE,
+ accruing BOOLEAN NOT NULL DEFAULT FALSE, first_percent INTEGER NOT NULL DEFAULT 100,
+ first_cap INTEGER NOT NULL DEFAULT 500, recurring_percent INTEGER NOT NULL DEFAULT 5,
+ hold_days INTEGER NOT NULL DEFAULT 14, payout_min INTEGER NOT NULL DEFAULT 2000,
+ budget INTEGER NOT NULL DEFAULT 0, member_cap INTEGER NOT NULL DEFAULT 0,
+ max_members INTEGER NOT NULL DEFAULT 20
+);
+INSERT INTO ambassador_settings(id) VALUES(1) ON CONFLICT DO NOTHING;
+CREATE TABLE IF NOT EXISTS ambassadors (
+ telegram_id BIGINT PRIMARY KEY, application TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending'
+ CHECK(status IN('pending','approved','rejected','suspended')),
+ token TEXT NOT NULL UNIQUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), approved_at TIMESTAMPTZ,
+ reviewed_at TIMESTAMPTZ, review_note TEXT NOT NULL DEFAULT '', risk_hold BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE TABLE IF NOT EXISTS ambassador_clients (
+ telegram_id BIGINT PRIMARY KEY, ambassador_id BIGINT NOT NULL REFERENCES ambassadors(telegram_id),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), CHECK(telegram_id<>ambassador_id)
+);
+CREATE INDEX IF NOT EXISTS ambassador_clients_owner ON ambassador_clients(ambassador_id);
+ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS ambassador_id BIGINT;
+CREATE TABLE IF NOT EXISTS ambassador_awards (
+ payment_key TEXT PRIMARY KEY, ambassador_id BIGINT NOT NULL REFERENCES ambassadors(telegram_id),
+ client_id BIGINT NOT NULL, eligible BOOLEAN NOT NULL DEFAULT TRUE, payment_rub INTEGER NOT NULL, amount_cents BIGINT NOT NULL CHECK(amount_cents>=0),
+ first_payment BOOLEAN NOT NULL, percent INTEGER NOT NULL, cap_rub INTEGER NOT NULL,
+ hold_days INTEGER NOT NULL, available_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ status TEXT NOT NULL CHECK(status IN('earned','skipped','revoked')), reason TEXT NOT NULL DEFAULT '',
+ revoked_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS ambassador_awards_owner ON ambassador_awards(ambassador_id,created_at);
+CREATE INDEX IF NOT EXISTS ambassador_awards_client ON ambassador_awards(client_id,created_at);
+CREATE TABLE IF NOT EXISTS ambassador_payouts (
+ id BIGSERIAL PRIMARY KEY, ambassador_id BIGINT NOT NULL REFERENCES ambassadors(telegram_id),
+ amount_cents BIGINT NOT NULL CHECK(amount_cents>0), details TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','paid','rejected')),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), resolved_at TIMESTAMPTZ, note TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ambassador_payout_one_pending ON ambassador_payouts(ambassador_id) WHERE status='pending';
+CREATE TABLE IF NOT EXISTS ambassador_audit (
+ id BIGSERIAL PRIMARY KEY, action TEXT NOT NULL, target TEXT NOT NULL, details JSONB NOT NULL DEFAULT '{}',
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS ambassador_notifications (
+ id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL, body TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending', retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ambassador_notices_due ON ambassador_notifications(retry_at) WHERE status='pending';

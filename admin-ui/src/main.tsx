@@ -65,6 +65,7 @@ import {
   Loader2,
   ShieldCheck,
 } from "lucide-react";
+import { AmbassadorsPage } from "@/pages/ambassadors";
 import { UsersPage } from "@/pages/users";
 import { StatisticsPage } from "@/pages/statistics";
 import { OverviewPage } from "@/pages/overview";
@@ -120,6 +121,13 @@ const sections = [
     description: "Списания, начисления и история изменения баланса",
     group: "Финансы",
     icon: Receipt,
+  },
+  {
+    id: "ambassadors",
+    label: "Амбассадоры",
+    description: "Заявки, вознаграждения и выплаты партнёрам",
+    group: "Привлечение и возврат",
+    icon: Handshake,
   },
   {
     id: "referrals",
@@ -502,6 +510,9 @@ function Workspace({
       break;
     case "campaigns":
       page = <CampaignsPage />;
+      break;
+    case "ambassadors":
+      page = <AmbassadorsPage />;
       break;
     case "referrals":
       page = <ReferralsPage />;

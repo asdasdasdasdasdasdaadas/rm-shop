@@ -19,7 +19,7 @@ class PgPool:
         self.lock = asyncio.Lock()
 
     async def query(self, sql, args=(), script=False):
-        self.proc.stdin.write((json.dumps(dict(sql=sql,args=args,script=script))+'\n').encode())
+        self.proc.stdin.write((json.dumps(dict(sql=sql,args=args,script=script), default=lambda value: value.isoformat())+'\n').encode())
         await self.proc.stdin.drain()
         line = await self.proc.stdout.readline()
         if not line:

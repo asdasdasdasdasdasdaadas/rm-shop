@@ -1261,7 +1261,7 @@ function replayAnim(el, cls) {
 function switchView(id, motion) {
   if (id !== "view-pay") clearPaymentStarAnimation();
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
-  ["view-home", "view-topup", "view-pay", "view-wizard", "view-device", "view-router", "view-support", "view-faq", "view-article", "view-billing", "view-referrals", "view-offer", "view-settings", "view-promo"].forEach((vid) => {
+  ["view-home", "view-topup", "view-pay", "view-wizard", "view-device", "view-router", "view-support", "view-faq", "view-article", "view-billing", "view-referrals", "view-ambassador", "view-offer", "view-settings", "view-promo"].forEach((vid) => {
     const el = $(vid);
     if (!el) return;
     const on = vid === id;
@@ -2042,7 +2042,7 @@ function onBack() {
     openHome();
     return;
   }
-  if (screen === "referrals") {
+  if (screen === "referrals" || screen === "ambassador") {
     openHome();
     return;
   }
@@ -2065,7 +2065,7 @@ function onBack() {
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device" || screen === "router" || screen === "topup" || screen === "pay" || screen === "support" || screen === "faq" || screen === "article" || screen === "billing" || screen === "referrals" || screen === "offer" || screen === "settings" || screen === "promo";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "router" || screen === "topup" || screen === "pay" || screen === "support" || screen === "faq" || screen === "article" || screen === "billing" || screen === "referrals" || screen === "ambassador" || screen === "offer" || screen === "settings" || screen === "promo";
   stopSupportPoll();
   stopRouterPayPoll();
   screen = "home";
@@ -5051,3 +5051,307 @@ window.addEventListener("pagehide", flushThanksOnClose);
 window.addEventListener("beforeunload", flushThanksOnClose);
 
 load().catch((err) => handleLoadFail(err));
+
+// Ambassador funds are separate from the VPN balance. All text from the API uses textContent.
+async function openAmbassador() {
+  if (!window.__me) return;
+  screen = "ambassador";
+  switchView("view-ambassador", "push");
+  setMain("");
+  try {
+    tg.BackButton.show();
+  } catch (_) {}
+  syncWebBack();
+  await loadAmbassador();
+}
+function ambElement(tag, text, cls) {
+  const el = document.createElement(tag);
+  if (text != null) el.textContent = String(text);
+  if (cls) el.className = cls;
+  return el;
+}
+async function loadAmbassador() {
+  const root = $("ambassadorContent");
+  root.replaceChildren(ambElement("p", "Загружаем…"));
+  try {
+    paintAmbassador(await api("/api/ambassador"));
+  } catch (e) {
+    root.replaceChildren(
+      ambElement("p", e.message || "Не удалось загрузить данные"),
+    );
+    const retry = ambElement("button", "Повторить", "btn btn-ghost");
+    retry.onclick = loadAmbassador;
+    root.append(retry);
+  }
+}
+function paintAmbassador(data) {
+  const root = $("ambassadorContent");
+  root.replaceChildren();
+  const cfg = data.settings,
+    member = data.member,
+    w = data.wallet;
+  const cash = (cents) =>
+    new Intl.NumberFormat("ru-RU", {
+      style: "currency",
+      currency: "RUB",
+    }).format(Number(cents || 0) / 100);
+  const stamp = (value) =>
+    value
+      ? new Date(value).toLocaleString("ru-RU", {
+          timeZone: "Europe/Moscow",
+          dateStyle: "short",
+          timeStyle: "short",
+        })
+      : "—";
+  const status = {
+    pending: "На рассмотрении",
+    approved: "Вы амбассадор 🎉",
+    rejected: "Заявка отклонена",
+    suspended: "Участие приостановлено",
+    earned: "Начислено",
+    skipped: "Без начисления",
+    revoked: "Отменено",
+    paid: "Выплачено",
+  };
+  function card(title) {
+    const el = ambElement("section", null, "section amb-card");
+    el.append(ambElement("h2", title));
+    root.append(el);
+    return el;
+  }
+  function button(parent, label, action, primary = false) {
+    const el = ambElement(
+      "button",
+      label,
+      "btn " + (primary ? "btn-primary" : "btn-ghost"),
+    );
+    el.type = "button";
+    el.onclick = async () => {
+      if (el.disabled) return;
+      el.disabled = true;
+      try {
+        await action();
+      } catch (e) {
+        tg.showAlert(e.message || "Не удалось выполнить действие");
+      } finally {
+        el.disabled = false;
+      }
+    };
+    parent.append(el);
+    return el;
+  }
+  const terms = card("Рекомендуйте VPN и зарабатывайте");
+  terms.append(
+    ambElement(
+      "p",
+      `${cfg.first_percent}% первого пополнения, до ${cfg.first_cap} ₽ за клиента. Затем ${cfg.recurring_percent}% следующих пополнений.`,
+    ),
+  );
+  terms.append(
+    ambElement(
+      "p",
+      `Вывод от ${cfg.payout_min} ₽. Каждое начисление доступно через ${cfg.hold_days} дней, если платёж не возвращён.`,
+    ),
+  );
+  const details = ambElement("details");
+  details.append(ambElement("summary", "Условия программы"));
+  details.append(
+    ambElement(
+      "p",
+      "Клиент должен впервые открыть бота по вашей ссылке после одобрения заявки. Учитываются пополнения в рублях; Stars и покупки роутера не участвуют. Обычные реферальные бонусы и акции за этих клиентов не начисляются.",
+    ),
+  );
+  details.append(
+    ambElement(
+      "p",
+      `Бюджет программы — ${cfg.budget} ₽.${cfg.member_cap ? ` Лимит на участника — ${cfg.member_cap} ₽.` : ""} Начисление пропускается, если его сумма превышает оставшийся бюджет или лимит. Во время паузы новые оплаты не приносят наград; задним числом они не начисляются. Уже заработанное сохраняется. Переводы обрабатываются вручную.`,
+    ),
+  );
+  terms.append(details);
+  if (!cfg.accruing)
+    terms.append(ambElement("p", "⏸ Начисления сейчас на паузе", "amb-notice"));
+  if (member) {
+    const state = card(status[member.status] || member.status);
+    if (member.review_note) state.append(ambElement("p", member.review_note));
+    if (member.risk_hold)
+      state.append(
+        ambElement(
+          "p",
+          "Выплаты на проверке. Если есть вопросы, напишите в поддержку.",
+        ),
+      );
+  }
+  if (!member || member.status === "rejected") {
+    const application = card(
+      cfg.recruitment ? "Стать амбассадором" : "Набор пока закрыт",
+    );
+    if (cfg.recruitment) {
+      const label = ambElement("label", "Где вы планируете рекомендовать VPN?");
+      label.htmlFor = "ambApplication";
+      const input = ambElement("textarea");
+      input.id = "ambApplication";
+      input.maxLength = 1500;
+      input.minLength = 10;
+      input.rows = 4;
+      input.placeholder =
+        "Канал, блог, сообщество — расскажите о своей аудитории";
+      application.append(label, input);
+      button(
+        application,
+        "Отправить заявку",
+        async () => {
+          const text = input.value.trim();
+          if (text.length < 10)
+            throw new Error("Расскажите чуть подробнее: минимум 10 символов");
+          paintAmbassador(
+            await api("/api/ambassador", {
+              method: "POST",
+              body: JSON.stringify({ action: "apply", application: text }),
+            }),
+          );
+        },
+        true,
+      );
+    }
+    return;
+  }
+  if (member.status === "pending") return;
+  if (data.link) {
+    const links = card("Ваша ссылка");
+    const field = ambElement("input");
+    field.readOnly = true;
+    field.value = data.link;
+    field.setAttribute("aria-label", "Личная ссылка амбассадора");
+    links.append(field);
+    button(
+      links,
+      "Поделиться ссылкой",
+      () => {
+        const url =
+          "https://t.me/share/url?url=" +
+          encodeURIComponent(data.link) +
+          "&text=" +
+          encodeURIComponent("Попробуйте VPN — подключение в пару шагов 👇");
+        if (tg.openTelegramLink) tg.openTelegramLink(url);
+        else window.open(url, "_blank", "noopener");
+      },
+      true,
+    );
+    button(links, "Скопировать ссылку", async () => {
+      await navigator.clipboard.writeText(data.link);
+      tg.showAlert("Ссылка скопирована");
+    });
+  }
+  const wallet = card("Ваш заработок");
+  const stats = ambElement("div", null, "amb-stats");
+  for (const [label, value] of [
+    ["Доступно к выводу", w.available],
+    ["Ожидают окончания проверки", w.holding],
+    ["Заявка на выплату", w.pending],
+    ["Уже выплачено", w.paid],
+  ]) {
+    const item = ambElement("div");
+    item.append(ambElement("strong", cash(value)), ambElement("span", label));
+    stats.append(item);
+  }
+  wallet.append(stats);
+  const progress = ambElement("progress");
+  progress.max = cfg.payout_min * 100;
+  progress.value = Math.max(0, Math.min(w.available, progress.max));
+  progress.setAttribute("aria-label", "Прогресс до минимальной выплаты");
+  wallet.append(progress);
+  wallet.append(
+    ambElement(
+      "p",
+      w.available < 0
+        ? "После возврата платежа образовался долг по вознаграждениям. Обратитесь в поддержку."
+        : w.available < cfg.payout_min * 100
+          ? `До вывода осталось ${cash(cfg.payout_min * 100 - w.available)}`
+          : "Можно запросить выплату 🎉",
+    ),
+  );
+  const funnel = card("Ваши приглашения");
+  for (const [key, label] of [
+    ["joined", "Пришли"],
+    ["connected", "Подключились"],
+    ["paid", "Оплатили"],
+    ["repeat_paid", "Оплатили повторно"],
+  ])
+    funnel.append(ambElement("p", `${label}: ${data.stats[key]}`));
+  const payout = card("Запросить выплату");
+  if (w.pending > 0)
+    payout.append(
+      ambElement(
+        "p",
+        "Ваша заявка уже на рассмотрении. Повторная станет доступна после решения.",
+      ),
+    );
+  else if (member.risk_hold)
+    payout.append(ambElement("p", "Вывод временно на проверке."));
+  else if (w.available < cfg.payout_min * 100)
+    payout.append(
+      ambElement(
+        "p",
+        `Вывод доступен от ${cfg.payout_min} ₽ после окончания проверки начислений.`,
+      ),
+    );
+  else {
+    const label = ambElement("label", "Телефон для СБП, банк и имя получателя");
+    label.htmlFor = "ambPayoutDetails";
+    const input = ambElement("textarea");
+    input.id = "ambPayoutDetails";
+    input.maxLength = 300;
+    input.rows = 3;
+    payout.append(
+      label,
+      input,
+      ambElement(
+        "p",
+        "Не указывайте код из SMS, пароль или CVV. Будет зарезервирована вся доступная сумма.",
+      ),
+    );
+    button(
+      payout,
+      `Запросить ${cash(w.available)}`,
+      async () => {
+        if (input.value.trim().length < 6)
+          throw new Error("Укажите реквизиты и имя получателя");
+        paintAmbassador(
+          await api("/api/ambassador", {
+            method: "POST",
+            body: JSON.stringify({ action: "payout", details: input.value }),
+          }),
+        );
+      },
+      true,
+    );
+  }
+  for (const [key, title] of [
+    ["payouts", "Последние выплаты"],
+    ["awards", "Последние начисления"],
+  ]) {
+    const history = card(title);
+    if (!data[key].length) history.append(ambElement("p", "Здесь пока пусто"));
+    for (const row of data[key]) {
+      const item = ambElement("div", null, "amb-history");
+      item.append(
+        ambElement("strong", cash(row.amount_cents)),
+        ambElement("span", status[row.status] || row.status),
+        ambElement("small", stamp(row.created_at) + " · МСК"),
+      );
+      if (row.status === "earned")
+        item.append(
+          ambElement("p", "Доступно с " + stamp(row.available_at) + " МСК"),
+        );
+      if (row.reason || row.note)
+        item.append(ambElement("p", row.reason || row.note));
+      history.append(item);
+    }
+  }
+  button(root, "Обновить", loadAmbassador);
+}
+if ($("menuAmbassador"))
+  $("menuAmbassador").onclick = () => {
+    closeMenu();
+    openAmbassador();
+  };

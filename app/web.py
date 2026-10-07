@@ -169,13 +169,13 @@ async def _if_blocked(telegram_id: int) -> web.Response | None:
 
 async def _require_tg(request: web.Request) -> tuple[int | None, web.Response | None]:
     denied = await _if_down()
-    if denied:
+    if denied is not None:
         return None, denied
     telegram_id, _parsed = await _resolve_telegram_id(request)
     if not telegram_id:
         return None, json_error("Ссылка недействительна или истекла", 401)
     denied = await _if_blocked(telegram_id)
-    if denied:
+    if denied is not None:
         return None, denied
     return telegram_id, None
 
@@ -1229,6 +1229,28 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
     return web.Response(text="OK")
 
 
+async def api_ambassador(request: web.Request) -> web.Response:
+    uid, denied = await _require_tg(request)
+    if denied is not None:
+        return denied
+    from app import ambassadors
+
+    try:
+        if request.method == "POST":
+            data = await request.json()
+            if not isinstance(data, dict):
+                raise ValueError("Некорректные данные")
+            if data.get("action") == "apply":
+                await ambassadors.apply(uid, data.get("application"))
+            elif data.get("action") == "payout":
+                await ambassadors.request_payout(uid, data.get("details"))
+            else:
+                raise ValueError("Неизвестное действие")
+        return web.json_response({"ok": True, **await ambassadors.overview(uid)})
+    except (ValueError, TypeError) as exc:
+        return json_error(str(exc))
+
+
 def build_web_app() -> web.Application:
     settings = get_settings()
     app = web.Application(client_max_size=80 * 1024 * 1024)
@@ -1268,6 +1290,8 @@ def build_web_app() -> web.Application:
         app.router.add_get("/api/tickets/files/{att_id}", api_ticket_file)
         app.router.add_post("/api/cabinet-leave", api_cabinet_leave)
         app.router.add_post("/api/story-share", api_story_share)
+        app.router.add_get("/api/ambassador", api_ambassador)
+        app.router.add_post("/api/ambassador", api_ambassador)
         app.router.add_post("/api/referral-payout", api_referral_payout)
         app.router.add_static("/static", WEBAPP_DIR)
     else:

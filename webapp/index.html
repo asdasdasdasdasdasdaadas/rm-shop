@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=181">
+  <link rel="stylesheet" href="app.css?v=182">
   <script>
     try {
       var t = localStorage.getItem("way_theme_v1");
@@ -724,6 +724,10 @@
       <div id="billingList" class="bill-feed"></div>
     </div>
 
+    <div id="view-ambassador" class="view hidden">
+      <div class="view-head"><p class="wiz-kicker">Партнёрская программа</p><h1 class="wiz-title">Амбассадор</h1></div>
+      <div id="ambassadorContent" aria-live="polite"></div>
+    </div>
     <div id="view-referrals" class="view hidden">
       <div class="view-head">
         <p class="wiz-kicker">Рефералы</p>
@@ -1104,6 +1108,7 @@
     <button type="button" id="menuSettings" role="menuitem">Настройки</button>
     <button type="button" id="menuFaq" role="menuitem">Частые вопросы</button>
     <button type="button" id="menuPromo" class="hidden" role="menuitem">Промокод</button>
+    <button type="button" id="menuAmbassador" role="menuitem">Амбассадор</button>
     <button type="button" id="menuReferrals" role="menuitem">Рефералы</button>
     <button type="button" id="menuBilling" class="hidden" role="menuitem">История списаний</button>
     <button type="button" id="menuTrust" class="hidden" role="menuitem">Обещанный платёж</button>
@@ -1141,6 +1146,6 @@
 
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
-  <script src="app.js?v=175"></script>
+  <script src="app.js?v=176"></script>
 </body>
 </html>

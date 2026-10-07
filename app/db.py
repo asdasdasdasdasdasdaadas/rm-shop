@@ -154,6 +154,7 @@ async def upsert_user(
                 username = EXCLUDED.username,
                 first_name = EXCLUDED.first_name,
                 referred_by = CASE
+                    WHEN EXISTS (SELECT 1 FROM ambassador_clients ac WHERE ac.telegram_id=users.telegram_id) THEN users.referred_by
                     WHEN users.referred_by IS NOT NULL THEN users.referred_by
                     WHEN EXCLUDED.referred_by IS NULL THEN users.referred_by
                     WHEN users.referral_rewarded
@@ -4836,6 +4837,8 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
                 payment_key, invitee_id, referrer_id, amount, enabled)
             if not inserted:
                 return None
+            if await conn.fetchval('SELECT 1 FROM ambassador_clients WHERE telegram_id=$1',invitee_id):
+                return None
             campaign = await _reward_campaign(conn, invitee_id, referrer_id, payment_key, first_payment, paid_at)
             if not enabled or not referrer_id or referrer_id == invitee_id:
                 return {'referrer_id': referrer_id, 'amount': 0, 'campaign': campaign} if campaign else None
@@ -5422,6 +5425,8 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
     settings = get_settings()
     async with _pool_req().acquire() as conn:
         async with conn.transaction():
+            from app import ambassadors
+            await ambassadors.lock(conn)
             local = await conn.fetchrow('SELECT * FROM users WHERE telegram_id=$1 FOR UPDATE', telegram_id)
             if not local:
                 raise ValueError('Unknown payment user')
@@ -5465,7 +5470,9 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
                 VALUES ($1,$2,'pay',$3,$4,$5)''',telegram_id,'router' if router_days else 'topup',amount,after,plan_code)
             if provider == 'rollypay':
                 await conn.execute("UPDATE rollypay_orders SET status='granted',paid_at=NOW() WHERE order_id=$1", provider_id)
-            return dict(receipt)
+            receipt = dict(receipt)
+            await ambassadors.reward(conn, receipt)
+            return receipt
 
 
 async def pending_payment_effects() -> list[dict]:
@@ -5488,7 +5495,7 @@ async def credit_invitee_bonus_once(telegram_id: int, amount: int) -> int | None
             after = await conn.fetchval('''UPDATE users SET referral_invitee_bonus_at=NOW(),
                 balance_rub=COALESCE(balance_rub,0)+$2,low_balance_notified_at=NULL
                 WHERE telegram_id=$1 AND referred_by IS NOT NULL AND referral_invitee_bonus_at IS NULL
-                AND has_paid_topup RETURNING balance_rub''',telegram_id,amount)
+                AND has_paid_topup AND NOT EXISTS(SELECT 1 FROM ambassador_clients ac WHERE ac.telegram_id=users.telegram_id) RETURNING balance_rub''',telegram_id,amount)
             if after is None:
                 return None
             await conn.execute('''INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)

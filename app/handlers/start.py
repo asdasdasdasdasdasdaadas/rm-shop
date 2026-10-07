@@ -136,6 +136,15 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
     slug = _parse_ad(payload)
     if slug:
         ad_id = await db.touch_ad_link(slug)
+    if command.args and command.args.startswith("amb_"):
+        from app.ambassadors import register_new
+
+        await register_new(
+            message.from_user.id,
+            message.from_user.username,
+            message.from_user.first_name,
+            command.args[4:],
+        )
     row = await db.upsert_user(
         message.from_user.id,
         message.from_user.username,

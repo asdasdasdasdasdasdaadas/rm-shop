@@ -6185,3 +6185,20 @@ html.is-decoy .decoy:has(#decoySerp:not(.hidden)) .decoy-bar {
   line-height: 1.55;
   text-wrap: pretty;
 }
+
+/* Ambassador cabinet shares existing type, surfaces and action buttons. */
+.amb-card { padding: 20px; margin-bottom: 16px; display: grid; gap: 12px; }
+.amb-card h2 { font: inherit; font-weight: 700; font-size: 18px; margin: 0; }
+.amb-card p { margin: 0; line-height: 1.5; font-size: 14px; }
+.amb-card details p { margin-top: 10px; }
+.amb-card summary { cursor: pointer; font-size: 14px; }
+.amb-card input, .amb-card textarea { box-sizing: border-box; width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--divider); border-radius: 12px; background: transparent; color: inherit; font: inherit; }
+.amb-card textarea { resize: vertical; }
+.amb-card label { font-size: 14px; }
+.amb-stats { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.amb-stats div, .amb-history { display: grid; gap: 5px; }
+.amb-stats strong { font-size: 20px; overflow-wrap: anywhere; }
+.amb-stats span, .amb-history small { font-size: 12px; opacity: .7; }
+.amb-card progress { width: 100%; accent-color: var(--accent); }
+.amb-history { padding: 12px 0; border-top: 1px solid var(--divider); }
+.amb-notice { font-weight: 600; }

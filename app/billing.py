@@ -105,11 +105,12 @@ async def apply_payment_effects(receipt: dict, rw: RemnawaveClient, bot: Bot | N
     from app.balance import sync_user_billing
     from app.referrals import maybe_reward_invitee, maybe_reward_referrer
     local = await db.get_user(uid)
-    await maybe_reward_referrer(bot, rw, uid, (local or {}).get('first_name'), payment_key=key,
-        topup_rub=receipt['amount'] if not receipt['router_days'] else 0,
-        first_payment=receipt['first_payment'], enabled=receipt['referral_enabled'], paid_at=receipt.get('created_at'))
-    if receipt['first_payment']:
-        await maybe_reward_invitee(bot, uid, enabled=receipt['referral_enabled'], amount=receipt['invitee_bonus'])
+    if not receipt.get('ambassador_id'):
+        await maybe_reward_referrer(bot, rw, uid, (local or {}).get('first_name'), payment_key=key,
+            topup_rub=receipt['amount'] if not receipt['router_days'] else 0,
+            first_payment=receipt['first_payment'], enabled=receipt['referral_enabled'], paid_at=receipt.get('created_at'))
+        if receipt['first_payment']:
+            await maybe_reward_invitee(bot, uid, enabled=receipt['referral_enabled'], amount=receipt['invitee_bonus'])
     async with runtime.panel_cron_lock():
         if receipt['router_days']:
             await apply_router_slot(rw, uid)
@@ -137,6 +138,11 @@ async def payment_effects_loop(rw: RemnawaveClient, bot: Bot) -> None:
                     logger.exception("Payment notice retry failed: %s", receipt["payment_key"])
         except Exception:
             logger.exception("Could not load payment confirmations")
+        try:
+            from app.ambassadors import deliver_notifications
+            await deliver_notifications(bot)
+        except Exception:
+            logger.exception("Ambassador notifications will retry")
         await asyncio.sleep(60)
 
 
