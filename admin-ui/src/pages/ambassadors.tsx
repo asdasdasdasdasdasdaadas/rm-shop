@@ -12,6 +12,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,7 +44,7 @@ const actions: Data = {
   approve: "Одобрить",
   reject: "Отклонить заявку",
   suspend: "Приостановить участие",
-  risk_hold: "Проверить выплаты",
+  risk_hold: "Приостановить выплаты",
   risk_release: "Снять проверку",
   pay: "Подтвердить перевод",
   reject_payout: "Отклонить выплату",
@@ -67,9 +74,10 @@ export function AmbassadorsPage() {
   const [tab, setTab] = useState("members"),
     [page, setPage] = useState(1),
     [filter, setFilter] = useState(""),
-    [uid, setUid] = useState("");
+    [uid, setUid] = useState(""),
+    [statusFilter, setStatusFilter] = useState("");
   const { data, error, reload } = useResource(
-    `ambassadors?page=${page}${uid ? `&uid=${uid}` : ""}`,
+    `ambassadors?page=${page}&section=${tab}&status=${statusFilter}${uid ? `&uid=${uid}` : ""}`,
   );
   const [draft, setDraft] = useState<Data>({}),
     [operation, setOperation] = useState<Data | null>(null),
@@ -247,6 +255,7 @@ export function AmbassadorsPage() {
         value={tab}
         onValueChange={(v) => {
           setTab(v);
+          setStatusFilter("");
           setPage(1);
         }}
       >
@@ -265,6 +274,43 @@ export function AmbassadorsPage() {
           ))}
         </TabsList>
       </Tabs>
+      {["members", "awards", "payouts"].includes(tab) && (
+        <div className="max-w-xs">
+          <Field label="Статус">
+            <Select
+              value={statusFilter || "all"}
+              onValueChange={(value) => {
+                setStatusFilter(value === "all" ? "" : value);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger aria-label="Статус">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все статусы</SelectItem>
+                {(tab === "members"
+                  ? ["pending", "approved", "rejected", "suspended"]
+                  : tab === "awards"
+                    ? ["earned", "skipped", "revoked"]
+                    : ["pending", "paid", "rejected"]
+                ).map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {labels[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      )}
+      {data.settings.accruing &&
+        Number(s.budget_used) >= Number(data.settings.budget) * 100 && (
+          <p role="status" className="text-sm text-destructive">
+            Бюджет исчерпан. Новые награды не начисляются — увеличьте бюджет или
+            приостановите программу.
+          </p>
+        )}
       {tab === "settings" ? (
         <Panel
           title="Условия программы"

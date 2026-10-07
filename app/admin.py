@@ -177,7 +177,12 @@ async def api_ambassadors(request: web.Request) -> web.Response:
             await ambassadors.admin_action(data)
         page = max(1, int(request.query.get("page", "1")))
         uid = int(request.query.get("uid", "0")) or None
-        return web.json_response({"ok": True, **await ambassadors.admin_data(page, uid)})
+        result = await ambassadors.admin_data(
+            page, uid,
+            request.query.get("section", "members"),
+            request.query.get("status", ""),
+        )
+        return web.json_response({"ok": True, **result})
     except (ValueError, TypeError) as exc:
         return web.json_response({"ok": False, "error": str(exc)}, status=400)
 

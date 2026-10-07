@@ -304,6 +304,36 @@ class AmbassadorTest(unittest.IsolatedAsyncioTestCase):
         await self.pay()
         self.assertEqual((await amb.wallet(1))["earned"], 31500)
 
+    async def test_admin_status_filters_match_counts_and_reject_invalid_values(self):
+        await amb.apply(2, "Канал о путешествиях")
+        pending = await amb.admin_data(section="members", status="pending")
+        self.assertEqual(pending["members_total"], 1)
+        self.assertEqual(pending["members"][0]["telegram_id"], 2)
+        filtered = await amb.admin_data(uid=1, section="members", status="pending")
+        self.assertEqual(filtered["members_total"], 0)
+        await self.pay()
+        await amb.admin_action(dict(action="settings", accruing=False))
+        await self.pay()
+        skipped = await amb.admin_data(section="awards", status="skipped")
+        self.assertEqual(skipped["awards_total"], 1)
+        self.assertEqual(skipped["awards"][0]["status"], "skipped")
+        with self.assertRaises(ValueError):
+            await amb.admin_data(section="awards", status="approved")
+
+    async def test_capacity_release_and_consistent_paid_statistics(self):
+        await amb.admin_action(dict(action="settings", budget=300, member_cap=300))
+        await self.pay()
+        overview = await amb.overview(1)
+        self.assertEqual(overview["capacity"]["budget_remaining"], 0)
+        self.assertEqual(overview["capacity"]["member_remaining"], 0)
+        self.assertIsNotNone(overview["capacity"]["next_release_at"])
+        await self.mature()
+        self.assertIsNone((await amb.overview(1))["capacity"]["next_release_at"])
+        self.assertTrue(await amb.register_new(3, None, "New", self.token))
+        await self.pay(uid=3)
+        self.assertEqual((await amb.admin_data())["summary"]["payers"], 2)
+        self.assertEqual((await amb.overview(1))["stats"]["paid"], 2)
+
 
 class AmbassadorApiTest(unittest.IsolatedAsyncioTestCase):
     async def test_requires_admin_and_user_auth(self):

@@ -11,7 +11,8 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "ambassador-ux-"));
         viewport: { width: 1440, height: 1000 },
       }),
       errors = [],
-      posts = [];
+      posts = [],
+      queries = [];
     page.on("pageerror", (e) => errors.push(e.message));
     const cfg = {
       recruitment: true,
@@ -80,6 +81,7 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "ambassador-ux-"));
         if (key === "session")
           return route.fulfill({ json: { ok: true, brand: "WAY VPN" } });
         if (key === "ambassadors") {
+          queries.push(url.searchParams.toString());
           if (route.request().method() === "POST") {
             const p = route.request().postDataJSON();
             posts.push(p);
@@ -100,6 +102,20 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "ambassador-ux-"));
       });
     });
     await page.goto("http://admin.test/admin/#ambassadors");
+    await page.getByRole("combobox").click();
+    await page
+      .getByRole("option", { name: "На рассмотрении", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Одобрить", exact: true }).waitFor();
+    assert.ok(
+      queries.some(
+        (q) => q.includes("section=members") && q.includes("status=pending"),
+      ),
+    );
+    await page.getByRole("combobox").click();
+    await page
+      .getByRole("option", { name: "Все статусы", exact: true })
+      .click();
     await page.getByRole("button", { name: "Одобрить", exact: true }).click();
     await page
       .getByLabel("Комментарий или подтверждение перевода")
@@ -184,6 +200,11 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "ambassador-ux-"));
     const fixture = {
       settings: cfg,
       member: null,
+      capacity: {
+        budget_remaining: 0,
+        member_remaining: null,
+        next_release_at: "2099-10-19T12:00:00Z",
+      },
       wallet: { available: 205000, holding: 40000, pending: 0, paid: 0 },
       stats: { joined: 14, connected: 12, paid: 6, repeat_paid: 2 },
       link: "https://t.me/test?start=amb_test",
@@ -204,6 +225,8 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "ambassador-ux-"));
       fixture.member = { status: "approved", risk_hold: false };
       paintAmbassador(fixture);
     });
+    await cab.getByText(/Лимит вознаграждений исчерпан/).waitFor();
+    await cab.getByText(/Ближайшее начисление станет доступно/).waitFor();
     await cab
       .getByLabel("Телефон для СБП, банк и имя получателя")
       .fill("79990000000 Банк Анна");

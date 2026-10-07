@@ -186,8 +186,26 @@ async def overview(uid):
         "SELECT * FROM ambassador_payouts WHERE ambassador_id=$1 ORDER BY id DESC LIMIT 30",
         uid,
     )
+    limits = await pool.fetchrow(
+        """SELECT
+        COALESCE(SUM(amount_cents) FILTER(WHERE status<>'skipped'),0)::bigint AS used,
+        COALESCE(SUM(amount_cents) FILTER(WHERE status<>'skipped' AND ambassador_id=$1),0)::bigint AS personal,
+        MIN(available_at) FILTER(WHERE status='earned' AND ambassador_id=$1 AND available_at>NOW()) AS next_release_at
+        FROM ambassador_awards""",
+        uid,
+    )
+    capacity = {
+        "budget_remaining": max(0, cfg["budget"] * 100 - limits["used"]),
+        "member_remaining": (
+            max(0, cfg["member_cap"] * 100 - limits["personal"])
+            if cfg["member_cap"]
+            else None
+        ),
+        "next_release_at": public(limits)["next_release_at"],
+    }
     return {
         "settings": cfg,
+        "capacity": capacity,
         "member": public(member) if member else None,
         "wallet": await wallet(uid),
         "stats": dict(stats),
@@ -273,7 +291,17 @@ async def request_payout(uid, details):
             )
 
 
-async def admin_data(page=1, uid=None):
+async def admin_data(page=1, uid=None, section="members", status=""):
+    allowed = {
+        "members": {"pending", "approved", "rejected", "suspended"},
+        "awards": {"earned", "skipped", "revoked"},
+        "payouts": {"pending", "paid", "rejected"},
+        "audit": set(),
+        "settings": set(),
+        "clients": set(),
+    }
+    if section not in allowed or (status and status not in allowed[section]):
+        raise ValueError("Неизвестный фильтр")
     pool = db._pool_req()
     offset = (max(1, page) - 1) * 25
     result = {"settings": await settings(), "page": page}
@@ -283,30 +311,30 @@ async def admin_data(page=1, uid=None):
         ("payouts", "ambassador_payouts", "id"),
         ("audit", "ambassador_audit", "id"),
     ]:
-        condition = (
-            (
-                " WHERE "
-                + ("telegram_id" if name == "members" else "ambassador_id")
-                + "=$2"
-            )
-            if uid and name != "audit"
-            else ""
-        )
-        args = [offset] + ([uid] if condition else [])
+        filters, args = [], []
+        if uid and name != "audit":
+            args.append(uid)
+            field = "telegram_id" if name == "members" else "ambassador_id"
+            filters.append(f"{field}=${len(args)}")
+        if status and name == section:
+            args.append(status)
+            filters.append(f"status=${len(args)}")
+        condition = " WHERE " + " AND ".join(filters) if filters else ""
         rows = await pool.fetch(
-            f"SELECT * FROM {table}{condition} ORDER BY {order} DESC LIMIT 25 OFFSET $1",
+            f"SELECT * FROM {table}{condition} ORDER BY {order} DESC LIMIT 25 OFFSET ${len(args)+1}",
             *args,
+            offset,
         )
         result[name] = [public(r) for r in rows]
         result[name + "_total"] = await pool.fetchval(
-            f"SELECT COUNT(*) FROM {table}" + condition.replace("$2", "$1"),
-            *([uid] if condition else []),
+            f"SELECT COUNT(*) FROM {table}" + condition,
+            *args,
         )
     result["summary"] = dict(await pool.fetchrow("""SELECT
         (SELECT COUNT(*) FROM ambassadors WHERE status='pending')::int AS applications,
         (SELECT COUNT(*) FROM ambassadors WHERE status='approved')::int AS active,
         (SELECT COUNT(*) FROM ambassador_clients)::int AS clients,
-        (SELECT COUNT(DISTINCT client_id) FROM ambassador_awards WHERE status='earned')::int AS payers,
+        (SELECT COUNT(DISTINCT client_id) FROM ambassador_awards WHERE eligible AND status<>'revoked')::int AS payers,
         (SELECT COALESCE(SUM(amount_cents),0)::bigint FROM ambassador_awards WHERE status<>'skipped')::bigint AS budget_used,
         (SELECT COALESCE(SUM(amount_cents),0)::bigint FROM ambassador_payouts WHERE status='paid')::bigint AS paid,
         (SELECT COALESCE(SUM(amount_cents),0)::bigint FROM ambassador_payouts WHERE status='pending')::bigint AS pending

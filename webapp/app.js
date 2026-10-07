@@ -5170,6 +5170,10 @@ function paintAmbassador(data) {
   terms.append(details);
   if (!cfg.accruing)
     terms.append(ambElement("p", "⏸ Начисления сейчас на паузе", "amb-notice"));
+  const capacity = data.capacity || {};
+  if (cfg.accruing && (capacity.budget_remaining === 0 || capacity.member_remaining === 0)) {
+    terms.append(ambElement("p", "⚠️ Лимит вознаграждений исчерпан. Новые оплаты пока не принесут наград. Заработанное сохраняется.", "amb-notice"));
+  }
   if (member) {
     const state = card(status[member.status] || member.status);
     if (member.review_note) state.append(ambElement("p", member.review_note));
@@ -5270,6 +5274,9 @@ function paintAmbassador(data) {
           : "Можно запросить выплату 🎉",
     ),
   );
+  if (capacity.next_release_at && w.holding > 0) {
+    wallet.append(ambElement("p", "Ближайшее начисление станет доступно " + stamp(capacity.next_release_at) + " МСК. Дата выплаты зависит от доступной суммы и проверки заявки."));
+  }
   const funnel = card("Ваши приглашения");
   for (const [key, label] of [
     ["joined", "Пришли"],
@@ -5336,7 +5343,7 @@ function paintAmbassador(data) {
       const item = ambElement("div", null, "amb-history");
       item.append(
         ambElement("strong", cash(row.amount_cents)),
-        ambElement("span", status[row.status] || row.status),
+        ambElement("span", row.status === "earned" ? (new Date(row.available_at) > new Date() ? "На ожидании" : "Ожидание завершено") : status[row.status] || row.status),
         ambElement("small", stamp(row.created_at) + " · МСК"),
       );
       if (row.status === "earned")
