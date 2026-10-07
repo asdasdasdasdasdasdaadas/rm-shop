@@ -1,0 +1,37 @@
+/* Small, finite movements. Layout and business state never wait for animation. */
+html[data-design="modern"] :is(.view-in-fade,.view-in-push,.view-in-pop,.app-in) { animation: none; }
+@media (prefers-reduced-motion: no-preference) {
+ html[data-design="modern"] { --motion-ease: cubic-bezier(.22,1,.36,1); }
+ html[data-design="modern"] :is(button,.dev-lbtn,.web-back,.ref-banner-btn) { transition: transform 180ms var(--motion-ease),background-color 220ms ease,border-color 180ms ease,box-shadow 220ms ease; }
+ html[data-design="modern"] :is(button,.dev-lbtn,.ref-banner-btn):active:not(:disabled) { transform: scale(.96); }
+ html[data-design="modern"] :is(.device-row,.pay-method,.wiz-radio-row):active:not(:disabled) { transform: scale(.985); }
+ html[data-design="modern"] :is(.pay-card.on,.wiz-chip.on,.appearance-options button[aria-pressed="true"]) { animation: beta-select 260ms var(--motion-ease); }
+ html[data-design="modern"] .wiz-swap { animation: beta-step 320ms var(--motion-ease) both; }
+ html[data-design="modern"] .title-in { animation: beta-title 280ms var(--motion-ease) both; }
+ html[data-design="modern"] .wiz-seg i { transition: width 320ms var(--motion-ease),background-color 220ms ease; }
+ html[data-design="modern"] .sheet:not(.hidden) { transform-origin: top right; animation: beta-menu 260ms var(--motion-ease) both; }
+ html[data-design="modern"] .scrim:not(.hidden) { animation: beta-opacity 180ms ease both; }
+ html[data-design="modern"] .low-balance-sheet[open] { animation: beta-sheet 360ms var(--motion-ease) both; }
+ html[data-design="modern"] .low-balance-sheet[open]::backdrop { animation: beta-opacity 220ms ease both; }
+ html[data-design="modern"] .faq-a { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; padding-top: 0; padding-bottom: 0; transition: grid-template-rows 260ms var(--motion-ease),opacity 180ms ease,visibility 260ms; }
+ html[data-design="modern"] .faq-a > div { min-height: 0; overflow: hidden; }
+ html[data-design="modern"] .faq-item.on .faq-a { display: grid; grid-template-rows: 1fr; opacity: 1; visibility: visible; padding-bottom: 16px; }
+ html[data-design="modern"] .faq-item .arrow { transition: transform 240ms var(--motion-ease); }
+ html[data-design="modern"] details[open] > p { animation: beta-title 220ms var(--motion-ease); }
+ html[data-design="modern"] .app-main-bar:not(.hidden) .btn { animation: beta-title 260ms var(--motion-ease); }
+ @media (hover: hover) {
+  html[data-design="modern"] :is(.btn,.dev-lbtn,.ref-banner-btn,.wiz-app-dl):hover:not(:disabled) { transform: translateY(-1px); }
+  html[data-design="modern"] #refHomeCard:hover .modern-card-art { transform: translateY(-4px) rotate(-11deg); }
+  html[data-design="modern"] #homePromoCard:hover .modern-card-art { transform: translateY(-4px) rotate(4deg); }
+  html[data-design="modern"] .modern-card-art { transition: transform 420ms var(--motion-ease); }
+ }
+}
+@keyframes beta-opacity { from {opacity: 0;} to {opacity: 1;} }
+@keyframes beta-title { from {opacity: 0;transform: translateY(7px);} to {opacity: 1;transform: translateY(0);} }
+@keyframes beta-step { from {opacity: 0;transform: translateY(12px);} to {opacity: 1;transform: translateY(0);} }
+@keyframes beta-select { 0% {transform: scale(.97);} 65% {transform: scale(1.015);} 100% {transform: scale(1);} }
+@keyframes beta-menu { from {opacity: 0;transform: translateY(-7px) scale(.96);} to {opacity: 1;transform: none;} }
+@keyframes beta-sheet { from {opacity: .3;transform: translateY(32px);} to {opacity: 1;transform: none;} }
+@media (prefers-reduced-motion: reduce) {
+ html[data-design="modern"] *,html[data-design="modern"] *::before,html[data-design="modern"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

@@ -58,7 +58,9 @@
     } else if (me.trial_available) {
       caption = "Ваш подарок ждёт ниже";
     }
+    const changed = value.textContent !== amount;
     value.textContent = amount;
+    if (changed && window.WayMotion) window.WayMotion.value(value);
     label.textContent = caption;
     value.dataset.state = empty ? "empty" : "ready";
     const daily = Number(me.vpn_day_price_rub);

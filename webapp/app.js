@@ -1134,6 +1134,7 @@ function showApp() {
   if (wasHidden) {
     if (!reducedMotion()) replayAnim($("app"), "app-in");
     scheduleCoach();
+    if (window.WayMotion) window.WayMotion.enter(document.querySelector("#app .view:not(.hidden)"));
   }
   maybeShowLowBalance();
 }
@@ -1283,6 +1284,7 @@ function switchView(id, motion) {
   document.documentElement.classList.remove("is-scrolled");
   document.documentElement.style.setProperty("--nav-glass", "0");
   navScrollY = 0;
+  if (window.WayMotion) window.WayMotion.enter($(id), motion || "fade");
 }
 
 const wiz = {
@@ -2378,7 +2380,9 @@ function paintFaq(me) {
     ans.id = "faq-answer-" + box.children.length;
     btn.setAttribute("aria-controls", ans.id);
     btn.setAttribute("aria-expanded", "false");
-    ans.textContent = item.a || "";
+    const answer = document.createElement("div");
+    answer.textContent = item.a || "";
+    ans.appendChild(answer);
     btn.onclick = () => {
       haptic();
       const open = wrap.classList.contains("on");
