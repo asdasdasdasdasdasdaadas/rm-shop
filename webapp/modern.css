@@ -134,3 +134,69 @@ html[data-design="modern"][data-modern-nav="on"] #app { padding-bottom: calc(110
 @media (prefers-reduced-motion: reduce) {
   html[data-design="modern"] :is(.btn,.ref-banner-btn,.icon-btn,.appearance-options button,.modern-nav button) { transition: none; transform: none; }
 }
+
+/* Reference-led home: time first, compact wallet, devices, then rewards. */
+.modern-only { display: none; }
+html[data-design="modern"] .modern-only { display: block; }
+html[data-design="modern"] #app { max-width: 560px; }
+html[data-design="modern"] #view-home.view:not(.hidden) { display: flex; flex-direction: column; gap: 16px; }
+html[data-design="modern"] #view-home .home-col { display: contents; }
+html[data-design="modern"] #view-home .home-nav { margin-bottom: 0; padding-bottom: 0; }
+html[data-design="modern"] .home-nav .account-row { padding: 8px 10px; border-radius: 28px; }
+html[data-design="modern"] .home-nav .avatar { width: 36px; height: 36px; }
+html[data-design="modern"] .home-nav .name { font-size: 15px; }
+html[data-design="modern"] .home-nav .login { font-size: 11px; }
+html[data-design="modern"] .modern-overview { width: 100%; align-self: stretch; text-align: center; padding: 18px 12px 8px; }
+html[data-design="modern"] .modern-eyebrow { color: var(--text-secondary); font-size: 11px; line-height: 1.4; letter-spacing: .08em; margin: 0 0 4px; }
+html[data-design="modern"] .modern-remaining { font-size: clamp(64px,19vw,88px); line-height: 1.05; letter-spacing: -.06em; font-weight: 650; font-variant-numeric: tabular-nums; }
+html[data-design="modern"] .modern-remaining-label { color: var(--text-secondary); font-size: 12px; margin-top: 9px; }
+html[data-design="modern"] #view-home .status-card { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 0 16px; padding: 18px 20px; margin: 0; }
+html[data-design="modern"] #view-home :is(.status-top,.status-copy) { display: contents; }
+html[data-design="modern"] #view-home .gauge-wrap { display: none; }
+html[data-design="modern"] #view-home .balance { grid-column: 1; grid-row: 1; font-size: clamp(22px,6vw,30px); letter-spacing: -.035em; overflow-wrap: anywhere; }
+html[data-design="modern"] #view-home .balance span { font-size: 11px; margin: 3px 0 0; }
+html[data-design="modern"] #view-home .status-actions { grid-column: 2; grid-row: 1; margin: 0; }
+html[data-design="modern"] #view-home #ctaAdd { display: none; }
+html[data-design="modern"] #view-home #topupBtn { min-height: 46px; padding: 12px 18px; font-size: 13px; white-space: nowrap; background: linear-gradient(145deg,var(--liquid-glint),transparent),var(--liquid-fill); border: 1px solid var(--liquid-edge); color: var(--text-primary); box-shadow: var(--liquid-shadow); }
+html[data-design="modern"] #view-home #statusPill { grid-column: 1 / -1; justify-self: start; margin-top: 14px; font-size: 11px; }
+html[data-design="modern"] #view-home #statusNote { grid-column: 1 / -1; font-size: 12px; margin-top: 8px; }
+html[data-design="modern"] #view-home :is(#trustBtn,#trustOpen,#trialHomeBtn) { grid-column: 1 / -1; }
+html[data-design="modern"] #view-home :is(.section,.trial-notice) { margin: 0; }
+html[data-design="modern"] #view-home #devicesBlock { padding: 18px 20px; }
+html[data-design="modern"] #devicesBlock .section-head { margin-bottom: 0; min-height: 36px; }
+html[data-design="modern"] #devicesBlock .h { font-size: 19px; letter-spacing: -.03em; }
+html[data-design="modern"] #devicesBlock .count { font-size: 13px; color: var(--text-secondary); }
+html[data-design="modern"] .modern-device-rate { color: var(--text-secondary); font-size: 11px; margin: 0 0 8px; }
+html[data-design="modern"] .add-device-btn { border-radius: 999px; min-height: 40px; padding: 8px 12px; background: var(--liquid-fill); border: 1px solid var(--liquid-edge); color: var(--text-primary); box-shadow: var(--liquid-shadow); }
+html[data-design="modern"] #emptyDevices { padding: 0; }
+html[data-design="modern"] #emptyDevices :is(.t,.d) { display: none; }
+html[data-design="modern"] #addDeviceEmpty { margin-top: 8px; min-height: 46px; font-size: 14px; }
+html[data-design="modern"] #coachReplay { margin-top: 10px; font-size: 12px; }
+html[data-design="modern"] .device-row { min-height: 68px; padding: 12px 0; }
+html[data-design="modern"] .device-row .glyph.sm { width: 42px; height: 42px; background: var(--liquid-fill); border-color: var(--liquid-edge); box-shadow: var(--glass-shine); }
+html[data-design="modern"] #view-home :is(#refHomeCard,#homePromoCard) { position: relative; overflow: hidden; padding: 22px; min-height: 154px; border-radius: 32px; }
+html[data-design="modern"] #refHomeCard .ref-banner-copy { padding-right: 96px; width: auto; }
+html[data-design="modern"] #refHomeCard .ref-banner-title { padding-right: 0; font-size: 21px; font-weight: 650; line-height: 1.15; }
+html[data-design="modern"] #refHomeCard .ref-banner-pill { max-width: none; background: none; border: none; box-shadow: none; padding: 0; margin-top: 9px; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
+html[data-design="modern"] #refHomeCard .ref-banner-note { margin: 8px 0 0; font-size: 12px; }
+html[data-design="modern"] .modern-card-art { position: absolute; right: -10px; top: 8px; width: 130px; height: 130px; pointer-events: none; }
+html[data-design="modern"] #refHomeCard .ref-banner-actions { position: relative; margin-top: 16px; gap: 8px; width: 100%; }
+html[data-design="modern"] #refHomeCard .ref-banner-btn { min-height: 44px; padding: 10px 12px; font-size: 12px; }
+html[data-design="modern"] #homePromoCard .section-head { padding-right: 100px; margin-bottom: 16px; }
+html[data-design="modern"] #homePromoCard .h { font-size: 21px; font-weight: 650; }
+html[data-design="modern"] #homePromoOpen { width: auto; min-height: 44px; padding: 10px 18px; font-size: 12px; }
+html[data-design="modern"] #view-home .home-help { margin-top: 4px; }
+html[data-design="modern"] .section-title-plain { font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; }
+html[data-design="modern"] .help-list button { min-height: 52px; font-size: 14px; }
+/* Content stays quieter than the floating controls. */
+html[data-design="modern"] :is(.section,.group) { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+@media (max-width: 359px) {
+ html[data-design="modern"] #view-home .status-card { gap: 0 10px; padding: 16px; }
+ html[data-design="modern"] #view-home #topupBtn { padding: 10px 12px; font-size: 12px; }
+ html[data-design="modern"] .modern-card-art { width: 108px; height: 108px; right: -12px; }
+ html[data-design="modern"] #refHomeCard .ref-banner-copy { padding-right: 72px; }
+}
+
+/* The overview already explains the access state; keep the wallet a single row. */
+html[data-design="modern"] #view-home :is(#statusPill,#statusNote) { display: none; }
+html[data-design="modern"] .modern-remaining[data-state="empty"] { color: var(--text-secondary); }

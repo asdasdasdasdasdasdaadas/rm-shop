@@ -568,6 +568,9 @@ function paintStatus(me) {
   const hours = remainHours(me);
   const days = hours / 24;
   const running = me.balance_enabled ? n > 0 : Boolean(me.has_access);
+  if (window.WayAppearance && window.WayAppearance.paintSummary) {
+    window.WayAppearance.paintSummary(me, { hours, empty: balanceAlertState(me) === "empty" });
+  }
   if (me.balance_enabled) {
     $("balanceLine").innerHTML = `${me.balance_rub} ₽ <span>на счету</span>`;
   } else {

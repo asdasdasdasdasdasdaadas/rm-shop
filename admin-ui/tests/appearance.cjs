@@ -54,8 +54,26 @@ const shots=fs.mkdtempSync(path.join(os.tmpdir(),'neutral-beta-'));
  await page.setViewportSize({width:390,height:844});
  await page.evaluate(()=>{window.__me.trial_available=true;window.__me.trial_days=3;window.__me.trial_rub=18;openOffer({instant:true});});
  await page.screenshot({path:path.join(shots,'gift-light.png'),fullPage:true});
- await page.evaluate(()=>{window.__me.trial_available=false;window.__me.balance_rub=0;openHome();});
+ await page.evaluate(()=>{window.__me.trial_available=false;window.__me.balance_rub=0;window.__me.hours_left=0;paint(window.__me);openHome();});
  await page.screenshot({path:path.join(shots,'zero-light.png'),fullPage:true});
+ // Test the real daily balance presentation with a configured device.
+ await page.evaluate(()=>{const me=window.__me;me.balance_rub=180;me.hours_left=720;me.days_left=30;me.devices=[{id:1,title:'Мой iPhone',platform:'ios',active:true,subscription_url:'https://example.test/sub'}];paint(me);openHome();});
+ assert.equal(await page.locator('#modernRemaining').textContent(),'30');
+ assert.match(await page.locator('#modernRemainingLabel').textContent(),/дней/);
+ assert.equal(await page.locator('#ctaAdd').isVisible(),false);
+ await page.screenshot({path:path.join(shots,'active-light.png'),fullPage:true});
+ const hero=await page.locator('.modern-overview').boundingBox();const wallet=await page.locator('#view-home .status-card').boundingBox();assert.ok(Math.abs(hero.width-wallet.width)<2);
+ await page.locator('#devicesBody .device-row').click();await page.locator('#view-device:not(.hidden)').waitFor();
+ assert.equal(await page.locator('#modernNav').isVisible(),false);
+ await page.evaluate(()=>openHome());await page.locator('#addDevice').click();await page.locator('#view-wizard:not(.hidden)').waitFor();
+ await page.evaluate(()=>openHome());await page.locator('#homePromoOpen').click();await page.locator('#view-promo:not(.hidden)').waitFor();
+ await page.evaluate(()=>{WayAppearance.choose('theme','dark');openHome();});
+ await page.screenshot({path:path.join(shots,'active-dark.png'),fullPage:true});
+ await page.setViewportSize({width:320,height:740});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.evaluate(()=>{WayAppearance.choose('design','classic');openHome();});
+ assert.equal(await page.locator('.modern-overview').isVisible(),false);
+ assert.equal(await page.locator('#statusNote').isVisible(),true);
  assert.deepEqual(errors,[]);console.log('Classic/modern, light/dark/system, saved preferences, classic color restoration and responsive screens passed. '+shots);
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
