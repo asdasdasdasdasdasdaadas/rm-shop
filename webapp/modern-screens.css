@@ -130,3 +130,7 @@ html[data-design="modern"] .login-card { width: min(440px,100%); margin-inline: 
 html[data-design="modern"] .login-form input { min-height: 50px; }
 html[data-design="modern"] .maint-title { font-size: 30px; }
 html[data-design="modern"] .app-toast { color: var(--text-primary); background: var(--bg-surface); border-color: var(--divider); }
+
+/* Froggo is a small decorative accent, not the color palette. */
+html[data-design="modern"] .home-nav .modern-frog { width: 32px; height: 32px; object-fit: contain; flex: 0 0 32px; }
+html[data-design="modern"] .offer-stage::before { width: 72px; height: 72px; background-image: url('/icons/froggo-smile.webp'); }
