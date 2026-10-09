@@ -36,7 +36,7 @@ test('dismissal during a request does not navigate after completion',async()=>{
 test('failed optional answer remains skippable and can be retried',async()=>{
  let failed=true;const s=setup(async()=>{if(failed)throw Error('offline');return {ok:true};});
  s.ctx.showExitFeedback('token');await s.ctx.answerExitFeedback('other');
- assert.equal(s.$('exitFeedbackSheet').open,true);assert.match(s.$('exitFeedbackError').textContent,/повторить/);
+ assert.equal(s.$('exitFeedbackSheet').open,true);assert.match(s.$('exitFeedbackError').textContent,/ещё раз/);
  assert.equal(s.buttons.some(b=>b.disabled),false);
  failed=false;await s.ctx.answerExitFeedback('other');assert.equal(s.$('exitFeedbackSheet').open,false);
 });

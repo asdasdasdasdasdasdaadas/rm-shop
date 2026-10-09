@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app import design_experiment
+
 import asyncio
 import json
 import logging
@@ -385,7 +387,8 @@ async def api_me(request: web.Request) -> web.Response:
                 "ok": True,
                 "maintenance": True,
                 "notice": await current_text(),
-                "brand_name": settings.brand_name,
+                "design_experiment": await design_experiment.assignment(telegram_id),
+            "brand_name": settings.brand_name,
             }
         )
     if await db.user_is_blocked(telegram_id):
@@ -606,6 +609,20 @@ async def api_announcement_image(request: web.Request) -> web.Response:
         path,
         headers={"Content-Type": content_type_for(path), "Cache-Control": "private, max-age=3600"},
     )
+
+
+async def api_design_event(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        body = await request.json()
+    except (ValueError, TypeError):
+        return json_error("Некорректное событие", 400)
+    if not isinstance(body, dict) or not isinstance(body.get('stage'), str) or not isinstance(body.get('variant'), str) or body['stage'] not in {'exposure', 'topup', 'wizard'} or body['variant'] not in {'classic', 'modern'}:
+        return json_error("Некорректное событие", 400)
+    await design_experiment.record(telegram_id, body['stage'], body['variant'])
+    return web.json_response({'ok': True})
 
 
 async def api_onboarding_event(request: web.Request) -> web.Response:
@@ -1273,6 +1290,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/api/announcements/{ann_id}/image", api_announcement_image)
         app.router.add_post("/api/trial", api_trial)
         app.router.add_post("/api/onboarding-event", api_onboarding_event)
+        app.router.add_post("/api/design-event", api_design_event)
         app.router.add_post("/api/invoice", api_invoice)
         app.router.add_post("/api/promo", api_promo)
         app.router.add_post("/api/devices", api_add_device)

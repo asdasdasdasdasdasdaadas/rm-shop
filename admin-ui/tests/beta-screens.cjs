@@ -17,10 +17,15 @@ const shots=fs.mkdtempSync(path.join(os.tmpdir(),'beta-screens-'));
  });
  async function shot(name){
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,name+' overflow');
+  const clipped=await page.locator('.view:not(.hidden) h1').evaluateAll(nodes=>nodes.filter(el=>el.getClientRects().length && (el.scrollWidth>el.clientWidth+1 || el.scrollHeight>el.clientHeight+1)).map(el=>el.textContent));
+  assert.deepEqual(clipped,[],name+' clipped headings');
   await page.screenshot({path:path.join(shots,name+'.png'),fullPage:true});
  }
- for(const theme of ['light','dark']) {
-  await page.evaluate(theme=>WayAppearance.choose('theme',theme),theme);
+ for(const width of [320,390]) {
+  const theme=width===390?'dark':'small';
+  await page.setViewportSize({width,height:844});
+  await page.evaluate(()=>WayAppearance.choose('theme','dark'));
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.colorScheme),'dark');
   await page.evaluate(()=>openSettings());await shot(theme+'-settings');
   await page.evaluate(()=>openTopup());assert.equal(await page.locator('#topupGrid button').count(),4);await page.locator('#topupGrid button').first().click();assert.equal(await page.locator('#topupGrid button').first().getAttribute('aria-pressed'),'true');await shot(theme+'-topup');
   await page.evaluate(()=>openPayMethod({code:'topup_300',rub:300,amount:300}));await shot(theme+'-pay');

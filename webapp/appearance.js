@@ -8,21 +8,26 @@
     if (saved && ["classic", "modern"].includes(saved.design)) state.design = saved.design;
     if (saved && ["system", "light", "dark"].includes(saved.theme)) state.theme = saved.theme;
   } catch (_) {}
+  let experiment = null;
   const media = window.matchMedia("(prefers-color-scheme: dark)");
   function apply() {
     const telegram = window.Telegram && window.Telegram.WebApp;
     const system = telegram && telegram.initData ? telegram.colorScheme : (media.matches ? "dark" : "light");
-    root.dataset.design = state.design;
-    root.dataset.colorScheme = state.theme === "system" ? (system === "dark" ? "dark" : "light") : state.theme;
-    document.querySelectorAll("[data-design-choice]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.designChoice === state.design)));
+    root.dataset.design = experiment ? experiment.variant : state.design;
+    root.dataset.colorScheme = root.dataset.design === "modern" ? "dark" : (state.theme === "system" ? (system === "dark" ? "dark" : "light") : state.theme);
+    document.querySelectorAll("[data-design-choice]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.designChoice === root.dataset.design)));
     document.querySelectorAll("[data-mode-choice]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.modeChoice === state.theme)));
     const modern = document.getElementById("modernThemeSettings");
     const classic = document.getElementById("classicThemeSettings");
-    if (modern) modern.hidden = state.design !== "modern";
-    if (classic) classic.hidden = state.design !== "classic";
+    if (modern) modern.hidden = true;
+    if (classic) classic.hidden = root.dataset.design !== "classic";
+    document.querySelectorAll("[data-design-choice]").forEach(button => { button.disabled = Boolean(experiment); });
+    const note = document.getElementById("appearanceNote");
+    if (note) note.textContent = experiment ? "Вы участвуете в тесте дизайна. Вариант закреплён за аккаунтом." : "Новый кабинет — в тёмной теме. Выберите удобный вариант.";
     window.dispatchEvent(new Event("appearancechange"));
   }
   function choose(field, value) {
+    if (experiment && field === "design") return;
     if (field === "design" && !["classic", "modern"].includes(value)) return;
     if (field === "theme" && !["system", "light", "dark"].includes(value)) return;
     if (!["design", "theme"].includes(field)) return;
@@ -41,9 +46,9 @@
     if (!value || !label || !rate) return;
     const devices = me.devices || [];
     const phones = devices.filter(device => device.kind !== "router" && device.platform !== "router");
-    let amount = "—", caption = "Добавьте устройство и подключайтесь";
+    let amount = "Начнём?", caption = "Добавьте устройство — настройка займёт пару минут";
     if (me.balance_enabled && devices.length && !phones.length) {
-      caption = "Срок доступа — в карточке роутера";
+      amount = "Роутер"; caption = "Срок доступа — в карточке роутера";
     } else if (me.balance_enabled && me.billing_paused) {
       amount = "Ⅱ"; caption = "Списания приостановлены";
     } else if (empty) {
@@ -66,7 +71,13 @@
     const daily = Number(me.vpn_day_price_rub);
     rate.textContent = devices.length && !phones.length ? "Роутер оплачивается отдельно" : !phones.length ? "Без устройств списаний нет" : me.billing_paused ? "Списания приостановлены" : me.balance_enabled && Number.isFinite(daily) && daily > 0 ? `${(daily * phones.length).toLocaleString("ru-RU")} ₽ в сутки · ${phones.length} устр.` : "Выберите устройство для настройки";
   }
-  window.WayAppearance = { apply, choose, paintSummary };
+  function assign(config) {
+    const next = config && config.active && ["classic", "modern"].includes(config.variant) ? config : null;
+    if (JSON.stringify(next) === JSON.stringify(experiment)) return;
+    experiment = next;
+    apply();
+  }
+  window.WayAppearance = { apply, choose, paintSummary, assign };
   apply();
   if (media.addEventListener) media.addEventListener("change", apply);
   document.addEventListener("DOMContentLoaded", () => {

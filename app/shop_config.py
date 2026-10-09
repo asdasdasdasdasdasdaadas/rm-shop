@@ -202,10 +202,10 @@ async def load_shop_overlay() -> None:
     if not isinstance(data, dict):
         data = {}
     # Apply the new device limit once; later admin changes survive restarts.
-    if not await db.get_kv("device_limit_12_v1"):
-        data["max_devices"] = 12
+    if not await db.get_kv("device_limit_6_v1"):
+        data["max_devices"] = 6
         await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
-        await db.set_kv("device_limit_12_v1", "1")
+        await db.set_kv("device_limit_6_v1", "1")
     # One-time withdrawal of the unfinished router offer. Later manual enabling persists.
     if not await db.get_kv("router_offer_hidden_v1"):
         data["router_enabled"] = False

@@ -593,7 +593,7 @@ function paintStatus(me) {
     badge.classList.add("hidden");
     pill.className = "status-pill warn";
     pill.innerHTML = '<span class="dot"></span> Пора пополнить баланс';
-    $("statusNote").textContent = "Пополните баланс, чтобы продолжить пользоваться VPN.";
+    $("statusNote").textContent = "Пополните баланс, чтобы снова подключиться.";
   } else if (days < 3) {
     setFrog("worried");
     setGauge(days / GAUGE_REF_DAYS, "warn");
@@ -1124,6 +1124,7 @@ lowBalanceGrab.addEventListener("pointerup", finishLowBalanceDrag);
 lowBalanceGrab.addEventListener("pointercancel", finishLowBalanceDrag);
 
 function showApp() {
+  trackDesignExposure();
   const wasHidden = $("app").classList.contains("hidden");
   hideIntro();
   hideDecoy();
@@ -1989,7 +1990,7 @@ function paintTopupSum(me) {
   }
   sumEl.textContent = "0 ₽";
   sumEl.classList.add("is-empty");
-  hintEl.textContent = "Введите или выберите сумму";
+  hintEl.textContent = "Выберите сумму или введите свою";
 }
 function browserCabinet() {
   return Boolean(lkToken) && !tg.initData;
@@ -2093,6 +2094,8 @@ function openHome() {
 }
 
 function openTopup() {
+  trackDesign("exposure");
+  trackDesign("topup");
   const me = window.__me;
   if (!me) return;
   screen = "topup";
@@ -2219,7 +2222,7 @@ function paintSupportActions(current) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "support-faq";
-    button.textContent = "Вопрос решён — закрыть обращение";
+    button.textContent = "Вопрос решён";
     button.disabled = supportActionBusy;
     button.onclick = () => actOnSupport(current, "close");
     box.appendChild(button);
@@ -2227,7 +2230,7 @@ function paintSupportActions(current) {
   }
   const title = document.createElement("p");
   title.className = "support-meta";
-  title.textContent = current.support_rating ? `Спасибо! Ваша оценка: ${current.support_rating} из 5.` : "Оцените помощь поддержки: 1 — плохо, 5 — отлично.";
+  title.textContent = current.support_rating ? `Спасибо! Ваша оценка: ${current.support_rating} из 5.` : "Как вам помощь? От 1 до 5.";
   box.appendChild(title);
   if (current.support_rating) return;
   const row = document.createElement("div");
@@ -2257,7 +2260,7 @@ function paintSupportChrome(current) {
   if (status) {
     status.textContent = current
       ? `Обращение №${current.id}`
-      : "Обращение создастся после отправки сообщения или файла. Ответ придёт сюда и в чат бота.";
+      : "Напишите нам. Ответ придёт сюда и в бот.";
   }
   if (badge) {
     const key = current && current.status;
@@ -2290,8 +2293,8 @@ function paintSupportThread(current) {
     empty.textContent = current
       ? (current.status === "closed"
         ? "Нужна помощь? Напишите нам — откроем новое обращение."
-        : "Здесь будет ваша переписка с поддержкой. Чтобы обратиться за помощью, отправьте сообщение.")
-      : "Здесь будет ваша переписка с поддержкой. Чтобы обратиться за помощью, отправьте сообщение.";
+        : "Что случилось? Опишите проблему — поможем разобраться.")
+      : "Что случилось? Опишите проблему — поможем разобраться.";
     box.appendChild(empty);
     return;
   }
@@ -2424,7 +2427,7 @@ function paintNotificationSettings() {
   const quiet = Boolean(me.quiet_notifications);
   $("notificationSummary").textContent = quiet ? "Режим тишины включён. Только важные сообщения." : "Включены все уведомления.";
   const button = $("notificationToggle");
-  button.textContent = quiet ? "Включить все уведомления" : "Отключить необязательные уведомления";
+  button.textContent = quiet ? "Включить все уведомления" : "Включить режим тишины";
   button.disabled = notificationSaving;
 }
 async function toggleNotificationSettings() {
@@ -2712,7 +2715,7 @@ function paintReferrals(me) {
   if (when) when.textContent = terms.when;
   if (how) how.textContent = [terms.how, terms.friend].filter(Boolean).join(" ");
   if (payWrap) payWrap.classList.toggle("hidden", !me.referral_payout_enabled);
-  if (pay) pay.textContent = `Вывести уже начисленные реферальные средства можно от ${me.referral_payout_min || 2000} ₽. Заявка уходит администратору.`;
+  if (pay) pay.textContent = `Вывод доступен от ${me.referral_payout_min || 2000} ₽. Проверим заявку и переведём деньги.`;
   paintRefFriends(me);
   paintPayout(me);
 }
@@ -2813,7 +2816,7 @@ function paintOffer(me) {
   $("offerTry").textContent = needsBot ? "Запустить бота" : "Принять подарок";
   $("offerLead").textContent = needsBot
     ? "Чтобы забрать подарок, откройте бота и нажмите «Начать». Затем вернитесь в кабинет."
-    : "Заберите подарок для одного устройства и попробуйте VPN.";
+    : "Попробуйте VPN бесплатно на одном устройстве.";
   const days = Number((me.trial_notice && me.trial_notice.days) || me.trial_days) || 3;
   $("offerDays").textContent = String(days);
   $("offerPrice").textContent = monthPriceLabel(me);
@@ -2828,6 +2831,21 @@ function paintOffer(me) {
     note.classList.add("hidden");
   }
 }
+
+const designEventsSent = new Set();
+let designEventQueue = Promise.resolve();
+function trackDesign(stage) {
+  const me = window.__me;
+  const config = me && me.design_experiment;
+  if (!config || !config.active || document.hidden || $("app").classList.contains("hidden")) return;
+  const key = `${me.user.id}:${config.id}:${stage}`;
+  if (designEventsSent.has(key)) return;
+  designEventsSent.add(key);
+  designEventQueue = designEventQueue.then(() => api("/api/design-event", {
+    method: "POST", body: JSON.stringify({stage, variant: config.variant})
+  })).catch(() => designEventsSent.delete(key));
+}
+function trackDesignExposure() { requestAnimationFrame(() => trackDesign("exposure")); }
 
 const onboardingEventsSent = new Set();
 function trackOnboarding(stage) {
@@ -2928,10 +2946,10 @@ function payMethodNoteText(method, methods) {
   const list = Array.isArray(methods) ? methods : [];
   const found = list.find((m) => m.id === method);
   if (found && found.note) return found.note;
-  if (method === "crypto") return "Валюта, сеть и реквизиты перевода будут указаны на странице оплаты.";
-  if (method === "card") return "Оплата картой откроется на защищённой странице банка.";
-  if (method === "stars") return "Оплата звёздами прямо в Telegram, без перехода в банк.";
-  return "Для оплаты через СБП требуется, чтобы у вас было установлено приложение банка.";
+  if (method === "crypto") return "Выберите валюту и сеть на странице оплаты.";
+  if (method === "card") return "Откроем защищённую страницу оплаты.";
+  if (method === "stars") return "Оплатите звёздами в Telegram.";
+  return "Откроем приложение вашего банка.";
 }
 
 let paymentStarAnimation = null;
@@ -3054,7 +3072,7 @@ function renderTopup(me) {
   $("topupHint").textContent = "Зачисление может занять до 15 минут.";
   const legal = $("topupLegal");
   if (legal) {
-    legal.textContent = "Разовое пополнение — без автоматических платежей.";
+    legal.textContent = "Разовая оплата. Автоплатежей нет.";
   }
   const grid = $("topupGrid");
   grid.classList.add("topup-amounts");
@@ -3116,6 +3134,8 @@ function startWizard(opts) {
     tg.showAlert("Можно подключить не больше " + cap + " устройств");
     return;
   }
+  trackDesign("exposure");
+  trackDesign("wizard");
   if (!(opts && opts.instant)) haptic();
   hideCoach();
   wiz.step = 1;
@@ -3290,7 +3310,7 @@ function renderWizard() {
       listWrap.appendChild(row);
     });
     body.appendChild(listWrap);
-    $("wizHint").textContent = "Уже установлено? Нажмите «Продолжить».";
+    $("wizHint").textContent = "Установите приложение и нажмите «Продолжить».";
     replayAnim(body, "wiz-swap");
     setMain("Продолжить", () => {
       haptic();
@@ -3304,7 +3324,7 @@ function renderWizard() {
 
   if (wiz.step === 3) {
     $("wizStep").textContent = "Шаг 3 из 3";
-    $("wizTitle").textContent = "Как назовём устройство?";
+    $("wizTitle").textContent = "Назовите устройство";
     lead.textContent = "Пригодится, если подключите несколько гаджетов — так проще не запутаться.";
     const chips = nameChips(wiz.platform);
     if (!(wiz.title || "").trim()) wiz.title = chips[0] || defaultTitle();
@@ -3385,7 +3405,7 @@ function renderWizard() {
     body.appendChild(chipWrap);
     paintChips();
     replayAnim(body, "wiz-swap");
-    setMain("Создать", async () => {
+    setMain("Добавить устройство", async () => {
       haptic();
       const title = (wiz.title || "").trim() || defaultTitle();
       try {
@@ -3519,7 +3539,7 @@ function renderWizard() {
   body.appendChild(linkLabel);
   body.appendChild(link);
   $("wizHint").textContent =
-    "Не удалось открыть приложение? Скопируйте ссылку и добавьте её вручную.";
+    "Приложение не открылось? Скопируйте ссылку и добавьте её вручную.";
   replayAnim(body, "wiz-swap");
   setMain("Готово", () => {
     haptic();
@@ -4100,11 +4120,12 @@ function paintTrialNotice(me) {
 }
 
 function paint(me) {
+  if (window.WayAppearance) window.WayAppearance.assign(me.design_experiment);
   if (me) me.balance_enabled = true;
   applyVpnApps(me.vpn_apps);
   if (me.brand_name) document.title = me.brand_name;
   $("name").textContent = me.user.name;
-  $("login").textContent = me.user.username || "имя пользователя не указано";
+  $("login").textContent = me.user.username || "Личный кабинет";
   const avatar = $("avatar");
   const photo = me.user.photo || "";
   const fallback = "/icons/profile-placeholder.svg";
@@ -4175,6 +4196,7 @@ function paint(me) {
   renderDevices(me);
   window.__me = me;
   trackOnboarding("cabinet");
+  trackDesignExposure();
   if (me.first_device_thanks_pending) armThanksOnClose();
   if (screen === "device" && openDevice) {
     const fresh = me.devices.find((x) => x.id === openDevice.id);
@@ -4582,7 +4604,7 @@ async function applyPromo(inputId, buttonId, resultId) {
     }
   } catch (e) {
     if (result) {
-      result.textContent = e.message || "Не удалось применить промокод";
+      result.textContent = e.message || "Промокод не применён. Проверьте код и повторите.";
       result.classList.remove("hidden");
     } else { showErr(e); }
   } finally {
@@ -4783,7 +4805,7 @@ async function answerExitFeedback(reason) {
   } catch (_e) {
     if (exitFeedbackToken === token) {
       goToSupport = reason === "not_working";
-      $("exitFeedbackError").textContent = "Не удалось сохранить ответ. Можно повторить или пропустить.";
+      $("exitFeedbackError").textContent = "Ответ не сохранился. Попробуйте ещё раз или пропустите.";
     }
   } finally {
     // Support remains accessible even if saving the optional answer fails.

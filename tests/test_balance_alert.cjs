@@ -133,7 +133,7 @@ test('cabinet display checks balance synchronously without waiting for polling',
   let checks=0;
   const node={classList:{contains:()=>false,add(){},remove(){}}};
   const ctx=vm.createContext({$:()=>node,hideIntro(){},hideDecoy(){},
-    maybeShowLowBalance(){checks++;},scheduleCoach(){}});
+    maybeShowLowBalance(){checks++;},scheduleCoach(){},trackDesignExposure(){}});
   vm.runInContext(source.slice(source.indexOf('function showApp()'),source.indexOf('function introSeen()')),ctx);
   ctx.showApp();
   assert.equal(checks,1);

@@ -1,0 +1,45 @@
+/* Dark beta v2: hierarchy, readable labels and predictable touch targets. */
+html[data-design="modern"] { --text-secondary: #bdc3ce; --text-tertiary: #a2abb9; --screen-gap: 16px; }
+html[data-design="modern"] #view-home { gap: 18px; }
+html[data-design="modern"] .home-nav .account-row { border-radius: 999px; padding: 12px 16px; background: linear-gradient(135deg,#ffffff12,#ffffff03),#252a35aa; backdrop-filter: blur(32px) saturate(140%); -webkit-backdrop-filter: blur(32px) saturate(140%); box-shadow: inset 0 1px 0 #ffffff1c,0 8px 24px #0002; }
+html[data-design="modern"] .home-nav .avatar { width: 38px; height: 38px; }
+html[data-design="modern"] .home-nav .name { font-size: 15px; }
+html[data-design="modern"] .home-nav .login { font-size: 12px; }
+html[data-design="modern"] .modern-overview { padding: 16px 8px 12px; }
+html[data-design="modern"] .modern-overview .modern-eyebrow { display: block; color: var(--text-secondary); font-size: 13px; margin-bottom: 12px; }
+html[data-design="modern"] .modern-remaining { font-size: clamp(38px,12vw,56px); overflow-wrap: anywhere; }
+html[data-design="modern"] .modern-remaining-label { margin-top: 10px; font-size: 14px; text-transform: none; letter-spacing: 0; line-height: 1.5; }
+html[data-design="modern"] #view-home .balance span { font-size: 11px; text-transform: none; letter-spacing: 0; }
+html[data-design="modern"] #devicesBlock .h { font-size: 20px; text-transform: none; letter-spacing: -.02em; }
+html[data-design="modern"] .modern-device-rate { font-size: 12px; line-height: 1.5; padding-right: 42px; }
+html[data-design="modern"] #emptyDevices .d { display: block; margin: 16px 0; font-size: 14px; text-align: left; color: var(--text-secondary); }
+html[data-design="modern"] #addDeviceEmpty { position: static; width: 100%; height: auto; border-radius: 999px; font-size: 14px; margin-top: 4px; }
+html[data-design="modern"] #addDeviceEmpty::after { display: none; }
+html[data-design="modern"] #view-home :is(#refHomeCard,#homePromoCard) { padding: 20px; min-height: 0; overflow: hidden; border-radius: 28px; }
+html[data-design="modern"] #refHomeCard .modern-card-art,html[data-design="modern"] #homePromoCard .modern-card-art { width: 82px; height: 82px; top: 12px; right: 12px; left: auto; opacity: .9; transform: none; }
+html[data-design="modern"] #refHomeCard .ref-banner-copy { margin: 0; padding-right: 76px; }
+html[data-design="modern"] #refHomeCard .modern-invite-title,html[data-design="modern"] #homePromoCard .h { font-size: 20px; line-height: 1.3; text-transform: none; letter-spacing: -.02em; }
+html[data-design="modern"] #refHomeCard .ref-banner-pill { display: block; margin-top: 8px; color: var(--text-secondary); font-size: 13px; background: none; padding: 0; line-height: 1.5; }
+html[data-design="modern"] #refHomeCard .ref-banner-actions { margin: 18px 0 0; gap: 8px; }
+html[data-design="modern"] #modernReferralDetails { flex: 0 0 auto; width: auto; padding: 0 16px !important; font-size: 13px !important; }
+html[data-design="modern"] #homePromoCard .section-head { padding-right: 76px; min-height: 45px; margin-bottom: 12px; }
+html[data-design="modern"] #homePromoOpen { min-height: 44px; font-size: 14px; }
+/* Remove inherited decorative headers and fixed line heights from the classic skin. */
+html[data-design="modern"] .view-head::before,html[data-design="modern"] .view-head::after { display: none; }
+html[data-design="modern"] .view:not(#view-home) .view-head { position: relative; top: auto; min-height: 0; height: auto; background: none; overflow: visible; }
+html[data-design="modern"] :is(.wiz-title,.topup-title,.pay-title,.offer-title,#devTitle) { color: var(--text-primary); font-size: clamp(26px,7vw,30px) !important; line-height: 1.2 !important; letter-spacing: -.025em !important; text-transform: none; overflow-wrap: anywhere; text-wrap: pretty; margin-top: 0; }
+html[data-design="modern"] .view:not(#view-wizard) .wiz-kicker { display: none; }
+html[data-design="modern"] :is(.section-note,.topup-hint,.article-copy,.faq-a,.support-meta) { font-size: 14px; line-height: 1.55; }
+html[data-design="modern"] :is(.pay-method,.wiz-radio-row,.dev-info-row,.cell) { min-width: 0; }
+html[data-design="modern"] :is(.pay-method-name,.wiz-radio-name,.cell-label,.dev-info-row .v) { overflow-wrap: anywhere; }
+html[data-design="modern"] .ref-stat-value { font-size: clamp(24px,7vw,30px); }
+html[data-design="modern"] #topupBtn { position: relative; overflow: hidden; isolation: isolate; }
+@media (prefers-reduced-motion: no-preference) {
+ html[data-design="modern"] #topupBtn::after { content: ""; pointer-events: none; position: absolute; inset: 0; background: linear-gradient(110deg,transparent 25%,#ffffff90 50%,transparent 75%); transform: translateX(-150%); }
+ html[data-design="modern"] .view-in-fade #topupBtn::after,html[data-design="modern"] .view-in-pop #topupBtn::after { animation: beta-topup-glint 700ms 350ms ease-out; }
+ html[data-design="modern"] #topupBtn:hover:not(:disabled)::after,html[data-design="modern"] #topupBtn:focus-visible::after { animation: beta-topup-glint 600ms ease-out; }
+ html[data-design="modern"] #topupBtn:active:not(:disabled) { transform: scale(.95); box-shadow: inset 0 2px 8px #0002; }
+ html[data-design="modern"] :is(.pay-method,.wiz-radio-row,.device-row,.cell.action) { transition: transform 150ms ease,background-color 180ms ease; }
+ html[data-design="modern"] :is(.pay-method,.wiz-radio-row,.device-row,.cell.action):active { transform: scale(.98); background-color: var(--accent-soft); }
+}
+@keyframes beta-topup-glint { to { transform: translateX(150%); } }

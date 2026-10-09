@@ -198,6 +198,22 @@ async def api_winback_statistics(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **data})
 
 
+async def api_design_experiment(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import design_experiment
+    if request.method == 'POST':
+        try:
+            body = await request.json()
+        except (ValueError, TypeError):
+            return web.json_response({'ok': False, 'error': 'Некорректные настройки'}, status=400)
+        if not isinstance(body, dict) or type(body.get('active')) is not bool:
+            return web.json_response({'ok': False, 'error': 'Укажите состояние теста'}, status=400)
+        await db.set_kv(design_experiment.EXPERIMENT + '_enabled', '1' if body['active'] else '0')
+    return web.json_response(await design_experiment.statistics())
+
+
 async def api_statistics(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2466,6 +2482,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/ambassadors", api_ambassadors)
     app.router.add_post("/admin/api/ambassadors", api_ambassadors)
     app.router.add_get("/admin/api/statistics", api_statistics)
+    app.router.add_get("/admin/api/design-experiment", api_design_experiment)
+    app.router.add_post("/admin/api/design-experiment", api_design_experiment)
     app.router.add_get("/admin/api/users", api_users)
     app.router.add_get("/admin/api/users/{telegram_id}/devices", api_user_devices)
     app.router.add_post("/admin/api/users/{telegram_id}/devices/{device_id}/reissue", api_device_reissue)
