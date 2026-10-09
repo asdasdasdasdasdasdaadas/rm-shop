@@ -1,4 +1,3 @@
-import { DesignExperiment } from "./design-experiment";
 import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
@@ -171,15 +170,13 @@ export function StatisticsPage() {
   const s = snapshot.data || {};
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-      <TabsList className="h-auto w-full grid grid-cols-2 sm:grid-cols-6">
+      <TabsList className="h-auto w-full grid grid-cols-2 sm:grid-cols-5">
         <TabsTrigger value="dynamics">Динамика</TabsTrigger>
         <TabsTrigger value="funnel">Воронка</TabsTrigger>
         <TabsTrigger value="onboarding">Первый вход</TabsTrigger>
         <TabsTrigger value="retention">Возврат клиентов</TabsTrigger>
         <TabsTrigger value="current">Сервис сейчас</TabsTrigger>
-        <TabsTrigger value="design">A/B дизайн</TabsTrigger>
       </TabsList>
-      <TabsContent value="design"><DesignExperiment/></TabsContent>
       <TabsContent value="dynamics" className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

@@ -749,22 +749,3 @@ CREATE TABLE IF NOT EXISTS ambassador_notifications (
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS ambassador_notices_due ON ambassador_notifications(retry_at) WHERE status='pending';
-
--- Stable account assignment; exposure is acknowledged only after rendering.
-CREATE TABLE IF NOT EXISTS design_exposures (
-    experiment TEXT NOT NULL,
-    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
-    variant TEXT NOT NULL CHECK(variant IN ('classic','modern')),
-    existing_customer BOOLEAN NOT NULL,
-    connection_eligible BOOLEAN NOT NULL,
-    exposed_at TIMESTAMPTZ,
-    PRIMARY KEY(experiment,telegram_id)
-);
-CREATE TABLE IF NOT EXISTS design_events (
-    experiment TEXT NOT NULL,
-    telegram_id BIGINT NOT NULL,
-    stage TEXT NOT NULL CHECK(stage IN ('topup','wizard')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY(experiment,telegram_id,stage),
-    FOREIGN KEY(experiment,telegram_id) REFERENCES design_exposures ON DELETE CASCADE
-);

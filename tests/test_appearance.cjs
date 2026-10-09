@@ -7,10 +7,11 @@ function setup(saved,{blocked=false,dark=false,telegram=null,elements={}}={}){
  const ctx=vm.createContext({document:{documentElement:root,querySelectorAll:()=>[],getElementById:id=>elements[id]||null,addEventListener:(name,fn)=>callbacks[name]=fn},window:win,Event,localStorage:{getItem:key=>{if(blocked)throw Error('blocked');return storage[key]},setItem:(key,value)=>{if(blocked)throw Error('blocked');storage[key]=value}}});
  vm.runInContext(source,ctx);return{api:win.WayAppearance,root,storage,media,callbacks};
 }
-test('classic stays default and invalid settings fall back safely',()=>{for(const value of [null,'bad','{"design":"other","theme":"other"}']){const s=setup(value);assert.equal(s.root.dataset.design,'classic');assert.equal(s.root.dataset.colorScheme,'light');}});
-test('modern preferences persist without overwriting classic color',()=>{const s=setup(null);s.api.choose('design','modern');s.api.choose('theme','dark');assert.equal(s.root.dataset.theme,'pink');const restored=setup(s.storage.way_appearance_v1);assert.equal(restored.root.dataset.design,'modern');assert.equal(restored.root.dataset.colorScheme,'dark');restored.api.choose('design','classic');assert.equal(restored.root.dataset.theme,'pink');});
-test('storage denial still allows switching for the current session',()=>{const s=setup(null,{blocked:true});s.api.choose('design','modern');s.api.choose('theme','light');assert.equal(s.root.dataset.design,'modern');assert.equal(s.root.dataset.colorScheme,'dark');});
-test('system mode follows platform, explicit mode stays fixed',()=>{const s=setup(null);s.media.matches=true;s.callbacks.media();assert.equal(s.root.dataset.colorScheme,'dark');s.api.choose('theme','light');s.callbacks.media();assert.equal(s.root.dataset.colorScheme,'light');const telegram={initData:'signed',colorScheme:'dark'};const t=setup(null,{telegram});assert.equal(t.root.dataset.colorScheme,'dark');telegram.colorScheme='light';t.api.apply();assert.equal(t.root.dataset.colorScheme,'light');});
+test('dark modern is the only design, including saved classic and blocked storage',()=>{
+ for(const saved of [null,'bad',JSON.stringify({design:'classic',theme:'light'}),JSON.stringify({design:'modern',theme:'system'})]){
+  for(const blocked of [false,true]){const s=setup(saved,{blocked});assert.equal(s.root.dataset.design,'modern');assert.equal(s.root.dataset.colorScheme,'dark');assert.equal(s.root.dataset.theme,'black');s.api.choose('design','classic');s.api.choose('theme','light');s.api.assign({active:true,variant:'classic'});assert.equal(s.root.dataset.design,'modern');assert.equal(s.root.dataset.colorScheme,'dark');}
+ }
+});
 
 test('overview respects gifts, exhausted access, prepaid time, paused billing and separate routers',()=>{
  const elements=Object.fromEntries(['modernRemaining','modernRemainingLabel','modernDeviceRate'].map(id=>[id,{textContent:'',dataset:{}}]));
@@ -28,5 +29,3 @@ test('overview respects gifts, exhausted access, prepaid time, paused billing an
  api.paintSummary({...base,devices:[{platform:'ios'},{kind:'router'}]},{hours:72,empty:false});assert.match(elements.modernDeviceRate.textContent,/6 ₽/);
  api.paintSummary({balance_enabled:false,has_access:false},{hours:0,empty:false});assert.equal(value(),'0');assert.match(label(),/Продлите/);
 });
-
-test('experiment pins the server variant, dark-only, and restores preference on stop',()=>{const s=setup(JSON.stringify({design:'modern',theme:'light'}));assert.equal(s.root.dataset.colorScheme,'dark');s.api.assign({active:true,id:'test',variant:'classic'});assert.equal(s.root.dataset.design,'classic');s.api.choose('design','modern');assert.equal(s.root.dataset.design,'classic');s.api.assign({active:true,id:'test',variant:'modern'});assert.equal(s.root.dataset.colorScheme,'dark');s.api.assign({active:false});assert.equal(s.root.dataset.design,'modern');});

@@ -32,7 +32,7 @@ const shots=fs.mkdtempSync(path.join(os.tmpdir(),'beta-motion-'));
  assert.ok(await page.locator('.faq-a').isVisible(),'reduced motion still opens answers');
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.evaluate(()=>{openHome();WayAppearance.choose('design','classic');});
- assert.equal(await page.locator('#view-home .status-card').evaluate(el=>el.getAnimations().filter(a=>a.constructor.name==='Animation').length),0,'classic cancels beta animations');
+ assert.equal(await page.evaluate(()=>document.documentElement.dataset.design),'modern','old preference cannot restore classic');
  await page.evaluate(()=>{WayAppearance.choose('design','modern');openHome();});await page.waitForTimeout(600);
  await page.evaluate(()=>openSettings());await page.waitForTimeout(100);await page.screenshot({path:path.join(shots,'transition.png'),animations:'allow'});await page.waitForTimeout(600);
  await page.screenshot({path:path.join(shots,'settled.png')});

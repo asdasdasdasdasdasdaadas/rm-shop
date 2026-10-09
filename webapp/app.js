@@ -58,41 +58,6 @@ function applyTheme() {
   } catch (_e) {}
 }
 
-const THEME_KEY = "way_theme_v1";
-const APP_THEMES = ["green", "black", "pink", "purple", "orange", "yellow"];
-
-function currentTheme() {
-  const t = document.documentElement.getAttribute("data-theme") || "green";
-  return APP_THEMES.indexOf(t) >= 0 ? t : "green";
-}
-
-function paintThemePicker() {
-  const on = currentTheme();
-  document.querySelectorAll(".theme-swatch").forEach((btn) => {
-    btn.classList.toggle("is-on", btn.getAttribute("data-theme-id") === on);
-  });
-}
-
-function setAppTheme(id) {
-  const theme = APP_THEMES.indexOf(id) >= 0 ? id : "green";
-  document.documentElement.setAttribute("data-theme", theme);
-  try {
-    localStorage.setItem(THEME_KEY, theme);
-  } catch (_e) {}
-  applyTheme();
-  paintThemePicker();
-}
-
-function initAppTheme() {
-  let t = "green";
-  try {
-    t = localStorage.getItem(THEME_KEY) || "green";
-  } catch (_e) {}
-  setAppTheme(t);
-}
-
-initAppTheme();
-
 function isPcWebApp() {
   const plat = String(tg.platform || "").toLowerCase();
   if (["tdesktop", "macos", "web", "weba", "webk", "unigram"].includes(plat)) return true;
@@ -1124,7 +1089,6 @@ lowBalanceGrab.addEventListener("pointerup", finishLowBalanceDrag);
 lowBalanceGrab.addEventListener("pointercancel", finishLowBalanceDrag);
 
 function showApp() {
-  trackDesignExposure();
   const wasHidden = $("app").classList.contains("hidden");
   hideIntro();
   hideDecoy();
@@ -2094,8 +2058,6 @@ function openHome() {
 }
 
 function openTopup() {
-  trackDesign("exposure");
-  trackDesign("topup");
   const me = window.__me;
   if (!me) return;
   screen = "topup";
@@ -2455,7 +2417,6 @@ function openSettings() {
   screen = "settings";
   switchView("view-settings", "push");
   setMain("");
-  paintThemePicker();
   try {
     tg.BackButton.show();
   } catch (_e) {}
@@ -2832,21 +2793,6 @@ function paintOffer(me) {
   }
 }
 
-const designEventsSent = new Set();
-let designEventQueue = Promise.resolve();
-function trackDesign(stage) {
-  const me = window.__me;
-  const config = me && me.design_experiment;
-  if (!config || !config.active || document.hidden || $("app").classList.contains("hidden")) return;
-  const key = `${me.user.id}:${config.id}:${stage}`;
-  if (designEventsSent.has(key)) return;
-  designEventsSent.add(key);
-  designEventQueue = designEventQueue.then(() => api("/api/design-event", {
-    method: "POST", body: JSON.stringify({stage, variant: config.variant})
-  })).catch(() => designEventsSent.delete(key));
-}
-function trackDesignExposure() { requestAnimationFrame(() => trackDesign("exposure")); }
-
 const onboardingEventsSent = new Set();
 function trackOnboarding(stage) {
   const me = window.__me;
@@ -3134,8 +3080,6 @@ function startWizard(opts) {
     tg.showAlert("Можно подключить не больше " + cap + " устройств");
     return;
   }
-  trackDesign("exposure");
-  trackDesign("wizard");
   if (!(opts && opts.instant)) haptic();
   hideCoach();
   wiz.step = 1;
@@ -4120,7 +4064,6 @@ function paintTrialNotice(me) {
 }
 
 function paint(me) {
-  if (window.WayAppearance) window.WayAppearance.assign(me.design_experiment);
   if (me) me.balance_enabled = true;
   applyVpnApps(me.vpn_apps);
   if (me.brand_name) document.title = me.brand_name;
@@ -4196,7 +4139,6 @@ function paint(me) {
   renderDevices(me);
   window.__me = me;
   trackOnboarding("cabinet");
-  trackDesignExposure();
   if (me.first_device_thanks_pending) armThanksOnClose();
   if (screen === "device" && openDevice) {
     const fresh = me.devices.find((x) => x.id === openDevice.id);
@@ -4875,14 +4817,6 @@ if ($("menuSettings")) {
     closeMenu();
     haptic();
     openSettings();
-  };
-}
-if ($("themeList")) {
-  $("themeList").onclick = (e) => {
-    const btn = e.target.closest(".theme-swatch");
-    if (!btn) return;
-    haptic();
-    setAppTheme(btn.getAttribute("data-theme-id"));
   };
 }
 if ($("offerTry")) $("offerTry").onclick = () => startOfferTry();

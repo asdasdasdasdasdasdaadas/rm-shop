@@ -14,7 +14,6 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     errors = [],
     posts = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  let experimentActive = true;
   let authenticated = false,
     failBalance = true,
     failSettings = true,
@@ -191,13 +190,6 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
         page: Number(url.searchParams.get("page") || 1),
         limit: 25,
       };
-      if (key === "design-experiment") {
-        if (method === "POST") experimentActive = payload.active;
-        data = {...data, active: experimentActive, rows: [
-          {variant:"classic",existing_customer:false,exposed:100,topup:30,wizard:40,mature:80,paid:16,connection_base:80,connected:32},
-          {variant:"modern",existing_customer:false,exposed:100,topup:45,wizard:55,mature:80,paid:24,connection_base:80,connected:40}
-        ]};
-      }
       if (key === "statistics/winback")
         data = {
           ...data,
@@ -590,15 +582,6 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     path: path.join(screenshots, "winback.png"),
     fullPage: true,
   });
-  await page.getByRole("tab", { name: "A/B дизайн", exact: true }).click();
-  await page.getByText("24 / 80 · 30.0%", {exact:true}).waitFor();
-  await page.getByRole("button", {name:"Остановить тест",exact:true}).click();
-  await page.getByText("Тест остановлен", {exact:true}).waitFor();
-  assert.equal(posts.find(p=>p.key==='design-experiment').payload.active,false);
-  await page.getByRole("button", {name:"Продолжить тест",exact:true}).click();
-  await page.getByText("Тест идёт", {exact:true}).waitFor();
-  await accessibility("Design experiment");
-  await page.screenshot({path:path.join(screenshots,"design-experiment.png"),fullPage:true});
   await page.getByRole("tab", { name: "Сервис сейчас", exact: true }).click();
   await page.getByText("Состояние сервиса сейчас", { exact: true }).waitFor();
   await page.getByRole("tab", { name: "Динамика", exact: true }).click();

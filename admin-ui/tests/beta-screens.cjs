@@ -8,6 +8,7 @@ const shots=fs.mkdtempSync(path.join(os.tmpdir(),'beta-screens-'));
  await context.addInitScript(()=>{localStorage.setItem('way_lk_token','test');sessionStorage.setItem('way_intro_v4','1');localStorage.setItem('way_home_coach_v2','1');});
  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  const me={user:{name:'Александр',username:'alex'},balance_rub:360,topup_min:50,topup_max:10000,topup_step:50,balance_enabled:true,days_left:30,day_price_rub:6,vpn_day_price_rub:6,has_paid_topup:true,has_access:true,trial_available:false,promo_enabled:true,notification_settings_available:true,devices:[],legal:{offer:'#',privacy:'#'},invite_url:'https://t.me/test?start=ref_1',referral_program_enabled:true,referral_terms:{note:'50 ₽ за друга и 5% от пополнений'},topup_plans:[{code:'topup_300',title:'300 ₽',rub:300,amount:300}],trust:{enabled:false}};
+ me.faq=[{q:'Как подключить VPN?',a:'Добавьте устройство в кабинете и откройте ссылку в приложении.'}];
  await page.route('**/*',route=>{const url=new URL(route.request().url());if(url.host!=='cabinet.test')return route.fulfill({body:'',contentType:'application/javascript'});if(url.pathname.startsWith('/api/'))return route.fulfill({json:url.pathname==='/api/me'?me:{ok:true,items:[]}});const rel=url.pathname==='/'?'index.html':url.pathname.replace(/^\/(static\/)?/,'');const file=path.resolve(__dirname,'../../webapp',rel);return fs.existsSync(file)?route.fulfill({path:file}):route.fulfill({status:404,body:''});});
 
  await page.goto('http://cabinet.test/');await page.locator('#app:not(.hidden)').waitFor();
@@ -56,7 +57,7 @@ const shots=fs.mkdtempSync(path.join(os.tmpdir(),'beta-screens-'));
  await page.evaluate(()=>{window.__me.topup_min=210;window.__me.topup_max=250;renderTopup(window.__me);});
  assert.equal(await page.locator('#topupGrid button').count(),1);assert.match(await page.locator('#topupGrid button').textContent(),/210/);
  await page.evaluate(()=>{window.__me.topup_min=50;window.__me.topup_max=10000;WayAppearance.choose('design','classic');renderTopup(window.__me);});
- assert.equal(await page.locator('#topupGrid button').count(),9);
+ assert.equal(await page.locator('#topupGrid button').count(),4);
  await page.evaluate(()=>{WayAppearance.choose('design','modern');renderTopup(window.__me);});
  const bar=await page.locator('#appMainBar').boundingBox();assert.ok(bar.width<=480);
  await shot('desktop-topup');
