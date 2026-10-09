@@ -37,3 +37,7 @@
 `modern-motion.js` и `modern-motion.css`: последовательное появление карточек (380 мс, задержка до 140 мс), движение вперёд/назад, отклик кнопок и выбора, переходы шагов, раскрытие FAQ, меню и модальных окон. Цифра оставшегося доступа обновляется коротким затуханием без промежуточных выдуманных значений. Эффекты не блокируют обработчики и не откладывают навигацию. При смене экрана, темы, дизайна, скрытии вкладки или включении уменьшения движения незавершённые JS-анимации отменяются. Бесконечных декоративных циклов нет.
 
 `node admin-ui/tests/beta-motion.cjs` проверяет реальные браузерные анимации, быстрые переходы, раскрытие/закрытие FAQ, системное уменьшение движения и изоляцию классического дизайна. Проверка обычных экранов по-прежнему выполняется с уменьшенным движением.
+
+### Responsiveness polish
+
+Profile photos fall back to a local placeholder without repeatedly requesting broken URLs. Long usernames truncate on narrow screens; profile menu and referral actions have at least 44px touch targets. Selected appearance options use contrasting foreground/background colors. Main actions expose aria-busy and a progress indicator, reset when a new action is installed. Hover no longer overrides pressed feedback; promo fields and toast messages enter with short animations. Reduced-motion disables these animations. The beta no longer includes the Froggo mascot.

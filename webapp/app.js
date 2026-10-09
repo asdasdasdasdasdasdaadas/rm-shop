@@ -1235,6 +1235,7 @@ function setMainBusy(busy) {
   const btn = $("appMainBtn");
   if (!btn) return;
   btn.disabled = Boolean(busy);
+  btn.setAttribute("aria-busy", String(Boolean(busy)));
 }
 
 function setMain(text, fn) {
@@ -1250,7 +1251,7 @@ function setMain(text, fn) {
     return;
   }
   btn.textContent = text;
-  btn.disabled = false;
+  setMainBusy(false);
   bar.classList.remove("hidden");
   document.body.classList.add("has-main-btn");
 }
@@ -4106,10 +4107,15 @@ function paint(me) {
   $("login").textContent = me.user.username || "имя пользователя не указано";
   const avatar = $("avatar");
   const photo = me.user.photo || "";
-  if (photo) {
-    if (avatar.getAttribute("src") !== photo) avatar.src = photo;
-  } else if (avatar.getAttribute("src")) {
-    avatar.removeAttribute("src");
+  const fallback = "/icons/profile-placeholder.svg";
+  avatar.onerror = () => {
+    avatar.onerror = null;
+    avatar.src = fallback;
+  };
+  // Remember the requested photo so periodic refreshes do not retry a broken URL.
+  if (avatar.dataset.photo !== photo || !avatar.getAttribute("src")) {
+    avatar.dataset.photo = photo;
+    avatar.src = photo || fallback;
   }
   paintStatus(me);
   paintTrialNotice(me);

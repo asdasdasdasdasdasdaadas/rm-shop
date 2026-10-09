@@ -131,6 +131,14 @@ html[data-design="modern"] .login-form input { min-height: 50px; }
 html[data-design="modern"] .maint-title { font-size: 30px; }
 html[data-design="modern"] .app-toast { color: var(--text-primary); background: var(--bg-surface); border-color: var(--divider); }
 
-/* Froggo is a small decorative accent, not the color palette. */
-html[data-design="modern"] .home-nav .modern-frog { width: 32px; height: 32px; object-fit: contain; flex: 0 0 32px; }
-html[data-design="modern"] .offer-stage::before { width: 72px; height: 72px; background-image: url('/icons/froggo-smile.png'); }
+
+/* Keep the profile readable with long names and narrow Telegram windows. */
+html[data-design="modern"] .home-nav .login { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-design="modern"] .home-nav #menuBtn { flex: 0 0 44px; width: 44px; height: 44px; }
+html[data-design="modern"] #refHomeCard .ref-banner-btn { min-height: 44px; min-width: 44px; }
+html[data-design="modern"] .appearance-options button[aria-pressed="true"] { background: var(--accent); color: var(--btn-text); border-color: var(--accent); box-shadow: 0 2px 8px #0002; }
+html[data-design="modern"] #appMainBtn[aria-busy="true"] { position: relative; opacity: .8; padding-inline: 42px; cursor: progress; }
+html[data-design="modern"] #appMainBtn[aria-busy="true"]::after { content: ""; position: absolute; right: 16px; top: calc(50% - 8px); width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; }
+@media (max-width: 359px) {
+ html[data-design="modern"] .home-nav .account-row { gap: 8px; padding-inline: 10px; }
+}
