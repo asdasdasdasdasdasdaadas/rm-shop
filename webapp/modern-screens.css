@@ -2,7 +2,8 @@
 html[data-design="modern"] { --danger: #b42318; --danger-soft: #fff0ed; --screen-gap: 20px; }
 html[data-design="modern"][data-color-scheme="dark"] { --danger: #ffb4a9; --danger-soft: #342325; }
 html[data-design="modern"] #app .view:not(#view-home) { padding-bottom: 24px; }
-html[data-design="modern"] .view:not(#view-home) .view-head { padding: 16px 0 20px; margin: 0; }
+/* Telegram reserves device and native control insets; keep both above every screen header. */
+html[data-design="modern"] .view:not(#view-home) .view-head { padding: calc(var(--app-safe-top, 0px) + 16px) 0 20px; margin: 0; }
 html[data-design="modern"] .view:not(#view-home) .wiz-title { font-size: clamp(26px,7vw,34px); line-height: 1.08; font-weight: 780; letter-spacing: -.045em; text-wrap: balance; }
 html[data-design="modern"] .wiz-kicker { color: var(--text-secondary); font-size: 10px; letter-spacing: .12em; margin-bottom: 10px; }
 html[data-design="modern"] :is(.section-note,.topup-hint,.support-meta,.article-copy) { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
@@ -142,3 +143,6 @@ html[data-design="modern"] #appMainBtn[aria-busy="true"]::after { content: ""; p
 @media (max-width: 359px) {
  html[data-design="modern"] .home-nav .account-row { gap: 8px; padding-inline: 10px; }
 }
+
+/* In a browser the visible Back control already owns the safe top inset. */
+html[data-design="modern"] body:has(#webBack:not(.hidden)) .view:not(#view-home) .view-head { padding-top: 16px; }
