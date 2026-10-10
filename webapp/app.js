@@ -87,10 +87,10 @@ function applyViewport() {
   root.classList.toggle("is-fullscreen", fs);
   root.style.setProperty("--app-vh", h + "px");
   root.style.setProperty("--app-svh", sh + "px");
-  root.style.setProperty("--app-safe-top", (fs ? Math.max(top, 62) : top) + "px");
-  root.style.setProperty("--app-safe-bottom", bottom + "px");
-  root.style.setProperty("--app-safe-left", left + "px");
-  root.style.setProperty("--app-safe-right", right + "px");
+  root.style.setProperty("--app-safe-top", `max(env(safe-area-inset-top, 0px), ${fs ? Math.max(top, 62) : top}px)`);
+  root.style.setProperty("--app-safe-bottom", `max(env(safe-area-inset-bottom, 0px), ${bottom}px)`);
+  root.style.setProperty("--app-safe-left", `max(env(safe-area-inset-left, 0px), ${left}px)`);
+  root.style.setProperty("--app-safe-right", `max(env(safe-area-inset-right, 0px), ${right}px)`);
   syncPcLayout();
 }
 
@@ -109,7 +109,7 @@ function requestMiniAppFullscreen() {
 applyTheme();
 applyViewport();
 requestMiniAppFullscreen();
-window.addEventListener("resize", syncPcLayout);
+window.addEventListener("resize", applyViewport);
 
 let navScrollY = 0;
 function syncNavScroll() {

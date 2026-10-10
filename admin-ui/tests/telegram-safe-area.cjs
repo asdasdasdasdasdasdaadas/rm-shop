@@ -13,19 +13,25 @@ const shots=fs.mkdtempSync(path.join(os.tmpdir(),'beta-screens-'));
 
  await page.goto('http://cabinet.test/');await page.locator('#app:not(.hidden)').waitFor();
 
- for (const [system, controls] of [[47,56],[59,56],[0,0]]) {
-  await page.evaluate(({system,controls})=>{
-   tg.initData='telegram-test';tg.isFullscreen=system>0;
-   tg.safeAreaInset={top:system,bottom:34};tg.contentSafeAreaInset={top:controls};applyViewport();
-  },{system,controls});
+ for (const [width,height,system,controls,side] of [
+  [320,740,20,56,0], [390,844,47,56,0], [430,932,59,56,0],
+  [360,800,24,56,0], [412,915,32,56,0], [844,390,0,56,47],
+  [768,1024,24,56,0], [1024,768,24,56,0], [1440,900,0,0,0]
+ ]) {
+  await page.setViewportSize({width,height});
+  await page.evaluate(({system,controls,side})=>{
+   tg.initData='telegram-test';tg.isFullscreen=controls>0;
+   tg.safeAreaInset={top:system,bottom:34,left:side,right:side};tg.contentSafeAreaInset={top:controls};applyViewport();
+  },{system,controls,side});
   for(const action of ['openSettings()','openTopup()','openPayMethod({code:"topup_300",rub:300,amount:300})','startWizard({instant:true})','showDevice({id:1,title:"Мой iPhone",platform:"ios",active:true,subscription_url:"https://example.test/sub/test"})','openReferrals()','openPromo()','openFaq("home")','openSupport()','openHome()']) {
    await page.evaluate(action);
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`${width} ${action}: horizontal overflow`);
    const header=page.locator('.view:not(.hidden) .view-head');
    const top=await header.evaluate(el=>{
     const child=Array.from(el.children).find(n=>n.getClientRects().length);
     return child.getBoundingClientRect().top;
    });
-   assert.ok(top>=system+controls,`${action}: ${top} overlaps ${system+controls}`);
+   assert.ok(top>=(controls ? Math.max(system+controls,62) : system),`${action}: ${top} overlaps ${system+controls}`);
    assert.ok(top<system+controls+65,`${action}: doubled inset ${top}`);
    if(action.startsWith('startWizard') && system===47) await page.screenshot({path:path.join(shots,'telegram-wizard.png')});
   }
