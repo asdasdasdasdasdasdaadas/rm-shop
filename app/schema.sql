@@ -379,9 +379,14 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_invitee_bonus_at TIMESTAMPTZ
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS idle_nudge_step INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS idle_nudge_at TIMESTAMPTZ;
+DROP INDEX IF EXISTS users_idle_nudge_idx;
 CREATE INDEX IF NOT EXISTS users_idle_nudge_idx
     ON users (idle_nudge_step)
-    WHERE blocked_at IS NULL AND idle_nudge_step < 20;
+    WHERE blocked_at IS NULL AND idle_nudge_step < 45;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS nodevice_nudge_step INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS nodevice_nudge_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS unpaid_nudge_step INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS unpaid_nudge_at TIMESTAMPTZ;
 
 DROP TABLE IF EXISTS auto_topups;
 
@@ -714,8 +719,11 @@ CREATE TABLE IF NOT EXISTS ambassadors (
  telegram_id BIGINT PRIMARY KEY, application TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending'
  CHECK(status IN('pending','approved','rejected','suspended')),
  token TEXT NOT NULL UNIQUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), approved_at TIMESTAMPTZ,
- reviewed_at TIMESTAMPTZ, review_note TEXT NOT NULL DEFAULT '', risk_hold BOOLEAN NOT NULL DEFAULT FALSE
+ reviewed_at TIMESTAMPTZ, review_note TEXT NOT NULL DEFAULT '', risk_hold BOOLEAN NOT NULL DEFAULT FALSE,
+ applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE ambassadors ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ;
+UPDATE ambassadors SET applied_at = created_at WHERE applied_at IS NULL;
 CREATE TABLE IF NOT EXISTS ambassador_clients (
  telegram_id BIGINT PRIMARY KEY, ambassador_id BIGINT NOT NULL REFERENCES ambassadors(telegram_id),
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), CHECK(telegram_id<>ambassador_id)
@@ -751,3 +759,6 @@ CREATE TABLE IF NOT EXISTS ambassador_notifications (
 CREATE INDEX IF NOT EXISTS ambassador_notices_due ON ambassador_notifications(retry_at) WHERE status='pending';
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ambassador_invite_sent_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ambassador_invite_step INTEGER NOT NULL DEFAULT 0;
+UPDATE users SET ambassador_invite_step = 1
+WHERE ambassador_invite_sent_at IS NOT NULL AND ambassador_invite_step = 0;

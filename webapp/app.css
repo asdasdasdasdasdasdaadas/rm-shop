@@ -5926,5 +5926,7 @@ html.is-decoy .decoy:has(#decoySerp:not(.hidden)) .decoy-bar {
 .amb-stats strong { font-size: 20px; overflow-wrap: anywhere; }
 .amb-stats span, .amb-history small { font-size: 12px; opacity: .7; }
 .amb-card progress { width: 100%; accent-color: var(--accent); }
+.amb-balance { margin: 0; }
+.amb-balance strong { font-size: 28px; font-weight: 700; }
 .amb-history { padding: 12px 0; border-top: 1px solid var(--divider); }
 .amb-notice { font-weight: 600; }

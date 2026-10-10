@@ -236,8 +236,10 @@ async def apply(uid, application):
             if row and row["status"] != "rejected":
                 raise ValueError("Заявка уже подана")
             await conn.execute(
-                """INSERT INTO ambassadors(telegram_id,application,token) VALUES($1,$2,$3)
-                ON CONFLICT(telegram_id) DO UPDATE SET application=$2,status='pending',review_note='',reviewed_at=NULL""",
+                """INSERT INTO ambassadors(telegram_id,application,token,applied_at)
+                VALUES($1,$2,$3,NOW())
+                ON CONFLICT(telegram_id) DO UPDATE SET application=$2,status='pending',review_note='',
+                    reviewed_at=NULL,applied_at=NOW()""",
                 uid,
                 application,
                 secrets.token_urlsafe(15),
@@ -553,6 +555,84 @@ async def admin_action(data):
             raise ValueError("Неизвестное действие")
 
 
+APPROVE_AFTER = "5 minutes"
+
+
+async def approve_due_applications() -> int:
+    """Approve applications submitted exactly five minutes ago. The member is not told the wait is fixed."""
+    async with db._pool_req().acquire() as conn:
+        async with conn.transaction():
+            await lock(conn)
+            cfg = await settings(conn)
+            active = int(
+                await conn.fetchval(
+                    "SELECT COUNT(*) FROM ambassadors WHERE status='approved'"
+                )
+                or 0
+            )
+            slots = int(cfg["max_members"]) - active
+            if slots <= 0:
+                return 0
+            rows = await conn.fetch(
+                f"""SELECT telegram_id FROM ambassadors
+                    WHERE status='pending'
+                      AND COALESCE(applied_at, created_at) <= NOW() - INTERVAL '{APPROVE_AFTER}'
+                    ORDER BY COALESCE(applied_at, created_at), telegram_id
+                    LIMIT $1
+                    FOR UPDATE""",
+                slots,
+            )
+            for row in rows:
+                uid = int(row["telegram_id"])
+                await conn.execute(
+                    """UPDATE ambassadors
+                       SET status='approved', approved_at=COALESCE(approved_at,NOW()), reviewed_at=NOW()
+                       WHERE telegram_id=$1 AND status='pending'""",
+                    uid,
+                )
+                await audit(conn, "approve", uid, {})
+                await notify(
+                    conn,
+                    uid,
+                    "🎉 Вы стали амбассадором! Личная ссылка и условия доступны в кабинете, в разделе «Амбассадор».",
+                )
+            return len(rows)
+
+
+async def seconds_until_application_review():
+    value = await db._pool_req().fetchval(
+        f"""SELECT EXTRACT(EPOCH FROM (COALESCE(applied_at, created_at) + INTERVAL '{APPROVE_AFTER}' - NOW()))
+            FROM ambassadors WHERE status='pending'
+            ORDER BY COALESCE(applied_at, created_at), telegram_id
+            LIMIT 1"""
+    )
+    return None if value is None else float(value)
+
+
+async def application_review_loop(bot) -> None:
+    import asyncio
+    import logging
+
+    logger = logging.getLogger(__name__)
+    while True:
+        delay = 30.0
+        try:
+            approved = await approve_due_applications()
+            if approved:
+                await deliver_notifications(bot)
+            wait = await seconds_until_application_review()
+            if wait is None:
+                delay = 30.0
+            elif wait <= 0:
+                delay = 30.0 if not approved else 0.0
+            else:
+                delay = wait
+        except Exception:
+            logger.exception("Ambassador applications will be reviewed again")
+            delay = 30.0
+        await asyncio.sleep(delay)
+
+
 async def deliver_notifications(bot):
     import logging
     from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
@@ -629,20 +709,89 @@ async def recruitment_offer(cfg=None):
     return cfg
 
 
-async def due_invitations(limit, skip_ids):
-    rows = await db._pool_req().fetch('''SELECT u.telegram_id,u.first_name FROM users u
-        WHERE u.ambassador_invite_sent_at IS NULL AND u.has_paid_topup
+def _invitation_filters(price_param):
+    return f'''u.has_paid_topup
           AND u.first_online_at <= NOW()-INTERVAL '7 days'
-          AND u.balance_rub >= $3 * GREATEST(1,(SELECT COUNT(*) FROM devices d
+          AND u.balance_rub >= {price_param} * GREATEST(1,(SELECT COUNT(*) FROM devices d
               WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'')<>'router'))
           AND EXISTS(SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id AND d.last_online_at>NOW()-INTERVAL '3 days')
           AND u.bot_started_at IS NOT NULL AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
           AND NOT u.quiet_notifications AND u.vpn_feedback IS DISTINCT FROM 'help'
           AND NOT EXISTS(SELECT 1 FROM ambassadors a WHERE a.telegram_id=u.telegram_id)
-          AND NOT EXISTS(SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status<>'closed')
+          AND NOT EXISTS(SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status<>'closed')'''
+
+
+async def due_invitations(limit, skip_ids, *, first_only=False):
+    price = max(1, get_settings().vpn_day_price_rub) * 3
+    stage = "u.ambassador_invite_sent_at IS NULL" if first_only else '''(
+            u.ambassador_invite_sent_at IS NULL
+            OR (COALESCE(u.ambassador_invite_step,0) < 2
+                AND u.ambassador_invite_sent_at <= NOW()-INTERVAL '7 days')
+          )'''
+    rows = await db._pool_req().fetch(
+        f'''SELECT u.telegram_id,u.first_name,
+            CASE WHEN u.ambassador_invite_sent_at IS NULL THEN 1 ELSE 2 END AS nudge_step
+        FROM users u
+        WHERE {_invitation_filters('$3')}
+          AND {stage}
           AND NOT (u.telegram_id=ANY($2::bigint[]))
-        ORDER BY u.first_online_at LIMIT $1''', int(limit), list(skip_ids or []), max(1,get_settings().vpn_day_price_rub)*3)
+        ORDER BY u.first_online_at LIMIT $1''',
+        int(limit), list(skip_ids or []), price)
     return [dict(row) for row in rows]
+
+
+async def invitation_audience_count():
+    if not await recruitment_offer():
+        return 0
+    price = max(1, get_settings().vpn_day_price_rub) * 3
+    value = await db._pool_req().fetchval(
+        f'''SELECT COUNT(*)::int FROM users u
+            WHERE {_invitation_filters('$1')} AND u.ambassador_invite_sent_at IS NULL''',
+        price)
+    return int(value or 0)
+
+
+def _invitation_stage(first_only):
+    if first_only:
+        return "u.ambassador_invite_sent_at IS NULL"
+    return '''(
+            u.ambassador_invite_sent_at IS NULL
+            OR (COALESCE(u.ambassador_invite_step,0) < 2
+                AND u.ambassador_invite_sent_at <= NOW()-INTERVAL '7 days')
+          )'''
+
+
+async def due_earn_invitations(limit, skip_ids, *, first_only=False):
+    """People with no payment, or whose balance has already run out."""
+    rows = await db._pool_req().fetch(
+        f'''SELECT u.telegram_id, u.first_name, 'earn' AS segment,
+            CASE WHEN u.ambassador_invite_sent_at IS NULL THEN 1 ELSE 2 END AS nudge_step
+        FROM users u
+        WHERE u.bot_started_at IS NOT NULL
+          AND u.bot_started_at <= NOW()-INTERVAL '2 days'
+          AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
+          AND NOT u.quiet_notifications AND u.vpn_feedback IS DISTINCT FROM 'help'
+          AND NOT EXISTS(SELECT 1 FROM ambassadors a WHERE a.telegram_id=u.telegram_id)
+          AND NOT EXISTS(SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status<>'closed')
+          AND (
+                NOT COALESCE(u.has_paid_topup, FALSE)
+                OR (
+                    COALESCE(u.balance_rub, 0) <= 0
+                    AND (u.balance_exhausted_at IS NOT NULL OR u.trial_used OR u.gift_claimed_at IS NOT NULL)
+                )
+          )
+          AND {_invitation_stage(first_only)}
+          AND NOT (u.telegram_id=ANY($2::bigint[]))
+        ORDER BY u.bot_started_at, u.telegram_id
+        LIMIT $1''',
+        int(limit), list(skip_ids or []))
+    return [dict(row) for row in rows]
+
+
+async def mark_invitation_sent(telegram_id, step):
+    await db._pool_req().execute(
+        '''UPDATE users SET ambassador_invite_sent_at=NOW(), ambassador_invite_step=$2
+           WHERE telegram_id=$1''', int(telegram_id), int(step))
 
 
 def invitation_text(cfg):
@@ -652,4 +801,31 @@ def invitation_text(cfg):
         f"и {cfg['recurring_percent']}% следующих пополнений.\n\n"
         f"Вывод от {cfg['payout_min']} ₽. Начисления доступны через {cfg['hold_days']} дней.\n\n"
         'Есть канал, блог или сообщество? Расскажите о нём в заявке. Участие — после одобрения.'
+    )
+
+
+def invitation_followup_text(cfg):
+    return (
+        '🤝 Место в программе амбассадоров ещё открыто\n\n'
+        f"Вам — {cfg['first_percent']}% первого пополнения клиента, до {cfg['first_cap']} ₽, "
+        f"и {cfg['recurring_percent']}% следующих.\n\n"
+        'Если есть канал или сообщество, оставьте заявку в кабинете. Это займёт минуту.'
+    )
+
+
+def invitation_earn_text(cfg):
+    return (
+        '💸 VPN может приносить деньги.\n\n'
+        f"Станьте амбассадором: {cfg['first_percent']}% первого пополнения нового клиента, до {cfg['first_cap']} ₽, "
+        f"и {cfg['recurring_percent']}% следующих.\n\n"
+        f"Вывод от {cfg['payout_min']} ₽. Заявка — в кабинете, в разделе «Амбассадор»."
+    )
+
+
+def invitation_earn_followup_text(cfg):
+    return (
+        '💸 Напоминаем про заработок на рекомендациях.\n\n'
+        f"{cfg['first_percent']}% первого пополнения клиента, до {cfg['first_cap']} ₽, "
+        f"и {cfg['recurring_percent']}% следующих.\n\n"
+        'Если есть канал или знакомые, оставьте заявку в кабинете.'
     )

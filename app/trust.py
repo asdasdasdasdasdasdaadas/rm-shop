@@ -66,10 +66,12 @@ async def trust_info(telegram_id: int, local: dict | None, device_count: int) ->
         reason = "Обещанный платёж сейчас недоступен"
     elif open_loan:
         reason = "Уже есть незакрытый обещанный платёж"
+    elif not await db.trust_unlocked_by_topup(telegram_id):
+        reason = "Следующий обещанный платёж откроется после пополнения баланса"
     elif device_count < 1:
         reason = "Сначала добавьте устройство"
-    elif not paid and not (local or {}).get("first_online_at"):
-        reason = "Сначала подключите VPN. Потом можно взять сутки в долг, если баланс на исходе"
+    elif not paid:
+        reason = "Обещанный платёж откроется после пополнения баланса"
     elif balance > day:
         reason = "Средств пока достаточно. Обещанный платёж станет доступен, когда баланс будет заканчиваться"
     else:

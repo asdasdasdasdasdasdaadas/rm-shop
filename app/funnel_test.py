@@ -5,7 +5,7 @@ from app.config import get_settings
 from app.keyboards import (cabinet_keyboard, onboarding_keyboard, payment_nudge_keyboard,
                            share_keyboard, vpn_feedback_keyboard, support_welcome_keyboard, channel_keyboard)
 from app.notices import notice_text
-from app.nudge import trial_nudge_text, invite_nudge_text, info_nudge_text
+from app.nudge import trial_nudge_text, invite_nudge_text, info_nudge_text, _idle_notice_key
 from app.texts import days_text, rub_text
 from app.referrals import topup_ok_text
 
@@ -53,18 +53,40 @@ def catalog(telegram_id: int, ambassador_cfg=None) -> list[dict]:
         invite_nudge_text(telegram_id, 'Тестовый пользователь'), share_keyboard(s.bot_username, telegram_id))
     add('info', 'referral', 'Как устроен сервис', 'Через 96 часов после первого онлайна; пользовался за последние 7 дней; нет нерешённой проблемы',
         info_nudge_text(), cabinet_keyboard())
-    for days in (7, 20):
+    for days in (7, 10, 15, 20, 45):
         for segment, label in [('setup', 'не подключился'), ('topup', 'закончились деньги'), ('return', 'баланс есть')]:
             markup = onboarding_keyboard(gift=True) if segment == 'setup' else payment_nudge_keyboard(label='Пополнить баланс') if segment == 'topup' else vpn_feedback_keyboard(returning=True)
-            key = ('return_check' if days == 7 else 'return_last') if segment == 'return' else f'idle_{segment}_{days}'
+            key = _idle_notice_key(segment, days)
             add(f'{segment}_{days}', f'return_{segment}', f'Возврат: {label}, {days} дней',
-                f'{days} дней без использования; ветка «{label}»', notice_text(key), markup)
+                f'{days} дней без использования; ветка «{label}». Шаги идут по порядку: 7, 10, 15, 20 и 45 дней.', notice_text(key), markup)
+    add('nodevice_1', 'nodevice', 'Без устройства',
+        'Сутки после запуска бота, устройства нет. Повтор через 7 дней.',
+        notice_text('nodevice_1'), onboarding_keyboard(gift=True))
+    add('nodevice_2', 'nodevice', 'Без устройства, повтор',
+        'Прошла неделя после первого напоминания, устройства всё ещё нет.',
+        notice_text('nodevice_2'), onboarding_keyboard(gift=True))
+    add('unpaid_1', 'unpaid', 'Без первой оплаты',
+        'Двое суток после запуска. Есть устройство, был онлайн или уже пройдены оба напоминания про устройство. Оплат нет.',
+        notice_text('unpaid_1'), payment_nudge_keyboard(label='Пополнить баланс'))
+    add('unpaid_2', 'unpaid', 'Без первой оплаты, повтор',
+        'Прошла неделя после первого напоминания, оплаты всё ещё нет.',
+        notice_text('unpaid_2'), payment_nudge_keyboard(label='Пополнить баланс'))
     from app.ambassadors import invitation_text
     from app.keyboards import ambassador_keyboard
     cfg = ambassador_cfg or dict(first_percent=100,first_cap=500,recurring_percent=5,payout_min=2000,hold_days=14)
     add('ambassador','ambassador','Приглашение в амбассадоры',
-        'Один раз: платил, подключился не менее 7 дней назад и активен. Только при открытом наборе, начислениях и доступном бюджете.',
+        'Платил, подключился не менее 7 дней назад и был онлайн за последние 3 дня. Только при открытом наборе, начислениях и доступном бюджете.',
         invitation_text(cfg), ambassador_keyboard())
+    from app.ambassadors import invitation_followup_text, invitation_earn_text, invitation_earn_followup_text
+    add('ambassador_2','ambassador','Приглашение в амбассадоры, повтор',
+        'Через 7 дней после первого приглашения, если заявки всё ещё нет и условия те же.',
+        invitation_followup_text(cfg), ambassador_keyboard())
+    add('ambassador_earn','ambassador_earn','Заработок: баланс кончился или оплаты не было',
+        'Двое суток после запуска. Человек не платил или баланс уже закончился. Набор открыт.',
+        invitation_earn_text(cfg), ambassador_keyboard())
+    add('ambassador_earn_2','ambassador_earn','Заработок: повтор',
+        'Через 7 дней, если заявки всё ещё нет.',
+        invitation_earn_followup_text(cfg), ambassador_keyboard())
     for row in rows:
         kind = MESSAGE_KINDS.get(row['id'])
         row['kind'] = kind
@@ -79,25 +101,31 @@ def catalog(telegram_id: int, ambassador_cfg=None) -> list[dict]:
 
 
 MESSAGE_KINDS = {
-    'ambassador': 'nudge_ambassador',
+    'ambassador': 'nudge_ambassador', 'ambassador_2': 'nudge_ambassador',
+    'ambassador_earn': 'nudge_ambassador', 'ambassador_earn_2': 'nudge_ambassador',
     'winback': 'nudge_winback',
     'welcome': 'welcome_intro', 'intro': 'welcome_intro', 'support': 'welcome_intro',
     'resume_welcome': 'nudge_trial', 'resume_channel': 'nudge_trial', 'gift': 'nudge_trial', 'device': 'first_device_thanks', 'setup': 'nudge_device',
     'quality': 'nudge_first_online', 'ending': 'nudge_trial_end', 'empty': 'low_balance',
     'invoice': 'nudge_payment', 'invite': 'nudge_invite', 'info': 'nudge_info',
-    **{f'{segment}_{day}': 'nudge_idle' for segment in ('setup','topup','return') for day in (7,20)},
+    **{f'{segment}_{day}': 'nudge_idle' for segment in ('setup','topup','return') for day in (7,10,15,20,45)},
+    'nodevice_1': 'nudge_nodevice', 'nodevice_2': 'nudge_nodevice',
+    'unpaid_1': 'nudge_unpaid', 'unpaid_2': 'nudge_unpaid',
 }
 
 
 SCENARIOS = {
-    'ambassador': ('Амбассадорство', ['ambassador']),
+    'ambassador': ('Амбассадорство', ['ambassador', 'ambassador_2']),
+    'ambassador_earn': ('Заработок на рекомендациях', ['ambassador_earn', 'ambassador_earn_2']),
     'winback': ('Возвращение с промокодом', ['winback']),
     'start': ('Первое подключение', ['welcome', 'intro', 'support', 'gift', 'device', 'setup', 'quality']),
     'payment': ('Баланс и неоплаченный счёт', ['ending', 'empty', 'invoice', 'paid']),
     'referral': ('Приглашение друзей', ['invite']),
-    'return_setup': ('Возврат: не подключился', ['setup_7', 'setup_20']),
-    'return_topup': ('Возврат: нет денег', ['topup_7', 'topup_20']),
-    'return_return': ('Возврат: баланс есть', ['return_7', 'return_20']),
+    'return_setup': ('Возврат: не подключился', ['setup_7', 'setup_10', 'setup_15', 'setup_20', 'setup_45']),
+    'return_topup': ('Возврат: нет денег', ['topup_7', 'topup_10', 'topup_15', 'topup_20', 'topup_45']),
+    'return_return': ('Возврат: баланс есть', ['return_7', 'return_10', 'return_15', 'return_20', 'return_45']),
+    'nodevice': ('Без устройства', ['nodevice_1', 'nodevice_2']),
+    'unpaid': ('Без первой оплаты', ['unpaid_1', 'unpaid_2']),
 }
 
 

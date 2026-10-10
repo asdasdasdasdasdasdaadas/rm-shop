@@ -16,7 +16,7 @@ class AmbassadorInviteTest(unittest.IsolatedAsyncioTestCase):
     async def test_marks_only_success_and_uses_marketing_sender(self):
         for success in [False,True]:
             pool=SimpleNamespace(execute=AsyncMock())
-            with patch.object(db,'flag_on',AsyncMock(return_value=False)),patch.object(amb,'recruitment_offer',AsyncMock(return_value=CFG)),patch.object(amb,'due_invitations',AsyncMock(return_value=[dict(telegram_id=42,first_name='Иван')])),patch.object(nudge,'_deliver',AsyncMock(return_value=success)) as deliver,patch.object(db,'_pool_req',return_value=pool),patch.object(keyboards,'ambassador_keyboard',return_value=None):
+            with patch.object(db,'flag_on',AsyncMock(return_value=False)),patch.object(amb,'recruitment_offer',AsyncMock(return_value=CFG)),patch.object(amb,'due_invitations',AsyncMock(return_value=[dict(telegram_id=42,first_name='Иван')])),patch.object(amb,'due_earn_invitations',AsyncMock(return_value=[])),patch.object(nudge,'_deliver',AsyncMock(return_value=success)) as deliver,patch.object(db,'_pool_req',return_value=pool),patch.object(keyboards,'ambassador_keyboard',return_value=None):
                 sent,ids=await nudge.send_due_ambassador_nudges(None,[])
                 self.assertEqual(sent,int(success));self.assertEqual(ids,[42])
                 self.assertEqual(deliver.call_args.kwargs['kind'],'nudge_ambassador')
@@ -30,6 +30,8 @@ class AmbassadorInviteTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(markup.inline_keyboard[0][0].style,'success')
         self.assertEqual(markup.inline_keyboard[1][0].callback_data,'profile')
         self.assertIn('500 ₽',amb.invitation_text(CFG))
+        self.assertIn('500 ₽',amb.invitation_earn_text(CFG))
+        self.assertIn('деньги', amb.invitation_earn_text(CFG))
 
 import os
 @unittest.skipUnless(os.environ.get('PGLITE_MODULE'), 'Requires PostgreSQL test engine')

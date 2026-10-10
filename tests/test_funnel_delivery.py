@@ -65,7 +65,7 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
                     mark.assert_not_awaited()
                     await nudge.send_due_idle_nudges(self.bot)
                     mark.assert_awaited_once_with(1,days)
-                    text.assert_called_with(('return_check' if days == 7 else 'return_last') if segment == 'return' else f'idle_{segment}_{days}')
+                    text.assert_called_with(nudge._idle_notice_key(segment, days))
                     self.assertEqual(self.bot.send_message.call_args.kwargs['reply_markup'], funnel_keyboard(nudge.vpn_feedback_keyboard(returning=True) if segment == 'return' else InlineKeyboardMarkup(inline_keyboard=[])))
 
     async def test_device_created_message_is_next_step_and_skips_connected(self):
@@ -84,6 +84,15 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
             take.reset_mock()
             self.assertFalse(await nudge.send_first_device_thanks(self.bot,1))
             take.assert_not_awaited()
+
+
+class IdleNoticeKeyTest(IsolatedAsyncioTestCase):
+    def test_return_chain_keeps_existing_ends_and_adds_middle(self):
+        self.assertEqual(nudge._idle_notice_key('return', 7), 'return_check')
+        self.assertEqual(nudge._idle_notice_key('return', 10), 'idle_return_10')
+        self.assertEqual(nudge._idle_notice_key('return', 20), 'return_last')
+        self.assertEqual(nudge._idle_notice_key('setup', 15), 'idle_setup_15')
+        self.assertEqual(nudge._idle_notice_key('topup', 45), 'idle_comeback')
 
 
 class RetryPolicySqlTest(IsolatedAsyncioTestCase):
@@ -176,3 +185,10 @@ class IdleSelectionSqlTest(IsolatedAsyncioTestCase):
             conn.execute("INSERT INTO devices VALUES (6,'2026-09-13')")
             conn.execute("UPDATE users SET idle_nudge_at='2026-09-01' WHERE telegram_id=6")
             self.assertEqual([r['telegram_id'] for r in await db.list_due_idle_nudges()],[1,2,6])
+            # A long absence still starts at day 7. Later steps wait for their own day.
+            conn.execute("UPDATE users SET bot_started_at='2026-07-01',idle_nudge_at=NULL,idle_nudge_step=0 WHERE telegram_id=1")
+            self.assertEqual(next(r['idle_days'] for r in await db.list_due_idle_nudges() if r['telegram_id']==1),7)
+            conn.execute("UPDATE users SET idle_nudge_at='2026-07-02',idle_nudge_step=7 WHERE telegram_id=1")
+            self.assertEqual(next(r['idle_days'] for r in await db.list_due_idle_nudges() if r['telegram_id']==1),10)
+            conn.execute("UPDATE users SET idle_nudge_step=20 WHERE telegram_id=1")
+            self.assertEqual(next(r['idle_days'] for r in await db.list_due_idle_nudges() if r['telegram_id']==1),45)

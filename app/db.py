@@ -1522,6 +1522,35 @@ async def open_trust_loan(telegram_id: int) -> dict | None:
     return _as_dict(row)
 
 
+async def trust_unlocked_by_topup(telegram_id: int) -> bool:
+    """A later loan needs a paid balance top-up after the previous one. The first still needs a payment, checked separately."""
+    taken_at = await _pool_req().fetchval(
+        """
+        SELECT taken_at FROM trust_loans
+        WHERE telegram_id = $1
+        ORDER BY taken_at DESC, id DESC
+        LIMIT 1
+        """,
+        telegram_id,
+    )
+    if taken_at is None:
+        return True
+    return bool(
+        await _pool_req().fetchval(
+            """
+            SELECT 1 FROM payment_receipts
+            WHERE telegram_id = $1
+              AND COALESCE(router_days, 0) = 0
+              AND amount > 0
+              AND created_at > $2
+            LIMIT 1
+            """,
+            telegram_id,
+            taken_at,
+        )
+    )
+
+
 async def take_trust_loan(telegram_id: int, credit: int, due_at, debt: int | None = None) -> dict:
     repay = int(debt if debt is not None else credit)
     row = await _pool_req().fetchrow(
@@ -3656,8 +3685,14 @@ async def list_due_idle_nudges(limit: int = 80, skip_ids: list[int] | None = Non
                 u.first_name, u.first_online_at, u.balance_rub, u.trial_used,
                 EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id) AS has_device,
                 CASE
+                    WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '45 days'
+                         AND step.v >= 20 AND step.v < 45 THEN 45
                     WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '20 days'
-                         AND step.v < 20 THEN 20
+                         AND step.v >= 15 AND step.v < 20 THEN 20
+                    WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '15 days'
+                         AND step.v >= 10 AND step.v < 15 THEN 15
+                    WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '10 days'
+                         AND step.v >= 7 AND step.v < 10 THEN 10
                     WHEN activity.last_seen <= timezone('utc', now()) - INTERVAL '7 days'
                          AND step.v < 7 THEN 7
                     ELSE NULL
@@ -3695,6 +3730,120 @@ async def list_due_idle_nudges(limit: int = 80, skip_ids: list[int] | None = Non
         skip,
     )
     return [dict(r) for r in rows]
+
+
+async def list_due_nodevice_nudges(limit: int = 20, skip_ids: list[int] | None = None) -> list[dict]:
+    """People who still have no device, one day after they opened the bot, then again after a week."""
+    skip = [int(x) for x in (skip_ids or [])]
+    rows = await _pool_req().fetch(
+        """
+        SELECT u.telegram_id, u.first_name, u.trial_used,
+            CASE
+                WHEN COALESCE(u.nodevice_nudge_step, 0) = 0 THEN 1
+                ELSE 2
+            END AS nudge_step
+        FROM users u
+        WHERE u.blocked_at IS NULL
+          AND u.bot_started_at IS NOT NULL
+          AND u.bot_started_at <= timezone('utc', now()) - INTERVAL '1 day'
+          AND u.bot_blocked_at IS NULL
+          AND u.billing_paused_at IS NULL
+          AND NOT u.quiet_notifications
+          AND u.vpn_feedback IS DISTINCT FROM 'help'
+          AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)
+          AND NOT EXISTS (
+              SELECT 1 FROM tickets t WHERE t.telegram_id = u.telegram_id AND t.status <> 'closed'
+          )
+          AND NOT (u.telegram_id = ANY($2::bigint[]))
+          AND (
+                COALESCE(u.nodevice_nudge_step, 0) = 0
+                OR (
+                    u.nodevice_nudge_step = 1
+                    AND u.nodevice_nudge_at <= timezone('utc', now()) - INTERVAL '7 days'
+                )
+          )
+        ORDER BY u.bot_started_at, u.telegram_id
+        LIMIT $1
+        """,
+        int(limit),
+        skip,
+    )
+    return [dict(r) for r in rows]
+
+
+async def mark_nodevice_nudge_sent(telegram_id: int, step: int) -> None:
+    await _pool_req().execute(
+        """
+        UPDATE users
+        SET nodevice_nudge_step = $2,
+            nodevice_nudge_at = timezone('utc', now())
+        WHERE telegram_id = $1
+        """,
+        int(telegram_id),
+        int(step),
+    )
+
+
+async def list_due_unpaid_nudges(limit: int = 20, skip_ids: list[int] | None = None) -> list[dict]:
+    """No granted top-up. Device-less people are asked to add a device first."""
+    skip = [int(x) for x in (skip_ids or [])]
+    rows = await _pool_req().fetch(
+        """
+        SELECT u.telegram_id, u.first_name,
+            CASE
+                WHEN COALESCE(u.unpaid_nudge_step, 0) = 0 THEN 1
+                ELSE 2
+            END AS nudge_step
+        FROM users u
+        WHERE u.blocked_at IS NULL
+          AND u.bot_started_at IS NOT NULL
+          AND u.bot_started_at <= timezone('utc', now()) - INTERVAL '2 days'
+          AND u.bot_blocked_at IS NULL
+          AND u.billing_paused_at IS NULL
+          AND NOT u.quiet_notifications
+          AND NOT COALESCE(u.has_paid_topup, FALSE)
+          AND u.vpn_feedback IS DISTINCT FROM 'help'
+          AND NOT EXISTS (
+              SELECT 1 FROM rollypay_orders o
+              WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
+          )
+          AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id = u.telegram_id)
+          AND (
+                EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)
+                OR u.first_online_at IS NOT NULL
+                OR COALESCE(u.nodevice_nudge_step, 0) >= 2
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM tickets t WHERE t.telegram_id = u.telegram_id AND t.status <> 'closed'
+          )
+          AND NOT (u.telegram_id = ANY($2::bigint[]))
+          AND (
+                COALESCE(u.unpaid_nudge_step, 0) = 0
+                OR (
+                    u.unpaid_nudge_step = 1
+                    AND u.unpaid_nudge_at <= timezone('utc', now()) - INTERVAL '7 days'
+                )
+          )
+        ORDER BY u.bot_started_at, u.telegram_id
+        LIMIT $1
+        """,
+        int(limit),
+        skip,
+    )
+    return [dict(r) for r in rows]
+
+
+async def mark_unpaid_nudge_sent(telegram_id: int, step: int) -> None:
+    await _pool_req().execute(
+        """
+        UPDATE users
+        SET unpaid_nudge_step = $2,
+            unpaid_nudge_at = timezone('utc', now())
+        WHERE telegram_id = $1
+        """,
+        int(telegram_id),
+        int(step),
+    )
 
 
 async def mark_idle_nudge_sent(telegram_id: int, days: int) -> None:
@@ -3825,16 +3974,23 @@ async def broadcast_audience_counts() -> dict:
         FROM users
         """
     )
+    from app.ambassadors import invitation_audience_count
     return {
         "all": int((row and row["all_n"]) or 0),
         "using": int((row and row["using_n"]) or 0),
         "unused": int((row and row["unused_n"]) or 0),
+        "ambassador": await invitation_audience_count(),
     }
 
 
 async def list_broadcast_targets(audience: str = "all") -> list[dict]:
     extra = ""
     kind = str(audience or "all").strip()
+    if kind == "ambassador":
+        from app.ambassadors import due_invitations, recruitment_offer
+        if not await recruitment_offer():
+            return []
+        return await due_invitations(1_000_000, [], first_only=True)
     if kind == "using":
         extra = "AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)"
     elif kind == "unused":

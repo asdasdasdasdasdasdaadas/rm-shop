@@ -3860,7 +3860,19 @@ function paintAmbassadorCard(me) {
   if (!data) return;
   const status = data.status;
   $("homeAmbassadorTitle").textContent = status === "approved" ? "Ваше амбассадорство" : status === "pending" ? "Заявка на рассмотрении" : status === "suspended" ? "Участие приостановлено" : "Станьте амбассадором";
-  $("homeAmbassadorNote").textContent = status === "pending" ? "Сообщим о решении в боте. Условия доступны в разделе программы." : status === "suspended" ? "Статус участия и заработанные средства — в вашем кабинете амбассадора." : status === "approved" ? "Ваша ссылка, приглашённые клиенты и заработок — в одном месте." : data.invitation_available ? `${data.first_percent}% первого пополнения клиента, до ${data.first_cap} ₽, и ${data.recurring_percent}% следующих. Вывод от ${data.payout_min} ₽.` : !data.recruitment ? "Набор сейчас закрыт. Посмотрите, как устроена программа." : !data.accruing ? "Начисления сейчас на паузе. Условия — в разделе программы." : "Места и бюджет программы ограничены. Проверьте условия участия.";
+  $("homeAmbassadorNote").textContent = status === "pending"
+    ? "Сообщим о решении в боте."
+    : status === "suspended"
+      ? "Заработок сохранён."
+      : status === "approved"
+        ? "Ссылка и заработок — здесь."
+        : data.invitation_available
+          ? `${data.first_percent}% первого пополнения, до ${data.first_cap} ₽. Дальше ${data.recurring_percent}%.`
+          : !data.recruitment
+            ? "Набор сейчас закрыт."
+            : !data.accruing
+              ? "Начисления на паузе."
+              : "Сейчас нет свободных мест.";
   $("homeAmbassadorOpen").textContent = status === "approved" ? "Открыть мой кабинет" : status === "pending" || status === "suspended" ? "Посмотреть статус" : data.invitation_available ? "Стать амбассадором" : "Узнать условия";
 }
 
@@ -4882,14 +4894,6 @@ function paintAmbassador(data) {
       style: "currency",
       currency: "RUB",
     }).format(Number(cents || 0) / 100);
-  const stamp = (value) =>
-    value
-      ? new Date(value).toLocaleString("ru-RU", {
-          timeZone: "Europe/Moscow",
-          dateStyle: "short",
-          timeStyle: "short",
-        })
-      : "—";
   const status = {
     pending: "На рассмотрении",
     approved: "Вы амбассадор 🎉",
@@ -4927,222 +4931,90 @@ function paintAmbassador(data) {
     parent.append(el);
     return el;
   }
-  const terms = card("Рекомендуйте VPN и зарабатывайте");
-  terms.append(
-    ambElement(
-      "p",
-      `${cfg.first_percent}% первого пополнения, до ${cfg.first_cap} ₽ за клиента. Затем ${cfg.recurring_percent}% следующих пополнений.`,
-    ),
-  );
-  terms.append(
-    ambElement(
-      "p",
-      `Вывод от ${cfg.payout_min} ₽. Каждое начисление доступно через ${cfg.hold_days} дней, если платёж не возвращён.`,
-    ),
-  );
-  const details = ambElement("details");
-  details.append(ambElement("summary", "Условия программы"));
-  details.append(
-    ambElement(
-      "p",
-      "Клиент должен впервые открыть бота по вашей ссылке после одобрения заявки. Учитываются пополнения в рублях; Stars не участвуют. Обычные реферальные бонусы и акции за этих клиентов не начисляются.",
-    ),
-  );
-  details.append(
-    ambElement(
-      "p",
-      `Бюджет программы — ${cfg.budget} ₽.${cfg.member_cap ? ` Лимит на участника — ${cfg.member_cap} ₽.` : ""} Начисление пропускается, если его сумма превышает оставшийся бюджет или лимит. Во время паузы новые оплаты не приносят наград; задним числом они не начисляются. Уже заработанное сохраняется. Переводы обрабатываются вручную.`,
-    ),
-  );
-  terms.append(details);
-  if (!cfg.accruing)
-    terms.append(ambElement("p", "⏸ Начисления сейчас на паузе", "amb-notice"));
-  const capacity = data.capacity || {};
-  if (cfg.accruing && (capacity.budget_remaining === 0 || capacity.member_remaining === 0)) {
-    terms.append(ambElement("p", "⚠️ Лимит вознаграждений исчерпан. Новые оплаты пока не принесут наград. Заработанное сохраняется.", "amb-notice"));
-  }
-  if (member) {
-    const state = card(status[member.status] || member.status);
-    if (member.review_note) state.append(ambElement("p", member.review_note));
-    if (member.risk_hold)
-      state.append(
-        ambElement(
-          "p",
-          "Выплаты на проверке. Если есть вопросы, напишите в поддержку.",
-        ),
-      );
-  }
   if (!member || member.status === "rejected") {
-    const application = card(
-      cfg.recruitment ? "Стать амбассадором" : "Набор пока закрыт",
-    );
-    if (cfg.recruitment) {
-      const label = ambElement("label", "Где вы планируете рекомендовать VPN?");
-      label.htmlFor = "ambApplication";
-      const input = ambElement("textarea");
-      input.id = "ambApplication";
-      input.maxLength = 1500;
-      input.minLength = 10;
-      input.rows = 4;
-      input.placeholder =
-        "Канал, блог, сообщество — расскажите о своей аудитории";
-      application.append(label, input);
-      button(
-        application,
-        "Отправить заявку",
-        async () => {
-          const text = input.value.trim();
-          if (text.length < 10)
-            throw new Error("Расскажите чуть подробнее: минимум 10 символов");
-          paintAmbassador(
-            await api("/api/ambassador", {
-              method: "POST",
-              body: JSON.stringify({ action: "apply", application: text }),
-            }),
-          );
-        },
-        true,
-      );
-    }
+    const terms = card("Как это работает");
+    terms.append(ambElement("p", `${cfg.first_percent}% первого пополнения клиента, до ${cfg.first_cap} ₽. Дальше ${cfg.recurring_percent}%. Вывод от ${cfg.payout_min} ₽.`));
+    if (!cfg.accruing) terms.append(ambElement("p", "Начисления сейчас на паузе."));
+    const application = card(cfg.recruitment ? "Заявка" : "Набор сейчас закрыт");
+    if (!cfg.recruitment) return;
+    const input = ambElement("textarea");
+    input.id = "ambApplication";
+    input.maxLength = 1500;
+    input.minLength = 10;
+    input.rows = 4;
+    input.placeholder = "Где будете рекомендовать VPN";
+    input.setAttribute("aria-label", "Где вы планируете рекомендовать VPN");
+    application.append(input);
+    button(application, "Отправить заявку", async () => {
+      const text = input.value.trim();
+      if (text.length < 10) throw new Error("Расскажите чуть подробнее: минимум 10 символов");
+      paintAmbassador(await api("/api/ambassador", {
+        method: "POST",
+        body: JSON.stringify({ action: "apply", application: text }),
+      }));
+    }, true);
     return;
   }
-  if (member.status === "pending") return;
+  if (member.status === "pending") {
+    const state = card("На рассмотрении");
+    state.append(ambElement("p", "Сообщим о решении в боте."));
+    if (member.review_note) state.append(ambElement("p", member.review_note));
+    return;
+  }
+  if (member.review_note) {
+    card(status[member.status] || "Статус").append(ambElement("p", member.review_note));
+  }
+  if (member.risk_hold) {
+    card("Выплаты").append(ambElement("p", "Вывод на проверке. Напишите в поддержку, если есть вопросы."));
+  }
   if (data.link) {
-    const links = card("Ваша ссылка");
+    const links = card("Ссылка");
     const field = ambElement("input");
     field.readOnly = true;
     field.value = data.link;
     field.setAttribute("aria-label", "Личная ссылка амбассадора");
     links.append(field);
-    button(
-      links,
-      "Поделиться ссылкой",
-      () => {
-        const url =
-          "https://t.me/share/url?url=" +
-          encodeURIComponent(data.link) +
-          "&text=" +
-          encodeURIComponent("Попробуйте VPN — подключение в пару шагов 👇");
-        if (tg.openTelegramLink) tg.openTelegramLink(url);
-        else window.open(url, "_blank", "noopener");
-      },
-      true,
-    );
-    button(links, "Скопировать ссылку", async () => {
+    button(links, "Поделиться", () => {
+      const url = "https://t.me/share/url?url=" + encodeURIComponent(data.link) + "&text=" + encodeURIComponent("Попробуйте VPN — подключение в пару шагов 👇");
+      if (tg.openTelegramLink) tg.openTelegramLink(url);
+      else window.open(url, "_blank", "noopener");
+    }, true);
+    button(links, "Скопировать", async () => {
       await navigator.clipboard.writeText(data.link);
       tg.showAlert("Ссылка скопирована");
     });
   }
-  const wallet = card("Ваш заработок");
-  const stats = ambElement("div", null, "amb-stats");
-  for (const [label, value] of [
-    ["Доступно к выводу", w.available],
-    ["Ожидают окончания проверки", w.holding],
-    ["Заявка на выплату", w.pending],
-    ["Уже выплачено", w.paid],
-  ]) {
-    const item = ambElement("div");
-    item.append(ambElement("strong", cash(value)), ambElement("span", label));
-    stats.append(item);
+  const wallet = card("Заработок");
+  const available = ambElement("p", null, "amb-balance");
+  available.append(ambElement("strong", cash(w.available)));
+  wallet.append(available);
+  const paidClients = Number((data.stats || {}).paid) || 0;
+  wallet.append(ambElement("p", paidClients ? `Оплатили по ссылке: ${paidClients}` : "По ссылке пока никто не оплатил."));
+  if (w.available < 0) {
+    wallet.append(ambElement("p", "После возврата платежа образовался долг. Напишите в поддержку."));
+  } else if (w.holding > 0) {
+    wallet.append(ambElement("p", `Ещё ${cash(w.holding)} станут доступны после проверки.`));
+  } else if (w.pending > 0) {
+    wallet.append(ambElement("p", `Заявка на ${cash(w.pending)} уже на рассмотрении.`));
+  } else if (w.available < cfg.payout_min * 100) {
+    wallet.append(ambElement("p", `До вывода осталось ${cash(cfg.payout_min * 100 - w.available)}.`));
   }
-  wallet.append(stats);
-  const progress = ambElement("progress");
-  progress.max = cfg.payout_min * 100;
-  progress.value = Math.max(0, Math.min(w.available, progress.max));
-  progress.setAttribute("aria-label", "Прогресс до минимальной выплаты");
-  wallet.append(progress);
-  wallet.append(
-    ambElement(
-      "p",
-      w.available < 0
-        ? "После возврата платежа образовался долг по вознаграждениям. Обратитесь в поддержку."
-        : w.available < cfg.payout_min * 100
-          ? `До вывода осталось ${cash(cfg.payout_min * 100 - w.available)}`
-          : "Можно запросить выплату 🎉",
-    ),
-  );
-  if (capacity.next_release_at && w.holding > 0) {
-    wallet.append(ambElement("p", "Ближайшее начисление станет доступно " + stamp(capacity.next_release_at) + " МСК. Дата выплаты зависит от доступной суммы и проверки заявки."));
-  }
-  const funnel = card("Ваши приглашения");
-  for (const [key, label] of [
-    ["joined", "Пришли"],
-    ["connected", "Подключились"],
-    ["paid", "Оплатили"],
-    ["repeat_paid", "Оплатили повторно"],
-  ])
-    funnel.append(ambElement("p", `${label}: ${data.stats[key]}`));
-  const payout = card("Запросить выплату");
-  if (w.pending > 0)
-    payout.append(
-      ambElement(
-        "p",
-        "Ваша заявка уже на рассмотрении. Повторная станет доступна после решения.",
-      ),
-    );
-  else if (member.risk_hold)
-    payout.append(ambElement("p", "Вывод временно на проверке."));
-  else if (w.available < cfg.payout_min * 100)
-    payout.append(
-      ambElement(
-        "p",
-        `Вывод доступен от ${cfg.payout_min} ₽ после окончания проверки начислений.`,
-      ),
-    );
-  else {
-    const label = ambElement("label", "Телефон для СБП, банк и имя получателя");
-    label.htmlFor = "ambPayoutDetails";
-    const input = ambElement("textarea");
-    input.id = "ambPayoutDetails";
-    input.maxLength = 300;
-    input.rows = 3;
-    payout.append(
-      label,
-      input,
-      ambElement(
-        "p",
-        "Не указывайте код из SMS, пароль или CVV. Будет зарезервирована вся доступная сумма.",
-      ),
-    );
-    button(
-      payout,
-      `Запросить ${cash(w.available)}`,
-      async () => {
-        if (input.value.trim().length < 6)
-          throw new Error("Укажите реквизиты и имя получателя");
-        paintAmbassador(
-          await api("/api/ambassador", {
-            method: "POST",
-            body: JSON.stringify({ action: "payout", details: input.value }),
-          }),
-        );
-      },
-      true,
-    );
-  }
-  for (const [key, title] of [
-    ["payouts", "Последние выплаты"],
-    ["awards", "Последние начисления"],
-  ]) {
-    const history = card(title);
-    if (!data[key].length) history.append(ambElement("p", "Здесь пока пусто"));
-    for (const row of data[key]) {
-      const item = ambElement("div", null, "amb-history");
-      item.append(
-        ambElement("strong", cash(row.amount_cents)),
-        ambElement("span", row.status === "earned" ? (new Date(row.available_at) > new Date() ? "На ожидании" : "Ожидание завершено") : status[row.status] || row.status),
-        ambElement("small", stamp(row.created_at) + " · МСК"),
-      );
-      if (row.status === "earned")
-        item.append(
-          ambElement("p", "Доступно с " + stamp(row.available_at) + " МСК"),
-        );
-      if (row.reason || row.note)
-        item.append(ambElement("p", row.reason || row.note));
-      history.append(item);
-    }
-  }
-  button(root, "Обновить", loadAmbassador);
+  if (member.risk_hold || w.pending > 0 || w.available < cfg.payout_min * 100) return;
+  const payout = card("Выплата");
+  const input = ambElement("textarea");
+  input.id = "ambPayoutDetails";
+  input.maxLength = 300;
+  input.rows = 3;
+  input.placeholder = "Телефон СБП, банк и имя";
+  input.setAttribute("aria-label", "Телефон для СБП, банк и имя получателя");
+  payout.append(input);
+  button(payout, `Запросить ${cash(w.available)}`, async () => {
+    if (input.value.trim().length < 6) throw new Error("Укажите реквизиты и имя получателя");
+    paintAmbassador(await api("/api/ambassador", {
+      method: "POST",
+      body: JSON.stringify({ action: "payout", details: input.value }),
+    }));
+  }, true);
 }
 if ($("menuAmbassador"))
   $("menuAmbassador").onclick = () => {

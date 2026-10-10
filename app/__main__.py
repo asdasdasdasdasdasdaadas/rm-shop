@@ -149,7 +149,9 @@ async def main() -> None:
             except Exception:
                 logger.warning("Не удалось выставить имя бота в Telegram из BRAND_NAME")
         from app.billing import payment_effects_loop
+        from app.ambassadors import application_review_loop
         payment_effects_task = asyncio.create_task(payment_effects_loop(rw, bot), name="payment-effects")
+        review_task = asyncio.create_task(application_review_loop(bot), name="ambassador-review")
         sync_task = asyncio.create_task(panel_sync_loop(rw), name="panel-sync")
         charge_task = asyncio.create_task(balance_charge_loop(rw, bot), name="balance-charge")
         dump_task = asyncio.create_task(backup_loop(bot), name="backup")
@@ -164,7 +166,8 @@ async def main() -> None:
             )
         finally:
             payment_effects_task.cancel()
-            await asyncio.gather(payment_effects_task, return_exceptions=True)
+            review_task.cancel()
+            await asyncio.gather(payment_effects_task, review_task, return_exceptions=True)
             sync_task.cancel()
             charge_task.cancel()
             dump_task.cancel()
