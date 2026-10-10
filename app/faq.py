@@ -9,9 +9,11 @@ from app.referral_terms import referral_terms
 
 def faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
     custom = shop_overlay().get("faq_items")
-    if custom is not None:
-        return [dict(item) for item in custom]
-    return default_faq_items(trial_days=trial_days)
+    items = [dict(item) for item in custom] if custom is not None else default_faq_items(trial_days=trial_days)
+    return [
+        item for item in items
+        if "роутер" not in f"{item.get('q', '')} {item.get('a', '')}".lower()
+    ]
 
 
 def default_faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
@@ -45,7 +47,6 @@ def default_faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
                 "a": (
                     f"Списания начинаются после добавления устройства, даже если VPN выключен. "
                     f"Сутки одного устройства — {price}. "
-                    "Роутер в этот счёт не входит: у него отдельная оплата на срок. "
                     "Пока устройств нет, списаний нет. "
                     "Удалите устройства, которыми больше не пользуетесь."
                 ),
@@ -82,24 +83,6 @@ def default_faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
     )
     why += "Платите только за те устройства, которые сами добавили."
     items.append({"q": "Как у нас всё устроено?", "a": why})
-    if settings.router_enabled:
-        router_days = days_text(settings.router_days)
-        router_price = rub_text(settings.router_rub)
-        items.append(
-            {
-                "q": "Подписка на роутер: как оплатить и подключить?",
-                "a": (
-                    f"Это отдельная подписка, не суточный баланс телефонов и компьютеров. "
-                    f"Подписка стоит {router_price} за {router_days}. Пока он оплачен, роутер работает; "
-                    "когда срок кончится, остановится только он, гаджеты не заденет.\n\n"
-                    "С баланса устройств ничего не списывается, лимит телефонов не занимает. "
-                    "На аккаунт — один роутер.\n\n"
-                    "На главной откройте плашку «Роутер», оплатите подписку, затем создайте устройство. "
-                    "Ссылку подписки вставьте в Keenetic, OpenWrt или другой клиент. "
-                    "Продлить можно там же, пока срок не вышел или сразу после."
-                ),
-            }
-        )
     terms = referral_terms(settings)
     items.extend([
         {"q": "Как пригласить друга?", "a": "Откройте раздел «Пригласить друга» и нажмите «Поделиться ссылкой». Друг должен запустить бота по вашей ссылке. " + terms["note"]},

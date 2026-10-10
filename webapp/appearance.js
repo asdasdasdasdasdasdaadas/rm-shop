@@ -21,9 +21,7 @@
     const devices = me.devices || [];
     const phones = devices.filter(device => device.kind !== "router" && device.platform !== "router");
     let amount = "Начнём?", caption = "Добавьте устройство — настройка займёт пару минут";
-    if (me.balance_enabled && devices.length && !phones.length) {
-      amount = "Роутер"; caption = "Срок доступа — в карточке роутера";
-    } else if (me.balance_enabled && me.billing_paused) {
+    if (me.balance_enabled && me.billing_paused) {
       amount = "Ⅱ"; caption = "Списания приостановлены";
     } else if (empty) {
       amount = "0"; caption = "Пополните баланс для подключения";
@@ -43,7 +41,7 @@
     label.textContent = caption;
     value.dataset.state = empty ? "empty" : "ready";
     const daily = Number(me.vpn_day_price_rub);
-    rate.textContent = devices.length && !phones.length ? "Роутер оплачивается отдельно" : !phones.length ? "Без устройств списаний нет" : me.billing_paused ? "Списания приостановлены" : me.balance_enabled && Number.isFinite(daily) && daily > 0 ? `${(daily * phones.length).toLocaleString("ru-RU")} ₽ в сутки · ${phones.length} устр.` : "Выберите устройство для настройки";
+    rate.textContent = !phones.length ? "Без устройств списаний нет" : me.billing_paused ? "Списания приостановлены" : me.balance_enabled && Number.isFinite(daily) && daily > 0 ? `${(daily * phones.length).toLocaleString("ru-RU")} ₽ в сутки · ${phones.length} устр.` : "Выберите устройство для настройки";
   }
   function assign() {}
   window.WayAppearance = { apply, choose, paintSummary, assign };

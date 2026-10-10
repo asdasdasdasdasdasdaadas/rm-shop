@@ -1,6 +1,5 @@
 """Durable payment confirmations, independent of panel/referral side effects."""
 import logging
-from datetime import timezone, timedelta
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 from app import db
 from app.funnel_ui import send_funnel_message
@@ -22,11 +21,7 @@ async def deliver_payment_notice(bot, receipt):
     try:
         local = await db.get_user(uid) or {}
         if receipt['router_days']:
-            exp = local.get('router_expire_at')
-            if exp and exp.tzinfo is None:
-                exp = exp.replace(tzinfo=timezone.utc)
-            when = exp.astimezone(timezone(timedelta(hours=3))).strftime('%d.%m.%Y') if exp else '—'
-            body = notice_text('router_ok',days=receipt['router_days'],expire=when)
+            body = 'Оплата получена. Откройте кабинет, чтобы проверить доступ.'
             markup = cabinet_keyboard()
         else:
             devices = await db.list_devices(uid)

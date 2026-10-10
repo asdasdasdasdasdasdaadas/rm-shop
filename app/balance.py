@@ -559,7 +559,7 @@ async def _sync_router_slots(rw: RemnawaveClient) -> None:
         try:
             await apply_router_slot(rw, int(item["telegram_id"]), item.get("router_expire_at"))
         except RemnawaveError:
-            logger.exception("Не удалось синхронизировать роутер %s", item.get("id"))
+            logger.exception("Не удалось синхронизировать отдельное устройство %s", item.get("id"))
 
 
 async def sync_user_billing(
@@ -585,7 +585,7 @@ async def sync_user_billing(
             try:
                 await apply_router_slot(rw, telegram_id)
             except RemnawaveError:
-                logger.exception("Не удалось синхронизировать роутер %s", item.get("id"))
+                logger.exception("Не удалось синхронизировать отдельное устройство %s", item.get("id"))
             continue
         row = {
             "id": item["id"],

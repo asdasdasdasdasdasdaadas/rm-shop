@@ -99,10 +99,10 @@ async def reward(conn, receipt):
     amount = receipt["amount"] * percent
     if first:
         amount = min(amount, cfg["first_cap"] * 100)
-    # Ruble topups only: Stars and router purchases are explicitly excluded.
+    # Ruble topups only. Stars stay outside the program.
     reason = ""
     if not eligible:
-        reason = "Роутер и Stars не участвуют"
+        reason = "Stars не участвуют"
     elif not cfg["accruing"] or owner["status"] != "approved":
         reason = "Начисления приостановлены"
     elif not amount:

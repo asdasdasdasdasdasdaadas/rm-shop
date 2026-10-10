@@ -15,18 +15,18 @@ class RouterOfferTest(unittest.IsolatedAsyncioTestCase):
             await shop_config.load_shop_overlay()
         return apply.call_args.args[0]
 
-    async def test_existing_offer_disabled_once_and_manual_enabling_survives_restart(self):
+    async def test_offer_stays_disabled(self):
         store = {shop_config.KV_KEY: json.dumps({'router_enabled': True, 'router_rub': 500})}
         first = await self.load(store)
-        self.assertFalse(first['router_enabled'])
-        self.assertEqual(first['router_rub'], 500)
+        self.assertNotIn('router_enabled', first)
+        self.assertNotIn('router_rub', first)
         first['router_enabled'] = True
         store[shop_config.KV_KEY] = json.dumps(first)
-        self.assertTrue((await self.load(store))['router_enabled'])
+        self.assertNotIn('router_enabled', await self.load(store))
 
     async def test_empty_install_records_migration(self):
         store = {}
-        self.assertFalse((await self.load(store))['router_enabled'])
+        self.assertFalse((await self.load(store)).get('router_enabled', False))
         self.assertEqual(store['router_offer_hidden_v1'], '1')
 
     async def test_device_limit_upgrade_preserves_later_admin_changes(self):

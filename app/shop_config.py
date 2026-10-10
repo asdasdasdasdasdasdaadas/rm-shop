@@ -93,18 +93,6 @@ def validate_shop(body: dict) -> dict:
     if out["balance_topup_max"] < out["balance_topup_min"]:
         raise ValueError("Максимум пополнения не меньше минимума")
     out["promo_enabled"] = True
-    if "router_enabled" in body:
-        out["router_enabled"] = bool(body.get("router_enabled"))
-    else:
-        out["router_enabled"] = bool(get_settings().router_enabled)
-    if "router_rub" in body:
-        out["router_rub"] = _as_int(body.get("router_rub"), 1, 100000, "Роутер, рубли")
-    else:
-        out["router_rub"] = int(get_settings().router_rub or 490)
-    if "router_days" in body:
-        out["router_days"] = _as_int(body.get("router_days"), 1, 365, "Роутер, дни")
-    else:
-        out["router_days"] = int(get_settings().router_days or 30)
     if "promo_codes" in body:
         codes = str(body.get("promo_codes") or "").strip()
         if len(codes) > 2000:
@@ -175,9 +163,6 @@ def snapshot() -> dict:
             "balance_topup_step": s.balance_topup_step,
             "promo_enabled": s.promo_enabled,
             "promo_codes": s.promo_codes,
-            "router_enabled": s.router_enabled,
-            "router_rub": s.router_rub,
-            "router_days": s.router_days,
             "plan_1m_rub": s.plan_1m_rub,
             "plan_3m_rub": s.plan_3m_rub,
             "plan_6m_rub": s.plan_6m_rub,
@@ -206,9 +191,10 @@ async def load_shop_overlay() -> None:
         data["max_devices"] = 6
         await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
         await db.set_kv("device_limit_6_v1", "1")
-    # One-time withdrawal of the unfinished router offer. Later manual enabling persists.
+    data.pop("router_enabled", None)
+    data.pop("router_rub", None)
+    data.pop("router_days", None)
     if not await db.get_kv("router_offer_hidden_v1"):
-        data["router_enabled"] = False
         await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
         await db.set_kv("router_offer_hidden_v1", "1")
     try:

@@ -23,11 +23,7 @@ from app.announcements import (
     content_type_for,
     fill_placeholders,
 )
-from app.billing import (
-    apply_router_slot,
-    fulfill_rollypay_order,
-    router_panel_until,
-)
+from app.billing import fulfill_rollypay_order
 from app.config import ROOT, get_settings
 from app.faq import faq_items
 from app.keyboards import (
@@ -557,14 +553,6 @@ async def api_me(request: web.Request) -> web.Response:
             "topup_max": settings.balance_topup_max,
             "topup_step": settings.balance_topup_step,
             "devices": devices,
-            "router": {
-                "enabled": bool(settings.router_enabled),
-                "rub": int(settings.router_rub or 0),
-                "days": int(settings.router_days or 30),
-                "expire_at": router_expire.isoformat() if router_expire else None,
-                "active": router_active,
-                "has_device": any(d.get("kind") == "router" for d in devices),
-            },
             "trust": trust,
             "faq": faq_items(),
             "vpn_apps": public_vpn_apps(),
@@ -793,64 +781,8 @@ async def api_add_device(request: web.Request) -> web.Response:
     title = str(body.get("title") or "").strip() or "Устройство"
     platform = str(body.get("platform") or "").strip()[:32] or None
     kind = str(body.get("kind") or "").strip().lower()
-    if kind == "router":
-        if not settings.router_enabled:
-            return json_error("Роутер выключен")
-        local = await db.get_user(telegram_id)
-        expire = (local or {}).get("router_expire_at") if local else None
-        if expire is not None and getattr(expire, "tzinfo", None) is None:
-            expire = expire.replace(tzinfo=timezone.utc)
-        if not expire or expire <= datetime.now(timezone.utc):
-            return json_error("Сначала оплатите слот роутера")
-        if await db.get_router_device(telegram_id):
-            return json_error("Роутер уже создан")
-        title = str(body.get("title") or "").strip() or "Роутер"
-        rw: RemnawaveClient = request.app["rw"]
-        user = None
-        last_error: RemnawaveError | None = None
-        until = router_panel_until(expire)
-        for _ in range(6):
-            username = f"t{telegram_id}x{secrets.token_hex(4)}"[:36]
-            try:
-                user = await rw.create_user(
-                    telegram_id=None,
-                    expire_at=until,
-                    tag="ROUTER",
-                    username=username,
-                    hwid_limit=settings.remnawave_hwid_limit,
-                    description=f"tg:{telegram_id}:router",
-                )
-                break
-            except RemnawaveError as exc:
-                last_error = exc
-                if not username_taken(exc):
-                    break
-        if user is None:
-            return json_error(str(last_error or "Не удалось создать роутер"), 502)
-        rw_id = int(user["id"])
-        try:
-            await db.add_device(telegram_id, title, rw_id, "router", None, kind="router")
-        except Exception:
-            try:
-                await rw.disable_panel_user(rw_id)
-            except RemnawaveError:
-                pass
-            return json_error("Роутер уже создан")
-        await db.save_device_subscription(rw_id, user)
-        try:
-            await apply_router_slot(rw, telegram_id, expire)
-        except RemnawaveError:
-            pass
-        return web.json_response(
-            {
-                "ok": True,
-                "first_device": False,
-                "subscription_url": user.get("subscriptionUrl") or "",
-                "title": title,
-                "platform": "router",
-                "kind": "router",
-            }
-        )
+    if kind == "router" or (platform or "").lower() == "router":
+        return json_error("Такое устройство добавить нельзя")
     cap = int(settings.max_devices or 0)
     device_n = await db.billable_device_count(telegram_id)
     was_first = device_n == 0

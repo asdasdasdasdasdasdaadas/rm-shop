@@ -169,24 +169,7 @@ class Settings(BaseSettings):
         return result
 
     def router_plan(self) -> dict | None:
-        if not self.router_enabled:
-            return None
-        days = max(1, int(self.router_days or 30))
-        try:
-            rub = int(self.router_rub or 0)
-        except (TypeError, ValueError):
-            rub = 0
-        if rub < 1:
-            return None
-        return {
-            "title": f"Роутер {days} дн.",
-            "days": days,
-            "stars": 0,
-            "rub": float(rub),
-            "rub_str": f"{rub:.2f}",
-            "router": True,
-            "topup_rub": 0,
-        }
+        return None
 
     def plan_by_code(self, code: str) -> dict | None:
         key = str(code or "").strip()
@@ -296,9 +279,6 @@ SHOP_KEYS = frozenset(
         "balance_topup_step",
         "promo_enabled",
         "promo_codes",
-        "router_enabled",
-        "router_rub",
-        "router_days",
         "plan_1m_rub",
         "plan_3m_rub",
         "plan_6m_rub",
@@ -335,6 +315,7 @@ def get_settings() -> Settings:
     # Promo redemption is always available, including installations with an old disabled setting.
     update["promo_enabled"] = True
     update["balance_enabled"] = True
+    update["router_enabled"] = False
     update.pop("vpn_apps", None)
     update.pop("pay_methods", None)
     update.pop("notices", None)
