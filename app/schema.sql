@@ -749,3 +749,5 @@ CREATE TABLE IF NOT EXISTS ambassador_notifications (
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS ambassador_notices_due ON ambassador_notifications(retry_at) WHERE status='pending';
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ambassador_invite_sent_at TIMESTAMPTZ;

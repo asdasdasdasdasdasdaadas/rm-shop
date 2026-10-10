@@ -450,9 +450,10 @@ async def api_funnel_test(request: web.Request) -> web.Response:
     if denied:
         return denied
     from app.funnel_test import catalog, SCENARIOS, test_keyboard
+    from app.ambassadors import settings as ambassador_settings
     admins = sorted(get_settings().admin_id_set)
     if request.method == "GET":
-        rows = catalog(admins[0] if admins else 0)
+        rows = catalog(admins[0] if admins else 0, await ambassador_settings())
         stats = await db.funnel_message_stats()
         for row in rows:
             row['delivery'] = stats.get(row.get('kind'), {})
@@ -466,7 +467,7 @@ async def api_funnel_test(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Выберите администратора"}, status=400)
     if recipient not in admins:
         return web.json_response({"ok": False, "error": "Тест доступен только для ADMIN_IDS"}, status=403)
-    rows = {row["id"]: row for row in catalog(recipient)}
+    rows = {row["id"]: row for row in catalog(recipient, await ambassador_settings())}
     scenario = str(body.get("scenario") or "")
     message_id = str(body.get("message_id") or "")
     if scenario in SCENARIOS and not message_id:
@@ -845,6 +846,9 @@ async def _retry_markup_base(kind: str, telegram_id: int, extra: dict | None):
         return payment_nudge_keyboard()
     if kind.startswith("referral_"):
         return with_referral_share(telegram_id, cabinet_keyboard())
+    if kind == "nudge_ambassador":
+        from app.keyboards import ambassador_keyboard
+        return ambassador_keyboard()
     if kind == "nudge_invite":
         return share_keyboard(settings.bot_username, telegram_id)
     if kind == "nudge_trial":

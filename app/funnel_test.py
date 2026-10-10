@@ -10,7 +10,7 @@ from app.texts import days_text, rub_text
 from app.referrals import topup_ok_text
 
 
-def catalog(telegram_id: int) -> list[dict]:
+def catalog(telegram_id: int, ambassador_cfg=None) -> list[dict]:
     s = get_settings()
     from app.winback import message as winback_message, keyboard as winback_keyboard
     rows = []
@@ -59,6 +59,12 @@ def catalog(telegram_id: int) -> list[dict]:
             key = ('return_check' if days == 7 else 'return_last') if segment == 'return' else f'idle_{segment}_{days}'
             add(f'{segment}_{days}', f'return_{segment}', f'Возврат: {label}, {days} дней',
                 f'{days} дней без использования; ветка «{label}»', notice_text(key), markup)
+    from app.ambassadors import invitation_text
+    from app.keyboards import ambassador_keyboard
+    cfg = ambassador_cfg or dict(first_percent=100,first_cap=500,recurring_percent=5,payout_min=2000,hold_days=14)
+    add('ambassador','ambassador','Приглашение в амбассадоры',
+        'Один раз: платил, подключился не менее 7 дней назад и активен. Только при открытом наборе, начислениях и доступном бюджете.',
+        invitation_text(cfg), ambassador_keyboard())
     for row in rows:
         kind = MESSAGE_KINDS.get(row['id'])
         row['kind'] = kind
@@ -73,6 +79,7 @@ def catalog(telegram_id: int) -> list[dict]:
 
 
 MESSAGE_KINDS = {
+    'ambassador': 'nudge_ambassador',
     'winback': 'nudge_winback',
     'welcome': 'welcome_intro', 'intro': 'welcome_intro', 'support': 'welcome_intro',
     'resume_welcome': 'nudge_trial', 'resume_channel': 'nudge_trial', 'gift': 'nudge_trial', 'device': 'first_device_thanks', 'setup': 'nudge_device',
@@ -83,6 +90,7 @@ MESSAGE_KINDS = {
 
 
 SCENARIOS = {
+    'ambassador': ('Амбассадорство', ['ambassador']),
     'winback': ('Возвращение с промокодом', ['winback']),
     'start': ('Первое подключение', ['welcome', 'intro', 'support', 'gift', 'device', 'setup', 'quality']),
     'payment': ('Баланс и неоплаченный счёт', ['ending', 'empty', 'invoice', 'paid']),

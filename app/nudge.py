@@ -196,6 +196,27 @@ async def send_due_invite_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
     return sent, touched
 
 
+async def send_due_ambassador_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
+    from app import ambassadors
+    from app.keyboards import ambassador_keyboard
+    touched, sent = [], 0
+    if await db.flag_on('maintenance') or not await ambassadors.recruitment_offer():
+        return sent, touched
+    for row in await ambassadors.due_invitations(NUDGE_BATCH, skip_ids):
+        cfg = await ambassadors.recruitment_offer()
+        if not cfg:
+            break
+        uid = int(row['telegram_id'])
+        ok = await _deliver(bot, kind='nudge_ambassador', telegram_id=uid,
+            first_name=row.get('first_name'), title='Приглашение в амбассадоры',
+            body=ambassadors.invitation_text(cfg), reply_markup=ambassador_keyboard())
+        touched.append(uid)
+        if ok:
+            await db._pool_req().execute('UPDATE users SET ambassador_invite_sent_at=NOW() WHERE telegram_id=$1', uid)
+            sent += 1
+    return sent, touched
+
+
 async def send_due_info_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
     touched: list[int] = []
     if not await db.flag_on("info_nudge"):
@@ -440,6 +461,10 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
             skip.extend(ids)
             if n:
                 logger.info("Напоминание о триале: %s", n)
+            n, ids = await send_due_ambassador_nudges(bot, skip)
+            skip.extend(ids)
+            if n:
+                logger.info('Приглашения в амбассадоры: %s', n)
             n, ids = await send_due_invite_nudges(bot, skip)
             skip.extend(ids)
             if n:

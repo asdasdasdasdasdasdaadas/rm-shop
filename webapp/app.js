@@ -4063,7 +4063,18 @@ function paintTrialNotice(me) {
   if (el) el.classList.add("hidden");
 }
 
+function paintAmbassadorCard(me) {
+  const card = $("homeAmbassadorCard"), data = me.ambassador;
+  card.classList.toggle("hidden", !data);
+  if (!data) return;
+  const status = data.status;
+  $("homeAmbassadorTitle").textContent = status === "approved" ? "Ваше амбассадорство" : status === "pending" ? "Заявка на рассмотрении" : status === "suspended" ? "Участие приостановлено" : "Станьте амбассадором";
+  $("homeAmbassadorNote").textContent = status === "pending" ? "Сообщим о решении в боте. Условия доступны в разделе программы." : status === "suspended" ? "Статус участия и заработанные средства — в вашем кабинете амбассадора." : status === "approved" ? "Ваша ссылка, приглашённые клиенты и заработок — в одном месте." : data.invitation_available ? `${data.first_percent}% первого пополнения клиента, до ${data.first_cap} ₽, и ${data.recurring_percent}% следующих. Вывод от ${data.payout_min} ₽.` : !data.recruitment ? "Набор сейчас закрыт. Посмотрите, как устроена программа." : !data.accruing ? "Начисления сейчас на паузе. Условия — в разделе программы." : "Места и бюджет программы ограничены. Проверьте условия участия.";
+  $("homeAmbassadorOpen").textContent = status === "approved" ? "Открыть мой кабинет" : status === "pending" || status === "suspended" ? "Посмотреть статус" : data.invitation_available ? "Стать амбассадором" : "Узнать условия";
+}
+
 function paint(me) {
+  paintAmbassadorCard(me);
   if (me) me.balance_enabled = true;
   applyVpnApps(me.vpn_apps);
   if (me.brand_name) document.title = me.brand_name;
@@ -4228,6 +4239,15 @@ async function load() {
     return;
   }
   const entry = new URLSearchParams(window.location.search).get("screen");
+  if (!paymentEntryHandled && entry === "ambassador") {
+    paymentEntryHandled = true;
+    markIntroSeen();
+    window.__me = me;
+    screen = "ambassador";
+    paint(me);
+    openAmbassador();
+    return;
+  }
   if (!paymentEntryHandled && ["gift", "connect"].includes(entry)) {
     paymentEntryHandled = true;
     markIntroSeen();
@@ -5349,3 +5369,5 @@ if ($("menuAmbassador"))
     closeMenu();
     openAmbassador();
   };
+
+if ($("homeAmbassadorOpen")) $("homeAmbassadorOpen").onclick = () => openAmbassador();

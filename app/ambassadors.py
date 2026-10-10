@@ -605,3 +605,51 @@ async def deliver_notifications(bot):
             logging.getLogger(__name__).exception(
                 "Ambassador notice will retry %s", row["id"]
             )
+
+
+async def home_summary(uid):
+    """Small cabinet payload; financial terms remain owned by the program settings."""
+    cfg = await settings()
+    member = await db._pool_req().fetchval('SELECT status FROM ambassadors WHERE telegram_id=$1', uid)
+    return {'status': member, 'invitation_available': bool(await recruitment_offer(cfg)), **{key: cfg[key] for key in (
+        'recruitment', 'accruing', 'first_percent', 'first_cap', 'recurring_percent', 'payout_min')}}
+
+
+async def recruitment_offer(cfg=None):
+    cfg = cfg if cfg is not None else await settings()
+    if not cfg['recruitment'] or not cfg['accruing']:
+        return None
+    capacity = await db._pool_req().fetchrow('''SELECT
+        (SELECT COUNT(*) FROM ambassadors WHERE status='approved') AS members,
+        (SELECT COALESCE(SUM(amount_cents),0) FROM ambassador_awards WHERE status<>'skipped') AS spent''')
+    if capacity['members'] >= cfg['max_members'] or capacity['spent'] >= cfg['budget'] * 100:
+        return None
+    if cfg['first_percent'] <= 0 and cfg['recurring_percent'] <= 0:
+        return None
+    return cfg
+
+
+async def due_invitations(limit, skip_ids):
+    rows = await db._pool_req().fetch('''SELECT u.telegram_id,u.first_name FROM users u
+        WHERE u.ambassador_invite_sent_at IS NULL AND u.has_paid_topup
+          AND u.first_online_at <= NOW()-INTERVAL '7 days'
+          AND u.balance_rub >= $3 * GREATEST(1,(SELECT COUNT(*) FROM devices d
+              WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'')<>'router'))
+          AND EXISTS(SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id AND d.last_online_at>NOW()-INTERVAL '3 days')
+          AND u.bot_started_at IS NOT NULL AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
+          AND NOT u.quiet_notifications AND u.vpn_feedback IS DISTINCT FROM 'help'
+          AND NOT EXISTS(SELECT 1 FROM ambassadors a WHERE a.telegram_id=u.telegram_id)
+          AND NOT EXISTS(SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status<>'closed')
+          AND NOT (u.telegram_id=ANY($2::bigint[]))
+        ORDER BY u.first_online_at LIMIT $1''', int(limit), list(skip_ids or []), max(1,get_settings().vpn_day_price_rub)*3)
+    return [dict(row) for row in rows]
+
+
+def invitation_text(cfg):
+    return (
+        '🤝 Рекомендуйте VPN и зарабатывайте\n\n'
+        f"В программе амбассадоров — {cfg['first_percent']}% первого пополнения нового клиента, до {cfg['first_cap']} ₽, "
+        f"и {cfg['recurring_percent']}% следующих пополнений.\n\n"
+        f"Вывод от {cfg['payout_min']} ₽. Начисления доступны через {cfg['hold_days']} дней.\n\n"
+        'Есть канал, блог или сообщество? Расскажите о нём в заявке. Участие — после одобрения.'
+    )

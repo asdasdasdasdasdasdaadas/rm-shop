@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from contextlib import ExitStack
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from app import admin, funnel_test, faq, keyboards, nudge, config, referrals
+from app import ambassadors, admin, funnel_test, faq, keyboards, nudge, config, referrals
 
 
 class FunnelTest(unittest.IsolatedAsyncioTestCase):
@@ -40,7 +40,7 @@ class FunnelTest(unittest.IsolatedAsyncioTestCase):
         bot = SimpleNamespace(send_message=AsyncMock())
         request = SimpleNamespace(method='POST', json=AsyncMock(return_value={'telegram_id':123, 'message_id':'invoice'}), app={'bot':bot})
         rows = [{'id':'invoice', 'title':'Счёт', 'condition':'10 минут', 'body':'Оплатите', 'markup':None}]
-        with patch.object(admin, '_need_auth', return_value=None), patch.object(admin, 'get_settings', return_value=SimpleNamespace(admin_id_set={123,456})), patch.object(funnel_test, 'catalog', return_value=rows):
+        with patch.object(admin, '_need_auth', return_value=None), patch.object(admin, 'get_settings', return_value=SimpleNamespace(admin_id_set={123,456})), patch.object(funnel_test, 'catalog', return_value=rows), patch.object(ambassadors, 'settings', AsyncMock(return_value={})):
             response = await admin.api_funnel_test(request)
         self.assertEqual(json.loads(response.body)['sent'], 1)
         self.assertEqual(bot.send_message.call_args.args[0], 123)

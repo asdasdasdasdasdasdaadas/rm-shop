@@ -413,3 +413,16 @@ def vpn_feedback_keyboard(*, returning: bool = False) -> InlineKeyboardMarkup:
     if returning:
         rows.append([InlineKeyboardButton(text="Пока не нужен", callback_data="vpn_feedback:later")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def ambassador_keyboard() -> InlineKeyboardMarkup:
+    url = mini_app_url()
+    if not url:
+        return cabinet_keyboard()
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query))
+    query['screen'] = 'ambassador'
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+        text='Личный кабинет', style='success',
+        web_app=WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query)))))],
+        [InlineKeyboardButton(text='В главное меню', callback_data='profile')]])

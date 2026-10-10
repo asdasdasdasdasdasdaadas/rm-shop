@@ -16,7 +16,7 @@ from aiogram.enums import ParseMode
 from aiogram.types import LabeledPrice
 from aiogram.utils.web_app import safe_parse_webapp_init_data
 
-from app import db, runtime
+from app import db, runtime, ambassadors
 from app.admin import mount_admin
 from app.announcements import (
     announcement_photo_path,
@@ -487,6 +487,7 @@ async def api_me(request: web.Request) -> web.Response:
             "brand_name": settings.brand_name,
             "balance_enabled": True,
             "promo_enabled": settings.promo_enabled,
+            "ambassador": await ambassadors.home_summary(telegram_id),
             "notification_settings_available": bool((local or {}).get("has_paid_topup")),
             "quiet_notifications": bool((local or {}).get("quiet_notifications")),
             "trial_available": trial_is_available(local),

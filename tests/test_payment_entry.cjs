@@ -15,6 +15,7 @@ test('reminder opens topup on initial authenticated load only',async()=>{
 });
 
 for (const [entry,me,expected] of [
+  ['ambassador',{balance_enabled:true},'ambassador'],
   ['gift',{trial_available:true,balance_enabled:true},'offer'],
   ['gift',{trial_available:false,balance_enabled:true,devices:[{id:7}]},'device'],
   ['connect',{balance_enabled:true,devices:[{id:7}]},'device'],
@@ -23,7 +24,7 @@ for (const [entry,me,expected] of [
   const opened=[];
   const ctx=vm.createContext({window:{location:{search:`?screen=${entry}`}},tg:{initData:'signed'},lkToken:'',loadSeq:0,
     URLSearchParams,screen:'home',api:async()=>me,paint(){},markIntroSeen(){},
-    openOffer(){opened.push('offer');},showDevice(d){assert.equal(d.id,7);opened.push('device');},
+    openAmbassador(){opened.push('ambassador');},openOffer(){opened.push('offer');},showDevice(d){assert.equal(d.id,7);opened.push('device');},
     startWizard(){opened.push('wizard');},openHome(){opened.push('home');},showLogin(){throw Error('unexpected login');}});
   vm.runInContext(source.slice(source.indexOf('let paymentEntryHandled'),source.indexOf('function closeMenu()')),ctx);
   await ctx.load();
