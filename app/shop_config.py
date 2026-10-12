@@ -123,13 +123,21 @@ def validate_shop(body: dict) -> dict:
     return {k: out[k] for k in SHOP_KEYS}
 
 
+def _board_notice_keys() -> frozenset:
+    from app.funnel_board import OWNED_NOTICE_KEYS
+    return OWNED_NOTICE_KEYS
+
+
 def snapshot() -> dict:
     s = get_settings()
     hwid = s.remnawave_hwid_limit
     return {
         "ok": True,
         "balance_enabled": s.balance_enabled,
-        "notice_fields": NOTICE_FIELDS,
+        "notice_fields": [
+            field for field in NOTICE_FIELDS
+            if field["key"] not in _board_notice_keys()
+        ],
         "faq_defaults": default_faq_items(),
         "values": {
             "brand_name": s.brand_name,

@@ -445,21 +445,64 @@ async def api_device_reissue(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "notified": not bool(error), "error": error, "warning": warning})
 
 
+async def _funnel_catalog(recipient: int):
+    from app.funnel_test import catalog, SCENARIOS
+    from app.ambassadors import settings as ambassador_settings
+    try:
+        from app.funnel_board import load, preview
+        rows, scenarios = preview(await load(), recipient)
+        if rows:
+            return rows, {key: (title, steps) for key, title, steps in scenarios}
+    except Exception:
+        logger.debug("Тест показывает запасной каталог воронки", exc_info=True)
+    rows = catalog(recipient, await ambassador_settings())
+    return rows, SCENARIOS
+
+
+async def api_funnel_board(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app.funnel_board import actions_public, conditions_public, default_graph, load, save, validate
+    if request.method == "GET":
+        try:
+            graph = await load()
+        except Exception:
+            logger.exception("Доска воронки не открылась")
+            return web.json_response({"ok": False, "error": "Не удалось открыть воронку"}, status=500)
+        return web.json_response({
+            "ok": True, "graph": graph,
+            "conditions": conditions_public(), "actions": actions_public(),
+        })
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "Некорректный запрос"}, status=400)
+    try:
+        graph = await default_graph() if body.get("reset") else validate(body.get("graph"))
+        await save(graph)
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    except Exception:
+        logger.exception("Доска воронки не сохранилась")
+        return web.json_response({"ok": False, "error": "Не удалось сохранить воронку"}, status=500)
+    return web.json_response({"ok": True, "graph": graph})
+
+
 async def api_funnel_test(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
         return denied
-    from app.funnel_test import catalog, SCENARIOS, test_keyboard
-    from app.ambassadors import settings as ambassador_settings
+    from app.funnel_test import test_keyboard
     admins = sorted(get_settings().admin_id_set)
     if request.method == "GET":
-        rows = catalog(admins[0] if admins else 0, await ambassador_settings())
+        rows, scenarios = await _funnel_catalog(admins[0] if admins else 0)
         stats = await db.funnel_message_stats()
         for row in rows:
             row['delivery'] = stats.get(row.get('kind'), {})
         return web.json_response({"ok": True, "admins": admins,
             "messages": [{k: v for k, v in row.items() if k != "markup"} for row in rows],
-            "scenarios": [{"id": key, "title": title, "steps": steps} for key, (title, steps) in SCENARIOS.items()]})
+            "scenarios": [{"id": key, "title": title, "steps": steps} for key, (title, steps) in scenarios.items()]})
     try:
         body = await request.json()
         recipient = int(body.get("telegram_id"))
@@ -467,11 +510,12 @@ async def api_funnel_test(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Выберите администратора"}, status=400)
     if recipient not in admins:
         return web.json_response({"ok": False, "error": "Тест доступен только для ADMIN_IDS"}, status=403)
-    rows = {row["id"]: row for row in catalog(recipient, await ambassador_settings())}
+    listed, scenarios = await _funnel_catalog(recipient)
+    rows = {row["id"]: row for row in listed}
     scenario = str(body.get("scenario") or "")
     message_id = str(body.get("message_id") or "")
-    if scenario in SCENARIOS and not message_id:
-        ids = SCENARIOS[scenario][1]
+    if scenario in scenarios and not message_id:
+        ids = scenarios[scenario][1]
     elif message_id in rows and not scenario:
         ids = [message_id]
     else:
@@ -2551,6 +2595,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_delete("/admin/api/maintenance/photo", api_maintenance_photo)
     app.router.add_get("/admin/api/funnel-test", api_funnel_test)
     app.router.add_post("/admin/api/funnel-test", api_funnel_test)
+    app.router.add_get("/admin/api/funnel-board", api_funnel_board)
+    app.router.add_post("/admin/api/funnel-board", api_funnel_board)
     app.router.add_get("/admin/api/broadcast-results", api_broadcast_results)
     app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)

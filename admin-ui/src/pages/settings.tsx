@@ -179,7 +179,9 @@ export const saveSettingsPatch = (patch: Data) =>
   saveSettingsPatchWith(api, patch);
 export function SettingsPage({ initial = "general" }: { initial?: string }) {
   const resource = useResource("settings");
-  const [section, setSection] = useState(initial),
+  const [section, setSection] = useState(
+      initial === "automation" ? "general" : initial,
+    ),
     [patch, setPatch] = useState<Data>({}),
     [error, setError] = useState("");
   const confirm = useConfirm();
@@ -241,7 +243,6 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
           ["apps", "VPN-приложения"],
           ["notices", "Тексты бота"],
           ["faq", "Частые вопросы"],
-          ["automation", "Автоматические сообщения"],
           ["system", "Работа системы"],
         ].map(([id, label]) => (
           <Button
@@ -469,7 +470,6 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
             </div>
           </Panel>
         )}
-        {section === "automation" && <Automation />}
         {section === "system" && <SystemSettings />}
         {dirty && (
           <div className="sticky bottom-4 z-20 bg-background border rounded-xl shadow-lg p-4 flex flex-wrap gap-3 items-center justify-between">
@@ -738,79 +738,6 @@ function NoticeEditor({
             description="Попробуйте другой поисковый запрос."
           />
         )}
-      </div>
-    </Panel>
-  );
-}
-function Automation() {
-  const resource = useResource("flags");
-  const confirm = useConfirm();
-  if (resource.error)
-    return <Failure message={resource.error} retry={resource.reload} />;
-  if (!resource.data) return <Loading />;
-  return (
-    <Panel
-      title="Автоматические сообщения"
-      description="Каждый переключатель сохраняется сразу. Тексты редактируются отдельно."
-    >
-      <div className="divide-y">
-        {[
-          [
-            "winback_promo",
-            "Промокод на 5 дней для возвращения",
-            "При нулевом или отрицательном балансе: пользовавшимся — через 48 часов, не подключившимся — сразу. Раз в 2 месяца. Код на 7 дней, только получателю; минус погашается. Учитываются тишина, поддержка и лимиты рассылок. Включая прежних пользователей.",
-          ],
-          [
-            "payment_nudge",
-            "Неоплаченный счёт",
-            "Напоминание через 10 минут после создания счёта.",
-          ],
-          [
-            "trial_nudge",
-            "Подключение и окончание баланса",
-            "Помощь с первым подключением и предупреждения о балансе.",
-          ],
-          [
-            "invite_nudge",
-            "Приглашение друзей",
-            "Предложение поделиться реферальной ссылкой.",
-          ],
-          [
-            "info_nudge",
-            "Возврат в кабинет",
-            "Информационные сообщения о сервисе.",
-          ],
-          [
-            "legal_nudge",
-            "Правовые документы",
-            "Автоматические сообщения, связанные с документами.",
-          ],
-        ].map(([key, label, hint]) => (
-          <div
-            key={key}
-            className="py-5 flex items-center justify-between gap-4"
-          >
-            <div>
-              <p className="font-medium text-sm">{label}</p>
-              <p className="text-xs text-muted-foreground mt-1">{hint}</p>
-            </div>
-            <Switch
-              aria-label={label}
-              checked={!!resource.data?.[key]}
-              onCheckedChange={(v) =>
-                confirm({
-                  title: `${v ? "Включить" : "Выключить"} «${label}»?`,
-                  description: hint,
-                  action: async () => {
-                    await api("flags", { [key]: v });
-                    await resource.reload();
-                    toast.success("Сохранено");
-                  },
-                })
-              }
-            />
-          </div>
-        ))}
       </div>
     </Panel>
   );

@@ -382,6 +382,42 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
             },
           ],
         };
+      if (key === "funnel-board") {
+        const sample = {
+          branches: [
+            {
+              id: "start",
+              title: "Первый запуск",
+              steps: [
+                {
+                  id: "start-1",
+                  condition: "no_device",
+                  wait_hours: 24,
+                  wait_from: "anchor",
+                  text: "Добавьте устройство",
+                  buttons: ["gift"],
+                  enabled: true,
+                },
+              ],
+            },
+          ],
+        };
+        data = {
+          ok: true,
+          graph: method === "POST" && !payload.reset ? payload.graph : sample,
+          conditions: [
+            {
+              id: "no_device",
+              label: "Нет устройства",
+              hint: "Бот запущен, устройства нет",
+            },
+          ],
+          actions: [
+            { id: "gift", label: "Экран подарка", button: "Забрать подарок" },
+            { id: "help", label: "Нужна помощь с подключением", button: "Нужна помощь" },
+          ],
+        };
+      }
       if (key === "funnel-test")
         data =
           method === "POST"
@@ -776,6 +812,16 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   });
   await nav("Обзор");
   await page.getByRole("button", { name: "Перейти без сохранения" }).click();
+  await nav("Воронка");
+  await page.getByRole("heading", { name: "Воронка", exact: true }).waitFor();
+  await page.getByRole("button", { name: /Нет устройства/ }).click();
+  await page.getByLabel("Текст сообщения", { exact: true }).fill("Новый текст шага");
+  await page.getByLabel("Нужна помощь с подключением", { exact: true }).check();
+  await page.getByRole("button", { name: "Сохранить воронку", exact: true }).click();
+  await page.getByText("Воронка сохранена", { exact: true }).waitFor();
+  const saved = posts.find((item) => item.key === "funnel-board").payload.graph;
+  assert.equal(saved.branches[0].steps[0].text, "Новый текст шага");
+  assert.deepEqual(saved.branches[0].steps[0].buttons, ["gift", "help"]);
   for (const label of [
     "Платежи",
     "Операции по балансу",
@@ -784,6 +830,7 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     "Акции",
     "Промокоды",
     "Источники трафика",
+    "Воронка",
     "Новости сервиса",
     "Журнал доставки",
     "Резервные копии",

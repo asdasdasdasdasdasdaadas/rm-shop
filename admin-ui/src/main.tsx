@@ -52,6 +52,7 @@ import {
   TicketPercent,
   Handshake,
   Send,
+  GitBranch,
   Newspaper,
   MessagesSquare,
   Settings,
@@ -78,6 +79,7 @@ import {
   ReferralsPage,
 } from "@/pages/marketing";
 import { BroadcastPage, AnnouncementsPage } from "@/pages/communications";
+import { FunnelPage } from "@/pages/funnel";
 import "./theme.css";
 const sections = [
   {
@@ -158,6 +160,13 @@ const sections = [
     icon: Megaphone,
   },
   {
+    id: "funnel",
+    label: "Воронка",
+    description: "Доска условий, сообщений и кнопок вместо автоматической воронки",
+    group: "Коммуникации",
+    icon: GitBranch,
+  },
+  {
     id: "broadcast",
     label: "Рассылки",
     description: "Подготовьте сообщение для нужной аудитории",
@@ -181,7 +190,7 @@ const sections = [
   {
     id: "settings",
     label: "Настройки",
-    description: "Тарифы, доступ, тексты бота и автоматические сообщения",
+    description: "Тарифы, доступ и тексты бота",
     group: "Управление",
     icon: Settings,
   },
@@ -516,6 +525,9 @@ function Workspace({
       break;
     case "referrals":
       page = <ReferralsPage />;
+      break;
+    case "funnel":
+      page = <FunnelPage />;
       break;
     case "broadcast":
       page = <BroadcastPage />;

@@ -19,27 +19,43 @@ def keyboard():
     ])
 
 
-def message(code: str, count: int, amount: int) -> str:
-    body = notice_text('winback_promo', code=code, devices=str(count), amount=rub_text(amount))
-    # Required redemption terms remain visible even with a short custom template.
-    body += (f'\n\n<code>{code}</code>\n\n'
-             f'Начислим {rub_text(amount)} — на 5 дней для ваших устройств: {count}. '
-             'Минус погасим отдельно.\n\n'
-             'Введите код в разделе «Промокод» в кабинете. '
-             'Он действует 7 дней, только для вас и один раз. '
-             'Если добавите устройства, подарка хватит на меньший срок.')
+def _terms(code: str, count: int, amount: int) -> str:
+    return (f'\n\n<code>{code}</code>\n\n'
+            f'Начислим {rub_text(amount)} — на 5 дней для ваших устройств: {count}. '
+            'Минус погасим отдельно.\n\n'
+            'Введите код в разделе «Промокод» в кабинете. '
+            'Он действует 7 дней, только для вас и один раз. '
+            'Если добавите устройства, подарка хватит на меньший срок.')
+
+
+def message(code: str, count: int, amount: int, custom: str | None = None) -> str:
+    terms = _terms(code, count, amount)
+    raw = (custom or '').strip()
+    if not raw:
+        return notice_text('winback_promo', code=code, devices=str(count), amount=rub_text(amount)) + terms
+    class _Safe(dict):
+        def __missing__(self, key: str) -> str:
+            return '{' + key + '}'
+    try:
+        body = raw.format_map(_Safe({'code': code, 'devices': str(count), 'amount': rub_text(amount)}))
+    except Exception:
+        body = raw
+    if 'Введите код' not in body:
+        body += terms
     return body
 
 
-async def send_due(bot, skip_ids=None):
+async def send_due(bot, skip_ids=None, *, custom=None, force=False, button_ids=None):
     from app.nudge import _deliver_unbudgeted
-    if not await db.flag_on('winback_promo') or await db.flag_on('maintenance') or await db.flag_on('billing_paused'):
+    if await db.flag_on('maintenance') or await db.flag_on('billing_paused'):
+        return 0, []
+    if not force and not await db.flag_on('winback_promo'):
         return 0, []
     await db.backfill_balance_exhaustion()
     sent, touched = 0, []
     for row in await db.list_due_winback_offers(skip_ids or []):
         uid = int(row['telegram_id'])
-        if not await db.flag_on('winback_promo'):
+        if not force and not await db.flag_on('winback_promo'):
             break
         if not await db.nudge_delivery_allowed(uid, 'nudge_winback'):
             continue
@@ -53,9 +69,15 @@ async def send_due(bot, skip_ids=None):
             if offer is None:
                 continue
             touched.append(uid)
+            if button_ids is None:
+                reply, keep = keyboard(), False
+            else:
+                from app.funnel_board import markup as board_markup
+                reply, keep = board_markup(button_ids, uid), True
             delivered = await _deliver_unbudgeted(bot,kind='nudge_winback',telegram_id=uid,
                 first_name=row.get('first_name'),title='Промокод: 5 дней для возвращения',
-                body=message(offer['code'],offer['device_count'],offer['gift_rub']),reply_markup=keyboard(),
+                body=message(offer['code'],offer['device_count'],offer['gift_rub'], custom),
+                reply_markup=reply, preserve=keep,
                 extra={'offer_id':offer['id'],'promo_id':offer['promo_id']})
             if delivered:
                 # Keep reservation even if accounting of delivery fails after Telegram accepts.

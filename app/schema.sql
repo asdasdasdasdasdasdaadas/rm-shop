@@ -758,6 +758,18 @@ CREATE TABLE IF NOT EXISTS ambassador_notifications (
 );
 CREATE INDEX IF NOT EXISTS ambassador_notices_due ON ambassador_notifications(retry_at) WHERE status='pending';
 
+CREATE TABLE IF NOT EXISTS funnel_graphs (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    graph JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS funnel_step_sends (
+    telegram_id BIGINT NOT NULL,
+    step_id TEXT NOT NULL,
+    sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (telegram_id, step_id)
+);
+
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ambassador_invite_sent_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ambassador_invite_step INTEGER NOT NULL DEFAULT 0;
 UPDATE users SET ambassador_invite_step = 1

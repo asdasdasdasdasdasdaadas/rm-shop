@@ -96,10 +96,12 @@ async def _deliver_unbudgeted(
     body: str,
     reply_markup,
     extra: dict | None = None,
+    preserve: bool = False,
 ) -> bool:
-    from app.funnel_ui import funnel_body, funnel_keyboard
-    body = funnel_body(body)
-    reply_markup = funnel_keyboard(reply_markup)
+    if not preserve:
+        from app.funnel_ui import funnel_body, funnel_keyboard
+        body = funnel_body(body)
+        reply_markup = funnel_keyboard(reply_markup)
     if not await db.nudge_delivery_allowed(telegram_id, kind):
         return False
     try:
@@ -397,7 +399,10 @@ async def send_due_first_online_nudges(bot: Bot, skip_ids: list[int] | None = No
     return sent, touched
 
 
-async def send_due_trial_end_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
+async def send_due_trial_end_nudges(
+    bot: Bot, skip_ids: list[int] | None = None, *,
+    body: str | None = None, button_ids: list[str] | None = None,
+) -> tuple[int, list[int]]:
     touched: list[int] = []
     settings = get_settings()
     if await db.flag_on("billing_paused"):
@@ -411,14 +416,19 @@ async def send_due_trial_end_nudges(bot: Bot, skip_ids: list[int] | None = None)
             continue
         if not await db.claim_balance_ending_notice(telegram_id, settings.vpn_day_price_rub):
             continue
-        body = notice_text("balance_ending_nudge")
         count = max(1, int(row.get("device_count") or 1))
-        body += (f"\n\nБаланс: {rub_text(int(row.get('balance_rub') or 0))}. "
-                 f"Устройств: {count}. Расход: {rub_text(count * settings.vpn_day_price_rub)} в сутки."
-                 "\nОстаток оплаченного времени — в кабинете.")
+        suffix = (f"\n\nБаланс: {rub_text(int(row.get('balance_rub') or 0))}. "
+                  f"Устройств: {count}. Расход: {rub_text(count * settings.vpn_day_price_rub)} в сутки."
+                  "\nОстаток оплаченного времени — в кабинете.")
+        text = ((body or "").strip() or notice_text("balance_ending_nudge")) + suffix
+        if button_ids is None:
+            reply, keep = payment_nudge_keyboard(label="Пополнить баланс"), False
+        else:
+            from app.funnel_board import markup as board_markup
+            reply, keep = board_markup(button_ids, telegram_id), True
         ok = await _deliver(
             bot, kind="nudge_trial_end", telegram_id=telegram_id, first_name=row.get("first_name"),
-            title="Баланс заканчивается", body=body, reply_markup=payment_nudge_keyboard(label="Пополнить баланс"), extra=None,
+            title="Баланс заканчивается", body=text, reply_markup=reply, extra=None, preserve=keep,
         )
         if not ok:
             await db.release_balance_ending_notice(telegram_id)
@@ -450,8 +460,11 @@ async def send_first_device_thanks(bot: Bot | None, telegram_id: int) -> bool:
     return ok
 
 
-async def send_due_payment_nudges(bot: Bot, rp=None, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    if await db.flag_on("maintenance") or not await db.flag_on("payment_nudge", default=True):
+async def send_due_payment_nudges(
+    bot: Bot, rp=None, skip_ids: list[int] | None = None, *,
+    body: str | None = None, button_ids: list[str] | None = None, honor_flag: bool = True,
+) -> tuple[int, list[int]]:
+    if await db.flag_on("maintenance") or (honor_flag and not await db.flag_on("payment_nudge", default=True)):
         return 0, []
     sent, touched = 0, []
     for row in await db.list_due_payment_nudges(NUDGE_BATCH, skip_ids):
@@ -472,10 +485,15 @@ async def send_due_payment_nudges(bot: Bot, rp=None, skip_ids: list[int] | None 
             if not await db.claim_payment_nudge(uid, token):
                 continue
             touched.append(uid)
+            text = (body or "").strip() or notice_text("payment_nudge")
+            if button_ids is None:
+                reply, keep = payment_nudge_keyboard(token), False
+            else:
+                from app.funnel_board import markup as board_markup
+                reply, keep = board_markup(button_ids, uid, token=token), True
             ok = await _deliver(
                 bot, kind="nudge_payment", telegram_id=uid, first_name=row.get("first_name"),
-                title="Незавершённая оплата", body=notice_text("payment_nudge"),
-                reply_markup=payment_nudge_keyboard(token),
+                title="Незавершённая оплата", body=text, reply_markup=reply, preserve=keep,
             )
             if not ok:
                 await db.release_payment_nudge(uid, token)
@@ -494,58 +512,10 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
             retry_skip = await db.nudge_retry_suppressed_ids()
             retry_skip.extend(await db.exit_feedback_suppressed_ids())
             quiet_ids = await db.quiet_notification_ids()
-            n, skip = await send_due_payment_nudges(bot, rp, retry_skip + quiet_ids)
-            skip.extend(retry_skip)
+            from app.funnel_board import send_due as send_board
+            n, _ids = await send_board(bot, rp, retry_skip + quiet_ids)
             if n:
-                logger.info("Напоминание о незавершённой оплате: %s", n)
-            skip.extend(await db.nudge_suppressed_ids(hours=6))
-            n, ids = await send_due_trial_end_nudges(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info("Предупреждение об окончании подарка: %s", n)
-            skip.extend(quiet_ids)
-            skip.extend(await db.marketing_suppressed_ids())
-            skip.extend(await db.nudge_suppressed_ids(hours=24))
-            from app.winback import send_due as send_due_winback
-            n, ids = await send_due_winback(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info("Персональные промокоды для возвращения: %s", n)
-            n, ids = await send_due_device_nudges(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info("Подарок без подключения: %s", n)
-            n, ids = await send_due_nodevice_nudges(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info("Без устройства: %s", n)
-            n, ids = await send_due_unpaid_nudges(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info("Без первой оплаты: %s", n)
-            n, ids = await send_due_first_online_nudges(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info("Напоминание после первого онлайна: %s", n)
-            n, ids = await send_due_idle_nudges(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info("Напоминание: давно не заходил: %s", n)
-            n, ids = await send_due_trial_nudges(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info("Напоминание о триале: %s", n)
-            n, ids = await send_due_ambassador_nudges(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info('Приглашения в амбассадоры: %s', n)
-            n, ids = await send_due_invite_nudges(bot, skip)
-            skip.extend(ids)
-            if n:
-                logger.info("Напоминание пригласить друга: %s", n)
-            n, ids = await send_due_info_nudges(bot, skip)
-            if n:
-                logger.info("Справка о кабинете: %s", n)
+                logger.info("Воронка: %s", n)
         except Exception:
             logger.exception("Напоминания не удалось отправить")
         await asyncio.sleep(NUDGE_INTERVAL)
