@@ -402,6 +402,7 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
             },
           ],
         };
+        for (let i=1;i<14;i++) sample.branches.push({id:'branch-'+i,title:i===1?'Повторная оплата':'Сценарий '+i,steps:[{...sample.branches[0].steps[0],id:'step-'+i,text:'Сообщение другой ветки',enabled:i%2===0}]});
         data = {
           ok: true,
           graph: method === "POST" && !payload.reset ? payload.graph : sample,
@@ -818,20 +819,25 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await page.getByRole("button", { name: "Перейти без сохранения" }).click();
   await nav("Воронка");
   await page.getByRole("heading", { name: "Воронка", exact: true }).waitFor();
+  await page.getByLabel('Найти ветку',{exact:true}).fill('Повторная');
+  await page.getByRole('button',{name:/Повторная оплата/}).click();
+  await page.getByRole('heading',{name:'Повторная оплата',exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Тест ветки на админе',exact:true}).isDisabled(),true);
+  await page.getByLabel('Найти ветку',{exact:true}).fill('');
+  await page.getByRole('button',{name:/Первый запуск/}).click();
+
   await page.getByRole("button", { name: /Нет устройства/ }).click();
   await page.getByLabel("Текст сообщения", { exact: true }).fill("Новый текст шага");
-  await page.getByLabel("Нужна помощь с подключением", { exact: true }).check();
+  await page.getByRole("button",{name:"Добавить кнопку",exact:true}).click();
+  await page.getByLabel("Действие кнопки 2",{exact:true}).selectOption("help");
+  await page.getByRole("button",{name:"Закрыть редактор шага",exact:true}).click();
   await page.getByRole("button", { name: "Сохранить воронку", exact: true }).click();
   await page.getByText("Воронка сохранена", { exact: true }).waitFor();
-  await page.getByRole("button", {name:"Уменьшить масштаб",exact:true}).click();
-  assert.equal(await page.getByRole("button", {name:"Сбросить масштаб",exact:true}).textContent(), "80%");
-  await page.getByRole("button", {name:"Сбросить масштаб",exact:true}).click();
   await page.screenshot({path:path.join(screenshots,"funnel-board.png"),fullPage:true});
-  await page.getByRole("button", {name:"Закрыть редактор шага",exact:true}).click();
   assert.equal(await page.getByRole("region", {name:"Доска воронки",exact:true}).count(),1);
   const saved = posts.find((item) => item.key === "funnel-board").payload.graph;
   assert.equal(saved.branches[0].steps[0].text, "Новый текст шага");
-  assert.deepEqual(saved.branches[0].steps[0].buttons, ["gift", "help"]);
+  assert.deepEqual(saved.branches[0].steps[0].buttons, ["gift", {action:"help",text:"Нужна помощь"}]);
   await page.getByRole("button", {name:/Нет устройства/}).click();
   await page.getByRole("button", {name:"Добавить кнопку",exact:true}).click();
   await page.getByLabel("Название кнопки 3",{exact:true}).fill("Наш сайт");
@@ -843,6 +849,7 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await page.getByRole("button",{name:"Вставить ⭐ 123",exact:true}).click();
   assert.match(await page.getByLabel("Текст сообщения",{exact:true}).inputValue(),/<tg-emoji emoji-id="123">⭐<\/tg-emoji>/);
 
+  await page.getByRole("button",{name:"Закрыть редактор шага",exact:true}).click();
   await page.getByRole("button", {name:"Тест ветки на админе",exact:true}).click();
   await page.getByText("Тест: отправлено 1 сообщений админу",{exact:true}).waitFor();
   const draftTest=posts.filter(p=>p.key==='funnel-test').at(-1).payload;
@@ -855,6 +862,16 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   assert.equal(menuSave.main_menu.text,'Привет, {name}! Баланс: {balance}');
   assert.equal(menuSave.branches[0].steps[0].buttons[2].text,'Наш сайт');
 
+  await page.getByRole('button',{name:'Автоматические сообщения',exact:true}).click();
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile funnel overflow');
+  await page.screenshot({path:path.join(screenshots,'funnel-mobile.png'),fullPage:true});
+  await page.getByRole('button',{name:/Редактировать шаг 1/}).click();
+  await page.getByLabel('Текст сообщения',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile editor overflow');
+  await page.screenshot({path:path.join(screenshots,'funnel-editor-mobile.png')});
+  await page.getByRole('button',{name:'Закрыть редактор шага',exact:true}).click();
+  await page.setViewportSize({width:1440,height:1080});
   for (const label of [
     "Платежи",
     "Операции по балансу",

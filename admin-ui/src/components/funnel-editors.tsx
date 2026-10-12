@@ -44,26 +44,45 @@ export function ButtonEditor({
             ? { action: b, text: actions.find((a) => a.id === b)?.button || b }
             : b;
         return (
-          <div key={i} className="rounded-lg border p-3 space-y-2">
-            <Input
-              aria-label={`Название кнопки ${i + 1}`}
-              maxLength={64}
-              value={item.text}
-              onChange={(e) => update(i, { text: e.target.value })}
-            />
-            <select
-              aria-label={`Действие кнопки ${i + 1}`}
-              className="h-9 w-full rounded-md border bg-background px-2 text-sm"
-              value={item.action}
-              onChange={(e) => update(i, { action: e.target.value })}
-            >
-              {actions.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.label}
-                </option>
-              ))}
-              <option value="url">Открыть ссылку</option>
-            </select>
+          <div key={i} className="rounded-xl border p-4 space-y-3">
+            <p className="text-xs font-medium text-muted-foreground">
+              Кнопка {i + 1}
+            </p>
+            <label className="block space-y-1">
+              <span className="text-xs">Что написано на кнопке</span>
+              <Input
+                aria-label={`Название кнопки ${i + 1}`}
+                maxLength={64}
+                value={item.text}
+                onChange={(e) => update(i, { text: e.target.value })}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs">Что произойдёт при нажатии</span>
+              <select
+                aria-label={`Действие кнопки ${i + 1}`}
+                className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                value={item.action}
+                onChange={(e) =>
+                  update(i, {
+                    action: e.target.value,
+                    text:
+                      item.text ===
+                      (actions.find((a) => a.id === item.action)?.button || "")
+                        ? actions.find((a) => a.id === e.target.value)
+                            ?.button || "Открыть ссылку"
+                        : item.text,
+                  })
+                }
+              >
+                {actions.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label}
+                  </option>
+                ))}
+                <option value="url">Открыть ссылку</option>
+              </select>
+            </label>
             {item.action === "url" && (
               <Input
                 aria-label={`Ссылка кнопки ${i + 1}`}
