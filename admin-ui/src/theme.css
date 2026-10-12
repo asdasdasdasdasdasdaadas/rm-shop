@@ -96,3 +96,25 @@
     }
   }
 }
+
+/* Funnel map: scrollable canvas, connected branch lanes and a separate inspector. */
+.funnel-workspace { display: flex; align-items: flex-start; gap: 16px; min-width: 0; }
+.funnel-board { flex: 1; }
+.funnel-viewport { height: 68vh; min-height: 400px; overflow: auto; overscroll-behavior: contain; background-image: radial-gradient(var(--border) 1px, transparent 1px); background-size: 20px 20px; }
+.funnel-canvas { width: max-content; min-width: 100%; padding: 32px; }
+.funnel-root { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 280px; margin: 0 0 48px; padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); }
+.funnel-root span { font-size: 12px; color: var(--muted-foreground); }
+.funnel-root::after { content: ''; position: absolute; height: 24px; width: 2px; background: var(--border); top: 100%; left: 50%; }
+.funnel-branches { display: flex; align-items: flex-start; gap: 32px; }
+.funnel-branch { position: relative; width: 280px; flex-shrink: 0; }
+.funnel-branch::before { content: ''; position: absolute; top: -24px; left: -17px; right: -17px; height: 2px; background: var(--border); }
+.funnel-branch-head { position: relative; }
+.funnel-branch-head::before { content: ''; position: absolute; bottom: 100%; left: 50%; height: 24px; width: 2px; background: var(--border); }
+.funnel-step { position: relative; padding-top: 44px; padding-bottom: 12px; }
+.funnel-step::before { content: ''; position: absolute; top: 0; height: 44px; left: 50%; width: 2px; background: var(--border); }
+.funnel-link-label { position: relative; display: table; margin: -31px auto 12px; padding: 2px 6px; background: var(--card); color: var(--muted-foreground); font-size: 10px; }
+.funnel-node { position: relative; box-shadow: 0 3px 12px #0001; }
+.funnel-node[aria-pressed=true] { outline: 2px solid var(--primary); outline-offset: 2px; }
+.funnel-node:hover { border-color: var(--primary); }
+.funnel-inspector { width: 360px; flex-shrink: 0; max-height: 80vh; overflow: auto; position: sticky; top: 16px; }
+@media(max-width: 1100px) { .funnel-workspace { flex-direction: column; } .funnel-board,.funnel-inspector { width: 100%; } .funnel-inspector { position: static; max-height: none; } }
