@@ -30,6 +30,16 @@ class FunnelBoardTest(unittest.TestCase):
                 "steps": [_step("start-1", buttons=["delete-user"])],
             }]})
 
+    def test_required_fields_and_zero_delay(self):
+        base = _step("s")
+        for key, value in [("text", "   "), ("condition", ""), ("wait_hours", ""), ("wait_hours", None), ("wait_hours", 1.5), ("wait_hours", True), ("wait_hours", -1), ("wait_from", "")]:
+            with self.subTest(key=key,value=value), self.assertRaises(ValueError):
+                validate({"branches":[{"id":"b","title":"Ветка","steps":[{**base,key:value}]}]})
+        clean=validate({"branches":[{"id":"b","title":"Ветка","steps":[{**base,"wait_hours":0}]}]})
+        self.assertEqual(clean["branches"][0]["steps"][0]["wait_hours"],0)
+        with self.assertRaises(ValueError):
+            validate({"branches":[{"id":"b","title":"   ","steps":[base]}]})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,10 @@
 import {
+  textError,
+  titleError,
+  hoursError,
+  buttonError,
+} from "@/lib/funnel-validation";
+import {
   ButtonEditor,
   MessageEditor,
   type FunnelButton,
@@ -43,7 +49,7 @@ function previewText(text: string) {
 type Step = {
   id: string;
   condition: string;
-  wait_hours: number;
+  wait_hours: number | "";
   wait_from: "anchor" | "previous";
   text: string;
   buttons: FunnelButton[];
@@ -61,7 +67,8 @@ const ONCE = new Set(["unpaid_invoice", "balance_low", "winback"]);
 function nid(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
-function waitLabel(hours: number, from: string) {
+function waitLabel(hours: number | "", from: string) {
+  if (hours === "") return "Укажите время";
   const when =
     hours > 0 && hours % 24 === 0 ? `${hours / 24} дн.` : `${hours} ч`;
   if (!hours && from !== "previous") return "сразу";
@@ -133,7 +140,82 @@ export function FunnelPage() {
       branch.steps.map((step) => step.condition),
     ),
   );
+  const validateBeforeAction = (value: Graph) => {
+    const issues: {
+      message: string;
+      branch?: string;
+      step?: string;
+      menu?: boolean;
+    }[] = [];
+    for (const b of value.branches) {
+      if (titleError(b.title))
+        issues.push({ message: titleError(b.title), branch: b.id });
+      for (const step of b.steps) {
+        const message =
+          (!conditions.some((c) => c.id === step.condition)
+            ? "Выберите условие отправки"
+            : "") ||
+          hoursError(step.wait_hours) ||
+          (!["anchor", "previous"].includes(step.wait_from)
+            ? "Выберите момент отсчёта паузы"
+            : "") ||
+          textError(step.text) ||
+          step.buttons
+            .map(
+              (button) =>
+                buttonError(
+                  button,
+                  actions.map((a) => a.id),
+                )?.message,
+            )
+            .find(Boolean);
+        if (message)
+          issues.push({
+            message: `${b.title || "Без названия"}: ${message}`,
+            branch: b.id,
+            step: step.id,
+          });
+      }
+    }
+    if (value.main_menu) {
+      const m = value.main_menu;
+      const message =
+        textError(m.text) ||
+        (!m.buttons.length
+          ? "Добавьте хотя бы одну кнопку главного меню"
+          : "") ||
+        m.buttons
+          .map(
+            (b) =>
+              buttonError(
+                b,
+                actions.map((a) => a.id),
+              )?.message,
+          )
+          .find(Boolean);
+      if (message)
+        issues.push({ message: `Главное меню: ${message}`, menu: true });
+    }
+    if (!issues.length) return true;
+    const first = issues[0];
+    setError(first.message);
+    setMenuOpen(!!first.menu);
+    if (first.branch) setBranchId(first.branch);
+    setPicked(first.step ? { branch: first.branch!, step: first.step } : null);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const dialog = document.querySelector('[role="dialog"]');
+        const field = (dialog || document).querySelector<HTMLElement>(
+          '[aria-invalid="true"]',
+        );
+        field?.closest("details")?.setAttribute("open", "");
+        field?.focus();
+      }, 100);
+    });
+    return false;
+  };
   const save = async (next = graph, reset = false) => {
+    if (!reset && !validateBeforeAction(next)) return;
     setSaving(true);
     setError("");
     try {
@@ -152,6 +234,17 @@ export function FunnelPage() {
     }
   };
   const testBranch = async (id: string) => {
+    if (
+      !validateBeforeAction(
+        id === "main-menu"
+          ? {
+              ...graph,
+              main_menu: graph.main_menu || resource.data?.default_menu,
+            }
+          : graph,
+      )
+    )
+      return;
     setTesting(true);
     try {
       const telegram_id = recipient || String(resource.data?.admins?.[0] || "");
@@ -261,6 +354,10 @@ export function FunnelPage() {
           </Button>
         </div>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Поля со звёздочкой * обязательны. Пустые поля нужно заполнить перед
+        сохранением и тестом.
+      </p>
       {error && (
         <p
           role="alert"
@@ -278,6 +375,7 @@ export function FunnelPage() {
                 Что пользователь видит, когда открывает меню.
               </p>
             </div>
+            <p className="text-sm font-medium">Текст главного меню *</p>
             <MessageEditor
               label="Текст главного меню"
               value={
@@ -297,7 +395,13 @@ export function FunnelPage() {
               Подстановки: {"{name}"} — имя, {"{balance}"} — баланс, {"{price}"}{" "}
               — цена.
             </p>
-            <h3 className="text-sm font-medium">Кнопки меню</h3>
+            <h3 className="text-sm font-medium">Кнопки меню *</h3>
+            {(graph.main_menu || resource.data.default_menu)?.buttons
+              ?.length === 0 && (
+              <p className="text-xs text-destructive">
+                Добавьте хотя бы одну кнопку главного меню
+              </p>
+            )}
             <ButtonEditor
               actions={actions}
               value={
@@ -446,15 +550,30 @@ export function FunnelPage() {
                     </summary>
                     <div className="pt-3 space-y-3">
                       <label className="block text-sm">
-                        Название
+                        Название *
                         <Input
                           aria-label="Название ветки"
+                          required
+                          aria-invalid={!!titleError(branch.title)}
+                          aria-describedby={
+                            titleError(branch.title)
+                              ? "branch-title-error"
+                              : undefined
+                          }
                           value={branch.title}
                           maxLength={80}
                           onChange={(e) =>
                             updateBranch(branch.id, { title: e.target.value })
                           }
                         />
+                        {titleError(branch.title) && (
+                          <p
+                            id="branch-title-error"
+                            className="text-xs text-destructive"
+                          >
+                            {titleError(branch.title)}
+                          </p>
+                        )}
                       </label>
                       <div className="flex flex-wrap gap-2">
                         <Button
@@ -672,6 +791,11 @@ export function FunnelPage() {
             {selectedBranch?.title} · Изменения попадут в черновик. Сохраните
             воронку, чтобы применить их.
           </SheetDescription>
+          {error && (
+            <p role="alert" className="text-sm text-destructive mt-3">
+              {error}
+            </p>
+          )}
           {selected && selectedBranch && (
             <div className="space-y-5 mt-6">
               <div className="flex justify-between items-center rounded-xl bg-muted p-3">
@@ -685,9 +809,11 @@ export function FunnelPage() {
                 />
               </div>
               <label className="block space-y-1.5">
-                <span className="text-sm font-medium">1. Кому отправить</span>
+                <span className="text-sm font-medium">1. Кому отправить *</span>
                 <select
                   aria-label="Условие шага"
+                  required
+                  aria-invalid={!conditionOf(selected.condition)}
                   className="flex h-9 w-full rounded-md border bg-transparent px-3 text-sm"
                   value={selected.condition}
                   onChange={(event) =>
@@ -723,24 +849,44 @@ export function FunnelPage() {
               {!ONCE.has(selected.condition) && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="space-y-1.5">
-                    <span className="text-sm">Через сколько часов</span>
+                    <span className="text-sm">Через сколько часов *</span>
                     <Input
                       aria-label="Пауза в часах"
+                      required
+                      step={1}
+                      aria-invalid={!!hoursError(selected.wait_hours)}
+                      aria-describedby={
+                        hoursError(selected.wait_hours)
+                          ? "wait-hours-error"
+                          : undefined
+                      }
                       type="number"
                       min={0}
                       max={8760}
                       value={selected.wait_hours}
                       onChange={(event) =>
                         updateStep(selectedBranch.id, selected.id, {
-                          wait_hours: Number(event.target.value || 0),
+                          wait_hours:
+                            event.target.value === ""
+                              ? ""
+                              : Number(event.target.value),
                         })
                       }
                     />
+                    {hoursError(selected.wait_hours) && (
+                      <p
+                        id="wait-hours-error"
+                        className="text-xs text-destructive"
+                      >
+                        {hoursError(selected.wait_hours)}
+                      </p>
+                    )}
                   </label>
                   <label className="space-y-1.5">
-                    <span className="text-sm">От какого момента</span>
+                    <span className="text-sm">От какого момента *</span>
                     <select
                       aria-label="От чего считать паузу"
+                      required
                       className="flex h-9 w-full rounded-md border bg-transparent px-3 text-sm"
                       value={selected.wait_from}
                       onChange={(event) =>
@@ -756,7 +902,7 @@ export function FunnelPage() {
                 </div>
               )}
               <div className="block space-y-1.5">
-                <h3 className="text-sm font-medium">3. Что отправить</h3>
+                <h3 className="text-sm font-medium">3. Что отправить *</h3>
                 <MessageEditor
                   value={selected.text}
                   onChange={(text) =>

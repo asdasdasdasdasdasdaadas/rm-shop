@@ -139,3 +139,5 @@
 @media(max-width:850px) { .flow-layout,.flow-menu-grid { grid-template-columns:1fr; } .flow-nav { position:static; } .flow-nav-list { max-height:220px; } .flow-step-card { padding:14px; } .flow-step-facts { grid-template-columns:1fr; gap:12px; } .flow-step-heading { gap:6px; font-size:12px; } }
 
 .flow-step-card .flow-message p { display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden; }
+
+.flow-layout [aria-invalid="true"], .flow-menu-grid [aria-invalid="true"], .flow-editor-sheet [aria-invalid="true"] { border-color: var(--destructive); }

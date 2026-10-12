@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { buttonError, textError } from "@/lib/funnel-validation";
+import { useRef, useState, useId } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ export function ButtonEditor({
   actions: Action[];
   onChange: (v: FunnelButton[]) => void;
 }) {
+  const errorPrefix = useId();
   const update = (i: number, patch: Partial<Exclude<FunnelButton, string>>) =>
     onChange(
       value.map((b, n) =>
@@ -43,24 +45,37 @@ export function ButtonEditor({
           typeof b === "string"
             ? { action: b, text: actions.find((a) => a.id === b)?.button || b }
             : b;
+        const issue = buttonError(
+          b,
+          actions.map((a) => a.id),
+        );
+        const errorId = errorPrefix + "-" + i;
         return (
           <div key={i} className="rounded-xl border p-4 space-y-3">
             <p className="text-xs font-medium text-muted-foreground">
               Кнопка {i + 1}
             </p>
             <label className="block space-y-1">
-              <span className="text-xs">Что написано на кнопке</span>
+              <span className="text-xs">Что написано на кнопке *</span>
               <Input
                 aria-label={`Название кнопки ${i + 1}`}
+                required
+                aria-invalid={issue?.field === "text"}
+                aria-describedby={issue?.field === "text" ? errorId : undefined}
                 maxLength={64}
                 value={item.text}
                 onChange={(e) => update(i, { text: e.target.value })}
               />
             </label>
             <label className="block space-y-1">
-              <span className="text-xs">Что произойдёт при нажатии</span>
+              <span className="text-xs">Что произойдёт при нажатии *</span>
               <select
                 aria-label={`Действие кнопки ${i + 1}`}
+                required
+                aria-invalid={issue?.field === "action"}
+                aria-describedby={
+                  issue?.field === "action" ? errorId : undefined
+                }
                 className="h-9 w-full rounded-md border bg-background px-2 text-sm"
                 value={item.action}
                 onChange={(e) =>
@@ -86,10 +101,19 @@ export function ButtonEditor({
             {item.action === "url" && (
               <Input
                 aria-label={`Ссылка кнопки ${i + 1}`}
-                placeholder="https://…"
+                required
+                type="url"
+                aria-invalid={issue?.field === "url"}
+                aria-describedby={issue?.field === "url" ? errorId : undefined}
+                placeholder="Адрес ссылки * · https://…"
                 value={item.url || ""}
                 onChange={(e) => update(i, { url: e.target.value })}
               />
+            )}
+            {issue && (
+              <p id={errorId} className="text-xs text-destructive">
+                {issue.message}
+              </p>
             )}
             <div className="flex gap-1">
               {[-1, 1].map((d) => (
@@ -142,6 +166,8 @@ export function MessageEditor({
   onChange: (s: string) => void;
   label?: string;
 }) {
+  const textErrorId = useId();
+  const issue = textError(value);
   const ref = useRef<HTMLTextAreaElement>(null),
     [pack, setPack] = useState(""),
     [items, setItems] = useState<
@@ -168,6 +194,9 @@ export function MessageEditor({
       <Textarea
         ref={ref}
         aria-label={label}
+        required
+        aria-invalid={!!issue}
+        aria-describedby={issue ? textErrorId : undefined}
         className="min-h-40"
         value={value}
         maxLength={3500}
@@ -179,6 +208,11 @@ export function MessageEditor({
           };
         }}
       />
+      {issue && (
+        <p id={textErrorId} className="text-xs text-destructive">
+          {issue}
+        </p>
+      )}
       <details className="rounded-lg border p-3">
         <summary className="cursor-pointer text-sm">
           Анимированные эмодзи Telegram

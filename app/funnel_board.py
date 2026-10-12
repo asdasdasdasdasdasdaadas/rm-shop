@@ -349,13 +349,13 @@ def validate(graph) -> dict:
                 if condition in specials:
                     raise ValueError(f"Условие «{CONDITION_IDS[condition]['label']}» можно поставить один раз")
                 specials.add(condition)
-            try:
-                hours = int(step.get("wait_hours"))
-            except (TypeError, ValueError):
-                raise ValueError("Пауза шага задаётся в часах") from None
+            raw_hours = step.get("wait_hours")
+            if isinstance(raw_hours, bool) or not isinstance(raw_hours, (int, str)) or not re.fullmatch(r"[0-9]+", str(raw_hours)):
+                raise ValueError("Укажите паузу целым числом часов. Для отправки сразу введите 0")
+            hours = int(raw_hours)
             if hours < 0 or hours > 24 * 365:
                 raise ValueError("Пауза шага — от 0 часов до года")
-            wait_from = str(step.get("wait_from") or "anchor")
+            wait_from = str(step.get("wait_from") or "")
             if wait_from not in {"anchor", "previous"}:
                 raise ValueError("Пауза считается от события или от предыдущего шага")
             text = str(step.get("text") or "").strip()
