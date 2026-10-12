@@ -105,7 +105,7 @@ async def _deliver_unbudgeted(
     if not await db.nudge_delivery_allowed(telegram_id, kind):
         return False
     try:
-        await send_reminder(bot, telegram_id, body, kind=kind, title=title, reply_markup=reply_markup)
+        await send_reminder(bot, telegram_id, body, kind=kind, title=title, reply_markup=reply_markup, preserve=preserve)
         ok = True
     except Exception as exc:
         logger.debug("Напоминание %s не ушло %s", kind, telegram_id, exc_info=True)

@@ -1,9 +1,13 @@
+import {
+  ButtonEditor,
+  MessageEditor,
+  type FunnelButton,
+} from "@/components/funnel-editors";
 import { useEffect, useState } from "react";
 import { api, useResource } from "@/lib/api";
 import { Failure, Loading, useConfirm } from "@/components/workspace";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Plus, Trash2, Minus, X, GitBranch, MessageSquare } from "lucide-react";
@@ -14,11 +18,14 @@ type Step = {
   wait_hours: number;
   wait_from: "anchor" | "previous";
   text: string;
-  buttons: string[];
+  buttons: FunnelButton[];
   enabled: boolean;
 };
 type Branch = { id: string; title: string; steps: Step[] };
-type Graph = { branches: Branch[] };
+type Graph = {
+  branches: Branch[];
+  main_menu?: { text: string; buttons: FunnelButton[] };
+};
 type Option = { id: string; label: string; hint?: string; button?: string };
 
 const ONCE = new Set(["unpaid_invoice", "balance_low", "winback"]);
@@ -44,6 +51,9 @@ export function FunnelPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [recipient, setRecipient] = useState("");
+  const [testing, setTesting] = useState(false);
   useEffect(() => {
     if (resource.data?.graph && !graph) {
       setGraph(resource.data.graph);
@@ -66,7 +76,7 @@ export function FunnelPage() {
     (branch) => branch.id === picked?.branch,
   );
   const change = (next: Graph) => {
-    setGraph(next);
+    setGraph({ ...graph, ...next });
     setError("");
   };
   const updateBranch = (id: string, patch: Partial<Branch>) =>
@@ -110,9 +120,51 @@ export function FunnelPage() {
       setSaving(false);
     }
   };
+  const testBranch = async (id: string) => {
+    setTesting(true);
+    try {
+      const telegram_id = recipient || String(resource.data?.admins?.[0] || "");
+      const response = await api("funnel-test", {
+        telegram_id,
+        scenario: id,
+        graph,
+      });
+      if (response.error)
+        toast.error(
+          `Отправлено ${response.sent}/${response.total}: ${response.error}`,
+        );
+      else toast.success(`Тест: отправлено ${response.sent} сообщений админу`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setTesting(false);
+    }
+  };
   return (
     <div className="space-y-5 min-w-0">
       <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (!graph.main_menu)
+              change({ ...graph, main_menu: resource.data?.default_menu });
+            setMenuOpen(!menuOpen);
+          }}
+        >
+          Главное меню бота
+        </Button>
+        <select
+          aria-label="Админ для теста"
+          className="h-9 rounded-md border bg-background px-2 text-sm"
+          value={recipient || String(resource.data?.admins?.[0] || "")}
+          onChange={(e) => setRecipient(e.target.value)}
+        >
+          {(resource.data?.admins || []).map((id: number) => (
+            <option key={id} value={id}>
+              Админ {id}
+            </option>
+          ))}
+        </select>
         <Button onClick={() => save()} disabled={!dirty || saving}>
           Сохранить воронку
         </Button>
@@ -132,6 +184,40 @@ export function FunnelPage() {
           Вернуть исходную схему
         </Button>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Тест отправляет текущий черновик только выбранному админу, без задержек
+        и действий с аккаунтом. Включённые шаги — по порядку.
+      </p>
+      {menuOpen && graph.main_menu && (
+        <section className="rounded-xl border p-4 space-y-4">
+          <h2 className="font-medium">Главное меню бота</h2>
+          <p className="text-sm text-muted-foreground">
+            Текст при открытии меню. Подстановки: {"{name}"}, {"{balance}"},{" "}
+            {"{price}"}.
+          </p>
+          <MessageEditor
+            label="Текст главного меню"
+            value={graph.main_menu.text}
+            onChange={(text) =>
+              change({ ...graph, main_menu: { ...graph.main_menu!, text } })
+            }
+          />
+          <ButtonEditor
+            actions={actions}
+            value={graph.main_menu.buttons}
+            onChange={(buttons) =>
+              change({ ...graph, main_menu: { ...graph.main_menu!, buttons } })
+            }
+          />
+          <Button
+            variant="outline"
+            disabled={testing}
+            onClick={() => testBranch("main-menu")}
+          >
+            Тест меню на админе
+          </Button>
+        </section>
+      )}
       {error && (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -201,6 +287,16 @@ export function FunnelPage() {
                           updateBranch(branch.id, { title: event.target.value })
                         }
                       />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          testing || !branch.steps.some((s) => s.enabled)
+                        }
+                        onClick={() => testBranch(branch.id)}
+                      >
+                        Тест ветки на админе
+                      </Button>
                       <div className="flex gap-1">
                         <Button
                           variant="ghost"
@@ -274,11 +370,17 @@ export function FunnelPage() {
                             <span className="flex flex-wrap gap-1">
                               {step.buttons.map((id) => (
                                 <span
-                                  key={id}
+                                  key={
+                                    typeof id === "string"
+                                      ? id
+                                      : step.buttons.indexOf(id)
+                                  }
                                   className="rounded border px-2 py-1 text-xs text-muted-foreground"
                                 >
-                                  {actions.find((a) => a.id === id)?.button ||
-                                    id}
+                                  {typeof id === "string"
+                                    ? actions.find((a) => a.id === id)
+                                        ?.button || id
+                                    : id.text}
                                 </span>
                               ))}
                             </span>
@@ -459,17 +561,12 @@ export function FunnelPage() {
                 </label>
               </div>
             )}
-            <label className="block space-y-1.5">
+            <div className="block space-y-1.5">
               <span className="text-sm">Сообщение</span>
-              <Textarea
-                aria-label="Текст сообщения"
-                className="min-h-40"
-                maxLength={3500}
+              <MessageEditor
                 value={selected.text}
-                onChange={(event) =>
-                  updateStep(selectedBranch.id, selected.id, {
-                    text: event.target.value,
-                  })
+                onChange={(text) =>
+                  updateStep(selectedBranch.id, selected.id, { text })
                 }
               />
               <span className="block text-xs text-muted-foreground">
@@ -478,9 +575,17 @@ export function FunnelPage() {
                 человек получает не больше одного такого сообщения в сутки и
                 трёх в неделю.
               </span>
-            </label>
+            </div>
+            <h3 className="text-sm font-medium">Кнопки сообщения</h3>
+            <ButtonEditor
+              actions={actions}
+              value={selected.buttons}
+              onChange={(buttons) =>
+                updateStep(selectedBranch.id, selected.id, { buttons })
+              }
+            />
             <fieldset className="space-y-2">
-              <legend className="text-sm">Кнопки</legend>
+              <legend className="text-sm">Быстрый выбор действий</legend>
               <div className="grid gap-2 sm:grid-cols-2">
                 {actions.map((action) => (
                   <label
@@ -490,9 +595,16 @@ export function FunnelPage() {
                     <input
                       type="checkbox"
                       aria-label={action.label}
-                      checked={selected.buttons.includes(action.id)}
+                      checked={selected.buttons.some(
+                        (b) =>
+                          (typeof b === "string" ? b : b.action) === action.id,
+                      )}
                       onChange={() => {
-                        const buttons = selected.buttons.includes(action.id)
+                        const buttons = selected.buttons.some(
+                          (b) =>
+                            (typeof b === "string" ? b : b.action) ===
+                            action.id,
+                        )
                           ? selected.buttons.filter(
                               (item) => item !== action.id,
                             )

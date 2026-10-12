@@ -38,15 +38,21 @@ def funnel_keyboard(markup=None):
 
 
 async def send_funnel_message(bot, chat_id, text, **kwargs):
+    if kwargs.pop('preserve', False):
+        return await bot.send_message(chat_id, text, **kwargs)
     kwargs['reply_markup'] = funnel_keyboard(kwargs.get('reply_markup'))
     return await bot.send_message(chat_id, funnel_body(text), **kwargs)
 
 
 async def answer_funnel(message, text, **kwargs):
+    if kwargs.pop('preserve', False):
+        return await message.answer(text, **kwargs)
     kwargs['reply_markup'] = funnel_keyboard(kwargs.get('reply_markup'))
     return await message.answer(funnel_body(text), **kwargs)
 
 
 async def edit_funnel(message, text, **kwargs):
+    if kwargs.pop('preserve', False):
+        return await message.edit_text(text, **kwargs)
     kwargs['reply_markup'] = funnel_keyboard(kwargs.get('reply_markup'))
     return await message.edit_text(funnel_body(text), **kwargs)

@@ -54,6 +54,8 @@ ACTIONS = (
     {"id": "share", "label": "Поделиться ссылкой", "button": "Поделиться ссылкой"},
     {"id": "copy", "label": "Скопировать приглашение", "button": "Скопировать текст"},
     {"id": "resume_pay", "label": "Продолжить оплату счёта", "button": "Продолжить оплату"},
+    {"id": "about", "label": "О сервисе", "button": "О сервисе"},
+    {"id": "invite", "label": "Пригласить друга", "button": "Пригласить"},
     {"id": "menu", "label": "Главное меню", "button": "В главное меню"},
 )
 ACTION_IDS = {row["id"] for row in ACTIONS}
@@ -145,6 +147,68 @@ def _button(action_id: str) -> dict:
     return next(row for row in ACTIONS if row["id"] == action_id)
 
 
+def validate_buttons(buttons):
+    from urllib.parse import urlsplit
+    if not isinstance(buttons, list) or len(buttons) > 6:
+        raise ValueError("Можно добавить до 6 кнопок")
+    clean = []
+    for item in buttons:
+        if isinstance(item, str):
+            if item not in ACTION_IDS or item in clean:
+                raise ValueError("Выберите действие кнопки")
+            clean.append(item)
+            continue
+        if not isinstance(item, dict):
+            raise ValueError("Некорректная кнопка")
+        action = str(item.get("action") or "")
+        label = str(item.get("text") or "").strip()
+        if action not in ACTION_IDS | {"url"} or not label or len(label) > 64:
+            raise ValueError("Выберите действие и название кнопки до 64 символов")
+        button = {"action": action, "text": label}
+        if action == "url":
+            url = str(item.get("url") or "").strip()
+            parsed = urlsplit(url)
+            if parsed.scheme != "https" or not parsed.hostname or parsed.username or len(url) > 2048:
+                raise ValueError("Для ссылки нужен полный HTTPS-адрес")
+            button["url"] = url
+        clean.append(button)
+    return clean
+
+
+def default_menu():
+    from app.notices import public_notices
+    text = public_notices()["profile_balance"]
+    text = text.replace("«Открыть кабинет» внизу", "«Личный кабинет»").replace("«Открыть кабинет»", "«Личный кабинет»")
+    return {"text": text,
+            "buttons": ["cabinet", {"action": "channel", "text": "Новостной канал"}, "invite", "about"]}
+
+
+def validate_menu(menu):
+    if not isinstance(menu, dict):
+        raise ValueError("Некорректное главное меню")
+    text = str(menu.get("text") or "").strip()
+    if not text or len(text) > 3500:
+        raise ValueError("Текст меню — от 1 до 3500 символов")
+    buttons = validate_buttons(menu.get("buttons"))
+    if not buttons:
+        raise ValueError("Добавьте хотя бы одну кнопку меню")
+    return {"text": text, "buttons": buttons}
+
+
+async def menu_content(first_name, balance_rub, telegram_id):
+    try:
+        graph = await load()
+    except Exception:
+        logger.exception("Не удалось загрузить главное меню, используем стандартное")
+        return None
+    menu = graph.get("main_menu")
+    if not menu:
+        return None
+    from app.texts import rub_text
+    body = render_text(menu["text"].replace("{balance}", rub_text(balance_rub)), telegram_id, first_name)
+    return body, markup(menu["buttons"], telegram_id)
+
+
 def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
     from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -162,13 +226,17 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
         if name:
             query["screen"] = name
         return InlineKeyboardButton(
-            text=label, style="success",
+            text=label, style="success" if name is None else None,
             web_app=WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query)))),
         )
 
     rows = []
-    for action_id in button_ids:
-        label = _button(action_id)["button"]
+    for item in button_ids:
+        action_id = item if isinstance(item, str) else item["action"]
+        label = _button(action_id)["button"] if isinstance(item, str) else item["text"]
+        if action_id == "url":
+            rows.append([InlineKeyboardButton(text=label, url=item["url"])])
+            continue
         if action_id == "cabinet":
             rows.append([screen(label, None)])
         elif action_id == "gift":
@@ -187,7 +255,8 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
             url = get_settings().required_channel_url
             if url:
                 rows.append([InlineKeyboardButton(text=label, url=url)])
-            rows.append([InlineKeyboardButton(text="Проверить подписку", callback_data="check_sub")])
+            if isinstance(item, str):
+                rows.append([InlineKeyboardButton(text="Проверить подписку", callback_data="check_sub")])
         elif action_id == "feedback_ok":
             rows.append([InlineKeyboardButton(text=label, callback_data="vpn_feedback:ok")])
         elif action_id == "feedback_help":
@@ -195,7 +264,7 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
         elif action_id == "feedback_later":
             rows.append([InlineKeyboardButton(text=label, callback_data="vpn_feedback:later")])
         elif action_id == "share":
-            rows.append([referral_share_button(int(telegram_id))])
+            rows.append([referral_share_button(int(telegram_id)).model_copy(update={"text": label})])
         elif action_id == "copy":
             username = get_settings().bot_username
             rows.append([InlineKeyboardButton(
@@ -206,6 +275,8 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
                 rows.append([InlineKeyboardButton(text=label, callback_data=f"resume_pay:{token}")])
             else:
                 rows.append([screen(label, "topup")])
+        elif action_id in {"about", "invite"}:
+            rows.append([InlineKeyboardButton(text=label, callback_data="about_service" if action_id == "about" else "share")])
         elif action_id == "menu":
             rows.append([InlineKeyboardButton(text=label, callback_data="profile")])
     if not rows:
@@ -290,15 +361,7 @@ def validate(graph) -> dict:
             text = str(step.get("text") or "").strip()
             if not text or len(text) > 3500:
                 raise ValueError("Текст шага — от 1 до 3500 символов")
-            buttons = step.get("buttons") if isinstance(step.get("buttons"), list) else []
-            picked = []
-            for button in buttons:
-                bid_button = str(button or "")
-                if bid_button not in ACTION_IDS or bid_button in picked:
-                    raise ValueError("Кнопка должна быть из действий, которые уже умеет бот")
-                picked.append(bid_button)
-            if len(picked) > 6:
-                raise ValueError("У шага не больше 6 кнопок")
+            picked = validate_buttons(step.get("buttons", []))
             steps.append({
                 "id": sid,
                 "condition": condition,
@@ -309,7 +372,10 @@ def validate(graph) -> dict:
                 "enabled": bool(step.get("enabled", True)),
             })
         clean.append({"id": bid, "title": title, "steps": steps})
-    return {"branches": clean}
+    result = {"branches": clean}
+    if "main_menu" in graph:
+        result["main_menu"] = validate_menu(graph["main_menu"])
+    return result
 
 
 def _step(sid, condition, hours, text, buttons, wait_from="anchor", enabled=True):
@@ -437,7 +503,7 @@ def preview(graph: dict, telegram_id: int) -> tuple[list[dict], list[tuple]]:
                 "id": step["id"],
                 "title": branch.get("title") or "Шаг",
                 "condition": spec.get("label") or step["condition"],
-                "body": step.get("text") or "",
+                "body": render_text(step.get("text") or "", telegram_id, "Администратор").replace("{code}", "TEST-ONLY").replace("{devices}", "1").replace("{amount}", "30"),
                 "kind": "nudge_board",
                 "markup": markup(step.get("buttons") or [], telegram_id),
             })

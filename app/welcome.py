@@ -175,8 +175,13 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
             has_access=bool(local and local.get("balance_rub")),
             story_offer=False,
         )
+    if in_channel:
+        from app.funnel_board import menu_content
+        custom = await menu_content((local or {}).get("first_name"), int((local or {}).get("balance_rub") or 0), telegram_id)
+        if custom:
+            kb = custom[1]
     last += "\n\n" + legal_text()
-    await answer_funnel(message, last, reply_markup=kb, link_preview_options=LinkPreviewOptions(is_disabled=True))
+    await answer_funnel(message, last, reply_markup=kb, preserve=bool(in_channel and custom), link_preview_options=LinkPreviewOptions(is_disabled=True))
     await db.mark_legal_notice(telegram_id)
 
 

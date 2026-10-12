@@ -405,6 +405,8 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
         data = {
           ok: true,
           graph: method === "POST" && !payload.reset ? payload.graph : sample,
+          admins:[123],
+          default_menu:{text:"Привет, {name}! {balance}",buttons:["cabinet"]},
           conditions: [
             {
               id: "no_device",
@@ -413,11 +415,13 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
             },
           ],
           actions: [
+            { id:"cabinet",label:"Личный кабинет",button:"Личный кабинет" },
             { id: "gift", label: "Экран подарка", button: "Забрать подарок" },
             { id: "help", label: "Нужна помощь с подключением", button: "Нужна помощь" },
           ],
         };
       }
+      if (key === "funnel-emojis") data={ok:true,title:"Звёзды",items:[{id:"123",emoji:"⭐",thumbnail:false}]};
       if (key === "funnel-test")
         data =
           method === "POST"
@@ -828,6 +832,29 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   const saved = posts.find((item) => item.key === "funnel-board").payload.graph;
   assert.equal(saved.branches[0].steps[0].text, "Новый текст шага");
   assert.deepEqual(saved.branches[0].steps[0].buttons, ["gift", "help"]);
+  await page.getByRole("button", {name:/Нет устройства/}).click();
+  await page.getByRole("button", {name:"Добавить кнопку",exact:true}).click();
+  await page.getByLabel("Название кнопки 3",{exact:true}).fill("Наш сайт");
+  await page.getByLabel("Действие кнопки 3",{exact:true}).selectOption("url");
+  await page.getByLabel("Ссылка кнопки 3",{exact:true}).fill("https://example.org/news");
+  await page.getByText("Анимированные эмодзи Telegram",{exact:true}).click();
+  await page.getByLabel("Набор эмодзи",{exact:true}).fill("https://t.me/addemoji/Stars");
+  await page.getByRole("button",{name:"Загрузить набор",exact:true}).click();
+  await page.getByRole("button",{name:"Вставить ⭐ 123",exact:true}).click();
+  assert.match(await page.getByLabel("Текст сообщения",{exact:true}).inputValue(),/<tg-emoji emoji-id="123">⭐<\/tg-emoji>/);
+
+  await page.getByRole("button", {name:"Тест ветки на админе",exact:true}).click();
+  await page.getByText("Тест: отправлено 1 сообщений админу",{exact:true}).waitFor();
+  const draftTest=posts.filter(p=>p.key==='funnel-test').at(-1).payload;
+  assert.equal(draftTest.telegram_id,'123');
+  assert.equal(draftTest.graph.branches[0].steps[0].buttons[2].url,'https://example.org/news');
+  await page.getByRole("button", {name:"Главное меню бота",exact:true}).click();
+  await page.getByLabel("Текст главного меню",{exact:true}).fill("Привет, {name}! Баланс: {balance}");
+  await Promise.all([page.waitForResponse(r=>r.url().endsWith("/funnel-board")&&r.request().method()==="POST"),page.getByRole("button", {name:"Сохранить воронку",exact:true}).click()]);
+  const menuSave=posts.filter(p=>p.key==='funnel-board').at(-1).payload.graph;
+  assert.equal(menuSave.main_menu.text,'Привет, {name}! Баланс: {balance}');
+  assert.equal(menuSave.branches[0].steps[0].buttons[2].text,'Наш сайт');
+
   for (const label of [
     "Платежи",
     "Операции по балансу",

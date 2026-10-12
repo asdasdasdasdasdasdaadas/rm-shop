@@ -459,11 +459,45 @@ async def _funnel_catalog(recipient: int):
     return rows, SCENARIOS
 
 
+async def api_funnel_emojis(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    import re
+    import io
+    from urllib.parse import urlparse
+    bot = request.app["bot"]
+    try:
+        emoji_id = request.query.get("id", "")
+        if emoji_id:
+            if not re.fullmatch(r"[0-9]{1,30}", emoji_id):
+                raise ValueError("Некорректный эмодзи")
+            stickers = await bot.get_custom_emoji_stickers(custom_emoji_ids=[emoji_id])
+            if not stickers or not stickers[0].thumbnail:
+                return web.Response(status=404)
+            data = io.BytesIO()
+            await bot.download(stickers[0].thumbnail.file_id, destination=data)
+            return web.Response(body=data.getvalue(), content_type="image/webp", headers={"Cache-Control":"private, max-age=3600"})
+        name = request.query.get("set", "").strip()
+        if name.startswith("https://t.me/addemoji/"):
+            name = urlparse(name).path.rsplit("/",1)[-1]
+        if not re.fullmatch(r"[A-Za-z0-9_]{1,64}", name):
+            raise ValueError("Вставьте ссылку t.me/addemoji/… или имя набора")
+        pack = await bot.get_sticker_set(name=name)
+        if pack.sticker_type != "custom_emoji":
+            raise ValueError("Это набор стикеров. Нужен набор эмодзи t.me/addemoji/…")
+        return web.json_response({"ok":True,"title":pack.title,"items":[
+            {"id":item.custom_emoji_id,"emoji":item.emoji or "⭐", "thumbnail":bool(item.thumbnail)}
+            for item in pack.stickers if item.custom_emoji_id]})
+    except Exception as exc:
+        return web.json_response({"ok":False,"error":str(exc) if isinstance(exc,ValueError) else "Telegram не смог загрузить набор эмодзи"},status=400)
+
+
 async def api_funnel_board(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
         return denied
-    from app.funnel_board import actions_public, conditions_public, default_graph, load, save, validate
+    from app.funnel_board import actions_public, conditions_public, default_graph, default_menu, load, save, validate
     if request.method == "GET":
         try:
             graph = await load()
@@ -473,6 +507,7 @@ async def api_funnel_board(request: web.Request) -> web.Response:
         return web.json_response({
             "ok": True, "graph": graph,
             "conditions": conditions_public(), "actions": actions_public(),
+            "default_menu": default_menu(), "admins": sorted(get_settings().admin_id_set),
         })
     try:
         body = await request.json()
@@ -510,7 +545,21 @@ async def api_funnel_test(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Выберите администратора"}, status=400)
     if recipient not in admins:
         return web.json_response({"ok": False, "error": "Тест доступен только для ADMIN_IDS"}, status=403)
-    listed, scenarios = await _funnel_catalog(recipient)
+    if body.get("graph") is not None:
+        from app.funnel_board import validate, preview
+        try:
+            graph = validate(body["graph"])
+            listed, choices = preview(graph, recipient)
+            scenarios = {key: (title, steps) for key, title, steps in choices}
+            if body.get("scenario") == "main-menu" and graph.get("main_menu"):
+                from app.funnel_board import markup, render_text
+                menu = graph["main_menu"]
+                listed = [{"id":"main-menu", "title":"Главное меню", "condition":"Предпросмотр", "body":render_text(menu["text"].replace("{balance}", "100 рублей"), recipient, "Администратор"), "markup":markup(menu["buttons"],recipient)}]
+                scenarios = {"main-menu": ("Главное меню", ["main-menu"])}
+        except ValueError as exc:
+            return web.json_response({"ok":False,"error":str(exc)},status=400)
+    else:
+        listed, scenarios = await _funnel_catalog(recipient)
     rows = {row["id"]: row for row in listed}
     scenario = str(body.get("scenario") or "")
     message_id = str(body.get("message_id") or "")
@@ -2595,6 +2644,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_delete("/admin/api/maintenance/photo", api_maintenance_photo)
     app.router.add_get("/admin/api/funnel-test", api_funnel_test)
     app.router.add_post("/admin/api/funnel-test", api_funnel_test)
+    app.router.add_get("/admin/api/funnel-emojis", api_funnel_emojis)
     app.router.add_get("/admin/api/funnel-board", api_funnel_board)
     app.router.add_post("/admin/api/funnel-board", api_funnel_board)
     app.router.add_get("/admin/api/broadcast-results", api_broadcast_results)
