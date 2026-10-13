@@ -10,6 +10,7 @@ function setup(me, storage = new Map()) {
     getItem: key => storage.get(key), setItem: (key,value) => storage.set(key,value),
   }, $: () => button, haptic() {}, firstRunBusy: false,
   api: async () => calls.push('claim'), load: async () => calls.push('load'),
+  phoneDevices: me => me.devices || [], showDevice: d => calls.push(['device',d.id]),
   startWizard: opts => calls.push(['wizard',opts.fromOffer]), openHome: () => calls.push('home'),
   showErr: e => {throw e;}, tg: {openTelegramLink: url => calls.push(['bot',url])},
   ONBOARD_KEY:'onboard', OFFER_SKIP_KEY:'skip', COACH_KEY:'coach', WIZ_COACH_KEY:'wiz',
@@ -63,4 +64,10 @@ test('unclaimed gift wins over stale completed onboarding for the same account',
   assert.equal(ctx.shouldShowOffer(me), true);
   assert.equal(ctx.shouldShowOffer({...me, trial_available:false, trial_notice:{kind:'start_bot'}}), true);
   assert.equal(ctx.shouldShowOffer({...me, trial_available:false, trial_notice:null}), false);
+});
+
+test('gift resumes existing device instead of creating another', async () => {
+  const {ctx,calls} = setup({...newcomer,devices:[{id:7}]});
+  await ctx.startOfferTry();
+  assert.deepEqual(calls,[['device',7]]);
 });

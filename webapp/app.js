@@ -1972,6 +1972,7 @@ function onBack() {
     }
   }
   if (screen === "wizard") {
+    if (wizardCreating) return;
     if (wiz.step > 1 && !wiz.url) {
       markWizCoachStep(wiz.step);
       wiz.step -= 1;
@@ -2766,7 +2767,7 @@ function monthPriceLabel(me) {
 function paintOffer(me) {
   if (!me) return;
   const needsBot = me.trial_notice && me.trial_notice.kind === "start_bot";
-  $("offerTry").textContent = needsBot ? "Запустить бота" : "Принять подарок";
+  $("offerTry").textContent = needsBot ? "Запустить бота" : "Забрать подарок и подключиться";
   $("offerLead").textContent = needsBot
     ? "Чтобы забрать подарок, откройте бота и нажмите «Начать». Затем вернитесь в кабинет."
     : "Попробуйте VPN бесплатно на одном устройстве.";
@@ -2814,7 +2815,7 @@ function openOffer(opts) {
 
 async function startOfferTry() {
   const me = window.__me;
-  if (!me) return;
+  if (!me || firstRunBusy) return;
   if (me.trial_notice && me.trial_notice.kind === "start_bot") {
     tg.openTelegramLink(me.bot_start_url);
     return;
@@ -2825,12 +2826,17 @@ async function startOfferTry() {
   firstRunBusy = true;
   try {
     if (me.trial_available) {
-      await api("/api/trial", { method: "POST", body: "{}" });
-      await load();
+      const claimed = await api("/api/trial", { method: "POST", body: "{}" });
+      if (claimed && claimed.balance_rub != null) me.balance_rub = claimed.balance_rub;
+      me.trial_available = false;
+      me.trial_notice = null;
+      await load().catch(() => {});
     }
     const next = window.__me || me;
     if (next.balance_enabled) {
-      startWizard({ fromOffer: true });
+      const existing = phoneDevices(next)[0];
+      if (existing) showDevice(existing);
+      else startWizard({ fromOffer: true });
       return;
     }
     markOnboardDone();
@@ -3063,6 +3069,42 @@ function closeWizard() {
   openHome();
 }
 
+function currentDevicePlatform() {
+  const ua = navigator.userAgent || "";
+  if (/Android/i.test(ua)) return "android";
+  if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
+  if (/Windows/i.test(ua)) return "windows";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "macos";
+  return "";
+}
+
+let wizardCreating = false;
+async function createWizardDevice() {
+  if (wizardCreating || wiz.url) return;
+  wizardCreating = true;
+  firstRunBusy = true;
+  setMainBusy(true);
+  try {
+    const title = (wiz.title || "").trim() || defaultTitle();
+    const created = await api("/api/devices", {
+      method: "POST", body: JSON.stringify({title, platform: wiz.platform}),
+    });
+    wiz.title = title;
+    wiz.url = created.subscription_url || "";
+    wiz.step = 4;
+    if (created.first_device) armThanksOnClose();
+    // A failed balance refresh must not discard an already created subscription.
+    await load().catch(() => {});
+    renderWizard();
+  } catch (e) {
+    showErr(e);
+  } finally {
+    wizardCreating = false;
+    firstRunBusy = false;
+    setMainBusy(false);
+  }
+}
+
 function startWizard(opts) {
   const me = window.__me;
   if (!me || !me.balance_enabled) return;
@@ -3074,8 +3116,9 @@ function startWizard(opts) {
   }
   if (!(opts && opts.instant)) haptic();
   hideCoach();
-  wiz.step = 1;
-  wiz.platform = isPcWebApp() ? "windows" : "ios";
+  const detected = currentDevicePlatform();
+  wiz.step = detected ? 2 : 1;
+  wiz.platform = detected || "ios";
   const first = clientsFor(wiz.platform)[0];
   wiz.client = first ? first.id : "";
   wiz.title = "";
@@ -3101,11 +3144,11 @@ function renderWizard() {
   if (wiz.url) wiz.step = 4;
   $("wizStep").classList.toggle("hidden", wiz.step >= 4);
   replayAnim($("wizTitle"), "title-in");
-  setWizProgress(wiz.step);
+  setWizProgress(4);
   trackOnboarding(`wizard_${wiz.step}`);
 
   if (wiz.step === 1) {
-    $("wizStep").textContent = "Шаг 1 из 3";
+    $("wizStep").textContent = "Подключение VPN";
     $("wizTitle").textContent = "Выбор устройства";
     lead.textContent = "Выберите устройство для VPN. Каждое оплачивается отдельно.";
     const list = document.createElement("div");
@@ -3193,14 +3236,13 @@ function renderWizard() {
       wiz.step = 2;
       renderWizard();
     });
-    queueWizCoach();
     return;
   }
 
   if (wiz.step === 2) {
-    $("wizStep").textContent = "Шаг 2 из 3";
+    $("wizStep").textContent = "Шаг 1 из 2";
     $("wizTitle").textContent = "Установите приложение";
-    lead.textContent = step2Hint(wiz.platform);
+    lead.textContent = "Скачайте приложение для " + platformLabel(wiz.platform) + ". Затем вернитесь сюда — добавим подписку.";
     const list = clientsFor(wiz.platform);
     if (!list.length) {
       const empty = document.createElement("p");
@@ -3210,13 +3252,17 @@ function renderWizard() {
       $("wizHint").textContent = "";
       replayAnim(body, "wiz-swap");
       setMain("");
-      queueWizCoach();
-      return;
+        return;
     }
-    wiz.client = preferredClientId(wiz.platform);
+    if (!list.some(c => c.id === wiz.client)) wiz.client = preferredClientId(wiz.platform);
     const listWrap = document.createElement("div");
     listWrap.id = "wizAppList";
     listWrap.className = "wiz-app-list";
+    const alternatives = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = "Другие приложения";
+    alternatives.appendChild(summary);
+    list.sort((a, b) => Number(b.id === wiz.client) - Number(a.id === wiz.client));
     list.forEach((c, i) => {
       const row = document.createElement("div");
       row.className = "wiz-app";
@@ -3239,135 +3285,24 @@ function renderWizard() {
         a.textContent = "Скачать";
         a.onclick = () => {
           haptic();
+          wiz.client = c.id;
           tg.openLink(store);
         };
         row.appendChild(a);
       }
-      listWrap.appendChild(row);
+      (i === 0 ? listWrap : alternatives).appendChild(row);
     });
+    if (list.length > 1) listWrap.appendChild(alternatives);
     body.appendChild(listWrap);
-    $("wizHint").textContent = "Установите приложение и нажмите «Продолжить».";
+    const change = document.createElement("button");
+    change.type = "button";
+    change.className = "btn btn-ghost";
+    change.textContent = platformLabel(wiz.platform) + " · Другое устройство";
+    change.onclick = () => { if (!wizardCreating) { wiz.step = 1; renderWizard(); } };
+    body.appendChild(change);
+    $("wizHint").textContent = "Уже установлено? Просто продолжайте. Название устройства можно изменить позже.";
     replayAnim(body, "wiz-swap");
-    setMain("Продолжить", () => {
-      haptic();
-      markWizCoachStep(2);
-      wiz.step = 3;
-      renderWizard();
-    });
-    queueWizCoach();
-    return;
-  }
-
-  if (wiz.step === 3) {
-    $("wizStep").textContent = "Шаг 3 из 3";
-    $("wizTitle").textContent = "Назовите устройство";
-    lead.textContent = "Пригодится, если подключите несколько гаджетов — так проще не запутаться.";
-    const chips = nameChips(wiz.platform);
-    if (!(wiz.title || "").trim()) wiz.title = chips[0] || defaultTitle();
-    const box = document.createElement("div");
-    box.id = "wizNameBox";
-    box.className = "wiz-name-box";
-    const lab = document.createElement("label");
-    lab.setAttribute("for", "devName");
-    lab.textContent = "Название устройства";
-    const input = document.createElement("input");
-    input.id = "devName";
-    input.type = "text";
-    input.placeholder = "например: мой iPhone";
-    input.value = wiz.title;
-    input.autocomplete = "off";
-    box.appendChild(lab);
-    const row = document.createElement("div");
-    row.className = "wiz-name-row";
-    row.appendChild(input);
-    const dice = document.createElement("button");
-    dice.type = "button";
-    dice.className = "wiz-dice";
-    dice.setAttribute("aria-label", "Случайное название");
-    dice.innerHTML = diceIconSvg();
-    let diceBusy = false;
-    dice.onclick = () => {
-      if (diceBusy) return;
-      haptic();
-      diceBusy = true;
-      const finish = (name) => {
-        wiz.title = name;
-        input.value = name;
-        paintChips();
-        diceBusy = false;
-        dice.classList.remove("is-rolling");
-      };
-      if (reducedMotion()) {
-        finish(pickFunDeviceName(input.value));
-        return;
-      }
-      dice.classList.add("is-rolling");
-      let n = 0;
-      const tick = setInterval(() => {
-        input.value = pickFunDeviceName(input.value);
-        n += 1;
-        if (n < 8) return;
-        clearInterval(tick);
-        finish(pickFunDeviceName(input.value));
-      }, 55);
-    };
-    row.appendChild(dice);
-    box.appendChild(row);
-    const chipWrap = document.createElement("div");
-    chipWrap.className = "wiz-chips";
-    const paintChips = () => {
-      chipWrap.querySelectorAll(".wiz-chip").forEach((el) => {
-        el.classList.toggle("on", el.textContent === (wiz.title || "").trim());
-      });
-    };
-    chips.forEach((label) => {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "wiz-chip";
-      chip.textContent = label;
-      chip.onclick = () => {
-        haptic();
-        wiz.title = label;
-        input.value = label;
-        paintChips();
-      };
-      chipWrap.appendChild(chip);
-    });
-    input.oninput = () => {
-      wiz.title = input.value;
-      paintChips();
-    };
-    body.appendChild(box);
-    body.appendChild(chipWrap);
-    paintChips();
-    replayAnim(body, "wiz-swap");
-    setMain("Добавить устройство", async () => {
-      haptic();
-      const title = (wiz.title || "").trim() || defaultTitle();
-      try {
-        setMainBusy(true);
-        const created = await api("/api/devices", {
-          method: "POST",
-          body: JSON.stringify({
-            title,
-            platform: wiz.platform,
-          }),
-        });
-        markWizCoachStep(3);
-        wiz.title = title;
-        wiz.url = created.subscription_url || "";
-        wiz.client = preferredClientId(wiz.platform);
-        wiz.step = 4;
-        if (created.first_device) armThanksOnClose();
-        await load();
-        renderWizard();
-      } catch (e) {
-        showErr(e);
-      } finally {
-        setMainBusy(false);
-      }
-    });
-    queueWizCoach();
+    setMain("Приложение установлено →", createWizardDevice);
     return;
   }
 
@@ -3425,7 +3360,7 @@ function renderWizard() {
   const open = document.createElement("button");
   open.type = "button";
   open.id = "wizOpenTile";
-  open.className = "dev-lbtn primary";
+  open.className = "btn btn-ghost";
   open.innerHTML =
     '<svg class="dev-lbtn-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
   const openLab = document.createElement("span");
@@ -3467,22 +3402,31 @@ function renderWizard() {
   const actions = document.createElement("div");
   actions.className = "dev-link-actions";
   actions.appendChild(copy);
-  actions.appendChild(open);
+  // The main action opens the subscription; copying is a fallback.
   link.appendChild(urlEl);
   link.appendChild(actions);
 
   body.appendChild(recap);
-  body.appendChild(linkLabel);
-  body.appendChild(link);
-  $("wizHint").textContent =
-    "Приложение не открылось? Скопируйте ссылку и добавьте её вручную.";
+  const manual = document.createElement("details");
+  const manualTitle = document.createElement("summary");
+  manualTitle.textContent = "Добавить ссылку вручную";
+  manual.append(manualTitle, linkLabel, link);
+  body.appendChild(manual);
+  const help = document.createElement("button");
+  help.type = "button";
+  help.className = "btn btn-ghost";
+  help.textContent = "Не получается подключиться";
+  help.onclick = () => openSupport();
+  body.appendChild(help);
+  $("wizHint").textContent = "Нажмите кнопку внизу, подтвердите добавление подписки и включите VPN в приложении.";
   replayAnim(body, "wiz-swap");
-  setMain("Готово", () => {
+  openLab.textContent = "В кабинет";
+  open.onclick = () => { closeWizard(); load().catch(() => {}); };
+  body.appendChild(open);
+  setMain("Добавить подписку в " + clientLabel(wiz.client), () => {
     haptic();
-    closeWizard();
-    load().catch(() => {});
+    openClient(wiz.client || preferredClientId(wiz.platform), wiz.url);
   });
-  queueWizCoach();
 }
 
 function defaultTitle() {

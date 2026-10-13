@@ -639,7 +639,7 @@ async def api_trial(request: web.Request) -> web.Response:
         )
     except RemnawaveError as exc:
         return json_error(str(exc), 502)
-    return web.json_response({"ok": True})
+    return web.json_response({"ok": True, "balance_rub": after})
 
 
 async def api_story_share(request: web.Request) -> web.Response:

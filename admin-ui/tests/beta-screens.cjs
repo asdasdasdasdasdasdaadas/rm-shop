@@ -7,9 +7,9 @@ const shots=fs.mkdtempSync(path.join(os.tmpdir(),'beta-screens-'));
  const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:'light',reducedMotion:'reduce'});
  await context.addInitScript(()=>{localStorage.setItem('way_lk_token','test');sessionStorage.setItem('way_intro_v4','1');localStorage.setItem('way_home_coach_v2','1');});
  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
- const me={user:{name:'Александр',username:'alex'},balance_rub:360,topup_min:50,topup_max:10000,topup_step:50,balance_enabled:true,days_left:30,day_price_rub:6,vpn_day_price_rub:6,has_paid_topup:true,has_access:true,trial_available:false,promo_enabled:true,notification_settings_available:true,devices:[],legal:{offer:'#',privacy:'#'},invite_url:'https://t.me/test?start=ref_1',referral_program_enabled:true,referral_terms:{note:'50 ₽ за друга и 5% от пополнений'},topup_plans:[{code:'topup_300',title:'300 ₽',rub:300,amount:300}],trust:{enabled:false}};
+ const me={user:{name:'Александр',username:'alex'},balance_rub:360,topup_min:50,topup_max:10000,topup_step:50,balance_enabled:true,days_left:30,day_price_rub:6,vpn_day_price_rub:6,has_paid_topup:true,has_access:true,trial_available:false,promo_enabled:true,notification_settings_available:true,devices:[{id:1,title:'Мой iPhone',platform:'ios',active:true,subscription_url:'https://example.test/sub/test'}],legal:{offer:'#',privacy:'#'},invite_url:'https://t.me/test?start=ref_1',referral_program_enabled:true,referral_terms:{note:'50 ₽ за друга и 5% от пополнений'},topup_plans:[{code:'topup_300',title:'300 ₽',rub:300,amount:300}],trust:{enabled:false}};
  me.faq=[{q:'Как подключить VPN?',a:'Добавьте устройство в кабинете и откройте ссылку в приложении.'}];
- await page.route('**/*',route=>{const url=new URL(route.request().url());if(url.host!=='cabinet.test')return route.fulfill({body:'',contentType:'application/javascript'});if(url.pathname.startsWith('/api/'))return route.fulfill({json:url.pathname==='/api/me'?me:{ok:true,items:[]}});const rel=url.pathname==='/'?'index.html':url.pathname.replace(/^\/(static\/)?/,'');const file=path.resolve(__dirname,'../../webapp',rel);return fs.existsSync(file)?route.fulfill({path:file}):route.fulfill({status:404,body:''});});
+ await page.route('**/*',route=>{const url=new URL(route.request().url());if(url.host!=='cabinet.test')return route.fulfill({body:'',contentType:'application/javascript'});if(url.pathname.startsWith('/api/'))return route.fulfill({json:url.pathname==='/api/me'?me:url.pathname==='/api/devices'?{ok:true,subscription_url:'https://example.test/sub/new'}:{ok:true,items:[]}});const rel=url.pathname==='/'?'index.html':url.pathname.replace(/^\/(static\/)?/,'');const file=path.resolve(__dirname,'../../webapp',rel);return fs.existsSync(file)?route.fulfill({path:file}):route.fulfill({status:404,body:''});});
 
  await page.goto('http://cabinet.test/');await page.locator('#app:not(.hidden)').waitFor();
  await page.evaluate(()=>{
@@ -32,7 +32,7 @@ const shots=fs.mkdtempSync(path.join(os.tmpdir(),'beta-screens-'));
   await page.evaluate(()=>openPayMethod({code:'topup_300',rub:300,amount:300}));await shot(theme+'-pay');
   await page.evaluate(()=>startWizard({instant:true}));await shot(theme+'-wizard-1');
   await page.locator('#appMainBtn').click();await shot(theme+'-wizard-2');
-  await page.locator('#appMainBtn').click();await shot(theme+'-wizard-3');
+  await page.locator('#appMainBtn').click();await page.getByText('Осталось включить VPN',{exact:true}).waitFor();await shot(theme+'-wizard-created');
   await page.evaluate(()=>{wiz.url='https://example.test/sub/test';wiz.title='Мой iPhone';renderWizard();});await shot(theme+'-wizard-ready');
   await page.evaluate(()=>showDevice(window.__me.devices[0]));await shot(theme+'-device');
   await page.evaluate(()=>openReferrals());await shot(theme+'-referrals');
@@ -44,7 +44,6 @@ const shots=fs.mkdtempSync(path.join(os.tmpdir(),'beta-screens-'));
   await page.evaluate(()=>paintSupportThread({id:1,status:'open',messages:[{author:'user',body:'Не получается подключиться на iPhone.',created_at:'2026-10-08T09:00:00Z'},{author:'admin',body:'Здравствуйте! Поможем. Подскажите, какое приложение вы установили?',created_at:'2026-10-08T09:01:00Z'}]}));await shot(theme+'-support');
   await page.evaluate(()=>paintSupportThread({id:1,status:'closed',messages:[]}));await shot(theme+'-support-closed');
   await page.evaluate(()=>{stopSupportPoll();screen='ambassador';switchView('view-ambassador');setMain('');paintAmbassador({settings:{first_percent:100,first_cap:300,recurring_percent:5,payout_min:2000,hold_days:7,budget:50000,accruing:true,recruitment:true},member:null,wallet:{}});});await shot(theme+'-ambassador');
-  await page.evaluate(()=>{window.__me.router={enabled:true,active:false,rub:500,days:30};openRouter();});await shot(theme+'-router');
   await page.evaluate(()=>{screen='article';switchView('view-article');setMain('');paintArticle({title:'Обновили кабинет',lead:'Подключайтесь и управляйте VPN в одном месте.',items:['Новый интерфейс','Быстрое подключение'],closing:'Спасибо, что вы с нами!'});});await shot(theme+'-article');
   await page.evaluate(()=>{window.__me.trial_available=true;window.__me.trial_days=3;window.__me.trial_rub=18;openOffer({instant:true});});await shot(theme+'-gift');
   await page.evaluate(()=>{window.__me.trial_available=false;openHome();paintLowBalance({...window.__me,balance_rub:0,hours_left:0},'empty');document.getElementById('lowBalanceSheet').showModal();});await shot(theme+'-low-balance');
