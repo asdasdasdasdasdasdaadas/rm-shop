@@ -831,7 +831,7 @@ async def _api_add_device_locked(request: web.Request) -> web.Response:
             await db.add_balance_rub(telegram_id, price)
         return json_error(str(last_error or "Не удалось создать устройство"), 502)
     rw_id = int(user["id"])
-    await db.add_device(telegram_id, title, rw_id, platform, None)
+    device = await db.add_device(telegram_id, title, rw_id, platform, None)
     await db.save_device_subscription(rw_id, user)
     if was_first:
         await db.mark_first_device_thanks_pending(telegram_id)
@@ -839,11 +839,34 @@ async def _api_add_device_locked(request: web.Request) -> web.Response:
         {
             "ok": True,
             "first_device": was_first,
+            "device_id": device.get("id"),
             "subscription_url": user.get("subscriptionUrl") or "",
             "title": title,
             "platform": platform or "",
         }
     )
+
+
+async def api_check_connection(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        device_id = int(request.match_info["device_id"])
+    except (ValueError, KeyError):
+        return json_error("Некорректное устройство", 400)
+    device = await db.get_device(telegram_id, device_id)
+    if not device:
+        return json_error("Устройство не найдено", 404)
+    from app.connection_help import connection_result
+    key = device.get("remnawave_uuid") or device.get("remnawave_id")
+    try:
+        panel = await asyncio.wait_for(request.app["rw"].get_user_by_id(key), timeout=8) if key else None
+    except Exception:
+        panel = None
+    if not panel:
+        return web.json_response({"ok": True, "status": "unavailable"})
+    return web.json_response({"ok": True, **connection_result(panel)})
 
 
 async def api_reissue_device(request: web.Request) -> web.Response:
@@ -1017,6 +1040,9 @@ async def api_ticket_send(request: web.Request) -> web.Response:
     from app.tickets import parse_ticket_request, receive_user_message, serialize_messages
 
     text, _action, files = await parse_ticket_request(request)
+    from app.connection_help import support_context
+    if text or files:
+        text += await support_context(telegram_id, request.get("connection_context"))
     local = await db.get_user(telegram_id)
     bot: Bot = request.app["bot"]
 
@@ -1238,6 +1264,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/invoice", api_invoice)
         app.router.add_post("/api/promo", api_promo)
         app.router.add_post("/api/devices", api_add_device)
+        app.router.add_post("/api/devices/{device_id}/check", api_check_connection)
         app.router.add_post("/api/devices/{device_id}/reissue", api_reissue_device)
         app.router.add_delete("/api/devices/{device_id}", api_delete_device)
         app.router.add_post("/api/exit-feedback", api_exit_feedback)

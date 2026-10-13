@@ -2226,7 +2226,7 @@ function paintSupportChrome(current) {
   if (note) {
     note.classList.toggle("hidden", !(current && current.status === "closed"));
   }
-  if (input) input.placeholder = "Написать";
+  if (input) input.placeholder = supportConnectionContext ? "Что не получилось?" : "Написать";
 }
 
 function resizeSupportText() {
@@ -2250,6 +2250,7 @@ function paintSupportThread(current) {
         ? "Нужна помощь? Напишите нам — откроем новое обращение."
         : "Что случилось? Опишите проблему — поможем разобраться.")
       : "Что случилось? Опишите проблему — поможем разобраться.";
+    if (supportConnectionContext) empty.textContent = "Опишите, что не получилось. Устройство, приложение и этап настройки приложим автоматически.";
     box.appendChild(empty);
     return;
   }
@@ -2302,7 +2303,10 @@ async function loadSupport(silent) {
   }
 }
 
-function openSupport() {
+let supportConnectionContext = null;
+function openSupport(context = null) {
+  supportConnectionContext = context;
+  if ($("supportText")) $("supportText").placeholder = context ? "Что не получилось?" : "Напишите сообщение";
   screen = "support";
   switchView("view-support", "push");
   setMain("");
@@ -2733,12 +2737,14 @@ async function sendSupport() {
   try {
     const fd = new FormData();
     fd.append("text", text);
+    if (supportConnectionContext) fd.append("connection_context", JSON.stringify(supportConnectionContext));
     supportPending.forEach((file) => fd.append("files", file, file.name));
     const data = await api("/api/tickets", {
       method: "POST",
       body: fd,
     });
     if (el) el.value = "";
+    supportConnectionContext = null;
     supportPending = [];
     paintSupportPending();
     const input = $("supportFiles");
@@ -3092,6 +3098,8 @@ async function createWizardDevice() {
     });
     wiz.title = title;
     wiz.url = created.subscription_url || "";
+    wiz.deviceId = created.device_id;
+    wiz.checkResult = null;
     wiz.step = 4;
     if (created.first_device) armThanksOnClose();
     // A failed balance refresh must not discard an already created subscription.
@@ -3124,6 +3132,8 @@ function startWizard(opts) {
   wiz.client = first ? first.id : "";
   wiz.title = "";
   wiz.url = "";
+  wiz.deviceId = null;
+  wiz.checkResult = null;
   wiz.fromOffer = Boolean(opts && opts.fromOffer);
   screen = "wizard";
   switchView("view-wizard", opts && opts.instant ? "fade" : "push");
@@ -3424,11 +3434,41 @@ function renderWizard() {
   const help = document.createElement("button");
   help.type = "button";
   help.className = "btn btn-ghost";
-  help.textContent = "Не получается подключиться";
-  help.onclick = () => openSupport();
+  help.textContent = "Не получилось — помогите";
+  help.onclick = () => openSupport({device_id: wiz.deviceId, client: clientLabel(wiz.client), stage: wiz.checkResult ? "check" : "subscription", result: wiz.checkResult});
   const secondary = document.createElement("div");
   secondary.className = "wiz-connect-actions";
-  secondary.appendChild(help);
+  const check = document.createElement("button");
+  check.type = "button";
+  check.id = "wizCheckConnection";
+  check.className = "btn btn-ghost";
+  check.textContent = "Проверить подключение";
+  const result = document.createElement("p");
+  result.id = "wizCheckResult";
+  result.setAttribute("role", "status");
+  result.setAttribute("aria-live", "polite");
+  check.onclick = async () => {
+    const deviceId = wiz.deviceId || (phoneDevices(window.__me || {}).find(d => d.subscription_url === wiz.url) || {}).id;
+    if (!deviceId) { result.textContent = "Обновите кабинет и откройте настройку устройства ещё раз."; return; }
+    wiz.deviceId = deviceId;
+    check.disabled = true;
+    result.textContent = "Проверяем подключение…";
+    try {
+      const data = await api(`/api/devices/${deviceId}/check`, {method: "POST"});
+      if (screen !== "wizard" || wiz.deviceId !== deviceId) return;
+      wiz.checkResult = data.status;
+      result.textContent = data.status === "connected"
+        ? "VPN работает ✅ Недавнее подключение подтверждено."
+        : data.status === "unavailable"
+          ? "Не удалось получить ответ сервера. Попробуйте проверить чуть позже или напишите нам."
+          : "Пока не видим подключения. Включите VPN в приложении, откройте любой сайт и повторите проверку через минуту. Если не поможет — мы рядом.";
+    } catch (_e) {
+      wiz.checkResult = "unavailable";
+      result.textContent = "Проверка недоступна. Повторите позже или обратитесь за помощью.";
+    } finally { check.disabled = false; }
+  };
+  secondary.append(check, help);
+  body.appendChild(result);
   $("wizHint").textContent = "";
   replayAnim(body, "wiz-swap");
   open.textContent = "В кабинет";
@@ -3489,6 +3529,8 @@ function setDevUrl(url) {
 }
 
 function paintDevice(d) {
+  $("devCheckSetup").classList.toggle("hidden", isRouterDevice(d));
+  $("devCheckSetup").onclick = () => resumeConnection({...window.__me, devices: [d]});
   $("devTitle").textContent = deviceTitle(d);
   const icon = document.querySelector("#view-device .dev-icon");
   if (icon) icon.innerHTML = platIconSvg(d.platform);
@@ -3838,7 +3880,7 @@ function resumeConnection(me) {
   hideCoach();
   Object.assign(wiz, {step: 4, platform: device.platform || currentDevicePlatform() || "ios",
     client: device.client || preferredClientId(device.platform), title: device.title,
-    url: device.subscription_url, fromOffer: false});
+    url: device.subscription_url, deviceId: device.id, checkResult: null, fromOffer: false});
   screen = "wizard";
   switchView("view-wizard", "push");
   tg.BackButton.show();
@@ -3883,7 +3925,7 @@ function paintConnectionGuide(me) {
       me.trial_waiting_connection ? "Подарок сохранён. Он начнёт расходоваться после первого подключения VPN." :
       "Подключение пока не подтверждено. Добавьте подписку в приложение и включите VPN.";
     button(gift ? "Забрать подарок и подключиться" : "Продолжить подключение", () => gift ? startOfferTry() : resumeConnection(me), true);
-    button("Не получилось — помогите", () => openSupport());
+    button("Не получилось — помогите", () => { const d = phoneDevices(me)[0]; openSupport(d ? {device_id: d.id, client: clientLabel(d.client || preferredClientId(d.platform)), stage: "subscription"} : null); });
     $("trialNotice").classList.add("hidden");
   } else {
     title.textContent = "Как работает VPN?";

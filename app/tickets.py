@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from html import escape
 from io import BytesIO
@@ -312,12 +313,17 @@ async def parse_ticket_request(request: web.Request) -> tuple[str, str, list[dic
                     )
             else:
                 fields[name] = (await field.text()).strip()
+        try:
+            request["connection_context"] = json.loads(fields.get("connection_context") or "null")
+        except (ValueError, TypeError):
+            pass
         return fields.get("text") or "", fields.get("action") or "reply", files
     try:
         body = await request.json()
     except Exception:
         body = {}
-    body = body or {}
+    body = body if isinstance(body, dict) else {}
+    request["connection_context"] = body.get("connection_context")
     return (
         str(body.get("text") or "").strip(),
         str(body.get("action") or "reply").strip() or "reply",
