@@ -156,8 +156,6 @@ def panel_online_at(user: dict | None) -> datetime | None:
         user.get("lastConnectedAt"),
         user.get("lastOnlineAt"),
         user.get("lastOnline"),
-        user.get("subLastOpenedAt"),
-        user.get("subLastOpened"),
     ):
         dt = parse_dt(raw)
         if dt:

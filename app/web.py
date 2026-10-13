@@ -451,7 +451,7 @@ async def api_me(request: web.Request) -> web.Response:
         paid = []
         for item in billable_raw:
             billed = parse_dt(item.get("last_billed_at"))
-            if billed:
+            if billed and not (local or {}).get("trial_waiting_connection"):
                 paid.append(_hours_until(billed + timedelta(hours=24)))
         hours_left = hours_money + (min(paid) if paid else 0)
         days_left = hours_left // 24
@@ -490,6 +490,8 @@ async def api_me(request: web.Request) -> web.Response:
             "bot_start_url": f"https://t.me/{settings.bot_username}?start=gift",
             "trial_days": settings.trial_days,
             "trial_rub": trial_grant_rub(),
+            "trial_waiting_connection": bool((local or {}).get("trial_waiting_connection")),
+            "vpn_feedback": (local or {}).get("vpn_feedback"),
             "trial_notice": _trial_notice(
                 local,
                 devices=devices,
@@ -613,6 +615,11 @@ async def api_onboarding_event(request: web.Request) -> web.Response:
 
 
 async def api_trial(request: web.Request) -> web.Response:
+    async with runtime.panel_cron_lock():
+        return await _api_trial_locked(request)
+
+
+async def _api_trial_locked(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
@@ -639,7 +646,7 @@ async def api_trial(request: web.Request) -> web.Response:
         )
     except RemnawaveError as exc:
         return json_error(str(exc), 502)
-    return web.json_response({"ok": True, "balance_rub": after})
+    return web.json_response({"ok": True, "balance_rub": after, "trial_waiting_connection": not bool(local.get("first_online_at"))})
 
 
 async def api_story_share(request: web.Request) -> web.Response:
@@ -770,6 +777,11 @@ async def api_promo(request: web.Request) -> web.Response:
 
 
 async def api_add_device(request: web.Request) -> web.Response:
+    async with runtime.panel_cron_lock():
+        return await _api_add_device_locked(request)
+
+
+async def _api_add_device_locked(request: web.Request) -> web.Response:
     denied = await _if_down()
     if denied:
         return denied
@@ -789,7 +801,11 @@ async def api_add_device(request: web.Request) -> web.Response:
     if cap > 0 and device_n >= cap:
         return json_error(f"Можно подключить не больше {cap} устройств")
     price = max(1, settings.vpn_day_price_rub)
-    if not await db.spend_balance_rub(telegram_id, price):
+    local = await db.get_user(telegram_id)
+    waiting = bool((local or {}).get("trial_waiting_connection"))
+    if waiting and device_n:
+        return json_error("Сначала подключите первое устройство — подарок начнётся с подключения.")
+    if not waiting and not await db.spend_balance_rub(telegram_id, price):
         return json_error(f"Недостаточно средств. Нужно {rub_text(price)} за сутки.")
     rw: RemnawaveClient = request.app["rw"]
     user = None
@@ -811,7 +827,8 @@ async def api_add_device(request: web.Request) -> web.Response:
             if not username_taken(exc):
                 break
     if user is None:
-        await db.add_balance_rub(telegram_id, price)
+        if not waiting:
+            await db.add_balance_rub(telegram_id, price)
         return json_error(str(last_error or "Не удалось создать устройство"), 502)
     rw_id = int(user["id"])
     await db.add_device(telegram_id, title, rw_id, platform, None)
@@ -887,6 +904,18 @@ async def api_delete_device(request: web.Request) -> web.Response:
         note="Устройство удалено",
     )
     return web.json_response({"ok": True, "exit_feedback_token": removed.get("exit_feedback_token")})
+
+
+async def api_vpn_feedback(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    body = await request.json()
+    value = str(body.get("value") or "")
+    if value not in {"ok", "help", "terms"}:
+        return json_error("Выберите вариант ответа")
+    await db.save_vpn_feedback(telegram_id, value)
+    return web.json_response({"ok": True, "access_active": await db.has_funded_access(telegram_id)})
 
 
 async def api_exit_feedback(request: web.Request) -> web.Response:
@@ -1212,6 +1241,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/devices/{device_id}/reissue", api_reissue_device)
         app.router.add_delete("/api/devices/{device_id}", api_delete_device)
         app.router.add_post("/api/exit-feedback", api_exit_feedback)
+        app.router.add_post("/api/vpn-feedback", api_vpn_feedback)
         app.router.add_post("/api/subscription/reissue", api_reissue_subscription)
         app.router.add_post("/api/trust", api_trust)
         app.router.add_get("/api/billing", api_billing_history)

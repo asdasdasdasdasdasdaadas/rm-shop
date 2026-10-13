@@ -257,3 +257,45 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         stats=await db.funnel_message_stats()
         self.assertEqual(stats['nudge_info']['sent'],1)
         self.assertIsNotNone(stats['nudge_info']['last_sent'])
+
+    async def test_pending_gift_starts_billing_only_after_confirmed_connection(self):
+        self.assertEqual(await db.claim_trial_balance(1,18),18)
+        self.assertTrue((await db.get_user(1))['trial_waiting_connection'])
+        await db.add_device(1,'Phone',77,'ios')
+        await self.pool.execute("UPDATE devices SET panel_status='ACTIVE',last_billed_at=NOW()-INTERVAL '3 days',last_billed_on=NULL WHERE telegram_id=1")
+        self.assertEqual(await db.devices_due_for_billing(),[])
+        self.assertEqual(await self.balance(),18)
+        await db.claim_first_online_for_panel_ids([77])
+        self.assertFalse((await db.get_user(1))['trial_waiting_connection'])
+        self.assertEqual(len(await db.devices_due_for_billing()),1)
+        self.assertEqual(await db.take_device_charges(1,6,1),1)
+        device=(await db.list_devices(1))[0]
+        await db.mark_devices_billed([device['id']])
+        await db.claim_first_online_for_panel_ids([77])
+        self.assertEqual(await db.devices_due_for_billing(),[])
+        self.assertEqual(await self.balance(),12)
+        self.assertIsNone(await db.claim_trial_balance(1,18))
+
+    async def test_real_postgres_funnel_separates_pending_and_exhausted_access(self):
+        await self.pool.execute("UPDATE users SET has_paid_topup=TRUE,balance_rub=0 WHERE telegram_id=1")
+        device=await db.add_device(1,'Phone',77,'ios')
+        row=await self.pool.fetchrow(db._funnel_cte()+db._FUNNEL_SELECT,None,None)
+        self.assertEqual(row['paid_no_repeat'],0)
+        self.assertEqual(row['progress_paid_no_repeat'],1)
+        self.assertTrue(await db.has_funded_access(1))
+        await self.pool.execute("UPDATE devices SET last_billed_at=NOW()-INTERVAL '25 hours' WHERE id=$1",device['id'])
+        row=await self.pool.fetchrow(db._funnel_cte()+db._FUNNEL_SELECT,None,None)
+        self.assertEqual(row['paid_no_repeat'],1)
+        self.assertEqual(row['progress_paid_no_repeat'],0)
+        self.assertFalse(await db.has_funded_access(1))
+
+    async def test_payment_offer_waits_for_exhaustion_and_respects_feedback(self):
+        from app import config, funnel_board
+        await self.pool.execute("UPDATE users SET first_online_at=NOW(),balance_rub=18 WHERE telegram_id=1")
+        step=funnel_board._step('unpaid-test','unpaid',0,'Тест',['topup'])
+        with patch.object(config,'get_settings',return_value=self.settings):
+            self.assertEqual(await funnel_board._due(step,None,20,[]),[])
+            await self.pool.execute('UPDATE users SET balance_rub=1 WHERE telegram_id=1')
+            self.assertEqual(len(await funnel_board._due(step,None,20,[])),1)
+            await db.save_vpn_feedback(1,'terms')
+            self.assertEqual(await funnel_board._due(step,None,20,[]),[])

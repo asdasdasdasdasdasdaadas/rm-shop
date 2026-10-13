@@ -774,3 +774,21 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS ambassador_invite_sent_at TIMESTAMPTZ
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ambassador_invite_step INTEGER NOT NULL DEFAULT 0;
 UPDATE users SET ambassador_invite_step = 1
 WHERE ambassador_invite_sent_at IS NOT NULL AND ambassador_invite_step = 0;
+
+-- Gift credit stays intact until the first confirmed VPN connection.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_waiting_connection BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS legacy_last_online_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS legacy_first_online_at TIMESTAMPTZ;
+-- Remove unverifiable legacy online values once; panel sync restores real connection dates.
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM app_flags WHERE key='online_evidence_v2') THEN
+  UPDATE devices SET legacy_last_online_at=last_online_at,last_online_at=NULL;
+  UPDATE users u SET legacy_first_online_at=first_online_at,first_online_at=NULL
+   WHERE COALESCE(u.used_traffic_bytes,0)=0 AND COALESCE(u.lifetime_traffic_bytes,0)=0
+    AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id
+      AND (COALESCE(d.used_traffic_bytes,0)>0 OR COALESCE(d.lifetime_traffic_bytes,0)>0));
+  UPDATE users SET trial_waiting_connection=TRUE
+   WHERE trial_used AND first_online_at IS NULL AND NOT COALESCE(has_paid_topup,FALSE) AND balance_rub > 0;
+  INSERT INTO app_flags(key,value) VALUES('online_evidence_v2','1');
+ END IF;
+END $$;

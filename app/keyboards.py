@@ -410,6 +410,8 @@ def support_welcome_keyboard() -> InlineKeyboardMarkup:
 def vpn_feedback_keyboard(*, returning: bool = False) -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(text="Всё работает" if not returning else "Вернуться к VPN", callback_data="vpn_feedback:ok" if not returning else "help:connect")],
             [InlineKeyboardButton(text="Нужна помощь", callback_data="vpn_feedback:help")]]
+    if not returning:
+        rows.append([InlineKeyboardButton(text="Не подошли условия", callback_data="vpn_feedback:terms")])
     if returning:
         rows.append([InlineKeyboardButton(text="Пока не нужен", callback_data="vpn_feedback:later")])
     return InlineKeyboardMarkup(inline_keyboard=rows)

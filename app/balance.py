@@ -101,6 +101,15 @@ async def _bill_due_device(
     panel_id = int(item["remnawave_id"])
     device_id = int(item["id"])
     title = str(item.get("title") or "")
+    local = await db.get_user(tg_id)
+    if local and local.get("trial_waiting_connection"):
+        try:
+            await rw.enable_panel_user(panel_id)
+            await db.mark_devices_billed([device_id], status="ACTIVE", expire_at=_lease_until(), touch_billed=False)
+            return "extended"
+        except RemnawaveError:
+            logger.exception("Не удалось включить устройство с ожидающим подарком %s", device_id)
+            return "error"
     if paused:
         try:
             await rw.extend_panel_user(panel_id, PANEL_LEASE_DAYS)

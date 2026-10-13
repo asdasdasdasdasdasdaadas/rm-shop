@@ -211,17 +211,30 @@ async def get_user_by_username(username: str) -> dict | None:
     return _as_dict(row)
 
 
+async def activate_connected_trial(telegram_id: int) -> None:
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            activated = await conn.fetchval("""UPDATE users SET trial_waiting_connection=FALSE
+                WHERE telegram_id=$1 AND trial_waiting_connection AND first_online_at IS NOT NULL
+                RETURNING telegram_id""", telegram_id)
+            if activated:
+                await conn.execute("""UPDATE devices SET last_billed_at=NULL,last_billed_on=NULL
+                    WHERE telegram_id=$1 AND COALESCE(kind,'') <> 'router'""", telegram_id)
+
+
 async def claim_first_online(telegram_id: int) -> dict | None:
     row = await _pool_req().fetchrow(
         """
         UPDATE users
-        SET first_online_at = timezone('utc', now())
+        SET first_online_at = COALESCE(first_online_at, timezone('utc', now()))
         WHERE telegram_id = $1
-          AND first_online_at IS NULL
+          AND (first_online_at IS NULL OR trial_waiting_connection)
         RETURNING telegram_id, username, first_name
         """,
         telegram_id,
     )
+    if row:
+        await activate_connected_trial(telegram_id)
     return _as_dict(row)
 
 
@@ -231,8 +244,8 @@ async def claim_first_online_for_panel_ids(panel_ids: list[int]) -> list[dict]:
     rows = await _pool_req().fetch(
         """
         UPDATE users u
-        SET first_online_at = timezone('utc', now())
-        WHERE u.first_online_at IS NULL
+        SET first_online_at = COALESCE(first_online_at, timezone('utc', now()))
+        WHERE (u.first_online_at IS NULL OR u.trial_waiting_connection)
           AND (
               u.remnawave_id = ANY($1::bigint[])
               OR EXISTS (
@@ -240,13 +253,14 @@ async def claim_first_online_for_panel_ids(panel_ids: list[int]) -> list[dict]:
                   FROM devices d
                   WHERE d.telegram_id = u.telegram_id
                     AND d.remnawave_id = ANY($1::bigint[])
-                    AND d.last_online_at IS NOT NULL
               )
           )
         RETURNING u.telegram_id, u.username, u.first_name
         """,
         panel_ids,
     )
+    for row in rows:
+        await activate_connected_trial(int(row["telegram_id"]))
     return [dict(r) for r in rows]
 
 
@@ -713,6 +727,7 @@ async def claim_trial_balance(telegram_id: int, amount: int, *, signup_only: boo
         UPDATE users SET
             trial_used = TRUE,
             gift_claimed_at = NOW(),
+            trial_waiting_connection = first_online_at IS NULL,
             balance_rub = COALESCE(balance_rub, 0) + $2,
             low_balance_notified_at = NULL
         WHERE telegram_id = $1
@@ -2073,6 +2088,7 @@ async def devices_due_for_billing() -> list[dict]:
           AND (d.last_billed_at IS NULL OR d.last_billed_at <= timezone('utc', now()) - INTERVAL '24 hours')
           AND (d.last_billed_at IS NOT NULL OR d.last_billed_on IS NULL OR d.last_billed_on < (timezone('utc', now()))::date)
           AND u.blocked_at IS NULL
+          AND NOT u.trial_waiting_connection
         ORDER BY d.id
         """
     )
@@ -2089,8 +2105,8 @@ async def devices_needing_revive(*, refresh_hours: int = 36) -> list[dict]:
         WHERE d.remnawave_id IS NOT NULL
           AND COALESCE(d.kind, '') <> 'router'
           AND u.blocked_at IS NULL
-          AND d.last_billed_at IS NOT NULL
-          AND d.last_billed_at > timezone('utc', now()) - INTERVAL '24 hours'
+          AND (u.trial_waiting_connection OR (d.last_billed_at IS NOT NULL
+          AND d.last_billed_at > timezone('utc', now()) - INTERVAL '24 hours'))
           AND (
             d.expire_at IS NULL
             OR d.expire_at <= timezone('utc', now()) + ($1::int * INTERVAL '1 hour')
@@ -2115,6 +2131,7 @@ async def devices_to_retry_disable() -> list[dict]:
           AND UPPER(COALESCE(d.panel_status, '')) <> 'DISABLED'
           AND (d.last_billed_at IS NULL OR d.last_billed_at <= timezone('utc', now()) - INTERVAL '24 hours')
           AND u.blocked_at IS NULL
+          AND NOT u.trial_waiting_connection
           AND EXISTS (
             SELECT 1
             FROM billing_events e
@@ -2824,9 +2841,22 @@ async def admin_stats() -> dict:
 
 
 # One set of predicates powers both counters and drill-down lists.
-_FUNNEL_CTE = """
+_ACCESS_EXHAUSTED = """(NOT u.trial_waiting_connection AND u.billing_paused_at IS NULL
+         AND COALESCE(u.balance_rub,0) < {price}
+         AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id
+             AND COALESCE(d.kind,'') <> 'router'
+             AND d.last_billed_at > NOW() - INTERVAL '24 hours')
+         AND (u.router_expire_at IS NULL OR u.router_expire_at <= NOW())
+         AND NOT EXISTS (SELECT 1 FROM app_flags WHERE key='billing_paused' AND value='1'))"""
+
+
+_FUNNEL_CTE_TEMPLATE = """
 WITH all_flags AS (
-    SELECT u.telegram_id, u.bot_started_at, u.referred_by,
+    SELECT u.telegram_id, u.bot_started_at, u.referred_by, u.vpn_feedback,
+        COALESCE(u.gift_claimed_at,u.bot_started_at) AS gift_at,
+        COALESCE((SELECT MIN(d.created_at) FROM devices d WHERE d.telegram_id=u.telegram_id),u.bot_started_at) AS device_at,
+        COALESCE(u.first_checkout_at,u.bot_started_at) AS checkout_at,
+        {access_exhausted} AS access_exhausted,
         u.referred_by IS NOT NULL AS from_ref,
         u.ad_link_id IS NOT NULL AS from_ad,
         u.referred_by IS NULL AND u.ad_link_id IS NULL AS organic,
@@ -2856,23 +2886,37 @@ WITH all_flags AS (
         AND referred_by IN (SELECT telegram_id FROM flags)
 )
 """
+def _funnel_cte() -> str:
+    return _FUNNEL_CTE_TEMPLATE.replace("{access_exhausted}", _ACCESS_EXHAUSTED).replace("{price}", str(max(1, get_settings().vpn_day_price_rub)))
+
+
 _FUNNEL_PREDICATES = {
     "entered": "TRUE", "from_ref": "from_ref", "from_ad": "from_ad", "organic": "organic",
     "legal": "legal", "trial": "trial", "device": "has_device", "connected": "connected",
     "checkout": "checkout OR paid", "paid": "paid", "repeat_paid": "repeat_paid",
     "paid_stars": "paid_stars", "paid_rollypay": "paid_rollypay",
     "referred": "invited", "promo": "promo", "blocked": "blocked",
-    "device_no_online": "has_device AND NOT connected",
-    "checkout_drop": "checkout AND NOT paid", "no_legal": "NOT legal",
-    "no_gift": "NOT trial AND NOT paid", "gift_no_online": "trial AND NOT connected",
-    "online_no_paid": "connected AND NOT paid", "paid_no_repeat": "paid AND NOT repeat_paid",
+    "device_no_online": "has_device AND NOT connected AND device_at <= NOW() - INTERVAL '24 hours'",
+    "checkout_drop": "checkout AND NOT paid AND checkout_at <= NOW() - INTERVAL '20 minutes'", "no_legal": "NOT legal",
+    "no_gift": "NOT trial AND NOT paid AND bot_started_at <= NOW() - INTERVAL '24 hours'", "gift_no_online": "trial AND NOT connected AND gift_at <= NOW() - INTERVAL '24 hours'",
+    "online_no_paid": "connected AND NOT paid AND access_exhausted", "paid_no_repeat": "paid AND NOT repeat_paid AND access_exhausted",
+    "progress_no_gift": "NOT trial AND NOT paid AND bot_started_at > NOW() - INTERVAL '24 hours'",
+    "progress_gift_no_online": "trial AND NOT connected AND gift_at > NOW() - INTERVAL '24 hours'",
+    "progress_device_no_online": "has_device AND NOT connected AND device_at > NOW() - INTERVAL '24 hours'",
+    "progress_checkout_drop": "checkout AND NOT paid AND checkout_at > NOW() - INTERVAL '20 minutes'",
+    "progress_online_no_paid": "connected AND NOT paid AND NOT access_exhausted",
+    "progress_paid_no_repeat": "paid AND NOT repeat_paid AND NOT access_exhausted",
+    "unpaid_help": "connected AND NOT paid AND vpn_feedback='help'",
+    "unpaid_terms": "connected AND NOT paid AND vpn_feedback='terms'",
+    "unpaid_ok": "connected AND NOT paid AND vpn_feedback='ok'",
+    "unpaid_no_feedback": "connected AND NOT paid AND vpn_feedback IS NULL",
     "trial_transition": "trial", "connected_transition": "trial AND connected",
     "checkout_transition": "connected AND (checkout OR paid)",
     "paid_transition": "paid", "repeat_paid_transition": "repeat_paid",
 }
 _FUNNEL_INV_KEYS = ("entered", "legal", "trial", "device", "connected", "checkout", "paid")
 _FUNNEL_KEYS = tuple(_FUNNEL_PREDICATES) + tuple("inv_" + k for k in _FUNNEL_INV_KEYS)
-_FUNNEL_SQL = _FUNNEL_CTE + "SELECT " + ",\n".join(
+_FUNNEL_SELECT = "SELECT " + ",\n".join(
     [f"(SELECT COUNT(*) FROM flags WHERE {condition})::int AS {key}"
      for key, condition in _FUNNEL_PREDICATES.items()] +
     [f"(SELECT COUNT(*) FROM invitees WHERE {_FUNNEL_PREDICATES[key]})::int AS inv_{key}"
@@ -2891,7 +2935,7 @@ async def admin_funnel() -> dict:
     now = await pool.fetchval("SELECT now()")
 
     async def window(start, end):
-        row = await pool.fetchrow(_FUNNEL_SQL, start, end)
+        row = await pool.fetchrow(_funnel_cte() + _FUNNEL_SELECT, start, end)
         return _funnel_row(row)
 
     d1 = timedelta(days=1)
@@ -2979,7 +3023,7 @@ def _admin_users_filter(query: str, extra: dict | None = None) -> tuple[str, lis
         end = datetime.fromisoformat(extra["funnel_to"]) if extra.get("funnel_to") else None
         args.extend([start, end])
         dataset = "invitees" if invited else "flags"
-        clauses.append(f"u.telegram_id IN ({_FUNNEL_CTE} SELECT telegram_id FROM {dataset} WHERE {_FUNNEL_PREDICATES[key]})")
+        clauses.append(f"u.telegram_id IN ({_funnel_cte()} SELECT telegram_id FROM {dataset} WHERE {_FUNNEL_PREDICATES[key]})")
     if q.lower() in {"блок", "blocked", "ban"}:
         clauses.append("u.blocked_at IS NOT NULL")
     elif q:
@@ -3444,11 +3488,11 @@ async def list_due_invite_nudges(limit: int = 80, skip_ids: list[int] | None = N
           AND u.blocked_at IS NULL
           AND u.first_online_at <= timezone('utc', now()) - INTERVAL '48 hours'
           AND (u.vpn_feedback='ok' OR (
-              u.vpn_feedback IS DISTINCT FROM 'help' AND EXISTS (
+              COALESCE(u.vpn_feedback,'') NOT IN ('help','terms') AND EXISTS (
                 SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id
                 AND d.last_online_at >= u.first_online_at + INTERVAL '24 hours'
                 AND d.last_online_at >= NOW() - INTERVAL '7 days')))
-          AND u.vpn_feedback IS DISTINCT FROM 'help'
+          AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
           AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
           AND u.bot_started_at IS NOT NULL AND u.bot_blocked_at IS NULL
           AND NOT (u.telegram_id = ANY($2::bigint[]))
@@ -3471,7 +3515,7 @@ async def list_due_info_nudges(limit: int = 80, skip_ids: list[int] | None = Non
           AND u.blocked_at IS NULL
           AND u.first_online_at <= NOW() - INTERVAL '96 hours'
           AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id AND d.last_online_at > NOW() - INTERVAL '7 days')
-          AND u.vpn_feedback IS DISTINCT FROM 'help'
+          AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
           AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
           AND NOT (u.telegram_id = ANY($2::bigint[]))
         ORDER BY u.created_at
@@ -3718,7 +3762,7 @@ async def list_due_idle_nudges(limit: int = 80, skip_ids: list[int] | None = Non
               AND u.bot_started_at IS NOT NULL AND u.bot_blocked_at IS NULL
               AND u.billing_paused_at IS NULL
               AND (u.idle_snoozed_at IS NULL OR activity.last_seen > u.idle_snoozed_at)
-              AND u.vpn_feedback IS DISTINCT FROM 'help'
+              AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
               AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
               AND NOT (u.telegram_id = ANY($2::bigint[]))
         ) q
@@ -3749,7 +3793,7 @@ async def list_due_nodevice_nudges(limit: int = 20, skip_ids: list[int] | None =
           AND u.bot_blocked_at IS NULL
           AND u.billing_paused_at IS NULL
           AND NOT u.quiet_notifications
-          AND u.vpn_feedback IS DISTINCT FROM 'help'
+          AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
           AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)
           AND NOT EXISTS (
               SELECT 1 FROM tickets t WHERE t.telegram_id = u.telegram_id AND t.status <> 'closed'
@@ -3787,8 +3831,9 @@ async def mark_nodevice_nudge_sent(telegram_id: int, step: int) -> None:
 async def list_due_unpaid_nudges(limit: int = 20, skip_ids: list[int] | None = None) -> list[dict]:
     """No granted top-up. Device-less people are asked to add a device first."""
     skip = [int(x) for x in (skip_ids or [])]
+    access_exhausted = _ACCESS_EXHAUSTED.replace("{price}", str(max(1, get_settings().vpn_day_price_rub)))
     rows = await _pool_req().fetch(
-        """
+        f"""
         SELECT u.telegram_id, u.first_name,
             CASE
                 WHEN COALESCE(u.unpaid_nudge_step, 0) = 0 THEN 1
@@ -3801,8 +3846,12 @@ async def list_due_unpaid_nudges(limit: int = 20, skip_ids: list[int] | None = N
           AND u.bot_blocked_at IS NULL
           AND u.billing_paused_at IS NULL
           AND NOT u.quiet_notifications
+          AND NOT u.trial_waiting_connection AND u.first_online_at IS NOT NULL
+          AND {access_exhausted}
+          AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id
+            AND d.last_billed_at > NOW() - INTERVAL '24 hours')
           AND NOT COALESCE(u.has_paid_topup, FALSE)
-          AND u.vpn_feedback IS DISTINCT FROM 'help'
+          AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
           AND NOT EXISTS (
               SELECT 1 FROM rollypay_orders o
               WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
@@ -5430,8 +5479,15 @@ async def admin_broadcast_results(page: int = 1) -> dict:
     return {'items': [_jsonable(item) for item in items.values()], 'total': total, 'page': page, 'limit': 20}
 
 
+async def has_funded_access(telegram_id: int) -> bool:
+    condition = _ACCESS_EXHAUSTED.replace("{price}", "$2::int")
+    return bool(await _pool_req().fetchval(
+        f"SELECT NOT {condition} FROM users u WHERE u.telegram_id=$1",
+        telegram_id, max(1, get_settings().vpn_day_price_rub)))
+
+
 async def save_vpn_feedback(telegram_id: int, value: str) -> None:
-    if value not in {'ok', 'help', 'later'}:
+    if value not in {'ok', 'help', 'later', 'terms'}:
         raise ValueError('Unknown feedback')
     await _pool_req().execute('''UPDATE users SET
         vpn_feedback=CASE WHEN $2='later' THEN vpn_feedback ELSE $2 END,
@@ -5679,7 +5735,7 @@ async def reserve_optional_message(telegram_id: int, kind: str) -> int | None:
     async with _pool_req().acquire() as conn:
         async with conn.transaction():
             user = await conn.fetchrow('SELECT * FROM users WHERE telegram_id=$1 FOR UPDATE', telegram_id)
-            if not user or user['quiet_notifications'] or user['blocked_at'] or user['bot_blocked_at'] or not user['bot_started_at'] or user['vpn_feedback'] == 'help':
+            if not user or user['quiet_notifications'] or user['blocked_at'] or user['bot_blocked_at'] or not user['bot_started_at'] or user['vpn_feedback'] in {'help', 'terms'}:
                 return None
             allowed = await conn.fetchval('''SELECT
                 NOT EXISTS (SELECT 1 FROM tickets WHERE telegram_id=$1 AND status <> 'closed')
@@ -5725,7 +5781,7 @@ async def funnel_message_stats() -> dict:
 async def marketing_suppressed_ids() -> list[int]:
     """Filter before LIMIT so capped users cannot starve the next batch."""
     rows = await _pool_req().fetch('''SELECT u.telegram_id FROM users u WHERE
-        u.quiet_notifications OR u.vpn_feedback='help'
+        u.quiet_notifications OR u.vpn_feedback IN ('help','terms')
         OR EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
         OR EXISTS (SELECT 1 FROM optional_message_slots s WHERE s.telegram_id=u.telegram_id
             AND (s.sent_at > NOW()-INTERVAL '24 hours' OR (s.sent_at IS NULL AND s.created_at > NOW()-INTERVAL '10 minutes')))
@@ -5751,7 +5807,7 @@ async def backfill_balance_exhaustion() -> None:
 _WINBACK_ELIGIBLE = '''u.balance_rub <= 0 AND u.balance_exhausted_at IS NOT NULL
     AND u.bot_started_at IS NOT NULL AND u.bot_blocked_at IS NULL AND u.blocked_at IS NULL
     AND u.billing_paused_at IS NULL AND NOT u.quiet_notifications
-    AND u.vpn_feedback IS DISTINCT FROM 'help'
+    AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
     AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
     AND (u.checkout_started_at IS NULL OR u.checkout_started_at <= NOW()-INTERVAL '20 minutes')
     AND NOT EXISTS (SELECT 1 FROM winback_offers w WHERE w.telegram_id=u.telegram_id AND w.status='cancelled' AND w.created_at > NOW()-INTERVAL '2 months')

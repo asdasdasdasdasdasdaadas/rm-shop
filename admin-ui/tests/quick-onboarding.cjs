@@ -12,7 +12,8 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   await page.route('**/*',async route=>{
    const url=new URL(route.request().url());
    if(url.host!=='cabinet.test') return route.fulfill({body:'',contentType:'application/javascript'});
-   if(url.pathname==='/api/trial'){claims++;me.balance_rub=18;me.trial_available=false;me.trial_notice=null;return route.fulfill({json:{ok:true,balance_rub:18}});}
+   if(url.pathname==='/api/trial'){claims++;me.balance_rub=18;me.trial_available=false;me.trial_notice=null;me.trial_waiting_connection=true;return route.fulfill({json:{ok:true,balance_rub:18}});}
+   if(url.pathname==='/api/vpn-feedback'){me.vpn_feedback=route.request().postDataJSON().value;return route.fulfill({json:{ok:true}});}
    if(url.pathname==='/api/devices'){
     creates++;device=route.request().postDataJSON();me.devices=[{id:1,...device,subscription_url:'https://sub.test/1',active:true}];
     return route.fulfill({json:{ok:true,subscription_url:'https://sub.test/1',first_device:true}});
@@ -34,6 +35,15 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.evaluate(()=>{window.openClient=(client,url)=>window.testOpened={client,url};});
   await page.locator('#appMainBtn').click();assert.equal((await page.evaluate(()=>window.testOpened)).url,'https://sub.test/1');
+  await page.evaluate(()=>{openHome();paint(window.__me);});
+  assert.match(await page.locator('#connectionGuide').textContent(),/Подарок сохранён/);
+  await page.getByRole('button',{name:'Продолжить подключение',exact:true}).last().click();
+  await page.getByRole('heading',{name:'Осталось включить VPN',exact:true}).waitFor();
+  assert.equal(creates,1);
+  await page.evaluate(()=>{window.__me.first_online_at=new Date().toISOString();window.__me.trial_waiting_connection=false;window.__me.hours_left=48;openHome();paint(window.__me);});
+  await page.getByRole('button',{name:'Всё работает',exact:true}).click();
+  assert.equal(me.vpn_feedback,'ok');
+  await page.locator('#connectionGuide').waitFor({state:'hidden'});
   assert.deepEqual(errors,[]);await context.close();
  }
  console.log('Gift → installation → subscription passed on iOS and Android.');

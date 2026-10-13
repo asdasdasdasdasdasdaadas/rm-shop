@@ -29,3 +29,11 @@ test('overview respects gifts, exhausted access, prepaid time, paused billing an
  api.paintSummary({...base,devices:[{platform:'ios'},{kind:'router'}]},{hours:72,empty:false});assert.match(elements.modernDeviceRate.textContent,/6 ₽/);
  api.paintSummary({balance_enabled:false,has_access:false},{hours:0,empty:false});assert.equal(value(),'0');assert.match(label(),/Продлите/);
 });
+
+test('unstarted gift does not show a running countdown',()=>{
+ const elements=Object.fromEntries(['modernRemaining','modernRemainingLabel','modernDeviceRate'].map(id=>[id,{textContent:'',dataset:{}}]));
+ const {api}=setup(null,{elements});
+ api.paintSummary({balance_enabled:true,trial_waiting_connection:true,vpn_day_price_rub:6,devices:[{platform:'ios'}]},{hours:96,empty:false});
+ assert.equal(elements.modernRemaining.textContent,'Подарок');
+ assert.match(elements.modernDeviceRate.textContent,/списаний нет/);
+});

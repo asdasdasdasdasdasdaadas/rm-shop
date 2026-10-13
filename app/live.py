@@ -12,7 +12,7 @@ from aiogram.types import ChatMemberUpdated
 
 from app import db, runtime
 from app.config import get_settings
-from app.remnawave import panel_first_connected_at, panel_online_at
+from app.remnawave import panel_first_connected_at, panel_online_at, panel_used_traffic_bytes, panel_lifetime_traffic_bytes
 from app.tg_err import telegram_fail_reason
 
 logger = logging.getLogger("rm-shop.live")
@@ -133,7 +133,7 @@ def first_online(user: dict | None) -> None:
 async def note_panel_online(telegram_id: int, panel: dict | None) -> None:
     if not panel:
         return
-    if not (panel_online_at(panel) or panel_first_connected_at(panel)):
+    if not (panel_online_at(panel) or panel_first_connected_at(panel) or (panel_used_traffic_bytes(panel) or 0) > 0 or (panel_lifetime_traffic_bytes(panel) or 0) > 0):
         return
     user = await db.claim_first_online(telegram_id)
     if user:
@@ -153,7 +153,7 @@ async def note_first_online_from_panels(panels: list[dict]) -> None:
     for item in panels:
         if not isinstance(item, dict):
             continue
-        if not (panel_online_at(item) or panel_first_connected_at(item)):
+        if not (panel_online_at(item) or panel_first_connected_at(item) or (panel_used_traffic_bytes(item) or 0) > 0 or (panel_lifetime_traffic_bytes(item) or 0) > 0):
             continue
         raw = item.get("id")
         if raw is not None and str(raw).isdigit():

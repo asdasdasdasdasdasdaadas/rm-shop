@@ -21,7 +21,7 @@ AND u.bot_blocked_at IS NULL
 AND u.bot_started_at IS NOT NULL
 AND u.billing_paused_at IS NULL
 AND NOT COALESCE(u.quiet_notifications, FALSE)
-AND u.vpn_feedback IS DISTINCT FROM 'help'
+AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
 AND NOT EXISTS (
     SELECT 1 FROM tickets t
     WHERE t.telegram_id = u.telegram_id AND t.status <> 'closed'
@@ -41,7 +41,7 @@ OWNED_NOTICE_KEYS = frozenset({
 
 ACTIONS = (
     {"id": "cabinet", "label": "Личный кабинет", "button": "Личный кабинет"},
-    {"id": "gift", "label": "Экран подарка", "button": "Забрать подарок"},
+    {"id": "gift", "label": "Экран подарка", "button": "Забрать подарок и подключиться"},
     {"id": "connect", "label": "Подключение", "button": "Подключить VPN"},
     {"id": "topup", "label": "Пополнение баланса", "button": "Пополнить баланс"},
     {"id": "ambassador", "label": "Раздел амбассадора", "button": "Стать амбассадором"},
@@ -50,6 +50,7 @@ ACTIONS = (
     {"id": "channel", "label": "Подписка на канал", "button": "Подписаться на канал"},
     {"id": "feedback_ok", "label": "Всё работает", "button": "Всё работает"},
     {"id": "feedback_help", "label": "Помощь с VPN", "button": "Нужна помощь"},
+    {"id": "feedback_terms", "label": "Не подошли условия", "button": "Не подошли условия"},
     {"id": "feedback_later", "label": "Пока не нужен", "button": "Пока не нужен"},
     {"id": "share", "label": "Поделиться ссылкой", "button": "Поделиться ссылкой"},
     {"id": "copy", "label": "Скопировать приглашение", "button": "Скопировать текст"},
@@ -78,8 +79,11 @@ CONDITIONS = (
      "where": """NOT COALESCE(u.has_paid_topup, FALSE)
         AND NOT EXISTS (SELECT 1 FROM rollypay_orders o WHERE o.telegram_id = u.telegram_id AND o.status = 'granted')
         AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id = u.telegram_id)
-        AND (EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id) OR u.first_online_at IS NOT NULL)""",
-     "hint": "Устройство или онлайн уже были, реального пополнения не было. Срок считается от запуска бота."},
+        AND u.first_online_at IS NOT NULL AND NOT u.trial_waiting_connection
+        AND COALESCE(u.balance_rub,0) <= 0
+        AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id
+          AND d.last_billed_at > NOW() - INTERVAL '24 hours')""",
+     "hint": "Был подтверждённый онлайн, доступ закончился, оплаты ещё не было. Пока подарок действует — предложение оплаты не отправляется."},
     {"id": "quality", "label": "Первые дни после подключения", "anchor": "u.first_online_at", "max_hours": 168,
      "where": """u.vpn_feedback_at IS NULL
         AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)""",
@@ -230,6 +234,9 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
             web_app=WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query)))),
         )
 
+    ids = {item if isinstance(item, str) else item["action"] for item in button_ids}
+    if {"feedback_ok", "feedback_help"}.issubset(ids) and "feedback_terms" not in ids:
+        button_ids = [*button_ids, "feedback_terms"]
     rows = []
     for item in button_ids:
         action_id = item if isinstance(item, str) else item["action"]
@@ -261,6 +268,8 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
             rows.append([InlineKeyboardButton(text=label, callback_data="vpn_feedback:ok")])
         elif action_id == "feedback_help":
             rows.append([InlineKeyboardButton(text=label, callback_data="vpn_feedback:help")])
+        elif action_id == "feedback_terms":
+            rows.append([InlineKeyboardButton(text=label, callback_data="vpn_feedback:terms")])
         elif action_id == "feedback_later":
             rows.append([InlineKeyboardButton(text=label, callback_data="vpn_feedback:later")])
         elif action_id == "share":
@@ -453,7 +462,7 @@ async def default_graph() -> dict:
             _step("unpaid-2", "unpaid", 168, tx("unpaid_2"), ["topup", "menu"], "previous"),
         ]},
         {"id": "quality", "title": "Как работает VPN", "steps": [
-            _step("quality-1", "quality", 20, tx("vpn_quality_check"), ["feedback_ok", "feedback_help"]),
+            _step("quality-1", "quality", 20, tx("vpn_quality_check"), ["feedback_ok", "feedback_help", "feedback_terms"]),
         ]},
     ]
     for segment, title in idle_titles.items():
@@ -618,12 +627,14 @@ async def _gate(condition: str) -> bool:
 
 async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> list[dict]:
     from app.config import get_settings
-    from app.db import _pool_req
+    from app.db import _pool_req, _ACCESS_EXHAUSTED
     spec = CONDITION_IDS[step["condition"]]
     if spec.get("special"):
         return []
     price = max(1, int(get_settings().vpn_day_price_rub)) * 3
     where = spec["where"].replace("{price}", str(price))
+    if step["condition"] == "unpaid":
+        where = where.replace("COALESCE(u.balance_rub,0) <= 0", _ACCESS_EXHAUSTED.replace("{price}", str(max(1, int(get_settings().vpn_day_price_rub)))))
     anchor = spec["anchor"]
     hours = int(step["wait_hours"])
     prev = prev_id or ""
@@ -646,6 +657,9 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> 
                 SELECT 1 FROM funnel_step_sends p
                 WHERE p.telegram_id = u.telegram_id AND p.step_id = $5
             )"""
+    args = [int(limit), [int(item) for item in skip], step["id"], hours]
+    if prev:
+        args.append(prev)
     rows = await _pool_req().fetch(
         f"""SELECT u.telegram_id, u.first_name
             FROM users u
@@ -659,7 +673,7 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> 
               AND NOT (u.telegram_id = ANY($2::bigint[]))
             ORDER BY u.telegram_id
             LIMIT $1""",
-        int(limit), [int(item) for item in skip], step["id"], hours, prev,
+        *args,
     )
     return [dict(row) for row in rows]
 

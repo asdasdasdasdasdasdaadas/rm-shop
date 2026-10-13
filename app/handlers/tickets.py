@@ -4,6 +4,7 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
 from app import db
+from app.funnel_ui import answer_funnel
 from app.keyboards import help_connect_reply_keyboard, help_ticket_cancel_keyboard
 from app.notices import notice_text
 from app.tickets import attachments_from_message, receive_user_message
@@ -153,14 +154,19 @@ async def ticket_from_chat(message: Message) -> None:
         return
 
 
-@router.callback_query(F.data.in_({"vpn_feedback:ok", "vpn_feedback:help", "vpn_feedback:later"}))
+@router.callback_query(F.data.in_({"vpn_feedback:ok", "vpn_feedback:help", "vpn_feedback:later", "vpn_feedback:terms"}))
 async def vpn_feedback(callback: CallbackQuery) -> None:
     value = callback.data.split(':')[1]
     await db.save_vpn_feedback(callback.from_user.id, value)
     await callback.answer("Спасибо, учли ваш ответ")
     if value == 'help':
-        await callback.message.answer("Напишите, что не работает. Можно приложить скриншот — поддержка поможет разобраться.", reply_markup=help_connect_reply_keyboard())
+        await answer_funnel(callback.message, "Напишите, что не работает. Можно приложить скриншот — поддержка поможет разобраться.", reply_markup=help_connect_reply_keyboard())
+    elif value == 'terms':
+        await answer_funnel(callback.message, "Поняли. Напишите, что не подошло: цена, устройства или что-то ещё? Учтём ваш ответ.", reply_markup=help_connect_reply_keyboard())
     elif value == 'later':
-        await callback.message.answer("Хорошо, остановили напоминания о возвращении до следующего подключения. Если устройства остаются добавленными, списания продолжаются — ненужные можно удалить в кабинете.")
+        await answer_funnel(callback.message, "Хорошо, остановили напоминания о возвращении до следующего подключения. Если устройства остаются добавленными, списания продолжаются — ненужные можно удалить в кабинете.")
+    elif not await db.has_funded_access(callback.from_user.id):
+        from app.keyboards import payment_nudge_keyboard
+        await answer_funnel(callback.message, "Рады, что всё работает! Доступ закончился — пополните баланс, чтобы продолжить.", reply_markup=payment_nudge_keyboard(label="Пополнить баланс"))
     else:
-        await callback.message.answer("Отлично! Если возникнут вопросы, напишите сюда — поможем.")
+        await answer_funnel(callback.message, "Отлично! Если возникнут вопросы, напишите сюда — поможем.")

@@ -932,7 +932,7 @@ function showMaint(notice) {
 
 // Alert state is separate from wallet balance: the current day may already be paid.
 function balanceAlertState(me) {
-  if (!me || !me.balance_enabled || me.billing_paused) return "";
+  if (!me || !me.balance_enabled || me.billing_paused || me.trial_waiting_connection) return "";
   const devices = (me.devices || []).filter((d) => d.kind !== "router");
   if (!devices.length && (me.devices || []).length) return "";
   const balance = Number(me.balance_rub) || 0;
@@ -2770,7 +2770,7 @@ function paintOffer(me) {
   $("offerTry").textContent = needsBot ? "Запустить бота" : "Забрать подарок и подключиться";
   $("offerLead").textContent = needsBot
     ? "Чтобы забрать подарок, откройте бота и нажмите «Начать». Затем вернитесь в кабинет."
-    : "Попробуйте VPN бесплатно на одном устройстве.";
+    : "Подарок начнёт расходоваться после первого подключения VPN.";
   const days = Number((me.trial_notice && me.trial_notice.days) || me.trial_days) || 3;
   $("offerDays").textContent = String(days);
   $("offerPrice").textContent = monthPriceLabel(me);
@@ -2828,6 +2828,7 @@ async function startOfferTry() {
     if (me.trial_available) {
       const claimed = await api("/api/trial", { method: "POST", body: "{}" });
       if (claimed && claimed.balance_rub != null) me.balance_rub = claimed.balance_rub;
+      if (claimed && claimed.trial_waiting_connection != null) me.trial_waiting_connection = claimed.trial_waiting_connection;
       me.trial_available = false;
       me.trial_notice = null;
       await load().catch(() => {});
@@ -3831,6 +3832,80 @@ function paintAmbassadorCard(me) {
   $("homeAmbassadorOpen").textContent = status === "approved" ? "Открыть мой кабинет" : status === "pending" || status === "suspended" ? "Посмотреть статус" : data.invitation_available ? "Стать амбассадором" : "Узнать условия";
 }
 
+function resumeConnection(me) {
+  const device = phoneDevices(me)[0];
+  if (!device || !device.subscription_url) { startWizard(); return; }
+  hideCoach();
+  Object.assign(wiz, {step: 4, platform: device.platform || currentDevicePlatform() || "ios",
+    client: device.client || preferredClientId(device.platform), title: device.title,
+    url: device.subscription_url, fromOffer: false});
+  screen = "wizard";
+  switchView("view-wizard", "push");
+  tg.BackButton.show();
+  syncWebBack();
+  renderWizard();
+}
+
+function paintConnectionGuide(me) {
+  let card = $("connectionGuide");
+  if (!card) {
+    card = document.createElement("section");
+    card.id = "connectionGuide";
+    card.className = "trial-notice connection-guide hidden";
+    $("trialNotice").before(card);
+  }
+  const unconnected = !me.first_online_at;
+  const survey = !unconnected && !me.has_paid_topup && !me.vpn_feedback;
+  $("view-home").classList.toggle("onboarding-focus", unconnected);
+  if (unconnected) {
+    $("ctaAdd").textContent = me.trial_available ? "Забрать подарок и подключиться" : "Продолжить подключение";
+    $("ctaAdd").onclick = () => me.trial_available ? startOfferTry() : resumeConnection(me);
+    $("trialHomeBtn").classList.add("hidden");
+  } else { $("ctaAdd").onclick = () => startWizard(); }
+  card.classList.toggle("hidden", !unconnected && !survey);
+  if (!unconnected && !survey) return;
+  card.replaceChildren();
+  const title = document.createElement("h2");
+  title.className = "trial-notice-title";
+  const text = document.createElement("p");
+  text.className = "trial-notice-text";
+  const actions = document.createElement("div");
+  actions.className = "wiz-connect-actions";
+  function button(label, fn, primary=false) {
+    const b = document.createElement("button"); b.type = "button";
+    b.className = "btn " + (primary ? "btn-primary" : "btn-ghost");
+    b.textContent = label; b.onclick = fn; actions.appendChild(b);
+  }
+  if (unconnected) {
+    const gift = Boolean(me.trial_available);
+    title.textContent = gift ? "Попробуйте VPN бесплатно" : "Завершим подключение?";
+    text.textContent = gift ? "Заберите подарок — сразу поможем подключиться." :
+      me.trial_waiting_connection ? "Подарок сохранён. Он начнёт расходоваться после первого подключения VPN." :
+      "Подключение пока не подтверждено. Добавьте подписку в приложение и включите VPN.";
+    button(gift ? "Забрать подарок и подключиться" : "Продолжить подключение", () => gift ? startOfferTry() : resumeConnection(me), true);
+    button("Не получилось — помогите", () => openSupport());
+    $("trialNotice").classList.add("hidden");
+  } else {
+    title.textContent = "Как работает VPN?";
+    text.textContent = "Подскажите — если что-то не так, поможем.";
+    for (const [value, label] of [["ok","Всё работает"],["help","Нужна помощь"],["terms","Не подошли условия"]]) {
+      button(label, async () => {
+        actions.querySelectorAll("button").forEach(b => b.disabled=true);
+        try {
+          const result = await api("/api/vpn-feedback", {method:"POST", body:JSON.stringify({value})});
+          me.vpn_feedback=value;
+          paintConnectionGuide(me);
+          if (value === "help") openSupport();
+          else if (value === "terms") { showToast("Напишите, что не подошло — учтём ваш ответ"); openSupport(); }
+          else if (result.access_active === false) openTopup();
+          else showToast("Отлично! Пользуйтесь, пока доступ активен");
+        } catch(e) { showErr(e); actions.querySelectorAll("button").forEach(b => b.disabled=false); }
+      });
+    }
+  }
+  card.append(title, text, actions);
+}
+
 function paint(me) {
   paintAmbassadorCard(me);
   if (me) me.balance_enabled = true;
@@ -3905,6 +3980,7 @@ function paint(me) {
   }
   renderConnect(me);
   renderDevices(me);
+  paintConnectionGuide(me);
   window.__me = me;
   trackOnboarding("cabinet");
   if (me.first_device_thanks_pending) armThanksOnClose();

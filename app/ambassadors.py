@@ -716,7 +716,7 @@ def _invitation_filters(price_param):
               WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'')<>'router'))
           AND EXISTS(SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id AND d.last_online_at>NOW()-INTERVAL '3 days')
           AND u.bot_started_at IS NOT NULL AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
-          AND NOT u.quiet_notifications AND u.vpn_feedback IS DISTINCT FROM 'help'
+          AND NOT u.quiet_notifications AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
           AND NOT EXISTS(SELECT 1 FROM ambassadors a WHERE a.telegram_id=u.telegram_id)
           AND NOT EXISTS(SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status<>'closed')'''
 
@@ -770,7 +770,7 @@ async def due_earn_invitations(limit, skip_ids, *, first_only=False):
         WHERE u.bot_started_at IS NOT NULL
           AND u.bot_started_at <= NOW()-INTERVAL '2 days'
           AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
-          AND NOT u.quiet_notifications AND u.vpn_feedback IS DISTINCT FROM 'help'
+          AND NOT u.quiet_notifications AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
           AND NOT EXISTS(SELECT 1 FROM ambassadors a WHERE a.telegram_id=u.telegram_id)
           AND NOT EXISTS(SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status<>'closed')
           AND (
