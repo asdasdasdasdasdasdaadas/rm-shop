@@ -3137,6 +3137,7 @@ function renderWizard() {
   const body = $("wizBody");
   const lead = $("wizLead");
   body.innerHTML = "";
+  body.classList.remove("wiz-connect");
   $("wizHint").textContent = "";
   lead.textContent = "";
   const oldOk = $("wizOkFloat");
@@ -3308,10 +3309,8 @@ function renderWizard() {
 
   $("wizStep").textContent = "";
   $("wizTitle").textContent = "Осталось включить VPN";
-  lead.textContent =
-    "Ссылка привязана к «" +
-    wiz.title +
-    "». Добавьте её в VPN-приложение и включите VPN.";
+  body.classList.add("wiz-connect");
+  lead.textContent = "Два коротких шага — и можно пользоваться.";
   const ok = document.createElement("div");
   ok.id = "wizOkFloat";
   ok.className = "wiz-ok";
@@ -3407,7 +3406,16 @@ function renderWizard() {
   link.appendChild(actions);
 
   body.appendChild(recap);
+  const steps = document.createElement("ol");
+  steps.className = "wiz-connect-steps";
+  ["Нажмите «Добавить подписку» внизу и подтвердите добавление в приложении.", "Включите VPN в приложении. Если появится запрос на VPN-подключение — разрешите его."].forEach(text => {
+    const item = document.createElement("li");
+    item.textContent = text;
+    steps.appendChild(item);
+  });
+  body.appendChild(steps);
   const manual = document.createElement("details");
+  manual.className = "wiz-connect-manual";
   const manualTitle = document.createElement("summary");
   manualTitle.textContent = "Добавить ссылку вручную";
   manual.append(manualTitle, linkLabel, link);
@@ -3417,12 +3425,15 @@ function renderWizard() {
   help.className = "btn btn-ghost";
   help.textContent = "Не получается подключиться";
   help.onclick = () => openSupport();
-  body.appendChild(help);
-  $("wizHint").textContent = "Нажмите кнопку внизу, подтвердите добавление подписки и включите VPN в приложении.";
+  const secondary = document.createElement("div");
+  secondary.className = "wiz-connect-actions";
+  secondary.appendChild(help);
+  $("wizHint").textContent = "";
   replayAnim(body, "wiz-swap");
-  openLab.textContent = "В кабинет";
+  open.textContent = "В кабинет";
   open.onclick = () => { closeWizard(); load().catch(() => {}); };
-  body.appendChild(open);
+  secondary.appendChild(open);
+  body.appendChild(secondary);
   setMain("Добавить подписку в " + clientLabel(wiz.client), () => {
     haptic();
     openClient(wiz.client || preferredClientId(wiz.platform), wiz.url);
