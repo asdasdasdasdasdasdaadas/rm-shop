@@ -130,6 +130,8 @@ CONDITIONS = (
     {"id": "winback", "label": "Промокод на 5 дней", "special": "winback",
      "hint": "Личный код, когда баланс уже пуст. Срок задаёт сам промокод, пауза на карточке здесь не используется. Условия кода добавляются к тексту. Можно оставить {code}, {devices} и {amount}."},
 )
+from app.recovery_funnel import CONDITIONS as RECOVERY_CONDITIONS
+CONDITIONS = CONDITIONS + RECOVERY_CONDITIONS
 CONDITION_IDS = {row["id"]: row for row in CONDITIONS}
 SPECIAL_ONCE = {"unpaid_invoice", "balance_low", "winback"}
 
@@ -230,7 +232,7 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
         if name:
             query["screen"] = name
         return InlineKeyboardButton(
-            text=label, style="success" if name is None else None,
+            text=label, style="success" if name is None or label == "Личный кабинет" else None,
             web_app=WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query)))),
         )
 
@@ -325,8 +327,8 @@ def validate(graph) -> dict:
     if not isinstance(graph, dict):
         raise ValueError("Воронка должна быть доской с ветками")
     branches = graph.get("branches")
-    if not isinstance(branches, list) or len(branches) > 16:
-        raise ValueError("Веток может быть от 0 до 16")
+    if not isinstance(branches, list) or len(branches) > 32:
+        raise ValueError("Веток может быть от 0 до 32")
     clean = []
     seen = set()
     specials = set()
@@ -495,7 +497,8 @@ async def default_graph() -> dict:
             _step("winback-1", "winback", 0, tx("winback_promo"), ["cabinet", "menu"], enabled=win_on),
         ]},
     ])
-    return validate({"branches": branches})
+    from app.recovery_funnel import upgrade
+    return validate(upgrade({"branches": branches}))
 
 
 def preview(graph: dict, telegram_id: int) -> tuple[list[dict], list[tuple]]:
@@ -553,7 +556,8 @@ async def load() -> dict:
     pool = _pool_req()
     row = await pool.fetchrow("SELECT graph FROM funnel_graphs WHERE id = 1")
     if row:
-        return _parse(row["graph"])
+        from app.recovery_funnel import migrate
+        return await migrate(pool, _parse(row["graph"]))
     graph = await default_graph()
     inserted = await pool.fetchrow(
         "INSERT INTO funnel_graphs (id, graph) VALUES (1, $1::jsonb) ON CONFLICT DO NOTHING RETURNING id",
@@ -564,9 +568,11 @@ async def load() -> dict:
             await _backfill()
         except Exception:
             logger.exception("Старые шаги воронки не отмечены")
-        return graph
+        from app.recovery_funnel import migrate
+        return await migrate(pool, graph)
     row = await pool.fetchrow("SELECT graph FROM funnel_graphs WHERE id = 1")
-    return _parse(row["graph"])
+    from app.recovery_funnel import migrate
+    return await migrate(pool, _parse(row["graph"]))
 
 
 async def save(graph: dict) -> None:
@@ -635,6 +641,13 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> 
     where = spec["where"].replace("{price}", str(price))
     if step["condition"] == "unpaid":
         where = where.replace("COALESCE(u.balance_rub,0) <= 0", _ACCESS_EXHAUSTED.replace("{price}", str(max(1, int(get_settings().vpn_day_price_rub)))))
+    from app.recovery_funnel import AUDIENCE, SEEN
+    if step["condition"].startswith("recover_"):
+        where = where.replace("{exhausted}", _ACCESS_EXHAUSTED.replace("{price}", str(max(1, int(get_settings().vpn_day_price_rub)))))
+        where += f" AND (u.idle_snoozed_at IS NULL OR {SEEN} > u.idle_snoozed_at)"
+        where += " AND NOT EXISTS (SELECT 1 FROM message_log m WHERE m.telegram_id=u.telegram_id AND m.status='sent' AND m.kind LIKE 'nudge_recover_%' AND m.created_at > NOW()-INTERVAL '48 hours')"
+    else:
+        where += f" AND NOT {AUDIENCE}"
     anchor = spec["anchor"]
     hours = int(step["wait_hours"])
     prev = prev_id or ""
@@ -642,15 +655,15 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> 
         time_sql = """EXISTS (
             SELECT 1 FROM funnel_step_sends p
             WHERE p.telegram_id = u.telegram_id AND p.step_id = $5
-              AND p.sent_at <= timezone('utc', now()) - ($4::int * INTERVAL '1 hour')
+              AND p.sent_at <= NOW() - ($4::int * INTERVAL '1 hour')
         )"""
     else:
         time_sql = (
-            f"{anchor} IS NOT NULL AND {anchor} <= timezone('utc', now()) - ($4::int * INTERVAL '1 hour')"
+            f"{anchor} IS NOT NULL AND {anchor} <= NOW() - ($4::int * INTERVAL '1 hour')"
         )
         if spec.get("max_hours"):
             time_sql += (
-                f" AND {anchor} >= timezone('utc', now()) - ({int(spec['max_hours'])} * INTERVAL '1 hour')"
+                f" AND {anchor} >= NOW() - ({int(spec['max_hours'])} * INTERVAL '1 hour')"
             )
         if prev:
             time_sql += """ AND EXISTS (
@@ -685,16 +698,18 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
     touched: list[int] = []
     if not await _gate(step["condition"]):
         return 0, touched
+    from app.recovery_funnel import KINDS
+    kind = KINDS.get(step["condition"], "nudge_board")
     for row in await _due(step, prev_id, STEP_LIMIT, skip + touched):
         uid = int(row["telegram_id"])
-        slot = await db.reserve_optional_message(uid, "nudge_board")
+        slot = await db.reserve_optional_message(uid, kind)
         if slot is None:
             touched.append(uid)
             continue
         delivered = False
         try:
             delivered = await _deliver_unbudgeted(
-                bot, kind="nudge_board", telegram_id=uid, first_name=row.get("first_name"),
+                bot, kind=kind, telegram_id=uid, first_name=row.get("first_name"),
                 title=CONDITION_IDS[step["condition"]]["label"],
                 body=render_text(step["text"], uid, row.get("first_name")),
                 reply_markup=markup(step["buttons"], uid), preserve=True,

@@ -47,6 +47,12 @@ export const billKinds: Data = {
   error: "Ошибка",
 };
 export const messageKinds: Data = {
+  nudge_recover_gift: "Подарок → подключение",
+  nudge_recover_setup: "Подарок есть → устройство",
+  nudge_recover_online: "Устройство → первый онлайн",
+  nudge_recover_quality: "Пробует VPN → обратная связь",
+  nudge_recover_payment: "Доступ закончился → первая оплата",
+  nudge_recover_idle: "Неделя без VPN → возвращение",
   device_reissued: "Перевыпуск ссылки поддержкой",
   broadcast: "Рассылка",
   admin_dm: "Сообщение администратора",

@@ -49,9 +49,10 @@ class TrackingResultsTest(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(c.close)
         c.executescript('''
         CREATE TABLE reminder_deliveries (token TEXT PRIMARY KEY,telegram_id INTEGER,kind TEXT,title TEXT,body TEXT,
-          created_at TEXT,status TEXT,message_id INTEGER,sent_at TEXT,clicked_at TEXT,connected_at TEXT);
+          created_at TEXT,status TEXT,message_id INTEGER,sent_at TEXT,clicked_at TEXT,connected_at TEXT,cabinet_opened_at TEXT,device_added_at TEXT);
         CREATE TABLE reminder_clicks (id INTEGER PRIMARY KEY AUTOINCREMENT,token TEXT,clicked_at TEXT DEFAULT '2026-09-21 12:00:00');
         CREATE TABLE payments (telegram_id INTEGER,created_at TEXT);
+        CREATE TABLE payment_receipts (telegram_id INTEGER,created_at TEXT,first_payment INTEGER,amount INTEGER);
         CREATE TABLE rollypay_orders (telegram_id INTEGER,status TEXT,paid_at TEXT);
         CREATE TABLE devices (telegram_id INTEGER,last_online_at TEXT);
         ''')
@@ -59,6 +60,7 @@ class TrackingResultsTest(unittest.IsolatedAsyncioTestCase):
             sql=sql.replace('::int','').replace('::bigint','').replace('::text','')
             for days in [7,8,30,38]:
                 sql=sql.replace(f"NOW() - INTERVAL '{days} days'",f"datetime('2026-09-21 12:00:00','-{days} days')")
+            sql=sql.replace("c.clicked_at+INTERVAL '7 days'","datetime(c.clicked_at,'+7 days')")
             sql=sql.replace("c.clicked_at + INTERVAL '7 days'","datetime(c.clicked_at,'+7 days')")
             sql=sql.replace('NOW()',"'2026-09-21 12:00:00'")
             bindings={str(i):a for i,a in enumerate(args,1)}
@@ -75,7 +77,7 @@ class TrackingResultsTest(unittest.IsolatedAsyncioTestCase):
         self.pool.start();self.addCleanup(self.pool.stop)
 
     def delivery(self,token,user,kind='nudge_info',status='sent',click='2026-09-20 10:00:00'):
-        self.conn.execute('INSERT INTO reminder_deliveries VALUES (?,?,?,?,?,?,?,?,?,?,NULL)',(token,user,kind,'title','body','2026-09-20',status,user,'2026-09-20',click))
+        self.conn.execute('INSERT INTO reminder_deliveries VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,NULL)',(token,user,kind,'title','body','2026-09-20',status,user,'2026-09-20',click))
         if click:self.conn.execute('INSERT INTO reminder_clicks (token,clicked_at) VALUES (?,?)',(token,click))
 
     async def test_clicks_require_owner_and_successful_delivery(self):

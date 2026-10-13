@@ -792,3 +792,6 @@ DO $$ BEGIN
   INSERT INTO app_flags(key,value) VALUES('online_evidence_v2','1');
  END IF;
 END $$;
+
+ALTER TABLE reminder_deliveries ADD COLUMN IF NOT EXISTS cabinet_opened_at TIMESTAMPTZ;
+ALTER TABLE reminder_deliveries ADD COLUMN IF NOT EXISTS device_added_at TIMESTAMPTZ;

@@ -322,7 +322,7 @@ export function OverviewPage({
         <Content value="retention" className="space-y-5">
           <Panel
             title="Результаты автоматических сообщений"
-            description="Клики, подключения и оплаты после сообщений. Оплата в течение 7 дней — связь по времени, а не доказанный эффект рассылки."
+            description="Результаты по сценариям за 30 дней. Действия и оплаты относятся к последнему нажатию за 7 дней. Сумма — начисления за оплаты; это связь по времени, а не доказанный эффект сообщений."
           >
             <DataTable
               rows={s.reminder_results?.groups || []}
@@ -336,8 +336,12 @@ export function OverviewPage({
                 { key: "failed", label: "Ошибок" },
                 { key: "recipients", label: "Получатели" },
                 { key: "clicked", label: "Нажали" },
+                { key: "opened", label: "Открыли кабинет" },
+                { key: "devices", label: "Добавили устройство" },
                 { key: "connected", label: "Подключились" },
-                { key: "paid", label: "Оплатили" },
+                { key: "first_paid", label: "Первая оплата" },
+                { key: "paid", label: "Всего оплативших" },
+                { key: "paid_rub", label: "Начислено за оплаты, ₽", cell: (r) => money(r.paid_rub || 0) },
               ]}
             />
           </Panel>

@@ -43,3 +43,19 @@ class FunnelBoardTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class RecoveryNavigationTest(unittest.TestCase):
+    def test_all_journeys_have_green_cabinet_with_target_and_menu(self):
+        from unittest.mock import patch
+        from app.funnel_board import markup
+        from app.recovery_funnel import branches
+        graph=validate({'branches':branches()})
+        with patch('app.keyboards.mini_app_url',return_value='https://example.test/'):
+            for branch in graph['branches']:
+                for step in branch['steps']:
+                    buttons=markup(step['buttons'],1).inline_keyboard
+                    self.assertEqual(buttons[0][0].text,'Личный кабинет')
+                    self.assertEqual(buttons[0][0].style,'success')
+                    self.assertEqual(buttons[1][0].callback_data,'profile')
+                    self.assertIsNone(buttons[1][0].style)
+            self.assertIn('screen=gift',markup(graph['branches'][0]['steps'][0]['buttons'],1).inline_keyboard[0][0].web_app.url)

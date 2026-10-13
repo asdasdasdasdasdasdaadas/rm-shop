@@ -292,10 +292,87 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
     async def test_payment_offer_waits_for_exhaustion_and_respects_feedback(self):
         from app import config, funnel_board
         await self.pool.execute("UPDATE users SET first_online_at=NOW(),balance_rub=18 WHERE telegram_id=1")
-        step=funnel_board._step('unpaid-test','unpaid',0,'Тест',['topup'])
+        step=funnel_board._step('unpaid-test','recover_payment',0,'Тест',['topup'])
         with patch.object(config,'get_settings',return_value=self.settings):
             self.assertEqual(await funnel_board._due(step,None,20,[]),[])
             await self.pool.execute('UPDATE users SET balance_rub=1 WHERE telegram_id=1')
             self.assertEqual(len(await funnel_board._due(step,None,20,[])),1)
             await db.save_vpn_feedback(1,'terms')
             self.assertEqual(await funnel_board._due(step,None,20,[]),[])
+
+    async def test_recovery_segments_and_stop_on_progress(self):
+        from app import config, funnel_board
+        from app.recovery_funnel import CONDITIONS
+        await funnel_board._ensure_tables()
+        async def eligible():
+            result=[]
+            for condition in CONDITIONS:
+                step=funnel_board._step('test-'+condition['id'],condition['id'],0,'Тест',['cabinet'])
+                if await funnel_board._due(step,None,10,[]): result.append(condition['id'])
+            return result
+        with patch.object(config,'get_settings',return_value=self.settings):
+            self.assertEqual(await eligible(),['recover_gift'])
+            await db.claim_trial_balance(1,18)
+            self.assertEqual(await eligible(),['recover_setup'])
+            await db.add_device(1,'Phone',77)
+            self.assertEqual(await eligible(),['recover_online'])
+            await self.pool.execute("UPDATE users SET first_online_at=NOW(),trial_waiting_connection=FALSE WHERE telegram_id=1")
+            self.assertEqual(await eligible(),['recover_quality'])
+            await self.pool.execute("UPDATE devices SET last_billed_at=NOW()-INTERVAL '2 days'")
+            await self.pool.execute('UPDATE users SET balance_rub=0 WHERE telegram_id=1')
+            self.assertEqual(await eligible(),['recover_payment'])
+            await self.credit()
+            self.assertEqual(await eligible(),[])
+            await self.pool.execute("UPDATE users SET first_online_at=NOW()-INTERVAL '8 days',bot_started_at=NOW()-INTERVAL '9 days' WHERE telegram_id=1")
+            self.assertEqual(await eligible(),['recover_idle'])
+            await db.save_vpn_feedback(1,'later')
+            self.assertEqual(await eligible(),[])
+
+    async def test_recovery_followup_delay_cooldown_and_quiet(self):
+        from app import config, funnel_board
+        from app.recovery_funnel import branches
+        await funnel_board._ensure_tables()
+        first,second,last=branches()[0]['steps']
+        with patch.object(config,'get_settings',return_value=self.settings):
+            self.assertEqual(len(await funnel_board._due(first,None,10,[])),1)
+            self.assertEqual(await funnel_board._due(second,first['id'],10,[]),[])
+            await self.pool.execute("INSERT INTO funnel_step_sends (telegram_id,step_id,sent_at) VALUES (1,$1,NOW()-INTERVAL '47 hours')",first['id'])
+            self.assertEqual(await funnel_board._due(second,first['id'],10,[]),[])
+            await self.pool.execute("UPDATE funnel_step_sends SET sent_at=NOW()-INTERVAL '49 hours'")
+            self.assertEqual(len(await funnel_board._due(second,first['id'],10,[])),1)
+            await db.log_bot_message(kind='nudge_recover_setup',source='auto',telegram_id=1,title='Test',body='Test',status='sent')
+            self.assertEqual(await funnel_board._due(second,first['id'],10,[]),[])
+            await self.pool.execute("DELETE FROM message_log")
+            await self.pool.execute('UPDATE users SET quiet_notifications=TRUE WHERE telegram_id=1')
+            self.assertEqual(await funnel_board._due(second,first['id'],10,[]),[])
+
+    async def test_recovery_migration_keeps_backup_and_later_edits(self):
+        from app import funnel_board
+        from app.recovery_funnel import migrate, VERSION
+        await funnel_board._ensure_tables()
+        graph=funnel_board.validate({'branches':[{'id':'custom','title':'Моя ветка','steps':[funnel_board._step('custom-step','info',24,'Мой текст',['cabinet'])]}]})
+        await self.pool.execute('INSERT INTO funnel_graphs(id,graph) VALUES (1,$1::jsonb)',json.dumps(graph))
+        updated=await migrate(self.pool,graph)
+        self.assertEqual(len(updated['branches']),7)
+        self.assertEqual(json.loads(await self.pool.fetchval('SELECT value FROM app_flags WHERE key=$1',VERSION+'_backup')),graph)
+        updated['branches'][0]['steps'][0]['text']='Изменено администратором'
+        await self.pool.execute('UPDATE funnel_graphs SET graph=$1::jsonb WHERE id=1',json.dumps(updated))
+        self.assertEqual(await migrate(self.pool,graph),updated)
+
+    async def test_recovery_attribution_latest_click_without_double_revenue(self):
+        a=await db.create_reminder_delivery(1,'nudge_recover_gift','A','A')
+        b=await db.create_reminder_delivery(1,'nudge_recover_setup','B','B')
+        await db.finish_reminder_delivery(a,'sent',11)
+        await db.finish_reminder_delivery(b,'sent',12)
+        await db.record_reminder_click(1,message_id=11)
+        self.assertIsNone(await self.pool.fetchval('SELECT cabinet_opened_at FROM reminder_deliveries WHERE token=$1',a))
+        await db.record_reminder_click(1,token=b)
+        device=await db.add_device(1,'Phone',77)
+        await self.credit()
+        await self.pool.execute('DELETE FROM devices WHERE id=$1',device['id'])
+        stats={g['kind']:g for g in (await db.admin_reminder_results())['groups']}
+        self.assertEqual(stats['nudge_recover_gift']['paid_rub'],0)
+        self.assertEqual(stats['nudge_recover_setup']['paid_rub'],100)
+        self.assertEqual(stats['nudge_recover_setup']['first_paid'],1)
+        self.assertEqual(stats['nudge_recover_setup']['opened'],1)
+        self.assertEqual(stats['nudge_recover_setup']['devices'],1)

@@ -1914,6 +1914,16 @@ async def add_device(
         client,
         str(kind or ""),
     )
+    if row:
+        try:
+            await _pool_req().execute("""UPDATE reminder_deliveries SET device_added_at=COALESCE(device_added_at,NOW())
+                WHERE token=(SELECT c.token FROM reminder_clicks c
+                    JOIN reminder_deliveries r ON r.token=c.token
+                    WHERE r.telegram_id=$1 AND r.status='sent'
+                      AND c.clicked_at BETWEEN NOW()-INTERVAL '7 days' AND NOW()
+                    ORDER BY c.clicked_at DESC,c.id DESC LIMIT 1)""", telegram_id)
+        except Exception:
+            logging.getLogger("rm-shop.db").debug("Device attribution unavailable",exc_info=True)
     return dict(row) if row else {"title": title, "remnawave_id": remnawave_id}
 
 
@@ -5135,7 +5145,8 @@ async def finish_reminder_delivery(token: str, status: str, message_id: int | No
 async def record_reminder_click(telegram_id: int, *, token: str | None = None, message_id: int | None = None) -> None:
     await _pool_req().execute(
         """WITH clicked AS (
-            UPDATE reminder_deliveries SET clicked_at=COALESCE(clicked_at,NOW())
+            UPDATE reminder_deliveries SET clicked_at=COALESCE(clicked_at,NOW()),
+                cabinet_opened_at=CASE WHEN $2::text IS NOT NULL THEN COALESCE(cabinet_opened_at,NOW()) ELSE cabinet_opened_at END
             WHERE telegram_id=$1 AND status='sent'
               AND (($2::text IS NOT NULL AND token=$2) OR ($3::bigint IS NOT NULL AND message_id=$3))
               AND sent_at >= NOW() - INTERVAL '30 days' RETURNING token
@@ -5172,7 +5183,18 @@ payments_seen AS (
     SELECT telegram_id, created_at AS paid_at FROM payments
     UNION ALL SELECT telegram_id, paid_at FROM rollypay_orders WHERE status='granted' AND paid_at IS NOT NULL
 ), results AS (
-    SELECT r.*, EXISTS (SELECT 1 FROM payments_seen p JOIN clicks c ON c.telegram_id=p.telegram_id
+    SELECT r.*,
+      EXISTS (SELECT 1 FROM payment_receipts p WHERE p.first_payment AND p.telegram_id=r.telegram_id AND EXISTS (SELECT 1 FROM clicks c
+        WHERE c.token=r.token AND p.created_at BETWEEN c.clicked_at AND c.clicked_at+INTERVAL '7 days'
+        AND NOT EXISTS (SELECT 1 FROM clicks later WHERE later.telegram_id=c.telegram_id
+            AND (later.clicked_at>c.clicked_at OR (later.clicked_at=c.clicked_at AND later.id>c.id))
+            AND later.clicked_at<=p.created_at))) AS first_paid_after,
+      COALESCE((SELECT SUM(p.amount) FROM payment_receipts p WHERE p.telegram_id=r.telegram_id AND EXISTS (SELECT 1 FROM clicks c
+        WHERE c.token=r.token AND p.created_at BETWEEN c.clicked_at AND c.clicked_at+INTERVAL '7 days'
+        AND NOT EXISTS (SELECT 1 FROM clicks later WHERE later.telegram_id=c.telegram_id
+            AND (later.clicked_at>c.clicked_at OR (later.clicked_at=c.clicked_at AND later.id>c.id))
+            AND later.clicked_at<=p.created_at))),0) AS paid_rub,
+      EXISTS (SELECT 1 FROM payments_seen p JOIN clicks c ON c.telegram_id=p.telegram_id
         WHERE c.token=r.token AND p.paid_at >= c.clicked_at AND p.paid_at <= c.clicked_at + INTERVAL '7 days'
         AND NOT EXISTS (SELECT 1 FROM clicks later WHERE later.telegram_id=c.telegram_id
             AND (later.clicked_at > c.clicked_at OR (later.clicked_at=c.clicked_at AND later.id>c.id))
@@ -5190,7 +5212,11 @@ async def admin_reminder_results() -> dict:
           COUNT(DISTINCT telegram_id) FILTER (WHERE status='sent')::int AS recipients,
           COUNT(DISTINCT telegram_id) FILTER (WHERE status='sent' AND clicked_at IS NOT NULL)::int AS clicked,
           COUNT(DISTINCT telegram_id) FILTER (WHERE connected_at IS NOT NULL)::int AS connected,
-          COUNT(DISTINCT telegram_id) FILTER (WHERE paid_after)::int AS paid
+          COUNT(DISTINCT telegram_id) FILTER (WHERE paid_after)::int AS paid,
+          COUNT(DISTINCT telegram_id) FILTER (WHERE status='sent' AND cabinet_opened_at IS NOT NULL)::int AS opened,
+          COUNT(DISTINCT telegram_id) FILTER (WHERE status='sent' AND device_added_at IS NOT NULL)::int AS devices,
+          COUNT(DISTINCT telegram_id) FILTER (WHERE first_paid_after)::int AS first_paid,
+          COALESCE(SUM(paid_rub),0)::bigint AS paid_rub
         FROM results GROUP BY kind ORDER BY sent DESC,kind""")
     recent=await pool.fetch(_REMINDER_RESULTS_SQL + """
         SELECT telegram_id,kind,title,body,created_at,status,clicked_at,connected_at,paid_after

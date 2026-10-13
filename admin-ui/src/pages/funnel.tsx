@@ -448,7 +448,7 @@ export function FunnelPage() {
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold">Сценарии</h2>
                 <span className="text-xs text-muted-foreground">
-                  {graph.branches.length}/16
+                  {graph.branches.length}/32
                 </span>
               </div>
               <div className="relative">
@@ -464,7 +464,7 @@ export function FunnelPage() {
               <Button
                 variant="outline"
                 className="w-full"
-                disabled={graph.branches.length >= 16}
+                disabled={graph.branches.length >= 32}
                 onClick={() => {
                   const b: Branch = {
                     id: nid("branch"),
