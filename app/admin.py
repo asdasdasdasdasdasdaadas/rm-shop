@@ -552,9 +552,9 @@ async def api_funnel_test(request: web.Request) -> web.Response:
             listed, choices = preview(graph, recipient)
             scenarios = {key: (title, steps) for key, title, steps in choices}
             if body.get("scenario") == "main-menu" and graph.get("main_menu"):
-                from app.funnel_board import markup, render_text
+                from app.funnel_board import main_menu_markup, render_text
                 menu = graph["main_menu"]
-                listed = [{"id":"main-menu", "title":"Главное меню", "condition":"Предпросмотр", "body":render_text(menu["text"].replace("{balance}", "100 рублей"), recipient, "Администратор"), "markup":markup(menu["buttons"],recipient)}]
+                listed = [{"id":"main-menu", "title":"Главное меню", "condition":"Предпросмотр", "body":render_text(menu["text"].replace("{balance}", "100 рублей"), recipient, "Администратор"), "markup":main_menu_markup(menu["buttons"],recipient)}]
                 scenarios = {"main-menu": ("Главное меню", ["main-menu"])}
         except ValueError as exc:
             return web.json_response({"ok":False,"error":str(exc)},status=400)

@@ -53,6 +53,16 @@ class EditorTest(unittest.IsolatedAsyncioTestCase):
                 self.assertIsNone(button.url)
                 self.assertIsNone(button.web_app)
 
+    async def test_main_menu_preview_preserves_two_column_row(self):
+        value=graph()
+        value['main_menu']={'text':'Menu', 'buttons':['cabinet',{'action':'channel','text':'Channel'},'invite','about']}
+        bot=SimpleNamespace(send_message=AsyncMock())
+        request=SimpleNamespace(method='POST',json=AsyncMock(return_value={'telegram_id':123,'scenario':'main-menu','graph':value}),app={'bot':bot})
+        with patch.object(admin,'_need_auth',return_value=None),patch.object(admin,'get_settings',return_value=SimpleNamespace(admin_id_set={123})),patch('app.config.get_settings',return_value=self.settings()):
+            response=await admin.api_funnel_test(request)
+        self.assertEqual(json.loads(response.body)['sent'],1)
+        self.assertEqual([len(row) for row in bot.send_message.call_args.kwargs['reply_markup'].inline_keyboard],[1,1,2])
+
     async def test_menu_content_and_preserve(self):
         value=graph();value['main_menu']={'text':'Привет, {name}! {balance}', 'buttons':[{'action':'about','text':'Кто мы'}]}
         with patch.object(board,'load',AsyncMock(return_value=value)),patch('app.config.get_settings',return_value=self.settings()):

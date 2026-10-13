@@ -181,7 +181,7 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
         if custom:
             kb = custom[1]
     last += "\n\n" + legal_text()
-    await answer_funnel(message, last, reply_markup=kb, preserve=bool(in_channel and custom), link_preview_options=LinkPreviewOptions(is_disabled=True))
+    await answer_funnel(message, last, reply_markup=kb, preserve=in_channel, link_preview_options=LinkPreviewOptions(is_disabled=True))
     await db.mark_legal_notice(telegram_id)
 
 
