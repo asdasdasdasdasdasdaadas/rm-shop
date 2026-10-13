@@ -59,3 +59,14 @@ class RecoveryNavigationTest(unittest.TestCase):
                     self.assertEqual(buttons[1][0].callback_data,'profile')
                     self.assertIsNone(buttons[1][0].style)
             self.assertIn('screen=gift',markup(graph['branches'][0]['steps'][0]['buttons'],1).inline_keyboard[0][0].web_app.url)
+
+class MenuLayoutTest(unittest.TestCase):
+    def test_menu_keeps_primary_rows_and_pairs_secondary_actions(self):
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        from app.funnel_board import main_menu_markup
+        with patch('app.keyboards.mini_app_url',return_value='https://example.test'), patch('app.config.get_settings',return_value=SimpleNamespace(required_channel_url='https://t.me/test')):
+            kb=main_menu_markup(['cabinet',{'action':'channel','text':'Канал'},'invite','about'],1)
+        self.assertEqual([len(row) for row in kb.inline_keyboard],[1,1,2])
+        self.assertEqual([b.callback_data for b in kb.inline_keyboard[-1]],['share','about_service'])
+        self.assertEqual(kb.inline_keyboard[0][0].style,'success')

@@ -795,3 +795,11 @@ END $$;
 
 ALTER TABLE reminder_deliveries ADD COLUMN IF NOT EXISTS cabinet_opened_at TIMESTAMPTZ;
 ALTER TABLE reminder_deliveries ADD COLUMN IF NOT EXISTS device_added_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS checkout_feedback (
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    checkout_token TEXT NOT NULL,
+    reason TEXT NOT NULL CHECK (reason IN ('broken','price','payment','later')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (telegram_id, checkout_token)
+);

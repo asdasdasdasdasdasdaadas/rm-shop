@@ -320,6 +320,13 @@ export function OverviewPage({
           )}
         </Content>
         <Content value="retention" className="space-y-5">
+          <Panel title="Что остановило оплату" description="Ответы за 30 дней. Один ответ на счёт; это мнения ответивших, а не всех неоплативших.">
+            <DataTable rows={s.checkout_feedback || []} columns={[
+              {key: "label", label: "Причина"},
+              {key: "responses", label: "Ответы"},
+              {key: "users", label: "Пользователи"},
+            ]} />
+          </Panel>
           <Panel
             title="Результаты автоматических сообщений"
             description="Результаты по сценариям за 30 дней. Действия и оплаты относятся к последнему нажатию за 7 дней. Сумма — начисления за оплаты; это связь по времени, а не доказанный эффект сообщений."

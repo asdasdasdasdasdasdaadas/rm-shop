@@ -95,15 +95,15 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
         await ack(target)
         try:
             await edit_funnel(message,
-                text, reply_markup=kb, preserve=bool(custom), link_preview_options=LinkPreviewOptions(is_disabled=True)
+                text, reply_markup=kb, preserve=True, link_preview_options=LinkPreviewOptions(is_disabled=True)
             )
         except TelegramBadRequest:
             await answer_funnel(message,
-                text, reply_markup=kb, preserve=bool(custom), link_preview_options=LinkPreviewOptions(is_disabled=True)
+                text, reply_markup=kb, preserve=True, link_preview_options=LinkPreviewOptions(is_disabled=True)
             )
     else:
         await answer_funnel(message,
-            text, reply_markup=kb, preserve=bool(custom), link_preview_options=LinkPreviewOptions(is_disabled=True)
+            text, reply_markup=kb, preserve=True, link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
     if from_user:
         await db.mark_legal_notice(from_user.id)

@@ -2733,6 +2733,7 @@ async def admin_list_pay_soon(day_price: int) -> list[dict]:
 
 
 async def admin_stats() -> dict:
+    from app.checkout_feedback import stats as checkout_feedback_stats
     pool = _pool_req()
     users = await pool.fetchrow(
         """
@@ -2847,6 +2848,7 @@ async def admin_stats() -> dict:
         "cohort_outcomes": await admin_cohort_outcomes(),
         "exit_feedback": await admin_exit_feedback(),
         "reminder_results": await admin_reminder_results(),
+        "checkout_feedback": await checkout_feedback_stats(),
     }
 
 

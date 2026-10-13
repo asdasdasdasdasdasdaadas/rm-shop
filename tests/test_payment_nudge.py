@@ -32,6 +32,8 @@ class PaymentNudgeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await nudge.send_due_payment_nudges(None, self.rp), (1, [1]))
         self.claim.assert_awaited_once_with(1, 'current')
         self.deliver.assert_awaited_once()
+        keyboard = self.deliver.await_args.kwargs['reply_markup']
+        self.assertEqual(keyboard.inline_keyboard[-1][0].callback_data, 'paywhy:current')
 
     async def test_paid_refunded_and_unknown_are_not_reminded(self):
         for status in ('paid', 'succeeded', 'refunded', 'unknown'):

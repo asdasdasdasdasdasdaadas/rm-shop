@@ -491,6 +491,8 @@ async def send_due_payment_nudges(
             else:
                 from app.funnel_board import markup as board_markup
                 reply, keep = board_markup(button_ids, uid, token=token), True
+            from app.checkout_feedback import add_question_button
+            reply = add_question_button(reply, token)
             ok = await _deliver(
                 bot, kind="nudge_payment", telegram_id=uid, first_name=row.get("first_name"),
                 title="Незавершённая оплата", body=text, reply_markup=reply, preserve=keep,

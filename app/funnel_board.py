@@ -212,7 +212,26 @@ async def menu_content(first_name, balance_rub, telegram_id):
         return None
     from app.texts import rub_text
     body = render_text(menu["text"].replace("{balance}", rub_text(balance_rub)), telegram_id, first_name)
-    return body, markup(menu["buttons"], telegram_id)
+    return body, main_menu_markup(menu["buttons"], telegram_id)
+
+
+def main_menu_markup(button_ids, telegram_id):
+    keyboard = markup(button_ids, telegram_id)
+    if not keyboard:
+        return keyboard
+    rows = []
+    pair = []
+    for row in keyboard.inline_keyboard:
+        for button in row:
+            if button.callback_data == "check_sub":
+                continue
+            if button.callback_data in {"share", "about_service"}:
+                pair.append(button)
+            else:
+                rows.append([button])
+    if pair:
+        rows.append(pair)
+    return keyboard.model_copy(update={"inline_keyboard": rows})
 
 
 def markup(button_ids: list[str], telegram_id: int, token: str | None = None):

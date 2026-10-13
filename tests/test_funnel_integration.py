@@ -376,3 +376,20 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['nudge_recover_setup']['first_paid'],1)
         self.assertEqual(stats['nudge_recover_setup']['opened'],1)
         self.assertEqual(stats['nudge_recover_setup']['devices'],1)
+
+    async def test_checkout_feedback_owner_dedup_and_paid_exclusion(self):
+        from app import checkout_feedback as feedback
+        await db.track_checkout(1)
+        await self.pool.execute("UPDATE users SET checkout_nudge_at=NOW() WHERE telegram_id=1")
+        token=await self.pool.fetchval('SELECT checkout_token FROM users WHERE telegram_id=1')
+        self.assertFalse(await feedback.save(2,token,'price'))
+        self.assertFalse(await feedback.save(1,'stale','price'))
+        self.assertFalse(await feedback.save(1,token,'unknown'))
+        self.assertTrue(await feedback.save(1,token,'price'))
+        self.assertFalse(await feedback.save(1,token,'later'))
+        self.assertEqual((await feedback.stats())[0]['responses'],1)
+        await db.track_checkout(1)
+        await self.pool.execute("UPDATE users SET checkout_nudge_at=NOW() WHERE telegram_id=1")
+        token=await self.pool.fetchval('SELECT checkout_token FROM users WHERE telegram_id=1')
+        await self.credit()
+        self.assertFalse(await feedback.save(1,token,'price'))
