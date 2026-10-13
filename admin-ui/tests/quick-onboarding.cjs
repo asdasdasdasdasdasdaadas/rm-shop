@@ -42,8 +42,8 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   assert.equal(creates,1);
   await page.evaluate(()=>{window.__me.first_online_at=new Date().toISOString();window.__me.trial_waiting_connection=false;window.__me.hours_left=48;openHome();paint(window.__me);});
   await page.getByRole('button',{name:'Всё работает',exact:true}).click();
-  assert.equal(me.vpn_feedback,'ok');
   await page.locator('#connectionGuide').waitFor({state:'hidden'});
+  assert.equal(me.vpn_feedback,'ok');
   assert.deepEqual(errors,[]);await context.close();
  }
  console.log('Gift → installation → subscription passed on iOS and Android.');
