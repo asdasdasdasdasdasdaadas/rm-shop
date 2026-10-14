@@ -5744,13 +5744,19 @@ async def credit_invitee_bonus_once(telegram_id: int, amount: int) -> int | None
 
 
 async def resolve_recovered_vpn_feedback() -> None:
-    await _pool_req().execute('''UPDATE users u SET vpn_feedback=NULL,vpn_feedback_at=NULL
-        WHERE u.vpn_feedback='help'
+    await _pool_req().execute("""UPDATE users u SET vpn_feedback=NULL,vpn_feedback_at=NULL
+        WHERE u.vpn_feedback IN ('help','terms')
           AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
-          AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id
+          AND ((u.vpn_feedback='terms' AND EXISTS (SELECT 1 FROM payment_receipts p
+                WHERE p.telegram_id=u.telegram_id AND p.created_at > u.vpn_feedback_at))
+            OR EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id
               AND d.last_online_at > GREATEST(u.vpn_feedback_at,
                   COALESCE((SELECT MAX(t.closed_at) FROM tickets t WHERE t.telegram_id=u.telegram_id),u.vpn_feedback_at))
-                  + INTERVAL '1 hour')''')
+                  + INTERVAL '1 hour'))""")
+    await _pool_req().execute("""UPDATE users u SET marketing_pause_until=NULL,marketing_pause_started_at=NULL
+        WHERE marketing_pause_until IS NOT NULL AND (marketing_pause_until <= NOW()
+          OR EXISTS (SELECT 1 FROM payment_receipts p WHERE p.telegram_id=u.telegram_id AND p.created_at>u.marketing_pause_started_at)
+          OR EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id AND d.last_online_at>u.marketing_pause_started_at+INTERVAL '1 hour'))""")
 
 
 def is_marketing_message(kind: str) -> bool:
@@ -5766,6 +5772,8 @@ async def reserve_optional_message(telegram_id: int, kind: str) -> int | None:
             if not user or user['quiet_notifications'] or user['blocked_at'] or user['bot_blocked_at'] or not user['bot_started_at'] or user['vpn_feedback'] in {'help', 'terms'}:
                 return None
             allowed = await conn.fetchval('''SELECT
+                NOT EXISTS (SELECT 1 FROM users WHERE telegram_id=$1 AND marketing_pause_until > NOW())
+                AND
                 NOT EXISTS (SELECT 1 FROM tickets WHERE telegram_id=$1 AND status <> 'closed')
                 AND NOT EXISTS (SELECT 1 FROM users WHERE telegram_id=$1
                     AND checkout_started_at > NOW()-INTERVAL '20 minutes')
@@ -5809,7 +5817,7 @@ async def funnel_message_stats() -> dict:
 async def marketing_suppressed_ids() -> list[int]:
     """Filter before LIMIT so capped users cannot starve the next batch."""
     rows = await _pool_req().fetch('''SELECT u.telegram_id FROM users u WHERE
-        u.quiet_notifications OR u.vpn_feedback IN ('help','terms')
+        u.quiet_notifications OR u.vpn_feedback IN ('help','terms') OR u.marketing_pause_until > NOW()
         OR EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
         OR EXISTS (SELECT 1 FROM optional_message_slots s WHERE s.telegram_id=u.telegram_id
             AND (s.sent_at > NOW()-INTERVAL '24 hours' OR (s.sent_at IS NULL AND s.created_at > NOW()-INTERVAL '10 minutes')))
@@ -5835,6 +5843,7 @@ async def backfill_balance_exhaustion() -> None:
 _WINBACK_ELIGIBLE = '''u.balance_rub <= 0 AND u.balance_exhausted_at IS NOT NULL
     AND u.bot_started_at IS NOT NULL AND u.bot_blocked_at IS NULL AND u.blocked_at IS NULL
     AND u.billing_paused_at IS NULL AND NOT u.quiet_notifications
+    AND (u.marketing_pause_until IS NULL OR u.marketing_pause_until<=NOW())
     AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
     AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
     AND (u.checkout_started_at IS NULL OR u.checkout_started_at <= NOW()-INTERVAL '20 minutes')
@@ -5977,3 +5986,26 @@ async def finish_payment_notice(key: str, status: str, delay: int = 300) -> None
     await _pool_req().execute("""UPDATE payment_receipts SET notice_status=$2,
         notice_sent_at=CASE WHEN $2='sent' THEN NOW() ELSE notice_sent_at END,
         notice_retry_at=NOW()+($3::int*INTERVAL '1 second') WHERE payment_key=$1""",key,status,delay)
+
+
+async def reserve_setup_assistance(telegram_id: int) -> int | None:
+    """Setup help: once per stage, at most two/day and one hour between messages."""
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            await conn.fetchval('SELECT telegram_id FROM users WHERE telegram_id=$1 FOR UPDATE',telegram_id)
+            allowed = await conn.fetchval("""SELECT EXISTS (SELECT 1 FROM users u WHERE u.telegram_id=$1
+                AND u.bot_started_at IS NOT NULL AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
+                AND NOT u.quiet_notifications AND u.billing_paused_at IS NULL
+                AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
+                AND (u.marketing_pause_until IS NULL OR u.marketing_pause_until<=NOW())
+                AND (u.checkout_started_at IS NULL OR u.checkout_started_at<=NOW()-INTERVAL '20 minutes'))
+                AND NOT EXISTS (SELECT 1 FROM tickets WHERE telegram_id=$1 AND status<>'closed')
+                AND NOT EXISTS (SELECT 1 FROM optional_message_slots WHERE telegram_id=$1
+                    AND (sent_at>NOW()-INTERVAL '1 hour' OR (sent_at IS NULL AND created_at>NOW()-INTERVAL '10 minutes')))
+                AND NOT EXISTS (SELECT 1 FROM message_log WHERE telegram_id=$1 AND status='sent'
+                    AND (kind LIKE 'nudge_%' OR kind IN ('broadcast','low_balance')) AND created_at>NOW()-INTERVAL '1 hour')
+                AND (SELECT COUNT(*) FROM optional_message_slots WHERE telegram_id=$1 AND kind='nudge_setup_assist'
+                    AND sent_at>NOW()-INTERVAL '24 hours')<2""",telegram_id)
+            if not allowed:
+                return None
+            return await conn.fetchval("INSERT INTO optional_message_slots(telegram_id,kind) VALUES($1,'nudge_setup_assist') RETURNING id",telegram_id)

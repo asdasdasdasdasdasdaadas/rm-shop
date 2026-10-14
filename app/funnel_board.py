@@ -21,6 +21,7 @@ AND u.bot_blocked_at IS NULL
 AND u.bot_started_at IS NOT NULL
 AND u.billing_paused_at IS NULL
 AND NOT COALESCE(u.quiet_notifications, FALSE)
+AND (u.marketing_pause_until IS NULL OR u.marketing_pause_until <= NOW())
 AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
 AND NOT EXISTS (
     SELECT 1 FROM tickets t
@@ -650,6 +651,10 @@ async def _gate(condition: str) -> bool:
     return True
 
 
+def is_setup_assist(step, prev_id):
+    return not prev_id and step['condition'] in {'recover_setup','recover_online'} and step.get('wait_from') == 'anchor'
+
+
 async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> list[dict]:
     from app.config import get_settings
     from app.db import _pool_req, _ACCESS_EXHAUSTED
@@ -660,13 +665,13 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> 
     where = spec["where"].replace("{price}", str(price))
     if step["condition"] == "unpaid":
         where = where.replace("COALESCE(u.balance_rub,0) <= 0", _ACCESS_EXHAUSTED.replace("{price}", str(max(1, int(get_settings().vpn_day_price_rub)))))
-    from app.recovery_funnel import AUDIENCE, SEEN
+    from app.recovery_funnel import SEEN
     if step["condition"].startswith("recover_"):
         where = where.replace("{exhausted}", _ACCESS_EXHAUSTED.replace("{price}", str(max(1, int(get_settings().vpn_day_price_rub)))))
         where += f" AND (u.idle_snoozed_at IS NULL OR {SEEN} > u.idle_snoozed_at)"
-        where += " AND NOT EXISTS (SELECT 1 FROM message_log m WHERE m.telegram_id=u.telegram_id AND m.status='sent' AND m.kind LIKE 'nudge_recover_%' AND m.created_at > NOW()-INTERVAL '48 hours')"
-    else:
-        where += f" AND NOT {AUDIENCE}"
+        if not is_setup_assist(step, prev_id):
+            where += " AND NOT EXISTS (SELECT 1 FROM message_log m WHERE m.telegram_id=u.telegram_id AND m.status='sent' AND m.kind LIKE 'nudge_recover_%' AND m.created_at > NOW()-INTERVAL '48 hours')"
+
     anchor = spec["anchor"]
     hours = int(step["wait_hours"])
     prev = prev_id or ""
@@ -689,6 +694,10 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> 
                 SELECT 1 FROM funnel_step_sends p
                 WHERE p.telegram_id = u.telegram_id AND p.step_id = $5
             )"""
+    cycle_clause = ""
+    if step['condition'] == 'recover_idle':
+        cycle_clause = f" AND s.sent_at >= {SEEN}"
+        time_sql = time_sql.replace("p.step_id = $5", f"p.step_id = $5 AND p.sent_at >= {SEEN}")
     args = [int(limit), [int(item) for item in skip], step["id"], hours]
     if prev:
         args.append(prev)
@@ -700,7 +709,7 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> 
               AND {time_sql}
               AND NOT EXISTS (
                   SELECT 1 FROM funnel_step_sends s
-                  WHERE s.telegram_id = u.telegram_id AND s.step_id = $3
+                  WHERE s.telegram_id = u.telegram_id AND s.step_id = $3 {cycle_clause}
               )
               AND NOT (u.telegram_id = ANY($2::bigint[]))
             ORDER BY u.telegram_id
@@ -718,20 +727,27 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
     if not await _gate(step["condition"]):
         return 0, touched
     from app.recovery_funnel import KINDS
-    kind = KINDS.get(step["condition"], "nudge_board")
+    kind = "nudge_setup_assist" if is_setup_assist(step, prev_id) else KINDS.get(step["condition"], "nudge_board")
     for row in await _due(step, prev_id, STEP_LIMIT, skip + touched):
         uid = int(row["telegram_id"])
-        slot = await db.reserve_optional_message(uid, kind)
+        slot = await (db.reserve_setup_assistance(uid) if kind == "nudge_setup_assist" else db.reserve_optional_message(uid, kind))
         if slot is None:
             touched.append(uid)
             continue
         delivered = False
         try:
+            body = render_text(step['text'], uid, row.get('first_name'))
+            buttons = step['buttons']
+            if step['condition'] == 'recover_idle':
+                funded = await db.has_funded_access(uid)
+                body += "\n\n" + ("Доступ ещё действует — можно включить VPN." if funded else "Доступ закончился. В кабинете можно пополнить баланс и вернуться к VPN.")
+                buttons = [({'action':'connect' if funded else 'topup','text':'Личный кабинет'}
+                            if (b if isinstance(b,str) else b.get('action')) in {'cabinet','connect','topup'} else b) for b in buttons]
             delivered = await _deliver_unbudgeted(
                 bot, kind=kind, telegram_id=uid, first_name=row.get("first_name"),
                 title=CONDITION_IDS[step["condition"]]["label"],
-                body=render_text(step["text"], uid, row.get("first_name")),
-                reply_markup=markup(step["buttons"], uid), preserve=True,
+                body=body,
+                reply_markup=markup(buttons, uid), preserve=True,
                 extra={"step_id": step["id"]},
             )
         except Exception:
@@ -743,7 +759,7 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
             continue
         await db._pool_req().execute(
             """INSERT INTO funnel_step_sends (telegram_id, step_id)
-               VALUES ($1, $2) ON CONFLICT DO NOTHING""",
+               VALUES ($1, $2) ON CONFLICT (telegram_id,step_id) DO UPDATE SET sent_at=NOW()""",
             uid, step["id"],
         )
         if step["condition"] in {"ambassador_active", "ambassador_earn"}:
@@ -781,6 +797,14 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None) -> tuple[int
         sent += count
         touched.extend(ids)
         skip.extend(ids)
+    # Event-related setup help has its own small budget, before marketing suppression.
+    for branch in graph['branches']:
+        first = next((step for step in branch['steps'] if step['enabled']), None)
+        if first and is_setup_assist(first, None) and sent < RUN_LIMIT:
+            count, ids = await _send_step(bot, first, None, skip)
+            sent += count
+            touched.extend(ids)
+            skip.extend(ids)
     skip.extend(await db.nudge_suppressed_ids(hours=6))
     if balance and balance["enabled"] and sent < RUN_LIMIT:
         count, ids = await nudge.send_due_trial_end_nudges(
@@ -807,7 +831,7 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None) -> tuple[int
                 touched.extend(ids)
                 skip.extend(ids)
                 winback_done = True
-            elif not spec.get("special"):
+            elif not spec.get("special") and not is_setup_assist(step, prev):
                 count, ids = await _send_step(bot, step, prev, skip)
                 sent += count
                 touched.extend(ids)

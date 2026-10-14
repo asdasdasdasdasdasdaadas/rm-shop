@@ -4126,12 +4126,12 @@ async function load() {
     paymentEntryHandled = true;
     markIntroSeen();
     window.__me = me;
-    const device = (me.devices || [])[0];
+    const device = phoneDevices(me)[0];
     const gift = entry === "gift" && me.trial_available;
     screen = gift ? "offer" : device ? "device" : "wizard";
     paint(me);
     if (gift) openOffer({ instant: true });
-    else if (device) showDevice(device);
+    else if (device) resumeConnection(me);
     else startWizard({ instant: true });
     return;
   }

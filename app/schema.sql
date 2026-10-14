@@ -803,3 +803,6 @@ CREATE TABLE IF NOT EXISTS checkout_feedback (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (telegram_id, checkout_token)
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_pause_until TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_pause_started_at TIMESTAMPTZ;

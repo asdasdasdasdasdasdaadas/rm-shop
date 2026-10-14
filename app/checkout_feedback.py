@@ -30,10 +30,21 @@ async def current(telegram_id, token):
 async def save(telegram_id, token, reason):
     if reason not in REASONS:
         return False
-    result = await db._pool_req().fetchval(f"""INSERT INTO checkout_feedback (telegram_id,checkout_token,reason)
-        SELECT u.telegram_id,u.checkout_token,$3 FROM users u WHERE {ELIGIBLE}
-        ON CONFLICT DO NOTHING RETURNING telegram_id""",telegram_id,token,reason)
-    return result is not None
+    async with db._pool_req().acquire() as conn:
+        async with conn.transaction():
+            await conn.fetchval('SELECT telegram_id FROM users WHERE telegram_id=$1 FOR UPDATE',telegram_id)
+            result = await conn.fetchval(f"""INSERT INTO checkout_feedback (telegram_id,checkout_token,reason)
+                SELECT u.telegram_id,u.checkout_token,$3 FROM users u WHERE {ELIGIBLE}
+                ON CONFLICT DO NOTHING RETURNING telegram_id""",telegram_id,token,reason)
+            if result is None:
+                return False
+            if reason == 'broken':
+                await conn.execute("UPDATE users SET vpn_feedback='help',vpn_feedback_at=NOW() WHERE telegram_id=$1",telegram_id)
+            else:
+                days = {'price':7,'payment':1,'later':7}[reason]
+                await conn.execute("""UPDATE users SET marketing_pause_started_at=NOW(),
+                    marketing_pause_until=NOW()+$2::int*INTERVAL '1 day' WHERE telegram_id=$1""",telegram_id,days)
+    return True
 
 
 async def stats():

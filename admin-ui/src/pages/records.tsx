@@ -47,6 +47,7 @@ export const billKinds: Data = {
   error: "Ошибка",
 };
 export const messageKinds: Data = {
+  nudge_setup_assist: "Помощь после настройки устройства",
   nudge_recover_gift: "Подарок → подключение",
   nudge_recover_setup: "Подарок есть → устройство",
   nudge_recover_online: "Устройство → первый онлайн",

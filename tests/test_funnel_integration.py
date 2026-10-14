@@ -393,3 +393,87 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         token=await self.pool.fetchval('SELECT checkout_token FROM users WHERE telegram_id=1')
         await self.credit()
         self.assertFalse(await feedback.save(1,token,'price'))
+
+    async def test_feedback_changes_journey_without_overriding_quiet(self):
+        from app import checkout_feedback as feedback
+        await db.track_checkout(1)
+        await self.pool.execute('UPDATE users SET checkout_nudge_at=NOW(),quiet_notifications=TRUE WHERE telegram_id=1')
+        token=await self.pool.fetchval('SELECT checkout_token FROM users WHERE telegram_id=1')
+        self.assertTrue(await feedback.save(1,token,'later'))
+        self.assertIsNone(await db.reserve_optional_message(1,'broadcast'))
+        await self.credit()
+        await db.resolve_recovered_vpn_feedback()
+        user=await db.get_user(1)
+        self.assertIsNone(user['marketing_pause_until'])
+        self.assertTrue(user['quiet_notifications'])
+        await db.save_vpn_feedback(1,'terms')
+        await self.pool.execute("UPDATE users SET vpn_feedback_at=NOW()-INTERVAL '1 hour' WHERE telegram_id=1")
+        await db.resolve_recovered_vpn_feedback()
+        self.assertIsNone((await db.get_user(1))['vpn_feedback'])
+        self.assertTrue((await db.get_user(1))['quiet_notifications'])
+
+    async def test_broken_checkout_stops_marketing(self):
+        from app import checkout_feedback as feedback
+        await db.track_checkout(1)
+        await self.pool.execute('UPDATE users SET checkout_nudge_at=NOW() WHERE telegram_id=1')
+        token=await self.pool.fetchval('SELECT checkout_token FROM users WHERE telegram_id=1')
+        self.assertTrue(await feedback.save(1,token,'broken'))
+        self.assertEqual((await db.get_user(1))['vpn_feedback'],'help')
+        self.assertIsNone(await db.reserve_optional_message(1,'broadcast'))
+
+    async def test_setup_assistance_bypasses_marketing_cooldown_but_is_bounded(self):
+        from app import config, funnel_board
+        from app.recovery_funnel import branches
+        await funnel_board._ensure_tables()
+        await db.claim_trial_balance(1,18)
+        await db.add_device(1,'Phone',77)
+        await self.pool.execute("UPDATE devices SET created_at=NOW()-INTERVAL '2 hours'")
+        await db.log_bot_message(kind='nudge_recover_gift',source='auto',telegram_id=1,title='Gift',body='Gift',status='sent')
+        await self.pool.execute("UPDATE message_log SET created_at=NOW()-INTERVAL '3 hours'")
+        step=branches()[2]['steps'][0]
+        with patch.object(config,'get_settings',return_value=self.settings):
+            self.assertEqual(len(await funnel_board._due(step,None,10,[])),1)
+        self.assertIsNone(await db.reserve_optional_message(1,'broadcast'))
+        slot=await db.reserve_setup_assistance(1)
+        self.assertIsNotNone(slot)
+        self.assertIsNone(await db.reserve_setup_assistance(1))
+        await db.finish_optional_message(slot,True)
+        self.assertIsNone(await db.reserve_setup_assistance(1))
+        await self.pool.execute('UPDATE users SET quiet_notifications=TRUE WHERE telegram_id=1')
+        self.assertIsNone(await db.reserve_setup_assistance(1))
+
+    async def test_idle_cycle_restarts_only_after_a_new_connection(self):
+        from app import config, funnel_board
+        from app.recovery_funnel import branches
+        await funnel_board._ensure_tables()
+        await self.pool.execute("UPDATE users SET bot_started_at=NOW()-INTERVAL '40 days',first_online_at=NOW()-INTERVAL '30 days' WHERE telegram_id=1")
+        await db.add_device(1,'Phone',77)
+        await self.pool.execute("UPDATE devices SET last_online_at=NOW()-INTERVAL '20 days'")
+        first,second,last=branches()[-1]['steps']
+        for step in (first,second,last):
+            await self.pool.execute("INSERT INTO funnel_step_sends(telegram_id,step_id,sent_at) VALUES(1,$1,NOW()-INTERVAL '12 days')",step['id'])
+        with patch.object(config,'get_settings',return_value=self.settings):
+            self.assertEqual(await funnel_board._due(first,None,10,[]),[])
+            await self.pool.execute("UPDATE devices SET last_online_at=NOW()-INTERVAL '8 days'")
+            self.assertEqual(len(await funnel_board._due(first,None,10,[])),1)
+            self.assertEqual(await funnel_board._due(second,first['id'],10,[]),[])
+            await self.pool.execute("UPDATE funnel_step_sends SET sent_at=NOW()-INTERVAL '49 hours' WHERE step_id=$1",first['id'])
+            self.assertEqual(len(await funnel_board._due(second,first['id'],10,[])),1)
+
+    async def test_happy_trial_user_can_receive_referral_invite(self):
+        from app import config, funnel_board
+        await funnel_board._ensure_tables()
+        await self.pool.execute("UPDATE users SET first_online_at=NOW()-INTERVAL '3 days',vpn_feedback='ok',balance_rub=18 WHERE telegram_id=1")
+        step=funnel_board._step('invite-check','invite',48,'Invite',['share'])
+        with patch.object(config,'get_settings',return_value=self.settings):
+            self.assertEqual(len(await funnel_board._due(step,None,10,[])),1)
+
+    async def test_idle_message_targets_access_state(self):
+        from app import config, funnel_board, nudge
+        from app.recovery_funnel import branches
+        step=branches()[-1]['steps'][0]
+        settings=self.settings.model_copy(update={'webapp_public_url':'https://example.test'})
+        for funded,destination in [(True,'connect'),(False,'topup')]:
+            with patch('app.keyboards.mini_app_url',return_value='https://example.test'), patch.object(config,'get_settings',return_value=settings), patch.object(funnel_board,'_gate',AsyncMock(return_value=True)), patch.object(funnel_board,'_due',AsyncMock(return_value=[{'telegram_id':1}])), patch.object(db,'reserve_optional_message',AsyncMock(return_value=1)), patch.object(db,'finish_optional_message',AsyncMock()), patch.object(db,'has_funded_access',AsyncMock(return_value=funded)), patch.object(nudge,'_deliver_unbudgeted',AsyncMock(return_value=False)) as send:
+                await funnel_board._send_step(None,step,None,[])
+                self.assertIn('screen='+destination,send.await_args.kwargs['reply_markup'].inline_keyboard[0][0].web_app.url)

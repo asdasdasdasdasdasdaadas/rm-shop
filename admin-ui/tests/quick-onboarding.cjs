@@ -42,6 +42,10 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   await page.getByRole('button',{name:'Продолжить подключение',exact:true}).last().click();
   await page.getByRole('heading',{name:'Осталось включить VPN',exact:true}).waitFor();
   assert.equal(creates,1);
+  await page.goto('http://cabinet.test/?screen=connect');
+  await page.getByRole('heading',{name:'Осталось включить VPN',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>wiz.deviceId),1);
+  assert.equal(creates,1);
   for (const expected of ['Пока не видим подключения', 'Не удалось получить ответ', 'VPN работает']) {
     await page.locator('#wizCheckConnection').click();
     await page.waitForFunction(text=>document.querySelector('#wizCheckResult').textContent.includes(text),expected);
