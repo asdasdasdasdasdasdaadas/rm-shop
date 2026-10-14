@@ -3457,6 +3457,10 @@ function renderWizard() {
       const data = await api(`/api/devices/${deviceId}/check`, {method: "POST"});
       if (screen !== "wizard" || wiz.deviceId !== deviceId) return;
       wiz.checkResult = data.status;
+      if (data.status === "connected") {
+        $("wizTitle").textContent = "Готово, VPN подключён";
+        setMain("В кабинет", () => { closeWizard(); load().catch(() => {}); });
+      }
       result.textContent = data.status === "connected"
         ? "VPN работает ✅ Недавнее подключение подтверждено."
         : data.status === "unavailable"
@@ -3875,7 +3879,8 @@ function paintAmbassadorCard(me) {
 }
 
 function resumeConnection(me) {
-  const device = phoneDevices(me)[0];
+  const devices = phoneDevices(me);
+  const device = devices.filter(d => !d.last_online_at).sort((a, b) => b.id - a.id)[0] || devices[0];
   if (!device || !device.subscription_url) { startWizard(); return; }
   hideCoach();
   Object.assign(wiz, {step: 4, platform: device.platform || currentDevicePlatform() || "ios",

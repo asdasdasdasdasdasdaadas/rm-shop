@@ -5517,11 +5517,16 @@ async def has_funded_access(telegram_id: int) -> bool:
 async def save_vpn_feedback(telegram_id: int, value: str) -> None:
     if value not in {'ok', 'help', 'later', 'terms'}:
         raise ValueError('Unknown feedback')
-    await _pool_req().execute('''UPDATE users SET
-        vpn_feedback=CASE WHEN $2='later' THEN vpn_feedback ELSE $2 END,
-        vpn_feedback_at=CASE WHEN $2='later' THEN vpn_feedback_at ELSE NOW() END,
-        idle_snoozed_at=CASE WHEN $2='later' THEN NOW() ELSE idle_snoozed_at END
-        WHERE telegram_id=$1''', telegram_id, value)
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            await conn.fetchval('SELECT telegram_id FROM users WHERE telegram_id=$1 FOR UPDATE', telegram_id)
+            await conn.execute('''UPDATE users SET
+                vpn_feedback=CASE WHEN $2='later' THEN vpn_feedback ELSE $2 END,
+                vpn_feedback_at=CASE WHEN $2='later' THEN vpn_feedback_at ELSE NOW() END,
+                idle_snoozed_at=CASE WHEN $2='later' THEN NOW() ELSE idle_snoozed_at END
+                WHERE telegram_id=$1''', telegram_id, value)
+            if value == 'help':
+                await queue_connection_complaint(conn, telegram_id)
 
 
 async def record_onboarding_event(telegram_id: int, stage: str) -> None:
@@ -5744,19 +5749,31 @@ async def credit_invitee_bonus_once(telegram_id: int, amount: int) -> int | None
 
 
 async def resolve_recovered_vpn_feedback() -> None:
+    # Connection activity is not consent and does not resolve a support complaint.
     await _pool_req().execute("""UPDATE users u SET vpn_feedback=NULL,vpn_feedback_at=NULL
-        WHERE u.vpn_feedback IN ('help','terms')
-          AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
+        WHERE NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
           AND ((u.vpn_feedback='terms' AND EXISTS (SELECT 1 FROM payment_receipts p
                 WHERE p.telegram_id=u.telegram_id AND p.created_at > u.vpn_feedback_at))
-            OR EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id
-              AND d.last_online_at > GREATEST(u.vpn_feedback_at,
-                  COALESCE((SELECT MAX(t.closed_at) FROM tickets t WHERE t.telegram_id=u.telegram_id),u.vpn_feedback_at))
-                  + INTERVAL '1 hour'))""")
-    await _pool_req().execute("""UPDATE users u SET marketing_pause_until=NULL,marketing_pause_started_at=NULL
-        WHERE marketing_pause_until IS NOT NULL AND (marketing_pause_until <= NOW()
-          OR EXISTS (SELECT 1 FROM payment_receipts p WHERE p.telegram_id=u.telegram_id AND p.created_at>u.marketing_pause_started_at)
-          OR EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id AND d.last_online_at>u.marketing_pause_started_at+INTERVAL '1 hour'))""")
+            OR (u.vpn_feedback='help' AND EXISTS (SELECT 1 FROM tickets t
+                WHERE t.telegram_id=u.telegram_id AND t.status='closed' AND t.closed_at > u.vpn_feedback_at)))""")
+    await _pool_req().execute("""UPDATE users SET marketing_pause_until=NULL,marketing_pause_started_at=NULL
+        WHERE marketing_pause_until <= NOW()""")
+
+
+async def queue_connection_complaint(conn, telegram_id: int) -> None:
+    """Called with the user row locked; keep repeated complaints in one support ticket."""
+    ticket_id = await conn.fetchval("SELECT id FROM tickets WHERE telegram_id=$1 AND status<>'closed' ORDER BY id DESC LIMIT 1", telegram_id)
+    if ticket_id is None:
+        ticket_id = await conn.fetchval("""INSERT INTO tickets (telegram_id,username,first_name,status)
+            SELECT telegram_id,username,first_name,'open' FROM users WHERE telegram_id=$1
+            ON CONFLICT DO NOTHING RETURNING id""", telegram_id)
+        if ticket_id is None:
+            ticket_id = await conn.fetchval("SELECT id FROM tickets WHERE telegram_id=$1 AND status<>'closed' LIMIT 1", telegram_id)
+    await conn.execute("""INSERT INTO ticket_messages (ticket_id,author,body)
+        SELECT $1,'user',$2 WHERE NOT EXISTS (
+            SELECT 1 FROM ticket_messages WHERE ticket_id=$1 AND body=$2)""", ticket_id,
+        'Нужна помощь с подключением: пользователь нажал «Не заработало». Подробности пока не указаны.')
+    await conn.execute("UPDATE tickets SET status='open',last_message_at=NOW() WHERE id=$1", ticket_id)
 
 
 def is_marketing_message(kind: str) -> bool:

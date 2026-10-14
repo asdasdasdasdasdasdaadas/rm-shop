@@ -160,7 +160,7 @@ async def vpn_feedback(callback: CallbackQuery) -> None:
     await db.save_vpn_feedback(callback.from_user.id, value)
     await callback.answer("Спасибо, учли ваш ответ")
     if value == 'help':
-        await answer_funnel(callback.message, "Напишите, что не работает. Можно приложить скриншот — поддержка поможет разобраться.", reply_markup=help_connect_reply_keyboard())
+        await answer_funnel(callback.message, "Обращение уже в поддержке. Напишите, что не работает, и приложите скриншот, если можете.", reply_markup=help_connect_reply_keyboard())
     elif value == 'terms':
         await answer_funnel(callback.message, "Поняли. Напишите, что не подошло: цена, устройства или что-то ещё? Учтём ваш ответ.", reply_markup=help_connect_reply_keyboard())
     elif value == 'later':

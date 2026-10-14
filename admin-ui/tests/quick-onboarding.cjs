@@ -50,6 +50,8 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
     await page.locator('#wizCheckConnection').click();
     await page.waitForFunction(text=>document.querySelector('#wizCheckResult').textContent.includes(text),expected);
   }
+  assert.equal(await page.locator('#wizTitle').textContent(),'Готово, VPN подключён');
+  assert.equal(await page.locator('#appMainBtn').textContent(),'В кабинет');
   await page.getByRole('button',{name:'Не получилось — помогите',exact:true}).click();
   assert.equal(await page.evaluate(()=>supportConnectionContext.device_id),1);
   assert.equal(await page.evaluate(()=>supportConnectionContext.result),'connected');

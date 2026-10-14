@@ -39,6 +39,7 @@ async def save(telegram_id, token, reason):
             if result is None:
                 return False
             if reason == 'broken':
+                await db.queue_connection_complaint(conn, telegram_id)
                 await conn.execute("UPDATE users SET vpn_feedback='help',vpn_feedback_at=NOW() WHERE telegram_id=$1",telegram_id)
             else:
                 days = {'price':7,'payment':1,'later':7}[reason]

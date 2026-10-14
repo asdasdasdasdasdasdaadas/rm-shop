@@ -668,7 +668,8 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> 
     from app.recovery_funnel import SEEN
     if step["condition"].startswith("recover_"):
         where = where.replace("{exhausted}", _ACCESS_EXHAUSTED.replace("{price}", str(max(1, int(get_settings().vpn_day_price_rub)))))
-        where += f" AND (u.idle_snoozed_at IS NULL OR {SEEN} > u.idle_snoozed_at)"
+        snooze_anchor = spec["anchor"] if step["condition"] == "recover_online" else SEEN
+        where += f" AND (u.idle_snoozed_at IS NULL OR {snooze_anchor} > u.idle_snoozed_at)"
         if not is_setup_assist(step, prev_id):
             where += " AND NOT EXISTS (SELECT 1 FROM message_log m WHERE m.telegram_id=u.telegram_id AND m.status='sent' AND m.kind LIKE 'nudge_recover_%' AND m.created_at > NOW()-INTERVAL '48 hours')"
 
@@ -695,9 +696,10 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> 
                 WHERE p.telegram_id = u.telegram_id AND p.step_id = $5
             )"""
     cycle_clause = ""
-    if step['condition'] == 'recover_idle':
-        cycle_clause = f" AND s.sent_at >= {SEEN}"
-        time_sql = time_sql.replace("p.step_id = $5", f"p.step_id = $5 AND p.sent_at >= {SEEN}")
+    if step['condition'] in {'recover_idle', 'recover_online'}:
+        cycle_anchor = SEEN if step['condition'] == 'recover_idle' else anchor
+        cycle_clause = f" AND s.sent_at >= {cycle_anchor}"
+        time_sql = time_sql.replace("p.step_id = $5", f"p.step_id = $5 AND p.sent_at >= {cycle_anchor}")
     args = [int(limit), [int(item) for item in skip], step["id"], hours]
     if prev:
         args.append(prev)
