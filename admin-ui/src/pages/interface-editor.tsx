@@ -397,89 +397,38 @@ export function InterfaceEditorPage() {
         </p>
       )}
       <fieldset disabled={busy} className="canvas-workspace">
-        <aside className="canvas-panel canvas-layers">
-          <Field label="Экран">
-            <Choice
-              label="Экран"
-              value={screen}
-              onChange={(v) => {
-                setScreen(v);
-                setSelection(null);
-              }}
-              options={catalog.screens.map((s: Data) => [s.id, s.label])}
-            />
-          </Field>
-          {screen === "wizard" && (
-            <Choice
-              label="Шаг подключения"
-              value={step}
-              onChange={(v) => {
-                setStep(v);
-                setSelection(null);
-              }}
-              options={[
-                ["1", "Выбор устройства"],
-                ["2", "Установка приложения"],
-                ["4", "Подключение"],
-              ]}
-            />
-          )}
-          <h3 className="text-xs font-semibold uppercase text-muted-foreground">
-            Слои экрана
-          </h3>
-          {screen === "home" &&
-            draft.blocks.map((b: Data) => (
-              <button
-                type="button"
-                key={b.id}
-                className="canvas-layer"
-                data-selected={
-                  selection?.kind === "block" && selection.id === b.id
-                }
-                onClick={() => setSelection({ kind: "block", id: b.id })}
-              >
-                <span>
-                  {catalog.blocks.find((x: Data) => x.id === b.id)?.label}
-                </span>
-                {!b.visible && <EyeOff size={14} />}
-              </button>
-            ))}
-          {custom.map((b: Data) => (
-            <button
-              type="button"
-              key={b.id}
-              className="canvas-layer"
-              data-selected={
-                selection?.kind === "custom" && selection.id === b.id
-              }
-              onClick={() => setSelection({ kind: "custom", id: b.id })}
-            >
-              <span>{b.title || b.label || "Блок"}</span>
-              {!b.visible && <EyeOff size={14} />}
-            </button>
-          ))}
-          <details>
-            <summary className="text-sm cursor-pointer py-2">
-              Тексты и кнопки
-            </summary>
-            {fields.map((f: Data) => (
-              <button
-                type="button"
-                key={f.key}
-                className="canvas-layer"
-                data-selected={
-                  selection?.kind === "field" && selection.id === f.key
-                }
-                onClick={() => setSelection({ kind: "field", id: f.key })}
-              >
-                {f.label}
-              </button>
-            ))}
-          </details>
-          <div className="border-t pt-3 space-y-2">
-            <h3 className="text-xs font-semibold uppercase text-muted-foreground">
-              Добавить на экран
-            </h3>
+        <div className="canvas-controls">
+          <div className="canvas-screen-picker">
+            {" "}
+            <Field label="Экран">
+              <Choice
+                label="Экран"
+                value={screen}
+                onChange={(v) => {
+                  setScreen(v);
+                  setSelection(null);
+                }}
+                options={catalog.screens.map((s: Data) => [s.id, s.label])}
+              />
+            </Field>
+            {screen === "wizard" && (
+              <Choice
+                label="Шаг подключения"
+                value={step}
+                onChange={(v) => {
+                  setStep(v);
+                  setSelection(null);
+                }}
+                options={[
+                  ["1", "Выбор устройства"],
+                  ["2", "Установка приложения"],
+                  ["4", "Подключение"],
+                ]}
+              />
+            )}
+          </div>
+          <div className="canvas-add-controls">
+            <span className="text-xs text-muted-foreground">Добавить:</span>{" "}
             {[
               ["card", "Карточку"],
               ["text", "Текст"],
@@ -488,7 +437,7 @@ export function InterfaceEditorPage() {
               <Button
                 key={type}
                 variant="outline"
-                className="w-full justify-start"
+                className="justify-start"
                 disabled={draft.custom.length >= 30}
                 onClick={() => add(type)}
               >
@@ -505,7 +454,69 @@ export function InterfaceEditorPage() {
             <Palette />
             Цвета и форма
           </Button>
-        </aside>
+
+          <details className="canvas-elements">
+            <summary>Все элементы</summary>
+            <div
+              className="canvas-element-list"
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest("button"))
+                  e.currentTarget.closest("details")!.open = false;
+              }}
+            >
+              {" "}
+              {screen === "home" &&
+                draft.blocks.map((b: Data) => (
+                  <button
+                    type="button"
+                    key={b.id}
+                    className="canvas-layer"
+                    data-selected={
+                      selection?.kind === "block" && selection.id === b.id
+                    }
+                    onClick={() => setSelection({ kind: "block", id: b.id })}
+                  >
+                    <span>
+                      {catalog.blocks.find((x: Data) => x.id === b.id)?.label}
+                    </span>
+                    {!b.visible && <EyeOff size={14} />}
+                  </button>
+                ))}
+              {custom.map((b: Data) => (
+                <button
+                  type="button"
+                  key={b.id}
+                  className="canvas-layer"
+                  data-selected={
+                    selection?.kind === "custom" && selection.id === b.id
+                  }
+                  onClick={() => setSelection({ kind: "custom", id: b.id })}
+                >
+                  <span>{b.title || b.label || "Блок"}</span>
+                  {!b.visible && <EyeOff size={14} />}
+                </button>
+              ))}
+              <details>
+                <summary className="text-sm cursor-pointer py-2">
+                  Тексты и кнопки
+                </summary>
+                {fields.map((f: Data) => (
+                  <button
+                    type="button"
+                    key={f.key}
+                    className="canvas-layer"
+                    data-selected={
+                      selection?.kind === "field" && selection.id === f.key
+                    }
+                    onClick={() => setSelection({ kind: "field", id: f.key })}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </details>
+            </div>
+          </details>
+        </div>
         <main className="canvas-stage">
           <div className="canvas-stage-toolbar">
             <span className="text-xs text-muted-foreground">
@@ -546,10 +557,11 @@ export function InterfaceEditorPage() {
             <div className="space-y-3 text-sm text-muted-foreground py-8">
               <MousePointer2 />
               <h2 className="font-semibold text-foreground">
-                Выберите элемент на холсте
+                Нажмите на элемент слева
               </h2>
               <p>
-                Один клик — свойства. Двойной — ввод текста прямо на экране.
+                Выберите заголовок, кнопку или карточку. Здесь появятся только
+                настройки выбранного элемента.
               </p>
               <p>
                 Баланс и другие данные пользователя рассчитываются
@@ -558,8 +570,31 @@ export function InterfaceEditorPage() {
             </div>
           ) : (
             <>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                {field
+                  ? field.kind === "button"
+                    ? "Кнопка"
+                    : "Текст"
+                  : item
+                    ? selection.property === "label" || item.type === "button"
+                      ? "Кнопка"
+                      : selection.property
+                        ? "Текст"
+                        : "Карточка"
+                    : block
+                      ? "Блок"
+                      : "Весь интерфейс"}
+              </p>
               <h2 className="font-semibold break-words">
-                {selection.kind === "theme" ? "Цвета и форма" : selectedName}
+                {selection.kind === "theme"
+                  ? "Цвета и форма"
+                  : item && selection.property
+                    ? {
+                        title: "Заголовок карточки",
+                        text: "Описание карточки",
+                        label: item.label,
+                      }[selection.property] || selectedName
+                    : selectedName}
               </h2>
               {field && (
                 <>
@@ -569,19 +604,30 @@ export function InterfaceEditorPage() {
                         ? "Подпись кнопки"
                         : "Текст элемента"
                     }
-                    hint="Пустое поле возвращает стандартный текст."
+                    hint="Изменения сразу видны слева. Пустое поле возвращает стандартный текст."
                   >
                     <Textarea
                       rows={field.kind === "button" ? 2 : 4}
                       maxLength={field.kind === "button" ? 60 : 600}
                       placeholder={field.default}
-                      value={draft.texts[field.key] ?? ""}
+                      value={draft.texts[field.key] ?? field.default}
                       onChange={(e) => edit(selection, e.target.value)}
                     />
                   </Field>
                   <p className="text-xs text-muted-foreground">
                     {field.kind === "button"
-                      ? "Действие стандартной кнопки сохраняется."
+                      ? (
+                          {
+                            topup: "Открывает пополнение баланса.",
+                            promo_open: "Открывает ввод промокода.",
+                            promo_apply: "Применяет введённый промокод.",
+                            faq: "Открывает частые вопросы.",
+                            support: "Открывает чат поддержки.",
+                            add_device: "Начинает подключение устройства.",
+                            ref_share: "Открывает отправку приглашения другу.",
+                            ref_details: "Показывает условия приглашения.",
+                          } as Record<string, string>
+                        )[field.key] || "Действие этой кнопки задано сервисом."
                       : "Можно редактировать и двойным кликом на холсте."}
                   </p>
                   <Button variant="outline" onClick={() => edit(selection, "")}>
@@ -614,91 +660,116 @@ export function InterfaceEditorPage() {
               )}
               {item && (
                 <>
-                  <Field label="Показывать блок">
-                    <Switch
-                      checked={item.visible}
-                      onCheckedChange={(v) =>
-                        changeCustom(item.id, "visible", v)
-                      }
-                    />
-                  </Field>
-                  {item.type !== "button" && (
-                    <>
-                      <Field label="Заголовок блока">
-                        <Input
-                          maxLength={120}
-                          value={item.title}
-                          onChange={(e) =>
-                            changeCustom(item.id, "title", e.target.value)
-                          }
-                        />
-                      </Field>
-                      <Field label="Текст блока">
-                        <Textarea
-                          rows={4}
-                          maxLength={1200}
-                          value={item.text}
-                          onChange={(e) =>
-                            changeCustom(item.id, "text", e.target.value)
-                          }
-                        />
-                      </Field>
-                    </>
-                  )}
-                  <Field
-                    label="Подпись кнопки"
-                    hint={
-                      item.type === "button"
-                        ? "Обязательное поле"
-                        : "Пустая подпись убирает кнопку"
-                    }
-                  >
-                    <Input
-                      maxLength={60}
-                      value={item.label}
-                      onChange={(e) =>
-                        changeCustom(item.id, "label", e.target.value)
-                      }
-                    />
-                  </Field>
-                  {(item.type === "button" || item.label) && (
-                    <Field label="Действие кнопки">
-                      <Choice
-                        label="Действие кнопки"
-                        value={item.action}
-                        onChange={(v) => changeCustom(item.id, "action", v)}
-                        options={catalog.actions.map((a: Data) => [
-                          a.id,
-                          a.label,
-                        ])}
-                      />
-                    </Field>
-                  )}
-                  {item.action === "url" && item.label && (
-                    <Field label="Ссылка HTTPS">
-                      <Input
-                        type="url"
-                        value={item.url}
-                        onChange={(e) =>
-                          changeCustom(item.id, "url", e.target.value)
+                  {!selection.property && (
+                    <Field label="Показывать блок">
+                      <Switch
+                        checked={item.visible}
+                        onCheckedChange={(v) =>
+                          changeCustom(item.id, "visible", v)
                         }
                       />
                     </Field>
                   )}
-                  {movement(selection!)}
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      patch(
-                        "custom",
-                        draft.custom.filter((b: Data) => b.id !== item.id),
-                      );
-                      setSelection(null);
-                    }}
-                  >
-                    <Trash2 />
-                    Удалить блок
-                  </Button>
+                  {item.type !== "button" && selection.property !== "label" && (
+                    <>
+                      {selection.property !== "text" && (
+                        <Field label="Заголовок блока">
+                          <Input
+                            maxLength={120}
+                            value={item.title}
+                            onChange={(e) =>
+                              changeCustom(item.id, "title", e.target.value)
+                            }
+                          />
+                        </Field>
+                      )}
+                      {selection.property !== "title" && (
+                        <Field label="Текст блока">
+                          <Textarea
+                            rows={4}
+                            maxLength={1200}
+                            value={item.text}
+                            onChange={(e) =>
+                              changeCustom(item.id, "text", e.target.value)
+                            }
+                          />
+                        </Field>
+                      )}
+                    </>
+                  )}
+                  {(!selection.property || selection.property === "label") && (
+                    <>
+                      <Field
+                        label="Подпись кнопки"
+                        hint={
+                          item.type === "button"
+                            ? "Обязательное поле"
+                            : "Пустая подпись убирает кнопку"
+                        }
+                      >
+                        <Input
+                          maxLength={60}
+                          value={item.label}
+                          onChange={(e) =>
+                            changeCustom(item.id, "label", e.target.value)
+                          }
+                        />
+                      </Field>
+                      {(item.type === "button" || item.label) && (
+                        <Field label="Действие кнопки">
+                          <Choice
+                            label="Действие кнопки"
+                            value={item.action}
+                            onChange={(v) => changeCustom(item.id, "action", v)}
+                            options={catalog.actions.map((a: Data) => [
+                              a.id,
+                              a.label,
+                            ])}
+                          />
+                        </Field>
+                      )}
+                      {item.action === "url" && item.label && (
+                        <Field label="Ссылка HTTPS">
+                          <Input
+                            type="url"
+                            value={item.url}
+                            onChange={(e) =>
+                              changeCustom(item.id, "url", e.target.value)
+                            }
+                          />
+                        </Field>
+                      )}
+                    </>
+                  )}
+                  {!selection.property && (
+                    <>
+                      {" "}
+                      {movement(selection!)}
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          patch(
+                            "custom",
+                            draft.custom.filter((b: Data) => b.id !== item.id),
+                          );
+                          setSelection(null);
+                        }}
+                      >
+                        <Trash2 />
+                        Удалить блок
+                      </Button>
+                    </>
+                  )}
+                  {selection.property && (
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        setSelection({ kind: "custom", id: item.id })
+                      }
+                    >
+                      Настроить карточку целиком
+                    </Button>
+                  )}
                 </>
               )}
               {selection.kind === "theme" && (

@@ -34,7 +34,10 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
  });
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://editor.test/admin/#interface');
- await page.getByText('Слои экрана',{exact:true}).waitFor();
+ await page.locator('.canvas-stage').waitFor();
+ assert.equal(await page.locator('.canvas-layers').count(),0);
+ const stage=await page.locator('.canvas-stage').boundingBox(), inspector=await page.locator('.canvas-inspector').boundingBox();
+ assert.ok(stage.x+stage.width<=inspector.x);
  const preview=page.frameLocator('iframe');
  await preview.locator('#devicesHeading').dblclick();
  await preview.locator('#devicesHeading').fill('Подключитесь за минуту');
@@ -53,13 +56,16 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
  assert.equal(state.draft.texts.devices_title,'Подключитесь за минуту!');
  await preview.getByRole('button',{name:'Переместить Устройства',exact:true}).dragTo(preview.locator('#refHomeCard'));
  await preview.locator('.home-col-main > #refHomeCard:first-child').waitFor();
- await page.locator('.canvas-layers').getByRole('button',{name:'Промокод',exact:true}).click();
+ await page.locator('.canvas-elements > summary').click();
+ await page.locator('.canvas-element-list').getByRole('button',{name:'Промокод',exact:true}).click();
  await page.getByLabel('Показывать блок',{exact:true}).click();
  await preview.locator('#homePromoCard.editor-hidden').waitFor({state:'attached'});
  await page.getByRole('button',{name:'Карточку',exact:true}).click();
  await preview.locator('[data-editor-id] h2').dblclick();
  await preview.locator('[data-editor-id] h2').fill('Нужна помощь?');
  await preview.locator('[data-editor-id] h2').press('Enter');
+ await preview.locator('[data-editor-id] .editor-action').click();
+ await page.getByLabel('Заголовок блока',{exact:true}).waitFor({state:'detached'});
  await page.getByLabel('Подпись кнопки',{exact:true}).fill('Написать нам');
  await page.getByLabel('Действие кнопки',{exact:true}).click();
  await page.getByRole('option',{name:'Поддержка',exact:true}).click();
@@ -70,7 +76,9 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
  await page.getByRole('dialog').getByRole('button',{name:'Опубликовать',exact:true}).click();
  await page.getByText('Интерфейс опубликован',{exact:true}).waitFor();
  assert.equal(state.published.custom[0].action,'support');
- await page.screenshot({path:'/tmp/interface-canvas-desktop.png',fullPage:true});
+ await preview.getByRole('button',{name:'Написать нам',exact:true}).click();
+ await page.getByLabel('Действие кнопки',{exact:true}).waitFor();
+ await page.screenshot({path:'/tmp/interface-two-panel-desktop.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  // Live cabinet consumes publication, invokes existing navigation, and treats markup as text.
