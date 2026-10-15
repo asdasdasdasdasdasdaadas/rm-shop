@@ -5143,7 +5143,7 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
                 "SELECT referral_fraction FROM users WHERE telegram_id=$1 FOR UPDATE", referrer_id)
             if not referrer:
                 return None
-            percent, fraction = divmod(amount * 5 + int(referrer['referral_fraction'] or 0), 100)
+            percent, fraction = 0, int(referrer['referral_fraction'] or 0)  # Preserve historical remainder; no new percentage rewards.
             bonus = 50 if first_payment and not invitee['referral_rewarded'] else 0
             reward = bonus + percent
             after = await conn.fetchval(
@@ -5158,7 +5158,7 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
                 await conn.execute(
                     """INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
                        VALUES ($1,'referral','payment',$2,$3,$4)""", referrer_id,reward,after,
-                    f"Друг {invitee_id}: первая оплата {bonus} ₽ + 5% от {amount} ₽; {payment_key}")
+                    f"Друг {invitee_id}: бонус за первую оплату {bonus} ₽; {payment_key}")
             return {'referrer_id':referrer_id,'amount':reward,'bonus':bonus,'percent':percent,'campaign':campaign}
 
 

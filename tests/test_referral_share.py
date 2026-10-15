@@ -33,7 +33,7 @@ class ReferralShareTest(unittest.IsolatedAsyncioTestCase):
         bot=SimpleNamespace(send_message=AsyncMock())
         with patch.object(referrals,'referral_is_payout',return_value=False), \
              patch.object(referrals,'cabinet_keyboard',return_value=None), \
-             patch.object(db,'reward_referral_payment',AsyncMock(return_value={'referrer_id':123,'amount':65,'bonus':50,'percent':15})):
+             patch.object(db,'reward_referral_payment',AsyncMock(return_value={'referrer_id':123,'amount':50,'bonus':50,'percent':0})):
             await referrals.maybe_reward_referrer(bot,None,999,'Друг',payment_key='pay',topup_rub=300,first_payment=True)
         self.assertEqual(bot.send_message.call_args.args[0],123)
         self.assertRecipient(bot.send_message.call_args.kwargs['reply_markup'],123)

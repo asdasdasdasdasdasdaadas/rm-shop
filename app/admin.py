@@ -124,7 +124,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "117"})
+    return web.json_response({"ok": True, "build": "118"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -1737,7 +1737,7 @@ def _broadcast_title(template: str) -> str:
 
 
 def _referral_reward_label() -> str:
-    return "50 ₽ + 5% с каждого пополнения"
+    return "50 ₽ за первую оплату друга"
 
 
 def _broadcast_payload(

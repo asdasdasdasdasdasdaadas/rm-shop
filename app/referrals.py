@@ -105,7 +105,7 @@ def topup_ok_text(amount: str, *, can_share: bool, local: dict | None = None) ->
     if can_share and get_settings().referral_program_enabled:
         body += (
             "\n\n🎁 Пригласите друга: "
-            "Вам 50 ₽ за первую оплату друга и 5% с каждого его пополнения, пока программа активна."
+            "Вам 50 ₽ за первую оплату друга, пока программа активна."
         )
     from app.funnel_ui import funnel_body
     return funnel_body(body)
@@ -159,9 +159,7 @@ async def maybe_reward_referrer(
     if result and result['amount'] > 0 and bot:
         try:
             await send_funnel_message(bot, result['referrer_id'],
-                f"Друг {name} пополнил баланс. Вам начислено {rub_text(result['amount'])}: "
-                + (f"бонус за первую оплату {rub_text(result['bonus'])} и " if result['bonus'] else "")
-                + f"5% от пополнения ({rub_text(result['percent'])}).",
+                f"🎁 Друг {name} впервые пополнил баланс. Вам начислено {rub_text(result['amount'])}!",
                 reply_markup=with_referral_share(result["referrer_id"], cabinet_keyboard()))
         except Exception:
             pass

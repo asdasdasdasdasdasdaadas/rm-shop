@@ -527,7 +527,7 @@ async def api_me(request: web.Request) -> web.Response:
             "referral_terms": referral_terms(settings),
             "referral_reward_rub": 50,
             "referral_program_enabled": settings.referral_program_enabled,
-            "referral_percent": 5,
+            "referral_percent": 0,
             "referral_invitee_reward_rub": (
                 int(settings.referral_invitee_reward_rub or 0) if settings.referral_program_enabled else 0
             ),

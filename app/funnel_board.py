@@ -336,7 +336,7 @@ def render_text(text: str, telegram_id: int, first_name: str | None) -> str:
         "name": name,
         "link": f"https://t.me/{settings.bot_username}?start=ref_{int(telegram_id)}",
         "price": rub_text(settings.vpn_day_price_rub),
-        "reward": "50 ₽ + 5% с каждого пополнения",
+        "reward": "50 ₽ за первую оплату друга",
         "when": when,
     })
     try:

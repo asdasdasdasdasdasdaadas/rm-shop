@@ -54,7 +54,7 @@ def invite_nudge_text(telegram_id: int, first_name: str | None) -> str:
     settings = get_settings()
     name = first_name or "привет"
     link = f"https://t.me/{settings.bot_username}?start=ref_{telegram_id}"
-    reward = "50 ₽ + 5% с каждого пополнения"
+    reward = "50 ₽ за первую оплату друга"
     terms = referral_terms(settings)
     when = terms["when"] + (" " + terms["friend"] if terms["friend"] else "")
     if not settings.referral_program_enabled:

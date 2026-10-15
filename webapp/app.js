@@ -736,7 +736,7 @@ function inviteMonthLeft(me) {
 function inviteHomeProgress(me) {
   if (!me || !me.balance_enabled) return "";
   if (!me.referral_program_enabled) return "Начисления по программе приостановлены";
-  return "50 ₽ за первую оплату + 5% с каждого пополнения";
+  return "50 ₽ за первую оплату друга";
 }
 
 function rublesWord(n) {
@@ -3544,12 +3544,11 @@ function dismissTrialNotice(kind) {
 function paintRefBanner(me) {
   const active = Boolean(me && me.referral_program_enabled);
   const reward = Math.max(0, Number(me && me.referral_reward_rub) || 0);
-  const percent = Math.max(0, Number(me && me.referral_percent) || 0);
   const pill = $("inviteBannerPill"), note = $("inviteBannerNote");
   if (pill) pill.textContent = active ? `и получите ${reward} ₽ на баланс` : "Пользоваться вместе приятнее";
   if (note) {
     note.textContent = active
-      ? `Отправьте другу ссылку. После его первой оплаты вам начислим ${reward} ₽` + (percent ? ` и ${percent}% с каждого пополнения, пока программа действует.` : ".")
+      ? `Отправьте другу ссылку. После его первой оплаты вам начислим ${reward} ₽, пока программа действует.`
       : "Отправьте ссылку другу — пусть тоже попробует VPN. Сейчас новые награды не начисляются.";
     note.classList.remove("hidden");
   }

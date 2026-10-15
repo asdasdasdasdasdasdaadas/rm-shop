@@ -56,25 +56,32 @@ class ReferralProgramTest(unittest.IsolatedAsyncioTestCase):
         return self.conn.execute('SELECT balance_rub FROM users WHERE telegram_id=1').fetchone()[0]
 
     async def test_first_repeat_and_duplicate_payment(self):
-        self.assertEqual((await self.reward('rp:1',first=True))['amount'],65)
+        self.assertEqual((await self.reward('rp:1',first=True))['amount'],50)
         self.assertIsNone(await self.reward('rp:1',first=True))
-        self.assertEqual((await self.reward('stars:2'))['amount'],15)
-        self.assertEqual(self.balance(),80)
-        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM billing_events').fetchone()[0],2)
+        self.assertEqual((await self.reward('stars:2'))['amount'],0)
+        self.assertEqual(self.balance(),50)
+        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM billing_events').fetchone()[0],1)
 
     async def test_pause_no_retroactive_rewards_and_no_delayed_first_bonus(self):
         self.assertIsNone(await self.reward('rp:paused',enabled=False,first=True))
         self.assertIsNone(await self.reward('rp:paused',enabled=True,first=True))
-        self.assertEqual((await self.reward('rp:next'))['amount'],15)
-        self.assertEqual(self.balance(),15)
+        self.assertEqual((await self.reward('rp:next'))['amount'],0)
+        self.assertEqual(self.balance(),0)
         self.assertIsNone(await self.reward('rp:paused_again',enabled=False))
-        self.assertEqual(self.balance(),15)
+        self.assertEqual(self.balance(),0)
 
-    async def test_fractional_rewards_accumulate_and_first_bonus_once(self):
+    async def test_no_percentage_rewards_and_first_bonus_once(self):
         for i in range(4):
             await self.reward(f'pay:{i}',25,first=True)
-        self.assertEqual(self.balance(),55)
+        self.assertEqual(self.balance(),50)
         self.assertEqual(self.conn.execute('SELECT referral_fraction FROM users WHERE telegram_id=1').fetchone()[0],0)
+
+    async def test_existing_earnings_are_unchanged_by_repeat_payment(self):
+        self.conn.execute('UPDATE users SET balance_rub=123,referral_earned=80,referral_fraction=75 WHERE telegram_id=1')
+        result=await self.reward('existing:repeat',999)
+        self.assertEqual(result['amount'],0)
+        row=self.conn.execute('SELECT balance_rub,referral_earned,referral_fraction FROM users WHERE telegram_id=1').fetchone()
+        self.assertEqual(tuple(row),(123,80,75))
 
     async def test_no_self_reward_or_reward_without_referrer(self):
         self.conn.execute('UPDATE users SET referred_by=2 WHERE telegram_id=2')
@@ -90,7 +97,7 @@ class ReferralProgramTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.balance(),0)
         self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM referral_payment_rewards').fetchone()[0],0)
         self.conn.execute('DROP TRIGGER fail_log')
-        self.assertEqual((await self.reward('retry',first=True))['amount'],65)
+        self.assertEqual((await self.reward('retry',first=True))['amount'],50)
 
 
 class ReferralGateTest(unittest.IsolatedAsyncioTestCase):

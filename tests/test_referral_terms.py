@@ -19,11 +19,11 @@ class ReferralTermsTest(unittest.IsolatedAsyncioTestCase):
 
     def test_active_faq_has_current_formula_not_obsolete_setting(self):
         settings=self.settings(referral_reward_rub=999,referral_invitee_reward_rub=0)
-        with patch.object(faq,'get_settings',return_value=settings), patch.object(faq,'referral_is_payout',return_value=False):
+        with patch.object(faq,'get_settings',return_value=settings):
             rows={r['q']:r['a'] for r in faq.faq_items()}
         self.assertIn('50 ₽',rows['Когда начислят за приглашённого друга?'])
-        self.assertIn('5%',rows['Сколько дают за друга?'])
-        self.assertIn('включая первое',rows['Когда начислят за приглашённого друга?'])
+        self.assertNotIn('5%',rows['Сколько дают за друга?'])
+        self.assertNotIn('включая первое',rows['Когда начислят за приглашённого друга?'])
         self.assertNotIn('999',str(rows))
         self.assertEqual(referral_terms(settings)['friend'],'')
 
@@ -31,7 +31,7 @@ class ReferralTermsTest(unittest.IsolatedAsyncioTestCase):
         paused=referral_terms(self.settings(False,referral_invitee_reward_rub=30))
         self.assertIn('не начисляются',paused['note'])
         self.assertIn('баланс сохраняется',paused['note'])
-        self.assertIn('без выплат за период паузы',paused['when'])
+        self.assertIn('начислений за период паузы не будет',paused['when'])
         self.assertIn('50 ₽ позже не начисляется',paused['how'])
         self.assertEqual(paused['friend'],'')
         active=referral_terms(self.settings(True,referral_invitee_reward_rub=30))
@@ -44,8 +44,8 @@ class ReferralTermsTest(unittest.IsolatedAsyncioTestCase):
             with patch.object(admin,'get_settings',return_value=settings), patch.object(keyboards,'get_settings',return_value=settings):
                 text=admin._broadcast_template_preview('invite')
                 if active:
-                    self.assertIn('5%',text)
-                    self.assertIn('включая первое',text)
+                    self.assertNotIn('5%',text)
+                    self.assertNotIn('включая первое',text)
                     self.assertIn('ref_…',text)
                 else:
                     self.assertIn('приостановлена',text)
@@ -75,7 +75,7 @@ class ReferralTermsTest(unittest.IsolatedAsyncioTestCase):
     def test_custom_invite_keeps_canonical_conditions(self):
         with patch.object(nudge,'get_settings',return_value=self.settings()), patch.object(nudge,'notice_text',return_value='Custom invitation'):
             self.assertIn('Актуальные условия:',nudge.invite_nudge_text(1,'Друг'))
-            self.assertIn('5%',nudge.invite_nudge_text(1,'Друг'))
+            self.assertNotIn('5%',nudge.invite_nudge_text(1,'Друг'))
 
     def test_copy_text_keeps_complete_link_with_long_brand(self):
         with patch.object(keyboards,'get_settings',return_value=self.settings(brand_name='Очень длинный бренд ' * 20)):
