@@ -124,7 +124,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "116"})
+    return web.json_response({"ok": True, "build": "117"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -204,6 +204,7 @@ async def api_statistics(request: web.Request) -> web.Response:
         return denied
     try:
         data = await db.admin_statistics(int(request.query.get("days", "30")))
+        data["invitation_card"] = await db.invitation_card_statistics(int(request.query.get("days", "30")))
     except ValueError:
         return web.json_response({"ok": False, "error": "Выберите период: 7, 30, 90 или 365 дней"}, status=400)
     return web.json_response({"ok": True, **data})

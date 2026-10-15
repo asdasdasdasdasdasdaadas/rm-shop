@@ -8,7 +8,7 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
  try {
  const context=await browser.newContext({viewport:{width:1440,height:1000}});
  let state={draft:structuredClone(defaults),published:structuredClone(defaults),revision:0,can_rollback:false,catalog},previous;
- const errors=[];
+ const errors=[], invitationEvents=[];
  await context.route('**/*',async route=>{
    const url=new URL(route.request().url()),p=url.pathname;
    if(url.host!=='editor.test')return route.fulfill({body:'',contentType:'application/javascript'});
@@ -21,6 +21,7 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
      }
      return route.fulfill({json:state});
    }
+   if(p==='/api/invitation-card-event'){invitationEvents.push(route.request().postDataJSON());return route.fulfill({json:{ok:true}});}
    if(p==='/api/interface')return route.fulfill({json:{catalog,config:state.published}});
    if(p==='/admin/api/session')return route.fulfill({json:{ok:true,brand:'VPN'}});
    if(p==='/api/me')return route.fulfill({json:{user:{name:'Тест'},balance_rub:100,days_left:16,hours_left:384,balance_enabled:true,trial_available:false,max_devices:6,first_online_at:'2026-10-14T12:00:00Z',devices:[{id:1,title:'Телефон',platform:'ios',active:true,last_online_at:'2026-10-14T12:00:00Z',subscription_url:'https://example.test/sub'}],legal:{},vpn_day_price_rub:6}});
@@ -92,9 +93,13 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
  }
 
  assert.equal(await live.locator('#refHomeCard').isVisible(),true);
- await live.evaluate(()=>{window.__me.invite_url='https://t.me/testbot?start=ref_123';tg.openTelegramLink=url=>window.sharedInvite=url;});
+ await live.evaluate(()=>{window.__me.invite_url='https://t.me/testbot?start=ref_123';window.__me.referral_program_enabled=true;window.__me.referral_reward_rub=50;window.__me.referral_percent=5;paint(window.__me);tg.openTelegramLink=url=>window.sharedInvite=url;});
  await live.locator('#refHomeShare').click();
  assert.ok((await live.evaluate(()=>window.sharedInvite)).includes('ref_123'));
+ await live.evaluate(()=>{Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{}}});});
+ await live.locator('#refHomeCopy').click();
+ await live.waitForTimeout(150);
+ assert.deepEqual(invitationEvents,[{action:'share'},{action:'copy'}]);
  await live.setViewportSize({width:390,height:844});
  await live.locator('#refHomeCard').scrollIntoViewIfNeeded();
  await live.waitForTimeout(1200);

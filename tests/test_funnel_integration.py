@@ -518,6 +518,20 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute('UPDATE devices SET last_online_at=NOW()')
         self.assertEqual(await funnel_board._due(step,None,10,[]),[])
 
+    async def test_invitation_card_statistics(self):
+        await db.record_invitation_card_event(1,'share')
+        await db.record_invitation_card_event(1,'share')
+        await db.record_invitation_card_event(1,'copy')
+        await self.pool.execute("INSERT INTO users(telegram_id) VALUES(2)")
+        await db.record_invitation_card_event(2,'copy')
+        await self.pool.execute("INSERT INTO invitation_card_events(telegram_id,action,created_at) VALUES(1,'share',NOW()-INTERVAL '40 days')")
+        result=await db.invitation_card_statistics(7)
+        self.assertEqual(result,dict(clicks=4,users=2,share=2,copy=2,share_users=1,copy_users=2))
+        with self.assertRaises(ValueError): await db.record_invitation_card_event(1,'bogus')
+        with self.assertRaises(ValueError): await db.invitation_card_statistics(0)
+        await self.pool.query(db.SCHEMA_PATH.read_text(),script=True)
+        self.assertEqual((await db.invitation_card_statistics(90))['clicks'],5)
+
     async def test_interface_draft_publish_and_rollback(self):
         import copy
         from app import interface_editor as editor

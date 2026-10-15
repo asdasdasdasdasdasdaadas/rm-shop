@@ -3593,16 +3593,16 @@ function dismissTrialNotice(kind) {
 }
 
 function paintRefBanner(me) {
-  const pill = $("inviteBannerPill");
-  if (!pill) return;
   const active = Boolean(me && me.referral_program_enabled);
-  const title = $("inviteBannerTitle");
-  if (title) title.textContent = active ? "Пригласите друзей" : "Реферальная программа";
-  pill.textContent = active ? "50 ₽ + 5% на баланс" : "Поделитесь VPN с теми, кто вам близок";
-  const note = $("inviteBannerNote");
+  const reward = Math.max(0, Number(me && me.referral_reward_rub) || 0);
+  const percent = Math.max(0, Number(me && me.referral_percent) || 0);
+  const pill = $("inviteBannerPill"), note = $("inviteBannerNote");
+  if (pill) pill.textContent = active ? `и получите ${reward} ₽ на баланс` : "Пользоваться вместе приятнее";
   if (note) {
-    note.textContent = active ? "50 ₽ за первую оплату друга и 5% с каждого его пополнения, пока программа действует." : "";
-    note.classList.toggle("hidden", !active);
+    note.textContent = active
+      ? `Отправьте другу ссылку. После его первой оплаты вам начислим ${reward} ₽` + (percent ? ` и ${percent}% с каждого пополнения, пока программа действует.` : ".")
+      : "Отправьте ссылку другу — пусть тоже попробует VPN. Сейчас новые награды не начисляются.";
+    note.classList.remove("hidden");
   }
 
 }
@@ -4169,10 +4169,16 @@ if ($("menuReferrals")) {
     openReferrals();
   };
 }
+function trackInvitationCard(action) {
+  // Non-blocking: analytics must not delay Telegram or clipboard access.
+  if (!(window.__me || {}).invite_url) return;
+  api('/api/invitation-card-event', {method:'POST', keepalive:true, body:JSON.stringify({action})}).catch(()=>{});
+}
 if ($("refHomeShare")) {
   $("refHomeShare").onclick = (e) => {
     if (e) e.stopPropagation();
     haptic();
+    trackInvitationCard("share");
     shareInvite();
   };
 }
@@ -4180,6 +4186,7 @@ if ($("refHomeCopy")) {
   $("refHomeCopy").onclick = (e) => {
     if (e) e.stopPropagation();
     haptic();
+    trackInvitationCard("copy");
     copyInvite();
   };
 }

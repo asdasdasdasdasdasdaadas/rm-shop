@@ -6106,3 +6106,24 @@ async def reserve_setup_assistance(telegram_id: int) -> int | None:
             if not allowed:
                 return None
             return await conn.fetchval("INSERT INTO optional_message_slots(telegram_id,kind) VALUES($1,'nudge_setup_assist') RETURNING id",telegram_id)
+
+
+async def record_invitation_card_event(telegram_id: int, action: str) -> None:
+    if action not in {'share','copy'}:
+        raise ValueError('Unknown invitation action')
+    await _pool_req().execute("""INSERT INTO invitation_card_events(telegram_id,action)
+        SELECT telegram_id,$2 FROM users WHERE telegram_id=$1""", telegram_id, action)
+
+
+async def invitation_card_statistics(days: int = 30) -> dict:
+    if days not in {7,30,90,365}:
+        raise ValueError('Invalid period')
+    cutoff = "((NOW() AT TIME ZONE 'Europe/Moscow')::date - ($1::int - 1))::timestamp AT TIME ZONE 'Europe/Moscow'"
+    row = await _pool_req().fetchrow(f"""SELECT COUNT(*)::int AS clicks,
+        COUNT(DISTINCT telegram_id)::int AS users,
+        COUNT(*) FILTER(WHERE action='share')::int AS share,
+        COUNT(*) FILTER(WHERE action='copy')::int AS copy,
+        COUNT(DISTINCT telegram_id) FILTER(WHERE action='share')::int AS share_users,
+        COUNT(DISTINCT telegram_id) FILTER(WHERE action='copy')::int AS copy_users
+        FROM invitation_card_events WHERE created_at >= {cutoff}""", days)
+    return dict(row)

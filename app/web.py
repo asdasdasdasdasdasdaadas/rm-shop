@@ -604,6 +604,21 @@ async def api_announcement_image(request: web.Request) -> web.Response:
     )
 
 
+async def api_invitation_card_event(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        body = await request.json()
+    except (ValueError, TypeError):
+        return json_error("Некорректное событие", 400)
+    action = body.get('action') if isinstance(body, dict) else None
+    if not isinstance(action, str) or action not in {'share','copy'}:
+        return json_error("Некорректное событие", 400)
+    await db.record_invitation_card_event(telegram_id, action)
+    return web.json_response({'ok': True})
+
+
 async def api_onboarding_event(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tg(request)
     if denied:
@@ -1254,6 +1269,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/api/announcements/{ann_id}/image", api_announcement_image)
         app.router.add_post("/api/trial", api_trial)
         app.router.add_post("/api/onboarding-event", api_onboarding_event)
+        app.router.add_post("/api/invitation-card-event", api_invitation_card_event)
         app.router.add_post("/api/invoice", api_invoice)
         app.router.add_post("/api/promo", api_promo)
         app.router.add_post("/api/devices", api_add_device)

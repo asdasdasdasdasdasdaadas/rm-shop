@@ -815,3 +815,12 @@ CREATE TABLE IF NOT EXISTS webapp_interface (
     published JSONB,
     previous JSONB
 );
+
+-- Invitation card interactions; clicks are not confirmed shares.
+CREATE TABLE IF NOT EXISTS invitation_card_events (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    action TEXT NOT NULL CHECK(action IN ('share','copy')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS invitation_card_events_created_idx ON invitation_card_events(created_at);

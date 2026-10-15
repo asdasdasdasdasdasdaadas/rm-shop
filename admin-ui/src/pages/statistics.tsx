@@ -284,6 +284,38 @@ export function StatisticsPage() {
               ))}
             </div>
             <HistoryChart {...charts[chart]} rows={rows} />
+            <Panel
+              title="Плашка «Пригласить друга»"
+              description="Нажатия в кабинете за выбранный период. Сбор начинается после обновления. Нажатие «Отправить» не подтверждает отправку сообщения, «Скопировать» — успешное копирование."
+            >
+              <div className="mb-4 text-sm text-muted-foreground">
+                Всего нажатий:{" "}
+                <b>{number(history.data?.invitation_card?.clicks)}</b> ·
+                Уникальных пользователей:{" "}
+                <b>{number(history.data?.invitation_card?.users)}</b>
+              </div>
+              <DataTable
+                rows={[
+                  {
+                    id: "share",
+                    label: "Отправить",
+                    clicks: history.data?.invitation_card?.share || 0,
+                    users: history.data?.invitation_card?.share_users || 0,
+                  },
+                  {
+                    id: "copy",
+                    label: "Скопировать",
+                    clicks: history.data?.invitation_card?.copy || 0,
+                    users: history.data?.invitation_card?.copy_users || 0,
+                  },
+                ]}
+                columns={[
+                  { key: "label", label: "Кнопка" },
+                  { key: "clicks", label: "Нажатия" },
+                  { key: "users", label: "Пользователи" },
+                ]}
+              />
+            </Panel>
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"

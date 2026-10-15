@@ -265,7 +265,8 @@
       "key": "ref_share",
       "screen": "home",
       "label": "Отправить приглашение",
-      "selector": "#refHomeShare",
+      "selector": "#refHomeShareLabel",
+      "styleSelector": "#refHomeShare",
       "default": "Отправить",
       "kind": "button"
     },

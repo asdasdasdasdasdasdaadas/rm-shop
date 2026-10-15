@@ -57,3 +57,20 @@ html[data-design="modern"] #refHomeCard .ref-banner-actions { position: relative
 html[data-design="modern"] #refHomeCard #refHomeShare { width: 100%; font-size: 14px; min-height: 44px; }
 @keyframes invite-plane-float { 0%,100% { transform: translate3d(0,0,0) rotate(-10deg); } 50% { transform: translate3d(3px,-7px,0) rotate(-5deg); } }
 @media (prefers-reduced-motion: reduce) { html[data-design="modern"] #refHomeCard .modern-card-art { animation: none; transition: none; } }
+
+/* Invitation: centered terms and two equal, comfortably sized actions. */
+html[data-design="modern"] #view-home #refHomeCard { padding: 26px 20px 20px; margin-top: 24px; text-align: center; }
+html[data-design="modern"] #refHomeCard .modern-card-art { position: relative; display: block; top: auto; right: auto; left: auto; width: 86px; height: 86px; margin: -43px auto 10px; }
+html[data-design="modern"] #refHomeCard .ref-banner-copy { margin: 0; padding: 0; width: 100%; }
+html[data-design="modern"] #refHomeCard .modern-invite-title,
+html[data-design="modern"] #refHomeCard .ref-banner-pill { font-size: clamp(21px,5.8vw,26px); line-height: 1.25; font-weight: 700; letter-spacing: -.025em; color: var(--text-primary); margin: 0; }
+html[data-design="modern"] #refHomeCard .ref-banner-note { display: block; margin: 14px 0 0; font-size: 14px; line-height: 1.5; color: var(--text-secondary); }
+html[data-design="modern"] #refHomeCard .ref-banner-actions { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; margin: 22px 0 0; width: 100%; }
+html[data-design="modern"] #refHomeCard :is(#refHomeShare,#refHomeCopy) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; width: 100% !important; min-width: 0; min-height: 82px; padding: 14px 6px; border-radius: 22px; font-size: 14px; font-weight: 600; }
+html[data-design="modern"] #refHomeCard #refHomeShare { background: var(--text-primary); color: var(--bg-app); }
+html[data-design="modern"] #refHomeCard #refHomeCopy { background: var(--liquid-fill); color: var(--text-primary); border: 1px solid var(--liquid-edge); }
+html[data-design="modern"] #refHomeCard .ref-banner-btn svg { width: 24px; height: 24px; flex-shrink: 0; }
+
+html[data-design="modern"] #refHomeCard #inviteBannerPill,html[data-design="modern"] #refHomeCard #inviteBannerNote { display: block !important; }
+html[data-design="modern"] #refHomeCard #inviteBannerPill { width: 100%; max-width: none; background: none; border: 0; box-shadow: none; border-radius: 0; padding: 0; }
+html[data-design="modern"] #refHomeCard #refHomeShare svg { display: block; }
