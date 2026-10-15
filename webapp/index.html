@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="/static/modern.css?v=4">
   <link rel="stylesheet" href="/static/modern-screens.css?v=7">
   <link rel="stylesheet" href="/static/modern-motion.css?v=2">
-  <link rel="stylesheet" href="/static/modern-refinement.css?v=4">
+  <link rel="stylesheet" href="/static/modern-refinement.css?v=5">
 
 <style id="retired-features">
 #view-settings,#view-promo,#view-referrals,#view-ambassador,#homePromoCard,#homeAmbassadorCard{display:none!important}
@@ -850,17 +850,13 @@
   <dialog id="lowBalanceSheet" class="low-balance-sheet" aria-labelledby="lowBalanceTitle" aria-describedby="lowBalanceDescription">
     <div id="lowBalanceGrab" class="low-balance-grab-zone"><div class="low-balance-grab" aria-hidden="true"></div></div>
     <button type="button" id="lowBalanceClose" class="low-balance-close" aria-label="Закрыть">✕</button>
-    <h2 id="lowBalanceTitle">Баланс заканчивается</h2>
+    <div id="lowBalanceIcon" class="balance-alert-icon" aria-hidden="true">◷</div>
+    <p class="balance-alert-wallet">Ваш баланс <strong id="lowBalanceValue">0 ₽</strong></p>
+    <h2 id="lowBalanceTitle">Подписка неактивна</h2>
     <p id="lowBalanceDescription" class="low-balance-description"></p>
-    <div id="lowBalanceDevices" class="low-balance-devices" aria-label="Ваши устройства"></div>
-    <p id="lowBalanceSumLabel" class="low-balance-section">Выберите сумму</p>
-    <div id="lowBalanceAmounts" class="low-balance-amounts topup-amounts" role="group" aria-labelledby="lowBalanceSumLabel"></div>
-    <p id="lowBalanceRunway" class="low-balance-runway" aria-live="polite"></p>
+    <p id="lowBalanceHint" class="balance-alert-hint"></p>
     <button type="button" id="lowBalancePay" class="btn btn-primary low-balance-pay">Пополнить баланс</button>
-    <div class="low-balance-actions">
-      <button type="button" id="lowBalanceCustom" class="btn btn-ghost low-balance-secondary">Своя сумма</button>
-      <button type="button" id="lowBalanceLater" class="btn btn-ghost low-balance-secondary">Позже</button>
-    </div>
+    <button type="button" id="lowBalanceLater" class="btn btn-ghost low-balance-secondary">Позже</button>
   </dialog>
 
   <div id="menu" class="sheet hidden" role="menu">
@@ -903,6 +899,6 @@
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
   <script src="/static/modern-motion.js?v=1"></script>
   <script src="/static/interface-editor.js?v=5"></script>
-  <script src="app.js?v=200"></script>
+  <script src="app.js?v=201"></script>
 </body>
 </html>

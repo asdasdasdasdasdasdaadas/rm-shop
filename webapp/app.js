@@ -940,67 +940,24 @@ function balanceAlertState(me) {
   // Check server eligibility before screen/storage state, including initial render.
   const pendingGift = me.trial_available || (me.trial_notice && ["claim", "start_bot"].includes(me.trial_notice.kind));
   if (balance >= 0 && pendingGift && !devices.length && !me.first_online_at && !me.has_paid_topup) return "";
+  if (devices.some(d => d.active !== false) && remainHours(me) > 24) return "";
   if (balance <= 0) return devices.some(d => d.active !== false) && remainHours(me) > 0 ? "low" : "empty";
   const daily = Math.max(1, Number(me.vpn_day_price_rub) || 1) * Math.max(1, devices.length);
   if (balance <= daily || (devices.length && remainHours(me) <= 24)) return "low";
   return "";
 }
 
-let lowBalanceSelected = 0;
-function lowBalanceAmounts(me) {
-  const min = Math.max(1, Number(me.topup_min) || 1);
-  const max = Math.max(min, Number(me.topup_max) || 100000);
-  const amounts = [...new Set(me.has_paid_topup ? [min, 300, 500, 1000] : [min, 100, 300, 500])].filter(n => n >= min && n <= max).sort((a, b) => a - b);
-  return amounts.length ? amounts : [min];
-}
 function paintLowBalance(me, state) {
-  const devices = (me.devices || []).filter(d => d.kind !== "router");
-  const stopped = state === "empty" && devices.length && devices.every(d => d.active === false);
-  $("lowBalanceTitle").textContent = stopped ? "Устройства отключены" : state === "empty" ? "Пора пополнить баланс" : "Баланс заканчивается";
-  const balance = `${Number(me.balance_rub) || 0} ₽`;
-  $("lowBalanceDescription").textContent = `Баланс — ${balance}. ` + (stopped
-    ? "Пополните его, чтобы снова пользоваться VPN на своих устройствах."
-    : state === "empty" ? "Средств на дальнейшее подключение не хватает. Пополните баланс, чтобы продолжить."
-    : `Оплаченного доступа осталось примерно ${hoursLabel(Math.max(1, Math.ceil(remainHours(me))))}. Пополните баланс для продолжения.`);
-  const strip = $("lowBalanceDevices");
-  strip.replaceChildren();
-  strip.classList.toggle("hidden", !devices.length);
-  const visible = devices.length > 4 ? devices.slice(0, 3) : devices;
-  for (const device of visible) {
-    const chip = document.createElement("div"); chip.className = "low-balance-device";
-    const icon = document.createElement("span"); icon.className = "low-balance-device-icon";
-    icon.innerHTML = platIconSvg(device.platform);
-    icon.setAttribute("aria-hidden", "true");
-    const name = document.createElement("span"); name.className = "low-balance-device-name";
-    name.textContent = device.title || "Устройство";
-    const status = document.createElement("span"); status.className = "low-balance-device-status";
-    status.textContent = device.active === false ? "отключено" : "доступ истекает";
-    chip.append(icon, name, status); strip.append(chip);
-  }
-  if (devices.length > 4) {
-    const chip = document.createElement("div"); chip.className = "low-balance-device";
-    const icon = document.createElement("span"); icon.className = "low-balance-device-icon";
-    icon.textContent = `+${devices.length - 3}`;
-    const label = document.createElement("span"); label.className = "low-balance-device-name"; label.textContent = "ещё";
-    chip.append(icon, label); strip.append(chip);
-  }
-  const amounts = lowBalanceAmounts(me);
-  if (!amounts.includes(lowBalanceSelected)) lowBalanceSelected = me.has_paid_topup && amounts.includes(300) ? 300 : amounts.includes(100) ? 100 : amounts[0];
-  const grid = $("lowBalanceAmounts"); grid.replaceChildren();
-  for (const amount of amounts) {
-    const button = document.createElement("button"); button.type = "button";
-    button.className = "pay-card" + (amount === lowBalanceSelected ? " on" : "");
-    const label = document.createElement("span"); label.className = "pay-amount";
-    label.textContent = `${amount.toLocaleString("ru-RU")} ₽`;
-    button.append(label);
-    button.setAttribute("aria-pressed", String(amount === lowBalanceSelected));
-    button.onclick = () => { lowBalanceSelected = amount; paintLowBalance(me, state); };
-    grid.append(button);
-  }
-  const daily = Math.max(1, Number(me.vpn_day_price_rub) || 1) * Math.max(1, devices.length);
-  const days = Math.max(0, Math.floor((lowBalanceSelected + Math.min(0, Number(me.balance_rub) || 0)) / daily));
-  $("lowBalanceRunway").textContent = `Пополнения хватит примерно на ${daysLabel(days)} ` + (devices.length ? "для этих устройств" : "для одного устройства");
-  $("lowBalancePay").textContent = `Пополнить на ${lowBalanceSelected.toLocaleString("ru-RU")} ₽`;
+  const empty = state === "empty";
+  $("lowBalanceTitle").textContent = empty ? "Подписка неактивна" : "Осталось не больше суток";
+  $("lowBalanceValue").textContent = `${(Number(me.balance_rub) || 0).toLocaleString("ru-RU")} ₽`;
+  $("lowBalanceIcon").textContent = empty ? "⏸" : "◷";
+  $("lowBalanceDescription").textContent = empty
+    ? "Пополните баланс, чтобы снова пользоваться VPN."
+    : "Пополните баланс заранее, чтобы VPN продолжал работать без перерыва.";
+  $("lowBalanceHint").textContent = empty
+    ? "После пополнения на достаточную сумму доступ восстановится автоматически."
+    : "Сейчас VPN работает. Доступ закончится, когда оплаченного времени не останется.";
 }
 
 let lowBalanceShown = new Set();
@@ -1048,16 +1005,8 @@ function maybeShowLowBalance() {
 $("lowBalanceClose").onclick = closeLowBalance;
 $("lowBalanceLater").onclick = closeLowBalance;
 $("lowBalancePay").onclick = () => {
-  const me = window.__me;
-  if (!me) return;
-  if (!lowBalanceAmounts(me).includes(lowBalanceSelected)) { paintLowBalance(me, balanceAlertState(me)); return; }
   closeLowBalance();
-  topupCustomRub = lowBalanceSelected;
-  openPayMethod(currentTopupPlan(me));
-};
-$("lowBalanceCustom").onclick = () => {
-  closeLowBalance(); openTopup();
-  $("topupAmount").focus(); $("topupAmount").select();
+  openTopup();
 };
 $("lowBalanceSheet").addEventListener("close", () => {
   document.body.style.overflow = lowBalanceScroll;

@@ -112,6 +112,33 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
  await live.evaluate(({catalog,config})=>WebappEditor.set({catalog,config:{...config,texts:{devices_title:'<img src=x onerror=window.injected=1>'}}}),{catalog,config:state.published});
  await live.waitForFunction(()=>document.querySelector('#devicesHeading').textContent.includes('<img'));
  assert.equal(await live.evaluate(()=>window.injected),undefined);
+ // Balance reminder eligibility, dismissal, escalation and payment navigation.
+ await live.evaluate(()=>{
+   closeLowBalance();localStorage.clear();lowBalanceShown.clear();
+   const base={...window.__me,trial_available:false,trial_notice:null,trial_waiting_connection:false,billing_paused:false,balance_enabled:true};
+   window.balanceFixture=base;
+   window.balanceStates=[
+     balanceAlertState({...base,balance_rub:0,hours_left:48,devices:[{active:true}]}),
+     balanceAlertState({...base,balance_rub:6,hours_left:24,devices:[{active:true}]}),
+     balanceAlertState({...base,balance_rub:-5,hours_left:0,devices:[{active:false}]}),
+     balanceAlertState({...base,balance_rub:0,hours_left:0,devices:[],trial_available:true,has_paid_topup:false,first_online_at:null}),
+     balanceAlertState({...base,balance_rub:0,hours_left:0,trial_waiting_connection:true}),
+   ];
+   window.__me={...base,balance_rub:6,hours_left:24};openHome();maybeShowLowBalance();
+ });
+ assert.deepEqual(await live.evaluate(()=>window.balanceStates),['','low','empty','','']);
+ await live.locator('#lowBalanceSheet[open]').waitFor();
+ assert.equal(await live.locator('#lowBalanceTitle').textContent(),'Осталось не больше суток');
+ await live.locator('#lowBalanceLater').click();
+ await live.evaluate(()=>maybeShowLowBalance());
+ assert.equal(await live.locator('#lowBalanceSheet').evaluate(el=>el.open),false);
+ await live.evaluate(()=>{window.__me={...window.balanceFixture,balance_rub:-5,hours_left:0,devices:[{id:1,active:false}]};maybeShowLowBalance();});
+ await live.locator('#lowBalanceSheet[open]').waitFor();
+ assert.equal(await live.locator('#lowBalanceTitle').textContent(),'Подписка неактивна');
+ await live.screenshot({path:'/tmp/balance-alert-dialog.png'});
+ await live.locator('#lowBalancePay').click();
+ await live.locator('#view-topup:not(.hidden)').waitFor();
+ assert.equal(await live.locator('#lowBalanceSheet').evaluate(el=>el.open),false);
  assert.deepEqual(errors,[]);
  await page.setViewportSize({width:1440,height:1000});
  await page.getByRole('button',{name:'Откат',exact:true}).click();
