@@ -8,7 +8,7 @@ from app import db
 
 WEBAPP = Path(__file__).resolve().parent.parent / 'webapp'
 CATALOG = json.loads((WEBAPP / 'ui-catalog.json').read_text())
-DEFAULT = {'theme': {}, 'texts': {}, 'blocks': [dict(id=b['id'], visible=True) for b in CATALOG['blocks']], 'custom': []}
+DEFAULT = {'theme': {}, 'texts': {}, 'blocks': [dict(id=b['id'], visible=True) for b in CATALOG['blocks']], 'custom': [], 'styles': {}}
 COLORS = {'background','surface','text','muted','button','buttonText'}
 
 
@@ -32,6 +32,18 @@ def validate(value):
         limit=60 if fields[key]['kind']=='button' else 600
         if not isinstance(text,str) or not text.strip() or len(text)>limit: raise ValueError(f"{fields[key]['label']}: заполните текст, до {limit} символов")
     result['texts']=texts
+    if any(fields[key]['kind']=='dynamic' for key in texts): raise ValueError('Персональные данные нельзя заменить текстом')
+    styles=value.get('styles',{})
+    if not isinstance(styles,dict) or set(styles)-fields.keys(): raise ValueError('Неизвестный элемент оформления')
+    for options in styles.values():
+        if not isinstance(options,dict) or set(options)-{'color','background','fontSize','borderRadius','padding','marginTop','textAlign'}: raise ValueError('Неизвестное свойство элемента')
+        for key,val in options.items():
+            if key in {'color','background'}:
+                if not isinstance(val,str) or not re.fullmatch(r'#[0-9a-fA-F]{6}',val): raise ValueError('Некорректный цвет')
+            elif key=='textAlign':
+                if val not in ('left','center','right'): raise ValueError('Некорректное выравнивание')
+            elif type(val) is not int or not (0 <= val <= 64) or (key=='fontSize' and val<10): raise ValueError('Некорректный размер')
+    result['styles']=styles
     blocks=value.get('blocks',result['blocks'])
     if not isinstance(blocks,list) or len(blocks)!=len(CATALOG['blocks']): raise ValueError('Нужны все стандартные блоки')
     ids=[]

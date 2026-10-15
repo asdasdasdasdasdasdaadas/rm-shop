@@ -598,26 +598,53 @@ export function InterfaceEditorPage() {
               </h2>
               {field && (
                 <>
-                  <Field
-                    label={
-                      field.kind === "button"
-                        ? "Подпись кнопки"
-                        : "Текст элемента"
-                    }
-                    hint="Изменения сразу видны слева. Пустое поле возвращает стандартный текст."
-                  >
-                    <Textarea
-                      rows={field.kind === "button" ? 2 : 4}
-                      maxLength={field.kind === "button" ? 60 : 600}
-                      placeholder={field.default}
-                      value={draft.texts[field.key] ?? field.default}
-                      onChange={(e) => edit(selection, e.target.value)}
-                    />
-                  </Field>
+                  {field.kind !== "dynamic" && (
+                    <Field
+                      label={
+                        field.kind === "button"
+                          ? "Подпись кнопки"
+                          : "Текст элемента"
+                      }
+                      hint="Изменения сразу видны слева. Пустое поле возвращает стандартный текст."
+                    >
+                      <Textarea
+                        rows={field.kind === "button" ? 2 : 4}
+                        maxLength={field.kind === "button" ? 60 : 600}
+                        placeholder={field.default}
+                        value={draft.texts[field.key] ?? field.default}
+                        onChange={(e) => edit(selection, e.target.value)}
+                      />
+                    </Field>
+                  )}
+                  {field.kind === "dynamic" && (
+                    <p className="text-sm text-muted-foreground">
+                      Здесь отображается персональная ссылка выбранного
+                      устройства. Адрес формируется автоматически. Ниже можно
+                      изменить её оформление.
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {field.kind === "button"
                       ? (
                           {
+                            connect_copy:
+                              "Копирует персональную ссылку этого устройства.",
+                            device_copy:
+                              "Копирует персональную ссылку этого устройства.",
+                            device_open:
+                              "Открывает VPN-приложение с подпиской пользователя.",
+                            device_setup:
+                              "Открывает настройку и проверку этого устройства.",
+                            connect_check:
+                              "Проверяет фактическое подключение устройства к VPN.",
+                            connect_help:
+                              "Открывает поддержку с данными устройства.",
+                            wizard_action_1:
+                              "Переходит к установке приложения.",
+                            wizard_action_2:
+                              "Создаёт устройство и переходит к подключению.",
+                            wizard_action_4:
+                              "Добавляет персональную подписку в VPN-приложение.",
                             topup: "Открывает пополнение баланса.",
                             promo_open: "Открывает ввод промокода.",
                             promo_apply: "Применяет введённый промокод.",
@@ -630,8 +657,91 @@ export function InterfaceEditorPage() {
                         )[field.key] || "Действие этой кнопки задано сервисом."
                       : "Можно редактировать и двойным кликом на холсте."}
                   </p>
-                  <Button variant="outline" onClick={() => edit(selection, "")}>
-                    Стандартный текст
+                  {field.kind !== "dynamic" && (
+                    <Button
+                      variant="outline"
+                      onClick={() => edit(selection, "")}
+                    >
+                      Стандартный текст
+                    </Button>
+                  )}
+                  <h3 className="font-medium mt-4">Оформление элемента</h3>
+                  {[
+                    ["color", "Цвет текста"],
+                    ["background", "Фон"],
+                  ].map(([key, label]) => (
+                    <Field key={key} label={label}>
+                      <Input
+                        type="color"
+                        value={
+                          draft.styles?.[field.key]?.[key] ||
+                          (key === "color" ? "#ffffff" : "#20242b")
+                        }
+                        onChange={(e) =>
+                          patch("styles", {
+                            ...draft.styles,
+                            [field.key]: {
+                              ...draft.styles?.[field.key],
+                              [key]: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </Field>
+                  ))}
+                  {[
+                    ["fontSize", "Размер текста, px"],
+                    ["borderRadius", "Скругление, px"],
+                    ["padding", "Внутренний отступ, px"],
+                    ["marginTop", "Отступ сверху, px"],
+                  ].map(([key, label]) => (
+                    <Field key={key} label={label}>
+                      <Input
+                        type="number"
+                        min={key === "fontSize" ? 10 : 0}
+                        max={64}
+                        placeholder="По умолчанию"
+                        value={draft.styles?.[field.key]?.[key] ?? ""}
+                        onChange={(e) => {
+                          const options = { ...draft.styles?.[field.key] };
+                          if (e.target.value === "") delete options[key];
+                          else options[key] = Number(e.target.value);
+                          patch("styles", {
+                            ...draft.styles,
+                            [field.key]: options,
+                          });
+                        }}
+                      />
+                    </Field>
+                  ))}
+                  <Field label="Выравнивание">
+                    <select
+                      className="w-full rounded-md border bg-background p-2"
+                      value={draft.styles?.[field.key]?.textAlign || "left"}
+                      onChange={(e) =>
+                        patch("styles", {
+                          ...draft.styles,
+                          [field.key]: {
+                            ...draft.styles?.[field.key],
+                            textAlign: e.target.value,
+                          },
+                        })
+                      }
+                    >
+                      <option value="left">Слева</option>
+                      <option value="center">По центру</option>
+                      <option value="right">Справа</option>
+                    </select>
+                  </Field>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const styles = { ...draft.styles };
+                      delete styles[field.key];
+                      patch("styles", styles);
+                    }}
+                  >
+                    Сбросить оформление элемента
                   </Button>
                 </>
               )}

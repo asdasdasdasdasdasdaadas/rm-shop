@@ -27,7 +27,14 @@
         .editor-hidden{display:none!important}.editor-custom{min-width:0;overflow-wrap:anywhere;width:100%;box-sizing:border-box;margin:12px 0}.editor-card{padding:20px;border:1px solid var(--divider);border-radius:24px;background:var(--bg-surface)}.editor-custom h2{font-size:20px;line-height:1.3;margin:0 0 10px}.editor-custom p{white-space:pre-wrap;font-size:14px;line-height:1.6;color:var(--text-secondary);margin:0 0 16px}.editor-action{min-height:46px;width:100%;white-space:normal;overflow-wrap:anywhere}.editor-custom-slot{display:contents}`;
       const state=adapter.state?.() || {};
       for(const f of catalog.fields) {
-        if(f.step && (state.step!==f.step || state.connected)) continue;
+        if(f.step && (state.step!==f.step || state.connected || document.getElementById('view-wizard')?.classList.contains('hidden'))) continue;
+        const options=config.styles?.[f.key] || {};
+        const allowed={color:'color',background:'background',fontSize:'font-size',borderRadius:'border-radius',padding:'padding',marginTop:'margin-top',textAlign:'text-align'};
+        const declarations=Object.entries(options).filter(([k,v])=>allowed[k] && (['color','background'].includes(k)?/^#[0-9a-f]{6}$/i.test(v):k==='textAlign'?['left','center','right'].includes(v):Number.isInteger(v)&&v>=0&&v<=64)).map(([k,v])=>`${allowed[k]}:${typeof v==='number'?v+'px':v}!important`).join(';');
+        if(declarations) style.textContent+=`${f.styleSelector || f.selector}{${declarations}}`;
+      }
+      for(const f of catalog.fields) {
+        if(f.step && (state.step!==f.step || state.connected || document.getElementById('view-wizard')?.classList.contains('hidden'))) continue;
         const el=document.querySelector(f.selector);
         if(!el || el.disabled || el.isContentEditable) continue;
         const override=config.texts?.[f.key];

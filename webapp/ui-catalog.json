@@ -43,6 +43,10 @@
     {
       "id": "wizard",
       "label": "Подключение"
+    },
+    {
+      "id": "device",
+      "label": "Устройство · ссылка подключения"
     }
   ],
   "fields": [
@@ -272,6 +276,172 @@
       "selector": "#modernReferralDetails",
       "default": "Условия",
       "kind": "button"
+    },
+    {
+      "key": "connect_manual",
+      "label": "Ручное подключение",
+      "selector": "#wizBody .wiz-connect-manual summary",
+      "default": "Добавить ссылку вручную",
+      "kind": "text",
+      "screen": "wizard",
+      "step": 4
+    },
+    {
+      "key": "connect_label",
+      "label": "Подпись ссылки",
+      "selector": "#wizBody .dev-label",
+      "default": "Ссылка подписки",
+      "kind": "text",
+      "screen": "wizard",
+      "step": 4
+    },
+    {
+      "key": "connect_url",
+      "label": "Персональная ссылка подписки",
+      "selector": "#wizBody .dev-link-text",
+      "default": "https://example.com/subscription/personal",
+      "kind": "dynamic",
+      "screen": "wizard",
+      "step": 4
+    },
+    {
+      "key": "connect_copy",
+      "label": "Копирование ссылки",
+      "selector": "#wizBody .dev-lbtn span",
+      "default": "Копировать",
+      "kind": "button",
+      "screen": "wizard",
+      "step": 4,
+      "styleSelector": "#wizBody .dev-lbtn"
+    },
+    {
+      "key": "connect_instruction",
+      "label": "Инструкция: добавить подписку",
+      "selector": "#wizBody .wiz-connect-steps li:first-child",
+      "default": "Нажмите «Добавить подписку» внизу и подтвердите добавление в приложении.",
+      "kind": "text",
+      "screen": "wizard",
+      "step": 4
+    },
+    {
+      "key": "connect_enable",
+      "label": "Инструкция: включить VPN",
+      "selector": "#wizBody .wiz-connect-steps li:nth-child(2)",
+      "default": "Включите VPN в приложении. Если появится запрос на VPN-подключение — разрешите его.",
+      "kind": "text",
+      "screen": "wizard",
+      "step": 4
+    },
+    {
+      "key": "connect_check",
+      "label": "Проверка подключения",
+      "selector": "#wizCheckConnection",
+      "default": "Проверить подключение",
+      "kind": "button",
+      "screen": "wizard",
+      "step": 4
+    },
+    {
+      "key": "connect_help",
+      "label": "Помощь с подключением",
+      "selector": "#wizHelp",
+      "default": "Не получилось — помогите",
+      "kind": "button",
+      "screen": "wizard",
+      "step": 4
+    },
+    {
+      "key": "wizard_action_1",
+      "label": "Основная кнопка",
+      "selector": "#appMainBtn",
+      "default": "Продолжить",
+      "kind": "button",
+      "screen": "wizard",
+      "step": 1
+    },
+    {
+      "key": "wizard_action_2",
+      "label": "Основная кнопка",
+      "selector": "#appMainBtn",
+      "default": "Приложение установлено →",
+      "kind": "button",
+      "screen": "wizard",
+      "step": 2
+    },
+    {
+      "key": "wizard_action_4",
+      "label": "Основная кнопка",
+      "selector": "#appMainBtn",
+      "default": "Добавить подписку",
+      "kind": "button",
+      "screen": "wizard",
+      "step": 4
+    },
+    {
+      "key": "device_name",
+      "label": "Название устройства",
+      "selector": "#devTitle",
+      "default": "iPhone",
+      "kind": "dynamic",
+      "screen": "device"
+    },
+    {
+      "key": "device_url",
+      "label": "Персональная ссылка подключения",
+      "selector": "#devUrl",
+      "default": "https://example.com/subscription/personal",
+      "kind": "dynamic",
+      "screen": "device"
+    },
+    {
+      "key": "device_link_label",
+      "label": "Подпись ссылки",
+      "selector": "#view-device > .dev-label",
+      "default": "Ссылка подписки",
+      "kind": "text",
+      "screen": "device"
+    },
+    {
+      "key": "device_copy",
+      "label": "Кнопка копирования",
+      "selector": "#devCopyLabel",
+      "default": "Копировать",
+      "kind": "button",
+      "screen": "device",
+      "styleSelector": "#devCopy"
+    },
+    {
+      "key": "device_open",
+      "label": "Открыть VPN-приложение",
+      "selector": "#devOpenLabel",
+      "default": "Открыть в приложении",
+      "kind": "button",
+      "screen": "device",
+      "styleSelector": "#devOpen"
+    },
+    {
+      "key": "device_setup",
+      "label": "Настройка подключения",
+      "selector": "#devCheckSetup",
+      "default": "Настройка и проверка подключения",
+      "kind": "button",
+      "screen": "device"
+    },
+    {
+      "key": "device_fix_title",
+      "label": "Заголовок замены ссылки",
+      "selector": "#devFix .dev-warn-title",
+      "default": "Перестал работать VPN?",
+      "kind": "text",
+      "screen": "device"
+    },
+    {
+      "key": "device_fix_text",
+      "label": "Описание замены ссылки",
+      "selector": "#devFix .dev-warn-sub",
+      "default": "Можно выпустить новую ссылку для подключения",
+      "kind": "text",
+      "screen": "device"
     }
   ],
   "blocks": [

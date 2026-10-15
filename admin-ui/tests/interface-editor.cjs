@@ -99,6 +99,20 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
  await page.getByRole('dialog').getByRole('button',{name:'Откатить',exact:true}).click();
  await page.getByText('Предыдущий интерфейс восстановлен',{exact:true}).waitFor();
  assert.deepEqual(state.published,defaults);
+ await page.getByLabel('Экран',{exact:true}).click();
+ await page.getByRole('option',{name:'Подключение',exact:true}).click();
+ await page.getByLabel('Шаг подключения',{exact:true}).click();
+ await page.getByRole('option',{name:'Подключение',exact:true}).click();
+ await preview.locator('#wizBody .dev-link-text').click();
+ await page.getByText('Персональная ссылка подписки',{exact:true}).last().waitFor();
+ assert.equal(await page.getByLabel('Текст элемента',{exact:true}).count(),0);
+ await page.getByLabel('Размер текста, px',{exact:true}).fill('22');
+ await page.frames().find(f=>f.url().includes('interface-preview')).waitForFunction(()=>getComputedStyle(document.querySelector('#wizBody .dev-link-text')).fontSize==='22px');
+ await preview.locator('#wizCheckConnection').click();
+ await page.getByLabel('Подпись кнопки',{exact:true}).fill('VPN работает?');
+ await preview.getByRole('button',{name:'VPN работает?',exact:true}).waitFor();
+ await preview.locator('#appMainBtn').waitFor({state:'visible'});
+ await page.screenshot({path:'/tmp/interface-connection-editor.png',fullPage:true});
  console.log('Canvas: inline editing, selection, undo/redo, drag reorder, visibility, custom button, publication and rollback passed.');
  } finally {await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -8,6 +8,17 @@ class InterfaceValidationTest(unittest.TestCase):
         for value in [None, [], {'javascript':'alert(1)'}, {**DEFAULT,'texts':{'balance':'0'}}]:
             with self.assertRaises(ValueError): validate(value)
 
+    def test_element_styles_and_personal_link(self):
+        value=copy.deepcopy(DEFAULT)
+        value['styles']={'connect_url':{'fontSize':14,'color':'#abcdef','padding':12}}
+        self.assertEqual(validate(value)['styles'],value['styles'])
+        for bad in [{'fontSize':999},{'background':'url(https://bad)'},{'position':'fixed'}]:
+            value['styles']={'connect_url':bad}
+            with self.assertRaises(ValueError): validate(value)
+        value['styles']={}
+        value['texts']={'connect_url':'https://replacement.test'}
+        with self.assertRaises(ValueError): validate(value)
+
     def test_preserve_required_block_and_unique_order(self):
         value=copy.deepcopy(DEFAULT)
         value['blocks'][0]['visible']=False

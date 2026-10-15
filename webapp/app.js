@@ -3434,6 +3434,7 @@ function renderWizard() {
   const help = document.createElement("button");
   help.type = "button";
   help.className = "btn btn-ghost";
+  help.id = "wizHelp";
   help.textContent = "Не получилось — помогите";
   help.onclick = () => openSupport({device_id: wiz.deviceId, client: clientLabel(wiz.client), stage: wiz.checkResult ? "check" : "subscription", result: wiz.checkResult});
   const secondary = document.createElement("div");

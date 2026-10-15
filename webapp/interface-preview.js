@@ -7,6 +7,7 @@
   $('modernRemaining').textContent='5 дней';$('modernRemainingLabel').textContent='Доступ на одном устройстве';
   $('balanceLine').textContent='180 ₽';
   const demo=(host,tag,text,cls)=>{const el=document.createElement(tag);el.textContent=text;el.className=cls || '';$(host)?.append(el);return el;};
+  $('devTitle').textContent='iPhone';$('devUrl').textContent='https://example.com/subscription/personal';$('devUrl').classList.remove('is-empty');
   $('topupSum').textContent='180 ₽';$('payAmountNum').textContent='180';
   ['180 ₽','360 ₽','540 ₽'].forEach(text=>demo('topupGrid','button',text,'pay-card'));
   ['СБП','Банковская карта'].forEach(text=>demo('payMethods','button',text,'pay-method'));
@@ -44,6 +45,7 @@
   function edit(el) {
     const info=identify(el);
     if(info.kind!=='field'&&!info.property) return;
+    if(model.catalog.fields.find(f=>f.key===info.id)?.kind==='dynamic') return;
     if(editing) editing.blur();
     editing=el;const before=el.textContent;el.contentEditable='true';el.focus();
     const range=document.createRange();range.selectNodeContents(el);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
@@ -76,14 +78,31 @@
     const data=e.data;
     reveal=JSON.stringify(selected)!==JSON.stringify(data.selection);model=data;selected=data.selection;
     document.querySelectorAll('#app > .view').forEach(el=>el.classList.toggle('hidden',el.id!=='view-'+data.screen));
-    current={step:data.step || 1,connected:false};
+    current={step:Number(data.step) || 1,connected:false};
+    $('appMainBar').classList.toggle('hidden',data.screen!=='wizard');
+    document.body.classList.toggle('has-main-btn',data.screen==='wizard');
     if(data.screen==='wizard') {
       $('wizTitle').textContent=({1:'Выбор устройства',2:'Установите приложение',4:'Осталось включить VPN'})[current.step];
+      $('wizStep').textContent=current.step===4?'':'Шаг '+current.step+' из 3';
       $('wizBody').replaceChildren();
       if(current.step===1) {
         const list=demo('wizBody','div','','wiz-radio');
         ['iPhone, iPad','Android','macOS','Windows','Телевизор'].forEach(name=>{const b=document.createElement('button');b.className='wiz-radio-row';b.textContent=name;list.append(b);});
-      } else demo('wizBody','p',current.step===2?'Установите VPN-приложение, затем вернитесь сюда.':'Добавьте подписку и включите VPN в приложении.','section-note');
+      } else if(current.step===2) demo('wizBody','p','Установите VPN-приложение, затем вернитесь сюда.','section-note');
+      else {
+        demo('wizBody','div','iPhone · iOS','wiz-recap');
+        const steps=demo('wizBody','ol','','wiz-connect-steps');
+        ['Нажмите «Добавить подписку» внизу и подтвердите добавление в приложении.','Включите VPN в приложении. Если появится запрос на VPN-подключение — разрешите его.'].forEach(text=>{const li=document.createElement('li');li.textContent=text;steps.append(li);});
+        const manual=demo('wizBody','details','','wiz-connect-manual');manual.open=true;
+        const add=(tag,text,cls)=>{const el=document.createElement(tag);el.textContent=text;el.className=cls;manual.append(el);return el;};
+        add('summary','Добавить ссылку вручную','');add('div','Ссылка подписки','dev-label');
+        const link=add('div','','dev-link');const url=document.createElement('a');url.className='dev-link-text';url.textContent='https://example.com/subscription/personal';link.append(url);
+        const copy=document.createElement('button');copy.className='dev-lbtn';const label=document.createElement('span');label.textContent='Копировать';copy.append(label);link.append(copy);
+        demo('wizBody','button','Проверить подключение','btn btn-ghost').id='wizCheckConnection';
+        demo('wizBody','button','Не получилось — помогите','btn btn-ghost').id='wizHelp';
+      }
+      $('appMainBtn').textContent=({1:'Продолжить',2:'Приложение установлено →',4:'Добавить подписку'})[current.step];
+      $('appMainBtn').classList.remove('hidden');
     }
     window.WebappEditor.set(data);
   });
