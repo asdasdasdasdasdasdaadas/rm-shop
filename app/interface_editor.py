@@ -16,8 +16,8 @@ def editor_catalog():
     result = copy.deepcopy(CATALOG)
     result['screens'] = [s for s in result['screens'] if s['id'] not in RETIRED_SCREENS]
     result['actions'] = [a for a in result['actions'] if a['id'] not in RETIRED_SCREENS]
-    result['fields'] = [f for f in result['fields'] if f['screen'] not in RETIRED_SCREENS and f['key'] not in RETIRED_FIELDS and f['key'] not in {'promo_title','promo_open','invite_title','ref_share','ref_details'}]
-    result['blocks'] = [b for b in result['blocks'] if b['id']=='devicesBlock']
+    result['fields'] = [f for f in result['fields'] if f['screen'] not in RETIRED_SCREENS and f['key'] not in RETIRED_FIELDS and f['key'] not in {'promo_title','promo_open','ref_details'}]
+    result['blocks'] = [b for b in result['blocks'] if b['id'] in {'devicesBlock','refHomeCard'}]
     return result
 
 COLORS = {'background','surface','text','muted','button','buttonText'}

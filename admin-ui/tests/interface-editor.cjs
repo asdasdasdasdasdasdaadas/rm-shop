@@ -83,12 +83,25 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
  await live.getByRole('button',{name:'Написать нам',exact:true}).click();
  await live.locator('#view-support:not(.hidden)').waitFor();
  for(const id of ['menuSettings','menuPromo','menuAmbassador','menuReferrals','devCheckSetup'])assert.equal(await live.locator('#'+id).count(),0);
- for(const id of ['homePromoCard','refHomeCard','homeAmbassadorCard'])assert.equal(await live.locator('#'+id).isVisible(),false);
+ for(const id of ['homePromoCard','homeAmbassadorCard'])assert.equal(await live.locator('#'+id).isVisible(),false);
+ assert.equal(await live.locator('#modernReferralDetails').count(),0);
+ assert.equal(await live.locator('#devicesBlock + #refHomeCard').count(),1);
  for(const action of ['openSettings','openPromo','openReferrals','openAmbassador']) {
    await live.evaluate(name=>window[name](),action);
    await live.locator('#view-home:not(.hidden)').waitFor();
  }
 
+ assert.equal(await live.locator('#refHomeCard').isVisible(),true);
+ await live.evaluate(()=>{window.__me.invite_url='https://t.me/testbot?start=ref_123';tg.openTelegramLink=url=>window.sharedInvite=url;});
+ await live.locator('#refHomeShare').click();
+ assert.ok((await live.evaluate(()=>window.sharedInvite)).includes('ref_123'));
+ await live.setViewportSize({width:390,height:844});
+ await live.locator('#refHomeCard').scrollIntoViewIfNeeded();
+ await live.waitForTimeout(1200);
+ await live.locator('#refHomeCard').evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
+ await live.screenshot({path:'/tmp/invite-plane-card.png'});
+ await live.emulateMedia({reducedMotion:'reduce'});
+ assert.equal(await live.locator('#refHomeCard .modern-card-art').evaluate(el=>getComputedStyle(el).animationName),'none');
  await live.evaluate(()=>paint(window.__me));
  assert.equal(await live.locator('#deviceCount').count(),1);
  await live.evaluate(({catalog,config})=>WebappEditor.set({catalog,config:{...config,texts:{devices_title:'<img src=x onerror=window.injected=1>'}}}),{catalog,config:state.published});

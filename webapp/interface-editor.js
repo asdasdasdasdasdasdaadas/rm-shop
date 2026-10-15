@@ -49,6 +49,8 @@
       }
       const parent=document.querySelector('#view-home .home-col-main');
       const desired=(config.blocks || []).map(b=>document.getElementById(b.id)).filter(Boolean);
+      const invite=document.getElementById('refHomeCard'), devices=document.getElementById('devicesBlock');
+      if(desired.includes(invite) && desired.includes(devices)) { desired.splice(desired.indexOf(invite),1);desired.splice(desired.indexOf(devices)+1,0,invite); }
       const current=parent ? [...parent.children].filter(el=>desired.includes(el)) : [];
       if(parent && current.some((el,i)=>el!==desired[i])) {
         // Only reorder within the existing block positions; keep other content in place.
