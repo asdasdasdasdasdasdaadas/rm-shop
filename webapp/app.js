@@ -5101,3 +5101,18 @@ if ($("menuAmbassador"))
   };
 
 if ($("homeAmbassadorOpen")) $("homeAmbassadorOpen").onclick = () => openAmbassador();
+
+// Presentation settings never replace payment, access or onboarding logic.
+window.WebappEditor?.connect({
+  state: () => ({step: wiz.step, connected: wiz.checkResult === "connected"}),
+  action: (action, url) => {
+    const actions = {home:openHome, topup:openTopup, connect:()=>resumeConnection(window.__me || {}),
+      promo:openPromo, referrals:openReferrals, ambassador:openAmbassador, support:openSupport,
+      faq:openFaq, settings:openSettings, billing:openBilling};
+    if(action === "url") {
+      try { const link=new URL(url); if(link.protocol === "https:") tg.openLink(link.href); } catch (_) {}
+    } else actions[action]?.();
+  }
+});
+fetch('/api/interface', {cache:'no-store'}).then(r=>r.ok?r.json():null)
+  .then(data=>{if(data?.config) window.WebappEditor?.set(data);}).catch(()=>{});

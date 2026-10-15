@@ -124,7 +124,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "110"})
+    return web.json_response({"ok": True, "build": "111"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -2134,6 +2134,31 @@ async def api_referral_settings(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Не удалось сохранить реферальную программу"}, status=500)
 
 
+async def api_interface_editor(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import interface_editor
+    try:
+        data = await interface_editor.state() if request.method == 'GET' else await interface_editor.change(await request.json())
+        return web.json_response(data, headers=_NO_STORE)
+    except ValueError as exc:
+        return web.json_response({'ok': False, 'error': str(exc)}, status=400)
+
+
+async def interface_preview(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    import re
+    from app.interface_editor import WEBAPP
+    html = (WEBAPP / 'index.html').read_text()
+    html = re.sub(r'<script\b[^>]*>.*?</script>', '', html, flags=re.S)
+    html = html.replace('<head>', '<head><base href="/static/">')
+    html = html.replace('</body>', '<script src="/static/interface-editor.js?v=1"></script><script src="/static/interface-preview.js?v=1"></script></body>')
+    return web.Response(text=html, content_type='text/html', headers=_NO_STORE)
+
+
 async def api_settings(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2621,6 +2646,9 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/tickets/{ticket_id}", api_ticket_one)
     app.router.add_post("/admin/api/tickets/{ticket_id}", api_ticket_act)
     app.router.add_get("/admin/api/billing", api_billing)
+    app.router.add_get("/admin/api/interface", api_interface_editor)
+    app.router.add_post("/admin/api/interface", api_interface_editor)
+    app.router.add_get("/admin/interface-preview", interface_preview)
     app.router.add_get("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/settings", api_settings)
     app.router.add_get("/admin/api/referral-campaigns", api_referral_campaigns)

@@ -71,6 +71,7 @@ import { UsersPage } from "@/pages/users";
 import { StatisticsPage } from "@/pages/statistics";
 import { OverviewPage } from "@/pages/overview";
 import { RecordsPage, BackupsPage } from "@/pages/records";
+import { InterfaceEditorPage } from "@/pages/interface-editor";
 import { SettingsPage } from "@/pages/settings";
 import {
   PromoPage,
@@ -186,6 +187,13 @@ const sections = [
     description: "Проверяйте сообщения, ошибки и повторные отправки",
     group: "Коммуникации",
     icon: MessagesSquare,
+  },
+  {
+    id: "interface",
+    label: "Интерфейс вебаппа",
+    description: "Блоки, тексты, кнопки и оформление",
+    group: "Управление",
+    icon: LayoutDashboard,
   },
   {
     id: "settings",
@@ -507,6 +515,9 @@ function Workspace({
       break;
     case "users":
       page = <UsersPage />;
+      break;
+    case "interface":
+      page = <InterfaceEditorPage />;
       break;
     case "settings":
       page = <SettingsPage initial={params.get("section") || "general"} />;

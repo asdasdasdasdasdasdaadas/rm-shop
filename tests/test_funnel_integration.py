@@ -517,3 +517,20 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(await funnel_board._due(step,None,10,[])),1)
         await self.pool.execute('UPDATE devices SET last_online_at=NOW()')
         self.assertEqual(await funnel_board._due(step,None,10,[]),[])
+
+    async def test_interface_draft_publish_and_rollback(self):
+        import copy
+        from app import interface_editor as editor
+        first=await editor.state()
+        draft=copy.deepcopy(first['draft'])
+        draft['texts']['devices_title']='Подключитесь за минуту'
+        saved=await editor.change(dict(action='save',revision=first['revision'],config=draft))
+        self.assertEqual((await editor.public())['config'],editor.DEFAULT)
+        published=await editor.change(dict(action='publish',revision=saved['revision'],config=draft))
+        self.assertEqual((await editor.public())['config'],draft)
+        self.assertTrue(published['can_rollback'])
+        rolled=await editor.change(dict(action='rollback',revision=published['revision']))
+        self.assertEqual(rolled['published'],editor.DEFAULT)
+        with self.assertRaises(ValueError):
+            await editor.change(dict(action='publish',revision=first['revision'],config=draft))
+        self.assertEqual((await editor.public())['config'],editor.DEFAULT)

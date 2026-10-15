@@ -806,3 +806,12 @@ CREATE TABLE IF NOT EXISTS checkout_feedback (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_pause_until TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_pause_started_at TIMESTAMPTZ;
+
+-- Presentation-only editor: drafts never affect customers until publication.
+CREATE TABLE IF NOT EXISTS webapp_interface (
+    id INTEGER PRIMARY KEY CHECK (id=1),
+    revision INTEGER NOT NULL DEFAULT 0,
+    draft JSONB,
+    published JSONB,
+    previous JSONB
+);

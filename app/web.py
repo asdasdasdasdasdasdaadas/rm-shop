@@ -370,6 +370,11 @@ async def api_cabinet_login_status(request: web.Request) -> web.Response:
     return empty
 
 
+async def api_interface(request: web.Request) -> web.Response:
+    from app.interface_editor import public
+    return web.json_response(await public(), headers=_NO_STORE)
+
+
 async def api_me(request: web.Request) -> web.Response:
     settings = get_settings()
     telegram_id, parsed = await _resolve_telegram_id(request)
@@ -1283,6 +1288,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/api/ambassador", api_ambassador)
         app.router.add_post("/api/ambassador", api_ambassador)
         app.router.add_post("/api/referral-payout", api_referral_payout)
+        app.router.add_get("/api/interface", api_interface)
         app.router.add_static("/static", WEBAPP_DIR)
     else:
         app.router.add_get("/", health)

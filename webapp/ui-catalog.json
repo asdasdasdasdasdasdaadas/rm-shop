@@ -1,0 +1,325 @@
+{
+  "screens": [
+    {
+      "id": "home",
+      "label": "Главная"
+    },
+    {
+      "id": "topup",
+      "label": "Пополнение"
+    },
+    {
+      "id": "pay",
+      "label": "Способ оплаты"
+    },
+    {
+      "id": "promo",
+      "label": "Промокод"
+    },
+    {
+      "id": "referrals",
+      "label": "Друзья"
+    },
+    {
+      "id": "ambassador",
+      "label": "Амбассадор"
+    },
+    {
+      "id": "support",
+      "label": "Поддержка"
+    },
+    {
+      "id": "faq",
+      "label": "Частые вопросы"
+    },
+    {
+      "id": "settings",
+      "label": "Настройки"
+    },
+    {
+      "id": "billing",
+      "label": "История"
+    },
+    {
+      "id": "wizard",
+      "label": "Подключение"
+    }
+  ],
+  "fields": [
+    {
+      "key": "topup_title",
+      "screen": "topup",
+      "label": "Заголовок",
+      "selector": "#view-topup h1",
+      "default": "Пополнение баланса",
+      "kind": "text"
+    },
+    {
+      "key": "pay_title",
+      "screen": "pay",
+      "label": "Заголовок",
+      "selector": "#view-pay h1",
+      "default": "Пополнение баланса",
+      "kind": "text"
+    },
+    {
+      "key": "promo_screen_title",
+      "screen": "promo",
+      "label": "Заголовок",
+      "selector": "#view-promo h1",
+      "default": "Промокод",
+      "kind": "text"
+    },
+    {
+      "key": "referrals_title",
+      "screen": "referrals",
+      "label": "Заголовок",
+      "selector": "#view-referrals h1",
+      "default": "Друзья",
+      "kind": "text"
+    },
+    {
+      "key": "ambassador_title",
+      "screen": "ambassador",
+      "label": "Заголовок",
+      "selector": "#view-ambassador h1",
+      "default": "Амбассадор",
+      "kind": "text"
+    },
+    {
+      "key": "support_title",
+      "screen": "support",
+      "label": "Заголовок",
+      "selector": "#view-support h1",
+      "default": "Чат поддержки",
+      "kind": "text"
+    },
+    {
+      "key": "faq_title",
+      "screen": "faq",
+      "label": "Заголовок",
+      "selector": "#view-faq h1",
+      "default": "Частые вопросы",
+      "kind": "text"
+    },
+    {
+      "key": "settings_title",
+      "screen": "settings",
+      "label": "Заголовок",
+      "selector": "#view-settings h1",
+      "default": "Настройки",
+      "kind": "text"
+    },
+    {
+      "key": "billing_title",
+      "screen": "billing",
+      "label": "Заголовок",
+      "selector": "#view-billing h1",
+      "default": "История",
+      "kind": "text"
+    },
+    {
+      "key": "devices_title",
+      "screen": "home",
+      "label": "Раздел устройств: заголовок",
+      "selector": "#devicesHeading",
+      "default": "Устройства",
+      "kind": "text"
+    },
+    {
+      "key": "empty_text",
+      "screen": "home",
+      "label": "Нет устройств: описание",
+      "selector": "#emptyDevices .d",
+      "default": "Добавьте устройство, на котором хотите пользоваться VPN. Пока устройств нет, списаний нет.",
+      "kind": "text"
+    },
+    {
+      "key": "promo_title",
+      "screen": "home",
+      "label": "Карточка промокода",
+      "selector": "#homePromoTitle",
+      "default": "Промокод",
+      "kind": "text"
+    },
+    {
+      "key": "invite_title",
+      "screen": "home",
+      "label": "Карточка приглашения",
+      "selector": ".modern-invite-title",
+      "default": "Пригласить друзей",
+      "kind": "text"
+    },
+    {
+      "key": "help_title",
+      "screen": "home",
+      "label": "Раздел помощи",
+      "selector": ".home-help .section-title-plain",
+      "default": "Помощь",
+      "kind": "text"
+    },
+    {
+      "key": "promo_hint",
+      "screen": "promo",
+      "label": "Подсказка",
+      "selector": "#view-promo > .topup-hint",
+      "default": "Есть промокод? Введите его ниже.",
+      "kind": "text"
+    },
+    {
+      "key": "faq_hint",
+      "screen": "faq",
+      "label": "Описание",
+      "selector": "#view-faq > .topup-hint",
+      "default": "Поможем подключиться и разобраться с оплатой.",
+      "kind": "text"
+    },
+    {
+      "key": "topup",
+      "screen": "home",
+      "label": "Пополнение",
+      "selector": "#topupBtn",
+      "default": "Пополнить",
+      "kind": "button"
+    },
+    {
+      "key": "promo_open",
+      "screen": "home",
+      "label": "Открыть промокод",
+      "selector": "#homePromoOpen",
+      "default": "Ввести промокод",
+      "kind": "button"
+    },
+    {
+      "key": "faq",
+      "screen": "home",
+      "label": "Частые вопросы",
+      "selector": "#faqBtn > span:first-child",
+      "default": "Частые вопросы",
+      "kind": "button"
+    },
+    {
+      "key": "support",
+      "screen": "home",
+      "label": "Поддержка",
+      "selector": "#supportBtn > span:first-child",
+      "default": "Поддержка",
+      "kind": "button"
+    },
+    {
+      "key": "promo_apply",
+      "screen": "promo",
+      "label": "Применить код",
+      "selector": "#promoBtn",
+      "default": "Применить",
+      "kind": "button"
+    },
+    {
+      "key": "wizard_1",
+      "screen": "wizard",
+      "label": "Шаг 1: заголовок",
+      "selector": "#wizTitle",
+      "default": "Выбор устройства",
+      "kind": "text",
+      "step": 1
+    },
+    {
+      "key": "wizard_2",
+      "screen": "wizard",
+      "label": "Шаг 2: заголовок",
+      "selector": "#wizTitle",
+      "default": "Установите приложение",
+      "kind": "text",
+      "step": 2
+    },
+    {
+      "key": "wizard_4",
+      "screen": "wizard",
+      "label": "Шаг 4: заголовок",
+      "selector": "#wizTitle",
+      "default": "Осталось включить VPN",
+      "kind": "text",
+      "step": 4
+    },
+    {
+      "key": "add_device",
+      "screen": "home",
+      "label": "Добавить устройство",
+      "selector": "#addDeviceEmpty",
+      "default": "+ Добавить устройство",
+      "kind": "button"
+    }
+  ],
+  "blocks": [
+    {
+      "id": "devicesBlock",
+      "label": "Устройства",
+      "selector": "#devicesBlock",
+      "required": true
+    },
+    {
+      "id": "refHomeCard",
+      "label": "Приглашение друзей",
+      "selector": "#refHomeCard",
+      "required": false
+    },
+    {
+      "id": "homePromoCard",
+      "label": "Промокод",
+      "selector": "#homePromoCard",
+      "required": false
+    },
+    {
+      "id": "homeAmbassadorCard",
+      "label": "Амбассадорство",
+      "selector": "#homeAmbassadorCard",
+      "required": false
+    }
+  ],
+  "actions": [
+    {
+      "id": "home",
+      "label": "Главная"
+    },
+    {
+      "id": "topup",
+      "label": "Пополнение"
+    },
+    {
+      "id": "connect",
+      "label": "Подключить устройство"
+    },
+    {
+      "id": "promo",
+      "label": "Промокод"
+    },
+    {
+      "id": "referrals",
+      "label": "Пригласить друзей"
+    },
+    {
+      "id": "ambassador",
+      "label": "Амбассадорство"
+    },
+    {
+      "id": "support",
+      "label": "Поддержка"
+    },
+    {
+      "id": "faq",
+      "label": "Частые вопросы"
+    },
+    {
+      "id": "settings",
+      "label": "Настройки"
+    },
+    {
+      "id": "billing",
+      "label": "История"
+    },
+    {
+      "id": "url",
+      "label": "Внешняя ссылка"
+    }
+  ]
+}
