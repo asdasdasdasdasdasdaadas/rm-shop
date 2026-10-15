@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from html import escape
 
-from app.config import get_settings, referral_is_payout, shop_overlay
+from app.config import get_settings, shop_overlay
 from app.texts import days_text, rub_text
 from app.referral_terms import referral_terms
 
@@ -89,8 +89,6 @@ def default_faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
         {"q": "Когда начислят за приглашённого друга?", "a": terms["when"]},
         {"q": "Сколько дают за друга?", "a": terms["how"] + (" " + terms["friend"] if terms["friend"] else "")},
     ])
-    if referral_is_payout():
-        items.append({"q": "Можно вывести уже начисленные награды?", "a": f"Вывести можно от {rub_text(settings.referral_payout_min)} доступных реферальных средств. Заявка оформляется в кабинете."})
     if settings.trial_enabled and settings.trial_days > 0:
         items.append(
             {

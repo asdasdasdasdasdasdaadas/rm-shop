@@ -39,7 +39,7 @@ export const billKinds: Data = {
   admin_balance: "Изменение баланса",
   admin_grant: "Начисление",
   referral: "Реферальная награда",
-  referral_payout: "Вывод награды",
+  referral_payout: "Реферальная награда",
   referral_revoke: "Возврат награды",
   trust: "Обещанный платёж",
   trust_collect: "Возврат обещанного платежа",

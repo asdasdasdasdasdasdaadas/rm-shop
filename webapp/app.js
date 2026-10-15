@@ -949,7 +949,7 @@ function balanceAlertState(me) {
 let lowBalanceSelected = 0;
 function lowBalanceAmounts(me) {
   const min = Math.max(1, Number(me.topup_min) || 1);
-  const max = Math.max(min, Number(me.topup_max) || 5000);
+  const max = Math.max(min, Number(me.topup_max) || 100000);
   const amounts = [...new Set(me.has_paid_topup ? [min, 300, 500, 1000] : [min, 100, 300, 500])].filter(n => n >= min && n <= max).sort((a, b) => a - b);
   return amounts.length ? amounts : [min];
 }
@@ -1852,7 +1852,7 @@ function periodTopupRub(me, days) {
 function periodTopupPlans(me) {
   const day = Math.max(1, Number(me.vpn_day_price_rub) || 1);
   const min = Number(me.topup_min) || 1;
-  const max = Number(me.topup_max) || 5000;
+  const max = Number(me.topup_max) || 100000;
   const amounts = [100, 200, 300, 400, 500, 700, 800, 900, 1000];
   let list = amounts.filter((n) => n >= min && n <= max);
   if (!list.length) {
@@ -1880,7 +1880,7 @@ function monthTopupPlan(me) {
 
 function currentTopupPlan(me) {
   const min = Number(me.topup_min) || 1;
-  const max = Number(me.topup_max) || min;
+  const max = Number(me.topup_max) || 100000;
   const n = Number(topupCustomRub);
   if (!Number.isFinite(n) || n < min || n > max) return null;
   return {
@@ -1895,7 +1895,7 @@ function ensureTopupCode(me) {
   const plans = periodTopupPlans(me);
   if (!plans.length) return;
   const min = Number(me.topup_min) || 1;
-  const max = Number(me.topup_max) || min;
+  const max = Number(me.topup_max) || 100000;
   if (!Number.isFinite(topupCustomRub) || topupCustomRub < min || topupCustomRub > max) {
     const hit = plans.find((p) => p.hit) || plans[0];
     topupCustomRub = planRub(hit) || min;
@@ -2428,7 +2428,7 @@ const BILL_KIND = {
   trust_collect: "Возврат обещанного",
   device_delete: "Удаление устройства",
   referral: "Бонус за друга",
-  referral_payout: "Вывод вознаграждения",
+  referral_payout: "Реферальная награда",
   referral_revoke: "Возврат за друга",
   story: "Награда за историю",
 };
@@ -2642,15 +2642,10 @@ function paintReferrals(me) {
   const note = $("refStatsNote");
   const when = $("refFaqWhen");
   const how = $("refFaqHow");
-  const payWrap = $("refFaqPayoutWrap");
-  const pay = $("refFaqPayout");
   if (note) note.textContent = terms.note;
   if (when) when.textContent = terms.when;
   if (how) how.textContent = [terms.how, terms.friend].filter(Boolean).join(" ");
-  if (payWrap) payWrap.classList.toggle("hidden", !me.referral_payout_enabled);
-  if (pay) pay.textContent = `Вывод доступен от ${me.referral_payout_min || 2000} ₽. Проверим заявку и переведём деньги.`;
   paintRefFriends(me);
-  paintPayout(me);
 }
 
 function paintRefFriends(me) {
@@ -3018,7 +3013,7 @@ function renderTopup(me) {
 
   if (canCustom) {
     const min = Number(me.topup_min) || 1;
-    const max = Number(me.topup_max) || min;
+    const max = Number(me.topup_max) || 100000;
     const inp = $("topupAmount");
     if (inp && document.activeElement !== inp) inp.value = String(topupCustomRub || "");
     paintCustomTopup(me);
@@ -3579,37 +3574,6 @@ function renderDevices(me) {
   });
 }
 
-function paintPayout(me) {
-  const card = $("refPayoutCard");
-  const form = $("refPayoutForm");
-  const btn = $("refPayoutBtn");
-  if (!card) return;
-  if (!me.balance_enabled || !me.referral_payout_enabled) {
-    card.classList.add("hidden");
-    return;
-  }
-  card.classList.remove("hidden");
-  const min = me.referral_payout_min || 2000;
-  const avail = me.referral_available || 0;
-  const pending = me.referral_pending || 0;
-  const earned = me.referral_earned || 0;
-  $("refPayoutTitle").textContent = "Вывод вознаграждения";
-  if (pending > 0) {
-    $("refPayoutNote").textContent = `Заявка на ${pending} ₽ на проверке. Сообщим о результате.`;
-    form.classList.add("hidden");
-    return;
-  }
-  $("refPayoutNote").textContent =
-    `Накоплено ${earned} ₽, к выводу сейчас ${avail} ₽. Минимум ${min} ₽. ` +
-    "Можно вывести неиспользованное вознаграждение за друзей.";
-  if (me.referral_payout_can) {
-    form.classList.remove("hidden");
-    if (btn) btn.textContent = `Вывести ${avail} ₽`;
-  } else {
-    form.classList.add("hidden");
-  }
-}
-
 const TRIAL_NOTICE_KEY = "way_trial_notice_v1";
 
 function trialNoticeDismissed(kind) {
@@ -3909,7 +3873,6 @@ function paint(me) {
   paintRefBanner(me);
   paintUpdateNotice(me);
   $("invite").textContent = me.invite_url;
-  paintPayout(me);
   if (screen === "referrals") paintReferrals(me);
   $("offerLink").href = me.legal.offer;
   $("privacyLink").href = me.legal.privacy;
@@ -4106,7 +4069,7 @@ $("topupBtn").onclick = () => {
 
 function paintCustomTopup(me) {
   const min = Number(me.topup_min) || 1;
-  const max = Number(me.topup_max) || min;
+  const max = Number(me.topup_max) || 100000;
   const hint = $("topupCustomHint");
   if (!hint) {
     paintTopupSum(me);
@@ -4114,7 +4077,7 @@ function paintCustomTopup(me) {
   }
   const n = Number(topupCustomRub);
   const ok = Number.isFinite(n) && n >= min && n <= max;
-  hint.textContent = ok ? `От ${min} до ${max} ₽` : `Можно от ${min} до ${max} ₽`;
+  hint.textContent = ok ? `От ${min} ₽` : `Укажите сумму от ${min} ₽`;
   hint.classList.toggle("bad", Boolean(topupCustomRub) && !ok);
   paintTopupSum(me);
 }
@@ -4318,24 +4281,6 @@ $("invite").onclick = () => {
   haptic();
   copyInvite();
 };
-
-if ($("refPayoutBtn")) {
-  $("refPayoutBtn").onclick = async () => {
-    haptic();
-    const details = ($("refPayoutDetails") && $("refPayoutDetails").value) || "";
-    try {
-      const r = await api("/api/referral-payout", {
-        method: "POST",
-        body: JSON.stringify({ details }),
-      });
-      if ($("refPayoutDetails")) $("refPayoutDetails").value = "";
-      await load();
-      tg.showAlert((r && r.message) ? r.message.replace(/<[^>]+>/g, "") : "Заявка отправлена");
-    } catch (e) {
-      showErr(e);
-    }
-  };
-}
 
 let promoSubmitting = false;
 async function applyPromo(inputId, buttonId, resultId) {

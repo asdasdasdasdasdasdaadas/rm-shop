@@ -3359,12 +3359,29 @@ async def admin_list_referrals(
     return [_jsonable(dict(r)) for r in rows], int(total or 0)
 
 
+def _old_closed_ticket(alias: str = "") -> str:
+    prefix = f"{alias}." if alias else ""
+    return (
+        f"{prefix}status = 'closed' AND COALESCE("
+        f"{prefix}closed_at, {prefix}last_message_at, {prefix}created_at"
+        f") < NOW() - INTERVAL '1 month'"
+    )
+
+
+def _stale_unpaid_order(alias: str = "") -> str:
+    prefix = f"{alias}." if alias else ""
+    return (
+        f"{prefix}status <> 'granted' "
+        f"AND {prefix}created_at < NOW() - INTERVAL '30 minutes'"
+    )
+
+
 async def admin_list_orders(
     query: str, limit: int, offset: int, extra: dict | None = None
 ) -> tuple[list[dict], int]:
     pool = _pool_req()
     extra = extra or {}
-    clauses: list[str] = []
+    clauses: list[str] = [f"NOT ({_stale_unpaid_order('o')})"]
     args: list = []
     q = query.strip()
     if q:
@@ -4472,6 +4489,64 @@ async def log_billing_events(events: list[dict]) -> None:
         logging.getLogger("rm-shop.db").exception("Не удалось записать события биллинга")
 
 
+async def purge_old_closed_tickets(*, batch: int = 200) -> int:
+    """Remove closed support tickets older than a month, including their files."""
+    limit = max(20, min(500, int(batch)))
+    pool = _pool_req()
+    rows = await pool.fetch(
+        f"""
+        SELECT id FROM tickets
+        WHERE {_old_closed_ticket()}
+        ORDER BY id
+        LIMIT $1
+        """,
+        limit,
+    )
+    ids = [int(row["id"]) for row in rows]
+    if not ids:
+        return 0
+    files = await pool.fetch(
+        """
+        SELECT ta.stored_name
+        FROM ticket_attachments ta
+        JOIN ticket_messages tm ON tm.id = ta.message_id
+        WHERE tm.ticket_id = ANY($1::bigint[])
+        """,
+        ids,
+    )
+    await pool.execute("DELETE FROM tickets WHERE id = ANY($1::bigint[])", ids)
+    from app.ticket_files import unlink_stored
+
+    for row in files:
+        try:
+            unlink_stored(str(row["stored_name"] or ""))
+        except Exception:
+            logging.getLogger("rm-shop.db").debug(
+                "Не удалось удалить файл обращения", exc_info=True
+            )
+    return len(ids)
+
+
+async def purge_stale_unpaid_orders(*, batch: int = 2000) -> int:
+    """Drop invoices that were never paid. The payments list hides them after 30 minutes."""
+    limit = max(100, min(5000, int(batch)))
+    status = await _pool_req().execute(
+        f"""
+        DELETE FROM rollypay_orders
+        WHERE order_id IN (
+            SELECT order_id FROM rollypay_orders
+            WHERE {_stale_unpaid_order()}
+            LIMIT $1
+        )
+        """,
+        limit,
+    )
+    try:
+        return int(str(status).split()[-1])
+    except (TypeError, ValueError, IndexError):
+        return 0
+
+
 async def purge_old_billing_events(
     keep_days: int, *, batch: int = 8000, max_batches: int = 40
 ) -> int:
@@ -4957,6 +5032,7 @@ async def user_list_tickets(telegram_id: int, limit: int = 20) -> list[dict]:
             ) AS last_body
         FROM tickets t
         WHERE t.telegram_id = $1
+          AND NOT ({_old_closed_ticket('t')})
         ORDER BY t.last_message_at DESC, t.id DESC
         LIMIT $2
         """,
@@ -4974,7 +5050,7 @@ async def admin_list_tickets(
 ) -> tuple[list[dict], int]:
     pool = _pool_req()
     extra = extra or {}
-    clauses: list[str] = []
+    clauses: list[str] = [f"NOT ({_old_closed_ticket()})"]
     args: list = []
     status = str(extra.get("status") or "").strip()
     if status in {"open", "pending", "closed"}:

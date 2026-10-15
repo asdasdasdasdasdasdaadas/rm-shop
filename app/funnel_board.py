@@ -428,7 +428,6 @@ async def _flag(name: str, default: bool) -> bool:
 
 
 async def default_graph() -> dict:
-    from app import ambassadors
     from app.notices import notice_text
     from app.nudge import _idle_notice_key, trial_nudge_text
 
@@ -439,15 +438,6 @@ async def default_graph() -> dict:
             value = ""
         return value or "Напишите текст сообщения."
 
-    try:
-        cfg = await ambassadors.settings()
-        active = ambassadors.invitation_text(cfg)
-        active_next = ambassadors.invitation_followup_text(cfg)
-        earn = ambassadors.invitation_earn_text(cfg)
-        earn_next = ambassadors.invitation_earn_followup_text(cfg)
-    except Exception:
-        logger.debug("Текст амбассадоров для доски не собрался", exc_info=True)
-        active = active_next = earn = earn_next = "Расскажите, как можно зарабатывать на рекомендациях."
     try:
         gift_text = trial_nudge_text("{name}", already_granted=False)
     except Exception:
@@ -498,14 +488,6 @@ async def default_graph() -> dict:
             ))
         branches.append({"id": f"idle-{segment}", "title": title, "steps": steps})
     branches.extend([
-        {"id": "earn", "title": "Заработок на VPN", "steps": [
-            _step("earn-1", "ambassador_earn", 48, earn, ["ambassador", "menu"]),
-            _step("earn-2", "ambassador_earn", 168, earn_next, ["ambassador", "menu"], "previous"),
-        ]},
-        {"id": "active", "title": "Приглашение амбассадора", "steps": [
-            _step("active-1", "ambassador_active", 168, active, ["ambassador", "menu"]),
-            _step("active-2", "ambassador_active", 168, active_next, ["ambassador", "menu"], "previous"),
-        ]},
         {"id": "friends", "title": "Пригласить друга", "steps": [
             _step("invite-1", "invite", 48, tx("invite_nudge"), ["share", "copy", "menu"], enabled=invite_on),
         ]},
@@ -572,10 +554,20 @@ def _parse(raw) -> dict:
     return validate(raw)
 
 
+def _kept_button(button) -> bool:
+    if isinstance(button, str):
+        return button != "ambassador"
+    if isinstance(button, dict):
+        return button.get("action") != "ambassador"
+    return True
+
+
 def without_retired_branches(graph):
     graph = json.loads(json.dumps(graph))
     for branch in graph['branches']:
         branch['steps'] = [s for s in branch['steps'] if s['condition'] not in {'winback','ambassador_earn','ambassador_active'}]
+        for step in branch['steps']:
+            step['buttons'] = [button for button in step.get('buttons') or [] if _kept_button(button)]
     graph['branches'] = [b for b in graph['branches'] if b['steps']]
     return graph
 

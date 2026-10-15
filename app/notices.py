@@ -234,8 +234,7 @@ DEFAULT_NOTICES = {'paid_setup_nudge': '📱 Баланс пополнен — �
  'referral_referrer_paid': '<b>Поздравляем</b>\n'
                            '\n'
                            'Друг {name} первый раз оплатил VPN по вашей ссылке.\n'
-                           'Вам начислено <b>{amount}</b> на баланс. Это реферальные: их можно вывести '
-                           'при накоплении порога.',
+                           'Вам начислено <b>{amount}</b> на баланс.',
  'referral_payout_submitted': '✅ Заявка на вывод <b>{amount}</b> принята. Сообщим о результате.',
  'referral_payout_paid': '✅ Перевели вам <b>{amount}</b> реферального вознаграждения.',
  'referral_payout_rejected': 'Заявка на вывод <b>{amount}</b> отклонена. Деньги вернулись на баланс.',
@@ -346,6 +345,7 @@ class _SafeMap(dict):
 
 # Preserve saved legacy templates, but do not offer inactive chains as live settings.
 ARCHIVED_NOTICE_KEYS = {
+    'referral_payout_submitted', 'referral_payout_paid', 'referral_payout_rejected',
     'welcome_intro_legal', 'legal', 'referral_referrer_balance', 'referral_referrer_paid',
     'first_device_thanks', 'first_online_nudge', 'device_nudge_2', 'device_nudge_3',
     'legal_nudge_1', 'legal_nudge_2', 'legal_nudge_3', 'referral_invitee_balance',

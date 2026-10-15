@@ -30,14 +30,12 @@ const audiences: [string, string][] = [
   ["all", "Все доступные пользователи"],
   ["using", "Пользовались VPN"],
   ["unused", "Ещё не пользовались VPN"],
-  ["ambassador", "Могут стать амбассадорами"],
 ];
 const templates: [string, string][] = [
   ["", "Своё сообщение"],
   ["whitelist", "Белые списки включены"],
   ["invite", "Пригласить друзей"],
   ["unused", "Помощь с первым подключением"],
-  ["ambassador", "Приглашение в амбассадоры"],
 ];
 function Delivery({ data }: { data: Data }) {
   return (
@@ -304,9 +302,7 @@ export function BroadcastPage() {
           ? "unused"
           : template === "whitelist"
             ? "all"
-            : template === "ambassador"
-              ? "ambassador"
-              : audience,
+            : audience,
     count = data?.audiences?.[effectiveAudience] ?? 0,
     body = template ? data?.previews?.[template] || "" : text;
   const selectTemplate = (v: string) => {

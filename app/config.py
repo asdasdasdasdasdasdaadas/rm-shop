@@ -59,9 +59,9 @@ class Settings(BaseSettings):
 
     balance_enabled: bool = True
     vpn_day_price_rub: int = 6
-    max_devices: int = 6
+    max_devices: int = 5
     balance_topup_min: int = 50
-    balance_topup_max: int = 5000
+    balance_topup_max: int = 100000
     balance_topup_step: int = 50
     referral_program_enabled: bool = False
     referral_reward_rub: int = 50
@@ -154,9 +154,14 @@ class Settings(BaseSettings):
     @property
     def shop_plans(self) -> dict[str, dict]:
         result: dict[str, dict] = {}
-        amount = self.balance_topup_min
-        step = max(1, self.balance_topup_step)
-        while amount <= self.balance_topup_max:
+        amounts = [
+            amount
+            for amount in (50, 100, 150, 200, 300, 500, 1000)
+            if self.balance_topup_min <= amount <= self.balance_topup_max
+        ]
+        if not amounts:
+            amounts = [max(1, int(self.balance_topup_min or 1))]
+        for amount in amounts:
             result[f"b{amount}"] = {
                 "title": f"{amount} рублей",
                 "days": 0,
@@ -165,7 +170,6 @@ class Settings(BaseSettings):
                 "rub_str": f"{amount:.2f}",
                 "topup_rub": amount,
             }
-            amount += step
         return result
 
     def router_plan(self) -> dict | None:
@@ -323,12 +327,10 @@ def get_settings() -> Settings:
     if "remnawave_hwid_limit" in update:
         raw = update["remnawave_hwid_limit"]
         update["remnawave_hwid_limit"] = None if raw in (0, None, "") else int(raw)
-    if "referral_mode" not in update and "referral_payout_enabled" in update:
-        update["referral_mode"] = "payout" if update.get("referral_payout_enabled") else "classic"
-    mode = str(update.get("referral_mode") or "").strip().lower()
-    if mode in {"classic", "payout"}:
-        update["referral_mode"] = mode
-        update["referral_payout_enabled"] = mode == "payout"
+    update["max_devices"] = 5
+    update["balance_topup_max"] = 100000
+    update["referral_mode"] = "classic"
+    update["referral_payout_enabled"] = False
     if hasattr(base, "model_copy"):
         return base.model_copy(update=update)
     return base.copy(update=update)

@@ -61,7 +61,7 @@ def validate_shop(body: dict) -> dict:
     out["legal_offer_url"] = _as_url(body.get("legal_offer_url"), "Оферта")
     out["legal_privacy_url"] = _as_url(body.get("legal_privacy_url"), "Политика")
     out["vpn_day_price_rub"] = _as_int(body.get("vpn_day_price_rub"), 1, 10000, "Цена суток")
-    out["max_devices"] = _as_int(body.get("max_devices"), 0, 50, "Максимум устройств")
+    out["max_devices"] = 5
     out["remnawave_hwid_limit"] = _as_int(body.get("remnawave_hwid_limit"), 0, 20, "Лимит HWID")
     out["trial_enabled"] = bool(body.get("trial_enabled"))
     out["trial_days"] = _as_int(body.get("trial_days"), 1, 90, "Дни триала")
@@ -73,14 +73,9 @@ def validate_shop(body: dict) -> dict:
         )
     else:
         out["referral_invitee_reward_rub"] = int(get_settings().referral_invitee_reward_rub or 0)
-    mode = str(body.get("referral_mode") or "").strip().lower()
-    if not mode:
-        mode = "payout" if body.get("referral_payout_enabled") else "classic"
-    if mode not in {"classic", "payout"}:
-        raise ValueError("Режим рефералки: classic или payout")
-    out["referral_mode"] = mode
-    out["referral_payout_enabled"] = mode == "payout"
-    out["referral_payout_min"] = _as_int(body.get("referral_payout_min"), 1, 1000000, "Мин. вывод реферальных")
+    out["referral_mode"] = "classic"
+    out["referral_payout_enabled"] = False
+    out["referral_payout_min"] = 2000
     out["story_reward_enabled"] = False
     out["trust_enabled"] = bool(body.get("trust_enabled"))
     out["trust_days"] = _as_int(body.get("trust_days"), 1, 30, "Дни обещанного платежа")
@@ -88,7 +83,7 @@ def validate_shop(body: dict) -> dict:
     out["referral_reward_days"] = _as_int(body.get("referral_reward_days"), 0, 365, "Реф. дни пригласившему")
     out["referral_invitee_days"] = _as_int(body.get("referral_invitee_days"), 0, 365, "Реф. дни другу")
     out["balance_topup_min"] = _as_int(body.get("balance_topup_min"), 1, 100000, "Мин. пополнение")
-    out["balance_topup_max"] = _as_int(body.get("balance_topup_max"), 1, 100000, "Макс. пополнение")
+    out["balance_topup_max"] = 100000
     out["balance_topup_step"] = _as_int(body.get("balance_topup_step"), 1, 100000, "Шаг пополнения")
     if out["balance_topup_max"] < out["balance_topup_min"]:
         raise ValueError("Максимум пополнения не меньше минимума")
@@ -194,11 +189,15 @@ async def load_shop_overlay() -> None:
         data = {}
     if not isinstance(data, dict):
         data = {}
-    # Apply the new device limit once; later admin changes survive restarts.
-    if not await db.get_kv("device_limit_6_v1"):
-        data["max_devices"] = 6
+    try:
+        current_limit = int(data.get("max_devices") or 0)
+    except (TypeError, ValueError):
+        current_limit = 0
+    if current_limit != 5:
+        data["max_devices"] = 5
         await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
-        await db.set_kv("device_limit_6_v1", "1")
+    if not await db.get_kv("device_limit_5_v1"):
+        await db.set_kv("device_limit_5_v1", "1")
     data.pop("router_enabled", None)
     data.pop("router_rub", None)
     data.pop("router_days", None)
@@ -209,8 +208,8 @@ async def load_shop_overlay() -> None:
         max_n = int(data.get("balance_topup_max") or 0)
     except (TypeError, ValueError):
         max_n = 0
-    if 0 < max_n <= 500:
-        data["balance_topup_max"] = 5000
+    if max_n != 100000:
+        data["balance_topup_max"] = 100000
         await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
     set_shop_overlay(data)
     await db.migrate_legacy_promo_codes()
@@ -237,13 +236,13 @@ async def save_referral_settings(body: dict) -> dict:
         raise ValueError("Неизвестный режим реферальной программы")
     changes = {
         "referral_program_enabled": enabled,
-        "referral_mode": mode,
-        "referral_payout_enabled": mode == "payout",
+        "referral_mode": "classic",
+        "referral_payout_enabled": False,
         "referral_reward_rub": 50,
     }
     for key, lo, hi, label in (
         ("referral_invitee_reward_rub", 0, 100000, "Бонус другу"),
-        ("referral_payout_min", 1, 1000000, "Минимум вывода"),
+        ("referral_payout_min", 1, 1000000, "Сумма"),
         ("referral_reward_days", 0, 365, "Дни пригласившему"),
         ("referral_invitee_days", 0, 365, "Дни другу"),
     ):

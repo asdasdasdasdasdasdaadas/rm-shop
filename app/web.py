@@ -659,22 +659,10 @@ async def api_story_share(request: web.Request) -> web.Response:
 
 
 async def api_referral_payout(request: web.Request) -> web.Response:
-    telegram_id, denied = await _require_tg(request)
+    _telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    details = str((body or {}).get("details") or "")
-    bot: Bot = request.app["bot"]
-    from app.payouts import request_referral_payout
-
-    ok, message = await request_referral_payout(bot, telegram_id, details)
-    if not ok:
-        return json_error(message)
-    wallet = await db.referral_wallet(telegram_id)
-    return web.json_response({"ok": True, "message": message, **referral_payout_public(wallet)})
+    return json_error("Награда начисляется на баланс")
 
 
 async def api_invoice(request: web.Request) -> web.Response:

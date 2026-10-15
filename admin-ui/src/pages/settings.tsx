@@ -3,7 +3,6 @@ import { api, useResource, type Data } from "@/lib/api";
 import { saveSettingsPatchWith } from "@/lib/contracts.mjs";
 import {
   ActionButton,
-  Choice,
   Empty,
   Failure,
   Field,
@@ -84,12 +83,6 @@ const groups: {
         min: 1,
       },
       {
-        key: "balance_topup_max",
-        label: "Максимальное пополнение, ₽",
-        type: "number",
-        min: 1,
-      },
-      {
         key: "balance_topup_step",
         label: "Шаг выбора суммы, ₽",
         type: "number",
@@ -106,9 +99,9 @@ const groups: {
         key: "max_devices",
         label: "Максимум устройств",
         type: "number",
-        min: 0,
-        max: 50,
-        hint: "0 — без ограничения.",
+        min: 5,
+        max: 5,
+        hint: "5 устройств на пользователя.",
       },
       {
         key: "remnawave_hwid_limit",
@@ -165,12 +158,6 @@ const groups: {
         label: "Подарок приглашённому за оплату, ₽",
         type: "number",
         min: 0,
-      },
-      {
-        key: "referral_payout_min",
-        label: "Минимальная сумма вывода, ₽",
-        type: "number",
-        min: 1,
       },
     ],
   },
@@ -307,22 +294,6 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
                       )}
                     </Field>
                   ))}
-                {section === "referrals" && (
-                  <Field label="Использование награды">
-                    <Choice
-                      label="Режим реферальной программы"
-                      value={values.referral_mode || "classic"}
-                      options={[
-                        ["classic", "Только на баланс"],
-                        ["payout", "На баланс или вывод"],
-                      ]}
-                      onChange={(v) => {
-                        update("referral_mode", v);
-                        update("referral_payout_enabled", v === "payout");
-                      }}
-                    />
-                  </Field>
-                )}
               </div>
               <button type="submit" className="sr-only">
                 Сохранить настройки

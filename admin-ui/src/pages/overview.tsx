@@ -186,11 +186,6 @@ export function OverviewPage({
                     "tickets?status=open",
                   ],
                   [
-                    "Заявки на вывод наград",
-                    u.payouts_pending || 0,
-                    "referrals?view=payouts",
-                  ],
-                  [
                     "Заблокировали бота",
                     u.bot_blocked || 0,
                     "users?status=bot_block",

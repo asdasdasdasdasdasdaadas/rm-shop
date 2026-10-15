@@ -1625,8 +1625,11 @@ async def _broadcast_all(
     template: str | None = None,
 ) -> None:
     tpl = str(template or "").strip()
-    if tpl in {"invite", "unused", "ambassador"}:
-        audience = "using" if tpl == "invite" else "unused" if tpl == "unused" else "ambassador"
+    if tpl == "ambassador":
+        job["running"] = False
+        return
+    if tpl in {"invite", "unused"}:
+        audience = "using" if tpl == "invite" else "unused"
         targets = await db.list_broadcast_targets(audience)
     elif ids is not None:
         targets = [{"telegram_id": int(item), "first_name": None} for item in ids]
@@ -1637,11 +1640,6 @@ async def _broadcast_all(
         await db.update_broadcast_run(job["run_id"], job)
     settings = get_settings()
     ambassador_cfg = None
-    if tpl == "ambassador":
-        from app.ambassadors import recruitment_offer
-        ambassador_cfg = await recruitment_offer()
-        if not ambassador_cfg:
-            return
     for row in targets:
         if not job.get("running"):
             break
@@ -1887,12 +1885,10 @@ async def api_broadcast(request: web.Request) -> web.Response:
     if request.method == "GET":
         extra = {"audiences": audiences} if audiences else {}
         if not job.get("running"):
-            from app.ambassadors import invitation_text, settings as ambassador_settings
             extra["previews"] = {
                 "invite": _broadcast_template_preview("invite"),
                 "unused": _broadcast_template_preview("unused"),
                 "whitelist": _broadcast_template_preview("whitelist"),
-                "ambassador": invitation_text(await ambassador_settings()),
             }
         return web.json_response({"ok": True, **job, **extra})
     if job.get("running"):
@@ -1901,19 +1897,9 @@ async def api_broadcast(request: web.Request) -> web.Response:
     template = str(body.get("template") or "").strip()
     if template == "invite" and not get_settings().referral_program_enabled:
         return web.json_response({"ok": False, "error": "Реферальная программа приостановлена"}, status=400)
-    if template not in {"", "invite", "unused", "whitelist", "ambassador"}:
+    if template not in {"", "invite", "unused", "whitelist"}:
         return web.json_response({"ok": False, "error": "Неизвестный шаблон"}, status=400)
     text = str(body.get("text") or "").strip()
-    if template == "ambassador":
-        from app.ambassadors import invitation_text, recruitment_offer, settings as ambassador_settings
-        if not await recruitment_offer():
-            return web.json_response({"ok": False, "error": "Набор амбассадоров сейчас закрыт"}, status=400)
-        text = invitation_text(await ambassador_settings())
-        ids = await db.list_broadcast_ids("ambassador")
-        if not ids:
-            return web.json_response({"ok": False, "error": "Нет получателей для этого шаблона"}, status=400)
-        started = _start_broadcast_job(request.app, text, ids, template)
-        return web.json_response({"ok": True, **started, "audiences": audiences})
     if template in {"invite", "unused", "whitelist"}:
         text = _broadcast_template_preview(template)
         audience = "using" if template == "invite" else "unused" if template == "unused" else "all"
@@ -1927,7 +1913,7 @@ async def api_broadcast(request: web.Request) -> web.Response:
     if len(text) > 3500:
         return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
     audience = str(body.get("audience") or "all").strip() or "all"
-    if audience not in {"all", "using", "unused", "ambassador"}:
+    if audience not in {"all", "using", "unused"}:
         return web.json_response({"ok": False, "error": "Неизвестная аудитория"}, status=400)
     ids = None if audience == "all" else await db.list_broadcast_ids(audience)
     if ids is not None and not ids:

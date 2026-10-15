@@ -55,6 +55,26 @@ async def balance_charge_loop(rw: RemnawaveClient, bot: Bot) -> None:
         await asyncio.sleep(interval)
 
 
+async def stale_records_loop() -> None:
+    """Drop abandoned invoices and old closed tickets once a day. Lists hide them immediately."""
+    interval = 24 * 60 * 60
+    await asyncio.sleep(interval)
+    while True:
+        try:
+            stale = await db.purge_stale_unpaid_orders()
+            if stale:
+                logger.info("Удалены неоплаченные счета старше 30 минут: %s", stale)
+        except Exception:
+            logger.exception("Очистка неоплаченных счетов не удалась")
+        try:
+            old_tickets = await db.purge_old_closed_tickets()
+            if old_tickets:
+                logger.info("Удалены закрытые обращения старше месяца: %s", old_tickets)
+        except Exception:
+            logger.exception("Очистка закрытых обращений не удалась")
+        await asyncio.sleep(interval)
+
+
 async def panel_sync_loop(rw: RemnawaveClient) -> None:
     interval = get_settings().panel_sync_interval
     if interval <= 0:
@@ -154,6 +174,7 @@ async def main() -> None:
         review_task = asyncio.create_task(application_review_loop(bot), name="ambassador-review")
         sync_task = asyncio.create_task(panel_sync_loop(rw), name="panel-sync")
         charge_task = asyncio.create_task(balance_charge_loop(rw, bot), name="balance-charge")
+        stale_task = asyncio.create_task(stale_records_loop(), name="stale-records")
         dump_task = asyncio.create_task(backup_loop(bot), name="backup")
         from app.campaigns import campaign_announcement_loop
         campaign_task = asyncio.create_task(campaign_announcement_loop(bot), name="campaign-announcements")
@@ -170,6 +191,7 @@ async def main() -> None:
             await asyncio.gather(payment_effects_task, review_task, return_exceptions=True)
             sync_task.cancel()
             charge_task.cancel()
+            stale_task.cancel()
             dump_task.cancel()
             nudge_task.cancel()
             campaign_task.cancel()

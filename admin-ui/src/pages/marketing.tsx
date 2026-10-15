@@ -25,7 +25,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Plus,
   Copy,
@@ -440,20 +439,8 @@ export function AdsPage() {
 export function ReferralsPage() {
   const navigate = useNavigate();
   return (
-    <Tabs
-      defaultValue={
-        new URLSearchParams(location.hash.split("?")[1] || "").get("view") ===
-        "payouts"
-          ? "payouts"
-          : "friends"
-      }
-      className="space-y-5"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <TabsList>
-          <TabsTrigger value="friends">Приглашения</TabsTrigger>
-          <TabsTrigger value="payouts">Вывод наград</TabsTrigger>
-        </TabsList>
+    <div className="space-y-5">
+      <div className="flex justify-end">
         <Button
           variant="outline"
           onClick={() => navigate("settings?section=referrals")}
@@ -461,13 +448,8 @@ export function ReferralsPage() {
           Настроить программу
         </Button>
       </div>
-      <TabsContent value="friends">
-        <RecordsPage kind="referrals" />
-      </TabsContent>
-      <TabsContent value="payouts">
-        <RecordsPage kind="payouts" />
-      </TabsContent>
-    </Tabs>
+      <RecordsPage kind="referrals" />
+    </div>
   );
 }
 export function CampaignsPage() {

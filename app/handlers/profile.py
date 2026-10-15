@@ -12,7 +12,7 @@ from aiogram.types import LinkPreviewOptions, CallbackQuery, LabeledPrice, Messa
 from app import db
 from app.checkout import resume_checkout
 from app.billing import fulfill_rollypay_order, grant_plan
-from app.config import get_settings, referral_is_payout
+from app.config import get_settings
 from app.handlers.start import ack, gate_or_continue, show_profile
 from app.keyboards import (
     back_profile_keyboard,
@@ -72,8 +72,6 @@ async def share(callback: CallbackQuery) -> None:
     body = "<b>Пригласить друга</b>\n\n" + "\n\n".join(
         text for text in (terms["note"], terms["when"], terms["friend"]) if text
     )
-    if referral_is_payout():
-        body += f"\n\nВывести уже начисленные реферальные средства можно от {rub_text(settings.referral_payout_min)}."
     body += f"\n\nВаша ссылка:\n<code>{link}</code>"
     await edit_funnel(callback.message,
         body,
