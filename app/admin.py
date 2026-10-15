@@ -124,7 +124,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "111"})
+    return web.json_response({"ok": True, "build": "112"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -2155,7 +2155,7 @@ async def interface_preview(request: web.Request) -> web.Response:
     html = (WEBAPP / 'index.html').read_text()
     html = re.sub(r'<script\b[^>]*>.*?</script>', '', html, flags=re.S)
     html = html.replace('<head>', '<head><base href="/static/">')
-    html = html.replace('</body>', '<script src="/static/interface-editor.js?v=1"></script><script src="/static/interface-preview.js?v=1"></script></body>')
+    html = html.replace('</body>', '<script src="/static/interface-editor.js?v=2"></script><script src="/static/interface-preview.js?v=2"></script></body>')
     return web.Response(text=html, content_type='text/html', headers=_NO_STORE)
 
 

@@ -248,6 +248,30 @@
       "selector": "#addDeviceEmpty",
       "default": "+ Добавить устройство",
       "kind": "button"
+    },
+    {
+      "key": "overview_eyebrow",
+      "screen": "home",
+      "label": "Подпись над сроком доступа",
+      "selector": ".modern-overview .modern-eyebrow",
+      "default": "Ваш VPN",
+      "kind": "text"
+    },
+    {
+      "key": "ref_share",
+      "screen": "home",
+      "label": "Отправить приглашение",
+      "selector": "#refHomeShare",
+      "default": "Отправить",
+      "kind": "button"
+    },
+    {
+      "key": "ref_details",
+      "screen": "home",
+      "label": "Условия приглашения",
+      "selector": "#modernReferralDetails",
+      "default": "Условия",
+      "kind": "button"
     }
   ],
   "blocks": [

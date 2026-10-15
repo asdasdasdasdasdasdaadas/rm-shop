@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type Data } from "@/lib/api";
 import {
-  Panel,
   Field,
   Choice,
   Loading,
@@ -13,20 +12,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import {
   ArrowUp,
   ArrowDown,
   Plus,
   Trash2,
-  RotateCcw,
+  Undo2,
+  Redo2,
   Save,
   Send,
+  Palette,
+  MousePointer2,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
-
-const colors: [string, string, string][] = [
+type Selection = {
+  kind: "field" | "block" | "custom" | "theme";
+  id: string;
+  property?: string;
+} | null;
+const colors = [
   ["background", "Фон", "#101114"],
   ["surface", "Карточки", "#20242b"],
   ["text", "Основной текст", "#f3f4f6"],
@@ -39,25 +44,109 @@ export function InterfaceEditorPage() {
     [draft, setDraft] = useState<Data | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
+    [inlineDirty, setInlineDirty] = useState(false),
     [screen, setScreen] = useState("home"),
     [step, setStep] = useState("1"),
-    [width, setWidth] = useState("390");
+    [width, setWidth] = useState("390"),
+    [selection, setSelection] = useState<Selection>(null),
+    [historyTick, setHistoryTick] = useState(0);
+  const draftRef = useRef<Data | null>(null),
+    flushRef = useRef<(() => void) | null>(null);
   const frame = useRef<HTMLIFrameElement>(null),
+    history = useRef<{ past: Data[]; future: Data[] }>({
+      past: [],
+      future: [],
+    }),
     confirm = useConfirm();
-  const dirty = !!data && JSON.stringify(draft) !== JSON.stringify(data.draft);
-  const unpublished =
-    !!data && JSON.stringify(draft) !== JSON.stringify(data.published);
+  const dirty =
+      inlineDirty ||
+      (!!data && JSON.stringify(draft) !== JSON.stringify(data.draft)),
+    unpublished =
+      inlineDirty ||
+      (!!data && JSON.stringify(draft) !== JSON.stringify(data.published));
   useDirty(dirty);
-  const load = () => {
-    setError("");
+  const load = () =>
     api("interface")
       .then((d) => {
         setData(d);
         setDraft(d.draft);
+        draftRef.current = d.draft;
+        history.current = { past: [], future: [] };
       })
       .catch((e) => setError(e.message));
+  useEffect(() => {
+    void load();
+  }, []);
+  const update = (next: Data) => {
+    if (!draft || JSON.stringify(next) === JSON.stringify(draft)) return;
+    history.current.past.push(draft);
+    history.current.past = history.current.past.slice(-100);
+    history.current.future = [];
+    setDraft(next);
+    draftRef.current = next;
+    setHistoryTick((v) => v + 1);
   };
-  useEffect(load, []);
+  const undo = (redo = false) => {
+    if (!draft) return;
+    const from = redo ? history.current.future : history.current.past,
+      to = redo ? history.current.past : history.current.future;
+    const next = from.pop();
+    if (next) {
+      to.push(draft);
+      setDraft(next);
+      draftRef.current = next;
+      setHistoryTick((v) => v + 1);
+    }
+  };
+  const patch = (key: string, value: unknown) => {
+    if (draft) update({ ...draft, [key]: value });
+  };
+  const edit = (s: Selection, value: string) => {
+    if (!draft || !s) return;
+    if (s.kind === "field") {
+      const texts = { ...draft.texts };
+      if (value.trim()) texts[s.id] = value;
+      else delete texts[s.id];
+      patch("texts", texts);
+    } else if (
+      s.kind === "custom" &&
+      ["title", "text", "label"].includes(s.property || "")
+    )
+      changeCustom(s.id, s.property!, value);
+  };
+  const changeCustom = (id: string, key: string, value: unknown) => {
+    if (draft)
+      patch(
+        "custom",
+        draft.custom.map((b: Data) =>
+          b.id === id ? { ...b, [key]: value } : b,
+        ),
+      );
+  };
+  const moveTo = (source: Selection, target: Selection) => {
+    if (
+      !draft ||
+      !source ||
+      !target ||
+      source.kind !== target.kind ||
+      source.id === target.id
+    )
+      return;
+    const key =
+      source.kind === "block"
+        ? "blocks"
+        : source.kind === "custom"
+          ? "custom"
+          : null;
+    if (!key) return;
+    const items = [...draft[key]],
+      from = items.findIndex((b) => b.id === source.id),
+      to = items.findIndex((b) => b.id === target.id);
+    if (from < 0 || to < 0) return;
+    const [item] = items.splice(from, 1);
+    items.splice(to, 0, item);
+    patch(key, items);
+  };
   const preview = () =>
     frame.current?.contentWindow?.postMessage(
       {
@@ -66,36 +155,93 @@ export function InterfaceEditorPage() {
         catalog: data?.catalog,
         screen,
         step: Number(step),
+        selection,
       },
       location.origin,
     );
   useEffect(() => {
     preview();
-  }, [draft, screen, step, data]);
+  }, [draft, data, screen, step, selection]);
   useEffect(() => {
     const listener = (e: MessageEvent) => {
       if (
-        e.origin === location.origin &&
-        e.source === frame.current?.contentWindow &&
-        e.data?.type === "interface-preview-ready"
+        e.origin !== location.origin ||
+        e.source !== frame.current?.contentWindow
       )
-        preview();
+        return;
+      const msg = e.data;
+      if (msg?.type === "interface-preview-ready") preview();
+      if (msg?.type === "interface-flushed") {
+        flushRef.current?.();
+        flushRef.current = null;
+        return;
+      }
+      if (msg?.type === "interface-edit") {
+        edit(msg.selection, msg.value);
+        setInlineDirty(false);
+        return;
+      }
+      if (busy) return;
+      if (msg?.type === "interface-editing") setInlineDirty(true);
+      if (msg?.type === "interface-select") setSelection(msg.selection);
+
+      if (msg?.type === "interface-move") moveTo(msg.source, msg.target);
     };
     window.addEventListener("message", listener);
     return () => window.removeEventListener("message", listener);
-  }, [draft, screen, step, data]);
+  }, [draft, data, screen, step, selection, busy]);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (
+        busy ||
+        !(e.ctrlKey || e.metaKey) ||
+        e.key.toLowerCase() !== "z" ||
+        (e.target as HTMLElement)?.closest(
+          "input,textarea,[contenteditable=true]",
+        )
+      )
+        return;
+      e.preventDefault();
+      undo(e.shiftKey);
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [draft, busy, historyTick]);
   async function save(action: string) {
     if (busy || !data) return;
     setBusy(true);
     setError("");
     try {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          flushRef.current = null;
+          reject(
+            new Error(
+              "Холст не ответил. Дождитесь загрузки и повторите сохранение.",
+            ),
+          );
+        }, 3000);
+        flushRef.current = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+        frame.current?.contentWindow?.postMessage(
+          { type: "interface-flush" },
+          location.origin,
+        );
+      });
       const next = await api("interface", {
         action,
         revision: data.revision,
-        config: draft,
+        config: draftRef.current,
       });
       setData(next);
       setDraft(next.draft);
+      draftRef.current = next.draft;
+      if (action === "rollback") {
+        history.current = { past: [], future: [] };
+        setSelection(null);
+      }
       toast.success(
         action === "save"
           ? "Черновик сохранён"
@@ -111,427 +257,466 @@ export function InterfaceEditorPage() {
   }
   if (!data || !draft)
     return error ? <Failure message={error} retry={load} /> : <Loading />;
-  const catalog = data.catalog;
-  const patch = (key: string, value: unknown) =>
-    setDraft({ ...draft, [key]: value });
-  const changeCustom = (id: string, key: string, value: unknown) =>
-    patch(
-      "custom",
-      draft.custom.map((b: Data) => (b.id === id ? { ...b, [key]: value } : b)),
-    );
-  const move = (key: string, index: number, delta: number) => {
-    const items = [...draft[key]];
-    [items[index], items[index + delta]] = [items[index + delta], items[index]];
-    patch(key, items);
-  };
-  const reset = () =>
-    confirm({
-      title: "Вернуть стандартное оформление?",
-      description:
-        "Это изменит только черновик. Для применения пользователям нужна публикация.",
-      label: "Сбросить черновик",
-      action: async () => {
-        setDraft({
-          theme: {},
-          texts: {},
-          blocks: catalog.blocks.map((b: Data) => ({
-            id: b.id,
-            visible: true,
-          })),
-          custom: [],
-        });
+  const catalog = data.catalog,
+    fields = catalog.fields.filter(
+      (f: Data) => f.screen === screen && (!f.step || f.step === Number(step)),
+    ),
+    custom = draft.custom.filter((b: Data) => b.screen === screen);
+  const field =
+    selection?.kind === "field"
+      ? catalog.fields.find((f: Data) => f.key === selection.id)
+      : null;
+  const block =
+    selection?.kind === "block"
+      ? draft.blocks.find((b: Data) => b.id === selection.id)
+      : null;
+  const item =
+    selection?.kind === "custom"
+      ? draft.custom.find((b: Data) => b.id === selection.id)
+      : null;
+  const add = (type: string) => {
+    const id = crypto.getRandomValues(new Uint32Array(4)).join("-");
+    patch("custom", [
+      ...draft.custom,
+      {
+        id,
+        screen,
+        type,
+        title: type === "button" ? "" : "Новый заголовок",
+        text: type === "button" ? "" : "Нажмите дважды, чтобы изменить текст.",
+        label: type === "text" ? "" : "Подробнее",
+        action: "support",
+        url: "",
+        visible: true,
       },
-    });
+    ]);
+    setSelection({ kind: "custom", id });
+  };
+  const selectedName =
+    field?.label ||
+    item?.title ||
+    item?.label ||
+    (block && catalog.blocks.find((b: Data) => b.id === block.id)?.label) ||
+    "Свойства";
+  const movement = (s: NonNullable<Selection>) => {
+    const list = s.kind === "block" ? draft.blocks : custom,
+      index = list.findIndex((b: Data) => b.id === s.id);
+    return (
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          aria-label="Переместить выше"
+          disabled={index <= 0}
+          onClick={() => moveTo(s, { ...s, id: list[index - 1].id })}
+        >
+          <ArrowUp />
+          Выше
+        </Button>
+        <Button
+          variant="outline"
+          aria-label="Переместить ниже"
+          disabled={index < 0 || index === list.length - 1}
+          onClick={() => moveTo(s, { ...s, id: list[index + 1].id })}
+        >
+          <ArrowDown />
+          Ниже
+        </Button>
+      </div>
+    );
+  };
   return (
-    <div className="space-y-5">
-      <Panel
-        title="Редактор веб-приложения"
-        description="Меняйте оформление без кода. Сначала проверьте черновик, затем опубликуйте его для пользователей."
-      >
-        <div className="flex flex-wrap gap-2 items-center">
-          <Badge variant={unpublished ? "secondary" : "outline"}>
-            {dirty
-              ? "Есть несохранённые изменения"
-              : unpublished
-                ? "Черновик отличается от сайта"
-                : "Опубликованная версия"}
-          </Badge>
-          <Button
-            disabled={busy || !dirty}
-            onClick={() => save("save")}
-            variant="outline"
-          >
-            <Save />
-            Сохранить черновик
-          </Button>
-          <Button
-            disabled={busy || !unpublished}
-            onClick={() =>
-              confirm({
-                title: "Опубликовать интерфейс?",
-                description:
-                  "Пользователи увидят изменения после следующего открытия или перезагрузки кабинета.",
-                label: "Опубликовать",
-                action: () => save("publish"),
-              })
-            }
-          >
-            <Send />
-            Опубликовать
-          </Button>
-          <Button
-            variant="ghost"
-            disabled={busy || !data.can_rollback}
-            onClick={() =>
-              confirm({
-                title: "Вернуть предыдущую публикацию?",
-                description:
-                  "Текущий черновик будет заменён предыдущим интерфейсом. Изменение применится пользователям.",
-                label: "Откатить",
-                action: () => save("rollback"),
-              })
-            }
-          >
-            <RotateCcw />
-            Откат
-          </Button>
-        </div>
-        {error && (
-          <p role="alert" className="mt-3 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-      </Panel>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px] items-start">
-        <fieldset disabled={busy} className="min-w-0 space-y-5">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3">
+        <span className="mr-auto text-sm font-medium">
+          {dirty
+            ? "Изменения не сохранены"
+            : unpublished
+              ? "Черновик"
+              : "Опубликованная версия"}
+        </span>
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="Отменить изменение"
+          disabled={busy || !history.current.past.length}
+          onClick={() => undo()}
+        >
+          <Undo2 />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="Повторить изменение"
+          disabled={busy || !history.current.future.length}
+          onClick={() => undo(true)}
+        >
+          <Redo2 />
+        </Button>
+        <Button
+          variant="outline"
+          disabled={busy || !dirty}
+          onClick={() => save("save")}
+        >
+          <Save />
+          Сохранить черновик
+        </Button>
+        <Button
+          disabled={busy || !unpublished}
+          onClick={() =>
+            confirm({
+              title: "Опубликовать интерфейс?",
+              description:
+                "Изменения появятся у пользователей при следующем открытии кабинета.",
+              label: "Опубликовать",
+              action: () => save("publish"),
+            })
+          }
+        >
+          <Send />
+          Опубликовать
+        </Button>
+        <Button
+          variant="ghost"
+          disabled={busy || !data.can_rollback}
+          onClick={() =>
+            confirm({
+              title: "Вернуть предыдущую публикацию?",
+              description:
+                "Текущий черновик будет заменён предыдущей опубликованной версией.",
+              label: "Откатить",
+              action: () => save("rollback"),
+            })
+          }
+        >
+          Откат
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className="text-destructive">
+          {error}
+        </p>
+      )}
+      <fieldset disabled={busy} className="canvas-workspace">
+        <aside className="canvas-panel canvas-layers">
           <Field label="Экран">
             <Choice
               label="Экран"
               value={screen}
-              onChange={setScreen}
+              onChange={(v) => {
+                setScreen(v);
+                setSelection(null);
+              }}
               options={catalog.screens.map((s: Data) => [s.id, s.label])}
             />
           </Field>
-          <Tabs defaultValue="content">
-            <TabsList className="w-full">
-              <TabsTrigger value="content">Тексты и кнопки</TabsTrigger>
-              <TabsTrigger value="blocks">Блоки</TabsTrigger>
-              <TabsTrigger value="theme">Оформление</TabsTrigger>
-            </TabsList>
-            <TabsContent value="content" className="space-y-4">
-              <Panel
-                title="Тексты экрана"
-                description="Пустое поле возвращает стандартный текст. Баланс, цены и статусы по-прежнему подставляются автоматически."
+          {screen === "wizard" && (
+            <Choice
+              label="Шаг подключения"
+              value={step}
+              onChange={(v) => {
+                setStep(v);
+                setSelection(null);
+              }}
+              options={[
+                ["1", "Выбор устройства"],
+                ["2", "Установка приложения"],
+                ["4", "Подключение"],
+              ]}
+            />
+          )}
+          <h3 className="text-xs font-semibold uppercase text-muted-foreground">
+            Слои экрана
+          </h3>
+          {screen === "home" &&
+            draft.blocks.map((b: Data) => (
+              <button
+                type="button"
+                key={b.id}
+                className="canvas-layer"
+                data-selected={
+                  selection?.kind === "block" && selection.id === b.id
+                }
+                onClick={() => setSelection({ kind: "block", id: b.id })}
               >
-                <div className="space-y-5">
-                  {catalog.fields
-                    .filter((f: Data) => f.screen === screen)
-                    .map((f: Data) => (
-                      <Field
-                        key={f.key}
-                        label={f.label}
-                        hint={
-                          f.kind === "button"
-                            ? "Меняется подпись. Действие кнопки сохраняется."
-                            : undefined
-                        }
-                      >
-                        {f.kind === "button" ? (
-                          <Input
-                            maxLength={60}
-                            placeholder={f.default}
-                            value={draft.texts[f.key] ?? ""}
-                            onChange={(e) => {
-                              const texts = { ...draft.texts };
-                              if (e.target.value) texts[f.key] = e.target.value;
-                              else delete texts[f.key];
-                              patch("texts", texts);
-                            }}
-                          />
-                        ) : (
-                          <Textarea
-                            rows={2}
-                            maxLength={600}
-                            placeholder={f.default}
-                            value={draft.texts[f.key] ?? ""}
-                            onChange={(e) => {
-                              const texts = { ...draft.texts };
-                              if (e.target.value) texts[f.key] = e.target.value;
-                              else delete texts[f.key];
-                              patch("texts", texts);
-                            }}
-                          />
-                        )}
-                      </Field>
-                    ))}
-                </div>
-              </Panel>
-            </TabsContent>
-            <TabsContent value="blocks" className="space-y-4">
-              {screen === "home" && (
-                <Panel
-                  title="Стандартные блоки"
-                  description="Стрелки меняют порядок. Выключенный блок скрывается, но его функция остаётся доступной из других экранов. Условные блоки показываются только подходящим пользователям."
-                >
-                  <div className="space-y-2">
-                    {draft.blocks.map((b: Data, i: number) => (
-                      <div
-                        key={b.id}
-                        className="flex items-center gap-2 border rounded-xl p-3"
-                      >
-                        <span className="flex-1 text-sm">
-                          {
-                            catalog.blocks.find((x: Data) => x.id === b.id)
-                              ?.label
-                          }
-                        </span>
-                        <Switch
-                          aria-label={
-                            "Показывать " +
-                            catalog.blocks.find((x: Data) => x.id === b.id)
-                              ?.label
-                          }
-                          checked={b.visible}
-                          disabled={b.id === "devicesBlock"}
-                          onCheckedChange={(visible) =>
-                            patch(
-                              "blocks",
-                              draft.blocks.map((x: Data) =>
-                                x.id === b.id ? { ...x, visible } : x,
-                              ),
-                            )
+                <span>
+                  {catalog.blocks.find((x: Data) => x.id === b.id)?.label}
+                </span>
+                {!b.visible && <EyeOff size={14} />}
+              </button>
+            ))}
+          {custom.map((b: Data) => (
+            <button
+              type="button"
+              key={b.id}
+              className="canvas-layer"
+              data-selected={
+                selection?.kind === "custom" && selection.id === b.id
+              }
+              onClick={() => setSelection({ kind: "custom", id: b.id })}
+            >
+              <span>{b.title || b.label || "Блок"}</span>
+              {!b.visible && <EyeOff size={14} />}
+            </button>
+          ))}
+          <details>
+            <summary className="text-sm cursor-pointer py-2">
+              Тексты и кнопки
+            </summary>
+            {fields.map((f: Data) => (
+              <button
+                type="button"
+                key={f.key}
+                className="canvas-layer"
+                data-selected={
+                  selection?.kind === "field" && selection.id === f.key
+                }
+                onClick={() => setSelection({ kind: "field", id: f.key })}
+              >
+                {f.label}
+              </button>
+            ))}
+          </details>
+          <div className="border-t pt-3 space-y-2">
+            <h3 className="text-xs font-semibold uppercase text-muted-foreground">
+              Добавить на экран
+            </h3>
+            {[
+              ["card", "Карточку"],
+              ["text", "Текст"],
+              ["button", "Кнопку"],
+            ].map(([type, label]) => (
+              <Button
+                key={type}
+                variant="outline"
+                className="w-full justify-start"
+                disabled={draft.custom.length >= 30}
+                onClick={() => add(type)}
+              >
+                <Plus />
+                {label}
+              </Button>
+            ))}
+          </div>
+          <Button
+            variant="ghost"
+            className="justify-start"
+            onClick={() => setSelection({ kind: "theme", id: "theme" })}
+          >
+            <Palette />
+            Цвета и форма
+          </Button>
+        </aside>
+        <main className="canvas-stage">
+          <div className="canvas-stage-toolbar">
+            <span className="text-xs text-muted-foreground">
+              Холст · двойной клик меняет текст
+            </span>
+            <Choice
+              label="Ширина холста"
+              value={width}
+              onChange={setWidth}
+              options={[
+                ["320", "320 px"],
+                ["390", "390 px"],
+                ["430", "430 px"],
+              ]}
+            />
+          </div>
+          <div className="canvas-artboard">
+            <iframe
+              ref={frame}
+              title="Холст веб-приложения"
+              src="/admin/interface-preview"
+              onLoad={preview}
+              style={{
+                width: Number(width),
+                maxWidth: "100%",
+                height: 760,
+                pointerEvents: busy ? "none" : undefined,
+              }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground text-center">
+            Перетаскивайте блоки за синюю ручку ⠿. Кнопки на холсте выбираются,
+            а не выполняют действие.
+          </p>
+        </main>
+        <aside className="canvas-panel canvas-inspector">
+          {!selection ? (
+            <div className="space-y-3 text-sm text-muted-foreground py-8">
+              <MousePointer2 />
+              <h2 className="font-semibold text-foreground">
+                Выберите элемент на холсте
+              </h2>
+              <p>
+                Один клик — свойства. Двойной — ввод текста прямо на экране.
+              </p>
+              <p>
+                Баланс и другие данные пользователя рассчитываются
+                автоматически.
+              </p>
+            </div>
+          ) : (
+            <>
+              <h2 className="font-semibold break-words">
+                {selection.kind === "theme" ? "Цвета и форма" : selectedName}
+              </h2>
+              {field && (
+                <>
+                  <Field
+                    label={
+                      field.kind === "button"
+                        ? "Подпись кнопки"
+                        : "Текст элемента"
+                    }
+                    hint="Пустое поле возвращает стандартный текст."
+                  >
+                    <Textarea
+                      rows={field.kind === "button" ? 2 : 4}
+                      maxLength={field.kind === "button" ? 60 : 600}
+                      placeholder={field.default}
+                      value={draft.texts[field.key] ?? ""}
+                      onChange={(e) => edit(selection, e.target.value)}
+                    />
+                  </Field>
+                  <p className="text-xs text-muted-foreground">
+                    {field.kind === "button"
+                      ? "Действие стандартной кнопки сохраняется."
+                      : "Можно редактировать и двойным кликом на холсте."}
+                  </p>
+                  <Button variant="outline" onClick={() => edit(selection, "")}>
+                    Стандартный текст
+                  </Button>
+                </>
+              )}
+              {block && (
+                <>
+                  <Field label="Показывать блок">
+                    <Switch
+                      checked={block.visible}
+                      disabled={block.id === "devicesBlock"}
+                      onCheckedChange={(visible) =>
+                        patch(
+                          "blocks",
+                          draft.blocks.map((b: Data) =>
+                            b.id === block.id ? { ...b, visible } : b,
+                          ),
+                        )
+                      }
+                    />
+                  </Field>
+                  {movement(selection!)}
+                  <p className="text-xs text-muted-foreground">
+                    Для редактирования содержимого нажмите на текст или кнопку
+                    внутри блока. Условные блоки сохраняют условия показа.
+                  </p>
+                </>
+              )}
+              {item && (
+                <>
+                  <Field label="Показывать блок">
+                    <Switch
+                      checked={item.visible}
+                      onCheckedChange={(v) =>
+                        changeCustom(item.id, "visible", v)
+                      }
+                    />
+                  </Field>
+                  {item.type !== "button" && (
+                    <>
+                      <Field label="Заголовок блока">
+                        <Input
+                          maxLength={120}
+                          value={item.title}
+                          onChange={(e) =>
+                            changeCustom(item.id, "title", e.target.value)
                           }
                         />
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          aria-label={"Выше " + b.id}
-                          disabled={i === 0}
-                          onClick={() => move("blocks", i, -1)}
-                        >
-                          <ArrowUp />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          aria-label={"Ниже " + b.id}
-                          disabled={i === draft.blocks.length - 1}
-                          onClick={() => move("blocks", i, 1)}
-                        >
-                          <ArrowDown />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </Panel>
-              )}
-              <Panel
-                title="Дополнительные блоки"
-                description="Карточки, тексты и кнопки появятся после основного содержимого выбранного экрана."
-                action={
-                  <Button
-                    variant="outline"
-                    disabled={draft.custom.length >= 30}
-                    onClick={() =>
-                      patch("custom", [
-                        ...draft.custom,
-                        {
-                          id: crypto
-                            .getRandomValues(new Uint32Array(4))
-                            .join("-"),
-                          screen,
-                          type: "card",
-                          title: "Новый блок",
-                          text: "",
-                          label: "",
-                          action: "topup",
-                          url: "",
-                          visible: true,
-                        },
-                      ])
+                      </Field>
+                      <Field label="Текст блока">
+                        <Textarea
+                          rows={4}
+                          maxLength={1200}
+                          value={item.text}
+                          onChange={(e) =>
+                            changeCustom(item.id, "text", e.target.value)
+                          }
+                        />
+                      </Field>
+                    </>
+                  )}
+                  <Field
+                    label="Подпись кнопки"
+                    hint={
+                      item.type === "button"
+                        ? "Обязательное поле"
+                        : "Пустая подпись убирает кнопку"
                     }
                   >
-                    <Plus />
-                    Добавить блок
+                    <Input
+                      maxLength={60}
+                      value={item.label}
+                      onChange={(e) =>
+                        changeCustom(item.id, "label", e.target.value)
+                      }
+                    />
+                  </Field>
+                  {(item.type === "button" || item.label) && (
+                    <Field label="Действие кнопки">
+                      <Choice
+                        label="Действие кнопки"
+                        value={item.action}
+                        onChange={(v) => changeCustom(item.id, "action", v)}
+                        options={catalog.actions.map((a: Data) => [
+                          a.id,
+                          a.label,
+                        ])}
+                      />
+                    </Field>
+                  )}
+                  {item.action === "url" && item.label && (
+                    <Field label="Ссылка HTTPS">
+                      <Input
+                        type="url"
+                        value={item.url}
+                        onChange={(e) =>
+                          changeCustom(item.id, "url", e.target.value)
+                        }
+                      />
+                    </Field>
+                  )}
+                  {movement(selection!)}
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      patch(
+                        "custom",
+                        draft.custom.filter((b: Data) => b.id !== item.id),
+                      );
+                      setSelection(null);
+                    }}
+                  >
+                    <Trash2 />
+                    Удалить блок
                   </Button>
-                }
-              >
-                <div className="space-y-4">
-                  {!draft.custom.some((b: Data) => b.screen === screen) && (
-                    <p className="text-sm text-muted-foreground">
-                      Здесь можно разместить подсказку, предложение или
-                      дополнительную кнопку.
-                    </p>
-                  )}
-                  {draft.custom.map((b: Data, i: number) =>
-                    b.screen !== screen ? null : (
-                      <div
-                        key={b.id}
-                        className="border rounded-xl p-4 space-y-4"
-                      >
-                        <div className="flex gap-1 items-center">
-                          <span className="flex-1 font-medium text-sm">
-                            {b.title || b.label || "Блок"}
-                          </span>
-                          <Switch
-                            aria-label="Показывать блок"
-                            checked={b.visible}
-                            onCheckedChange={(v) =>
-                              changeCustom(b.id, "visible", v)
-                            }
-                          />
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            aria-label="Поднять блок"
-                            disabled={i === 0}
-                            onClick={() => move("custom", i, -1)}
-                          >
-                            <ArrowUp />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            aria-label="Опустить блок"
-                            disabled={i === draft.custom.length - 1}
-                            onClick={() => move("custom", i, 1)}
-                          >
-                            <ArrowDown />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            aria-label="Удалить блок"
-                            onClick={() =>
-                              patch(
-                                "custom",
-                                draft.custom.filter((x: Data) => x.id !== b.id),
-                              )
-                            }
-                          >
-                            <Trash2 />
-                          </Button>
-                        </div>
-                        <Field label="Тип блока">
-                          <Choice
-                            label="Тип блока"
-                            value={b.type}
-                            onChange={(v) => changeCustom(b.id, "type", v)}
-                            options={[
-                              ["card", "Карточка"],
-                              ["text", "Текст"],
-                              ["button", "Кнопка"],
-                            ]}
-                          />
-                        </Field>
-                        {b.type !== "button" && (
-                          <>
-                            <Field label="Заголовок блока">
-                              <Input
-                                value={b.title}
-                                maxLength={120}
-                                onChange={(e) =>
-                                  changeCustom(b.id, "title", e.target.value)
-                                }
-                              />
-                            </Field>
-                            <Field label="Текст блока">
-                              <Textarea
-                                value={b.text}
-                                maxLength={1200}
-                                onChange={(e) =>
-                                  changeCustom(b.id, "text", e.target.value)
-                                }
-                              />
-                            </Field>
-                          </>
-                        )}
-                        <Field
-                          label="Подпись кнопки"
-                          hint={
-                            b.type === "button"
-                              ? "Обязательное поле"
-                              : "Оставьте пустой, если кнопка не нужна"
-                          }
-                        >
-                          <Input
-                            value={b.label}
-                            maxLength={60}
-                            onChange={(e) =>
-                              changeCustom(b.id, "label", e.target.value)
-                            }
-                          />
-                        </Field>
-                        {(b.type === "button" || b.label) && (
-                          <Field label="Действие кнопки">
-                            <Choice
-                              label="Действие кнопки"
-                              value={b.action}
-                              onChange={(v) => changeCustom(b.id, "action", v)}
-                              options={catalog.actions.map((a: Data) => [
-                                a.id,
-                                a.label,
-                              ])}
-                            />
-                          </Field>
-                        )}
-                        {b.action === "url" && b.label && (
-                          <Field label="Ссылка HTTPS">
-                            <Input
-                              type="url"
-                              value={b.url}
-                              placeholder="https://…"
-                              onChange={(e) =>
-                                changeCustom(b.id, "url", e.target.value)
-                              }
-                            />
-                          </Field>
-                        )}
-                      </div>
-                    ),
-                  )}
-                </div>
-              </Panel>
-            </TabsContent>
-            <TabsContent value="theme">
-              <Panel
-                title="Цвета и форма"
-                description="Общие настройки для всех экранов веб-приложения. Проверяйте читаемость текста на выбранном фоне."
-              >
-                <div className="space-y-4">
+                </>
+              )}
+              {selection.kind === "theme" && (
+                <>
                   {colors.map(([key, label, fallback]) => (
-                    <div key={key} className="flex items-end gap-3">
-                      <div className="flex-1">
-                        <Field label={label}>
-                          <Input
-                            type="color"
-                            className="h-11 p-1 cursor-pointer"
-                            value={draft.theme[key] || fallback}
-                            onChange={(e) =>
-                              patch("theme", {
-                                ...draft.theme,
-                                [key]: e.target.value,
-                              })
-                            }
-                          />
-                        </Field>
-                      </div>
-                      <code className="text-xs pb-3">
-                        {draft.theme[key] || "По умолчанию"}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={"Сбросить " + label}
-                        onClick={() => {
-                          const theme = { ...draft.theme };
-                          delete theme[key];
-                          patch("theme", theme);
-                        }}
-                      >
-                        <RotateCcw />
-                      </Button>
-                    </div>
+                    <Field key={key} label={label}>
+                      <Input
+                        type="color"
+                        className="h-10 p-1"
+                        value={draft.theme[key] || fallback}
+                        onChange={(e) =>
+                          patch("theme", {
+                            ...draft.theme,
+                            [key]: e.target.value,
+                          })
+                        }
+                      />
+                    </Field>
                   ))}
                   <Field label="Скругление карточек, px">
                     <Input
@@ -547,56 +732,15 @@ export function InterfaceEditorPage() {
                       }
                     />
                   </Field>
-                  <Button variant="outline" onClick={reset}>
-                    Вернуть стандартный интерфейс
+                  <Button variant="outline" onClick={() => patch("theme", {})}>
+                    Стандартные цвета и форма
                   </Button>
-                </div>
-              </Panel>
-            </TabsContent>
-          </Tabs>
-        </fieldset>
-        <div className="xl:sticky xl:top-6 space-y-3 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold">Предпросмотр</h2>
-            <Choice
-              label="Ширина предпросмотра"
-              value={width}
-              onChange={setWidth}
-              options={[
-                ["320", "320 px"],
-                ["390", "390 px"],
-                ["430", "430 px"],
-              ]}
-            />
-          </div>
-          {screen === "wizard" && (
-            <Choice
-              label="Шаг подключения"
-              value={step}
-              onChange={setStep}
-              options={[
-                ["1", "Выбор устройства"],
-                ["2", "Установка приложения"],
-                ["4", "Подключение"],
-              ]}
-            />
+                </>
+              )}
+            </>
           )}
-          <div className="rounded-3xl border bg-muted p-2 overflow-auto">
-            <iframe
-              ref={frame}
-              title="Предпросмотр веб-приложения"
-              src="/admin/interface-preview"
-              onLoad={preview}
-              style={{ width: Number(width), maxWidth: "100%", height: 720 }}
-              className="block mx-auto rounded-2xl border-0 bg-black"
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Реальная разметка и стили, демонстрационные данные. Оплаты и
-            отправка сообщений в предпросмотре отключены.
-          </p>
-        </div>
-      </div>
+        </aside>
+      </fieldset>
     </div>
   );
 }

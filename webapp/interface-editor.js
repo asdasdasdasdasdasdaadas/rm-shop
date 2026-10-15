@@ -29,7 +29,7 @@
       for(const f of catalog.fields) {
         if(f.step && (state.step!==f.step || state.connected)) continue;
         const el=document.querySelector(f.selector);
-        if(!el || el.disabled) continue;
+        if(!el || el.disabled || el.isContentEditable) continue;
         const override=config.texts?.[f.key];
         if(typeof override==='string') {
           if(!originals.has(f.key)) originals.set(f.key,{el,text:el.textContent});
@@ -69,7 +69,7 @@
         }
         customSignature=signature;
       }
-    } finally { observe(); }
+    } finally { window.dispatchEvent(new Event('interface-rendered')); observe(); }
   }
   window.WebappEditor={set(data){config=data.config;catalog=data.catalog;schedule();},connect(value){adapter=value;schedule();},refresh:schedule};
   observe();
