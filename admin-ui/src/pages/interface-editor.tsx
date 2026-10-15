@@ -261,7 +261,11 @@ export function InterfaceEditorPage() {
     fields = catalog.fields.filter(
       (f: Data) => f.screen === screen && (!f.step || f.step === Number(step)),
     ),
-    custom = draft.custom.filter((b: Data) => b.screen === screen);
+    custom = draft.custom.filter(
+      (b: Data) =>
+        b.screen === screen &&
+        catalog.actions.some((a: Data) => a.id === b.action || !b.action),
+    );
   const field =
     selection?.kind === "field"
       ? catalog.fields.find((f: Data) => f.key === selection.id)
@@ -466,22 +470,26 @@ export function InterfaceEditorPage() {
             >
               {" "}
               {screen === "home" &&
-                draft.blocks.map((b: Data) => (
-                  <button
-                    type="button"
-                    key={b.id}
-                    className="canvas-layer"
-                    data-selected={
-                      selection?.kind === "block" && selection.id === b.id
-                    }
-                    onClick={() => setSelection({ kind: "block", id: b.id })}
-                  >
-                    <span>
-                      {catalog.blocks.find((x: Data) => x.id === b.id)?.label}
-                    </span>
-                    {!b.visible && <EyeOff size={14} />}
-                  </button>
-                ))}
+                draft.blocks
+                  .filter((b: Data) =>
+                    catalog.blocks.some((x: Data) => x.id === b.id),
+                  )
+                  .map((b: Data) => (
+                    <button
+                      type="button"
+                      key={b.id}
+                      className="canvas-layer"
+                      data-selected={
+                        selection?.kind === "block" && selection.id === b.id
+                      }
+                      onClick={() => setSelection({ kind: "block", id: b.id })}
+                    >
+                      <span>
+                        {catalog.blocks.find((x: Data) => x.id === b.id)?.label}
+                      </span>
+                      {!b.visible && <EyeOff size={14} />}
+                    </button>
+                  ))}
               {custom.map((b: Data) => (
                 <button
                   type="button"

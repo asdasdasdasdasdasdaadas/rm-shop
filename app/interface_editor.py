@@ -9,6 +9,17 @@ from app import db
 WEBAPP = Path(__file__).resolve().parent.parent / 'webapp'
 CATALOG = json.loads((WEBAPP / 'ui-catalog.json').read_text())
 DEFAULT = {'theme': {}, 'texts': {}, 'blocks': [dict(id=b['id'], visible=True) for b in CATALOG['blocks']], 'custom': [], 'styles': {}}
+RETIRED_SCREENS = {'settings','promo','referrals','ambassador'}
+RETIRED_FIELDS = {'connect_check','device_setup'}
+
+def editor_catalog():
+    result = copy.deepcopy(CATALOG)
+    result['screens'] = [s for s in result['screens'] if s['id'] not in RETIRED_SCREENS]
+    result['actions'] = [a for a in result['actions'] if a['id'] not in RETIRED_SCREENS]
+    result['fields'] = [f for f in result['fields'] if f['screen'] not in RETIRED_SCREENS and f['key'] not in RETIRED_FIELDS and f['key'] not in {'promo_title','promo_open','invite_title','ref_share','ref_details'}]
+    result['blocks'] = [b for b in result['blocks'] if b['id']=='devicesBlock']
+    return result
+
 COLORS = {'background','surface','text','muted','button','buttonText'}
 
 
@@ -80,13 +91,13 @@ async def state():
     def doc(key):
         data=row[key]
         return (json.loads(data) if isinstance(data,str) else data) or copy.deepcopy(DEFAULT)
-    return {'draft':doc('draft'),'published':doc('published'),'revision':row['revision'],'can_rollback':row['previous'] is not None,'catalog':CATALOG}
+    return {'draft':doc('draft'),'published':doc('published'),'revision':row['revision'],'can_rollback':row['previous'] is not None,'catalog':editor_catalog()}
 
 
 async def public():
     value=await db._pool_req().fetchval('SELECT published FROM webapp_interface WHERE id=1')
     value=json.loads(value) if isinstance(value,str) else value
-    return {'config':value or copy.deepcopy(DEFAULT),'catalog':CATALOG}
+    return {'config':value or copy.deepcopy(DEFAULT),'catalog':editor_catalog()}
 
 
 async def change(body):

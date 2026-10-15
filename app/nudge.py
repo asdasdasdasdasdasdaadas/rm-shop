@@ -199,33 +199,8 @@ async def send_due_invite_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
 
 
 async def send_due_ambassador_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    from app import ambassadors
-    from app.keyboards import ambassador_keyboard
-    touched, sent = [], 0
-    if await db.flag_on('maintenance') or not await ambassadors.recruitment_offer():
-        return sent, touched
-    invited = await ambassadors.due_invitations(NUDGE_BATCH, skip_ids)
-    earn_skip = list(skip_ids or []) + [int(row['telegram_id']) for row in invited]
-    invited.extend(await ambassadors.due_earn_invitations(20, earn_skip))
-    for row in invited:
-        cfg = await ambassadors.recruitment_offer()
-        if not cfg:
-            break
-        uid = int(row['telegram_id'])
-        step = 2 if int(row.get('nudge_step') or 1) == 2 else 1
-        earn = row.get('segment') == 'earn'
-        if earn:
-            body = ambassadors.invitation_earn_followup_text(cfg) if step == 2 else ambassadors.invitation_earn_text(cfg)
-        else:
-            body = ambassadors.invitation_followup_text(cfg) if step == 2 else ambassadors.invitation_text(cfg)
-        ok = await _deliver(bot, kind='nudge_ambassador', telegram_id=uid,
-            first_name=row.get('first_name'), title='Приглашение в амбассадоры',
-            body=body, reply_markup=ambassador_keyboard(), extra={'step': step})
-        touched.append(uid)
-        if ok:
-            await ambassadors.mark_invitation_sent(uid, step)
-            sent += 1
-    return sent, touched
+    # Keep the scheduler entry point, but do not recruit into a removed screen.
+    return 0, []
 
 
 async def send_due_info_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:

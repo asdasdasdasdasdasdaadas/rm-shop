@@ -16,7 +16,9 @@
   <link rel="stylesheet" href="/static/modern-motion.css?v=2">
   <link rel="stylesheet" href="/static/modern-refinement.css?v=2">
 
-</head>
+<style id="retired-features">
+#view-settings,#view-promo,#view-referrals,#view-ambassador,#homePromoCard,#refHomeCard,#homeAmbassadorCard{display:none!important}
+</style></head>
 <body>
   <div class="app-bg" aria-hidden="true">
     <span class="app-bg-orb a"></span>
@@ -827,8 +829,6 @@
           </button>
         </div>
       </div>
-
-      <button type="button" id="devCheckSetup" class="btn btn-ghost">Настройка и проверка подключения</button>
       <div class="dev-fix" id="devFix">
         <div class="dev-warn-top">
           <span class="dev-fix-ico" aria-hidden="true">
@@ -910,11 +910,7 @@
   </dialog>
 
   <div id="menu" class="sheet hidden" role="menu">
-    <button type="button" id="menuSettings" role="menuitem">Настройки</button>
     <button type="button" id="menuFaq" role="menuitem">Частые вопросы</button>
-    <button type="button" id="menuPromo" class="hidden" role="menuitem">Промокод</button>
-    <button type="button" id="menuAmbassador" role="menuitem">Амбассадор</button>
-    <button type="button" id="menuReferrals" role="menuitem">Рефералы</button>
     <button type="button" id="menuBilling" class="hidden" role="menuitem">История списаний</button>
     <button type="button" id="menuTrust" class="hidden" role="menuitem">Обещанный платёж</button>
     <a id="offerLink" href="#" target="_blank" rel="noopener">Оферта</a>
@@ -952,7 +948,7 @@
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
   <script src="/static/modern-motion.js?v=1"></script>
-  <script src="/static/interface-editor.js?v=3"></script>
-  <script src="app.js?v=196"></script>
+  <script src="/static/interface-editor.js?v=4"></script>
+  <script src="app.js?v=197"></script>
 </body>
 </html>

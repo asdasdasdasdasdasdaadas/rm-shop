@@ -98,7 +98,6 @@
         add('summary','Добавить ссылку вручную','');add('div','Ссылка подписки','dev-label');
         const link=add('div','','dev-link');const url=document.createElement('a');url.className='dev-link-text';url.textContent='https://example.com/subscription/personal';link.append(url);
         const copy=document.createElement('button');copy.className='dev-lbtn';const label=document.createElement('span');label.textContent='Копировать';copy.append(label);link.append(copy);
-        demo('wizBody','button','Проверить подключение','btn btn-ghost').id='wizCheckConnection';
         demo('wizBody','button','Не получилось — помогите','btn btn-ghost').id='wizHelp';
       }
       $('appMainBtn').textContent=({1:'Продолжить',2:'Приложение установлено →',4:'Добавить подписку'})[current.step];

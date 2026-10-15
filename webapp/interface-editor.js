@@ -59,14 +59,15 @@
         if(!catalog.blocks.some(x=>x.id===b.id)) continue;
         document.getElementById(b.id)?.classList.toggle('editor-hidden',b.visible===false && b.id!=='devicesBlock');
       }
-      const signature=JSON.stringify(config.custom || []);
+      const activeCustom=(config.custom || []).filter(b=>!['settings','promo','referrals','ambassador'].includes(b.screen) && !['settings','promo','referrals','ambassador'].includes(b.action));
+      const signature=JSON.stringify(activeCustom);
       if(signature!==customSignature) {
         document.querySelectorAll('.editor-custom-slot').forEach(el=>el.remove());
         for(const screen of catalog.screens) {
           const host=screen.id==='home' ? parent : document.getElementById('view-'+screen.id);
           if(!host) continue;
           const slot=document.createElement('div');slot.className='editor-custom-slot';host.append(slot);
-          for(const b of (config.custom || []).filter(b=>b.screen===screen.id && b.visible)) {
+          for(const b of activeCustom.filter(b=>b.screen===screen.id && b.visible)) {
             const block=document.createElement('section');block.className='editor-custom'+(b.type==='card'?' editor-card':'');block.dataset.editorId=b.id;
             if(b.title && b.type!=='button') {const h=document.createElement('h2');h.textContent=b.title;block.append(h);}
             if(b.text && b.type!=='button') {const p=document.createElement('p');p.textContent=b.text;block.append(p);}

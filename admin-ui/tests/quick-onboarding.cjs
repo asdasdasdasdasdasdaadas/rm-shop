@@ -46,15 +46,10 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   await page.getByRole('heading',{name:'Осталось включить VPN',exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>wiz.deviceId),1);
   assert.equal(creates,1);
-  for (const expected of ['Пока не видим подключения', 'Не удалось получить ответ', 'VPN работает']) {
-    await page.locator('#wizCheckConnection').click();
-    await page.waitForFunction(text=>document.querySelector('#wizCheckResult').textContent.includes(text),expected);
-  }
-  assert.equal(await page.locator('#wizTitle').textContent(),'Готово, VPN подключён');
-  assert.equal(await page.locator('#appMainBtn').textContent(),'В кабинет');
+  assert.equal(await page.locator('#wizCheckConnection').count(),0);
+  assert.match(await page.locator('#appMainBtn').textContent(),/Добавить подписку/);
   await page.getByRole('button',{name:'Не получилось — помогите',exact:true}).click();
   assert.equal(await page.evaluate(()=>supportConnectionContext.device_id),1);
-  assert.equal(await page.evaluate(()=>supportConnectionContext.result),'connected');
   await page.waitForFunction(()=>document.querySelector('#supportThread').textContent.includes('автоматически'));
   await page.locator('#supportText').fill('Не открываются сайты');
   await page.locator('#supportSend').click();

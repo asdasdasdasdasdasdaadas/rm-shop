@@ -73,12 +73,7 @@ import { OverviewPage } from "@/pages/overview";
 import { RecordsPage, BackupsPage } from "@/pages/records";
 import { InterfaceEditorPage } from "@/pages/interface-editor";
 import { SettingsPage } from "@/pages/settings";
-import {
-  PromoPage,
-  AdsPage,
-  CampaignsPage,
-  ReferralsPage,
-} from "@/pages/marketing";
+import { AdsPage, CampaignsPage, ReferralsPage } from "@/pages/marketing";
 import { BroadcastPage, AnnouncementsPage } from "@/pages/communications";
 import { FunnelPage } from "@/pages/funnel";
 import "./theme.css";
@@ -145,13 +140,6 @@ const sections = [
     description: "Запуск, расписание и результаты отдельных акций",
     group: "Привлечение и возврат",
     icon: Gift,
-  },
-  {
-    id: "promo",
-    label: "Промокоды",
-    description: "Создавайте подарки и контролируйте их использование",
-    group: "Привлечение и возврат",
-    icon: TicketPercent,
   },
   {
     id: "ads",
@@ -523,7 +511,7 @@ function Workspace({
       page = <SettingsPage initial={params.get("section") || "general"} />;
       break;
     case "promo":
-      page = <PromoPage />;
+      page = <OverviewPage />;
       break;
     case "ads":
       page = <AdsPage />;

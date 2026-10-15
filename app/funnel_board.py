@@ -143,11 +143,11 @@ class _Safe(dict):
 
 
 def conditions_public() -> list[dict]:
-    return [{"id": row["id"], "label": row["label"], "hint": row["hint"]} for row in CONDITIONS]
+    return [{"id": row["id"], "label": row["label"], "hint": row["hint"]} for row in CONDITIONS if row["id"] not in {"winback","ambassador_earn","ambassador_active"}]
 
 
 def actions_public() -> list[dict]:
-    return [{"id": row["id"], "label": row["label"], "button": row["button"]} for row in ACTIONS]
+    return [{"id": row["id"], "label": row["label"], "button": row["button"]} for row in ACTIONS if row["id"] != "ambassador"]
 
 
 def _button(action_id: str) -> dict:
@@ -262,6 +262,8 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
     rows = []
     for item in button_ids:
         action_id = item if isinstance(item, str) else item["action"]
+        if action_id == "ambassador":
+            continue
         label = _button(action_id)["button"] if isinstance(item, str) else item["text"]
         if action_id == "url":
             rows.append([InlineKeyboardButton(text=label, url=item["url"])])
@@ -570,6 +572,14 @@ def _parse(raw) -> dict:
     return validate(raw)
 
 
+def without_retired_branches(graph):
+    graph = json.loads(json.dumps(graph))
+    for branch in graph['branches']:
+        branch['steps'] = [s for s in branch['steps'] if s['condition'] not in {'winback','ambassador_earn','ambassador_active'}]
+    graph['branches'] = [b for b in graph['branches'] if b['steps']]
+    return graph
+
+
 async def load() -> dict:
     from app.db import _pool_req
     await _ensure_tables()
@@ -577,7 +587,7 @@ async def load() -> dict:
     row = await pool.fetchrow("SELECT graph FROM funnel_graphs WHERE id = 1")
     if row:
         from app.recovery_funnel import migrate
-        return await migrate(pool, _parse(row["graph"]))
+        return without_retired_branches(await migrate(pool, _parse(row["graph"])))
     graph = await default_graph()
     inserted = await pool.fetchrow(
         "INSERT INTO funnel_graphs (id, graph) VALUES (1, $1::jsonb) ON CONFLICT DO NOTHING RETURNING id",
@@ -589,10 +599,10 @@ async def load() -> dict:
         except Exception:
             logger.exception("Старые шаги воронки не отмечены")
         from app.recovery_funnel import migrate
-        return await migrate(pool, graph)
+        return without_retired_branches(await migrate(pool, graph))
     row = await pool.fetchrow("SELECT graph FROM funnel_graphs WHERE id = 1")
     from app.recovery_funnel import migrate
-    return await migrate(pool, _parse(row["graph"]))
+    return without_retired_branches(await migrate(pool, _parse(row["graph"])))
 
 
 async def save(graph: dict) -> None:
@@ -637,6 +647,8 @@ async def _backfill() -> None:
 
 
 async def _gate(condition: str) -> bool:
+    if condition in {"ambassador_earn", "ambassador_active", "winback"}:
+        return False
     spec = CONDITION_IDS[condition]
     gate = spec.get("gate")
     if gate == "trial":

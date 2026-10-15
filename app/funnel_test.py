@@ -97,7 +97,7 @@ def catalog(telegram_id: int, ambassador_cfg=None) -> list[dict]:
         )
         if row['id'] == 'gift_claimed':
             row['condition'] = 'Только пример текста. Отдельное автоматическое напоминание этого типа не отправляется.'
-    return rows
+    return [row for row in rows if row['id'] not in {'winback','ambassador','ambassador_2','ambassador_earn','ambassador_earn_2'}]
 
 
 MESSAGE_KINDS = {

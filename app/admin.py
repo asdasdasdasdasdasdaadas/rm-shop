@@ -124,7 +124,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "114"})
+    return web.json_response({"ok": True, "build": "115"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -2155,7 +2155,7 @@ async def interface_preview(request: web.Request) -> web.Response:
     html = (WEBAPP / 'index.html').read_text()
     html = re.sub(r'<script\b[^>]*>.*?</script>', '', html, flags=re.S)
     html = html.replace('<head>', '<head><base href="/static/">')
-    html = html.replace('</body>', '<script src="/static/interface-editor.js?v=3"></script><script src="/static/interface-preview.js?v=3"></script></body>')
+    html = html.replace('</body>', '<script src="/static/interface-editor.js?v=4"></script><script src="/static/interface-preview.js?v=4"></script></body>')
     return web.Response(text=html, content_type='text/html', headers=_NO_STORE)
 
 
@@ -2631,9 +2631,6 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/ads/{link_id}/archive", api_ad_link_archive)
     app.router.add_get("/admin/api/story-stats", api_story_stats)
     app.router.add_get("/admin/api/promos", api_promo_codes)
-    app.router.add_post("/admin/api/promos", api_promo_codes)
-    app.router.add_post("/admin/api/promos/{promo_id}", api_promo_code_update)
-    app.router.add_post("/admin/api/promos/{promo_id}/archive", api_promo_code_archive)
     app.router.add_get("/admin/api/payouts", api_payouts)
     app.router.add_post("/admin/api/payouts/{payout_id}", api_payout_resolve)
     app.router.add_get("/admin/api/orders", api_orders)

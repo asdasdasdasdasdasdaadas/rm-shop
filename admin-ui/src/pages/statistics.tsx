@@ -19,7 +19,6 @@ import {
   useNavigate,
 } from "@/components/workspace";
 import { date, money, useResource, who, type Data } from "@/lib/api";
-import { WinbackStatistics } from "./winback-statistics";
 import { OverviewPage } from "./overview";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Download, RefreshCw } from "lucide-react";
@@ -139,10 +138,9 @@ export function StatisticsPage() {
       keys: ["payments", "star_payments"],
     },
     referrals: {
-      title: "Приглашения и промокоды",
-      description:
-        "Новые регистрации по приглашению и активации промокодов в день события.",
-      keys: ["referred", "promo"],
+      title: "Приглашения",
+      description: "Новые регистрации по приглашению в день события.",
+      keys: ["referred"],
     },
   };
   const history = useResource(`statistics?days=${days}`),
@@ -548,7 +546,6 @@ export function StatisticsPage() {
         />
       </TabsContent>
       <TabsContent value="retention" className="space-y-5">
-        <WinbackStatistics />
         <Panel
           title="Ручные рассылки"
           description="Сравните доставку, переходы и оплаты для каждого запуска."
@@ -585,7 +582,6 @@ export function StatisticsPage() {
                 ["Блокировки сервиса", s.users?.blocked],
                 ["Плательщики в рублях", s.topups?.payers],
                 ["Всего оплат Stars", s.stars_payments],
-                ["Активации промокодов", s.promo_uses],
                 ["Открытые обращения", s.tickets_open],
               ].map(([label, value]) => (
                 <div key={label}>

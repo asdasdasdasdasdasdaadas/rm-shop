@@ -1232,6 +1232,7 @@ function replayAnim(el, cls) {
 }
 
 function switchView(id, motion) {
+  if (["view-settings", "view-promo", "view-referrals", "view-ambassador"].includes(id)) { id = "view-home"; screen = "home"; }
   if (id !== "view-pay") clearPaymentStarAnimation();
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
   ["view-home", "view-topup", "view-pay", "view-wizard", "view-device", "view-support", "view-faq", "view-article", "view-billing", "view-referrals", "view-ambassador", "view-offer", "view-settings", "view-promo"].forEach((vid) => {
@@ -2408,37 +2409,11 @@ async function toggleNotificationSettings() {
 $("notificationToggle").onclick = toggleNotificationSettings;
 
 function openSettings() {
-  paintNotificationSettings();
-  hideCoach();
-  stopSupportPoll();
-  screen = "settings";
-  switchView("view-settings", "push");
-  setMain("");
-  try {
-    tg.BackButton.show();
-  } catch (_e) {}
-  syncWebBack();
+  openHome();
 }
 
 function openPromo() {
-  hideCoach();
-  stopSupportPoll();
-  screen = "promo";
-  switchView("view-promo", "push");
-  setMain("");
-  const input = $("promo");
-  if (input) {
-    input.value = "";
-    setTimeout(() => {
-      try {
-        input.focus();
-      } catch (_e) {}
-    }, 50);
-  }
-  try {
-    tg.BackButton.show();
-  } catch (_e) {}
-  syncWebBack();
+  openHome();
 }
 
 const BILL_KIND = {
@@ -2713,16 +2688,7 @@ function paintRefFriends(me) {
 }
 
 function openReferrals() {
-  const me = window.__me;
-  if (!me) return;
-  screen = "referrals";
-  switchView("view-referrals", "push");
-  setMain("");
-  try {
-    tg.BackButton.show();
-  } catch (_e) {}
-  syncWebBack();
-  paintReferrals(me);
+  openHome();
 }
 
 async function sendSupport() {
@@ -3439,41 +3405,7 @@ function renderWizard() {
   help.onclick = () => openSupport({device_id: wiz.deviceId, client: clientLabel(wiz.client), stage: wiz.checkResult ? "check" : "subscription", result: wiz.checkResult});
   const secondary = document.createElement("div");
   secondary.className = "wiz-connect-actions";
-  const check = document.createElement("button");
-  check.type = "button";
-  check.id = "wizCheckConnection";
-  check.className = "btn btn-ghost";
-  check.textContent = "Проверить подключение";
-  const result = document.createElement("p");
-  result.id = "wizCheckResult";
-  result.setAttribute("role", "status");
-  result.setAttribute("aria-live", "polite");
-  check.onclick = async () => {
-    const deviceId = wiz.deviceId || (phoneDevices(window.__me || {}).find(d => d.subscription_url === wiz.url) || {}).id;
-    if (!deviceId) { result.textContent = "Обновите кабинет и откройте настройку устройства ещё раз."; return; }
-    wiz.deviceId = deviceId;
-    check.disabled = true;
-    result.textContent = "Проверяем подключение…";
-    try {
-      const data = await api(`/api/devices/${deviceId}/check`, {method: "POST"});
-      if (screen !== "wizard" || wiz.deviceId !== deviceId) return;
-      wiz.checkResult = data.status;
-      if (data.status === "connected") {
-        $("wizTitle").textContent = "Готово, VPN подключён";
-        setMain("В кабинет", () => { closeWizard(); load().catch(() => {}); });
-      }
-      result.textContent = data.status === "connected"
-        ? "VPN работает ✅ Недавнее подключение подтверждено."
-        : data.status === "unavailable"
-          ? "Не удалось получить ответ сервера. Попробуйте проверить чуть позже или напишите нам."
-          : "Пока не видим подключения. Включите VPN в приложении, откройте любой сайт и повторите проверку через минуту. Если не поможет — мы рядом.";
-    } catch (_e) {
-      wiz.checkResult = "unavailable";
-      result.textContent = "Проверка недоступна. Повторите позже или обратитесь за помощью.";
-    } finally { check.disabled = false; }
-  };
-  secondary.append(check, help);
-  body.appendChild(result);
+  secondary.append(help);
   $("wizHint").textContent = "";
   replayAnim(body, "wiz-swap");
   open.textContent = "В кабинет";
@@ -3534,8 +3466,6 @@ function setDevUrl(url) {
 }
 
 function paintDevice(d) {
-  $("devCheckSetup").classList.toggle("hidden", isRouterDevice(d));
-  $("devCheckSetup").onclick = () => resumeConnection({...window.__me, devices: [d]});
   $("devTitle").textContent = deviceTitle(d);
   const icon = document.querySelector("#view-device .dev-icon");
   if (icon) icon.innerHTML = platIconSvg(d.platform);
@@ -4931,16 +4861,8 @@ window.addEventListener("beforeunload", flushThanksOnClose);
 load().catch((err) => handleLoadFail(err));
 
 // Ambassador funds are separate from the VPN balance. All text from the API uses textContent.
-async function openAmbassador() {
-  if (!window.__me) return;
-  screen = "ambassador";
-  switchView("view-ambassador", "push");
-  setMain("");
-  try {
-    tg.BackButton.show();
-  } catch (_) {}
-  syncWebBack();
-  await loadAmbassador();
+function openAmbassador() {
+  openHome();
 }
 function ambElement(tag, text, cls) {
   const el = document.createElement(tag);

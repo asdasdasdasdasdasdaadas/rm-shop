@@ -54,12 +54,6 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
  await page.getByText('Черновик сохранён',{exact:true}).waitFor();
  assert.equal(state.published.texts.devices_title,undefined);
  assert.equal(state.draft.texts.devices_title,'Подключитесь за минуту!');
- await preview.getByRole('button',{name:'Переместить Устройства',exact:true}).dragTo(preview.locator('#refHomeCard'));
- await preview.locator('.home-col-main > #refHomeCard:first-child').waitFor();
- await page.locator('.canvas-elements > summary').click();
- await page.locator('.canvas-element-list').getByRole('button',{name:'Промокод',exact:true}).click();
- await page.getByLabel('Показывать блок',{exact:true}).click();
- await preview.locator('#homePromoCard.editor-hidden').waitFor({state:'attached'});
  await page.getByRole('button',{name:'Карточку',exact:true}).click();
  await preview.locator('[data-editor-id] h2').dblclick();
  await preview.locator('[data-editor-id] h2').fill('Нужна помощь?');
@@ -88,6 +82,13 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
  await live.getByRole('button',{name:'Написать нам',exact:true}).waitFor();
  await live.getByRole('button',{name:'Написать нам',exact:true}).click();
  await live.locator('#view-support:not(.hidden)').waitFor();
+ for(const id of ['menuSettings','menuPromo','menuAmbassador','menuReferrals','devCheckSetup'])assert.equal(await live.locator('#'+id).count(),0);
+ for(const id of ['homePromoCard','refHomeCard','homeAmbassadorCard'])assert.equal(await live.locator('#'+id).isVisible(),false);
+ for(const action of ['openSettings','openPromo','openReferrals','openAmbassador']) {
+   await live.evaluate(name=>window[name](),action);
+   await live.locator('#view-home:not(.hidden)').waitFor();
+ }
+
  await live.evaluate(()=>paint(window.__me));
  assert.equal(await live.locator('#deviceCount').count(),1);
  await live.evaluate(({catalog,config})=>WebappEditor.set({catalog,config:{...config,texts:{devices_title:'<img src=x onerror=window.injected=1>'}}}),{catalog,config:state.published});
@@ -108,9 +109,9 @@ const defaults={theme:{},texts:{},blocks:catalog.blocks.map(b=>({id:b.id,visible
  assert.equal(await page.getByLabel('Текст элемента',{exact:true}).count(),0);
  await page.getByLabel('Размер текста, px',{exact:true}).fill('22');
  await page.frames().find(f=>f.url().includes('interface-preview')).waitForFunction(()=>getComputedStyle(document.querySelector('#wizBody .dev-link-text')).fontSize==='22px');
- await preview.locator('#wizCheckConnection').click();
- await page.getByLabel('Подпись кнопки',{exact:true}).fill('VPN работает?');
- await preview.getByRole('button',{name:'VPN работает?',exact:true}).waitFor();
+ await preview.locator('#wizHelp').click();
+ await page.getByLabel('Подпись кнопки',{exact:true}).fill('Помогите подключиться');
+ await preview.getByRole('button',{name:'Помогите подключиться',exact:true}).waitFor();
  await preview.locator('#appMainBtn').waitFor({state:'visible'});
  await page.screenshot({path:'/tmp/interface-connection-editor.png',fullPage:true});
  console.log('Canvas: inline editing, selection, undo/redo, drag reorder, visibility, custom button, publication and rollback passed.');

@@ -46,48 +46,5 @@ def message(code: str, count: int, amount: int, custom: str | None = None) -> st
 
 
 async def send_due(bot, skip_ids=None, *, custom=None, force=False, button_ids=None):
-    from app.nudge import _deliver_unbudgeted
-    if await db.flag_on('maintenance') or await db.flag_on('billing_paused'):
-        return 0, []
-    if not force and not await db.flag_on('winback_promo'):
-        return 0, []
-    await db.backfill_balance_exhaustion()
-    sent, touched = 0, []
-    for row in await db.list_due_winback_offers(skip_ids or []):
-        uid = int(row['telegram_id'])
-        if not force and not await db.flag_on('winback_promo'):
-            break
-        if not await db.nudge_delivery_allowed(uid, 'nudge_winback'):
-            continue
-        slot = await db.reserve_optional_message(uid, 'nudge_winback')
-        if slot is None:
-            continue
-        delivered = False
-        offer = None
-        try:
-            offer = await db.prepare_winback_offer(uid, max(1,get_settings().vpn_day_price_rub))
-            if offer is None:
-                continue
-            touched.append(uid)
-            if button_ids is None:
-                reply, keep = keyboard(), False
-            else:
-                from app.funnel_board import markup as board_markup
-                reply, keep = board_markup(button_ids, uid), True
-            delivered = await _deliver_unbudgeted(bot,kind='nudge_winback',telegram_id=uid,
-                first_name=row.get('first_name'),title='Промокод: 5 дней для возвращения',
-                body=message(offer['code'],offer['device_count'],offer['gift_rub'], custom),
-                reply_markup=reply, preserve=keep,
-                extra={'offer_id':offer['id'],'promo_id':offer['promo_id']})
-            if delivered:
-                # Keep reservation even if accounting of delivery fails after Telegram accepts.
-                await db.finish_optional_message(slot, True)
-                await db.finish_winback_offer(offer['id'], True)
-                sent += 1
-            else:
-                await db.finish_winback_offer(offer['id'], False)
-        except Exception:
-            logger.exception('Recovery offer delivery failed for %s',uid)
-        finally:
-            await db.finish_optional_message(slot, delivered)
-    return sent, touched
+    """Compatibility entry point: promotional recovery offers are retired."""
+    return 0, []

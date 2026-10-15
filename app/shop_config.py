@@ -92,7 +92,7 @@ def validate_shop(body: dict) -> dict:
     out["balance_topup_step"] = _as_int(body.get("balance_topup_step"), 1, 100000, "Шаг пополнения")
     if out["balance_topup_max"] < out["balance_topup_min"]:
         raise ValueError("Максимум пополнения не меньше минимума")
-    out["promo_enabled"] = True
+    out["promo_enabled"] = False
     if "promo_codes" in body:
         codes = str(body.get("promo_codes") or "").strip()
         if len(codes) > 2000:

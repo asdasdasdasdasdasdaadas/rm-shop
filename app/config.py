@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     balance_charge_interval: int = 600
     billing_concurrency: int = 12
     billing_bulk_chunk: int = 80
-    promo_enabled: bool = True
+    promo_enabled: bool = False
     promo_codes: str = "TEST:3"
     router_enabled: bool = False
     router_rub: int = 490
@@ -313,7 +313,7 @@ def get_settings() -> Settings:
     base = _env_settings()
     update = dict(_overlay)
     # Promo redemption is always available, including installations with an old disabled setting.
-    update["promo_enabled"] = True
+    update["promo_enabled"] = False
     update["balance_enabled"] = True
     update["router_enabled"] = False
     update.pop("vpn_apps", None)

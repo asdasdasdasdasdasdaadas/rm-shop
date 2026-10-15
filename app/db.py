@@ -47,6 +47,8 @@ async def init_db() -> None:
 
 
 async def migrate_legacy_promo_codes() -> None:
+    if not get_settings().promo_enabled:
+        return
     if (await get_kv("promo_codes_migrated_v1")) == "1":
         return
     settings = get_settings()
@@ -2431,6 +2433,8 @@ async def archive_promo_code(promo_id: int) -> bool:
 
 
 async def redeem_promo_code(telegram_id: int, code: str) -> dict:
+    if not get_settings().promo_enabled:
+        raise ValueError("Промокоды больше не используются")
     """Consume the code and credit the balance in the same transaction."""
     clean = normalize_promo_code(code)
     if not clean:
