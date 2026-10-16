@@ -3499,9 +3499,9 @@ function renderDevices(me) {
     title.textContent = deviceTitle(d);
     const st = document.createElement("div");
     st.className = "s" + (d.active ? "" : " off");
-    st.innerHTML = '<span class="dot"></span>' + (d.active ? "Доступ активен" : "Неактивно");
+    st.innerHTML = '<span class="dot"></span>Неактивно';
     meta.appendChild(title);
-    meta.appendChild(st);
+    if (!d.active) meta.appendChild(st);
     el.appendChild(meta);
     const chev = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     chev.setAttribute("class", "chev");
