@@ -578,14 +578,6 @@ export function StatisticsPage() {
         />
       </TabsContent>
       <TabsContent value="retention" className="space-y-5">
-        <Panel
-          title="Ручные рассылки"
-          description="Сравните доставку, переходы и оплаты для каждого запуска."
-        >
-          <Button variant="outline" onClick={() => navigate("broadcast")}>
-            Результаты ручных рассылок
-          </Button>
-        </Panel>
         <OverviewPage
           analyticsOnly
           analyticsView="retention"

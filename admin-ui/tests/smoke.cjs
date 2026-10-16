@@ -788,10 +788,10 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     await page.getByText("Тест воронки", { exact: true }).count(),
     0,
   );
-  await page.getByRole("button", { name: "Рассылка #42", exact: true }).click();
-  await page.getByText("Тест результатов", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "Скрыть подробности" }).click();
-
+  assert.equal(
+    await page.getByText("Результаты ручных рассылок", { exact: true }).count(),
+    0,
+  );
   await page.getByRole("button", { name: "Продолжить", exact: true }).click();
   await page
     .getByLabel("Текст рассылки", { exact: true })
