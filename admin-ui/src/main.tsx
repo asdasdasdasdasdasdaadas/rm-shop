@@ -53,7 +53,6 @@ import {
   Handshake,
   Send,
   GitBranch,
-  Newspaper,
   MessagesSquare,
   Settings,
   DatabaseBackup,
@@ -73,7 +72,7 @@ import { RecordsPage, BackupsPage } from "@/pages/records";
 import { InterfaceEditorPage } from "@/pages/interface-editor";
 import { SettingsPage } from "@/pages/settings";
 import { AdsPage, CampaignsPage, ReferralsPage } from "@/pages/marketing";
-import { BroadcastPage, AnnouncementsPage } from "@/pages/communications";
+import { BroadcastPage } from "@/pages/communications";
 import { FunnelPage } from "@/pages/funnel";
 import "./theme.css";
 const sections = [
@@ -153,13 +152,6 @@ const sections = [
     description: "Подготовьте сообщение для нужной аудитории",
     group: "Коммуникации",
     icon: Send,
-  },
-  {
-    id: "announcements",
-    label: "Новости сервиса",
-    description: "Анонсы обновлений в кабинете и Telegram",
-    group: "Коммуникации",
-    icon: Newspaper,
   },
   {
     id: "messages",
@@ -519,9 +511,6 @@ function Workspace({
       break;
     case "broadcast":
       page = <BroadcastPage />;
-      break;
-    case "announcements":
-      page = <AnnouncementsPage />;
       break;
     case "backups":
       page = <BackupsPage />;

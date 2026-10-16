@@ -173,62 +173,6 @@ export function OverviewPage({
               </Card>
             ))}
           </div>
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,1fr)]">
-            <Panel
-              title="Требуют внимания"
-              description="Рабочая очередь администратора."
-            >
-              <div className="divide-y">
-                {[
-                  [
-                    "Обращения без ответа",
-                    s.tickets_open || 0,
-                    "tickets?status=open",
-                  ],
-                  [
-                    "Заблокировали бота",
-                    u.bot_blocked || 0,
-                    "users?status=bot_block",
-                  ],
-                ].map(([label, count, path]) => (
-                  <button
-                    key={String(label)}
-                    className="w-full py-4 flex items-center justify-between gap-3 text-sm hover:text-primary"
-                    onClick={() => navigate(String(path))}
-                  >
-                    <span>{label}</span>
-                    <span className="flex items-center gap-4 font-medium">
-                      {count}
-                      <ArrowRight className="size-4" />
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </Panel>
-            <Panel
-              title="Быстрые действия"
-              description="Частые задачи без поиска по настройкам."
-            >
-              <div className="grid gap-3">
-                {[
-                  ["Найти клиента", "users"],
-                  ["Создать промокод", "promo"],
-                  ["Подготовить рассылку", "broadcast"],
-                  ["Запустить акцию", "campaigns"],
-                ].map(([label, path]) => (
-                  <Button
-                    key={path}
-                    variant="outline"
-                    className="justify-between"
-                    onClick={() => navigate(path)}
-                  >
-                    {label}
-                    <ArrowRight />
-                  </Button>
-                ))}
-              </div>
-            </Panel>
-          </div>
         </>
       )}
       <Tabs

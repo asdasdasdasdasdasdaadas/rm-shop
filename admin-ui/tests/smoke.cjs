@@ -783,17 +783,11 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     .waitFor({ state: "hidden" });
   assert.equal(settings.faq_items[0].q, "Как включить VPN?");
   await nav("Рассылки");
-  await page
-    .getByRole("button", { name: "Отправить тест админу", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Отправить тест", exact: true })
-    .click();
-  await page.getByText("Отправлено: 1 из 1.", { exact: true }).waitFor();
-  assert.deepEqual(posts.find((p) => p.key === "funnel-test").payload, {
-    telegram_id: 123,
-    scenario: "start",
-  });
+  await page.getByRole("heading", { name: "Рассылки", exact: true }).waitFor();
+  assert.equal(
+    await page.getByText("Тест воронки", { exact: true }).count(),
+    0,
+  );
   await page.getByRole("button", { name: "Рассылка #42", exact: true }).click();
   await page.getByText("Тест результатов", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Скрыть подробности" }).click();
@@ -900,7 +894,6 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     "Промокоды",
     "Источники трафика",
     "Воронка",
-    "Новости сервиса",
     "Журнал доставки",
     "Резервные копии",
     "Настройки",
