@@ -318,7 +318,19 @@ export function FunnelPage() {
           const info = buttonInfo(b);
           return (
             <div key={i}>
-              <span>{info.text || "Название кнопки"}</span>
+              <span>
+                {typeof b !== "string" && b.emoji ? (
+                  <img
+                    className="inline size-4 align-text-bottom"
+                    alt=""
+                    src={"/admin/api/funnel-emojis?id=" + b.emoji}
+                    onError={(e) => {
+                      e.currentTarget.hidden = true;
+                    }}
+                  />
+                ) : null}{" "}
+                {info.text || "Название кнопки"}
+              </span>
               <ArrowUpRight className="size-3 shrink-0" />
               <small>{info.destination}</small>
             </div>

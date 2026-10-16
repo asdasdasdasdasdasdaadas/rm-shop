@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { ArrowUp, ArrowDown, Trash2, Plus } from "lucide-react";
 export type FunnelButton =
-  string | { action: string; text: string; url?: string };
+  string | { action: string; text: string; url?: string; emoji?: string };
+type EmojiItem = { id: string; emoji: string; thumbnail: boolean };
 type Action = { id: string; label: string; button?: string };
 export function ButtonEditor({
   value,
@@ -21,19 +22,20 @@ export function ButtonEditor({
   const errorPrefix = useId();
   const update = (i: number, patch: Partial<Exclude<FunnelButton, string>>) =>
     onChange(
-      value.map((b, n) =>
-        n === i
-          ? {
-              ...(typeof b === "string"
-                ? {
-                    action: b,
-                    text: actions.find((a) => a.id === b)?.button || b,
-                  }
-                : b),
-              ...patch,
-            }
-          : b,
-      ),
+      value.map((b, n) => {
+        if (n !== i) return b;
+        const next = {
+          ...(typeof b === "string"
+            ? {
+                action: b,
+                text: actions.find((a) => a.id === b)?.button || b,
+              }
+            : b),
+          ...patch,
+        };
+        if (!next.emoji) delete next.emoji;
+        return next;
+      }),
     );
   return (
     <div className="space-y-3">
@@ -110,6 +112,44 @@ export function ButtonEditor({
                 onChange={(e) => update(i, { url: e.target.value })}
               />
             )}
+            <details className="rounded-lg border p-3">
+              <summary className="cursor-pointer text-sm">
+                Эмодзи на кнопке {i + 1}
+              </summary>
+              <div className="space-y-3 pt-3">
+                <p className="text-xs text-muted-foreground">
+                  Иконка перед текстом. Анимацию проверьте тестом в Telegram.
+                  Для отправки нужен Premium у владельца бота.
+                </p>
+                {item.emoji && (
+                  <div className="flex items-center gap-3">
+                    <img
+                      className="size-8"
+                      alt=""
+                      src={"/admin/api/funnel-emojis?id=" + item.emoji}
+                      onError={(e) => {
+                        e.currentTarget.hidden = true;
+                      }}
+                    />
+                    <span className="text-sm">Эмодзи выбран</span>
+                    <Button
+                      variant="outline"
+                      onClick={() => update(i, { emoji: "" })}
+                    >
+                      Убрать эмодзи
+                    </Button>
+                  </div>
+                )}
+                <EmojiPack
+                  setLabel={`Набор эмодзи кнопки ${i + 1}`}
+                  loadLabel={`Загрузить набор кнопки ${i + 1}`}
+                  onPick={(picked) => update(i, { emoji: picked.id })}
+                  actionLabel={(picked) =>
+                    `Поставить ${picked.emoji} ${picked.id} на кнопку ${i + 1}`
+                  }
+                />
+              </div>
+            </details>
             {issue && (
               <p id={errorId} className="text-xs text-destructive">
                 {issue.message}
@@ -157,6 +197,76 @@ export function ButtonEditor({
     </div>
   );
 }
+function EmojiPack({
+  onPick,
+  actionLabel,
+  setLabel = "Набор эмодзи",
+  loadLabel = "Загрузить набор",
+}: {
+  onPick: (item: EmojiItem) => void;
+  actionLabel: (item: EmojiItem) => string;
+  setLabel?: string;
+  loadLabel?: string;
+}) {
+  const [pack, setPack] = useState(""),
+    [items, setItems] = useState<EmojiItem[]>([]),
+    [busy, setBusy] = useState(false),
+    [title, setTitle] = useState("");
+  return (
+    <>
+      <Input
+        aria-label={setLabel}
+        placeholder="https://t.me/addemoji/…"
+        value={pack}
+        onChange={(e) => setPack(e.target.value)}
+      />
+      <Button
+        variant="outline"
+        disabled={busy || !pack.trim()}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const r = await api(
+              "funnel-emojis?set=" + encodeURIComponent(pack.trim()),
+            );
+            setItems(r.items);
+            setTitle(r.title);
+          } catch (e) {
+            toast.error((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? "Загрузка…" : loadLabel}
+      </Button>
+      <p className="text-sm">{title}</p>
+      <div className="grid grid-cols-6 gap-2 max-h-52 overflow-auto">
+        {items.map((item) => (
+          <button
+            type="button"
+            key={item.id}
+            title={`${item.emoji} · ${item.id}`}
+            aria-label={actionLabel(item)}
+            className="rounded border p-2 hover:bg-muted"
+            onClick={() => onPick(item)}
+          >
+            {item.thumbnail ? (
+              <img
+                loading="lazy"
+                className="size-8"
+                alt={item.emoji}
+                src={"/admin/api/funnel-emojis?id=" + item.id}
+              />
+            ) : (
+              item.emoji
+            )}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
 export function MessageEditor({
   value,
   onChange,
@@ -168,13 +278,7 @@ export function MessageEditor({
 }) {
   const textErrorId = useId();
   const issue = textError(value);
-  const ref = useRef<HTMLTextAreaElement>(null),
-    [pack, setPack] = useState(""),
-    [items, setItems] = useState<
-      { id: string; emoji: string; thumbnail: boolean }[]
-    >([]),
-    [busy, setBusy] = useState(false),
-    [title, setTitle] = useState("");
+  const ref = useRef<HTMLTextAreaElement>(null);
   const selection = useRef({ start: value.length, end: value.length });
   const insert = (item: { id: string; emoji: string }) => {
     const { start, end } = selection.current;
@@ -224,56 +328,10 @@ export function MessageEditor({
             отправки нужен Premium у владельца бота или дополнительное имя бота
             с Fragment.
           </p>
-          <Input
-            aria-label="Набор эмодзи"
-            placeholder="https://t.me/addemoji/…"
-            value={pack}
-            onChange={(e) => setPack(e.target.value)}
+          <EmojiPack
+            onPick={insert}
+            actionLabel={(item) => `Вставить ${item.emoji} ${item.id}`}
           />
-          <Button
-            variant="outline"
-            disabled={busy || !pack.trim()}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                const r = await api(
-                  "funnel-emojis?set=" + encodeURIComponent(pack.trim()),
-                );
-                setItems(r.items);
-                setTitle(r.title);
-              } catch (e) {
-                toast.error((e as Error).message);
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {busy ? "Загрузка…" : "Загрузить набор"}
-          </Button>
-          <p className="text-sm">{title}</p>
-          <div className="grid grid-cols-6 gap-2 max-h-52 overflow-auto">
-            {items.map((item) => (
-              <button
-                type="button"
-                key={item.id}
-                title={`${item.emoji} · ${item.id}`}
-                aria-label={`Вставить ${item.emoji} ${item.id}`}
-                className="rounded border p-2 hover:bg-muted"
-                onClick={() => insert(item)}
-              >
-                {item.thumbnail ? (
-                  <img
-                    loading="lazy"
-                    className="size-8"
-                    alt={item.emoji}
-                    src={"/admin/api/funnel-emojis?id=" + item.id}
-                  />
-                ) : (
-                  item.emoji
-                )}
-              </button>
-            ))}
-          </div>
         </div>
       </details>
     </div>

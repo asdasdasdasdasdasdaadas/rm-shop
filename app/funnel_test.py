@@ -134,5 +134,5 @@ def test_keyboard(markup):
         return None
     # All actions are inert, including web apps, payment links and copied referral texts.
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=button.text, style=button.style, callback_data='funnel_test:click')
+        InlineKeyboardButton(text=button.text, style=button.style, icon_custom_emoji_id=button.icon_custom_emoji_id, callback_data='funnel_test:click')
         for button in row] for row in markup.inline_keyboard])

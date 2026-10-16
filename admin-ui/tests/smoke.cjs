@@ -861,6 +861,11 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await page.getByRole("button",{name:"Загрузить набор",exact:true}).click();
   await page.getByRole("button",{name:"Вставить ⭐ 123",exact:true}).click();
   assert.match(await page.getByLabel("Текст сообщения",{exact:true}).inputValue(),/<tg-emoji emoji-id="123">⭐<\/tg-emoji>/);
+  await page.getByText("Эмодзи на кнопке 3",{exact:true}).click();
+  await page.getByLabel("Набор эмодзи кнопки 3",{exact:true}).fill("https://t.me/addemoji/Stars");
+  await page.getByRole("button",{name:"Загрузить набор кнопки 3",exact:true}).click();
+  await page.getByRole("button",{name:"Поставить ⭐ 123 на кнопку 3",exact:true}).click();
+  await page.getByText("Эмодзи выбран",{exact:true}).waitFor();
 
   await page.getByRole("button",{name:"Закрыть редактор шага",exact:true}).click();
   await page.getByRole("button", {name:"Тест ветки на админе",exact:true}).click();
@@ -874,6 +879,7 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   const menuSave=posts.filter(p=>p.key==='funnel-board').at(-1).payload.graph;
   assert.equal(menuSave.main_menu.text,'Привет, {name}! Баланс: {balance}');
   assert.equal(menuSave.branches[0].steps[0].buttons[2].text,'Наш сайт');
+  assert.equal(menuSave.branches[0].steps[0].buttons[2].emoji,'123');
 
   await page.getByRole('button',{name:'Автоматические сообщения',exact:true}).click();
   await page.setViewportSize({width:390,height:844});

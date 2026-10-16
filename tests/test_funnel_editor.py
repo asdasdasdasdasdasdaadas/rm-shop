@@ -35,6 +35,18 @@ class EditorTest(unittest.IsolatedAsyncioTestCase):
             board.validate_buttons([{'action':'url','text':'','url':'https://example.org'}])
         with self.assertRaises(ValueError):
             board.validate_buttons(['cabinet']*7)
+        emoji=[{'action':'topup','text':'Продлить','emoji':'5368324170671202286'}]
+        self.assertEqual(board.validate_buttons(emoji), emoji)
+        self.assertEqual(board.validate_buttons([{'action':'topup','text':'Продлить','emoji':'   '}]), [{'action':'topup','text':'Продлить'}])
+        with self.assertRaises(ValueError):
+            board.validate_buttons([{'action':'topup','text':'Продлить','emoji':'star'}])
+        with patch('app.config.get_settings',return_value=self.settings()):
+            icon=board.markup(emoji,123)
+        self.assertEqual(icon.inline_keyboard[0][0].icon_custom_emoji_id,'5368324170671202286')
+        from app.funnel_test import test_keyboard
+        tested=test_keyboard(icon)
+        self.assertEqual(tested.inline_keyboard[0][0].icon_custom_emoji_id,'5368324170671202286')
+        self.assertEqual(tested.inline_keyboard[0][0].callback_data,'funnel_test:click')
 
     async def test_draft_branch_test_no_save_or_account_effects(self):
         bot=SimpleNamespace(send_message=AsyncMock())

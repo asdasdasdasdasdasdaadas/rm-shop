@@ -17,7 +17,7 @@ export const hoursError = (value: number | "") =>
       ? "Введите целое число от 0 до 8760"
       : "";
 export function buttonError(
-  button: string | { action: string; text: string; url?: string },
+  button: string | { action: string; text: string; url?: string; emoji?: string },
   actions: string[],
 ) {
   if (typeof button === "string")
@@ -29,6 +29,8 @@ export function buttonError(
       field: "text",
       message: "Введите название кнопки: от 1 до 64 символов",
     };
+  if (button.emoji && !/^[0-9]{1,30}$/.test(button.emoji))
+    return { field: "emoji", message: "Выберите эмодзи из набора Telegram" };
   if (![...actions, "url"].includes(button.action))
     return { field: "action", message: "Выберите действие кнопки" };
   if (button.action === "url") {

@@ -172,6 +172,11 @@ def validate_buttons(buttons):
         if action not in ACTION_IDS | {"url"} or not label or len(label) > 64:
             raise ValueError("Выберите действие и название кнопки до 64 символов")
         button = {"action": action, "text": label}
+        emoji = str(item.get("emoji") or "").strip()
+        if emoji:
+            if not re.fullmatch(r"[0-9]{1,30}", emoji):
+                raise ValueError("Выберите эмодзи из набора Telegram")
+            button["emoji"] = emoji
         if action == "url":
             url = str(item.get("url") or "").strip()
             parsed = urlsplit(url)
@@ -243,16 +248,25 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
     from app.config import get_settings
     from app.keyboards import invite_copy_text, mini_app_url, referral_share_button
 
-    def screen(label: str, name: str | None):
+    def emoji_id(item) -> str | None:
+        if not isinstance(item, dict):
+            return None
+        value = str(item.get("emoji") or "").strip()
+        return value or None
+
+    def press(label: str, item, **kwargs):
+        return InlineKeyboardButton(text=label, icon_custom_emoji_id=emoji_id(item), **kwargs)
+
+    def screen(label: str, name: str | None, item):
         url = mini_app_url()
         if not url:
-            return InlineKeyboardButton(text=label, callback_data="help:connect")
+            return press(label, item, callback_data="help:connect")
         parts = urlsplit(url)
         query = dict(parse_qsl(parts.query))
         if name:
             query["screen"] = name
-        return InlineKeyboardButton(
-            text=label, style="success" if name is None or label == "Личный кабинет" else None,
+        return press(
+            label, item, style="success" if name is None or label == "Личный кабинет" else None,
             web_app=WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query)))),
         )
 
@@ -266,52 +280,52 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
             continue
         label = _button(action_id)["button"] if isinstance(item, str) else item["text"]
         if action_id == "url":
-            rows.append([InlineKeyboardButton(text=label, url=item["url"])])
+            rows.append([press(label, item, url=item["url"])])
             continue
         if action_id == "cabinet":
-            rows.append([screen(label, None)])
+            rows.append([screen(label, None, item)])
         elif action_id == "gift":
-            rows.append([screen(label, "gift")])
+            rows.append([screen(label, "gift", item)])
         elif action_id == "connect":
-            rows.append([screen(label, "connect")])
+            rows.append([screen(label, "connect", item)])
         elif action_id == "topup":
-            rows.append([screen(label, "topup")])
+            rows.append([screen(label, "topup", item)])
         elif action_id == "ambassador":
-            rows.append([screen(label, "ambassador")])
+            rows.append([screen(label, "ambassador", item)])
         elif action_id == "help":
-            rows.append([InlineKeyboardButton(text=label, callback_data="help:connect")])
+            rows.append([press(label, item, callback_data="help:connect")])
         elif action_id == "welcome":
-            rows.append([InlineKeyboardButton(text=label, callback_data="welcome:continue")])
+            rows.append([press(label, item, callback_data="welcome:continue")])
         elif action_id == "channel":
             url = get_settings().required_channel_url
             if url:
-                rows.append([InlineKeyboardButton(text=label, url=url)])
+                rows.append([press(label, item, url=url)])
             if isinstance(item, str):
                 rows.append([InlineKeyboardButton(text="Проверить подписку", callback_data="check_sub")])
         elif action_id == "feedback_ok":
-            rows.append([InlineKeyboardButton(text=label, callback_data="vpn_feedback:ok")])
+            rows.append([press(label, item, callback_data="vpn_feedback:ok")])
         elif action_id == "feedback_help":
-            rows.append([InlineKeyboardButton(text=label, callback_data="vpn_feedback:help")])
+            rows.append([press(label, item, callback_data="vpn_feedback:help")])
         elif action_id == "feedback_terms":
-            rows.append([InlineKeyboardButton(text=label, callback_data="vpn_feedback:terms")])
+            rows.append([press(label, item, callback_data="vpn_feedback:terms")])
         elif action_id == "feedback_later":
-            rows.append([InlineKeyboardButton(text=label, callback_data="vpn_feedback:later")])
+            rows.append([press(label, item, callback_data="vpn_feedback:later")])
         elif action_id == "share":
-            rows.append([referral_share_button(int(telegram_id)).model_copy(update={"text": label})])
+            rows.append([referral_share_button(int(telegram_id)).model_copy(update={"text": label, "icon_custom_emoji_id": emoji_id(item)})])
         elif action_id == "copy":
             username = get_settings().bot_username
-            rows.append([InlineKeyboardButton(
-                text=label, copy_text=CopyTextButton(text=invite_copy_text(int(telegram_id), username)),
+            rows.append([press(
+                label, item, copy_text=CopyTextButton(text=invite_copy_text(int(telegram_id), username)),
             )])
         elif action_id == "resume_pay":
             if token:
-                rows.append([InlineKeyboardButton(text=label, callback_data=f"resume_pay:{token}")])
+                rows.append([press(label, item, callback_data=f"resume_pay:{token}")])
             else:
-                rows.append([screen(label, "topup")])
+                rows.append([screen(label, "topup", item)])
         elif action_id in {"about", "invite"}:
-            rows.append([InlineKeyboardButton(text=label, callback_data="about_service" if action_id == "about" else "share")])
+            rows.append([press(label, item, callback_data="about_service" if action_id == "about" else "share")])
         elif action_id == "menu":
-            rows.append([InlineKeyboardButton(text=label, callback_data="profile")])
+            rows.append([press(label, item, callback_data="profile")])
     if not rows:
         return None
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -747,8 +761,10 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
             if step['condition'] == 'recover_idle':
                 funded = await db.has_funded_access(uid)
                 body += "\n\n" + ("Доступ ещё действует — можно включить VPN." if funded else "Доступ закончился. В кабинете можно пополнить баланс и вернуться к VPN.")
-                buttons = [({'action':'connect' if funded else 'topup','text':'Личный кабинет'}
-                            if (b if isinstance(b,str) else b.get('action')) in {'cabinet','connect','topup'} else b) for b in buttons]
+                buttons = [(
+                    {'action':'connect' if funded else 'topup','text':'Личный кабинет', **({'emoji': b['emoji']} if isinstance(b, dict) and b.get('emoji') else {})}
+                    if (b if isinstance(b, str) else b.get('action')) in {'cabinet','connect','topup'} else b
+                ) for b in buttons]
             delivered = await _deliver_unbudgeted(
                 bot, kind=kind, telegram_id=uid, first_name=row.get("first_name"),
                 title=CONDITION_IDS[step["condition"]]["label"],
