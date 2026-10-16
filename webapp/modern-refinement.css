@@ -89,3 +89,15 @@ html[data-design="modern"] #lowBalanceSheet h2 { margin: 0; font-weight: 700; fo
 #lowBalanceSheet .low-balance-description { margin: 16px 0 0; font-size: 17px; line-height: 1.45; color: var(--text-primary); }
 #lowBalanceSheet .balance-alert-hint { margin: 12px 0 26px; font-size: 14px; line-height: 1.5; color: var(--text-secondary); }
 #lowBalanceSheet :is(#lowBalancePay,#lowBalanceLater) { display: block; width: 100%; min-height: 52px; border-radius: 20px; font-size: 16px; margin-top: 10px; }
+
+/* Wallet actions: a primary row and two equal secondary buttons. */
+html[data-design="modern"] #view-home .status-card { grid-template-columns: minmax(0,1fr); padding: 20px; gap: 18px; }
+html[data-design="modern"] #view-home .balance { grid-area: auto; }
+html[data-design="modern"] #view-home .status-actions { grid-area: auto; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; width: 100%; }
+html[data-design="modern"] #view-home #topupBtn { grid-column: 1 / -1; background: var(--text-primary); color: var(--bg-app); }
+html[data-design="modern"] #view-home .status-actions :is(#topupBtn,#homeTrustAction,#homeBillingAction) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; width: 100%; min-width: 0; min-height: 78px; padding: 12px 8px; border-radius: 999px; font-size: 14px; font-weight: 600; line-height: 1.25; white-space: normal; text-align: center; }
+html[data-design="modern"] #view-home .status-actions svg { width: 24px; height: 24px; flex-shrink: 0; }
+html[data-design="modern"] #view-home :is(#homeTrustAction,#homeBillingAction) { background: var(--liquid-fill); color: var(--text-primary); border: 1px solid var(--liquid-edge); }
+html[data-design="modern"] #view-home #homeTrustAction.hidden { display: none; }
+html[data-design="modern"] #homeTrustAction.hidden + #homeBillingAction { grid-column: 1 / -1; }
+html[data-design="modern"] #view-home #trustBtn { display: none; }

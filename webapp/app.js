@@ -595,11 +595,11 @@ function paintStatus(me) {
     add.classList.remove("hidden");
     add.className = "btn btn-primary";
     topup.className = "btn btn-ghost";
-    topup.textContent = "Пополнить";
+    $("topupBtnLabel").textContent = "Пополнить";
   } else {
     add.classList.add("hidden");
     topup.className = "btn btn-primary";
-    topup.textContent = "Пополнить баланс";
+    $("topupBtnLabel").textContent = "Пополнить";
   }
 }
 
@@ -3833,6 +3833,8 @@ function paint(me) {
   const trustHelp = $("trustHelp");
   const menuTrust = $("menuTrust");
   const t = me.trust;
+  $("homeTrustAction").classList.toggle("hidden", !me.balance_enabled || !t || t.enabled === false);
+  $("homeBillingAction").classList.toggle("hidden", !me.balance_enabled);
   const showTrust = Boolean(
     me.balance_enabled
     && t
@@ -4094,6 +4096,8 @@ $("trialNoticeAct").onclick = () => {
 };
 
 $("trustBtn").onclick = () => openTrust();
+$("homeTrustAction").onclick = () => { haptic(); openTrust(); };
+$("homeBillingAction").onclick = () => { haptic(); openBilling(); };
 $("trustHelp").onclick = () => openTrust();
 $("menuTrust").onclick = () => {
   closeMenu();
