@@ -101,3 +101,15 @@ html[data-design="modern"] #view-home :is(#homeTrustAction,#homeBillingAction) {
 html[data-design="modern"] #view-home #homeTrustAction.hidden { display: none; }
 html[data-design="modern"] #homeTrustAction.hidden + #homeBillingAction { grid-column: 1 / -1; }
 html[data-design="modern"] #view-home #trustBtn { display: none; }
+
+/* Compact wallet: one centered balance, with actions directly beneath it. */
+html[data-design="modern"] #view-home .modern-overview { padding: 12px 8px 6px; }
+html[data-design="modern"] #view-home .modern-overview .modern-eyebrow { font-size: 17px; font-weight: 600; color: var(--text-primary); margin-bottom: 16px; }
+html[data-design="modern"] #modernRemaining { font-size: clamp(44px,13vw,60px); overflow-wrap: anywhere; }
+html[data-design="modern"] #modernRemaining[data-state="empty"] { color: #ff657a; }
+html[data-design="modern"] #modernRemainingLabel { font-size: 14px; line-height: 1.5; letter-spacing: 0; text-transform: none; margin-top: 16px; }
+html[data-design="modern"] #view-home .status-card { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; gap: 0; }
+html[data-design="modern"] #view-home #balanceLine { display: none; }
+html[data-design="modern"] #view-home .status-actions { gap: 8px; }
+html[data-design="modern"] #view-home .status-actions :is(#topupBtn,#homeTrustAction,#homeBillingAction) { min-height: 64px; padding: 10px 8px; gap: 5px; font-size: 13px; }
+html[data-design="modern"] #view-home .status-actions svg { width: 22px; height: 22px; }

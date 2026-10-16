@@ -4,7 +4,7 @@
   $('app').classList.remove('hidden');
   $('avatar').src='/icons/profile-placeholder.svg';
   $('name').textContent='Анна · предпросмотр';$('login').textContent='Демонстрационные данные';
-  $('modernRemaining').textContent='5 дней';$('modernRemainingLabel').textContent='Доступ на одном устройстве';
+  $('modernRemaining').textContent='180 ₽';$('modernRemainingLabel').textContent='Доступ на одном устройстве';
   $('balanceLine').textContent='180 ₽';
   const demo=(host,tag,text,cls)=>{const el=document.createElement(tag);el.textContent=text;el.className=cls || '';$(host)?.append(el);return el;};
   $('devTitle').textContent='iPhone';$('devUrl').textContent='https://example.com/subscription/personal';$('devUrl').classList.remove('is-empty');

@@ -37,6 +37,12 @@
     } else if (me.trial_available) {
       caption = "Ваш подарок ждёт ниже";
     }
+    if (me.balance_enabled) {
+      if (phones.length && hours > 24 && !me.trial_waiting_connection && !me.billing_paused) caption = `${amount} ${caption}`;
+      amount = `${(Number(me.balance_rub) || 0).toLocaleString("ru-RU")} ₽`;
+      if (empty) caption = "Подписка неактивна — пополните баланс";
+      else if (phones.length && hours > 0 && hours <= 24 && !me.trial_waiting_connection && !me.billing_paused) caption = "Доступ скоро закончится — пополните баланс";
+    }
     const changed = value.textContent !== amount;
     value.textContent = amount;
     if (changed && window.WayMotion) window.WayMotion.value(value);

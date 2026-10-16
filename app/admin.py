@@ -2142,7 +2142,7 @@ async def interface_preview(request: web.Request) -> web.Response:
     html = (WEBAPP / 'index.html').read_text()
     html = re.sub(r'<script\b[^>]*>.*?</script>', '', html, flags=re.S)
     html = html.replace('<head>', '<head><base href="/static/">')
-    html = html.replace('</body>', '<script src="/static/interface-editor.js?v=5"></script><script src="/static/interface-preview.js?v=4"></script></body>')
+    html = html.replace('</body>', '<script src="/static/interface-editor.js?v=5"></script><script src="/static/interface-preview.js?v=5"></script></body>')
     return web.Response(text=html, content_type='text/html', headers=_NO_STORE)
 
 

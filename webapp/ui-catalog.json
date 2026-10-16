@@ -257,9 +257,9 @@
     {
       "key": "overview_eyebrow",
       "screen": "home",
-      "label": "Подпись над сроком доступа",
+      "label": "Подпись над балансом",
       "selector": ".modern-overview .modern-eyebrow",
-      "default": "Ваш VPN",
+      "default": "Баланс",
       "kind": "text"
     },
     {
