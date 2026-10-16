@@ -112,6 +112,8 @@ async def main() -> None:
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     from app.legal_notice import LegalNoticeRequestMiddleware, LegalNoticeInteractionMiddleware
     bot.session.middleware(LegalNoticeRequestMiddleware())
+    from app.button_icons import install_button_icons
+    await install_button_icons(bot)
     runtime.bot = bot
     if not str(settings.admin_live_chat_id or "").strip():
         logger.warning("ADMIN_LIVE_CHAT_ID пуст: живые события в канал не пойдут")
