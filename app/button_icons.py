@@ -8,6 +8,7 @@ from aiogram.types import InlineKeyboardMarkup
 
 log = logging.getLogger(__name__)
 PACK = 'tgmacicons'  # https://t.me/addemoji/tgmacicons
+PINNED_ICONS = {'home': '5257963315258204021'}
 # Telegram sticker alt emoji selects a real document ID from the pack; never invent IDs.
 ICONS = {
     'home': ('🏠', ('🏠','🏡')),
@@ -94,13 +95,15 @@ class ButtonIconsMiddleware(BaseRequestMiddleware):
 
 
 async def install_button_icons(bot):
-    ids = {}
+    ids = dict(PINNED_ICONS)
     try:
         pack = await asyncio.wait_for(bot.get_sticker_set(PACK), timeout=10)
         if pack.sticker_type != 'custom_emoji':
             raise ValueError('Expected a custom emoji set')
         available = {s.emoji.replace('\ufe0f',''): s.custom_emoji_id for s in pack.stickers if s.emoji and s.custom_emoji_id}
         for kind, (_, aliases) in ICONS.items():
+            if kind in PINNED_ICONS:
+                continue
             for alias in aliases:
                 found = available.get(alias.replace('\ufe0f',''))
                 if found:
@@ -109,5 +112,5 @@ async def install_button_icons(bot):
         log.info('Button emoji loaded: %s; fallback: %s', ', '.join(ids), ', '.join(k for k in ICONS if k not in ids))
     except Exception as exc:
         # Do not log request URLs or tokens.
-        log.warning('Button emoji pack unavailable (%s); using outline symbols', type(exc).__name__)
+        log.warning('Button emoji pack unavailable (%s); keeping pinned icons, using fallback symbols for others', type(exc).__name__)
     bot.session.middleware(ButtonIconsMiddleware(ids))

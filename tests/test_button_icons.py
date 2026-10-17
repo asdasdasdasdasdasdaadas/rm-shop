@@ -38,4 +38,10 @@ class ButtonIconsTest(unittest.IsolatedAsyncioTestCase):
         installed=[]
         bot=SimpleNamespace(get_sticker_set=AsyncMock(return_value=SimpleNamespace(sticker_type='custom_emoji',stickers=[SimpleNamespace(emoji='🏠',custom_emoji_id='777')])),session=SimpleNamespace(middleware=installed.append))
         await install_button_icons(bot)
-        self.assertEqual(installed[0].ids,{'home':'777'})
+        self.assertEqual(installed[0].ids,{'home':'5257963315258204021'})
+
+    async def test_pinned_home_survives_pack_failure(self):
+        installed=[]
+        bot=SimpleNamespace(get_sticker_set=AsyncMock(side_effect=RuntimeError('unavailable')),session=SimpleNamespace(middleware=installed.append))
+        await install_button_icons(bot)
+        self.assertEqual(installed[0].ids['home'],'5257963315258204021')
