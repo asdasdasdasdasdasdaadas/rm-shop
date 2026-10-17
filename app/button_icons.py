@@ -8,13 +8,19 @@ from aiogram.types import InlineKeyboardMarkup
 
 log = logging.getLogger(__name__)
 PACK = 'tgmacicons'  # https://t.me/addemoji/tgmacicons
-PINNED_ICONS = {'home': '5257963315258204021'}
+PINNED_ICONS = {
+    'home': '5257963315258204021',
+    'channel': '5258165702707125574',
+    'invite': '5258513401784573443',
+    'message': '5287595522993991899',
+}
 # Telegram sticker alt emoji selects a real document ID from the pack; never invent IDs.
 ICONS = {
     'home': ('🏠', ('🏠','🏡')),
     'about': ('!', ('❕','❗','ℹ️','ℹ')),
     'cabinet': ('▣', ('👤','🖥','💻')),
     'invite': ('♧', ('👥','👤','🤝')),
+    'message': ('✉', ('✉️', '💬')),
     'pay': ('⊕', ('💳','💰','➕')),
     'help': ('◌', ('💬','🗨','🆘')),
     'faq': ('?', ('❓','❔')),
@@ -35,6 +41,7 @@ def kind_for(button):
     if callback == 'about_service' or 'о сервисе' in text: return 'about'
     if 'кабинет' in text: return 'cabinet'
     if 'частые вопросы' in text: return 'faq'
+    if 'отправить сообщение' in text or 'написать сообщение' in text: return 'message'
     if 'поддерж' in text or 'помоги' in text: return 'help'
     if 'копир' in text or button.copy_text: return 'copy'
     if callback == 'share' or 'приглас' in text or 'поделит' in text: return 'invite'
