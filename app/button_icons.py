@@ -7,7 +7,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardMarkup
 
 log = logging.getLogger(__name__)
-PACK = 'uiuxemoji'  # https://t.me/addemoji/uiuxemoji
+PACK = 'tgmacicons'  # https://t.me/addemoji/tgmacicons
 # Telegram sticker alt emoji selects a real document ID from the pack; never invent IDs.
 ICONS = {
     'home': ('⌂', ('🏠','🏡')),
