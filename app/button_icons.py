@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 PACK = 'tgmacicons'  # https://t.me/addemoji/tgmacicons
 # Telegram sticker alt emoji selects a real document ID from the pack; never invent IDs.
 ICONS = {
-    'home': ('⌂', ('🏠','🏡')),
+    'home': ('🏠', ('🏠','🏡')),
     'about': ('!', ('❕','❗','ℹ️','ℹ')),
     'cabinet': ('▣', ('👤','🖥','💻')),
     'invite': ('♧', ('👥','👤','🤝')),

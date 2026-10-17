@@ -24,7 +24,7 @@ class ButtonIconsTest(unittest.IsolatedAsyncioTestCase):
         middleware=ButtonIconsMiddleware({'home':'456'})
         self.assertEqual(await middleware(request,None,method),'ok')
         retried=request.call_args.args[1].reply_markup.inline_keyboard[0][0]
-        self.assertEqual(retried.text,'⌂ Главное меню')
+        self.assertEqual(retried.text,'🏠 Главное меню')
         self.assertEqual(retried.callback_data,'profile')
         self.assertFalse(middleware.ids)
 
