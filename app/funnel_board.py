@@ -311,7 +311,11 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
         elif action_id == "feedback_later":
             rows.append([press(label, item, callback_data="vpn_feedback:later")])
         elif action_id == "share":
-            rows.append([referral_share_button(int(telegram_id)).model_copy(update={"text": label, "icon_custom_emoji_id": emoji_id(item)})])
+            button = referral_share_button(int(telegram_id))
+            rows.append([button.model_copy(update={
+                "text": label,
+                "icon_custom_emoji_id": emoji_id(item) or button.icon_custom_emoji_id,
+            })])
         elif action_id == "copy":
             username = get_settings().bot_username
             rows.append([press(

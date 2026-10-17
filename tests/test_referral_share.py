@@ -18,6 +18,7 @@ class ReferralShareTest(unittest.IsolatedAsyncioTestCase):
     def assertRecipient(self,markup,uid):
         button=next(b for row in markup.inline_keyboard for b in row if b.url and 'share/url' in b.url)
         self.assertEqual(button.text,'Поделиться ссылкой')
+        self.assertEqual(button.icon_custom_emoji_id,'5258513401784573443')
         query=parse_qs(urlsplit(button.url).query)
         self.assertEqual(query['url'],[f'https://t.me/vpn_test_bot?start=ref_{uid}'])
 

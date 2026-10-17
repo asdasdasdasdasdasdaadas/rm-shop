@@ -341,7 +341,10 @@ def referral_share_button(telegram_id: int, bot_username: str | None = None) -> 
         "url": invite_url(telegram_id, bot_username),
         "text": invite_share_text(),
     })
-    return InlineKeyboardButton(text="Поделиться ссылкой", url=url)
+    return InlineKeyboardButton(
+        text="Поделиться ссылкой", url=url,
+        icon_custom_emoji_id="5258513401784573443",
+    )
 
 
 def with_referral_share(telegram_id: int, markup: InlineKeyboardMarkup | None = None) -> InlineKeyboardMarkup:
