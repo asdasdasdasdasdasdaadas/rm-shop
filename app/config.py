@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     bot_username: str = "your_bot"
     required_channel_id: str
     required_channel_url: str
+    required_channel_enabled: bool = False
     admin_ids: str = ""
     admin_live_chat_id: str = ""
 

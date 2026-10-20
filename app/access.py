@@ -20,12 +20,14 @@ _cache: dict[int, tuple[float, bool]] = {}
 
 
 async def is_channel_member(bot: Bot, user_id: int, *, force: bool = False) -> bool:
+    settings = get_settings()
+    if not settings.required_channel_enabled:
+        return True
     now = time.monotonic()
     if not force:
         hit = _cache.get(user_id)
         if hit and hit[0] > now:
             return hit[1]
-    settings = get_settings()
     try:
         member = await bot.get_chat_member(settings.required_channel_id, user_id)
         ok = member.status in ACTIVE_STATUSES
