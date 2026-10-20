@@ -158,6 +158,7 @@ async def send_welcome_intro(
 
 async def send_welcome_continuation(message: Message, telegram_id: int, *, in_channel: bool) -> None:
     settings=get_settings()
+    in_channel = in_channel or not settings.required_channel_enabled
     local=await db.get_user(telegram_id)
     trial_on=trial_is_available(local)
     days=days_text(settings.trial_days)

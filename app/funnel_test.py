@@ -28,8 +28,9 @@ def catalog(telegram_id: int, ambassador_cfg=None) -> list[dict]:
         trial_nudge_text('Тестовый пользователь', already_granted=False), onboarding_keyboard(gift=True))
     add('resume_welcome', 'start', 'Не завершил приветствие', 'Через 24 часа; не нажал «Я помогу»',
         notice_text('trial_resume_welcome'), support_welcome_keyboard())
-    add('resume_channel', 'start', 'Не подписался на канал', 'Через 24 часа; приветствие завершено, подписка на канал не подтверждена',
-        notice_text('trial_resume_channel'), channel_keyboard())
+    if s.required_channel_enabled:
+        add('resume_channel', 'start', 'Не подписался на канал', 'Через 24 часа; приветствие завершено, подписка на канал не подтверждена',
+            notice_text('trial_resume_channel'), channel_keyboard())
     add('gift_claimed', 'start', 'Подарок получен, устройства нет', 'Альтернативная ветка: подарок уже на балансе',
         trial_nudge_text('Тестовый пользователь', already_granted=True), onboarding_keyboard(gift=True))
     add('device', 'start', 'Устройство добавлено', 'Сразу после добавления устройства',

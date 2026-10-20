@@ -297,6 +297,8 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
         elif action_id == "welcome":
             rows.append([press(label, item, callback_data="welcome:continue")])
         elif action_id == "channel":
+            if not get_settings().required_channel_enabled:
+                continue
             url = get_settings().required_channel_url
             if url:
                 rows.append([press(label, item, url=url)])
