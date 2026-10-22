@@ -36,7 +36,14 @@ async def send_reminder(bot, telegram_id, body, *, kind, title, reply_markup, pr
     except Exception:
         logger.debug('Reminder tracking unavailable',exc_info=True)
     try:
-        message=await bot.send_message(telegram_id,body,reply_markup=reply_markup)
+        from pathlib import Path
+        from aiogram.types import FSInputFile
+        banner = Path(__file__).parent / 'assets' / 'balance-reminder.png'
+        if kind in {'nudge_trial_end', 'low_balance'} and banner.is_file() and len(body) <= 1024:
+            message = await bot.send_photo(telegram_id, FSInputFile(banner), caption=body,
+                                           parse_mode='HTML', reply_markup=reply_markup)
+        else:
+            message=await bot.send_message(telegram_id,body,reply_markup=reply_markup)
     except Exception:
         if token:
             await _finish(token,'failed',None)

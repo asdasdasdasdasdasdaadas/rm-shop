@@ -29,7 +29,7 @@ html[data-design="modern"] .view-head::before,html[data-design="modern"] .view-h
 html[data-design="modern"] .view:not(#view-home) .view-head { position: relative; top: auto; min-height: 0; height: auto; background: none; overflow: visible; }
 html[data-design="modern"] :is(.wiz-title,.topup-title,.pay-title,.offer-title,#devTitle) { color: var(--text-primary); font-size: clamp(26px,7vw,30px) !important; line-height: 1.2 !important; letter-spacing: -.025em !important; text-transform: none; overflow-wrap: anywhere; text-wrap: pretty; margin-top: 0; }
 html[data-design="modern"] .view:not(#view-wizard) .wiz-kicker { display: none; }
-html[data-design="modern"] :is(.section-note,.topup-hint,.article-copy,.faq-a,.support-meta) { font-size: 14px; line-height: 1.55; }
+html[data-design="modern"] :is(.section-note,.topup-hint,.faq-a,.support-meta) { font-size: 14px; line-height: 1.55; }
 html[data-design="modern"] :is(.pay-method,.wiz-radio-row,.dev-info-row,.cell) { min-width: 0; }
 html[data-design="modern"] :is(.pay-method-name,.wiz-radio-name,.cell-label,.dev-info-row .v) { overflow-wrap: anywhere; }
 html[data-design="modern"] .ref-stat-value { font-size: clamp(24px,7vw,30px); }

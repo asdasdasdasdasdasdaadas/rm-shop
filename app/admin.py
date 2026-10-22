@@ -11,23 +11,11 @@ from html import escape
 
 from aiohttp import web
 from aiogram import Bot
-from aiogram.types import FSInputFile, LinkPreviewOptions
+from aiogram.types import LinkPreviewOptions
 
 from app.referral_terms import referral_terms
 from app.reminder_tracking import tracked_keyboard, _finish as finish_tracked_delivery
 from app import db, runtime
-from app.announcements import (
-    DEFAULT_CLOSING,
-    DEFAULT_KICKER,
-    DEFAULT_LEAD,
-    DEFAULT_TITLE,
-    announcement_photo_path,
-    content_type_for,
-    fill_placeholders,
-    format_announcement_body,
-    save_announcement_photo,
-    validate_announcement_photo,
-)
 from app.balance import sync_user_billing
 from app.block import blocked_notice
 from app.backup import (
@@ -936,8 +924,6 @@ async def _retry_markup_base(kind: str, telegram_id: int, extra: dict | None):
         if tpl == "ambassador":
             from app.keyboards import ambassador_keyboard
             return ambassador_keyboard()
-        if tpl == "update":
-            return cabinet_keyboard()
         return None
     if kind == "nudge_payment":
         return payment_nudge_keyboard()
@@ -994,6 +980,8 @@ async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
     if await db.user_is_blocked(telegram_id):
         return False, "Пользователь заблокирован в магазине"
     extra = row.get("extra") if isinstance(row.get("extra"), dict) else {}
+    if extra.get("template") == "update":
+        return False, "Отправка анонсов отключена"
     origin = "manual"
     referral_invite = kind == "nudge_invite" or (kind == "broadcast" and extra.get("template") == "invite")
     if referral_invite and not get_settings().referral_program_enabled:
@@ -1021,8 +1009,6 @@ async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
     log_extra = {"retry_of": int(row["id"])}
     if extra.get("template"):
         log_extra["template"] = extra.get("template")
-    if extra.get("image_name"):
-        log_extra["image_name"] = extra.get("image_name")
     if extra.get("step") is not None:
         log_extra["step"] = extra.get("step")
     slot = None
@@ -1031,10 +1017,7 @@ async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
         if slot is None:
             return False, "Отправка отложена: лимит сообщений, незавершённая оплата или обращение в поддержку"
     try:
-        photo = None
-        if extra.get("template") == "update" and extra.get("image_name"):
-            photo = announcement_photo_path(str(extra.get("image_name") or ""))
-        await _deliver_broadcast(bot, telegram_id, body, markup, photo)
+        await _deliver_broadcast(bot, telegram_id, body, markup)
     except Exception as exc:
         if slot is not None:
             await db.finish_optional_message(slot, False)
@@ -1670,12 +1653,8 @@ async def _broadcast_all(
                 markup = tracked_keyboard(markup, token)
             except Exception:
                 logger.exception("Broadcast tracking setup failed")
-        image_name = str(job.get("image_name") or "").strip()
-        if image_name:
-            extra["image_name"] = image_name
-        photo = announcement_photo_path(image_name) if tpl == "update" else None
         try:
-            message = await _deliver_broadcast(bot, telegram_id, body, markup, photo)
+            message = await _deliver_broadcast(bot, telegram_id, body, markup)
         except Exception as exc:
             job["failed"] = int(job.get("failed") or 0) + 1
             status = "failed"
@@ -1701,24 +1680,9 @@ async def _broadcast_all(
         await asyncio.sleep(0.035)
 
 
-async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup, photo):
+async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup):
     from app.funnel_ui import funnel_body, funnel_keyboard
     body, markup = funnel_body(body), funnel_keyboard(markup)
-    if photo is None:
-        return await bot.send_message(telegram_id, body, reply_markup=markup)
-    if len(body) <= 1024:
-        return await bot.send_photo(
-            telegram_id,
-            FSInputFile(photo),
-            caption=body,
-            parse_mode=None,
-            reply_markup=markup,
-        )
-    await bot.send_photo(
-        telegram_id,
-        FSInputFile(photo),
-        parse_mode=None,
-    )
     return await bot.send_message(telegram_id, body, reply_markup=markup)
 
 
@@ -1731,8 +1695,6 @@ def _broadcast_title(template: str) -> str:
         return "Рассылка: не подключались"
     if template == "ambassador":
         return "Рассылка: приглашение в амбассадоры"
-    if template == "update":
-        return "Анонс обновления"
     return "Рассылка"
 
 
@@ -1778,8 +1740,6 @@ def _broadcast_payload(
         return invitation_text(cfg), ambassador_keyboard()
     if template == "whitelist":
         return text, cabinet_keyboard()
-    if template == "update":
-        return fill_placeholders(text, first_name), cabinet_keyboard()
     return text, None
 
 
@@ -1815,7 +1775,6 @@ def _new_bc_job() -> dict:
         "run_id": None,
         "scope": "all",
         "template": "",
-        "image_name": "",
         "total": 0,
         "sent": 0,
         "failed": 0,
@@ -1837,15 +1796,12 @@ def _start_broadcast_job(
     text: str,
     ids: list[int] | None = None,
     template: str | None = None,
-    *,
-    image_name: str | None = None,
 ) -> dict:
     job = _bc_job(app)
     job.update(_new_bc_job())
     job["running"] = True
     job["scope"] = "selected" if ids is not None else "all"
     job["template"] = str(template or "")
-    job["image_name"] = str(image_name or "")
     if ids is not None:
         job["total"] = len(ids)
     job["message"] = "Запущено"
@@ -1921,167 +1877,6 @@ async def api_broadcast(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Нет получателей"}, status=400)
     started = _start_broadcast_job(request.app, text, ids, None)
     return web.json_response({"ok": True, **started, "audiences": audiences})
-
-
-def _clip_field(value: object, *, max_len: int, label: str) -> str:
-    text = str(value or "").strip()
-    if len(text) > max_len:
-        raise ValueError(f"{label}: до {max_len} символов")
-    return text
-
-
-def _clean_announcement(body: dict) -> dict:
-    kicker = _clip_field((body or {}).get("kicker"), max_len=80, label="Надзаголовок")
-    title = _clip_field((body or {}).get("title"), max_len=80, label="Заголовок")
-    if len(title) < 2:
-        raise ValueError("Заголовок: от 2 до 80 символов")
-    lead = _clip_field((body or {}).get("lead"), max_len=800, label="Вступление")
-    closing = _clip_field((body or {}).get("closing"), max_len=400, label="Завершение")
-    raw = (body or {}).get("items")
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except ValueError:
-            raw = []
-    if not isinstance(raw, list):
-        raw = []
-    items: list[str] = []
-    for item in raw:
-        text = str(item or "").strip()
-        if not text:
-            continue
-        if len(text) > 160:
-            raise ValueError("Пункт слишком длинный: до 160 символов")
-        items.append(text)
-        if len(items) >= 12:
-            break
-    if not items and not lead:
-        raise ValueError("Добавьте вступление или хотя бы один пункт")
-    return {
-        "kicker": kicker,
-        "title": title,
-        "lead": lead,
-        "closing": closing,
-        "items": items,
-    }
-
-
-async def _read_announcement_payload(request: web.Request) -> tuple[dict, bytes, str]:
-    ctype = request.content_type or ""
-    photo = b""
-    filename = "photo.jpg"
-    if ctype.startswith("multipart/"):
-        payload: dict = {}
-        reader = await request.multipart()
-        while True:
-            field = await reader.next()
-            if field is None:
-                break
-            name = field.name or ""
-            if name == "file":
-                filename = field.filename or "photo.jpg"
-                photo = await field.read()
-            elif name:
-                payload[name] = await field.text()
-        return payload, photo, filename
-    try:
-        payload = await request.json()
-    except Exception:
-        payload = {}
-    return payload if isinstance(payload, dict) else {}, b"", filename
-
-
-async def api_announcements(request: web.Request) -> web.Response:
-    denied = _need_auth(request)
-    if denied:
-        return denied
-    if request.method == "GET":
-        items = await db.list_update_announcements(30)
-        counts = await db.broadcast_audience_counts()
-        job = _bc_job(request.app)
-        return web.json_response(
-            {
-                "ok": True,
-                "items": items,
-                "recipients": int(counts.get("all") or 0),
-                "defaults": {
-                    "kicker": DEFAULT_KICKER,
-                    "title": DEFAULT_TITLE,
-                    "lead": DEFAULT_LEAD,
-                    "closing": DEFAULT_CLOSING,
-                },
-                "broadcast": {
-                    "running": bool(job.get("running")),
-                    "sent": int(job.get("sent") or 0),
-                    "failed": int(job.get("failed") or 0),
-                    "total": int(job.get("total") or 0),
-                    "message": str(job.get("message") or ""),
-                    "template": str(job.get("template") or ""),
-                },
-            }
-        )
-    job = _bc_job(request.app)
-    if job.get("running"):
-        return web.json_response({"ok": False, "error": "Рассылка уже идёт", **job}, status=409)
-    payload, photo, filename = await _read_announcement_payload(request)
-    try:
-        cleaned = _clean_announcement(payload)
-        if photo:
-            validate_announcement_photo(photo, filename)
-    except ValueError as exc:
-        return web.json_response({"ok": False, "error": str(exc)}, status=400)
-    text = format_announcement_body(
-        kicker=cleaned["kicker"],
-        title=cleaned["title"],
-        lead=cleaned["lead"],
-        items=cleaned["items"],
-        closing=cleaned["closing"],
-    )
-    if len(text) > 3500:
-        return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
-    ids = await db.list_broadcast_ids("all")
-    if not ids:
-        return web.json_response({"ok": False, "error": "Нет получателей"}, status=400)
-    saved = await db.create_update_announcement(
-        cleaned["title"],
-        cleaned["items"],
-        text,
-        kicker=cleaned["kicker"],
-        lead=cleaned["lead"],
-        closing=cleaned["closing"],
-    )
-    image_name = ""
-    if photo and saved.get("id"):
-        try:
-            image_name = save_announcement_photo(int(saved["id"]), photo, filename)
-            saved = await db.set_announcement_image(int(saved["id"]), image_name) or saved
-        except ValueError as exc:
-            return web.json_response({"ok": False, "error": str(exc)}, status=400)
-    started = _start_broadcast_job(
-        request.app,
-        text,
-        None,
-        "update",
-        image_name=image_name or None,
-    )
-    return web.json_response({"ok": True, "announcement": saved, **started})
-
-
-async def api_announcement_image(request: web.Request) -> web.Response:
-    denied = _need_auth(request)
-    if denied:
-        return denied
-    try:
-        ann = await db.get_update_announcement(int(request.match_info["ann_id"]))
-    except (TypeError, ValueError):
-        return web.json_response({"ok": False, "error": "Анонс не найден"}, status=404)
-    path = announcement_photo_path((ann or {}).get("image_name"))
-    if not path:
-        return web.json_response({"ok": False, "error": "Картинка не загружена"}, status=404)
-    return web.FileResponse(
-        path,
-        headers={"Content-Type": content_type_for(path), "Cache-Control": "no-store"},
-    )
 
 
 async def api_referral_campaigns(request: web.Request) -> web.Response:
@@ -2662,9 +2457,6 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/broadcast-results", api_broadcast_results)
     app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
-    app.router.add_get("/admin/api/announcements", api_announcements)
-    app.router.add_post("/admin/api/announcements", api_announcements)
-    app.router.add_get("/admin/api/announcements/{ann_id}/image", api_announcement_image)
     app.router.add_get("/admin/api/backups", api_backups)
     app.router.add_post("/admin/api/backups", api_backup_create)
     app.router.add_post("/admin/api/backups/restore", api_backup_restore)

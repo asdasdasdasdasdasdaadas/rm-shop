@@ -12,6 +12,7 @@ from aiogram.types import ChatMemberUpdated
 
 from app import db, runtime
 from app.config import get_settings
+from app.button_icons import PINNED_ICONS
 from app.remnawave import panel_first_connected_at, panel_online_at, panel_used_traffic_bytes, panel_lifetime_traffic_bytes
 from app.tg_err import telegram_fail_reason
 
@@ -89,7 +90,7 @@ async def _send(text: str) -> None:
         logger.debug("Живой канал: бот ещё не готов")
         return
     try:
-        await bot.send_message(chat, text)
+        await bot.send_message(chat, text, parse_mode="HTML")
     except Exception as exc:
         logger.warning("Живой канал: не отправилось (%s)", telegram_fail_reason(exc))
 
@@ -104,30 +105,35 @@ def post(text: str) -> None:
     loop.create_task(_send(text))
 
 
+def _heading(kind: str, emoji: str, title: str) -> str:
+    return f'<tg-emoji emoji-id="{PINNED_ICONS[kind]}">{emoji}</tg-emoji> <b>{escape(title)}</b>'
+
+
 def paid(user: dict | None, *, amount: int, title: str, repeat: bool) -> None:
-    head = "Продлил" if repeat else "Оплатил"
-    bits = [head, _who(user)]
+    heading = _heading("retry", "🔄", "Повторная оплата") if repeat else _heading("pay", "💰", "Первая оплата")
+    bits = [heading, "", _who(user)]
     if amount:
-        bits.append(f"{amount} ₽")
+        formatted = f"{amount:,}".replace(",", " ")
+        bits.extend(["", f"Сумма: <b>{formatted} ₽</b>"])
     elif title:
-        bits.append(escape(str(title)))
+        bits.extend(["", f"Тариф: <b>{escape(str(title))}</b>"])
     post("\n".join(bits))
 
 
 def invited(referrer: dict | None, invitee: dict | None) -> None:
     post(
-        "Пригласил\n"
-        f"Кто: {_who(referrer)}\n"
-        f"Кого: {_who(invitee)}"
+        _heading("invite", "👥", "Новое приглашение") + "\n\n"
+        f"<b>Кто:</b> {_who(referrer)}\n"
+        f"<b>Кого:</b> {_who(invitee)}"
     )
 
 
 def story_posted(user: dict | None) -> None:
-    post("Выложил историю\n" + _who(user))
+    post(_heading("check", "✅", "Выложил историю") + "\n\n" + _who(user))
 
 
 def first_online(user: dict | None) -> None:
-    post("Подключился первый раз\n" + _who(user))
+    post(_heading("connect", "⚡", "Первое подключение") + "\n\n" + _who(user))
 
 
 async def note_panel_online(telegram_id: int, panel: dict | None) -> None:

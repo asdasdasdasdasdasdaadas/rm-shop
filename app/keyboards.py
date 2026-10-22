@@ -10,6 +10,7 @@ from app.config import get_settings
 from app.notices import notice_text
 from app.texts import rub_text
 from app import runtime
+from app.button_icons import PINNED_ICONS
 
 def support_url() -> str:
     raw = (get_settings().support_username or "").strip()
@@ -312,6 +313,25 @@ def invite_url(telegram_id: int, bot_username: str | None = None) -> str:
     return f"https://t.me/{handle}?start=ref_{int(telegram_id)}"
 
 
+def invite_message(telegram_id: int, settings=None) -> str:
+    settings = settings or get_settings()
+    from app.referral_terms import referral_terms
+    terms = referral_terms(settings)
+    icon = f'<tg-emoji emoji-id="{PINNED_ICONS["invite"]}">👥</tg-emoji>'
+    body = icon + ' <b>Поделитесь ссылкой с другом</b>\n'
+    if settings.referral_program_enabled:
+        body += 'После его первой оплаты вы получите <b>50 ₽</b> на баланс.\n'
+        body += 'Награда начисляется один раз за нового друга, пока программа активна.'
+        if terms['friend']:
+            body += '\n\n' + escape(terms['friend'])
+    else:
+        body += escape(terms['note']) + '\n\n' + escape(terms['when'])
+    link = escape(invite_url(telegram_id, settings.bot_username))
+    body += ('\n\n<tg-emoji emoji-id="5258093637450866522">🤖</tg-emoji> '
+             '<b>Ссылка бота</b>\n<blockquote><code>' + link + '</code></blockquote>')
+    return body
+
+
 def invite_share_text() -> str:
     settings = get_settings()
     brand = (settings.brand_name or "VPN").strip() or "VPN"
@@ -344,7 +364,7 @@ def referral_share_button(telegram_id: int, bot_username: str | None = None) -> 
     })
     return InlineKeyboardButton(
         text="Поделиться ссылкой", url=url,
-        icon_custom_emoji_id="5258513401784573443",
+        icon_custom_emoji_id=PINNED_ICONS["invite"],
     )
 
 
@@ -361,8 +381,8 @@ def share_keyboard(bot_username: str, telegram_id: int, *, story_offer: bool = F
     builder.row(referral_share_button(telegram_id, bot_username))
     builder.row(
         InlineKeyboardButton(
-            text="Скопировать текст",
-            copy_text=CopyTextButton(text=invite_copy_text(telegram_id, bot_username)),
+            text="Скопировать ссылку",
+            copy_text=CopyTextButton(text=invite_url(telegram_id, bot_username)),
         )
     )
     story_btn = story_webapp_button(story_offer=story_offer)
@@ -407,7 +427,7 @@ def payout_mod_keyboard(
 
 def support_welcome_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="🤝 Я помогу", callback_data="welcome:continue")
+        InlineKeyboardButton(text="Я помогу", callback_data="welcome:continue")
     ]])
 
 
@@ -432,3 +452,30 @@ def ambassador_keyboard() -> InlineKeyboardMarkup:
         text='Личный кабинет', style='success',
         web_app=WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query)))))],
         [InlineKeyboardButton(text='В главное меню', callback_data='profile')]])
+
+
+def about_service_content():
+    settings = get_settings()
+    url = mini_app_url()
+    body = (
+        '<b>Как войти в кабинет?</b>\n\n'
+        '<tg-emoji emoji-id="5258093637450866522">🤖</tg-emoji> <b>Войти через бота</b>\n'
+        'Перейдите в <b>Главное меню</b> и нажмите <b>Личный кабинет</b> — '
+        'он откроется внутри Telegram.'
+    )
+    rows = [[InlineKeyboardButton(text='Главное меню', callback_data='profile')]]
+    if url.startswith('https://'):
+        body += (
+            '\n\n<tg-emoji emoji-id="5258073068852485953">✈️</tg-emoji> <b>Войти через сайт</b>\n'
+            'Нажмите <b>Открыть в браузере</b>. На странице входа укажите свой '
+            'Telegram username и подтвердите вход в боте.\n\n'
+            f'Или откройте <a href="{escape(url, quote=True)}">сайт {escape(settings.brand_name)}</a>.'
+        )
+        rows.append([InlineKeyboardButton(text='Открыть в браузере', url=url,
+                                         icon_custom_emoji_id=PINNED_ICONS['action'])])
+    rows.append([
+        InlineKeyboardButton(text='Условия сервиса', url=settings.legal_offer_url,
+                             icon_custom_emoji_id=PINNED_ICONS['document']),
+        InlineKeyboardButton(text='Поддержка', url=support_url()),
+    ])
+    return body, InlineKeyboardMarkup(inline_keyboard=rows)

@@ -392,12 +392,11 @@ async def send_due_trial_end_nudges(
         if not await db.claim_balance_ending_notice(telegram_id, settings.vpn_day_price_rub):
             continue
         count = max(1, int(row.get("device_count") or 1))
-        suffix = (f"\n\nБаланс: {rub_text(int(row.get('balance_rub') or 0))}. "
-                  f"Устройств: {count}. Расход: {rub_text(count * settings.vpn_day_price_rub)} в сутки."
-                  "\nОстаток оплаченного времени — в кабинете.")
+        from app.balance_notifications import balance_details, balance_keyboard
+        suffix = balance_details(int(row.get('balance_rub') or 0), count, settings.vpn_day_price_rub)
         text = ((body or "").strip() or notice_text("balance_ending_nudge")) + suffix
         if button_ids is None:
-            reply, keep = payment_nudge_keyboard(label="Пополнить баланс"), False
+            reply, keep = balance_keyboard(), True
         else:
             from app.funnel_board import markup as board_markup
             reply, keep = board_markup(button_ids, telegram_id), True

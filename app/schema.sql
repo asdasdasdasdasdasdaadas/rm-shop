@@ -397,22 +397,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS devices_one_router_uidx
     ON devices (telegram_id)
     WHERE kind = 'router';
 
-CREATE TABLE IF NOT EXISTS update_announcements (
-    id BIGSERIAL PRIMARY KEY,
-    title TEXT NOT NULL,
-    items JSONB NOT NULL DEFAULT '[]',
-    body TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
-);
-
-CREATE INDEX IF NOT EXISTS update_announcements_created_idx
-    ON update_announcements (created_at DESC);
-
-ALTER TABLE update_announcements ADD COLUMN IF NOT EXISTS kicker TEXT NOT NULL DEFAULT '';
-ALTER TABLE update_announcements ADD COLUMN IF NOT EXISTS lead TEXT NOT NULL DEFAULT '';
-ALTER TABLE update_announcements ADD COLUMN IF NOT EXISTS closing TEXT NOT NULL DEFAULT '';
-ALTER TABLE update_announcements ADD COLUMN IF NOT EXISTS image_name TEXT;
-
 CREATE TABLE IF NOT EXISTS cabinet_login_challenges (
     id TEXT PRIMARY KEY,
     telegram_id BIGINT NOT NULL REFERENCES users (telegram_id),

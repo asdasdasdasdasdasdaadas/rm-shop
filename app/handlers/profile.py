@@ -1,7 +1,6 @@
 from __future__ import annotations
 from app.funnel_ui import answer_funnel, edit_funnel
 
-from app.referral_terms import referral_terms
 
 import logging
 import uuid
@@ -21,6 +20,8 @@ from app.keyboards import (
     pay_keyboard,
     payment_nudge_keyboard,
     share_keyboard,
+    invite_message,
+    about_service_content,
     with_referral_share,
 )
 from app.remnawave import (
@@ -67,14 +68,12 @@ async def share(callback: CallbackQuery) -> None:
         return
     await ack(callback)
     settings = get_settings()
-    terms = referral_terms(settings)
-    link = f"https://t.me/{settings.bot_username}?start=ref_{callback.from_user.id}"
-    body = "<b>Пригласить друга</b>\n\n" + "\n\n".join(
-        text for text in (terms["note"], terms["when"], terms["friend"]) if text
-    )
-    body += f"\n\nВаша ссылка:\n<code>{link}</code>"
+    body = invite_message(callback.from_user.id, settings)
     await edit_funnel(callback.message,
         body,
+        preserve=True,
+        parse_mode="HTML",
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
         reply_markup=share_keyboard(
             settings.bot_username,
             callback.from_user.id,
@@ -338,13 +337,11 @@ async def show_about_service(callback: CallbackQuery) -> None:
     if not await gate_or_continue(callback):
         return
     await ack(callback)
-    settings = get_settings()
-    await edit_funnel(callback.message,
-        notice_text("about_service", brand=settings.brand_name,
-                    price=rub_text(settings.vpn_day_price_rub)),
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="В главное меню", callback_data="profile")
-        ]]),
+    body, markup = about_service_content()
+    await edit_funnel(callback.message, body,
+        reply_markup=markup,
+        preserve=True,
+        parse_mode="HTML",
         link_preview_options=LinkPreviewOptions(is_disabled=True),
     )
 

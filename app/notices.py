@@ -355,6 +355,12 @@ ARCHIVED_NOTICE_KEYS = {
 NOTICE_FIELDS = [field for field in NOTICE_FIELDS if field['key'] not in ARCHIVED_NOTICE_KEYS]
 
 
+# Migrate only the old built-in copy; preserve administrator-written messages.
+from app.balance_notifications import BALANCE_ENDING, BALANCE_EMPTY
+BALANCE_PREVIOUS_DEFAULTS = {key: DEFAULT_NOTICES[key] for key in ('low_balance', 'balance_ending_nudge')}
+DEFAULT_NOTICES['low_balance'] = BALANCE_EMPTY
+DEFAULT_NOTICES['balance_ending_nudge'] = BALANCE_ENDING
+
 LEGACY_NOTICE_DEFAULTS = {'profile_balance': 'Здравствуйте, {name}.\n\nБаланс: <b>{balance}</b>\nСутки VPN на одно устройство: <b>{price}</b>\n\nЧтобы включить VPN, нажмите «Открыть кабинет» и добавьте устройство. Пока устройств нет, баланс не списывается. Сюда можно зайти даже если VPN уже не работает.', 'trial_nudge': '{name}, Вы заглянули к нам, но VPN ещё не пробовали.\n\nДавайте попробуем: {extra} Платите только за свои устройства. Если не зайдёт — просто не продлевайте.', 'broadcast_unused': 'Вы так и не воспользовались VPN.\n\nНажмите «Открыть кабинет» и добавьте одно устройство. Пока его нет, баланс не списывается.', 'info_nudge': 'Как у нас устроено.\n\nСутки VPN списываются только с добавленных устройств, по {price} за каждое в день. Пока устройств нет, баланс не тратится.\n\nСюда всегда можно зайти из бота, даже если VPN вдруг отключится. Поддержка тоже здесь.{story}', 'first_online_nudge': 'VPN уже работал. Всё ли в порядке?\n\nЕсли да — пополните баланс, чтобы не отключилось. Осталось примерно {days}. Сюда можно зайти из бота даже без VPN.\n\nЕсли нужна помощь с подключением, напишите в поддержку.', 'idle_nudge_7': 'Неделю VPN не подключался. Если что-то сломалось — напишите в поддержку, разберёмся.\n\nСюда можно зайти из бота даже без VPN. Можно пополнить баланс или проверить устройство.'}
 
 PREVIOUS_NOTICE_DEFAULTS = {'device_created_next_step': 'Устройство добавлено. Осталось подключить VPN.\n'
@@ -644,7 +650,7 @@ def public_notices() -> dict[str, str]:
     for key, default in DEFAULT_NOTICES.items():
         val = overlay.get(key)
         text = str(val).strip() if isinstance(val, str) else ""
-        out[key] = default if text in (LEGACY_NOTICE_DEFAULTS.get(key), PREVIOUS_NOTICE_DEFAULTS.get(key), ENGAGEMENT_PREVIOUS_DEFAULTS.get(key)) else text or default
+        out[key] = default if text in (LEGACY_NOTICE_DEFAULTS.get(key), PREVIOUS_NOTICE_DEFAULTS.get(key), ENGAGEMENT_PREVIOUS_DEFAULTS.get(key), BALANCE_PREVIOUS_DEFAULTS.get(key)) else text or default
     return out
 
 

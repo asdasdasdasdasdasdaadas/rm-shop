@@ -482,18 +482,6 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
             unused: "Подключите VPN",
           },
         };
-      if (key === "announcements")
-        data = {
-          ...data,
-          recipients: 1248,
-          broadcast: { running: false },
-          defaults: {
-            title: "Новости VPN",
-            lead: "Стали стабильнее",
-            kicker: "Обновление",
-            closing: "Спасибо!",
-          },
-        };
       if (key === "referral-campaigns")
         data = url.searchParams.has("campaign_id")
           ? {

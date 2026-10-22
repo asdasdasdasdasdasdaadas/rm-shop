@@ -1184,7 +1184,7 @@ function switchView(id, motion) {
   if (["view-settings", "view-promo", "view-referrals", "view-ambassador"].includes(id)) { id = "view-home"; screen = "home"; }
   if (id !== "view-pay") clearPaymentStarAnimation();
   if (id !== "view-home" && id !== "view-wizard") hideCoach();
-  ["view-home", "view-topup", "view-pay", "view-wizard", "view-device", "view-support", "view-faq", "view-article", "view-billing", "view-referrals", "view-ambassador", "view-offer", "view-settings", "view-promo"].forEach((vid) => {
+  ["view-home", "view-topup", "view-pay", "view-wizard", "view-device", "view-support", "view-faq", "view-billing", "view-referrals", "view-ambassador", "view-offer", "view-settings", "view-promo"].forEach((vid) => {
     const el = $(vid);
     if (!el) return;
     const on = vid === id;
@@ -1306,8 +1306,7 @@ function maybeOpenFirstRun(me) {
     screen === "faq" ||
     screen === "billing" ||
     screen === "settings" ||
-    screen === "promo" ||
-    screen === "article"
+    screen === "promo"
   ) {
     return;
   }
@@ -1954,10 +1953,6 @@ function onBack() {
     else openHome();
     return;
   }
-  if (screen === "article") {
-    finishAnnouncement();
-    return;
-  }
   if (screen === "billing") {
     openHome();
     return;
@@ -1985,7 +1980,7 @@ function onBack() {
 }
 
 function openHome() {
-  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "pay" || screen === "support" || screen === "faq" || screen === "article" || screen === "billing" || screen === "referrals" || screen === "ambassador" || screen === "offer" || screen === "settings" || screen === "promo";
+  const fromStack = screen === "wizard" || screen === "device" || screen === "topup" || screen === "pay" || screen === "support" || screen === "faq" || screen === "billing" || screen === "referrals" || screen === "ambassador" || screen === "offer" || screen === "settings" || screen === "promo";
   stopSupportPoll();
   screen = "home";
   openDevice = null;
@@ -3567,133 +3562,6 @@ function paintInviteeBonus(me) {
   }
 }
 
-const ANNOUNCE_KEY = "way_announce_seen_v1";
-
-function seenAnnouncementId() {
-  try {
-    return Number(localStorage.getItem(ANNOUNCE_KEY) || 0) || 0;
-  } catch (_e) {
-    return 0;
-  }
-}
-
-function markAnnouncementSeen(id) {
-  try {
-    localStorage.setItem(ANNOUNCE_KEY, String(id || 0));
-  } catch (_e) {}
-}
-
-function shortenLead(text, max) {
-  const s = String(text || "").replace(/\s+/g, " ").trim();
-  if (!s) return "";
-  if (s.length <= max) return s;
-  const cut = s.slice(0, max);
-  const space = cut.lastIndexOf(" ");
-  return ((space > 40 ? cut.slice(0, space) : cut).trim()) + "…";
-}
-
-function paintUpdateNotice(me) {
-  const el = $("updateNotice");
-  if (!el) return;
-  const a = me && me.announcement;
-  const id = a && Number(a.id);
-  const items = (a && a.items) || [];
-  const hasCopy = Boolean((a && a.lead) || (a && a.title) || items.length);
-  const show = Boolean(id && hasCopy && id !== seenAnnouncementId());
-  el.classList.toggle("hidden", !show);
-  if (!show) return;
-  const kicker = $("updateNoticeKicker");
-  if (kicker) kicker.textContent = a.kicker || "Что нового";
-  $("updateNoticeTitle").textContent = a.title || "Мы кое-что обновили";
-  const lead = $("updateNoticeLead");
-  if (lead) {
-    const short = shortenLead(a.lead || "", 120);
-    lead.textContent = short;
-    lead.classList.toggle("hidden", !short);
-  }
-}
-
-function paintArticle(a) {
-  if (!a) return;
-  const kicker = $("articleKicker");
-  if (kicker) kicker.textContent = a.kicker || "Что нового";
-  const title = $("articleTitle");
-  if (title) title.textContent = a.title || "Мы кое-что обновили";
-  const lead = $("articleLead");
-  if (lead) {
-    lead.textContent = a.lead || "";
-    lead.classList.toggle("hidden", !a.lead);
-  }
-  const closing = $("articleClosing");
-  if (closing) {
-    closing.textContent = a.closing || "";
-    closing.classList.toggle("hidden", !a.closing);
-  }
-  const list = $("articleItems");
-  const items = a.items || [];
-  if (list) {
-    list.innerHTML = "";
-    list.classList.toggle("hidden", !items.length);
-    items.forEach((text) => {
-      const li = document.createElement("li");
-      li.textContent = text;
-      list.appendChild(li);
-    });
-  }
-  loadUpdateNoticeImage(a.image_url || "", $("articleImage"));
-}
-
-function openAnnouncement() {
-  const a = window.__me && window.__me.announcement;
-  if (!a || !a.id) return;
-  hideCoach();
-  stopSupportPoll();
-  screen = "article";
-  switchView("view-article", "push");
-  setMain("");
-  paintArticle(a);
-  try {
-    tg.BackButton.show();
-  } catch (_e) {}
-  syncWebBack();
-}
-
-function finishAnnouncement() {
-  const id = window.__me && window.__me.announcement && window.__me.announcement.id;
-  markAnnouncementSeen(id);
-  openHome();
-  if (window.__me) paintUpdateNotice(window.__me);
-}
-
-let updateNoticeBlob = "";
-
-async function loadUpdateNoticeImage(url, img) {
-  img = img || $("articleImage");
-  if (!img) return;
-  if (updateNoticeBlob) {
-    URL.revokeObjectURL(updateNoticeBlob);
-    updateNoticeBlob = "";
-  }
-  if (!url) {
-    img.classList.add("hidden");
-    img.removeAttribute("src");
-    return;
-  }
-  try {
-    const headers = { "X-Init-Data": tg.initData || "" };
-    if (lkToken) headers["X-Lk-Token"] = lkToken;
-    const res = await fetch(url, { headers });
-    if (!res.ok) throw new Error("no image");
-    const blob = await res.blob();
-    updateNoticeBlob = URL.createObjectURL(blob);
-    img.src = updateNoticeBlob;
-    img.classList.remove("hidden");
-  } catch (_e) {
-    img.classList.add("hidden");
-    img.removeAttribute("src");
-  }
-}
-
 function paintTrialNotice(me) {
   const el = $("trialNotice");
   if (el) el.classList.add("hidden");
@@ -3819,7 +3687,6 @@ function paint(me) {
   paintTrialNotice(me);
   paintInviteeBonus(me);
   paintRefBanner(me);
-  paintUpdateNotice(me);
   $("invite").textContent = me.invite_url;
   if (screen === "referrals") paintReferrals(me);
   $("offerLink").href = me.legal.offer;
@@ -4061,34 +3928,6 @@ $("trialNoticeClose").onclick = (e) => {
   dismissTrialNotice(kind);
   if (window.__me) paint(window.__me);
 };
-
-if ($("updateNoticeClose")) {
-  $("updateNoticeClose").onclick = (e) => {
-    e.stopPropagation();
-    haptic();
-    const id = window.__me && window.__me.announcement && window.__me.announcement.id;
-    markAnnouncementSeen(id);
-    if (window.__me) paintUpdateNotice(window.__me);
-  };
-}
-if ($("updateNotice")) {
-  $("updateNotice").onclick = (e) => {
-    if (e.target && e.target.closest && e.target.closest("#updateNoticeClose")) return;
-    haptic();
-    openAnnouncement();
-  };
-  $("updateNotice").onkeydown = (e) => {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    e.preventDefault();
-    openAnnouncement();
-  };
-}
-if ($("articleDone")) {
-  $("articleDone").onclick = () => {
-    haptic();
-    finishAnnouncement();
-  };
-}
 
 $("trialNoticeAct").onclick = () => {
   haptic();
