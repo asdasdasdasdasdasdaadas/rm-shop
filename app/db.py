@@ -2850,6 +2850,7 @@ async def admin_stats() -> dict:
         "funnel": await admin_funnel(),
         "onboarding_steps": await admin_onboarding_steps(),
         "cohort_outcomes": await admin_cohort_outcomes(),
+        "journey_comparison": await admin_journey_comparison(),
         "exit_feedback": await admin_exit_feedback(),
         "reminder_results": await admin_reminder_results(),
         "checkout_feedback": await checkout_feedback_stats(),
@@ -6026,3 +6027,8 @@ async def invitation_card_statistics(days: int = 30) -> dict:
         COUNT(DISTINCT telegram_id) FILTER(WHERE action='copy')::int AS copy_users
         FROM invitation_card_events WHERE created_at >= {cutoff}""", days)
     return dict(row)
+
+
+async def admin_journey_comparison():
+    from app.funnel_journey_metrics import metrics
+    return await metrics(_pool_req(), _utc_now())

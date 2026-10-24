@@ -48,13 +48,13 @@ class RecoveryNavigationTest(unittest.TestCase):
     def test_all_journeys_have_green_cabinet_with_target_and_menu(self):
         from unittest.mock import patch
         from app.funnel_board import markup
-        from app.recovery_funnel import branches
+        from app.recovery_funnel import branches, ACTION_LABELS
         graph=validate({'branches':branches()})
         with patch('app.keyboards.mini_app_url',return_value='https://example.test/'):
             for branch in graph['branches']:
                 for step in branch['steps']:
                     buttons=markup(step['buttons'],1).inline_keyboard
-                    self.assertEqual(buttons[0][0].text,'Личный кабинет')
+                    self.assertEqual(buttons[0][0].text, ACTION_LABELS.get(step['buttons'][0]['action'], 'Личный кабинет'))
                     self.assertEqual(buttons[0][0].style,'success')
                     self.assertEqual(buttons[1][0].callback_data,'profile')
                     self.assertIsNone(buttons[1][0].style)
@@ -65,7 +65,7 @@ class MenuLayoutTest(unittest.TestCase):
         from unittest.mock import patch
         from types import SimpleNamespace
         from app.funnel_board import main_menu_markup
-        with patch('app.keyboards.mini_app_url',return_value='https://example.test'), patch('app.config.get_settings',return_value=SimpleNamespace(required_channel_url='https://t.me/test')):
+        with patch('app.keyboards.mini_app_url',return_value='https://example.test'), patch('app.config.get_settings',return_value=SimpleNamespace(required_channel_enabled=True, required_channel_url='https://t.me/test')):
             kb=main_menu_markup(['cabinet',{'action':'channel','text':'Канал'},'invite','about'],1)
         self.assertEqual([len(row) for row in kb.inline_keyboard],[1,1,2])
         self.assertEqual([b.callback_data for b in kb.inline_keyboard[-1]],['share','about_service'])

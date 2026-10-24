@@ -68,6 +68,9 @@ async def share(callback: CallbackQuery) -> None:
         return
     await ack(callback)
     settings = get_settings()
+    from app.live import user_action
+    user_action(dict(telegram_id=callback.from_user.id, first_name=callback.from_user.first_name,
+                     username=callback.from_user.username), 'invite')
     body = invite_message(callback.from_user.id, settings)
     await edit_funnel(callback.message,
         body,
@@ -337,6 +340,9 @@ async def show_about_service(callback: CallbackQuery) -> None:
     if not await gate_or_continue(callback):
         return
     await ack(callback)
+    from app.live import user_action
+    user_action(dict(telegram_id=callback.from_user.id, first_name=callback.from_user.first_name,
+                     username=callback.from_user.username), 'about')
     body, markup = about_service_content()
     await edit_funnel(callback.message, body,
         reply_markup=markup,

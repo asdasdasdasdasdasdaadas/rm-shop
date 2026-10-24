@@ -120,6 +120,37 @@ def paid(user: dict | None, *, amount: int, title: str, repeat: bool) -> None:
     post("\n".join(bits))
 
 
+_ACTION_TITLES = {
+    'invite': ('invite', '👥', 'Пользователь нажал «Пригласить друзей»'),
+    'share': ('invite', '👥', 'Пользователь нажал «Поделиться ссылкой»'),
+    'copy': ('copy', '📋', 'Пользователь нажал «Скопировать приглашение»'),
+    'about': ('about', 'ℹ️', 'Пользователь нажал «О сервисе»'),
+    'cabinet': ('cabinet', '👤', 'Пользователь открыл личный кабинет'),
+    'gift_view': ('gift', '🎁', 'Пользователь открыл экран подарка'),
+}
+
+
+def user_action(user: dict, action: str, *, source: str = 'bot') -> None:
+    spec = _ACTION_TITLES.get(action)
+    if not spec:
+        return
+    kind, emoji, title = spec
+    location = 'Веб-кабинет' if source == 'web' else 'Telegram-бот'
+    post(_heading(kind, emoji, title) + '\n\n' + _who(user)
+         + f'\n\n<i>{location}</i>')
+
+
+async def web_user_action(telegram_id: int, action: str) -> None:
+    # Informational notifications must never prevent the user's main action.
+    if action not in _ACTION_TITLES or not _chat_id():
+        return
+    try:
+        user = await db.get_user(telegram_id)
+        user_action(dict(user or {}, telegram_id=telegram_id), action, source='web')
+    except Exception:
+        logger.debug('Could not prepare live user action', exc_info=True)
+
+
 def invited(referrer: dict | None, invitee: dict | None) -> None:
     post(
         _heading("invite", "👥", "Новое приглашение") + "\n\n"

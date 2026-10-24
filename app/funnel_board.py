@@ -10,6 +10,8 @@ logger = logging.getLogger("rm-shop.funnel")
 
 STEP_LIMIT = 20
 RUN_LIMIT = 80
+SCAN_PAGES = 10
+_scan_cursors: dict[str, int] = {}
 _ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 LAST_SEEN = (
     "COALESCE((SELECT MAX(d.last_online_at) FROM devices d "
@@ -66,7 +68,7 @@ CONDITIONS = (
     {"id": "unpaid_invoice", "label": "Неоплаченный счёт", "special": "invoice",
      "hint": "Уходит примерно через 10 минут после счёта. Пауза на карточке здесь не используется. Не тратит дневной лимит. Кнопка «Продолжить оплату счёта» открывает этот счёт."},
     {"id": "balance_low", "label": "Баланс заканчивается", "special": "balance",
-     "hint": "Один раз, пока баланс снова не пополнят. Пауза на карточке здесь не используется. К тексту добавляются баланс, число устройств и расход. Не тратит дневной лимит."},
+     "hint": "Один раз, пока баланс снова не пополнят. Пауза на карточке здесь не используется. К тексту добавляется остаток баланса. Не тратит дневной лимит."},
     {"id": "no_device", "label": "Нет устройства", "anchor": "u.bot_started_at",
      "where": "NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)",
      "hint": "Бот запущен, устройство не добавлено. Срок считается от запуска бота."},
@@ -266,7 +268,7 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
         if name:
             query["screen"] = name
         return press(
-            label, item, style="success" if name is None or label == "Личный кабинет" else None,
+            label, item, style="success" if name in {None, "gift", "connect", "topup"} else None,
             web_app=WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query)))),
         )
 
@@ -679,7 +681,7 @@ def is_setup_assist(step, prev_id):
     return not prev_id and step['condition'] in {'recover_setup','recover_online'} and step.get('wait_from') == 'anchor'
 
 
-async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> list[dict]:
+async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int], *, after_id: int = 0) -> list[dict]:
     from app.config import get_settings
     from app.db import _pool_req, _ACCESS_EXHAUSTED
     spec = CONDITION_IDS[step["condition"]]
@@ -737,12 +739,30 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int]) -> 
                   SELECT 1 FROM funnel_step_sends s
                   WHERE s.telegram_id = u.telegram_id AND s.step_id = $3 {cycle_clause}
               )
+              AND u.telegram_id > {int(after_id)}
               AND NOT (u.telegram_id = ANY($2::bigint[]))
             ORDER BY u.telegram_id
             LIMIT $1""",
         *args,
     )
     return [dict(row) for row in rows]
+
+
+async def _candidates(step, prev_id, skip, touched):
+    # Bound work per tick, but continue past throttled users on the next tick.
+    key = step['id']
+    for _ in range(SCAN_PAGES):
+        rows = await _due(step, prev_id, STEP_LIMIT, skip + touched,
+                          after_id=_scan_cursors.get(key, 0))
+        if not rows:
+            _scan_cursors.pop(key, None)
+            return
+        for row in rows:
+            _scan_cursors[key] = int(row['telegram_id'])
+            yield row
+        if len(rows) < STEP_LIMIT:
+            _scan_cursors.pop(key, None)
+            return
 
 
 async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> tuple[int, list[int]]:
@@ -754,7 +774,7 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
         return 0, touched
     from app.recovery_funnel import KINDS
     kind = "nudge_setup_assist" if is_setup_assist(step, prev_id) else KINDS.get(step["condition"], "nudge_board")
-    for row in await _due(step, prev_id, STEP_LIMIT, skip + touched):
+    async for row in _candidates(step, prev_id, skip, touched):
         uid = int(row["telegram_id"])
         slot = await (db.reserve_setup_assistance(uid) if kind == "nudge_setup_assist" else db.reserve_optional_message(uid, kind))
         if slot is None:
@@ -768,7 +788,7 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                 funded = await db.has_funded_access(uid)
                 body += "\n\n" + ("Доступ ещё действует — можно включить VPN." if funded else "Доступ закончился. В кабинете можно пополнить баланс и вернуться к VPN.")
                 buttons = [(
-                    {'action':'connect' if funded else 'topup','text':'Личный кабинет', **({'emoji': b['emoji']} if isinstance(b, dict) and b.get('emoji') else {})}
+                    {'action':'connect' if funded else 'topup','text':'Подключить VPN' if funded else 'Пополнить баланс', **({'emoji': b['emoji']} if isinstance(b, dict) and b.get('emoji') else {})}
                     if (b if isinstance(b, str) else b.get('action')) in {'cabinet','connect','topup'} else b
                 ) for b in buttons]
             delivered = await _deliver_unbudgeted(

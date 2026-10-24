@@ -4,6 +4,8 @@ import copy
 import json
 
 VERSION = 'recovery_journeys_v1'
+LABEL_VERSION = 'funnel_action_labels_v2'
+ACTION_LABELS = {'gift': 'Забрать подарок', 'connect': 'Подключить VPN', 'topup': 'Пополнить баланс'}
 OWNED_BRANCHES = {'nodevice','online','unpaid','quality','gift','idle-setup','idle-topup','idle-return'}
 PAID = """(COALESCE(u.has_paid_topup,FALSE)
  OR EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id=u.telegram_id)
@@ -72,7 +74,7 @@ def branches():
     return [{'id':bid,'title':title,'steps':[
       _step(f"recovery-{condition.replace('_', '-')}-{i+1}",condition,first if i==0 else 48 if i==1 else 72,
             text+'\n\nОткройте личный кабинет 👇',
-            [{'action':buttons[0],'text':'Личный кабинет'}, *buttons[1:]],
+            [{'action':buttons[0],'text':ACTION_LABELS.get(buttons[0], 'Личный кабинет')}, *buttons[1:]],
             'anchor' if i==0 else 'previous')
       for i,text in enumerate(texts)]} for bid,condition,title,first,texts,buttons in plans]
 
@@ -94,10 +96,36 @@ async def migrate(pool, graph):
             raw=row['graph'] if row else graph
             if isinstance(raw,str): raw=json.loads(raw)
             if migrated:
-                return validate(raw)
+                labels_done = await conn.fetchval('SELECT value FROM app_flags WHERE key=$1', LABEL_VERSION)
+                if labels_done:
+                    return validate(raw)
+                updated = refresh_saved_graph(raw)
+                await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+                                   LABEL_VERSION+'_backup', json.dumps(raw, ensure_ascii=False))
+                await conn.execute('UPDATE funnel_graphs SET graph=$1::jsonb,updated_at=NOW() WHERE id=1',
+                                   json.dumps(updated, ensure_ascii=False))
+                await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2)', LABEL_VERSION, '1')
+                return validate(updated)
             updated=validate(upgrade(raw))
             await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2) ON CONFLICT DO NOTHING',
                 VERSION+'_backup',json.dumps(raw,ensure_ascii=False))
             await conn.execute('UPDATE funnel_graphs SET graph=$1::jsonb,updated_at=NOW() WHERE id=1',json.dumps(updated,ensure_ascii=False))
             await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2)',VERSION,'1')
             return updated
+
+
+def refresh_saved_graph(graph):
+    """Update known defaults only; preserve custom copy, timing and delivery IDs."""
+    from app.notices import (DEFAULT_NOTICES, BALANCE_PREVIOUS_DEFAULTS,
+                            PREVIOUS_NOTICE_DEFAULTS, ENGAGEMENT_PREVIOUS_DEFAULTS)
+    result = copy.deepcopy(graph)
+    old_balance = {d.get('balance_ending_nudge') for d in
+                   (BALANCE_PREVIOUS_DEFAULTS, PREVIOUS_NOTICE_DEFAULTS, ENGAGEMENT_PREVIOUS_DEFAULTS)}
+    for branch in result['branches']:
+        for step in branch['steps']:
+            for button in step.get('buttons', []):
+                if isinstance(button, dict) and button.get('text') == 'Личный кабинет' and button.get('action') in ACTION_LABELS:
+                    button['text'] = ACTION_LABELS[button['action']]
+            if step.get('condition') == 'balance_low' and step.get('text') in old_balance:
+                step['text'] = DEFAULT_NOTICES['balance_ending_nudge']
+    return result

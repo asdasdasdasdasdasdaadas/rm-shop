@@ -569,6 +569,8 @@ async def api_invitation_card_event(request: web.Request) -> web.Response:
     if not isinstance(action, str) or action not in {'share','copy'}:
         return json_error("Некорректное событие", 400)
     await db.record_invitation_card_event(telegram_id, action)
+    from app.live import web_user_action
+    await web_user_action(telegram_id, action)
     return web.json_response({'ok': True})
 
 
@@ -584,6 +586,9 @@ async def api_onboarding_event(request: web.Request) -> web.Response:
     if not isinstance(stage, str) or stage not in {"cabinet", "gift_view", "wizard_1", "wizard_2", "wizard_3", "wizard_4"}:
         return json_error("Некорректное событие", 400)
     await db.record_onboarding_event(telegram_id, stage)
+    if stage in {"cabinet", "gift_view"}:
+        from app.live import web_user_action
+        await web_user_action(telegram_id, stage)
     return web.json_response({"ok": True})
 
 
