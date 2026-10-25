@@ -2736,6 +2736,30 @@ async def admin_list_pay_soon(day_price: int) -> list[dict]:
     return [_pay_soon_person(row, price) for row in rows]
 
 
+_PAYING_USERS_SQL = """
+WITH first_payments AS (
+    SELECT telegram_id, MIN(paid_at) AS first_paid_at FROM (
+        SELECT telegram_id, created_at AS paid_at FROM payments
+        UNION ALL
+        SELECT telegram_id, COALESCE(paid_at, created_at) AS paid_at
+        FROM rollypay_orders WHERE status = 'granted'
+    ) events GROUP BY telegram_id
+)
+SELECT COUNT(*)::int AS total,
+       COUNT(*) FILTER (
+           WHERE first_paid_at >= ($1::timestamptz AT TIME ZONE 'Europe/Moscow')::date
+                                  AT TIME ZONE 'Europe/Moscow'
+             AND first_paid_at <= $1::timestamptz
+       )::int AS new_today
+FROM first_payments
+"""
+
+
+async def admin_paying_users() -> dict:
+    row = await _pool_req().fetchrow(_PAYING_USERS_SQL, _utc_now())
+    return dict(row) if row else {'total': 0, 'new_today': 0}
+
+
 async def admin_stats() -> dict:
     from app.checkout_feedback import stats as checkout_feedback_stats
     pool = _pool_req()
@@ -2830,6 +2854,7 @@ async def admin_stats() -> dict:
     )
     return {
         "users": dict(users) if users else {},
+        "paying_users": await admin_paying_users(),
         "orders": {r["status"]: r["n"] for r in orders},
         "plans": {r["plan_code"]: r["n"] for r in plans},
         "promo_uses": int(promo or 0),

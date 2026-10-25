@@ -169,8 +169,8 @@ export function OverviewPage({
                 "orders?status=granted",
               ],
               [
-                "Оплатившие клиенты",
-                s.topups?.payers || 0,
+                "Платящие пользователи",
+                s.paying_users?.total ?? s.topups?.payers ?? 0,
                 "Хотя бы одно пополнение",
                 "users?paid=yes",
               ],
@@ -187,6 +187,14 @@ export function OverviewPage({
                     </div>
                     <p className="text-3xl font-semibold tracking-tight my-3">
                       {value}
+                      {path === "users?paid=yes" && s.paying_users && (
+                        <span
+                          className="ml-3 inline-flex align-middle rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium tracking-normal text-emerald-700 dark:text-emerald-400"
+                          title="Впервые оплатили сегодня, с 00:00 по Москве"
+                        >
+                          +{s.paying_users.new_today ?? 0} за день
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">{hint}</p>
                   </button>
