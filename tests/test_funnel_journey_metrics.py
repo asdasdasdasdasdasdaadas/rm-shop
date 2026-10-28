@@ -21,3 +21,15 @@ class MetricsTest(unittest.TestCase):
         self.assertIsNone(data['items'][0]['transitions'][0]['rate'])
         self.assertEqual(data['items'][1]['transitions'][0]['converted'],0)
         self.assertEqual(data['items'][1]['transitions'][1]['eligible'],0)
+
+    def test_sources_have_separate_denominators_and_mature_outcomes(self):
+        now=datetime(2026,10,27,tzinfo=timezone.utc)
+        start=now-timedelta(days=20)
+        rows=[dict(started=start,acquisition_source='ads',online=start+timedelta(hours=1),paid=start+timedelta(days=1),repeat_paid=start+timedelta(days=3)),
+              dict(started=start,acquisition_source='organic'),
+              dict(started=now-timedelta(days=1),acquisition_source='referral',online=now)]
+        sources={s['source']:s['items'][1] for s in summarize(rows,now)['sources']}
+        self.assertEqual(sources['ads']['outcomes'][2]['rate'],100)
+        self.assertEqual(sources['organic']['outcomes'][0]['rate'],0)
+        self.assertIsNone(sources['referral']['outcomes'][0]['rate'])
+        self.assertEqual(sum(s['users'] for s in sources.values()),3)

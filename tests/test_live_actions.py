@@ -1,38 +1,28 @@
 import unittest
 from unittest.mock import AsyncMock, patch
-from app import live
+from app import live, activity_digest
 
 class LiveActionsTest(unittest.IsolatedAsyncioTestCase):
-    def test_action_contains_identity_and_escaped_name(self):
-        with patch.object(live, 'post') as post:
-            live.user_action({'telegram_id': 123, 'first_name': '<Имя>', 'username': 'test'}, 'invite')
-        text = post.call_args.args[0]
-        self.assertIn('Пользователь нажал «Пригласить друзей»', text)
-        self.assertIn('&lt;Имя&gt;', text)
-        self.assertIn('<code>123</code>', text)
-        self.assertIn('<tg-emoji', text)
-        self.assertIn('Telegram-бот', text)
+    async def test_records_actions_without_immediate_message(self):
+        for action in live._ACTION_TITLES:
+            with self.subTest(action=action), patch.object(live, '_chat_id', return_value=-100123), patch.object(activity_digest, 'record', AsyncMock()) as record, patch.object(live, 'post') as post:
+                await live.user_action({'telegram_id':123}, action)
+                record.assert_awaited_once_with(123, action, 'bot')
+                post.assert_not_called()
 
-    def test_all_supported_actions_and_unknown_action(self):
-        for action in ('invite', 'share', 'copy', 'about', 'cabinet', 'gift_view'):
-            with self.subTest(action=action), patch.object(live, 'post') as post:
-                live.user_action({'telegram_id': 1}, action, source='web')
-                self.assertIn('Веб-кабинет', post.call_args.args[0])
-        with patch.object(live, 'post') as post:
-            live.user_action({}, 'unknown')
-            post.assert_not_called()
-
-    async def test_disabled_channel_does_not_query_user(self):
-        with patch.object(live, '_chat_id', return_value=None), patch.object(live.db, 'get_user', AsyncMock()) as get:
+    async def test_disabled_channel_and_unknown_action(self):
+        with patch.object(activity_digest, 'record', AsyncMock()) as record, patch.object(live, '_chat_id', return_value=None):
             await live.web_user_action(123, 'share')
-        get.assert_not_awaited()
+            record.assert_not_awaited()
+        with patch.object(activity_digest, 'record', AsyncMock()) as record:
+            await live.user_action({}, 'unknown')
+            record.assert_not_awaited()
 
-    async def test_lookup_failure_does_not_break_main_action(self):
-        with patch.object(live, '_chat_id', return_value=-100123), patch.object(live.db, 'get_user', AsyncMock(side_effect=RuntimeError())):
+    async def test_record_failure_does_not_break_user_action(self):
+        with patch.object(live, '_chat_id', return_value=-100123), patch.object(activity_digest, 'record', AsyncMock(side_effect=RuntimeError())):
             await live.web_user_action(123, 'copy')
 
-    async def test_web_action_uses_authenticated_user(self):
-        with patch.object(live, '_chat_id', return_value=-100123), patch.object(live.db, 'get_user', AsyncMock(return_value={'first_name':'Иван'})), patch.object(live, 'post') as post:
+    async def test_web_source_and_identity(self):
+        with patch.object(live, '_chat_id', return_value=-100123), patch.object(activity_digest, 'record', AsyncMock()) as record:
             await live.web_user_action(123, 'share')
-        self.assertIn('<code>123</code>', post.call_args.args[0])
-        self.assertIn('Поделиться ссылкой', post.call_args.args[0])
+            record.assert_awaited_once_with(123, 'share', 'web')

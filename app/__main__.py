@@ -180,6 +180,8 @@ async def main() -> None:
         dump_task = asyncio.create_task(backup_loop(bot), name="backup")
         from app.campaigns import campaign_announcement_loop
         campaign_task = asyncio.create_task(campaign_announcement_loop(bot), name="campaign-announcements")
+        from app.activity_digest import digest_loop
+        digest_task = asyncio.create_task(digest_loop(bot), name="activity-digest")
         nudge_task = asyncio.create_task(trial_nudge_loop(bot, rp), name="trial-nudge")
         try:
             await dp.start_polling(
@@ -188,6 +190,8 @@ async def main() -> None:
                 allowed_updates=list(dict.fromkeys([*dp.resolve_used_update_types(), "my_chat_member"])),
             )
         finally:
+            digest_task.cancel()
+            await asyncio.gather(digest_task, return_exceptions=True)
             payment_effects_task.cancel()
             review_task.cancel()
             await asyncio.gather(payment_effects_task, review_task, return_exceptions=True)

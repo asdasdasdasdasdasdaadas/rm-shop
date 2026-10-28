@@ -66,6 +66,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { UsersPage } from "@/pages/users";
+import { FinancePage } from "@/pages/finance";
 import { StatisticsPage } from "@/pages/statistics";
 import { OverviewPage } from "@/pages/overview";
 import { RecordsPage, BackupsPage } from "@/pages/records";
@@ -103,6 +104,13 @@ const sections = [
     description: "Обращения клиентов и переписка с поддержкой",
     group: "Работа с клиентами",
     icon: LifeBuoy,
+  },
+  {
+    id: "finance",
+    label: "Финансы",
+    description: "Платежи, предстоящие продления и план дохода",
+    group: "Финансы",
+    icon: CreditCard,
   },
   {
     id: "orders",
@@ -479,6 +487,9 @@ function Workspace({
   const params = new URLSearchParams(route.split("?")[1] || "");
   let page: ReactNode;
   switch (current.id) {
+    case "finance":
+      page = <FinancePage />;
+      break;
     case "statistics":
       page = <StatisticsPage />;
       break;

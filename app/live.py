@@ -130,25 +130,26 @@ _ACTION_TITLES = {
 }
 
 
-def user_action(user: dict, action: str, *, source: str = 'bot') -> None:
-    spec = _ACTION_TITLES.get(action)
-    if not spec:
+async def user_action(user: dict, action: str, *, source: str = 'bot') -> None:
+    if action not in _ACTION_TITLES:
         return
-    kind, emoji, title = spec
-    location = 'Веб-кабинет' if source == 'web' else 'Telegram-бот'
-    post(_heading(kind, emoji, title) + '\n\n' + _who(user)
-         + f'\n\n<i>{location}</i>')
+    if action in {'invite', 'share', 'copy'}:
+        try:
+            from app.referral_followup import record_interest
+            await record_interest(int(user['telegram_id']))
+        except Exception:
+            logger.exception('Could not record referral interest')
+    if not _chat_id():
+        return
+    try:
+        from app.activity_digest import record
+        await record(int(user['telegram_id']), action, source)
+    except Exception:
+        logger.debug('Could not record activity for daily digest', exc_info=True)
 
 
 async def web_user_action(telegram_id: int, action: str) -> None:
-    # Informational notifications must never prevent the user's main action.
-    if action not in _ACTION_TITLES or not _chat_id():
-        return
-    try:
-        user = await db.get_user(telegram_id)
-        user_action(dict(user or {}, telegram_id=telegram_id), action, source='web')
-    except Exception:
-        logger.debug('Could not prepare live user action', exc_info=True)
+    await user_action({'telegram_id': telegram_id}, action, source='web')
 
 
 def invited(referrer: dict | None, invitee: dict | None) -> None:

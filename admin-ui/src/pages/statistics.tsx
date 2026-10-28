@@ -34,9 +34,12 @@ const metrics: Record<string, string> = {
   rub: "Сумма оплат, ₽",
   stars: "Оплачено Stars",
   star_payments: "Оплаты Stars",
+  renewals: "Клиенты к продлению",
+  first: "Первые оплаты",
+  repeat: "Повторные оплаты",
 };
 const number = (v: unknown) => Number(v || 0).toLocaleString("ru-RU");
-function HistoryChart({
+export function HistoryChart({
   title,
   description,
   rows,

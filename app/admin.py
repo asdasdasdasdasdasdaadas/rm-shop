@@ -198,6 +198,19 @@ async def api_statistics(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **data})
 
 
+async def api_finance(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app.finance import overview
+    try:
+        result = await overview(int(request.query.get('days','30')), int(request.query.get('page','1')),
+                                int(request.query.get('horizon','3')), int(request.query.get('due_page','1')))
+    except ValueError:
+        return web.json_response({'ok': False, 'error': 'Некорректный период или страница'}, status=400)
+    return web.json_response({'ok': True, **result})
+
+
 async def api_stats(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2415,6 +2428,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/promos", api_promo_codes)
     app.router.add_get("/admin/api/payouts", api_payouts)
     app.router.add_post("/admin/api/payouts/{payout_id}", api_payout_resolve)
+    app.router.add_get("/admin/api/finance", api_finance)
     app.router.add_get("/admin/api/orders", api_orders)
     app.router.add_get("/admin/api/users/{telegram_id}/messages", api_user_messages)
     app.router.add_get("/admin/api/messages", api_messages)

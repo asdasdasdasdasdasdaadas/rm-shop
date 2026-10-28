@@ -134,7 +134,8 @@ CONDITIONS = (
      "hint": "Личный код, когда баланс уже пуст. Срок задаёт сам промокод, пауза на карточке здесь не используется. Условия кода добавляются к тексту. Можно оставить {code}, {devices} и {amount}."},
 )
 from app.recovery_funnel import CONDITIONS as RECOVERY_CONDITIONS
-CONDITIONS = CONDITIONS + RECOVERY_CONDITIONS
+from app.referral_followup import CONDITION as REFERRAL_FOLLOWUP_CONDITION
+CONDITIONS = CONDITIONS + RECOVERY_CONDITIONS + (REFERRAL_FOLLOWUP_CONDITION,)
 CONDITION_IDS = {row["id"]: row for row in CONDITIONS}
 SPECIAL_ONCE = {"unpaid_invoice", "balance_low", "winback"}
 
@@ -524,7 +525,8 @@ async def default_graph() -> dict:
         ]},
     ])
     from app.recovery_funnel import upgrade
-    return validate(upgrade({"branches": branches}))
+    from app.referral_followup import upgrade as upgrade_referrals
+    return validate(upgrade_referrals(upgrade({"branches": branches})))
 
 
 def preview(graph: dict, telegram_id: int) -> tuple[list[dict], list[tuple]]:
@@ -600,7 +602,7 @@ async def load() -> dict:
     pool = _pool_req()
     row = await pool.fetchrow("SELECT graph FROM funnel_graphs WHERE id = 1")
     if row:
-        from app.recovery_funnel import migrate
+        from app.referral_followup import migrate
         return without_retired_branches(await migrate(pool, _parse(row["graph"])))
     graph = await default_graph()
     inserted = await pool.fetchrow(
@@ -612,10 +614,10 @@ async def load() -> dict:
             await _backfill()
         except Exception:
             logger.exception("Старые шаги воронки не отмечены")
-        from app.recovery_funnel import migrate
+        from app.referral_followup import migrate
         return without_retired_branches(await migrate(pool, graph))
     row = await pool.fetchrow("SELECT graph FROM funnel_graphs WHERE id = 1")
-    from app.recovery_funnel import migrate
+    from app.referral_followup import migrate
     return without_retired_branches(await migrate(pool, _parse(row["graph"])))
 
 

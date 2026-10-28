@@ -808,3 +808,21 @@ CREATE TABLE IF NOT EXISTS invitation_card_events (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS invitation_card_events_created_idx ON invitation_card_events(created_at);
+
+-- Daily activity aggregation and durable digest delivery marker.
+CREATE TABLE IF NOT EXISTS admin_activity_daily (
+    day DATE NOT NULL,
+    telegram_id BIGINT NOT NULL,
+    action TEXT NOT NULL,
+    source TEXT NOT NULL,
+    events INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (day, telegram_id, action, source)
+);
+CREATE TABLE IF NOT EXISTS admin_activity_digests (
+    day DATE PRIMARY KEY,
+    sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- First observed invitation intent; Telegram does not confirm actual sharing.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_opened_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by) WHERE referred_by IS NOT NULL;
