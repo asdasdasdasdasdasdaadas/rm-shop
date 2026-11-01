@@ -164,8 +164,45 @@ def story_posted(user: dict | None) -> None:
     post(_heading("check", "✅", "Выложил историю") + "\n\n" + _who(user))
 
 
-def first_online(user: dict | None) -> None:
-    post(_heading("connect", "⚡", "Первое подключение") + "\n\n" + _who(user))
+def acquisition_text(source: dict | None) -> str:
+    if source is None:
+        return '<b>Источник:</b> не удалось получить данные'
+    lines = []
+    if source.get('ad_link_id'):
+        title = escape(str(source.get('ad_title') or 'Ссылка без названия'))
+        slug = escape(str(source.get('ad_slug') or ''))
+        label = 'История' if source.get('ad_kind') == 'story' else 'Рекламная ссылка'
+        lines.append(f'{label} «{title}»' + (f' · <code>ad_{slug}</code>' if slug else ''))
+    for prefix, label in [('referrer', 'Пригласил')]:
+        uid = source.get(prefix + '_id')
+        if uid:
+            person = {'telegram_id': uid, 'first_name': source.get(prefix + '_name'),
+                      'username': source.get(prefix + '_username')}
+            lines.append(f'{label}: {_who(person)}')
+    return '<b>Источник:</b> ' + ('\n'.join(lines) if lines else 'Без метки источника')
+
+
+async def _first_online_notifications(users: list[dict]) -> None:
+    if not users:
+        return
+    sources = {}
+    try:
+        rows = await db._pool_req().fetch("""SELECT u.telegram_id,u.ad_link_id,
+            a.title AS ad_title,a.slug AS ad_slug,a.kind AS ad_kind,
+            u.referred_by AS referrer_id,r.first_name AS referrer_name,r.username AS referrer_username
+            FROM users u LEFT JOIN ad_links a ON a.id=u.ad_link_id
+            LEFT JOIN users r ON r.telegram_id=u.referred_by
+            WHERE u.telegram_id=ANY($1::bigint[])""", [int(u['telegram_id']) for u in users])
+        sources = {int(row['telegram_id']): dict(row) for row in rows}
+    except Exception:
+        logger.exception('Could not load acquisition source for first connection')
+    for user in users:
+        first_online(user, source=sources.get(int(user['telegram_id'])))
+
+
+def first_online(user: dict | None, *, source: dict | None = None) -> None:
+    post(_heading("connect", "⚡", "Первое подключение") + "\n\n" + _who(user)
+         + "\n\n" + acquisition_text(source))
 
 
 async def note_panel_online(telegram_id: int, panel: dict | None) -> None:
@@ -175,15 +212,14 @@ async def note_panel_online(telegram_id: int, panel: dict | None) -> None:
         return
     user = await db.claim_first_online(telegram_id)
     if user:
-        first_online(user)
+        await _first_online_notifications([user])
 
 
 async def note_first_online_from_panel_ids(panel_ids: list[int]) -> None:
     ids = [int(x) for x in panel_ids if x]
     if not ids:
         return
-    for user in await db.claim_first_online_for_panel_ids(ids):
-        first_online(user)
+    await _first_online_notifications(await db.claim_first_online_for_panel_ids(ids))
 
 
 async def note_first_online_from_panels(panels: list[dict]) -> None:

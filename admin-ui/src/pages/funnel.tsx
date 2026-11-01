@@ -1,3 +1,4 @@
+import { FunnelResults } from "@/components/funnel-results";
 import {
   textError,
   titleError,
@@ -341,6 +342,7 @@ export function FunnelPage() {
   );
   return (
     <div className="space-y-4 min-w-0">
+      <FunnelResults/>
       <div className="flow-toolbar">
         <div className="flex flex-wrap gap-2">
           <Button

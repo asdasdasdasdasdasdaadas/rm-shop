@@ -198,6 +198,26 @@ async def api_statistics(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **data})
 
 
+async def api_funnel_results(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app.funnel_results import report
+    try:
+        result = await report(int(request.query.get('days', '30')))
+    except ValueError:
+        return web.json_response({'ok': False, 'error': 'Некорректный период'}, status=400)
+    return web.json_response({'ok': True, **result})
+
+
+async def api_revenue_forecast(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app.revenue_forecast import report
+    return web.json_response({'ok': True, **await report()})
+
+
 async def api_finance(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2429,6 +2449,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/payouts", api_payouts)
     app.router.add_post("/admin/api/payouts/{payout_id}", api_payout_resolve)
     app.router.add_get("/admin/api/finance", api_finance)
+    app.router.add_get("/admin/api/revenue-forecast", api_revenue_forecast)
+    app.router.add_get("/admin/api/funnel-results", api_funnel_results)
     app.router.add_get("/admin/api/orders", api_orders)
     app.router.add_get("/admin/api/users/{telegram_id}/messages", api_user_messages)
     app.router.add_get("/admin/api/messages", api_messages)
