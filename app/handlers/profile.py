@@ -205,7 +205,6 @@ async def _create_plan_invoice(
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="Открыть GRAM-кошелёк", url=order['telegram_wallet_url'],icon_custom_emoji_id=PINNED_ICONS['pay'])],
                 [InlineKeyboardButton(text="Копировать комментарий",copy_text=CopyTextButton(text=order['comment']),icon_custom_emoji_id=PINNED_ICONS['copy'])],
-                [InlineKeyboardButton(text="Открыть Tonkeeper", url=order['wallet_url'],icon_custom_emoji_id=PINNED_ICONS['pay'])],
                 [InlineKeyboardButton(text="Проверить оплату",callback_data='gramcheck:'+order['id'],icon_custom_emoji_id=PINNED_ICONS['retry'])],
                 [InlineKeyboardButton(text="Главное меню",callback_data='profile',icon_custom_emoji_id=PINNED_ICONS['home'])],
             ]))

@@ -24,7 +24,8 @@ class GramTest(unittest.TestCase):
             'comment':'gram_order','expires_at':datetime(2026,1,1,tzinfo=timezone.utc)})
         self.assertEqual(order['telegram_wallet_url'],
             'https://t.me/sendgrams?to='+WALLET+'&amount=3.092857879')
-        self.assertIn('text=gram_order',order['wallet_url'])
+        self.assertNotIn('wallet_url',order)
+        self.assertNotIn('transfer_uri',order)
 
     def test_wallet_checksum_and_mainnet(self):
         self.assertEqual(gram.friendly_address(WALLET),WALLET)

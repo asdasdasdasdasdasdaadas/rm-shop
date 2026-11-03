@@ -2798,8 +2798,7 @@ function showGramOrder(order) {
   button("Скопировать адрес",()=>navigator.clipboard.writeText(order.address).catch(showErr));
   button("Скопировать комментарий",()=>navigator.clipboard.writeText(order.comment).catch(showErr));
   const open=button("Открыть GRAM-кошелёк",()=>{if(Date.now()>=Date.parse(order.expires_at)){showErr(new Error("Срок счёта истёк. Создайте новый счёт."));return;}tg.openTelegramLink(order.telegram_wallet_url);});
-  const fallback=button("Открыть Tonkeeper",()=>{if(Date.now()>=Date.parse(order.expires_at)){showErr(new Error("Срок счёта истёк. Создайте новый счёт."));return;}tg.openLink(order.wallet_url);});
-  const updateOpenButtons=()=>{const disabled=order.status!=="pending" || Date.now()>=Date.parse(order.expires_at);open.disabled=disabled;fallback.disabled=disabled;};
+  const updateOpenButtons=()=>{open.disabled=order.status!=="pending" || Date.now()>=Date.parse(order.expires_at);};
   updateOpenButtons();
   button("Проверить оплату",async()=>{try{const data=await api(`/api/gram-orders/${encodeURIComponent(order.id)}`);order=data.gram_order;renderStatus();updateOpenButtons();if(order.status==="granted") await load();}catch(e){showErr(e);}});
   button("Обновить счёт",()=>previewGramQuote());

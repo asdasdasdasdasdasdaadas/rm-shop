@@ -80,7 +80,6 @@ async def current_rate():
 
 def public_order(order):
     address=friendly_address(order['wallet'])
-    query=urlencode({'amount':str(order['nano_amount']),'text':order['comment']})
     telegram_query=urlencode({
         'to': address,
         'amount': format(Decimal(order['nano_amount'])/NANO, 'f'),
@@ -88,9 +87,7 @@ def public_order(order):
     return dict(id=order['id'],status=order['status'],rub=order['amount_rub'],
         gram=format(Decimal(order['nano_amount'])/NANO,'f'),rate=str(order['rate_rub']),
         address=address,comment=order['comment'],expires_at=order['expires_at'].isoformat(),
-        telegram_wallet_url=f'https://t.me/sendgrams?{telegram_query}',
-        wallet_url=f'https://app.tonkeeper.com/transfer/{address}?{query}',
-        transfer_uri=f'ton://transfer/{address}?{query}')
+        telegram_wallet_url=f'https://t.me/sendgrams?{telegram_query}')
 
 
 async def create_order(uid,code):

@@ -46,5 +46,6 @@ class GramApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first,second)
         self.assertEqual(first['rub'],300)
         self.assertEqual(first['gram'],'3')
-        self.assertIn('amount=3000000000',first['wallet_url'])
+        self.assertIn('amount=3',first['telegram_wallet_url'])
+        self.assertNotIn('wallet_url',first)
         self.assertEqual(sum(call.args[0].startswith('INSERT INTO gram_orders') for call in conn.fetchrow.call_args_list),1)
