@@ -175,6 +175,41 @@ async def _create_plan_invoice(
     if not plan:
         await ack(callback, "Тариф не найден", alert=True)
         return
+    if method == "gram":
+        await ack(callback)
+        from app.gram import create_order
+        from app.button_icons import PINNED_ICONS
+        from aiogram.types import CopyTextButton
+        from html import escape
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        try:
+            order = await create_order(callback.from_user.id, code)
+        except ValueError as exc:
+            await callback.message.answer(str(exc))
+            return
+        except Exception:
+            logger.exception("GRAM quote unavailable")
+            await callback.message.answer("Курс GRAM временно недоступен. Попробуйте позже.")
+            return
+        deadline = datetime.fromisoformat(order["expires_at"]).astimezone(ZoneInfo("Europe/Moscow")).strftime("%H:%M:%S МСК")
+        await callback.message.answer(
+            f"<b>Оплата GRAM (TON)</b>\n\nК оплате: <b>{order['gram']} GRAM</b>\n"
+            f"На баланс: <b>{order['rub']} ₽</b>\nКурс CoinGecko: 1 GRAM = {order['rate']} ₽\n\n"
+            f"Кошелёк: <code>{escape(order['address'])}</code>\n"
+            f"Комментарий: <code>{escape(order['comment'])}</code>\n\n"
+            f"Курс действует до {deadline}. Только сеть TON. Комиссия сети отдельно. "
+            "Сначала скопируйте комментарий, затем откройте GRAM-кошелёк и вставьте его в перевод. "
+            "Переплата не увеличивает зачисление. "
+            "Просрочку и недоплату проверяет поддержка.", parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="Открыть GRAM-кошелёк", url=order['telegram_wallet_url'],icon_custom_emoji_id=PINNED_ICONS['pay'])],
+                [InlineKeyboardButton(text="Копировать комментарий",copy_text=CopyTextButton(text=order['comment']),icon_custom_emoji_id=PINNED_ICONS['copy'])],
+                [InlineKeyboardButton(text="Открыть Tonkeeper", url=order['wallet_url'],icon_custom_emoji_id=PINNED_ICONS['pay'])],
+                [InlineKeyboardButton(text="Проверить оплату",callback_data='gramcheck:'+order['id'],icon_custom_emoji_id=PINNED_ICONS['retry'])],
+                [InlineKeyboardButton(text="Главное меню",callback_data='profile',icon_custom_emoji_id=PINNED_ICONS['home'])],
+            ]))
+        return
     if settings.rollypay_configured:
         if rp is None:
             await ack(callback, "Оплата временно недоступна. Попробуйте позже", alert=True)
@@ -232,6 +267,20 @@ async def _create_plan_invoice(
         await answer_funnel(callback.message, "Счёт готов. Нажмите, чтобы оплатить:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Оплатить", url=link)]]))
         return
     await ack(callback, "Оплата временно недоступна. Попробуйте позже", alert=True)
+
+
+@router.callback_query(F.data.startswith("gramcheck:"))
+async def check_gram(callback: CallbackQuery) -> None:
+    row = await db._pool_req().fetchrow('SELECT status,expires_at FROM gram_orders WHERE id=$1 AND telegram_id=$2',
+        callback.data.split(':',1)[1],callback.from_user.id)
+    status = row['status'] if row else 'missing'
+    if row and status == 'pending' and row['expires_at'] < db._utc_now():
+        status = 'expired'
+    text = {'pending':'Перевод ещё не подтверждён. Проверьте позже.',
+        'confirmed':'Перевод подтверждён, зачисляем баланс.', 'granted':'Оплачено — баланс пополнен.',
+        'expired':'Срок счёта истёк. Если уже оплатили — не платите повторно, обратитесь в поддержку.',
+        'review':'Перевод требует проверки. Не платите повторно, напишите в поддержку.'}.get(status,'Счёт не найден')
+    await ack(callback,text,alert=True)
 
 
 @router.callback_query(F.data.startswith("resume_pay:"))

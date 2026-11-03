@@ -5,6 +5,7 @@ from typing import Any
 from app.config import get_settings, shop_overlay
 
 KNOWN_PAY_METHODS: dict[str, dict[str, str]] = {
+    "gram": {"title": "GRAM (TON)", "note": "Прямой перевод в сети TON. Курс фиксируется на 10 минут; комментарий обязателен."},
     "crypto": {"title": "Криптовалюта", "note": "Валюта, сеть и реквизиты перевода будут указаны на странице оплаты."},
     "sbp": {
         "title": "СБП",
@@ -25,6 +26,7 @@ DEFAULT_PAY_METHODS: list[dict[str, Any]] = [
     {"id": "card", "enabled": True},
     {"id": "stars", "enabled": True},
     {"id": "crypto", "enabled": False},
+    {"id": "gram", "enabled": True},
 ]
 
 
@@ -83,6 +85,13 @@ def method_available(method_id: str, settings=None) -> bool:
     key = str(method_id or "").strip().lower()
     if key in {"sbp", "card", "crypto"}:
         return bool(s.rollypay_configured)
+    if key == "gram":
+        from app.gram import address_raw
+        try:
+            address_raw(getattr(s,"gram_wallet",""))
+            return True
+        except ValueError:
+            return False
     if key == "stars":
         return True
     return False
@@ -116,6 +125,8 @@ def admin_pay_methods() -> list[dict[str, Any]]:
         base = KNOWN_PAY_METHODS[method_id]
         available = method_available(method_id, settings)
         hint = ""
+        if method_id == "gram" and not available:
+            hint = "Нужен публичный адрес TON mainnet в GRAM_WALLET"
         if method_id in {"sbp", "card", "crypto"} and not available:
             hint = "Нужны ключи RollyPay в окружении"
         out.append(

@@ -2743,6 +2743,7 @@ WITH first_payments AS (
         UNION ALL
         SELECT telegram_id, COALESCE(paid_at, created_at) AS paid_at
         FROM rollypay_orders WHERE status = 'granted'
+        UNION ALL SELECT telegram_id,paid_at FROM gram_orders WHERE status='granted'
     ) events GROUP BY telegram_id
 )
 SELECT COUNT(*)::int AS total,
@@ -3497,6 +3498,16 @@ async def admin_topup_summary(limit: int = 50) -> dict:
         ts = r["last_paid_at"]
         if ts and (rec["last_paid_at"] is None or ts > rec["last_paid_at"]):
             rec["last_paid_at"] = ts
+    gram_rows = await pool.fetch("""SELECT g.telegram_id,u.first_name,u.username,
+        COUNT(*)::int AS n,SUM(g.amount_rub)::bigint AS rub,MAX(g.paid_at) AS last_paid_at
+        FROM gram_orders g LEFT JOIN users u USING(telegram_id) WHERE g.status='granted'
+        GROUP BY g.telegram_id,u.first_name,u.username""")
+    for r in gram_rows:
+        tid=int(r['telegram_id'])
+        rec=by_user.setdefault(tid,dict(telegram_id=tid,username=r['username'],first_name=r['first_name'],payments=0,amount_rub=0,last_paid_at=None))
+        rec['payments']+=r['n'];rec['amount_rub']+=int(r['rub'])
+        if r['last_paid_at'] and (rec['last_paid_at'] is None or r['last_paid_at']>rec['last_paid_at']):
+            rec['last_paid_at']=r['last_paid_at']
     items = sorted(by_user.values(), key=lambda x: (-int(x["amount_rub"]), x["telegram_id"]))
     cap = max(1, min(200, int(limit)))
     return {
@@ -5189,6 +5200,7 @@ _REMINDER_RESULTS_SQL = _REMINDER_CLICKS_SQL.rstrip() + """,
 payments_seen AS (
     SELECT telegram_id, created_at AS paid_at FROM payments
     UNION ALL SELECT telegram_id, paid_at FROM rollypay_orders WHERE status='granted' AND paid_at IS NOT NULL
+        UNION ALL SELECT telegram_id,paid_at FROM gram_orders WHERE status='granted'
 ), results AS (
     SELECT r.*,
       EXISTS (SELECT 1 FROM payment_receipts p WHERE p.first_payment AND p.telegram_id=r.telegram_id AND EXISTS (SELECT 1 FROM clicks c
@@ -5565,6 +5577,7 @@ WITH first_payments AS (
         SELECT telegram_id, created_at AS paid_at FROM payments
         UNION ALL
         SELECT telegram_id, paid_at FROM rollypay_orders WHERE status='granted' AND paid_at IS NOT NULL
+        UNION ALL SELECT telegram_id,paid_at FROM gram_orders WHERE status='granted'
     ) p GROUP BY telegram_id
 ), periods AS (
     SELECT 'before' AS period, $1::timestamptz - INTERVAL '28 days' AS starts, $1::timestamptz AS ends
@@ -5689,6 +5702,14 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
                     raise ValueError('Payment order mismatch')
                 if order['status'] == 'granted':
                     return None  # Historical payments predate receipts.
+            elif provider == 'gram':
+                order = await conn.fetchrow('SELECT * FROM gram_orders WHERE id=$1 FOR UPDATE', provider_id)
+                if not order or order['telegram_id'] != telegram_id or order['plan_code'] != plan_code or order['amount_rub'] != amount or router_days or stars:
+                    raise ValueError('GRAM order mismatch')
+                if order['status'] == 'granted':
+                    return None
+                if order['status'] != 'confirmed' or not order['tx_hash']:
+                    raise ValueError('GRAM payment is not confirmed')
             elif provider == 'stars':
                 # Existing historic Stars receipts must never be credited again.
                 inserted = await conn.fetchval('''INSERT INTO payments
@@ -5720,6 +5741,8 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
                 VALUES ($1,$2,'pay',$3,$4,$5)''',telegram_id,'router' if router_days else 'topup',amount,after,plan_code)
             if provider == 'rollypay':
                 await conn.execute("UPDATE rollypay_orders SET status='granted',paid_at=NOW() WHERE order_id=$1", provider_id)
+            if provider == "gram":
+                await conn.execute("UPDATE gram_orders SET status='granted' WHERE id=$1", provider_id)
             receipt = dict(receipt)
             await ambassadors.reward(conn, receipt)
             return receipt

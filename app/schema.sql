@@ -826,3 +826,24 @@ CREATE TABLE IF NOT EXISTS admin_activity_digests (
 -- First observed invitation intent; Telegram does not confirm actual sharing.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_opened_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by) WHERE referred_by IS NOT NULL;
+
+-- Native GRAM/TON mainnet deposits. Quotes preserve ruble credit and exchange rate.
+CREATE TABLE IF NOT EXISTS gram_orders (
+ id TEXT PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id),
+ plan_code TEXT NOT NULL, amount_rub INTEGER NOT NULL CHECK(amount_rub>0),
+ nano_amount BIGINT NOT NULL CHECK(nano_amount>0), rate_rub NUMERIC NOT NULL CHECK(rate_rub>0),
+ rate_at TIMESTAMPTZ NOT NULL, wallet TEXT NOT NULL, comment TEXT NOT NULL UNIQUE,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),expires_at TIMESTAMPTZ NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','expired','confirmed','granted','review')),
+ tx_hash TEXT UNIQUE,paid_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS gram_orders_user_idx ON gram_orders(telegram_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS gram_orders_status_idx ON gram_orders(status,created_at);
+CREATE TABLE IF NOT EXISTS gram_wallet_cursors (
+ wallet TEXT PRIMARY KEY,started_at TIMESTAMPTZ NOT NULL,last_lt BIGINT NOT NULL DEFAULT 0,checked_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS gram_deposits (
+ tx_hash TEXT PRIMARY KEY,wallet TEXT NOT NULL,order_id TEXT REFERENCES gram_orders(id),
+ nano_amount BIGINT NOT NULL,paid_at TIMESTAMPTZ NOT NULL,reason TEXT NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

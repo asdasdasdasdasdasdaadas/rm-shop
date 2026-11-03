@@ -296,6 +296,9 @@ def buy_keyboard() -> InlineKeyboardMarkup:
         else:
             label = plan["title"]
         builder.row(InlineKeyboardButton(text=label, callback_data=f"buy:{code}"))
+        from app.pay_methods import public_pay_methods
+        if any(m['id']=='gram' for m in public_pay_methods()) and plan.get('topup_rub'):
+            builder.row(InlineKeyboardButton(text=f"{plan['title']} · GRAM",callback_data=f"rpm:{code}:gram",icon_custom_emoji_id=PINNED_ICONS['pay']))
     builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
     return builder.as_markup()
 
