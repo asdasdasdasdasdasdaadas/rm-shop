@@ -457,6 +457,16 @@ FROM (
     ) history GROUP BY telegram_id
 ) h WHERE h.telegram_id=u.telegram_id AND u.first_checkout_at IS NULL;
 
+-- Retain the device milestone after the device is deleted. Connected users had a device by then.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_device_at TIMESTAMPTZ;
+UPDATE users u SET first_device_at = h.added
+FROM (
+    SELECT x.telegram_id, LEAST(
+        (SELECT MIN(d.created_at) FROM devices d WHERE d.telegram_id = x.telegram_id),
+        x.first_online_at) AS added
+    FROM users x WHERE x.first_device_at IS NULL
+) h WHERE h.telegram_id=u.telegram_id AND h.added IS NOT NULL AND u.first_device_at IS NULL;
+
 
 CREATE TABLE IF NOT EXISTS device_exit_feedback (
     token TEXT PRIMARY KEY,

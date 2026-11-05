@@ -1905,9 +1905,15 @@ async def add_device(
 ) -> dict:
     row = await _pool_req().fetchrow(
         """
-        INSERT INTO devices (telegram_id, title, remnawave_id, last_billed_on, last_billed_at, platform, client, kind)
-        VALUES ($1, $2, $3, (timezone('utc', now()))::date, timezone('utc', now()), $4, $5, $6)
-        RETURNING *
+        WITH added AS (
+            INSERT INTO devices (telegram_id, title, remnawave_id, last_billed_on, last_billed_at, platform, client, kind)
+            VALUES ($1, $2, $3, (timezone('utc', now()))::date, timezone('utc', now()), $4, $5, $6)
+            RETURNING *
+        ), milestone AS (
+            UPDATE users u SET first_device_at = a.created_at
+            FROM added a WHERE u.telegram_id = a.telegram_id AND u.first_device_at IS NULL
+        )
+        SELECT * FROM added
         """,
         telegram_id,
         title,
@@ -2896,7 +2902,7 @@ _FUNNEL_CTE_TEMPLATE = """
 WITH all_flags AS (
     SELECT u.telegram_id, u.bot_started_at, u.referred_by, u.vpn_feedback,
         COALESCE(u.gift_claimed_at,u.bot_started_at) AS gift_at,
-        COALESCE((SELECT MIN(d.created_at) FROM devices d WHERE d.telegram_id=u.telegram_id),u.bot_started_at) AS device_at,
+        COALESCE(u.first_device_at,(SELECT MIN(d.created_at) FROM devices d WHERE d.telegram_id=u.telegram_id),u.bot_started_at) AS device_at,
         COALESCE(u.first_checkout_at,u.bot_started_at) AS checkout_at,
         {access_exhausted} AS access_exhausted,
         u.referred_by IS NOT NULL AS from_ref,
@@ -2905,7 +2911,7 @@ WITH all_flags AS (
         u.accepted_legal_at IS NOT NULL AS legal,
         COALESCE(u.trial_used, FALSE) AS trial,
         u.blocked_at IS NOT NULL AS blocked,
-        EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id) AS has_device,
+        (u.first_device_at IS NOT NULL OR EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id)) AS has_device,
         u.first_online_at IS NOT NULL AS connected,
         (u.first_checkout_at IS NOT NULL OR EXISTS (
             SELECT 1 FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id)) AS checkout,

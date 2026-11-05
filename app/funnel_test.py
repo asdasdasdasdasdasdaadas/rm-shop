@@ -116,9 +116,6 @@ MESSAGE_KINDS = {
 
 
 SCENARIOS = {
-    'ambassador': ('Амбассадорство', ['ambassador', 'ambassador_2']),
-    'ambassador_earn': ('Заработок на рекомендациях', ['ambassador_earn', 'ambassador_earn_2']),
-    'winback': ('Возвращение с промокодом', ['winback']),
     'start': ('Первое подключение', ['welcome', 'intro', 'support', 'gift', 'device', 'setup', 'quality']),
     'payment': ('Баланс и неоплаченный счёт', ['ending', 'empty', 'invoice', 'paid']),
     'referral': ('Приглашение друзей', ['invite']),

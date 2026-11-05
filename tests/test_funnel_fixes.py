@@ -18,7 +18,7 @@ class FunnelFixesTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(any(b.url and 'share/url' in b.url for row in markup.inline_keyboard for b in row),not quiet)
                 body=referrals.topup_ok_text('100 ₽',can_share=True,local=local)
                 self.assertIn('94',body)
-                self.assertEqual('5%' in body,not quiet)
+                self.assertEqual('Пригласите друга' in body,not quiet)
 
     def test_html_names_safe_and_custom_templates_preserved(self):
         with patch.object(notices,'shop_overlay',return_value={'notices':{'welcome_intro_hi':'<b>{name}</b>, привет'}}):

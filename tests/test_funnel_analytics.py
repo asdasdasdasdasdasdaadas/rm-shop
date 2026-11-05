@@ -16,7 +16,7 @@ class FunnelAnalyticsTest(unittest.TestCase):
         self.conn.executescript('''
             CREATE TABLE users (telegram_id INTEGER, bot_started_at TEXT, referred_by INTEGER, ad_link_id INTEGER,
                 accepted_legal_at TEXT, trial_used INTEGER DEFAULT 0, blocked_at TEXT, first_online_at TEXT,
-                first_checkout_at TEXT, has_paid_topup INTEGER DEFAULT 0, gift_claimed_at TEXT,
+                first_checkout_at TEXT, first_device_at TEXT, has_paid_topup INTEGER DEFAULT 0, gift_claimed_at TEXT,
                 balance_rub INTEGER DEFAULT 0, billing_paused_at TEXT, vpn_feedback TEXT, router_expire_at TEXT, trial_waiting_connection INTEGER DEFAULT 0);
             CREATE TABLE app_flags (key TEXT,value TEXT);
             CREATE TABLE devices (telegram_id INTEGER,created_at TEXT,kind TEXT,last_billed_at TEXT,expire_at TEXT);
