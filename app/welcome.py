@@ -140,8 +140,9 @@ async def send_welcome_intro(
         if trial_on
         else notice_text("welcome_intro_hi_plain", name=name)
     )
+    support_on = support_welcome_enabled()
     support = notice_text("support_welcome", brand=escape(brand))
-    parts = [hi, hello, support]
+    parts = [hi, hello, support] if support_on else [hi, hello]
     try:
         await send_welcome_sticker(bot, chat_id)
         await _pause(bot, chat_id)
@@ -151,9 +152,14 @@ async def send_welcome_intro(
         await answer_funnel(message, hello, reply_markup=with_referral_share(user.id) if referral_bonus else None,
                             preserve=True)
         await _pause(bot, chat_id)
-        # Only «Я помогу» here: no cabinet or main menu buttons before the intro is finished.
-        await answer_funnel(message, support, reply_markup=support_welcome_keyboard(), preserve=True,
-                             link_preview_options=LinkPreviewOptions(is_disabled=True))
+        if support_on:
+            # Only «Я помогу» here: no cabinet or main menu buttons before the intro is finished.
+            await answer_funnel(message, support, reply_markup=support_welcome_keyboard(), preserve=True,
+                                 link_preview_options=LinkPreviewOptions(is_disabled=True))
+        else:
+            # «Будем на связи» is switched off in the admin panel: go straight to the cabinet step.
+            await db.complete_welcome_support(user.id)
+            await send_welcome_continuation(message, user.id, in_channel=in_channel)
         await _log(user.id, user.first_name, "\n\n".join(parts), ok=True)
         return True
     except Exception as exc:
@@ -192,7 +198,13 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
     await db.mark_legal_notice(telegram_id)
 
 
+def support_welcome_enabled() -> bool:
+    return bool(getattr(get_settings(), "welcome_support_enabled", False))
+
+
 async def show_pending_welcome(message: Message, telegram_id: int) -> bool:
+    if not support_welcome_enabled():
+        return False
     local=await db.get_user(telegram_id)
     if not local or not local.get('welcome_support_pending'):
         return False

@@ -79,6 +79,7 @@ def validate_shop(body: dict) -> dict:
     out["story_reward_enabled"] = False
     out["trust_enabled"] = bool(body.get("trust_enabled"))
     out["welcome_tariff_enabled"] = bool(body.get("welcome_tariff_enabled", True))
+    out["welcome_support_enabled"] = bool(body.get("welcome_support_enabled", False))
     out["trust_days"] = _as_int(body.get("trust_days"), 1, 30, "Дни обещанного платежа")
     out["trust_fee_rub"] = _as_int(body.get("trust_fee_rub"), 0, 10000, "Комиссия обещанного платежа")
     out["referral_reward_days"] = _as_int(body.get("referral_reward_days"), 0, 365, "Реф. дни пригласившему")
@@ -159,6 +160,7 @@ def snapshot() -> dict:
             "story_check_minutes": s.story_check_minutes,
             "trust_enabled": s.trust_enabled,
             "welcome_tariff_enabled": s.welcome_tariff_enabled,
+            "welcome_support_enabled": s.welcome_support_enabled,
             "trust_days": s.trust_days,
             "trust_fee_rub": s.trust_fee_rub,
             "referral_reward_days": s.referral_reward_days,

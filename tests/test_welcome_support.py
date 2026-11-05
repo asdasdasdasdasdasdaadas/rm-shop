@@ -7,7 +7,7 @@ from app import welcome
 class WelcomeSupportTest(unittest.IsolatedAsyncioTestCase):
     async def test_support_message_between_presentation_and_cabinet(self):
         message=SimpleNamespace(bot=object(),from_user=SimpleNamespace(id=1,first_name='Друг'),chat=SimpleNamespace(id=1),answer=AsyncMock())
-        settings=SimpleNamespace(brand_name='VPN',referral_invitee_reward_rub=0,referral_program_enabled=False,balance_enabled=True,trial_days=3,welcome_tariff_enabled=False)
+        settings=SimpleNamespace(brand_name='VPN',referral_invitee_reward_rub=0,referral_program_enabled=False,balance_enabled=True,trial_days=3,welcome_tariff_enabled=False,welcome_support_enabled=True)
         with ExitStack() as stack:
             stack.enter_context(patch.object(welcome,'get_settings',return_value=settings))
             stack.enter_context(patch.object(welcome.db,'get_user',AsyncMock(return_value={})))
@@ -24,6 +24,24 @@ class WelcomeSupportTest(unittest.IsolatedAsyncioTestCase):
         # Only «Я помогу»: no cabinet / main menu buttons and no cabinet call to action.
         self.assertEqual([[b.callback_data for b in row] for row in calls[2].kwargs['reply_markup'].inline_keyboard],[['welcome:continue']])
         self.assertEqual(calls[2].args[0],'support_welcome')
+
+    async def test_support_message_switched_off_goes_straight_to_cabinet(self):
+        message=SimpleNamespace(bot=object(),from_user=SimpleNamespace(id=1,first_name='Друг'),chat=SimpleNamespace(id=1),answer=AsyncMock())
+        settings=SimpleNamespace(brand_name='VPN',referral_invitee_reward_rub=0,referral_program_enabled=False,balance_enabled=True,trial_days=3,welcome_tariff_enabled=False,welcome_support_enabled=False)
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(welcome,'get_settings',return_value=settings))
+            stack.enter_context(patch.object(welcome.db,'get_user',AsyncMock(return_value={})))
+            done=stack.enter_context(patch.object(welcome.db,'complete_welcome_support',AsyncMock()))
+            stack.enter_context(patch.object(welcome,'trial_is_available',return_value=True))
+            stack.enter_context(patch.object(welcome,'notice_text',side_effect=lambda key,**kw:key))
+            cont=stack.enter_context(patch.object(welcome,'send_welcome_continuation',AsyncMock()))
+            for name in ('send_welcome_sticker','_pause','_log'):
+                stack.enter_context(patch.object(welcome,name,AsyncMock()))
+            self.assertTrue(await welcome.send_welcome_intro(message,in_channel=True))
+            self.assertFalse(await welcome.show_pending_welcome(message,1))
+        self.assertEqual([call.args[0] for call in message.answer.call_args_list],['welcome_intro_hi','welcome_intro_hello'])
+        done.assert_awaited_once_with(1)
+        cont.assert_awaited_once_with(message,1,in_channel=True)
 
     async def test_tariff_block_in_presentation_can_be_switched_off(self):
         from app import keyboards

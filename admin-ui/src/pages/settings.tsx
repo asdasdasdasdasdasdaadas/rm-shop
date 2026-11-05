@@ -64,6 +64,25 @@ const groups: {
     ],
   },
   {
+    id: "welcome",
+    title: "Приветствие",
+    description: "Что новый пользователь видит после /start.",
+    fields: [
+      {
+        key: "welcome_tariff_enabled",
+        label: "Тариф и условия в приветствии",
+        type: "switch",
+        hint: "Цена за день, баланс вместо подписки и минимальное пополнение во втором сообщении после /start.",
+      },
+      {
+        key: "welcome_support_enabled",
+        label: "Сообщение «Будем на связи» с кнопкой «Я помогу»",
+        type: "switch",
+        hint: "Третье сообщение после /start. Выключено — бот сразу переходит к кабинету.",
+      },
+    ],
+  },
+  {
     id: "pricing",
     title: "Тарифы и пополнение",
     description:
@@ -87,12 +106,6 @@ const groups: {
         label: "Шаг выбора суммы, ₽",
         type: "number",
         min: 1,
-      },
-      {
-        key: "welcome_tariff_enabled",
-        label: "Тариф и условия в приветствии",
-        type: "switch",
-        hint: "Цена за день, баланс вместо подписки и минимальное пополнение в первом сообщении после /start.",
       },
     ],
   },

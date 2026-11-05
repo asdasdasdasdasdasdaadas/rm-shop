@@ -53,6 +53,7 @@ class FunnelFixesTest(unittest.IsolatedAsyncioTestCase):
                 stack.enter_context(patch.object(db,'flag_on',AsyncMock(side_effect=lambda key: key=='trial_nudge')))
                 stack.enter_context(patch.object(db,'list_due_trial_nudges',AsyncMock(return_value=[{'telegram_id':1,'welcome_support_pending':pending}])))
                 stack.enter_context(patch.object(nudge,'_trial_channel_ready',AsyncMock(return_value=channel)))
+                stack.enter_context(patch('app.welcome.support_welcome_enabled',return_value=True))
                 deliver=stack.enter_context(patch.object(nudge,'_deliver',AsyncMock(return_value=True)))
                 stack.enter_context(patch.object(nudge,'channel_keyboard',return_value=None))
                 await nudge.send_due_trial_nudges(AsyncMock())

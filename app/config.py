@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     story_check_minutes: int = 30
     trust_enabled: bool = True
     welcome_tariff_enabled: bool = True
+    welcome_support_enabled: bool = False
     trust_days: int = 3
     trust_fee_rub: int = 12
     balance_charge_interval: int = 600
@@ -277,6 +278,7 @@ SHOP_KEYS = frozenset(
         "story_check_minutes",
         "trust_enabled",
         "welcome_tariff_enabled",
+        "welcome_support_enabled",
         "trust_days",
         "trust_fee_rub",
         "referral_reward_days",

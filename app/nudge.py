@@ -150,7 +150,8 @@ async def send_due_trial_nudges(bot: Bot, skip_ids: list[int] | None = None) -> 
         already = bool(row.get("trial_used"))
         body = trial_nudge_text(row.get("first_name"), already_granted=already)
         markup = onboarding_keyboard(gift=True)
-        only_welcome = bool(row.get('welcome_support_pending'))
+        from app.welcome import support_welcome_enabled
+        only_welcome = bool(row.get('welcome_support_pending')) and support_welcome_enabled()
         if only_welcome:
             body = notice_text('trial_resume_welcome')
             markup = support_welcome_keyboard()
