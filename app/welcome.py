@@ -124,6 +124,9 @@ async def send_welcome_intro(
     chat_id = message.chat.id
     local = await db.get_user(user.id)
     hello = notice_text("welcome_intro_hello", name=name, brand=brand)
+    if getattr(settings, "welcome_tariff_enabled", True):
+        from app.keyboards import tariff_block
+        hello += "\n\n" + tariff_block()
     bonus = int(settings.referral_invitee_reward_rub or 0)
     referral_bonus = settings.referral_program_enabled and bonus > 0 and local and local.get("referred_by")
     if referral_bonus:
@@ -146,7 +149,8 @@ async def send_welcome_intro(
         await _pause(bot, chat_id)
         await answer_funnel(message, hello, reply_markup=with_referral_share(user.id) if referral_bonus else None)
         await _pause(bot, chat_id)
-        await answer_funnel(message, support, reply_markup=support_welcome_keyboard(),
+        # Only «Я помогу» here: no cabinet or main menu buttons before the intro is finished.
+        await answer_funnel(message, support, reply_markup=support_welcome_keyboard(), preserve=True,
                              link_preview_options=LinkPreviewOptions(is_disabled=True))
         await _log(user.id, user.first_name, "\n\n".join(parts), ok=True)
         return True
@@ -191,5 +195,5 @@ async def show_pending_welcome(message: Message, telegram_id: int) -> bool:
     if not local or not local.get('welcome_support_pending'):
         return False
     await answer_funnel(message, notice_text('support_welcome',brand=escape(get_settings().brand_name)),
-                         reply_markup=support_welcome_keyboard(),link_preview_options=LinkPreviewOptions(is_disabled=True))
+                         reply_markup=support_welcome_keyboard(),preserve=True,link_preview_options=LinkPreviewOptions(is_disabled=True))
     return True

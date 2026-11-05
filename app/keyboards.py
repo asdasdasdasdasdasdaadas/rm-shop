@@ -37,6 +37,27 @@ def welcome_text() -> str:
     return notice_text("welcome", brand=get_settings().brand_name) + "\n\n" + legal_text()
 
 
+def tariff_block() -> str:
+    """Short price and terms block for the first /start message. Switched off in the admin panel settings."""
+    settings = get_settings()
+    price = max(1, int(getattr(settings, 'vpn_day_price_rub', 6) or 6))
+    minimum = max(1, int(getattr(settings, 'balance_topup_min', 50) or 50))
+    lines = [
+        '💸 <b>Тариф и условия</b>',
+        f'• <b>{price} ₽ в день</b> за одно устройство',
+        f'• Это баланс, а не подписка: пополняете от {minimum} ₽, автоплатежей нет',
+        '• Пока устройств нет, ничего не списывается',
+    ]
+    if getattr(settings, 'referral_program_enabled', False):
+        mine = max(0, int(getattr(settings, 'referral_reward_rub', 0) or 0))
+        friend = max(0, int(getattr(settings, 'referral_invitee_reward_rub', 0) or 0))
+        if mine and mine == friend:
+            lines.append(f'• Пригласите друга — обоим по {mine} ₽ после его первого пополнения')
+        elif mine:
+            lines.append(f'• Пригласите друга — {mine} ₽ вам после его первого пополнения')
+    return '\n'.join(lines)
+
+
 def main_menu_text(first_name: str | None, balance_rub: int | None = None) -> str:
     """Main menu body. Fixed in code: the admin panel no longer overrides it."""
     name = escape(str(first_name or "").strip())

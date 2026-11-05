@@ -150,7 +150,8 @@ async def send_due_trial_nudges(bot: Bot, skip_ids: list[int] | None = None) -> 
         already = bool(row.get("trial_used"))
         body = trial_nudge_text(row.get("first_name"), already_granted=already)
         markup = onboarding_keyboard(gift=True)
-        if row.get('welcome_support_pending'):
+        only_welcome = bool(row.get('welcome_support_pending'))
+        if only_welcome:
             body = notice_text('trial_resume_welcome')
             markup = support_welcome_keyboard()
         elif not await _trial_channel_ready(bot, telegram_id):
@@ -164,6 +165,7 @@ async def send_due_trial_nudges(bot: Bot, skip_ids: list[int] | None = None) -> 
             title="Напоминание: триал",
             body=body,
             reply_markup=markup,
+            preserve=only_welcome,
         )
         touched.append(telegram_id)
         if ok:

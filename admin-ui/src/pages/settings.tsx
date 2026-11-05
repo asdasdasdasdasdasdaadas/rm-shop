@@ -88,6 +88,12 @@ const groups: {
         type: "number",
         min: 1,
       },
+      {
+        key: "welcome_tariff_enabled",
+        label: "Тариф и условия в приветствии",
+        type: "switch",
+        hint: "Цена за день, баланс вместо подписки и минимальное пополнение в первом сообщении после /start.",
+      },
     ],
   },
   {
