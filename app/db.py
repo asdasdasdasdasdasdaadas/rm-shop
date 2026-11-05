@@ -306,7 +306,9 @@ async def touch_ad_link(slug: str) -> int | None:
     return int(row["id"]) if row else None
 
 
-async def create_ad_link(title: str, slug: str = "", *, kind: str = "manual") -> dict:
+async def create_ad_link(
+    title: str, slug: str = "", *, kind: str = "manual", partner_id: int | None = None
+) -> dict:
     name = str(title or "").strip()
     if len(name) < 2:
         raise ValueError("Укажите название ссылки")
@@ -336,13 +338,14 @@ async def create_ad_link(title: str, slug: str = "", *, kind: str = "manual") ->
         try:
             row = await pool.fetchrow(
                 """
-                INSERT INTO ad_links (slug, title, kind)
-                VALUES ($1, $2, $3)
-                RETURNING id, slug, title, kind, clicks, created_at, archived_at
+                INSERT INTO ad_links (slug, title, kind, partner_id)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id, slug, title, kind, clicks, created_at, archived_at, partner_id
                 """,
                 candidate,
                 name,
                 link_kind,
+                int(partner_id) if partner_id else None,
             )
             return dict(row)
         except asyncpg.exceptions.UniqueViolationError:
@@ -396,11 +399,15 @@ async def archive_ad_link(link_id: int) -> bool:
     return bool(row)
 
 
-async def list_ad_links(*, include_archived: bool = False, kind: str = "manual") -> list[dict]:
+async def list_ad_links(
+    *, include_archived: bool = False, kind: str = "manual", partner_id: int | None = None
+) -> list[dict]:
     rows = await _pool_req().fetch(
         """
         SELECT
             l.id,
+            l.partner_id,
+            p.title AS partner_title,
             l.slug,
             l.title,
             COALESCE(l.kind, 'manual') AS kind,
@@ -412,14 +419,17 @@ async def list_ad_links(*, include_archived: bool = False, kind: str = "manual")
             COUNT(u.telegram_id) FILTER (WHERE u.first_online_at IS NOT NULL)::int AS connected,
             COUNT(u.telegram_id) FILTER (WHERE COALESCE(u.has_paid_topup, FALSE))::int AS paid
         FROM ad_links l
+        LEFT JOIN ad_partners p ON p.id = l.partner_id
         LEFT JOIN users u ON u.ad_link_id = l.id
         WHERE COALESCE(l.kind, 'manual') = $2
           AND ($1::bool OR l.archived_at IS NULL)
-        GROUP BY l.id
+          AND ($3::bigint IS NULL OR l.partner_id = $3)
+        GROUP BY l.id, p.title
         ORDER BY l.created_at DESC, l.id DESC
         """,
         bool(include_archived),
         str(kind or "manual"),
+        int(partner_id) if partner_id else None,
     )
     return [dict(r) for r in rows]
 

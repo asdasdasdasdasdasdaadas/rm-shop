@@ -836,3 +836,14 @@ CREATE TABLE IF NOT EXISTS admin_activity_digests (
 -- First observed invitation intent; Telegram does not confirm actual sharing.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_opened_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by) WHERE referred_by IS NOT NULL;
+
+-- Advertisers open their own stats page by a secret token and can add (not delete) ad links.
+CREATE TABLE IF NOT EXISTS ad_partners (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    revoked_at TIMESTAMPTZ
+);
+ALTER TABLE ad_links ADD COLUMN IF NOT EXISTS partner_id BIGINT REFERENCES ad_partners (id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS ad_links_partner_idx ON ad_links (partner_id) WHERE partner_id IS NOT NULL;

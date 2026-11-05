@@ -639,6 +639,7 @@ def _ad_public(row: dict) -> dict:
         "kind": row.get("kind") or "manual",
         "title": row.get("title") or "",
         "url": f"https://t.me/{settings.bot_username}?start=ad_{slug}",
+        "partner": row.get("partner_title") or "",
         "clicks": int(row.get("clicks") or 0),
         "users": int(row.get("users") or 0),
         "trial": int(row.get("trial") or 0),
@@ -728,6 +729,56 @@ async def api_ad_link_archive(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Ссылка не найдена"}, status=404)
     if not await db.archive_ad_link(link_id):
         return web.json_response({"ok": False, "error": "Ссылка уже скрыта или не найдена"}, status=404)
+    return web.json_response({"ok": True})
+
+
+def _partner_public(request: web.Request, row: dict) -> dict:
+    settings = get_settings()
+    base = (settings.webapp_public_url or "").rstrip("/") or str(request.url.origin()).rstrip("/")
+    return {
+        "id": int(row["id"]),
+        "title": row.get("title") or "",
+        "url": f"{base}/partner/{row['token']}",
+        "links": int(row.get("links") or 0),
+        "clicks": int(row.get("clicks") or 0),
+        "users": int(row.get("users") or 0),
+        "revoked": bool(row.get("revoked_at")),
+        "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+    }
+
+
+async def api_partners(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import partners
+
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        try:
+            row = await partners.create_partner(body.get("title") if isinstance(body, dict) else "")
+        except ValueError as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=400)
+        return web.json_response({"ok": True, "item": _partner_public(request, row)})
+    items = [_partner_public(request, r) for r in await partners.list_partners()]
+    return web.json_response({"ok": True, "items": items})
+
+
+async def api_partner_revoke(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import partners
+
+    try:
+        partner_id = int(request.match_info["partner_id"])
+    except (KeyError, TypeError, ValueError):
+        return web.json_response({"ok": False, "error": "Рекламодатель не найден"}, status=404)
+    if not await partners.revoke_partner(partner_id):
+        return web.json_response({"ok": False, "error": "Доступ уже отключён"}, status=404)
     return web.json_response({"ok": True})
 
 
@@ -2445,6 +2496,9 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/ads", api_ad_links)
     app.router.add_post("/admin/api/ads", api_ad_links)
     app.router.add_post("/admin/api/ads/{link_id}/archive", api_ad_link_archive)
+    app.router.add_get("/admin/api/partners", api_partners)
+    app.router.add_post("/admin/api/partners", api_partners)
+    app.router.add_post("/admin/api/partners/{partner_id}/revoke", api_partner_revoke)
     app.router.add_get("/admin/api/story-stats", api_story_stats)
     app.router.add_get("/admin/api/promos", api_promo_codes)
     app.router.add_get("/admin/api/payouts", api_payouts)

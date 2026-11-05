@@ -18,6 +18,7 @@ from aiogram.utils.web_app import safe_parse_webapp_init_data
 
 from app import db, runtime, ambassadors
 from app.admin import mount_admin
+from app.partners import mount_partners
 from app.billing import fulfill_rollypay_order
 from app.config import ROOT, get_settings
 from app.faq import faq_items
@@ -1256,6 +1257,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/", health)
     app.router.add_static("/icons", WEBAPP_DIR / "icons")
     mount_admin(app)
+    mount_partners(app)
     return app
 
 
