@@ -3,13 +3,69 @@ from __future__ import annotations
 from html import escape
 
 from app.config import get_settings, shop_overlay
-from app.texts import days_text, rub_text
+from app.texts import days_text
 from app.referral_terms import referral_terms
+
+
+def tariff_faq_items() -> list[dict[str, str]]:
+    """Price, billing model and minimum top-up. Always shown, even with a custom FAQ from the admin panel."""
+    settings = get_settings()
+    price = max(1, int(settings.vpn_day_price_rub or 1))
+    minimum = max(1, int(settings.balance_topup_min or 1))
+    return [
+        {
+            "q": "Сколько стоит VPN?",
+            "a": (
+                f"{price} ₽ в день за одно устройство. Телефон и ноутбук — это два устройства, "
+                f"то есть {price * 2} ₽ в день. Других платежей нет."
+            ),
+        },
+        {
+            "q": "Это подписка?",
+            "a": (
+                "Нет, это баланс. Вы пополняете его сами, а раз в сутки с него списывается "
+                f"{price} ₽ за каждое добавленное устройство. Автоплатежей с карты нет: "
+                "деньги берутся только с баланса."
+            ),
+        },
+        {
+            "q": "Какое минимальное пополнение?",
+            "a": (
+                f"От {minimum} ₽. Этого хватит на {days_text(minimum // price)} для одного устройства. "
+                "Сумму выбираете сами, остаток не сгорает."
+            ),
+        },
+        {
+            "q": "Когда списываются деньги?",
+            "a": (
+                "Списания начинаются, когда вы добавляете устройство, и идут каждые 24 часа — "
+                "даже если VPN выключен в приложении. Пока устройств нет, ничего не списывается."
+            ),
+        },
+        {
+            "q": "Что будет, когда баланс закончится?",
+            "a": (
+                "VPN на устройствах отключится. Пополните баланс — и он снова заработает, "
+                "устройства добавлять заново не нужно."
+            ),
+        },
+        {
+            "q": "Как перестать платить?",
+            "a": (
+                "Удалите устройства в кабинете — со следующих суток списаний не будет. "
+                "Деньги на балансе останутся."
+            ),
+        },
+    ]
 
 
 def faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
     custom = shop_overlay().get("faq_items")
-    items = [dict(item) for item in custom] if custom is not None else default_faq_items(trial_days=trial_days)
+    if custom is None:
+        items = default_faq_items(trial_days=trial_days)
+    else:
+        asked = {str(item.get("q", "")).strip().lower() for item in custom}
+        items = [item for item in tariff_faq_items() if item["q"].lower() not in asked] + [dict(item) for item in custom]
     return [
         item for item in items
         if "роутер" not in f"{item.get('q', '')} {item.get('a', '')}".lower()
@@ -18,9 +74,8 @@ def faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
 
 def default_faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
     settings = get_settings()
-    price = rub_text(settings.vpn_day_price_rub)
     trial = days_text(trial_days if trial_days is not None else settings.trial_days)
-    items: list[dict[str, str]] = [
+    items: list[dict[str, str]] = [*tariff_faq_items(),
         {
             "q": "VPN не включается. Что сделать?",
             "a": (
@@ -43,27 +98,11 @@ def default_faq_items(*, trial_days: int | None = None) -> list[dict[str, str]]:
     items.extend(
         [
             {
-                "q": "Когда списывается баланс?",
-                "a": (
-                    f"Списания начинаются после добавления устройства, даже если VPN выключен. "
-                    f"Сутки одного устройства — {price}. "
-                    "Пока устройств нет, списаний нет. "
-                    "Удалите устройства, которыми больше не пользуетесь."
-                ),
-            },
-            {
                 "q": "Отключился и пропал доступ к мессенджеру. Как зайти?",
                 "a": (
                     "Используйте заранее сохранённую ссылку на кабинет. "
                     "Пополните баланс заранее, "
                     "пока мессенджер ещё работает."
-                ),
-            },
-            {
-                "q": "Можно и телефон, и компьютер?",
-                "a": (
-                    "Да, это разные устройства. Каждое оплачивается отдельно. "
-                    "Стоимость зависит от количества добавленных устройств."
                 ),
             },
         ]

@@ -22,7 +22,8 @@ class EditorTest(unittest.IsolatedAsyncioTestCase):
         buttons=[{'action':'topup','text':'Продлить VPN'}, {'action':'url','text':'Новости','url':'https://example.org/news'}]
         value=graph(buttons)
         value['main_menu']={'text':'Привет, {name}! Баланс {balance}', 'buttons':buttons}
-        self.assertEqual(board.validate(value),value)
+        expected={**value, 'main_menu':{'buttons':buttons}}  # menu text is fixed in code, saved text is dropped
+        self.assertEqual(board.validate(value),expected)
         with patch('app.config.get_settings',return_value=self.settings()):
             kb=board.markup(buttons,123)
         self.assertEqual(kb.inline_keyboard[0][0].text,'Продлить VPN')

@@ -81,12 +81,11 @@ DEFAULT_NOTICES = {'paid_setup_nudge': '📱 Баланс пополнен — �
                   '\n'
                   '{price} в сутки за каждое добавленное устройство, даже если VPN выключен. Пока '
                   'устройств нет, списаний нет.',
- 'profile_balance': '👋 Здравствуйте, {name}!\n'
+ 'profile_balance': '👋 {name}, привет!\n'
                     '\n'
-                    'Баланс: <b>{balance}</b>\n'
-                    'Стоимость: <b>{price}</b> в сутки за устройство.\n'
+                    'Баланс: <b>{balance}</b> · {price} в день за устройство\n'
                     '\n'
-                    'Подключение и управление — в личном кабинете.',
+                    'В «Личном кабинете» можно добавить устройство, подключить VPN и пополнить баланс.',
  'low_balance': '💳 Не хватает баланса на следующие сутки VPN.\n'
                 '\n'
                 'Пополните его по кнопке ниже. Стоимость — {price} в сутки за устройство.',
@@ -347,7 +346,7 @@ class _SafeMap(dict):
 ARCHIVED_NOTICE_KEYS = {
     'referral_payout_submitted', 'referral_payout_paid', 'referral_payout_rejected',
     'welcome_intro_legal', 'legal', 'referral_referrer_balance', 'referral_referrer_paid',
-    'first_device_thanks', 'first_online_nudge', 'device_nudge_2', 'device_nudge_3',
+    'first_device_thanks', 'first_online_nudge', 'profile_balance', 'device_nudge_2', 'device_nudge_3',
     'legal_nudge_1', 'legal_nudge_2', 'legal_nudge_3', 'referral_invitee_balance',
     *(f'idle_return_{day}' for day in (7,20)),
     *(f'idle_nudge_{day}' for day in (7,10,15,20)),
@@ -643,6 +642,11 @@ ENGAGEMENT_PREVIOUS_DEFAULTS = {'welcome_intro_hi': '👋 Здравствуйт
                       'Если сайты не открываются или связь обрывается, нажмите «Нужна помощь».'}
 
 
+MENU_PREVIOUS_DEFAULTS = {'profile_balance': '👋 Здравствуйте, {name}!\n\nБаланс: <b>{balance}</b>\n'
+                          'Стоимость: <b>{price}</b> в сутки за устройство.\n\n'
+                          'Подключение и управление — в личном кабинете.'}
+
+
 def public_notices() -> dict[str, str]:
     raw = shop_overlay().get("notices")
     overlay = raw if isinstance(raw, dict) else {}
@@ -650,7 +654,7 @@ def public_notices() -> dict[str, str]:
     for key, default in DEFAULT_NOTICES.items():
         val = overlay.get(key)
         text = str(val).strip() if isinstance(val, str) else ""
-        out[key] = default if text in (LEGACY_NOTICE_DEFAULTS.get(key), PREVIOUS_NOTICE_DEFAULTS.get(key), ENGAGEMENT_PREVIOUS_DEFAULTS.get(key), BALANCE_PREVIOUS_DEFAULTS.get(key)) else text or default
+        out[key] = default if text in (LEGACY_NOTICE_DEFAULTS.get(key), PREVIOUS_NOTICE_DEFAULTS.get(key), ENGAGEMENT_PREVIOUS_DEFAULTS.get(key), BALANCE_PREVIOUS_DEFAULTS.get(key), MENU_PREVIOUS_DEFAULTS.get(key)) else text or default
     return out
 
 

@@ -51,7 +51,7 @@ class FaqEditorTest(unittest.TestCase):
     def test_custom_plain_text_and_reset(self):
         rows = faq.validate_faq([{'q':' <Вопрос> ', 'a':' Ответ & текст '}])
         with patch.object(faq, 'shop_overlay', return_value={'faq_items': rows}):
-            self.assertEqual(faq.faq_items(), rows)
+            self.assertEqual(faq.faq_items(), faq.tariff_faq_items() + rows)
             self.assertIn('&lt;Вопрос&gt;', faq.faq_pages()[0])
         self.assertIsNone(faq.validate_faq(None))
         with self.assertRaises(ValueError): faq.validate_faq([{'q':'', 'a':'Ответ'}])

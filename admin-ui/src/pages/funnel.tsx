@@ -59,7 +59,7 @@ type Step = {
 type Branch = { id: string; title: string; steps: Step[] };
 type Graph = {
   branches: Branch[];
-  main_menu?: { text: string; buttons: FunnelButton[] };
+  main_menu?: { text?: string; buttons: FunnelButton[] };
 };
 type Option = { id: string; label: string; hint?: string; button?: string };
 
@@ -181,7 +181,6 @@ export function FunnelPage() {
     if (value.main_menu) {
       const m = value.main_menu;
       const message =
-        textError(m.text) ||
         (!m.buttons.length
           ? "Добавьте хотя бы одну кнопку главного меню"
           : "") ||
@@ -389,25 +388,9 @@ export function FunnelPage() {
                 Что пользователь видит, когда открывает меню.
               </p>
             </div>
-            <p className="text-sm font-medium">Текст главного меню *</p>
-            <MessageEditor
-              label="Текст главного меню"
-              value={
-                (graph.main_menu || resource.data.default_menu)?.text || ""
-              }
-              onChange={(text) =>
-                change({
-                  ...graph,
-                  main_menu: {
-                    ...(graph.main_menu || resource.data!.default_menu),
-                    text,
-                  },
-                })
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Подстановки: {"{name}"} — имя, {"{balance}"} — баланс, {"{price}"}{" "}
-              — цена.
+            <p className="text-sm text-muted-foreground">
+              Текст меню задан в коде бота: приветствие по имени, баланс, цена
+              за день и что есть в кабинете. Здесь настраиваются только кнопки.
             </p>
             <h3 className="text-sm font-medium">Кнопки меню *</h3>
             {(graph.main_menu || resource.data.default_menu)?.buttons
@@ -435,7 +418,7 @@ export function FunnelPage() {
           <section className="space-y-4">
             <h3 className="text-sm font-medium">Предпросмотр сообщения</h3>
             {preview(
-              (graph.main_menu || resource.data.default_menu)?.text || "",
+              resource.data.default_menu?.text || "",
               (graph.main_menu || resource.data.default_menu)?.buttons || [],
             )}
             <p className="text-xs text-muted-foreground">

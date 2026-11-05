@@ -37,16 +37,20 @@ def welcome_text() -> str:
     return notice_text("welcome", brand=get_settings().brand_name) + "\n\n" + legal_text()
 
 
-def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> str:
-    name = first_name or "друг"
-    settings = get_settings()
-    rub = 0 if balance_rub is None else balance_rub
-    body = notice_text(
-        "profile_balance", name=name, balance=rub_text(rub),
-        price=rub_text(settings.vpn_day_price_rub),
+def main_menu_text(first_name: str | None, balance_rub: int | None = None) -> str:
+    """Main menu body. Fixed in code: the admin panel no longer overrides it."""
+    name = escape(str(first_name or "").strip())
+    greeting = f"👋 {name}, привет!" if name else "👋 Привет!"
+    price = rub_text(get_settings().vpn_day_price_rub)
+    return (
+        f"{greeting}\n\n"
+        f"Баланс: <b>{rub_text(int(balance_rub or 0))}</b> · {price} в день за устройство\n\n"
+        "В «Личном кабинете» можно добавить устройство, подключить VPN и пополнить баланс."
     )
-    body = body.replace("«Открыть кабинет» внизу", "«Личный кабинет»").replace("«Открыть кабинет»", "«Личный кабинет»")
-    return body + "\n\n" + legal_text()
+
+
+def profile_text(first_name: str | None, *, balance_rub: int | None = None) -> str:
+    return main_menu_text(first_name, balance_rub) + "\n\n" + legal_text()
 
 
 def mini_app_url() -> str:
@@ -457,20 +461,29 @@ def ambassador_keyboard() -> InlineKeyboardMarkup:
 def about_service_content():
     settings = get_settings()
     url = mini_app_url()
+    price = int(getattr(settings, 'vpn_day_price_rub', 6) or 6)
+    minimum = int(getattr(settings, 'balance_topup_min', 50) or 50)
     body = (
-        '<b>Как войти в кабинет?</b>\n\n'
-        '<tg-emoji emoji-id="5258093637450866522">🤖</tg-emoji> <b>Войти через бота</b>\n'
-        'Перейдите в <b>Главное меню</b> и нажмите <b>Личный кабинет</b> — '
-        'он откроется внутри Telegram.'
+        f'<b>{escape(settings.brand_name)}</b> — VPN прямо в Telegram. '
+        'Без подписки: пополняете баланс, и он тратится по дням.\n\n'
+        '💸 <b>Сколько стоит</b>\n'
+        f'{price} ₽ в день за одно устройство. Платите только за те, что добавили: '
+        'удалили устройство — списания за него прекратились.\n'
+        f'Пополнить можно от {minimum} ₽.'
     )
+    if getattr(settings, 'referral_program_enabled', True):
+        mine = max(0, int(getattr(settings, 'referral_reward_rub', 50) or 0))
+        friend = max(0, int(getattr(settings, 'referral_invitee_reward_rub', 50) or 0))
+        if mine and mine == friend:
+            body += f'\n\n🎁 <b>Позовите друга</b>\nКогда он впервые пополнит баланс, вы оба получите по {mine} ₽.'
+        elif mine or friend:
+            body += (f'\n\n🎁 <b>Позовите друга</b>\nКогда он впервые пополнит баланс, '
+                     f'вы получите {mine} ₽, а он — {friend} ₽.')
+    body += '\n\n🔑 <b>Где кабинет</b>\nЗдесь, в боте: <b>Главное меню</b> → <b>Личный кабинет</b>.'
     rows = [[InlineKeyboardButton(text='Главное меню', callback_data='profile')]]
     if url.startswith('https://'):
-        body += (
-            '\n\n<tg-emoji emoji-id="5258073068852485953">✈️</tg-emoji> <b>Войти через сайт</b>\n'
-            'Нажмите <b>Открыть в браузере</b>. На странице входа укажите свой '
-            'Telegram username и подтвердите вход в боте.\n\n'
-            f'Или откройте <a href="{escape(url, quote=True)}">сайт {escape(settings.brand_name)}</a>.'
-        )
+        body += ('\nВ браузере: нажмите <b>Открыть в браузере</b>, введите свой ник в Telegram '
+                 'и подтвердите вход здесь, в боте.')
         rows.append([InlineKeyboardButton(text='Открыть в браузере', url=url,
                                          icon_custom_emoji_id=PINNED_ICONS['action'])])
     rows.append([

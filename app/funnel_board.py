@@ -191,23 +191,19 @@ def validate_buttons(buttons):
 
 
 def default_menu():
-    from app.notices import public_notices
-    text = public_notices()["profile_balance"]
-    text = text.replace("«Открыть кабинет» внизу", "«Личный кабинет»").replace("«Открыть кабинет»", "«Личный кабинет»")
-    return {"text": text,
+    from app.keyboards import main_menu_text
+    # The text is read-only in the admin panel and only shown there as a sample.
+    return {"text": main_menu_text("Анна", 180),
             "buttons": ["cabinet", {"action": "channel", "text": "Новостной канал"}, "invite", "about"]}
 
 
 def validate_menu(menu):
     if not isinstance(menu, dict):
         raise ValueError("Некорректное главное меню")
-    text = str(menu.get("text") or "").strip()
-    if not text or len(text) > 3500:
-        raise ValueError("Текст меню — от 1 до 3500 символов")
     buttons = validate_buttons(menu.get("buttons"))
     if not buttons:
         raise ValueError("Добавьте хотя бы одну кнопку меню")
-    return {"text": text, "buttons": buttons}
+    return {"buttons": buttons}
 
 
 async def menu_content(first_name, balance_rub, telegram_id):
@@ -219,9 +215,8 @@ async def menu_content(first_name, balance_rub, telegram_id):
     menu = graph.get("main_menu")
     if not menu:
         return None
-    from app.texts import rub_text
-    body = render_text(menu["text"].replace("{balance}", rub_text(balance_rub)), telegram_id, first_name)
-    return body, main_menu_markup(menu["buttons"], telegram_id)
+    from app.keyboards import main_menu_text
+    return main_menu_text(first_name, balance_rub), main_menu_markup(menu["buttons"], telegram_id)
 
 
 def main_menu_markup(button_ids, telegram_id):
