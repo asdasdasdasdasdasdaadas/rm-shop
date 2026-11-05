@@ -42,19 +42,14 @@ def tariff_block() -> str:
     settings = get_settings()
     price = max(1, int(getattr(settings, 'vpn_day_price_rub', 6) or 6))
     minimum = max(1, int(getattr(settings, 'balance_topup_min', 50) or 50))
-    lines = [
-        '💸 <b>Тариф и условия</b>',
-        f'• <b>{price} ₽ в день</b> за одно устройство',
-        f'• Это баланс, а не подписка: пополняете от {minimum} ₽, автоплатежей нет',
-        '• Пока устройств нет, ничего не списывается',
-    ]
+    lines = [f'💸 <b>{price} ₽ в день</b> за устройство · без подписки · пополнение от {minimum} ₽']
     if getattr(settings, 'referral_program_enabled', False):
         mine = max(0, int(getattr(settings, 'referral_reward_rub', 0) or 0))
         friend = max(0, int(getattr(settings, 'referral_invitee_reward_rub', 0) or 0))
         if mine and mine == friend:
-            lines.append(f'• Пригласите друга — обоим по {mine} ₽ после его первого пополнения')
+            lines.append(f'🎁 Друг пополнит баланс — обоим по {mine} ₽')
         elif mine:
-            lines.append(f'• Пригласите друга — {mine} ₽ вам после его первого пополнения')
+            lines.append(f'🎁 Друг пополнит баланс — вам {mine} ₽')
     return '\n'.join(lines)
 
 

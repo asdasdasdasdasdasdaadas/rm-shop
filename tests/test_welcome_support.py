@@ -44,6 +44,9 @@ class WelcomeSupportTest(unittest.IsolatedAsyncioTestCase):
                     stack.enter_context(patch.object(welcome,name,AsyncMock()))
                 await welcome.send_welcome_intro(message,in_channel=True)
             hello=message.answer.call_args_list[1].args[0]
+            self.assertNotIn('Откройте личный кабинет', hello)
+            self.assertIsNone(message.answer.call_args_list[0].kwargs.get('reply_markup'))
+            self.assertIsNone(message.answer.call_args_list[1].kwargs.get('reply_markup'))
             self.assertEqual('6 ₽ в день' in hello, enabled)
-            self.assertEqual('баланс, а не подписка: пополняете от 50 ₽' in hello, enabled)
+            self.assertEqual('без подписки · пополнение от 50 ₽' in hello, enabled)
             self.assertEqual('обоим по 50 ₽' in hello, enabled)

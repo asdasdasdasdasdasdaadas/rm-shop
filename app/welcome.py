@@ -145,9 +145,11 @@ async def send_welcome_intro(
     try:
         await send_welcome_sticker(bot, chat_id)
         await _pause(bot, chat_id)
-        await answer_funnel(message, hi)
+        # The intro is a plain story: no cabinet / main menu buttons until «Я помогу».
+        await answer_funnel(message, hi, preserve=True)
         await _pause(bot, chat_id)
-        await answer_funnel(message, hello, reply_markup=with_referral_share(user.id) if referral_bonus else None)
+        await answer_funnel(message, hello, reply_markup=with_referral_share(user.id) if referral_bonus else None,
+                            preserve=True)
         await _pause(bot, chat_id)
         # Only «Я помогу» here: no cabinet or main menu buttons before the intro is finished.
         await answer_funnel(message, support, reply_markup=support_welcome_keyboard(), preserve=True,
