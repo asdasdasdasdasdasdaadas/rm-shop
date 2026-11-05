@@ -14,7 +14,6 @@ SQL = r'''WITH messages AS (
  SELECT o.telegram_id,COALESCE(o.paid_at,o.created_at) AS at,r.amount,'RUB' AS currency
  FROM rollypay_orders o LEFT JOIN payment_receipts r ON r.payment_key='rollypay:'||o.order_id
  WHERE o.status='granted' AND COALESCE(o.paid_at,o.created_at)>=$1 AND COALESCE(o.paid_at,o.created_at)<$2
- UNION ALL SELECT telegram_id,paid_at,amount_rub,'RUB' FROM gram_orders WHERE status='granted' AND paid_at >=$1 AND paid_at<$2
  UNION ALL SELECT telegram_id,created_at,stars,'XTR' FROM payments WHERE created_at >=$1 AND created_at<$2
 ), outcomes AS (
  SELECT m.*, u.first_online_at,

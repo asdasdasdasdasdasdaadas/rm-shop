@@ -2761,50 +2761,6 @@ async function startOfferTry() {
   }
 }
 
-let gramQuoteSequence = 0;
-async function previewGramQuote() {
-  const sequence = ++gramQuoteSequence;
-  const previous = $("gramOrderPanel");
-  if (previous) previous.remove();
-  if (payMethod !== "gram" || !pendingPayPlan || screen !== "pay") return;
-  const note = $("payMethodNote");
-  if (note) note.textContent = "Получаем курс GRAM…";
-  try {
-    const inv = await api("/api/invoice", {method:"POST",body:JSON.stringify({plan:pendingPayPlan.code,method:"gram"})});
-    if (sequence !== gramQuoteSequence || payMethod !== "gram" || screen !== "pay") return;
-    showGramOrder(inv.gram_order);
-    if (note) note.textContent = "Курс зафиксирован. Переводите только в сети TON с указанным комментарием.";
-  } catch(e) {
-    if (sequence === gramQuoteSequence && note) note.textContent = e.message || "Курс временно недоступен";
-  }
-}
-function showGramOrder(order) {
-  let box = $("gramOrderPanel");
-  if (box) box.remove();
-  box = document.createElement("div");
-  box.id = "gramOrderPanel";
-  box.style.cssText = "padding:16px;border:1px solid currentColor;border-radius:16px;margin-top:16px;overflow-wrap:anywhere;display:grid;gap:12px";
-  const text = (value) => {const p=document.createElement("p");p.textContent=value;box.appendChild(p);};
-  text(`К оплате: ${order.gram} GRAM → ${order.rub} ₽ на баланс`);
-  text(`1 GRAM = ${order.rate} ₽ · CoinGecko`);
-  text(`Курс действует до ${new Date(order.expires_at).toLocaleTimeString("ru-RU")}`);
-  text(`Кошелёк: ${order.address}`);
-  text(`Комментарий: ${order.comment}`);
-  text("Сначала скопируйте комментарий, затем откройте GRAM-кошелёк и вставьте его в поле комментария. Комиссия сети оплачивается отдельно. Не меняйте комментарий. Переплата не увеличивает сумму зачисления; опоздавший перевод или недоплату проверит поддержка.");
-  const status=document.createElement("p");box.appendChild(status);
-  const renderStatus=() => {status.textContent=({pending:"Ожидаем перевод",confirmed:"Перевод подтверждён, зачисляем баланс",granted:"Оплачено — баланс пополнен",expired:"Срок счёта истёк. Не отправляйте перевод; создайте новый счёт.",review:"Перевод требует проверки. Не платите повторно, обратитесь в поддержку."})[order.status] || order.status;};
-  renderStatus();
-  const button=(label,fn) => {const b=document.createElement("button");b.type="button";b.className="pay-card";b.textContent=label;b.onclick=fn;box.appendChild(b);return b;};
-  button("Скопировать адрес",()=>navigator.clipboard.writeText(order.address).catch(showErr));
-  button("Скопировать комментарий",()=>navigator.clipboard.writeText(order.comment).catch(showErr));
-  const open=button("Открыть GRAM-кошелёк",()=>{if(Date.now()>=Date.parse(order.expires_at)){showErr(new Error("Срок счёта истёк. Создайте новый счёт."));return;}tg.openTelegramLink(order.telegram_wallet_url);});
-  const updateOpenButtons=()=>{open.disabled=order.status!=="pending" || Date.now()>=Date.parse(order.expires_at);};
-  updateOpenButtons();
-  button("Проверить оплату",async()=>{try{const data=await api(`/api/gram-orders/${encodeURIComponent(order.id)}`);order=data.gram_order;renderStatus();updateOpenButtons();if(order.status==="granted") await load();}catch(e){showErr(e);}});
-  button("Обновить счёт",()=>previewGramQuote());
-  $("payMethodNote").insertAdjacentElement("afterend",box);
-}
-
 async function payPlan(plan, method) {
   const body = { plan: plan.code };
   if (method) body.method = method;
@@ -2812,11 +2768,6 @@ async function payPlan(plan, method) {
     method: "POST",
     body: JSON.stringify(body),
   });
-  if (inv.gram_order) {
-    if (payMethod !== "gram" || screen !== "pay" || pendingPayPlan?.code !== plan.code) return;
-    showGramOrder(inv.gram_order);
-    return;
-  }
   if (inv.pay_url) {
     tg.openLink(inv.pay_url);
     return;
@@ -2833,7 +2784,6 @@ async function payPlan(plan, method) {
 }
 
 function payMethodIcon(id) {
-  if (id === "gram") return '<span aria-hidden="true">◈</span>';
   if (id === "crypto") return '<img class="crypto-logo" src="/icons/bitcoin.svg" width="32" height="32" alt="" aria-hidden="true">';
   if (id === "card") {
     return (
@@ -2893,7 +2843,6 @@ function paintPayMethods() {
       haptic();
       payMethod = item.id;
       paintPayMethods();
-      previewGramQuote();
     };
     box.appendChild(btn);
   });
@@ -2961,7 +2910,6 @@ function openPayMethod(plan) {
   } catch (_e) {}
   syncWebBack();
   renderPayMethod(plan);
-  previewGramQuote();
 }
 
 function renderTopup(me) {

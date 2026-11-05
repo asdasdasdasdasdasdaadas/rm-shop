@@ -638,18 +638,6 @@ async def api_referral_payout(request: web.Request) -> web.Response:
     return json_error("Награда начисляется на баланс")
 
 
-async def api_gram_order(request: web.Request) -> web.Response:
-    telegram_id, denied = await _require_tg(request)
-    if denied:
-        return denied
-    from app.gram import public_order
-    row = await db._pool_req().fetchrow('SELECT * FROM gram_orders WHERE id=$1 AND telegram_id=$2',
-                                      request.match_info['order_id'], telegram_id)
-    if not row:
-        return json_error("Счёт не найден", 404)
-    return web.json_response({'ok': True, 'gram_order': public_order(dict(row))})
-
-
 async def api_invoice(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tg(request)
     if denied:
@@ -667,23 +655,13 @@ async def api_invoice(request: web.Request) -> web.Response:
     raw_method = str(body.get("method") or "").strip()
     if raw_method:
         try:
-            pay_method = "gram" if raw_method == "gram" else resolve_payment_method(raw_method)
+            pay_method = resolve_payment_method(raw_method)
         except ValueError as exc:
             return json_error(str(exc))
         if pay_method not in allowed_ids:
             return json_error("Способ оплаты недоступен")
     else:
         pay_method = allowed_ids[0]
-    if pay_method == "gram":
-        from app.gram import create_order
-        try:
-            order = await create_order(telegram_id, code)
-        except ValueError as exc:
-            return json_error(str(exc))
-        except Exception:
-            logger.exception("GRAM quote unavailable")
-            return json_error("Курс GRAM временно недоступен. Попробуйте позже.", 503)
-        return web.json_response({"ok": True, "gram_order": order})
     if pay_method in {"sbp", "card", "crypto"}:
         if not settings.rollypay_configured:
             return json_error("Оплата в рублях не настроена")
@@ -1231,7 +1209,6 @@ def build_web_app() -> web.Application:
     settings = get_settings()
     app = web.Application(client_max_size=80 * 1024 * 1024)
     app.router.add_get("/health", health)
-    app.router.add_get("/api/gram-orders/{order_id}", api_gram_order)
     app.router.add_post("/webhooks/rollypay", rollypay_webhook)
     if settings.webapp_enabled:
         app.router.add_get("/", index)

@@ -8,8 +8,6 @@ LABELS = ('Подарок → устройство', 'Устройство → �
 
 SQL = '''
 WITH paid_events AS (
- SELECT telegram_id,paid_at FROM gram_orders WHERE status='granted'
- UNION ALL
  SELECT telegram_id, created_at AS paid_at FROM payments
  UNION ALL
  SELECT telegram_id, paid_at FROM rollypay_orders

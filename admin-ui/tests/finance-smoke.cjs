@@ -16,7 +16,6 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   if(url.pathname==='/admin/api/revenue-forecast') return route.fulfill({json:{ok:true,periods:[{days:7,rub:1500,clients:10,covered:10,expected_payments:5},{days:30,rub:null,clients:20,covered:10,expected_payments:null}],average_repeat_rub:300,repeat_amounts:10,sample_intervals:30}});
   if(url.pathname==='/admin/api/funnel-board') return route.fulfill({json:{ok:true,graph:{branches:[]},conditions:[],actions:[],admins:[]}});
   if(url.pathname==='/admin/api/funnel-results') return route.fulfill({json:{ok:true,items:[{step:'invite-followup-1',title:'Приглашение без регистрации',sent:10,failed:2,recipients:10,mature_recipients:8,connected:3,payers:2,payment_rate:20,payments:2,rub:600,stars:0,unknown:0,blocked:1,blocked_rate:8.3}]}});
-  if(url.pathname==='/admin/api/gram-payments') return route.fulfill({json:{ok:true,total:1,items:[{id:'gram1',telegram_id:123,first_name:'Иван',status:'review',rub:300,gram:'3.1',rate:'97',comment:'gram_test_payment',created_at:'2026-11-02T10:00:00Z'}],deposits:[]}});
   const rel=url.pathname.replace('/admin/','').replace(/^static\//,'')||'index.html';
   const file=path.resolve(__dirname,'../../admin',rel);
   return fs.existsSync(file)?route.fulfill({path:file}):route.fulfill({status:404});
@@ -43,9 +42,6 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
  await page.getByText('Недостаточно данных',{exact:true}).waitFor();
  await page.screenshot({path:'/tmp/rm-forecast-mobile.png',fullPage:true});
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Forecast mobile overflow');
- await page.getByRole('tab',{name:'GRAM',exact:true}).click();
- await page.getByText('gram_test_payment',{exact:true}).waitFor();
- await page.getByText('Требует проверки',{exact:true}).waitFor();
  await page.goto('http://finance.test/admin/#funnel');
  await page.getByRole('button',{name:'Результаты сообщений',exact:true}).click();
  await page.getByText('invite-followup-1',{exact:true}).waitFor();

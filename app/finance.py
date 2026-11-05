@@ -10,9 +10,6 @@ PAYMENTS_SQL = '''WITH events AS (
  FROM rollypay_orders o LEFT JOIN payment_receipts r ON r.payment_key='rollypay:'||o.order_id
  WHERE o.status='granted'
  UNION ALL
- SELECT 'gram:'||g.id,g.telegram_id,g.plan_code,g.paid_at,'RUB',g.amount_rub::bigint
- FROM gram_orders g WHERE g.status='granted'
- UNION ALL
  SELECT 'stars:'||p.telegram_payment_id,p.telegram_id,p.plan_code,p.created_at,'XTR',p.stars::bigint
  FROM payments p
 ), ranked AS (
@@ -32,7 +29,6 @@ DUE_SQL = '''WITH candidates AS (
  SELECT COUNT(*)::int AS device_count FROM devices d
  WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'') <> 'router') dev
  WHERE u.blocked_at IS NULL AND (
- EXISTS(SELECT 1 FROM gram_orders g WHERE g.telegram_id=u.telegram_id AND g.status='granted') OR
  EXISTS(SELECT 1 FROM payments p WHERE p.telegram_id=u.telegram_id) OR
  EXISTS(SELECT 1 FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted'))
 )

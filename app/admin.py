@@ -218,26 +218,6 @@ async def api_revenue_forecast(request: web.Request) -> web.Response:
     return web.json_response({'ok': True, **await report()})
 
 
-async def api_gram_payments(request: web.Request) -> web.Response:
-    denied = _need_auth(request)
-    if denied:
-        return denied
-    from app.gram import public_order
-    try:
-        page = int(request.query.get('page','1'))
-        if page < 1:
-            raise ValueError()
-    except ValueError:
-        return web.json_response({'ok': False, 'error': 'Некорректная страница'}, status=400)
-    pool = db._pool_req()
-    rows = await pool.fetch("SELECT g.*,u.first_name,u.username FROM gram_orders g LEFT JOIN users u USING(telegram_id) ORDER BY g.created_at DESC,g.id LIMIT 30 OFFSET $1",(page-1)*30)
-    deposits = await pool.fetch("SELECT tx_hash,order_id,nano_amount::text,paid_at,reason FROM gram_deposits WHERE reason<>'accepted' ORDER BY created_at DESC LIMIT 30")
-    return web.json_response({'ok': True, 'total': await pool.fetchval('SELECT COUNT(*) FROM gram_orders'),
-        'items': [{**public_order(dict(r)), 'telegram_id':r['telegram_id'],'first_name':r['first_name'],
-                   'username':r['username'],'tx_hash':r['tx_hash'],'created_at':r['created_at'].isoformat()} for r in rows],
-        'deposits': [db._jsonable(dict(r)) for r in deposits]})
-
-
 async def api_finance(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2469,7 +2449,6 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/payouts", api_payouts)
     app.router.add_post("/admin/api/payouts/{payout_id}", api_payout_resolve)
     app.router.add_get("/admin/api/finance", api_finance)
-    app.router.add_get("/admin/api/gram-payments", api_gram_payments)
     app.router.add_get("/admin/api/revenue-forecast", api_revenue_forecast)
     app.router.add_get("/admin/api/funnel-results", api_funnel_results)
     app.router.add_get("/admin/api/orders", api_orders)

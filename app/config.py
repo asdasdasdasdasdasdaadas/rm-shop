@@ -55,9 +55,6 @@ class Settings(BaseSettings):
     rollypay_test: bool = False
     rollypay_terminal_id: str = ""
     rollypay_payment_method: str = ""
-    gram_wallet: str = "UQBuU8RCIxH121MjJofAC2xyvn-7pr2LmdqIiO5d_xVkkGgT"
-    gram_coingecko_api_key: str = ""
-    gram_toncenter_api_key: str = ""
     rollypay_crypto_enabled: bool = False
     rollypay_crypto_method: str = "usdt"
 

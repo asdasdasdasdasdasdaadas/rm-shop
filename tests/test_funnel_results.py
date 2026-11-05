@@ -17,7 +17,6 @@ class ResultsTest(unittest.TestCase):
         query('''CREATE TABLE users(telegram_id bigint,first_online_at timestamptz);
         CREATE TABLE message_log(id bigint,telegram_id bigint,kind text,source text,status text,title text,created_at timestamptz,extra jsonb);
         CREATE TABLE rollypay_orders(order_id text,telegram_id bigint,paid_at timestamptz,created_at timestamptz,status text);
-        CREATE TABLE gram_orders(id text,telegram_id bigint,plan_code text,paid_at timestamptz,status text,amount_rub bigint);
         CREATE TABLE payment_receipts(payment_key text,amount bigint);
         CREATE TABLE payments(telegram_id bigint,created_at timestamptz,stars bigint);
         INSERT INTO users VALUES(1,'2026-10-05'),(2,NULL);

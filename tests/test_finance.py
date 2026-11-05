@@ -35,7 +35,6 @@ class FinanceSQLTest(unittest.TestCase):
         CREATE TABLE devices(telegram_id bigint,kind text);
         CREATE TABLE payments(telegram_id bigint,telegram_payment_id text,plan_code text,created_at timestamptz,stars bigint);
         CREATE TABLE rollypay_orders(order_id text,telegram_id bigint,plan_code text,paid_at timestamptz,created_at timestamptz,status text);
-        CREATE TABLE gram_orders(id text,telegram_id bigint,plan_code text,paid_at timestamptz,status text,amount_rub bigint);
         CREATE TABLE payment_receipts(payment_key text,amount int);
         INSERT INTO users VALUES(1,'Paid','paid',6,NULL,NULL,NULL),(2,'Free','free',0,NULL,NULL,NULL),(3,'Router','router',100,NOW()+INTERVAL '2 days',NULL,NULL),(4,'Paused','paused',0,NULL,NOW(),NULL),(5,'Pending','pending',0,NULL,NULL,NULL),(6,'Funded','funded',500,NULL,NULL,NULL);
         INSERT INTO devices VALUES(1,''),(2,''),(3,'router'),(4,''),(5,''),(6,'');
