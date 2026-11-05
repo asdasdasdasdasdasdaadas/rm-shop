@@ -484,6 +484,7 @@ async def api_me(request: web.Request) -> web.Response:
             "billing_paused": bool((local or {}).get("billing_paused_at")),
             "balance_rub": balance_rub,
             "vpn_day_price_rub": settings.vpn_day_price_rub,
+            "cabinet_price_enabled": bool(settings.cabinet_price_enabled),
             "pay_crypto": False,
             "pay_methods": public_pay_methods(),
             "traffic_limit_gb": int(settings.remnawave_traffic_limit_gb or 0),

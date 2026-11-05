@@ -47,6 +47,14 @@
     value.textContent = amount;
     if (changed && window.WayMotion) window.WayMotion.value(value);
     label.textContent = caption;
+    const hint = document.getElementById("modernPriceHint");
+    const price = Number(me.vpn_day_price_rub);
+    if (hint) {
+      // Price per day under the balance; switched off in the admin panel settings.
+      const show = me.cabinet_price_enabled !== false && Number.isFinite(price) && price > 0;
+      hint.hidden = !show;
+      if (show) hint.textContent = `${price.toLocaleString("ru-RU")} ₽ в день за устройство`;
+    }
     value.dataset.state = empty ? "empty" : "ready";
     const daily = Number(me.vpn_day_price_rub);
     rate.textContent = me.trial_waiting_connection ? "До первого подключения списаний нет" : !phones.length ? "Без устройств списаний нет" : me.billing_paused ? "Списания приостановлены" : me.balance_enabled && Number.isFinite(daily) && daily > 0 ? `${(daily * phones.length).toLocaleString("ru-RU")} ₽ в сутки · ${phones.length} устр.` : "Выберите устройство для настройки";

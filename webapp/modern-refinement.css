@@ -113,3 +113,7 @@ html[data-design="modern"] #view-home #balanceLine { display: none; }
 html[data-design="modern"] #view-home .status-actions { gap: 8px; }
 html[data-design="modern"] #view-home .status-actions :is(#topupBtn,#homeTrustAction,#homeBillingAction) { min-height: 64px; padding: 10px 8px; gap: 5px; font-size: 13px; }
 html[data-design="modern"] #view-home .status-actions svg { width: 22px; height: 22px; }
+
+/* Daily price under the balance (admin: Тарифы и пополнение → Цена под балансом). */
+html[data-design="modern"] .modern-price-hint { display: inline-flex; align-items: center; margin-top: 12px; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; line-height: 1.3; color: var(--text-primary, #f0f1f4); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
+html[data-design="modern"] .modern-price-hint[hidden] { display: none; }

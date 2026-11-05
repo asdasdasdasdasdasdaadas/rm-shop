@@ -107,6 +107,12 @@ const groups: {
         type: "number",
         min: 1,
       },
+      {
+        key: "cabinet_price_enabled",
+        label: "Цена под балансом в кабинете",
+        type: "switch",
+        hint: "Плашка «6 ₽ в день за устройство» на главном экране кабинета.",
+      },
     ],
   },
   {
