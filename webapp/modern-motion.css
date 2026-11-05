@@ -40,3 +40,33 @@ html[data-design="modern"] :is(.view-in-fade,.view-in-push,.view-in-pop,.app-in)
 }
 
 @keyframes beta-working { to { transform: rotate(360deg); } }
+
+/* Ambient backdrop: three faint light fields drifting slowly behind the content. Transform-only, no blur filters. */
+html[data-design="modern"] .app-bg { display: block; contain: strict; }
+html[data-design="modern"] .app-bg-orb { width: min(120vw,640px); height: min(120vw,640px); opacity: .9; }
+html[data-design="modern"] .app-bg-orb.a { top: -22%; left: -38%; background: radial-gradient(circle,rgba(118,140,214,.26) 0%,rgba(118,140,214,.08) 40%,transparent 68%); }
+html[data-design="modern"] .app-bg-orb.b { top: 30%; right: -46%; left: auto; width: min(110vw,580px); height: min(110vw,580px); background: radial-gradient(circle,rgba(156,128,214,.18) 0%,rgba(156,128,214,.06) 44%,transparent 70%); }
+html[data-design="modern"] .app-bg-orb.c { bottom: -30%; left: -10%; width: min(130vw,700px); height: min(130vw,700px); background: radial-gradient(circle,rgba(104,166,196,.15) 0%,rgba(104,166,196,.05) 42%,transparent 70%); }
+@media (prefers-reduced-motion: no-preference) {
+ html[data-design="modern"] .app-bg-orb.a { animation: ambient-drift-a 38s ease-in-out infinite alternate; }
+ html[data-design="modern"] .app-bg-orb.b { animation: ambient-drift-b 46s ease-in-out infinite alternate; }
+ html[data-design="modern"] .app-bg-orb.c { animation: ambient-drift-c 54s ease-in-out infinite alternate; }
+ html[data-design="modern"] .dev-status:not(.off) .dot { position: relative; }
+ html[data-design="modern"] .dev-status:not(.off) .dot::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: inherit; animation: status-ping 2.6s cubic-bezier(0,0,.2,1) infinite; }
+ html[data-design="modern"] :is(.status-actions button,.ref-banner-btn) svg { transition: transform 260ms var(--motion-ease); }
+ html[data-design="modern"] :is(.status-actions button,.ref-banner-btn):active:not(:disabled) svg { transform: scale(.86); }
+ html[data-design="modern"] #menu:not(.hidden) > :not(.hidden) { animation: beta-title 240ms var(--motion-ease) both; }
+ html[data-design="modern"] #menu:not(.hidden) > :nth-child(2) { animation-delay: 25ms; }
+ html[data-design="modern"] #menu:not(.hidden) > :nth-child(3) { animation-delay: 50ms; }
+ html[data-design="modern"] #menu:not(.hidden) > :nth-child(4) { animation-delay: 75ms; }
+ html[data-design="modern"] #menu:not(.hidden) > :nth-child(5) { animation-delay: 100ms; }
+ html[data-design="modern"] #menu:not(.hidden) > :nth-child(n+6) { animation-delay: 125ms; }
+ @media (hover: hover) {
+  html[data-design="modern"] :is(.status-actions button,.ref-banner-btn):hover:not(:active):not(:disabled) svg { transform: translateY(-2px); }
+  html[data-design="modern"] .web-back:hover { transform: translateX(-2px); }
+ }
+}
+@keyframes ambient-drift-a { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(18vw,12vh,0) scale(1.15); } }
+@keyframes ambient-drift-b { from { transform: translate3d(0,0,0) scale(1.05); } to { transform: translate3d(-22vw,-10vh,0) scale(.92); } }
+@keyframes ambient-drift-c { from { transform: translate3d(0,0,0) scale(.95); } to { transform: translate3d(14vw,-14vh,0) scale(1.1); } }
+@keyframes status-ping { 0% { transform: scale(1); opacity: .55; } 70%,100% { transform: scale(3.2); opacity: 0; } }

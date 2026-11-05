@@ -99,6 +99,8 @@ function requestMiniAppFullscreen() {
   if (isPcWebApp()) return;
   if (tg.isFullscreen) return;
   if (typeof tg.requestFullscreen !== "function") return;
+  // Clients before Bot API 8.0 expose the method but only log an error.
+  if (typeof tg.isVersionAtLeast === "function" && !tg.isVersionAtLeast("8.0")) return;
   if (fsTries > 6) return;
   fsTries += 1;
   try {
