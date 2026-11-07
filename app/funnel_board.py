@@ -299,12 +299,10 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
         elif action_id == "welcome":
             rows.append([press(label, item, callback_data="welcome:continue")])
         elif action_id == "channel":
-            if not get_settings().required_channel_enabled:
-                continue
-            url = get_settings().required_channel_url
+            url = (get_settings().required_channel_url or "").strip()
             if url:
                 rows.append([press(label, item, url=url)])
-            if isinstance(item, str):
+            if isinstance(item, str) and get_settings().required_channel_enabled:
                 rows.append([InlineKeyboardButton(text="Проверить подписку", callback_data="check_sub")])
         elif action_id == "feedback_ok":
             rows.append([press(label, item, callback_data="vpn_feedback:ok")])

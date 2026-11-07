@@ -177,8 +177,9 @@ def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bo
         cabinet.model_copy(update={"text": "Личный кабинет"}) if cabinet else
         InlineKeyboardButton(text="Личный кабинет", callback_data="help:connect", style="success")
     )
-    if settings.required_channel_enabled:
-        builder.row(InlineKeyboardButton(text="Новостной канал", url=settings.required_channel_url))
+    channel_url = (settings.required_channel_url or "").strip()
+    if channel_url:
+        builder.row(InlineKeyboardButton(text="Новостной канал", url=channel_url))
     builder.row(
         InlineKeyboardButton(text="Пригласить", callback_data="share"),
         InlineKeyboardButton(text="О сервисе", callback_data="about_service"),
