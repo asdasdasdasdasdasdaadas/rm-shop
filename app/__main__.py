@@ -165,13 +165,15 @@ async def main() -> None:
             )
         else:
             await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
-        logger.info("Сервис: %s  бот: @%s", settings.brand_name, me.username)
-        name = (settings.brand_name or "").strip()[:64]
-        if name:
+        # `settings` was read before the admin overlay loaded, so re-read it: the admin «Название сервиса» wins over BRAND_NAME.
+        brand = get_settings().brand_name
+        logger.info("Сервис: %s  бот: @%s", brand, me.username)
+        name = (brand or "").strip()[:64]
+        if name and name != (me.first_name or "").strip():
             try:
                 await bot.set_my_name(name=name)
             except Exception:
-                logger.warning("Не удалось выставить имя бота в Telegram из BRAND_NAME")
+                logger.warning("Не удалось выставить имя бота в Telegram из названия сервиса")
         from app.billing import payment_effects_loop
         from app.ambassadors import application_review_loop
         payment_effects_task = asyncio.create_task(payment_effects_loop(rw, bot), name="payment-effects")

@@ -2036,6 +2036,7 @@ async def api_settings(request: web.Request) -> web.Response:
         data = shop_snapshot()
         data["live_chat_hint"] = await get_live_chat_hint()
         return web.json_response(data)
+    old_brand = (get_settings().brand_name or "").strip()
     try:
         body = await request.json()
         data = await save_shop_overlay(body)
@@ -2044,6 +2045,13 @@ async def api_settings(request: web.Request) -> web.Response:
     except Exception:
         logger.exception("Не удалось сохранить настройки")
         return web.json_response({"ok": False, "error": "Не удалось сохранить"}, status=500)
+    new_brand = (get_settings().brand_name or "").strip()[:64]
+    bot = request.app.get("bot")
+    if bot and new_brand and new_brand != old_brand:
+        try:
+            await bot.set_my_name(name=new_brand)
+        except Exception:
+            logger.warning("Не удалось сменить имя бота в Telegram на «%s»", new_brand)
     from app.live import get_live_chat_hint
 
     data["live_chat_hint"] = await get_live_chat_hint()
