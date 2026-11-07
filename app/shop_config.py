@@ -118,6 +118,9 @@ def validate_shop(body: dict) -> dict:
     out["pay_methods"] = validate_pay_methods(body["pay_methods"]) if "pay_methods" in body else admin_pay_methods()
     out["notices"] = validate_notices(body.get("notices"))
     out["faq_items"] = validate_faq(body.get("faq_items"))
+    # Stories are retired and have no fields in the admin panel: keep the stored values as they are.
+    for key in ("story_reward_rub", "story_share_text", "story_check_minutes"):
+        out[key] = getattr(get_settings(), key)
     return {k: out[k] for k in SHOP_KEYS}
 
 
