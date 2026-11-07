@@ -13,7 +13,7 @@ from aiogram.types import LinkPreviewOptions, Message
 from app import db
 from app.config import get_settings
 from app.keyboards import with_referral_share, support_welcome_keyboard
-from app.keyboards import channel_keyboard, legal_text, profile_keyboard
+from app.keyboards import channel_keyboard, legal_text, onboarding_keyboard, profile_keyboard
 from app.notices import notice_text
 from app.referrals import trial_is_available
 from app.texts import days_text, rub_text
@@ -127,12 +127,10 @@ async def send_welcome_intro(
     if getattr(settings, "welcome_tariff_enabled", True):
         from app.keyboards import tariff_block
         hello += "\n\n" + tariff_block()
-    bonus = int(settings.referral_invitee_reward_rub or 0)
-    referral_bonus = settings.referral_program_enabled and bonus > 0 and local and local.get("referred_by")
+    referral_bonus = (settings.referral_program_enabled and local and local.get("referred_by")
+                      and not local.get("referral_menu_bonus_at"))
     if referral_bonus:
-        hello += (
-            f"\n\nВы пришли по ссылке друга. После первой оплаты начислим ещё {rub_text(bonus)}."
-        )
+        hello += "\n\nВы пришли по ссылке друга — откройте меню бота, и мы начислим вам 50 ₽."
     trial_on = trial_is_available(local)
     days = days_text(settings.trial_days)
     hi = (
@@ -193,6 +191,11 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
         custom = await menu_content((local or {}).get("first_name"), int((local or {}).get("balance_rub") or 0), telegram_id)
         if custom:
             kb = custom[1]
+        if trial_on:
+            # The hottest moment of the funnel: put the gift one tap away, above the menu.
+            gift = onboarding_keyboard(gift=True).inline_keyboard[0][0]
+            gift = gift.model_copy(update={"style": "success"})
+            kb = kb.model_copy(update={"inline_keyboard": [[gift], *kb.inline_keyboard]}) if kb else onboarding_keyboard(gift=True)
     last += "\n\n" + legal_text()
     await answer_funnel(message, last, reply_markup=kb, preserve=in_channel, link_preview_options=LinkPreviewOptions(is_disabled=True))
     await db.mark_legal_notice(telegram_id)

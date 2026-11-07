@@ -140,6 +140,8 @@ async def main() -> None:
     dp.include_router(profile_router)
     dp.include_router(tickets_router)
     dp.include_router(live_router)
+    from app.funnel_gifts import router as funnel_gifts_router
+    dp.include_router(funnel_gifts_router)
 
     @dp.message_reaction()
     async def on_reaction(_event) -> None:

@@ -74,6 +74,10 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
     if from_user:
         panel = await fetch_panel(rw, from_user.id)
         local = await db.get_user(from_user.id)
+        if (local or {}).get("referred_by") and not (local or {}).get("referral_menu_bonus_at"):
+            from app.referrals import maybe_reward_menu
+            if await maybe_reward_menu(message.bot, from_user.id):
+                local = await db.get_user(from_user.id)
     trial_available = trial_is_available(local)
     access = has_access(local, panel)
     text = profile_text(

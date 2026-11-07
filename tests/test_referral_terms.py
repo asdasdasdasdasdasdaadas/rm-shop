@@ -24,19 +24,20 @@ class ReferralTermsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('50 ₽',rows['Когда начислят за приглашённого друга?'])
         self.assertNotIn('5%',rows['Сколько дают за друга?'])
         self.assertNotIn('включая первое',rows['Когда начислят за приглашённого друга?'])
+        self.assertIn('меню',rows['Когда начислят за приглашённого друга?'])
         self.assertNotIn('999',str(rows))
-        self.assertEqual(referral_terms(settings)['friend'],'')
+        self.assertNotIn('оплат',rows['Сколько дают за друга?'])
 
     def test_pause_and_resume_terms(self):
         paused=referral_terms(self.settings(False,referral_invitee_reward_rub=30))
         self.assertIn('не начисляются',paused['note'])
         self.assertIn('баланс сохраняется',paused['note'])
-        self.assertIn('начислений за период паузы не будет',paused['when'])
-        self.assertIn('50 ₽ позже не начисляется',paused['how'])
+        self.assertIn('позже не начисляется',paused['when'])
+        self.assertIn('меню',paused['how'])
         self.assertEqual(paused['friend'],'')
         active=referral_terms(self.settings(True,referral_invitee_reward_rub=30))
-        self.assertIn('30',active['friend'])
-        self.assertIn('пока программа активна',active['friend'])
+        self.assertIn('50 ₽',active['friend'])
+        self.assertNotIn('30',active['friend'])
 
     def test_broadcast_preview_and_share_respect_pause(self):
         for active in (False,True):

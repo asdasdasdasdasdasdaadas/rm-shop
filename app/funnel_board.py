@@ -6,6 +6,8 @@ import logging
 import re
 from html import escape
 
+from app.funnel_gifts import ACTION as GIFT_ACTION, gift_label
+
 logger = logging.getLogger("rm-shop.funnel")
 
 STEP_LIMIT = 20
@@ -61,6 +63,8 @@ ACTIONS = (
     {"id": "about", "label": "О сервисе", "button": "О сервисе"},
     {"id": "invite", "label": "Пригласить друга", "button": "Пригласить"},
     {"id": "menu", "label": "Главное меню", "button": "В главное меню"},
+    {"id": "claim_gift", "label": "Забрать подарочные дни (личный подарок, не чаще раза в 14 дней)",
+     "button": f"🎁 Забрать {gift_label()}"},
 )
 ACTION_IDS = {row["id"] for row in ACTIONS}
 
@@ -238,7 +242,7 @@ def main_menu_markup(button_ids, telegram_id):
     return keyboard.model_copy(update={"inline_keyboard": rows})
 
 
-def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
+def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gift_id: int | None = None):
     from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
     from aiogram.types import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
@@ -330,6 +334,10 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None):
             rows.append([press(label, item, callback_data="about_service" if action_id == "about" else "share")])
         elif action_id == "menu":
             rows.append([press(label, item, callback_data="profile")])
+        elif action_id == GIFT_ACTION:
+            # Without an issued gift (preview, cooldown) the button would promise nothing: leave it out.
+            if gift_id:
+                rows.append([press(label, item, callback_data=f"fgift:{int(gift_id)}", style="success")])
     if not rows:
         return None
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -354,8 +362,9 @@ def render_text(text: str, telegram_id: int, first_name: str | None) -> str:
         "name": name,
         "link": f"https://t.me/{settings.bot_username}?start=ref_{int(telegram_id)}",
         "price": rub_text(settings.vpn_day_price_rub),
-        "reward": "50 ₽ за первую оплату друга",
+        "reward": "50 ₽ вам и другу",
         "when": when,
+        "gift_days": gift_label(),
     })
     try:
         return str(text or "").format_map(values)
@@ -719,17 +728,20 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int], *, 
                 WHERE p.telegram_id = u.telegram_id AND p.step_id = $5
             )"""
     cycle_clause = ""
-    if step['condition'] in {'recover_idle', 'recover_online'}:
-        cycle_anchor = SEEN if step['condition'] == 'recover_idle' else anchor
+    if step['condition'] in {'recover_idle', 'recover_online', 'recover_late'}:
+        cycle_anchor = SEEN if step['condition'] in {'recover_idle', 'recover_late'} else anchor
         cycle_clause = f" AND s.sent_at >= {cycle_anchor}"
         time_sql = time_sql.replace("p.step_id = $5", f"p.step_id = $5 AND p.sent_at >= {cycle_anchor}")
     args = [int(limit), [int(item) for item in skip], step["id"], hours]
     if prev:
         args.append(prev)
+    base_where = BASE_WHERE
+    if step["condition"] == "terms_offer":
+        base_where = base_where.replace("NOT IN ('help','terms')", "<> 'help'")
     rows = await _pool_req().fetch(
         f"""SELECT u.telegram_id, u.first_name
             FROM users u
-            WHERE {BASE_WHERE}
+            WHERE {base_where}
               AND {where}
               AND {time_sql}
               AND NOT EXISTS (
@@ -771,14 +783,28 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
         return 0, touched
     from app.recovery_funnel import KINDS
     kind = "nudge_setup_assist" if is_setup_assist(step, prev_id) else KINDS.get(step["condition"], "nudge_board")
+    from app import funnel_gifts
+    wants_gift = any((b if isinstance(b, str) else b.get("action")) == GIFT_ACTION for b in step["buttons"])
     async for row in _candidates(step, prev_id, skip, touched):
         uid = int(row["telegram_id"])
+        if wants_gift and not await funnel_gifts.can_issue(uid):
+            # A gift went out recently: do not promise another one, and do not retry this step.
+            await db._pool_req().execute(
+                """INSERT INTO funnel_step_sends (telegram_id, step_id) VALUES ($1, $2)
+                   ON CONFLICT (telegram_id,step_id) DO UPDATE SET sent_at=NOW()""", uid, step["id"])
+            touched.append(uid)
+            continue
         slot = await (db.reserve_setup_assistance(uid) if kind == "nudge_setup_assist" else db.reserve_optional_message(uid, kind))
         if slot is None:
             touched.append(uid)
             continue
         delivered = False
+        gift_id = None
         try:
+            if wants_gift:
+                gift_id = await funnel_gifts.issue(uid, step["id"])
+                if gift_id is None:
+                    continue
             body = render_text(step['text'], uid, row.get('first_name'))
             buttons = step['buttons']
             if step['condition'] == 'recover_idle':
@@ -792,13 +818,15 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                 bot, kind=kind, telegram_id=uid, first_name=row.get("first_name"),
                 title=CONDITION_IDS[step["condition"]]["label"],
                 body=body,
-                reply_markup=markup(buttons, uid), preserve=True,
-                extra={"step_id": step["id"]},
+                reply_markup=markup(buttons, uid, gift_id=gift_id), preserve=True,
+                extra={"step_id": step["id"], **({"gift_id": gift_id} if gift_id else {})},
             )
         except Exception:
             logger.exception("Шаг воронки %s не ушёл %s", step["id"], uid)
         finally:
             await db.finish_optional_message(slot, delivered)
+            if gift_id and not delivered:
+                await funnel_gifts.cancel(gift_id)
         touched.append(uid)
         if not delivered:
             continue
@@ -807,6 +835,10 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                VALUES ($1, $2) ON CONFLICT (telegram_id,step_id) DO UPDATE SET sent_at=NOW()""",
             uid, step["id"],
         )
+        if step["condition"] == "terms_offer":
+            # The offer answered «условия не подошли»: let the regular funnel speak to this person again.
+            await db._pool_req().execute(
+                "UPDATE users SET vpn_feedback=NULL WHERE telegram_id=$1 AND vpn_feedback='terms'", uid)
         if step["condition"] in {"ambassador_active", "ambassador_earn"}:
             try:
                 from app import ambassadors
@@ -858,8 +890,12 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None) -> tuple[int
         sent += count
         touched.extend(ids)
         skip.extend(ids)
-    skip.extend(await db.marketing_suppressed_ids())
+    terms_ids = set(await db.terms_feedback_ids())
+    marketing = await db.marketing_suppressed_ids()
+    skip.extend(marketing)
     skip.extend(await db.nudge_suppressed_ids(hours=24))
+    # People who only answered «условия не подошли» stay reachable for the terms offer;
+    # its slot reservation still applies the daily and weekly caps.
     winback_done = False
     for branch in graph["branches"]:
         prev = None
@@ -877,13 +913,18 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None) -> tuple[int
                 skip.extend(ids)
                 winback_done = True
             elif not spec.get("special") and not is_setup_assist(step, prev):
-                count, ids = await _send_step(bot, step, prev, skip)
+                count, ids = await _send_step(bot, step, prev, _terms_skip(skip, terms_ids, touched) if step["condition"] == "terms_offer" else skip)
                 sent += count
                 touched.extend(ids)
                 skip.extend(ids)
             if not spec.get("special"):
                 prev = step["id"]
     return sent, touched
+
+
+def _terms_skip(skip: list[int], terms_ids: set[int], touched: list[int]) -> list[int]:
+    done = set(touched)
+    return [uid for uid in skip if uid not in terms_ids or uid in done]
 
 
 def _first(graph: dict, condition: str) -> dict | None:

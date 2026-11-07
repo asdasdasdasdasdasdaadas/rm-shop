@@ -847,3 +847,24 @@ CREATE TABLE IF NOT EXISTS ad_partners (
 );
 ALTER TABLE ad_links ADD COLUMN IF NOT EXISTS partner_id BIGINT REFERENCES ad_partners (id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS ad_links_partner_idx ON ad_links (partner_id) WHERE partner_id IS NOT NULL;
+-- Referral bonus for reaching the main menu. Existing rows get the epoch so
+-- old invitees are not paid retroactively; new rows start as NULL.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_menu_bonus_at TIMESTAMPTZ DEFAULT 'epoch';
+ALTER TABLE users ALTER COLUMN referral_menu_bonus_at SET DEFAULT NULL;
+-- Gift days offered inside funnel messages: one tap credits N days for the user's devices.
+CREATE TABLE IF NOT EXISTS funnel_gifts (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    step_id TEXT NOT NULL,
+    days INTEGER NOT NULL CHECK (days > 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    claimed_at TIMESTAMPTZ,
+    gift_rub INTEGER,
+    debt_repaid_rub INTEGER
+);
+CREATE INDEX IF NOT EXISTS funnel_gifts_user_idx ON funnel_gifts (telegram_id, created_at DESC);
+-- Which funnel step a tracked message belongs to, for click statistics.
+ALTER TABLE reminder_deliveries ADD COLUMN IF NOT EXISTS step_id TEXT;
+CREATE INDEX IF NOT EXISTS reminder_deliveries_step_idx ON reminder_deliveries (step_id, created_at)
+    WHERE step_id IS NOT NULL;

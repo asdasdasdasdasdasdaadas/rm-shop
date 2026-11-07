@@ -1784,7 +1784,7 @@ def _broadcast_title(template: str) -> str:
 
 
 def _referral_reward_label() -> str:
-    return "50 ₽ за первую оплату друга"
+    return "50 ₽ вам и другу, когда он откроет меню"
 
 
 def _broadcast_payload(

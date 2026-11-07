@@ -17,6 +17,11 @@ SQL = r'''WITH messages AS (
  UNION ALL SELECT telegram_id,created_at,stars,'XTR' FROM payments WHERE created_at >=$1 AND created_at<$2
 ), outcomes AS (
  SELECT m.*, u.first_online_at,
+ EXISTS (SELECT 1 FROM reminder_deliveries rd WHERE m.status='sent' AND rd.telegram_id=m.telegram_id
+   AND COALESCE(rd.step_id,rd.kind)=m.step AND rd.status='sent'
+   -- message_log stores timezone('utc', now()), deliveries NOW(): allow for a server time zone offset.
+   AND rd.created_at BETWEEN m.created_at-INTERVAL '1 day' AND m.created_at+INTERVAL '1 day'
+   AND rd.clicked_at IS NOT NULL AND rd.clicked_at<=rd.created_at+INTERVAL '7 days') AS clicked,
  COALESCE(p.payments,0) AS payments,COALESCE(p.rub,0) AS rub,COALESCE(p.stars,0) AS stars,
  COALESCE(p.unknown,0) AS unknown
  FROM messages m LEFT JOIN users u USING(telegram_id)
@@ -33,6 +38,7 @@ SELECT step,MAX(title) AS title,COUNT(*)::int AS attempts,
  COUNT(*) FILTER(WHERE status='failed')::int AS failed,
  COUNT(DISTINCT telegram_id) FILTER(WHERE status='sent')::int AS recipients,
  COUNT(DISTINCT telegram_id) FILTER(WHERE status='sent' AND created_at<=$2-INTERVAL '7 days')::int AS mature_recipients,
+ COUNT(DISTINCT telegram_id) FILTER(WHERE clicked)::int AS clickers,
  COUNT(DISTINCT telegram_id) FILTER(WHERE status='sent' AND first_online_at>created_at AND first_online_at<=until)::int AS connected,
  COUNT(DISTINCT telegram_id) FILTER(WHERE payments>0)::int AS payers,
  SUM(payments)::int AS payments,SUM(rub)::bigint AS rub,SUM(stars)::bigint AS stars,SUM(unknown)::int AS unknown,
@@ -51,6 +57,7 @@ async def report(days=30):
     for row in rows:
         item=dict(row)
         item['payment_rate']=round(100*item['payers']/item['recipients'],1) if item['recipients'] else None
+        item['click_rate']=round(100*item['clickers']/item['recipients'],1) if item['recipients'] else None
         item['blocked_rate']=round(100*item['blocked']/item['attempted_users'],1) if item['attempted_users'] else None
         items.append(item)
     return {'items':items,'days':days,'window_days':7}

@@ -54,7 +54,7 @@ def invite_nudge_text(telegram_id: int, first_name: str | None) -> str:
     settings = get_settings()
     name = first_name or "привет"
     link = f"https://t.me/{settings.bot_username}?start=ref_{telegram_id}"
-    reward = "50 ₽ за первую оплату друга"
+    reward = "50 ₽ вам и другу"
     terms = referral_terms(settings)
     when = terms["when"] + (" " + terms["friend"] if terms["friend"] else "")
     if not settings.referral_program_enabled:
@@ -105,7 +105,8 @@ async def _deliver_unbudgeted(
     if not await db.nudge_delivery_allowed(telegram_id, kind):
         return False
     try:
-        await send_reminder(bot, telegram_id, body, kind=kind, title=title, reply_markup=reply_markup, preserve=preserve)
+        await send_reminder(bot, telegram_id, body, kind=kind, title=title, reply_markup=reply_markup, preserve=preserve,
+                            step_id=(extra or {}).get("step_id"))
         ok = True
     except Exception as exc:
         logger.debug("Напоминание %s не ушло %s", kind, telegram_id, exc_info=True)

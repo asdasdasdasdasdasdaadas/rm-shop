@@ -12,6 +12,7 @@ from app.config import get_settings, referral_is_payout
 from app.keyboards import with_referral_share, cabinet_keyboard, share_keyboard
 from app.remnawave import RemnawaveClient
 from app.texts import friends_acc, rub_text
+from app.referral_terms import REFERRAL_BONUS_RUB
 
 
 def invitee_extra_days(local: dict | None) -> int:
@@ -105,10 +106,35 @@ def topup_ok_text(amount: str, *, can_share: bool, local: dict | None = None) ->
     if can_share and get_settings().referral_program_enabled:
         body += (
             "\n\n🎁 Пригласите друга: "
-            "Вам 50 ₽ за первую оплату друга, пока программа активна."
+            "вы оба получите по 50 ₽, как только он откроет меню бота."
         )
     from app.funnel_ui import funnel_body
     return funnel_body(body)
+
+
+async def maybe_reward_menu(bot: Bot | None, telegram_id: int) -> int:
+    """50 ₽ to the friend and to whoever invited them, once the friend reaches the main menu."""
+    if not get_settings().referral_program_enabled:
+        return 0
+    try:
+        result = await db.reward_referral_menu(telegram_id, REFERRAL_BONUS_RUB)
+    except Exception:
+        return 0
+    if not result:
+        return 0
+    amount = f"{result['amount']} ₽"
+    if bot:
+        name = escape(result.get("friend_name") or "друг")
+        for chat, text in (
+            (telegram_id, f"🎁 Вы пришли по ссылке друга — начислили <b>{amount}</b> на баланс."),
+            (result["referrer_id"], f"🎁 {name} пришёл по вашей ссылке. Вам начислено <b>{amount}</b>!"),
+        ):
+            try:
+                await send_funnel_message(bot, chat, text,
+                    reply_markup=with_referral_share(chat, cabinet_keyboard()))
+            except Exception:
+                pass
+    return result["amount"]
 
 
 async def maybe_reward_invitee(bot: Bot | None, telegram_id: int, *, enabled: bool | None = None, amount: int | None = None) -> int:

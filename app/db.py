@@ -1700,7 +1700,8 @@ async def clawback_idle_referral(invitee_id: int) -> dict | None:
             invitee = await conn.fetchrow(
                 """
                 SELECT telegram_id, referred_by, trial_used, has_paid_topup,
-                       referral_rewarded, referral_clawback_at, first_name
+                       referral_rewarded, referral_clawback_at, first_name,
+                       referral_menu_bonus_at > 'epoch' AS menu_bonus
                 FROM users
                 WHERE telegram_id = $1
                 FOR UPDATE
@@ -1713,6 +1714,8 @@ async def clawback_idle_referral(invitee_id: int) -> dict | None:
                 return None
             if not invitee["referral_rewarded"] or invitee["referral_clawback_at"]:
                 return None
+            if invitee["menu_bonus"]:
+                return None  # The menu bonus is never taken back, even if the friend blocks the bot.
             referrer_id = invitee["referred_by"]
             if not referrer_id:
                 return None
@@ -5149,11 +5152,12 @@ async def release_low_balance_notice(telegram_id: int) -> None:
     await _pool_req().execute("UPDATE users SET low_balance_notified_at=NULL WHERE telegram_id=$1", telegram_id)
 
 
-async def create_reminder_delivery(telegram_id: int, kind: str, title: str, body: str, *, broadcast_id: int | None = None) -> str:
+async def create_reminder_delivery(telegram_id: int, kind: str, title: str, body: str, *, broadcast_id: int | None = None,
+                                   step_id: str | None = None) -> str:
     token=secrets.token_urlsafe(18)
     await _pool_req().execute(
-        "INSERT INTO reminder_deliveries (token,telegram_id,kind,title,body,broadcast_id) VALUES ($1,$2,$3,$4,$5,$6)",
-        token,telegram_id,kind,title,body,broadcast_id,
+        "INSERT INTO reminder_deliveries (token,telegram_id,kind,title,body,broadcast_id,step_id) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+        token,telegram_id,kind,title,body,broadcast_id,(step_id or None) and str(step_id)[:40],
     )
     return token
 
@@ -5755,6 +5759,42 @@ async def finish_payment_effects(payment_key: str) -> None:
     await _pool_req().execute('UPDATE payment_receipts SET effects_done_at=NOW() WHERE payment_key=$1', payment_key)
 
 
+async def reward_referral_menu(invitee_id: int, amount: int) -> dict | None:
+    """Pay the referrer and the invited friend once, when the friend first reaches the main menu."""
+    if amount < 1:
+        return None
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            invitee = await conn.fetchrow(
+                """UPDATE users SET referral_menu_bonus_at=NOW()
+                   WHERE telegram_id=$1 AND referral_menu_bonus_at IS NULL
+                     AND referred_by IS NOT NULL AND referred_by <> telegram_id
+                     AND NOT referral_rewarded
+                     AND created_at > NOW() - INTERVAL '1 day'
+                     AND NOT EXISTS (SELECT 1 FROM ambassador_clients ac WHERE ac.telegram_id=users.telegram_id)
+                     AND EXISTS (SELECT 1 FROM users r WHERE r.telegram_id=users.referred_by AND r.blocked_at IS NULL)
+                   RETURNING referred_by, first_name""", invitee_id)
+            if not invitee:
+                return None
+            referrer_id = int(invitee['referred_by'])
+            # The payment-time bonuses check these flags, so nobody is paid twice for one friend.
+            friend_after = await conn.fetchval(
+                """UPDATE users SET referral_rewarded=TRUE, referral_invitee_bonus_at=NOW(),
+                   balance_rub=COALESCE(balance_rub,0)+$2, low_balance_notified_at=NULL
+                   WHERE telegram_id=$1 RETURNING balance_rub""", invitee_id, amount)
+            referrer_after = await conn.fetchval(
+                """UPDATE users SET balance_rub=COALESCE(balance_rub,0)+$2,
+                   referral_earned=COALESCE(referral_earned,0)+$2, low_balance_notified_at=NULL
+                   WHERE telegram_id=$1 RETURNING balance_rub""", referrer_id, amount)
+            await conn.executemany(
+                """INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
+                   VALUES ($1,'referral',$2,$3,$4,$5)""",
+                [(referrer_id, 'menu', amount, referrer_after, f'Друг {invitee_id} дошёл до меню'),
+                 (invitee_id, 'invitee', amount, friend_after, 'Бонус за приход по ссылке друга')])
+            return {'referrer_id': referrer_id, 'invitee_id': invitee_id, 'amount': amount,
+                    'friend_name': invitee['first_name']}
+
+
 async def credit_invitee_bonus_once(telegram_id: int, amount: int) -> int | None:
     async with _pool_req().acquire() as conn:
         async with conn.transaction():
@@ -5807,7 +5847,7 @@ async def reserve_optional_message(telegram_id: int, kind: str) -> int | None:
     async with _pool_req().acquire() as conn:
         async with conn.transaction():
             user = await conn.fetchrow('SELECT * FROM users WHERE telegram_id=$1 FOR UPDATE', telegram_id)
-            if not user or user['quiet_notifications'] or user['blocked_at'] or user['bot_blocked_at'] or not user['bot_started_at'] or user['vpn_feedback'] in {'help', 'terms'}:
+            if not user or user['quiet_notifications'] or user['blocked_at'] or user['bot_blocked_at'] or not user['bot_started_at'] or user['vpn_feedback'] == 'help' or (user['vpn_feedback'] == 'terms' and kind != 'nudge_terms_offer'):
                 return None
             allowed = await conn.fetchval('''SELECT
                 NOT EXISTS (SELECT 1 FROM users WHERE telegram_id=$1 AND marketing_pause_until > NOW())
@@ -5850,6 +5890,11 @@ async def funnel_message_stats() -> dict:
         MAX(created_at) FILTER (WHERE status='sent') AS last_sent
         FROM message_log WHERE source <> 'test' GROUP BY kind''')
     return {row['kind']: _jsonable(dict(row)) for row in rows}
+
+
+async def terms_feedback_ids() -> list[int]:
+    rows = await _pool_req().fetch("SELECT telegram_id FROM users WHERE vpn_feedback='terms'")
+    return [int(row['telegram_id']) for row in rows]
 
 
 async def marketing_suppressed_ids() -> list[int]:

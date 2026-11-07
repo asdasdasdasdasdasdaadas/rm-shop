@@ -340,10 +340,8 @@ def invite_message(telegram_id: int, settings=None) -> str:
     icon = f'<tg-emoji emoji-id="{PINNED_ICONS["invite"]}">👥</tg-emoji>'
     body = icon + ' <b>Поделитесь ссылкой с другом</b>\n'
     if settings.referral_program_enabled:
-        body += 'После его первой оплаты вы получите <b>50 ₽</b> на баланс.\n'
+        body += 'Как только друг откроет меню бота, вы оба получите по <b>50 ₽</b> на баланс.\n'
         body += 'Награда начисляется один раз за нового друга, пока программа активна.'
-        if terms['friend']:
-            body += '\n\n' + escape(terms['friend'])
     else:
         body += escape(terms['note']) + '\n\n' + escape(terms['when'])
     link = escape(invite_url(telegram_id, settings.bot_username))
@@ -363,9 +361,8 @@ def invite_share_text() -> str:
     if price > 0:
         text += f" — {price} ₽ в сутки за устройство"
     text += ". Подключение — по ссылке."
-    bonus = int(settings.referral_invitee_reward_rub or 0)
-    if settings.referral_program_enabled and bonus > 0:
-        text += f" После первой оплаты на баланс ещё {bonus} ₽, пока реферальная программа активна."
+    if settings.referral_program_enabled:
+        text += " По ссылке сразу 50 ₽ на баланс, пока реферальная программа активна."
     return text
 
 
@@ -488,13 +485,7 @@ def about_service_content():
         f'Пополнить можно от {minimum} ₽.'
     )
     if getattr(settings, 'referral_program_enabled', True):
-        mine = max(0, int(getattr(settings, 'referral_reward_rub', 50) or 0))
-        friend = max(0, int(getattr(settings, 'referral_invitee_reward_rub', 50) or 0))
-        if mine and mine == friend:
-            body += f'\n\n🎁 <b>Позовите друга</b>\nКогда он впервые пополнит баланс, вы оба получите по {mine} ₽.'
-        elif mine or friend:
-            body += (f'\n\n🎁 <b>Позовите друга</b>\nКогда он впервые пополнит баланс, '
-                     f'вы получите {mine} ₽, а он — {friend} ₽.')
+        body += '\n\n🎁 <b>Позовите друга</b>\nКак только он откроет меню бота, вы оба получите по 50 ₽.'
     body += '\n\n🔑 <b>Где кабинет</b>\nЗдесь, в боте: <b>Главное меню</b> → <b>Личный кабинет</b>.'
     rows = [[InlineKeyboardButton(text='Главное меню', callback_data='profile')]]
     if url.startswith('https://'):

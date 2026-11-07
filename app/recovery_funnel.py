@@ -6,7 +6,10 @@ import json
 VERSION = 'recovery_journeys_v1'
 LABEL_VERSION = 'funnel_action_labels_v2'
 ACTION_LABELS = {'gift': 'Забрать подарок', 'connect': 'Подключить VPN', 'topup': 'Пополнить баланс'}
-OWNED_BRANCHES = {'nodevice','online','unpaid','quality','gift','idle-setup','idle-topup','idle-return'}
+OWNED_BRANCHES = {'nodevice','online','unpaid','quality','gift','idle-setup','idle-topup','idle-return','late','terms-offer'}
+OFFERS_VERSION = 'funnel_offers_v3'
+GIFT = 'claim_gift'
+CONNECT = {'action': 'connect', 'text': 'Подключить VPN'}
 PAID = """(COALESCE(u.has_paid_topup,FALSE)
  OR EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id=u.telegram_id)
  OR EXISTS (SELECT 1 FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted'))"""
@@ -34,26 +37,63 @@ CONDITIONS = (
  {'id':'recover_idle','label':'Возврат: не пользовался неделю','anchor':SEEN,
   'where':f"u.first_online_at IS NOT NULL AND {IDLE}",
   'hint':'Был подтверждённый онлайн, затем не пользовался VPN неделю. Возобновление подключения или ответ «Пока не нужен» останавливают цепочку.'},
+ {'id':'recover_late','label':'Возврат: не пользовался 30+ дней','anchor':SEEN,
+  'where':f"u.first_online_at IS NOT NULL AND {SEEN} <= NOW() - INTERVAL '30 days'",
+  'hint':'Был онлайн, потом пропал на месяц и дольше. Пауза считается от последнего появления. После возвращения цепочка начнётся заново при следующем уходе.'},
+ {'id':'terms_offer','label':'Ответил «Не подошли условия»','anchor':'u.vpn_feedback_at',
+  'where':"u.vpn_feedback='terms'",
+  'hint':'Единственное сообщение, которое получают люди с ответом «Не подошли условия». После него человек снова попадает в обычную воронку.'},
 )
 KINDS = {c['id']: 'nudge_' + c['id'] for c in CONDITIONS}
+
+# Third messages used to be polite goodbyes; now each one gives a reason to act.
+OLD_THIRD = {
+ 'gift': 'Подарок остаётся у вас 🎁 Когда понадобится VPN, начните с кабинета.',
+ 'nodevice': 'VPN можно настроить, когда он понадобится. Если нужна помощь — напишите нам 👇',
+ 'online': 'Не будем отвлекать. Инструкция и помощь останутся в кабинете 👇',
+ 'unpaid': 'Если VPN снова понадобится, вернуться можно в любой момент. Кабинет и поддержка под рукой.',
+ 'idle-return': 'Не будем отвлекать 👋 Если VPN снова понадобится, кабинет и поддержка под рукой.',
+}
+GIFT_BRANCHES = {'unpaid', 'idle-return'}
+NEW_THIRD = {
+ 'gift': '🎁 Подарок всё ещё ваш: бесплатный VPN на старте, без оплаты и привязки карты. '
+         'Заберите его в один клик — с подключением поможем.',
+ 'nodevice': 'Подключение занимает пару минут: добавьте устройство, вставьте ссылку в приложение '
+             'и включите VPN. Застряли на любом шаге — нажмите «Нужна помощь», ответим в чате.',
+ 'online': 'Устройство уже добавлено — осталось одно нажатие. Откройте его в кабинете и включите VPN '
+           'в приложении. Не выходит — напишите нам, настроим вместе.',
+ 'unpaid': '🎁 <b>Дарим {gift_days} VPN</b>, чтобы вы спокойно попробовали ещё раз.\n\n'
+           'Нажмите кнопку ниже — подарок сразу придёт на баланс. Действует 7 дней.',
+ 'idle-return': '🎁 <b>Возвращайтесь: дарим {gift_days} VPN.</b>\n\n'
+                'Нажмите кнопку ниже — дни сразу придут на баланс, VPN заработает. Действует 7 дней.',
+}
+LATE_TEXTS = (
+ '👋 Давно не виделись! Если VPN снова пригодится — <b>дарим {gift_days}</b>, чтобы начать без оплаты.\n\n'
+ 'Нажмите кнопку ниже, и дни сразу придут на баланс. Подарок действует 7 дней.',
+ '🎁 Мы всё ещё на связи и VPN стал стабильнее. <b>Дарим {gift_days}</b>, чтобы проверить сами.\n\n'
+ 'Нажмите кнопку ниже — без оплаты, дни сразу на баланс. Действует 7 дней.',
+)
+TERMS_TEXT = ('Вы говорили, что условия не подошли. Давайте попробуем по-другому: '
+              '<b>дарим {gift_days} VPN</b> — проверьте, стоит ли он своих денег.\n\n'
+              'Нажмите кнопку ниже, дни сразу придут на баланс. Подарок действует 7 дней.')
 
 def branches():
     from app.funnel_board import _step
     plans = [
-      ('gift','recover_gift','Подарок → подключение',24,[
+      ('gift','recover_gift','Подарок → подключение',1,[
        '🎁 Ваш подарок ещё ждёт. Заберите его — сразу поможем подключить VPN.',
        'Поможем начать? Установите приложение, добавьте подписку и включите VPN. Если застряли — мы рядом.',
-       'Подарок остаётся у вас 🎁 Когда понадобится VPN, начните с кабинета.'
+       NEW_THIRD['gift']
       ],['gift','menu','help']),
       ('nodevice','recover_setup','Подарок есть → добавить устройство',24,[
        'Давайте подключим устройство 👋 Откройте кабинет — там короткая инструкция.',
        'Что мешает подключиться? Нажмите «Нужна помощь» — разберёмся вместе.',
-       'VPN можно настроить, когда он понадобится. Если нужна помощь — напишите нам 👇'
+       NEW_THIRD['nodevice']
       ],['connect','menu','help']),
       ('online','recover_online','Устройство → работающий VPN',1,[
        'Осталось включить VPN 👋 Добавьте подписку в приложение и нажмите кнопку подключения.',
        'Не получилось подключиться? Напишите нам — поможем с настройкой.',
-       'Не будем отвлекать. Инструкция и помощь останутся в кабинете 👇'
+       NEW_THIRD['online']
       ],['connect','menu','help']),
       ('quality','recover_quality','Пробует VPN → обратная связь',20,[
        '💬 Как работает VPN? Если сайты не открываются или связь обрывается — поможем.',
@@ -63,20 +103,42 @@ def branches():
       ('unpaid','recover_payment','Доступ закончился → первая оплата',0,[
        'Продолжим? Пополните баланс — VPN снова заработает 👇 Если были проблемы со связью, сначала поможем.',
        'Что мешает продолжить: подключение или условия? Подскажите — разберёмся 👇',
-       'Если VPN снова понадобится, вернуться можно в любой момент. Кабинет и поддержка под рукой.'
+       NEW_THIRD['unpaid']
       ],['topup','menu','feedback_help','feedback_terms']),
       ('idle-return','recover_idle','Неделя без VPN → возвращение',168,[
        'Давно не пользовались VPN 👋 Что мешает вернуться?',
        'Если VPN подвёл — дайте нам помочь. Напишите, что не получилось 👇',
-       'Не будем отвлекать 👋 Если VPN снова понадобится, кабинет и поддержка под рукой.'
+       NEW_THIRD['idle-return']
       ],['connect','menu','feedback_help','feedback_terms','feedback_later']),
     ]
-    return [{'id':bid,'title':title,'steps':[
+    result = [{'id':bid,'title':title,'steps':[
       _step(f"recovery-{condition.replace('_', '-')}-{i+1}",condition,first if i==0 else 48 if i==1 else 72,
-            text+'\n\nОткройте личный кабинет 👇',
+            text if i==2 and bid in GIFT_BRANCHES else text+'\n\nОткройте личный кабинет 👇',
+            third_buttons(bid, buttons) if i==2 else
             [{'action':buttons[0],'text':ACTION_LABELS.get(buttons[0], 'Личный кабинет')}, *buttons[1:]],
             'anchor' if i==0 else 'previous')
       for i,text in enumerate(texts)]} for bid,condition,title,first,texts,buttons in plans]
+    return result + extra_branches()
+
+
+def third_buttons(bid, buttons):
+    first = {'action':buttons[0],'text':ACTION_LABELS.get(buttons[0], 'Личный кабинет')}
+    if bid in GIFT_BRANCHES:
+        return [GIFT, first, *buttons[1:]][:6]
+    return [first, *buttons[1:]]
+
+
+def extra_branches():
+    from app.funnel_board import _step
+    return [
+        {'id':'late','title':'Давно не пользовался: 30 и 60 дней','steps':[
+            _step('recovery-recover-late-1','recover_late',720,LATE_TEXTS[0],[GIFT,CONNECT,'menu','feedback_later']),
+            _step('recovery-recover-late-2','recover_late',1440,LATE_TEXTS[1],[GIFT,CONNECT,'menu','feedback_later']),
+        ]},
+        {'id':'terms-offer','title':'Не подошли условия → подарок','steps':[
+            _step('recovery-terms-offer-1','terms_offer',168,TERMS_TEXT,[GIFT,CONNECT,'menu','help']),
+        ]},
+    ]
 
 def upgrade(graph):
     result=copy.deepcopy(graph)
@@ -85,6 +147,58 @@ def upgrade(graph):
     return result
 
 async def migrate(pool, graph):
+    graph = await _migrate_journeys(pool, graph)
+    return await _migrate_offers(pool, graph)
+
+
+def refresh_offers(graph):
+    """Offers instead of goodbyes, a faster gift reminder and the new branches.
+    Only steps still holding the old default text or timing are touched; admin edits stay."""
+    from app.funnel_board import _step
+    result = copy.deepcopy(graph)
+    fresh = {b['id']: b for b in branches()}
+    for branch in result['branches']:
+        bid = branch['id']
+        if bid not in OLD_THIRD:
+            continue
+        for step in branch['steps']:
+            if step['id'] == 'recovery-recover-gift-1' and int(step.get('wait_hours') or 0) == 24:
+                step['wait_hours'] = 1
+            if step['text'].strip() in {OLD_THIRD[bid], OLD_THIRD[bid] + '\n\nОткройте личный кабинет 👇'}:
+                new = next((s for s in fresh[bid]['steps'] if s['id'] == step['id']), None)
+                if new:
+                    step['text'], step['buttons'] = new['text'], new['buttons']
+    used = {b['id'] for b in result['branches']} | {s['id'] for b in result['branches'] for s in b['steps']}
+    for branch in extra_branches():
+        if branch['id'] in used or any(s['id'] in used for s in branch['steps']):
+            continue
+        if len(result['branches']) >= 32:
+            break
+        result['branches'].append(branch)
+    return result
+
+
+async def _migrate_offers(pool, graph):
+    from app.funnel_board import validate
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute('SELECT pg_advisory_xact_lock(73619429)')
+            if await conn.fetchval('SELECT value FROM app_flags WHERE key=$1', OFFERS_VERSION):
+                return graph
+            row = await conn.fetchrow('SELECT graph FROM funnel_graphs WHERE id=1 FOR UPDATE')
+            raw = row['graph'] if row else graph
+            if isinstance(raw, str):
+                raw = json.loads(raw)
+            updated = validate(refresh_offers(raw))
+            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+                               OFFERS_VERSION + '_backup', json.dumps(raw, ensure_ascii=False))
+            await conn.execute('UPDATE funnel_graphs SET graph=$1::jsonb,updated_at=NOW() WHERE id=1',
+                               json.dumps(updated, ensure_ascii=False))
+            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2)', OFFERS_VERSION, '1')
+            return updated
+
+
+async def _migrate_journeys(pool, graph):
     """One atomic replacement, with an exact backup of the administrator's old map."""
     from app.funnel_board import validate
     async with pool.acquire() as conn:

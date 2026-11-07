@@ -48,5 +48,6 @@ class BroadcastTrackingTest(unittest.IsolatedAsyncioTestCase):
             await db.create_reminder_delivery(1,'broadcast','Title','Body',broadcast_id=42)
         sql,*args = pool.execute.call_args.args
         self.assertEqual(sql.count('broadcast_id'),1)
-        self.assertEqual(len(args),6)
-        self.assertEqual(args[-1],42)
+        self.assertEqual(len(args),7)
+        self.assertEqual(args[5],42)
+        self.assertIsNone(args[6])

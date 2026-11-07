@@ -96,7 +96,7 @@ class Settings(BaseSettings):
     welcome_sticker_file_id: str = (
         "CAACAgIAAxkBAAEGvvRqovc3xHWk_tb7oHrXUIDKdJ8H2AACCAEAAjDUnRGbJRzV9mdkhT0E"
     )
-    brand_name: str = "Way VPN"
+    brand_name: str = "Лягушка VPN"
     support_username: str = "@way_proxy_support"
     admin_password: str = ""
     database_url: str = "postgresql://rmshop:rmshop@127.0.0.1:5432/rmshop"
