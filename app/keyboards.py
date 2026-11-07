@@ -341,37 +341,28 @@ def invite_message(telegram_id: int, settings=None) -> str:
     icon = f'<tg-emoji emoji-id="{PINNED_ICONS["invite"]}">👥</tg-emoji>'
     body = icon + ' <b>Поделитесь ссылкой с другом</b>\n'
     if settings.referral_program_enabled:
-        body += 'Как только друг откроет меню бота, вы оба получите по <b>50 ₽</b> на баланс.\n'
-        body += 'Награда начисляется один раз за нового друга, пока программа активна.'
+        body += 'Как только друг откроет меню бота, вы оба получите по <b>50 ₽</b> на баланс.'
     else:
         body += escape(terms['note']) + '\n\n' + escape(terms['when'])
     link = escape(invite_url(telegram_id, settings.bot_username))
     body += ('\n\n<tg-emoji emoji-id="5258093637450866522">🤖</tg-emoji> '
-             '<b>Ссылка бота</b>\n<blockquote><code>' + link + '</code></blockquote>')
+             '<b>Реферальная ссылка</b>\n<blockquote><code>' + link + '</code></blockquote>')
     return body
 
 
 def invite_share_text() -> str:
     settings = get_settings()
     brand = (settings.brand_name or "VPN").strip() or "VPN"
-    price = int(settings.vpn_day_price_rub or 0)
-    text = (
-        f"Вот ссылка на {brand}. "
-        "VPN для телефона и компьютера"
-    )
-    if price > 0:
-        text += f" — {price} ₽ в сутки за устройство"
-    text += ". Подключение — по ссылке."
     if settings.referral_program_enabled:
-        text += " По ссылке сразу 50 ₽ на баланс, пока реферальная программа активна."
-    return text
+        return f"Попробуй {brand} бесплатно — 50 ₽ уже на балансе."
+    return f"Попробуй {brand} — VPN для телефона и компьютера."
 
 
 def invite_copy_text(telegram_id: int, bot_username: str | None = None) -> str:
     link = invite_url(telegram_id, bot_username)
     text = invite_share_text()
     if len(text) + len(link) + 2 > 256:
-        text = "Попробуй VPN по моей ссылке. Условия и доступный подарок — в боте."
+        text = "Попробуй VPN по моей ссылке."
     return f"{text}\n\n{link}"
 
 
@@ -472,31 +463,41 @@ def ambassador_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text='В главное меню', callback_data='profile')]])
 
 
+def support_webapp_button() -> InlineKeyboardButton | None:
+    """«Поддержка» opening the support chat screen of the mini app; None when the mini app has no URL."""
+    url = mini_app_url()
+    if not url:
+        return None
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query))
+    query["screen"] = "support"
+    return InlineKeyboardButton(text="Поддержка", web_app=WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query)))))
+
+
+def _pack_emoji(kind: str, fallback: str) -> str:
+    # Animated icon from the tgmacicons pack, same as on the buttons; plain emoji where custom emoji are unsupported.
+    return f'<tg-emoji emoji-id="{PINNED_ICONS[kind]}">{fallback}</tg-emoji>'
+
+
 def about_service_content():
     settings = get_settings()
-    url = mini_app_url()
     price = int(getattr(settings, 'vpn_day_price_rub', 6) or 6)
     minimum = int(getattr(settings, 'balance_topup_min', 50) or 50)
     body = (
         f'<b>{escape(settings.brand_name)}</b> — VPN прямо в Telegram. '
         'Без подписки: пополняете баланс, и он тратится по дням.\n\n'
-        '💸 <b>Сколько стоит</b>\n'
+        f'{_pack_emoji("pay", "💰")} <b>Сколько стоит</b>\n'
         f'{price} ₽ в день за одно устройство. Платите только за те, что добавили: '
         'удалили устройство — списания за него прекратились.\n'
         f'Пополнить можно от {minimum} ₽.'
     )
     if getattr(settings, 'referral_program_enabled', True):
-        body += '\n\n🎁 <b>Позовите друга</b>\nКак только он откроет меню бота, вы оба получите по 50 ₽.'
-    body += '\n\n🔑 <b>Где кабинет</b>\nЗдесь, в боте: <b>Главное меню</b> → <b>Личный кабинет</b>.'
-    rows = [[InlineKeyboardButton(text='Главное меню', callback_data='profile')]]
-    if url.startswith('https://'):
-        body += ('\nВ браузере: нажмите <b>Открыть в браузере</b>, введите свой ник в Telegram '
-                 'и подтвердите вход здесь, в боте.')
-        rows.append([InlineKeyboardButton(text='Открыть в браузере', url=url,
-                                         icon_custom_emoji_id=PINNED_ICONS['action'])])
+        body += '\n\n' + _pack_emoji('gift', '📦') + ' <b>Позовите друга</b>\nКак только он откроет меню бота, вы оба получите по 50 ₽.'
+    body += '\n\n' + _pack_emoji('cabinet', '👤') + ' <b>Где кабинет</b>\nЗдесь, в боте: <b>Главное меню</b> → <b>Личный кабинет</b>.'
+    rows = [[InlineKeyboardButton(text='Главное меню', callback_data='profile', style='success')]]
     rows.append([
         InlineKeyboardButton(text='Условия сервиса', url=settings.legal_offer_url,
                              icon_custom_emoji_id=PINNED_ICONS['document']),
-        InlineKeyboardButton(text='Поддержка', url=support_url()),
+        support_webapp_button() or InlineKeyboardButton(text='Поддержка', url=support_url()),
     ])
     return body, InlineKeyboardMarkup(inline_keyboard=rows)

@@ -3840,6 +3840,14 @@ async function load() {
     openAmbassador();
     return;
   }
+  if (!paymentEntryHandled && entry === "support") {
+    paymentEntryHandled = true;
+    markIntroSeen();
+    window.__me = me;
+    paint(me);
+    openSupport();
+    return;
+  }
   if (!paymentEntryHandled && ["gift", "connect"].includes(entry)) {
     paymentEntryHandled = true;
     markIntroSeen();
@@ -4030,7 +4038,7 @@ function openTrust() {
 function inviteShareText(me) {
   const fromApi = me && String(me.invite_share_text || "").trim();
   if (fromApi) return fromApi;
-  return "Вот ссылка на VPN для телефона и компьютера. Условия и подключение — в боте.";
+  return "Попробуй VPN для телефона и компьютера.";
 }
 
 function inviteCopyText(me) {

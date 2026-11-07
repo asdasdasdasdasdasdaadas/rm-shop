@@ -11,14 +11,14 @@ class AboutServiceTest(unittest.TestCase):
         with patch.object(keyboards, 'get_settings', return_value=settings), patch.object(keyboards, 'mini_app_url', return_value='https://example.com'):
             text, markup = keyboards.about_service_content()
         self.assertIn('WAY &amp; VPN', text)
-        self.assertIn('подтвердите вход здесь, в боте', text)
+        self.assertNotIn('В браузере', text)
         self.assertIn('6 ₽ в день за одно устройство', text)
         self.assertIn('Пополнить можно от 50 ₽', text)
         self.assertIn('вы оба получите по 50 ₽', text)
-        self.assertEqual([len(row) for row in markup.inline_keyboard], [1, 1, 2])
-        self.assertEqual(markup.inline_keyboard[1][0].url, 'https://example.com')
-        self.assertEqual(markup.inline_keyboard[2][0].url, settings.legal_offer_url)
-        self.assertEqual(markup.inline_keyboard[2][1].url, 'https://t.me/way_support')
+        # No «Открыть в браузере» button, even when the mini app has a public URL.
+        self.assertEqual([len(row) for row in markup.inline_keyboard], [1, 2])
+        self.assertEqual(markup.inline_keyboard[1][0].url, settings.legal_offer_url)
+        self.assertEqual(markup.inline_keyboard[1][1].web_app.url, 'https://example.com?screen=support')
 
     def test_no_browser_promise_without_site(self):
         settings = SimpleNamespace(brand_name='WAY', legal_offer_url='https://example.com/offer', support_username='way_support')
