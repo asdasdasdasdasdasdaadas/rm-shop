@@ -259,6 +259,19 @@ const DEFAULT_VPN_APPS = [
     },
   },
   {
+    id: "rabbithole",
+    name: "RabbitHole",
+    mark: "RH",
+    icon: "",
+    deep_link: "rabbithole://add/{url}",
+    platforms: ["ios", "macos", "appletv"],
+    stores: {
+      ios: "https://apps.apple.com/app/id6683309629",
+      macos: "https://apps.apple.com/app/id6683309629",
+      appletv: "https://apps.apple.com/app/id6683309629",
+    },
+  },
+  {
     id: "v2rayng",
     name: "v2rayNG",
     mark: "v2",
