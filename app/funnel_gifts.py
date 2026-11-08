@@ -52,6 +52,15 @@ async def issue(telegram_id: int, step_id: str) -> int | None:
             )
 
 
+async def issue_for_broadcast(telegram_id: int, run_id: int | None) -> int:
+    """Gift for the admin «+3 дня всем» broadcast: everyone gets one, regardless of the funnel cooldown."""
+    return await db._pool_req().fetchval(
+        """INSERT INTO funnel_gifts (telegram_id, step_id, days, expires_at)
+           VALUES ($1, $2, $3, NOW() + ($4::int * INTERVAL '1 day')) RETURNING id""",
+        int(telegram_id), f"broadcast:{run_id or 0}"[:40], GIFT_DAYS, VALID_DAYS,
+    )
+
+
 async def cancel(gift_id: int) -> None:
     """The message did not go out: forget the gift so the cooldown does not start."""
     await db._pool_req().execute("DELETE FROM funnel_gifts WHERE id=$1 AND claimed_at IS NULL", int(gift_id))

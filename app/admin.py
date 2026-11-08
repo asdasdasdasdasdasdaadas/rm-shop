@@ -1700,6 +1700,8 @@ async def _broadcast_all(
     if tpl in {"invite", "unused"}:
         audience = "using" if tpl == "invite" else "unused"
         targets = await db.list_broadcast_targets(audience)
+    elif tpl in ANNOUNCE_TEMPLATES:
+        targets = await db.list_broadcast_targets("all")
     elif ids is not None:
         targets = [{"telegram_id": int(item), "first_name": None} for item in ids]
     else:
@@ -1713,20 +1715,43 @@ async def _broadcast_all(
         if not job.get("running"):
             break
         settings = get_settings()
-        if tpl == "invite" and not settings.referral_program_enabled:
+        if tpl in {"invite", "referral_news"} and not settings.referral_program_enabled:
             break
         telegram_id = int(row["telegram_id"])
         if not await db.notification_allowed(telegram_id, "broadcast"):
             job["skipped"] = int(job.get("skipped") or 0) + 1
             continue
-        slot = await db.reserve_optional_message(telegram_id, "broadcast")
-        if slot is None:
-            job["skipped"] = int(job.get("skipped") or 0) + 1
-            continue
-        body, markup = _broadcast_payload(tpl, text, telegram_id, row.get("first_name"), settings, ambassador_cfg)
+        announce = tpl in ANNOUNCE_TEMPLATES
+        slot = None
+        if not announce:
+            slot = await db.reserve_optional_message(telegram_id, "broadcast")
+            if slot is None:
+                job["skipped"] = int(job.get("skipped") or 0) + 1
+                continue
+        gift_id = None
+        if tpl == "gift3":
+            from app import funnel_gifts
+            try:
+                gift_id = await funnel_gifts.issue_for_broadcast(telegram_id, job.get("run_id"))
+            except Exception:
+                logger.exception("Broadcast gift was not issued for %s", telegram_id)
+                job["failed"] = int(job.get("failed") or 0) + 1
+                continue
+            body, markup = text, _announce_keyboard(tpl, gift_id)
+        elif announce:
+            body, markup = text, _announce_keyboard(tpl)
+        else:
+            body, markup = _broadcast_payload(tpl, text, telegram_id, row.get("first_name"), settings, ambassador_cfg)
         extra = {"template": tpl or "custom", "broadcast_id": job.get("run_id")}
+        if gift_id:
+            extra["gift_id"] = gift_id
         token = None
-        if job.get("run_id"):
+        if announce and job.get("run_id"):
+            try:
+                token = await db.create_reminder_delivery(telegram_id, "broadcast", _broadcast_title(tpl), body, broadcast_id=job["run_id"])
+            except Exception:
+                logger.exception("Broadcast tracking setup failed")
+        elif job.get("run_id"):
             try:
                 token = await db.create_reminder_delivery(telegram_id, "broadcast", _broadcast_title(tpl), body, broadcast_id=job["run_id"])
                 # Keep scenario buttons and add a trackable cabinet entry when absent.
@@ -1739,10 +1764,19 @@ async def _broadcast_all(
             except Exception:
                 logger.exception("Broadcast tracking setup failed")
         try:
-            message = await _deliver_broadcast(bot, telegram_id, body, markup)
+            if announce:
+                message = await bot.send_message(telegram_id, body, reply_markup=markup)
+            else:
+                message = await _deliver_broadcast(bot, telegram_id, body, markup)
         except Exception as exc:
             job["failed"] = int(job.get("failed") or 0) + 1
             status = "failed"
+            if gift_id:
+                from app import funnel_gifts
+                try:
+                    await funnel_gifts.cancel(gift_id)
+                except Exception:
+                    logger.exception("Undelivered broadcast gift %s was not cancelled", gift_id)
             extra = fail_extra(exc, extra)
             if token:
                 await finish_tracked_delivery(token, status, None)
@@ -1754,7 +1788,8 @@ async def _broadcast_all(
                 await mark_invitation_sent(telegram_id, 1)
             if token:
                 await finish_tracked_delivery(token, status, getattr(message, "message_id", None))
-        await db.finish_optional_message(slot, status == "sent")
+        if slot is not None:
+            await db.finish_optional_message(slot, status == "sent")
         try:
             await db.log_bot_message(kind="broadcast", source="manual", telegram_id=telegram_id,
                 first_name=row.get("first_name"), title=_broadcast_title(tpl), body=body, status=status, extra=extra)
@@ -1771,7 +1806,36 @@ async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup):
     return await bot.send_message(telegram_id, body, reply_markup=markup)
 
 
+# Admin announcements to everyone: own buttons, no daily/weekly cap of optional messages.
+ANNOUNCE_TEMPLATES = {"gift3", "referral_news"}
+ANNOUNCE_DEFAULTS = {
+    "gift3": (
+        "🎁 <b>Дарим 3 дня VPN</b>\n\n"
+        "Нажмите кнопку ниже — начислим на баланс 3 дня бесплатного VPN для ваших устройств. "
+        "Подарок можно забрать в течение 7 дней."
+    ),
+    "referral_news": (
+        "👥 <b>Новая реферальная программа</b>\n\n"
+        "Пригласите друга по своей ссылке. Как только он откроет меню бота, "
+        "вы оба получите по 50 ₽ на баланс."
+    ),
+}
+
+
+def _announce_keyboard(template: str, gift_id: int | None = None):
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    if template == "gift3":
+        button = InlineKeyboardButton(text="Забрать 3 дня бесплатно", callback_data=f"fgift:{gift_id}", style="success")
+    else:
+        button = InlineKeyboardButton(text="Пригласить друзей", callback_data="share", style="success")
+    return InlineKeyboardMarkup(inline_keyboard=[[button]])
+
+
 def _broadcast_title(template: str) -> str:
+    if template == "gift3":
+        return "Рассылка: +3 дня всем"
+    if template == "referral_news":
+        return "Рассылка: новая реферальная программа"
     if template == "whitelist":
         return "Рассылка: белые списки включены"
     if template == "invite":
@@ -1896,6 +1960,8 @@ def _start_broadcast_job(
 
 def _broadcast_template_preview(template: str) -> str:
     settings = get_settings()
+    if template in ANNOUNCE_DEFAULTS:
+        return ANNOUNCE_DEFAULTS[template]
     if template == "invite":
         return _broadcast_payload("invite", "", 0, "друг", settings)[0].replace("ref_0", "ref_…")
     if template == "whitelist":
@@ -1931,17 +1997,27 @@ async def api_broadcast(request: web.Request) -> web.Response:
                 "invite": _broadcast_template_preview("invite"),
                 "unused": _broadcast_template_preview("unused"),
                 "whitelist": _broadcast_template_preview("whitelist"),
+                "gift3": _broadcast_template_preview("gift3"),
+                "referral_news": _broadcast_template_preview("referral_news"),
             }
         return web.json_response({"ok": True, **job, **extra})
     if job.get("running"):
         return web.json_response({"ok": False, "error": "Рассылка уже идёт", **job}, status=409)
     body = await request.json()
     template = str(body.get("template") or "").strip()
-    if template == "invite" and not get_settings().referral_program_enabled:
+    if template in {"invite", "referral_news"} and not get_settings().referral_program_enabled:
         return web.json_response({"ok": False, "error": "Реферальная программа приостановлена"}, status=400)
-    if template not in {"", "invite", "unused", "whitelist"}:
+    if template not in {"", "invite", "unused", "whitelist", *ANNOUNCE_TEMPLATES}:
         return web.json_response({"ok": False, "error": "Неизвестный шаблон"}, status=400)
     text = str(body.get("text") or "").strip()
+    if template in ANNOUNCE_TEMPLATES:
+        text = text or ANNOUNCE_DEFAULTS[template]
+        if len(text) > 3500:
+            return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
+        if not await db.list_broadcast_ids("all"):
+            return web.json_response({"ok": False, "error": "Нет получателей"}, status=400)
+        started = _start_broadcast_job(request.app, text, None, template)
+        return web.json_response({"ok": True, **started, "audiences": audiences})
     if template in {"invite", "unused", "whitelist"}:
         text = _broadcast_template_preview(template)
         audience = "using" if template == "invite" else "unused" if template == "unused" else "all"

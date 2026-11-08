@@ -27,10 +27,17 @@ const audiences: [string, string][] = [
 ];
 const templates: [string, string][] = [
   ["", "Своё сообщение"],
+  ["gift3", "+3 дня всем с текстом"],
+  ["referral_news", "Новая реферальная программа"],
   ["whitelist", "Белые списки включены"],
   ["invite", "Пригласить друзей"],
   ["unused", "Помощь с первым подключением"],
 ];
+// Announcements to everyone: editable text plus a fixed button.
+const announce: Record<string, string> = {
+  gift3: "Забрать 3 дня бесплатно",
+  referral_news: "Пригласить друзей",
+};
 function Delivery({ data }: { data: Data }) {
   return (
     <div className="rounded-lg border p-4 space-y-3" role="status">
@@ -74,12 +81,15 @@ export function BroadcastPage() {
         ? "using"
         : template === "unused"
           ? "unused"
-          : template === "whitelist"
+          : template === "whitelist" || template in announce
             ? "all"
             : audience,
     count = data?.audiences?.[effectiveAudience] ?? 0,
-    body = template ? data?.previews?.[template] || "" : text;
+    editable = !template || template in announce,
+    body = editable ? text : data?.previews?.[template] || "";
   const selectTemplate = (v: string) => {
+    if (v in announce) setText(data?.previews?.[v] || "");
+    else if (template in announce) setText("");
     setTemplate(v);
     setSent(false);
   };
@@ -89,7 +99,14 @@ export function BroadcastPage() {
       description: `Аудитория: ${audiences.find(([id]) => id === effectiveAudience)?.[1]}.\nПолучателей сейчас: ${count}. Фактическое число может измениться к началу отправки.\nСообщение отправится в Telegram. Отменить отправленное нельзя.`,
       label: "Отправить рассылку",
       action: async () => {
-        await api("broadcast", template ? { template } : { text, audience });
+        await api(
+          "broadcast",
+          template in announce
+            ? { template, text }
+            : template
+              ? { template }
+              : { text, audience },
+        );
         setSent(true);
         setText("");
         setTemplate("");
@@ -177,7 +194,7 @@ export function BroadcastPage() {
                   )}
                   {step === 1 && (
                     <>
-                      {template ? (
+                      {template && !editable ? (
                         <>
                           <div className="rounded-lg border p-4 whitespace-pre-wrap text-sm">
                             {body}
@@ -196,7 +213,7 @@ export function BroadcastPage() {
                       ) : (
                         <Field
                           label="Текст сообщения"
-                          hint={`${text.length} / 3500 символов. Поддерживается Telegram HTML.`}
+                          hint={`${text.length} / 3500 символов. Поддерживается Telegram HTML.${template in announce ? ` Под текстом будет кнопка «${announce[template]}».` : ""}`}
                         >
                           <Textarea
                             aria-label="Текст рассылки"
@@ -284,9 +301,11 @@ export function BroadcastPage() {
                   </div>
                   {
                     <div className="border rounded-lg mt-2 p-3 text-center text-sm text-muted-foreground">
-                      {template === "invite"
-                        ? "Поделиться реферальной ссылкой · Войти в кабинет"
-                        : "Войти в кабинет"}
+                      {template in announce
+                        ? announce[template]
+                        : template === "invite"
+                          ? "Поделиться реферальной ссылкой · Войти в кабинет"
+                          : "Войти в кабинет"}
                     </div>
                   }
                 </div>
