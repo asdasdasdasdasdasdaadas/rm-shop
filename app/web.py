@@ -16,7 +16,7 @@ from aiogram.enums import ParseMode
 from aiogram.types import LabeledPrice
 from aiogram.utils.web_app import safe_parse_webapp_init_data
 
-from app import db, runtime, ambassadors
+from app import db, runtime
 from app.admin import mount_admin
 from app.partners import mount_partners
 from app.billing import fulfill_rollypay_order
@@ -345,11 +345,6 @@ async def api_cabinet_login_status(request: web.Request) -> web.Response:
     return empty
 
 
-async def api_interface(request: web.Request) -> web.Response:
-    from app.interface_editor import public
-    return web.json_response(await public(), headers=_NO_STORE)
-
-
 async def api_me(request: web.Request) -> web.Response:
     settings = get_settings()
     telegram_id, parsed = await _resolve_telegram_id(request)
@@ -463,7 +458,6 @@ async def api_me(request: web.Request) -> web.Response:
             "brand_name": settings.brand_name,
             "balance_enabled": True,
             "promo_enabled": settings.promo_enabled,
-            "ambassador": await ambassadors.home_summary(telegram_id),
             "notification_settings_available": bool((local or {}).get("has_paid_topup")),
             "quiet_notifications": bool((local or {}).get("quiet_notifications")),
             "trial_available": trial_is_available(local),
@@ -1185,28 +1179,6 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
     return web.Response(text="OK")
 
 
-async def api_ambassador(request: web.Request) -> web.Response:
-    uid, denied = await _require_tg(request)
-    if denied is not None:
-        return denied
-    from app import ambassadors
-
-    try:
-        if request.method == "POST":
-            data = await request.json()
-            if not isinstance(data, dict):
-                raise ValueError("Некорректные данные")
-            if data.get("action") == "apply":
-                await ambassadors.apply(uid, data.get("application"))
-            elif data.get("action") == "payout":
-                await ambassadors.request_payout(uid, data.get("details"))
-            else:
-                raise ValueError("Неизвестное действие")
-        return web.json_response({"ok": True, **await ambassadors.overview(uid)})
-    except (ValueError, TypeError) as exc:
-        return json_error(str(exc))
-
-
 def build_web_app() -> web.Application:
     settings = get_settings()
     app = web.Application(client_max_size=80 * 1024 * 1024)
@@ -1248,10 +1220,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/api/tickets/files/{att_id}", api_ticket_file)
         app.router.add_post("/api/cabinet-leave", api_cabinet_leave)
         app.router.add_post("/api/story-share", api_story_share)
-        app.router.add_get("/api/ambassador", api_ambassador)
-        app.router.add_post("/api/ambassador", api_ambassador)
         app.router.add_post("/api/referral-payout", api_referral_payout)
-        app.router.add_get("/api/interface", api_interface)
         app.router.add_static("/static", WEBAPP_DIR)
     else:
         app.router.add_get("/", health)

@@ -27,7 +27,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { Download, Plus, RefreshCw } from "lucide-react";
+import { Download, Plus, RefreshCw, Trash2 } from "lucide-react";
 export const billKinds: Data = {
   charge: "Списание",
   disable: "Отключение",
@@ -725,26 +725,56 @@ export function BackupsPage() {
         await resource.reload();
       },
     });
+  const remove = (name: string) =>
+    confirm({
+      title: "Удалить резервную копию?",
+      description: `${name}.\nФайл будет удалён с сервера, вернуть его нельзя.`,
+      danger: true,
+      label: "Удалить копию",
+      action: async () => {
+        await api("backups/delete", { name });
+        toast.success("Копия удалена");
+        await resource.reload();
+      },
+    });
+  const pruneOld = () =>
+    confirm({
+      title: `Удалить копии старше ${resource.data?.keep_days} дней?`,
+      description: "Три самые свежие копии останутся, даже если они старше. Удалённые файлы вернуть нельзя.",
+      danger: true,
+      label: "Удалить старые",
+      action: async () => {
+        const res = await api("backups/delete", { action: "prune" });
+        toast.success(res.deleted ? `Удалено копий: ${res.deleted}` : "Старых копий нет");
+        await resource.reload();
+      },
+    });
   return (
     <div className="space-y-5">
       <Panel
         title="Резервные копии"
         description={
           resource.data
-            ? `Автоматическое создание — ежедневно в 00:01 МСК. Срок хранения: ${resource.data.keep_days} дней.`
+            ? `Автоматическое создание — ежедневно в 00:01 МСК. Копии старше ${resource.data.keep_days} дней удаляются сами, три последние остаются всегда.`
             : undefined
         }
         action={
-          <ActionButton
-            onAction={async () => {
-              await api("backups", {});
-              await resource.reload();
-              toast.success("Копия создана");
-            }}
-          >
-            <Plus />
-            Создать копию
-          </ActionButton>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={pruneOld} disabled={!resource.data}>
+              <Trash2 />
+              Удалить старые
+            </Button>
+            <ActionButton
+              onAction={async () => {
+                await api("backups", {});
+                await resource.reload();
+                toast.success("Копия создана");
+              }}
+            >
+              <Plus />
+              Создать копию
+            </ActionButton>
+          </div>
         }
       >
         {resource.error ? (
@@ -787,6 +817,15 @@ export function BackupsPage() {
                       onClick={() => restore(r.name, { name: r.name })}
                     >
                       Восстановить
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Удалить ${r.name}`}
+                      onClick={() => remove(r.name)}
+                    >
+                      <Trash2 />
+                      Удалить
                     </Button>
                   </div>
                 ),

@@ -90,8 +90,6 @@ html[data-design="modern"] #view-settings .wiz-kicker { display: none; }
 html[data-design="modern"] :is(.promo-inner,.payout-form .promo-inner) { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; }
 html[data-design="modern"] .promo-inner input { width: 100%; min-height: 52px; box-sizing: border-box; border-radius: 18px; }
 html[data-design="modern"] .promo-inner button { width: 100%; min-height: 48px; }
-html[data-design="modern"] .amb-stats { gap: 20px 12px; }
-html[data-design="modern"] .amb-card input { min-height: 50px; border-radius: 16px; background: var(--bg-surface-soft); }
 /* Support uses an opaque reading surface inside the glass shell. */
 html[data-design="modern"] .support-title-row { flex-wrap: wrap; gap: 10px; }
 html[data-design="modern"] .support-bubble.admin { background: var(--bg-surface); border-color: var(--divider); box-shadow: none; }

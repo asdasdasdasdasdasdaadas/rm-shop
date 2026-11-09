@@ -40,7 +40,7 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { Separator } from "@/components/ui/separator";
-import { Toaster, toast } from "sonner";
+import { Toaster } from "sonner";
 import {
   LayoutDashboard,
   Users,
@@ -48,8 +48,6 @@ import {
   Receipt,
   LifeBuoy,
   Megaphone,
-  Gift,
-  TicketPercent,
   Handshake,
   Send,
   GitBranch,
@@ -70,9 +68,8 @@ import { FinancePage } from "@/pages/finance";
 import { StatisticsPage } from "@/pages/statistics";
 import { OverviewPage } from "@/pages/overview";
 import { RecordsPage, BackupsPage } from "@/pages/records";
-import { InterfaceEditorPage } from "@/pages/interface-editor";
 import { SettingsPage } from "@/pages/settings";
-import { AdsPage, CampaignsPage, ReferralsPage } from "@/pages/marketing";
+import { AdsPage, ReferralsPage } from "@/pages/marketing";
 import { BroadcastPage } from "@/pages/communications";
 import { FunnelPage } from "@/pages/funnel";
 import "./theme.css";
@@ -134,13 +131,6 @@ const sections = [
     icon: Handshake,
   },
   {
-    id: "campaigns",
-    label: "Акции",
-    description: "Запуск, расписание и результаты отдельных акций",
-    group: "Привлечение и возврат",
-    icon: Gift,
-  },
-  {
     id: "ads",
     label: "Источники трафика",
     description: "Рекламные ссылки и конверсия привлечённых клиентов",
@@ -167,13 +157,6 @@ const sections = [
     description: "Проверяйте сообщения, ошибки и повторные отправки",
     group: "Коммуникации",
     icon: MessagesSquare,
-  },
-  {
-    id: "interface",
-    label: "Интерфейс вебаппа",
-    description: "Блоки, тексты, кнопки и оформление",
-    group: "Управление",
-    icon: LayoutDashboard,
   },
   {
     id: "settings",
@@ -499,9 +482,6 @@ function Workspace({
     case "users":
       page = <UsersPage />;
       break;
-    case "interface":
-      page = <InterfaceEditorPage />;
-      break;
     case "settings":
       page = <SettingsPage initial={params.get("section") || "general"} />;
       break;
@@ -510,9 +490,6 @@ function Workspace({
       break;
     case "ads":
       page = <AdsPage />;
-      break;
-    case "campaigns":
-      page = <CampaignsPage />;
       break;
     case "referrals":
       page = <ReferralsPage />;

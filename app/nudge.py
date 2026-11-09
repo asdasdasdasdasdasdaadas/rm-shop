@@ -202,11 +202,6 @@ async def send_due_invite_nudges(bot: Bot, skip_ids: list[int] | None = None) ->
     return sent, touched
 
 
-async def send_due_ambassador_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    # Keep the scheduler entry point, but do not recruit into a removed screen.
-    return 0, []
-
-
 async def send_due_info_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
     touched: list[int] = []
     if not await db.flag_on("info_nudge"):

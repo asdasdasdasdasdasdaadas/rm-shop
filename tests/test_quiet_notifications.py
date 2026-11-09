@@ -20,7 +20,7 @@ class QuietNotificationsTest(unittest.IsolatedAsyncioTestCase):
         with patch.object(db,'_pool_req',return_value=self.pool):
             self.assertFalse(await db.set_quiet_notifications(2,True))
             self.assertTrue(await db.set_quiet_notifications(1,True))
-            for kind in ('broadcast','nudge_idle','nudge_invite','nudge_payment','referral_campaign_start','first_device_thanks'):
+            for kind in ('broadcast','nudge_idle','nudge_invite','nudge_payment','first_device_thanks'):
                 self.assertFalse(await db.notification_allowed(1,kind))
             for kind in ('low_balance','nudge_trial_end','topup','support_reply','device_reissued'):
                 self.assertTrue(await db.notification_allowed(1,kind))

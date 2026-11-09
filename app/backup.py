@@ -53,17 +53,39 @@ def backup_path(name: str) -> Path | None:
     return path
 
 
-def _prune() -> None:
+KEEP_LATEST = 3  # never delete the newest copies, however old they are
+
+
+def _prune() -> int:
+    """Delete copies older than BACKUP_KEEP_DAYS, always keeping the newest KEEP_LATEST. Returns how many were deleted."""
     keep_days = max(1, get_settings().backup_keep_days)
     cutoff = datetime.now(timezone.utc) - timedelta(days=keep_days)
     files = sorted(backup_dir().glob("rm-shop-*.sql.gz"), key=lambda p: p.stat().st_mtime, reverse=True)
+    deleted = 0
     for i, path in enumerate(files):
         mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
-        if i >= 7 and mtime < cutoff:
+        if i >= KEEP_LATEST and mtime < cutoff:
             try:
                 path.unlink()
+                deleted += 1
             except OSError:
                 logger.exception("Не удалось удалить старый бэкап %s", path.name)
+    return deleted
+
+
+def prune_old_backups() -> int:
+    return _prune()
+
+
+def delete_backup(name: str) -> None:
+    """Delete one copy by name; the newest copy is kept so there is always something to restore."""
+    path = backup_path(name)
+    if not path:
+        raise ValueError("Файл не найден")
+    newest = max(backup_dir().glob("rm-shop-*.sql.gz"), key=lambda p: p.stat().st_mtime)
+    if path.resolve() == newest.resolve():
+        raise ValueError("Самую свежую копию удалить нельзя")
+    path.unlink()
 
 
 def _sql_literal(value) -> str:
@@ -196,6 +218,12 @@ async def _prune_billing_events() -> None:
 
 async def backup_loop(_bot: Bot | None = None) -> None:
     await asyncio.sleep(45)
+    try:
+        deleted = _prune()
+        if deleted:
+            logger.info("Удалено старых бэкапов: %s", deleted)
+    except Exception:
+        logger.exception("Очистка старых бэкапов не удалась")
     try:
         await _prune_billing_events()
     except Exception:

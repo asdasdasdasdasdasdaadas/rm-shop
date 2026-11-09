@@ -23,6 +23,8 @@ from app.backup import (
     MAX_UPLOAD,
     backup_path,
     create_backup,
+    delete_backup,
+    prune_old_backups,
     list_backups,
     restore_backup,
     seconds_until_msk_0001,
@@ -113,7 +115,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "119"})
+    return web.json_response({"ok": True, "build": "120"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -150,30 +152,6 @@ async def api_session(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "auth": False}, status=401)
     settings = get_settings()
     return web.json_response({"ok": True, "auth": True, "brand": settings.brand_name})
-
-
-async def api_ambassadors(request: web.Request) -> web.Response:
-    denied = _need_auth(request)
-    if denied is not None:
-        return denied
-    from app import ambassadors
-
-    try:
-        if request.method == "POST":
-            data = await request.json()
-            if not isinstance(data, dict):
-                raise ValueError("Некорректные данные")
-            await ambassadors.admin_action(data)
-        page = max(1, int(request.query.get("page", "1")))
-        uid = int(request.query.get("uid", "0")) or None
-        result = await ambassadors.admin_data(
-            page, uid,
-            request.query.get("section", "members"),
-            request.query.get("status", ""),
-        )
-        return web.json_response({"ok": True, **result})
-    except (ValueError, TypeError) as exc:
-        return web.json_response({"ok": False, "error": str(exc)}, status=400)
 
 
 async def api_winback_statistics(request: web.Request) -> web.Response:
@@ -470,7 +448,6 @@ async def api_device_reissue(request: web.Request) -> web.Response:
 
 async def _funnel_catalog(recipient: int):
     from app.funnel_test import catalog, SCENARIOS
-    from app.ambassadors import settings as ambassador_settings
     try:
         from app.funnel_board import load, preview
         rows, scenarios = preview(await load(), recipient)
@@ -478,7 +455,7 @@ async def _funnel_catalog(recipient: int):
             return rows, {key: (title, steps) for key, title, steps in scenarios}
     except Exception:
         logger.debug("Тест показывает запасной каталог воронки", exc_info=True)
-    rows = catalog(recipient, await ambassador_settings())
+    rows = catalog(recipient)
     return rows, SCENARIOS
 
 
@@ -1007,17 +984,11 @@ async def _retry_markup_base(kind: str, telegram_id: int, extra: dict | None):
             return share_keyboard(settings.bot_username, telegram_id)
         if tpl == "unused":
             return cabinet_keyboard()
-        if tpl == "ambassador":
-            from app.keyboards import ambassador_keyboard
-            return ambassador_keyboard()
         return None
     if kind == "nudge_payment":
         return payment_nudge_keyboard()
     if kind.startswith("referral_"):
         return with_referral_share(telegram_id, cabinet_keyboard())
-    if kind == "nudge_ambassador":
-        from app.keyboards import ambassador_keyboard
-        return ambassador_keyboard()
     if kind == "nudge_invite":
         return share_keyboard(settings.bot_username, telegram_id)
     if kind == "nudge_trial":
@@ -1055,7 +1026,7 @@ async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
     if kind == "nudge_winback":
         return False, "Персональный код повторяет автоматическая очередь с проверкой срока и лимитов"
     if row.get("source") == "campaign":
-        return False, "Повторите временные ошибки в статистике акции: там исключаются доставленные сообщения"
+        return False, "Сообщения прошлых акций повторно не отправляются"
     if kind in _MSG_RETRY_SKIP:
         return False, "Это входящее обращение, его нельзя отправить"
     if not telegram_id:
@@ -1695,9 +1666,6 @@ async def _broadcast_all(
     template: str | None = None,
 ) -> None:
     tpl = str(template or "").strip()
-    if tpl == "ambassador":
-        job["running"] = False
-        return
     if tpl in {"invite", "unused"}:
         audience = "using" if tpl == "invite" else "unused"
         targets = await db.list_broadcast_targets(audience)
@@ -1711,7 +1679,6 @@ async def _broadcast_all(
     if job.get("run_id"):
         await db.update_broadcast_run(job["run_id"], job)
     settings = get_settings()
-    ambassador_cfg = None
     for row in targets:
         if not job.get("running"):
             break
@@ -1742,7 +1709,7 @@ async def _broadcast_all(
         elif announce:
             body, markup = text, _announce_keyboard(tpl)
         else:
-            body, markup = _broadcast_payload(tpl, text, telegram_id, row.get("first_name"), settings, ambassador_cfg)
+            body, markup = _broadcast_payload(tpl, text, telegram_id, row.get("first_name"), settings)
         extra = {"template": tpl or "custom", "broadcast_id": job.get("run_id")}
         if gift_id:
             extra["gift_id"] = gift_id
@@ -1784,9 +1751,6 @@ async def _broadcast_all(
         else:
             job["sent"] = int(job.get("sent") or 0) + 1
             status = "sent"
-            if tpl == "ambassador":
-                from app.ambassadors import mark_invitation_sent
-                await mark_invitation_sent(telegram_id, 1)
             if token:
                 await finish_tracked_delivery(token, status, getattr(message, "message_id", None))
         if slot is not None:
@@ -1843,8 +1807,6 @@ def _broadcast_title(template: str) -> str:
         return "Рассылка: пользуются VPN"
     if template == "unused":
         return "Рассылка: не подключались"
-    if template == "ambassador":
-        return "Рассылка: приглашение в амбассадоры"
     return "Рассылка"
 
 
@@ -1858,7 +1820,6 @@ def _broadcast_payload(
     telegram_id: int,
     first_name: str | None,
     settings,
-    ambassador_cfg=None,
 ) -> tuple[str, object]:
     if template == "invite":
         if not settings.referral_program_enabled:
@@ -1882,12 +1843,6 @@ def _broadcast_payload(
             name=escape(str(first_name or "друг")),
         )
         return body, cabinet_keyboard()
-    if template == "ambassador":
-        from app.ambassadors import invitation_text
-        from app.keyboards import ambassador_keyboard
-        cfg = ambassador_cfg if ambassador_cfg is not None else dict(
-            first_percent=100, first_cap=500, recurring_percent=5, payout_min=2000, hold_days=14)
-        return invitation_text(cfg), ambassador_keyboard()
     if template == "whitelist":
         return text, cabinet_keyboard()
     return text, None
@@ -2154,30 +2109,6 @@ async def api_broadcast(request: web.Request) -> web.Response:
     return web.json_response(payload, status=status)
 
 
-async def api_referral_campaigns(request: web.Request) -> web.Response:
-    denied = _need_auth(request)
-    if denied:
-        return denied
-    try:
-        if request.method == 'GET' and request.query.get('campaign_id'):
-            return web.json_response(await db.admin_referral_campaign_stats(
-                int(request.query['campaign_id']), int(request.query.get('page','1'))))
-        if request.method == 'POST':
-            body = await request.json()
-            if body.get('action') == 'retry_failed':
-                count = await db.retry_campaign_failures(int(body.get('campaign_id') or 0))
-                return web.json_response({'ok': True, 'queued': count})
-            from app.campaigns import parse_campaign_moscow_time
-            scheduled_at = parse_campaign_moscow_time(body.get('scheduled_at')) if body.get('action') == 'schedule' else None
-            await db.change_referral_campaign(body.get('action'),
-                int(body['campaign_id']) if body.get('campaign_id') else None, scheduled_at)
-        return web.json_response({'items': await db.admin_referral_campaigns(),
-            'scheduled_at': await db.get_referral_campaign_schedule(),
-            'next_reward_rub': int(get_settings().vpn_day_price_rub) * 90})
-    except (ValueError, TypeError) as exc:
-        return web.json_response({'error': str(exc)}, status=400)
-
-
 async def api_referral_settings(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2189,31 +2120,6 @@ async def api_referral_settings(request: web.Request) -> web.Response:
     except Exception:
         logger.exception("Не удалось сохранить реферальную программу")
         return web.json_response({"ok": False, "error": "Не удалось сохранить реферальную программу"}, status=500)
-
-
-async def api_interface_editor(request: web.Request) -> web.Response:
-    denied = _need_auth(request)
-    if denied:
-        return denied
-    from app import interface_editor
-    try:
-        data = await interface_editor.state() if request.method == 'GET' else await interface_editor.change(await request.json())
-        return web.json_response(data, headers=_NO_STORE)
-    except ValueError as exc:
-        return web.json_response({'ok': False, 'error': str(exc)}, status=400)
-
-
-async def interface_preview(request: web.Request) -> web.Response:
-    denied = _need_auth(request)
-    if denied:
-        return denied
-    import re
-    from app.interface_editor import WEBAPP
-    html = (WEBAPP / 'index.html').read_text()
-    html = re.sub(r'<script\b[^>]*>.*?</script>', '', html, flags=re.S)
-    html = html.replace('<head>', '<head><base href="/static/">')
-    html = html.replace('</body>', '<script src="/static/interface-editor.js?v=5"></script><script src="/static/interface-preview.js?v=5"></script></body>')
-    return web.Response(text=html, content_type='text/html', headers=_NO_STORE)
 
 
 async def api_settings(request: web.Request) -> web.Response:
@@ -2320,6 +2226,25 @@ async def api_backup_create(request: web.Request) -> web.Response:
         logger.exception("Ручной бэкап не удался")
         return web.json_response({"ok": False, "error": str(exc)[:300]}, status=500)
     return web.json_response(result)
+
+
+async def api_backup_delete(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    body = await request.json()
+    try:
+        if body.get("action") == "prune":
+            deleted = prune_old_backups()
+        else:
+            delete_backup(str(body.get("name") or ""))
+            deleted = 1
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    except OSError:
+        logger.exception("Не удалось удалить бэкап")
+        return web.json_response({"ok": False, "error": "Не удалось удалить файл"}, status=500)
+    return web.json_response({"ok": True, "deleted": deleted, "items": list_backups()})
 
 
 async def api_backup_file(request: web.Request) -> web.Response:
@@ -2685,8 +2610,6 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/session", api_session)
     app.router.add_get("/admin/api/stats", api_stats)
     app.router.add_get("/admin/api/statistics/winback", api_winback_statistics)
-    app.router.add_get("/admin/api/ambassadors", api_ambassadors)
-    app.router.add_post("/admin/api/ambassadors", api_ambassadors)
     app.router.add_get("/admin/api/statistics", api_statistics)
     app.router.add_get("/admin/api/users", api_users)
     app.router.add_get("/admin/api/users/{telegram_id}/devices", api_user_devices)
@@ -2716,13 +2639,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/tickets/{ticket_id}", api_ticket_one)
     app.router.add_post("/admin/api/tickets/{ticket_id}", api_ticket_act)
     app.router.add_get("/admin/api/billing", api_billing)
-    app.router.add_get("/admin/api/interface", api_interface_editor)
-    app.router.add_post("/admin/api/interface", api_interface_editor)
-    app.router.add_get("/admin/interface-preview", interface_preview)
     app.router.add_get("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/settings", api_settings)
-    app.router.add_get("/admin/api/referral-campaigns", api_referral_campaigns)
-    app.router.add_post("/admin/api/referral-campaigns", api_referral_campaigns)
     app.router.add_post("/admin/api/settings/referrals", api_referral_settings)
     app.router.add_post("/admin/api/users/purge-bot-blockers", api_purge_bot_blockers)
     app.router.add_post("/admin/api/users/{telegram_id}/grant", api_grant)
@@ -2751,5 +2669,6 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/backups", api_backups)
     app.router.add_post("/admin/api/backups", api_backup_create)
     app.router.add_post("/admin/api/backups/restore", api_backup_restore)
+    app.router.add_post("/admin/api/backups/delete", api_backup_delete)
     app.router.add_get("/admin/api/backups/{name}", api_backup_file)
     app.router.add_static("/admin/static", ADMIN_DIR)

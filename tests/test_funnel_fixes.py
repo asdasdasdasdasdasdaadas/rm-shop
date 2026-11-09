@@ -2,7 +2,7 @@ import unittest
 from contextlib import ExitStack
 from unittest.mock import AsyncMock, patch
 from types import SimpleNamespace
-from app import db, referrals, keyboards, notices, nudge, campaigns
+from app import db, referrals, keyboards, notices, nudge
 from app.config import Settings
 
 
@@ -34,15 +34,6 @@ class FunnelFixesTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(active & notices.ARCHIVED_NOTICE_KEYS)
         self.assertIn('device_created_next_step',active)
         self.assertIn('trial_resume_channel',active)
-
-    async def test_campaign_cap_defers_instead_of_losing_announcement(self):
-        bot=AsyncMock()
-        with patch.object(db,'notification_allowed',AsyncMock(return_value=True)), \
-             patch.object(db,'reserve_optional_message',AsyncMock(return_value=None)), \
-             patch.object(db,'defer_campaign_message',AsyncMock()) as defer:
-            await campaigns.deliver_campaign_message(bot,dict(telegram_id=1,campaign_id=9,reward_rub=540))
-        bot.send_message.assert_not_awaited()
-        defer.assert_awaited_once_with(9,1)
 
     async def test_trial_reminder_matches_welcome_channel_or_cabinet(self):
         for pending,channel,expected in [(True,False,'Я помогу'),(False,False,'канал'),(False,True,'подарок')]:

@@ -10,7 +10,7 @@ from app.texts import days_text, rub_text
 from app.referrals import topup_ok_text
 
 
-def catalog(telegram_id: int, ambassador_cfg=None) -> list[dict]:
+def catalog(telegram_id: int) -> list[dict]:
     s = get_settings()
     from app.winback import message as winback_message, keyboard as winback_keyboard
     rows = []
@@ -72,22 +72,6 @@ def catalog(telegram_id: int, ambassador_cfg=None) -> list[dict]:
     add('unpaid_2', 'unpaid', 'Без первой оплаты, повтор',
         'Прошла неделя после первого напоминания, оплаты всё ещё нет.',
         notice_text('unpaid_2'), payment_nudge_keyboard(label='Пополнить баланс'))
-    from app.ambassadors import invitation_text
-    from app.keyboards import ambassador_keyboard
-    cfg = ambassador_cfg or dict(first_percent=100,first_cap=500,recurring_percent=5,payout_min=2000,hold_days=14)
-    add('ambassador','ambassador','Приглашение в амбассадоры',
-        'Платил, подключился не менее 7 дней назад и был онлайн за последние 3 дня. Только при открытом наборе, начислениях и доступном бюджете.',
-        invitation_text(cfg), ambassador_keyboard())
-    from app.ambassadors import invitation_followup_text, invitation_earn_text, invitation_earn_followup_text
-    add('ambassador_2','ambassador','Приглашение в амбассадоры, повтор',
-        'Через 7 дней после первого приглашения, если заявки всё ещё нет и условия те же.',
-        invitation_followup_text(cfg), ambassador_keyboard())
-    add('ambassador_earn','ambassador_earn','Заработок: баланс кончился или оплаты не было',
-        'Двое суток после запуска. Человек не платил или баланс уже закончился. Набор открыт.',
-        invitation_earn_text(cfg), ambassador_keyboard())
-    add('ambassador_earn_2','ambassador_earn','Заработок: повтор',
-        'Через 7 дней, если заявки всё ещё нет.',
-        invitation_earn_followup_text(cfg), ambassador_keyboard())
     for row in rows:
         kind = MESSAGE_KINDS.get(row['id'])
         row['kind'] = kind
@@ -98,12 +82,10 @@ def catalog(telegram_id: int, ambassador_cfg=None) -> list[dict]:
         )
         if row['id'] == 'gift_claimed':
             row['condition'] = 'Только пример текста. Отдельное автоматическое напоминание этого типа не отправляется.'
-    return [row for row in rows if row['id'] not in {'winback','ambassador','ambassador_2','ambassador_earn','ambassador_earn_2'}]
+    return [row for row in rows if row['id'] != 'winback']
 
 
 MESSAGE_KINDS = {
-    'ambassador': 'nudge_ambassador', 'ambassador_2': 'nudge_ambassador',
-    'ambassador_earn': 'nudge_ambassador', 'ambassador_earn_2': 'nudge_ambassador',
     'winback': 'nudge_winback',
     'welcome': 'welcome_intro', 'intro': 'welcome_intro', 'support': 'welcome_intro',
     'resume_welcome': 'nudge_trial', 'resume_channel': 'nudge_trial', 'gift': 'nudge_trial', 'device': 'first_device_thanks', 'setup': 'nudge_device',

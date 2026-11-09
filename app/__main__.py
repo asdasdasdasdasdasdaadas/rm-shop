@@ -175,15 +175,11 @@ async def main() -> None:
             except Exception:
                 logger.warning("Не удалось выставить имя бота в Telegram из названия сервиса")
         from app.billing import payment_effects_loop
-        from app.ambassadors import application_review_loop
         payment_effects_task = asyncio.create_task(payment_effects_loop(rw, bot), name="payment-effects")
-        review_task = asyncio.create_task(application_review_loop(bot), name="ambassador-review")
         sync_task = asyncio.create_task(panel_sync_loop(rw), name="panel-sync")
         charge_task = asyncio.create_task(balance_charge_loop(rw, bot), name="balance-charge")
         stale_task = asyncio.create_task(stale_records_loop(), name="stale-records")
         dump_task = asyncio.create_task(backup_loop(bot), name="backup")
-        from app.campaigns import campaign_announcement_loop
-        campaign_task = asyncio.create_task(campaign_announcement_loop(bot), name="campaign-announcements")
         from app.activity_digest import digest_loop
         digest_task = asyncio.create_task(digest_loop(bot), name="activity-digest")
         nudge_task = asyncio.create_task(trial_nudge_loop(bot, rp), name="trial-nudge")
@@ -197,15 +193,12 @@ async def main() -> None:
             digest_task.cancel()
             await asyncio.gather(digest_task, return_exceptions=True)
             payment_effects_task.cancel()
-            review_task.cancel()
-            await asyncio.gather(payment_effects_task, review_task, return_exceptions=True)
+            await asyncio.gather(payment_effects_task, return_exceptions=True)
             sync_task.cancel()
             charge_task.cancel()
             stale_task.cancel()
             dump_task.cancel()
             nudge_task.cancel()
-            campaign_task.cancel()
-            await asyncio.gather(campaign_task, return_exceptions=True)
     finally:
         await runner.cleanup()
         if rp is not None:

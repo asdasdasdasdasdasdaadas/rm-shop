@@ -155,7 +155,6 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         second=await db.reserve_optional_message(1,'broadcast')
         self.assertIsNotNone(second)
         await db.finish_optional_message(second,True)
-        self.assertIsNone(await db.reserve_optional_message(1,'referral_campaign_start'))
         for kind in ('nudge_trial_end','nudge_payment','first_device_thanks'):
             self.assertFalse(db.is_marketing_message(kind))
         await self.pool.execute("UPDATE optional_message_slots SET sent_at=NOW()-INTERVAL '2 days'")
@@ -218,17 +217,6 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute('DROP TRIGGER fail_log ON billing_events')
         await self.credit('stars:retryable')
         self.assertEqual(await self.balance(),100)
-
-    async def test_pending_payment_cannot_join_new_campaign_retroactively(self):
-        await self.pool.execute('INSERT INTO users (telegram_id) VALUES (2)')
-        await self.pool.execute('UPDATE users SET referred_by=2 WHERE telegram_id=1')
-        receipt=await self.credit()
-        await self.pool.execute('INSERT INTO referral_campaigns (reward_rub) VALUES (540)')
-        result=await db.reward_referral_payment(1,receipt['payment_key'],100,enabled=True,
-            first_payment=True,paid_at=receipt['created_at'])
-        self.assertEqual(result['amount'],55)
-        self.assertIsNone(result['campaign'])
-        self.assertEqual(await self.pool.fetchval('SELECT COUNT(*) FROM referral_campaign_friends'),0)
 
     async def test_gift_setup_online_payment_path_with_real_selections(self):
         from app import keyboards
@@ -532,19 +520,3 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         await self.pool.query(db.SCHEMA_PATH.read_text(),script=True)
         self.assertEqual((await db.invitation_card_statistics(90))['clicks'],5)
 
-    async def test_interface_draft_publish_and_rollback(self):
-        import copy
-        from app import interface_editor as editor
-        first=await editor.state()
-        draft=copy.deepcopy(first['draft'])
-        draft['texts']['devices_title']='Подключитесь за минуту'
-        saved=await editor.change(dict(action='save',revision=first['revision'],config=draft))
-        self.assertEqual((await editor.public())['config'],editor.DEFAULT)
-        published=await editor.change(dict(action='publish',revision=saved['revision'],config=draft))
-        self.assertEqual((await editor.public())['config'],draft)
-        self.assertTrue(published['can_rollback'])
-        rolled=await editor.change(dict(action='rollback',revision=published['revision']))
-        self.assertEqual(rolled['published'],editor.DEFAULT)
-        with self.assertRaises(ValueError):
-            await editor.change(dict(action='publish',revision=first['revision'],config=draft))
-        self.assertEqual((await editor.public())['config'],editor.DEFAULT)

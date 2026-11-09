@@ -156,7 +156,6 @@ async def upsert_user(
                 username = EXCLUDED.username,
                 first_name = EXCLUDED.first_name,
                 referred_by = CASE
-                    WHEN EXISTS (SELECT 1 FROM ambassador_clients ac WHERE ac.telegram_id=users.telegram_id) THEN users.referred_by
                     WHEN users.referred_by IS NOT NULL THEN users.referred_by
                     WHEN EXCLUDED.referred_by IS NULL THEN users.referred_by
                     WHEN users.referral_rewarded
@@ -1811,7 +1810,7 @@ async def delete_user(telegram_id: int) -> bool:
     pool = _pool_req()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            # Serialize with campaign enrollment/awards and lock the parent before cleanup.
+            # Serialize with referral rewards and lock the parent before cleanup; old promotion rows still reference users.
             await conn.execute('SELECT pg_advisory_xact_lock(73619420)')
             exists = await conn.fetchval("SELECT 1 FROM users WHERE telegram_id = $1 FOR UPDATE", telegram_id)
             if not exists:
@@ -4101,23 +4100,16 @@ async def broadcast_audience_counts() -> dict:
         FROM users
         """
     )
-    from app.ambassadors import invitation_audience_count
     return {
         "all": int((row and row["all_n"]) or 0),
         "using": int((row and row["using_n"]) or 0),
         "unused": int((row and row["unused_n"]) or 0),
-        "ambassador": await invitation_audience_count(),
     }
 
 
 async def list_broadcast_targets(audience: str = "all") -> list[dict]:
     extra = ""
     kind = str(audience or "all").strip()
-    if kind == "ambassador":
-        from app.ambassadors import due_invitations, recruitment_offer
-        if not await recruitment_offer():
-            return []
-        return await due_invitations(1_000_000, [], first_only=True)
     if kind == "using":
         extra = "AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)"
     elif kind == "unused":
@@ -5078,11 +5070,8 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
                 payment_key, invitee_id, referrer_id, amount, enabled)
             if not inserted:
                 return None
-            if await conn.fetchval('SELECT 1 FROM ambassador_clients WHERE telegram_id=$1',invitee_id):
-                return None
-            campaign = await _reward_campaign(conn, invitee_id, referrer_id, payment_key, first_payment, paid_at)
             if not enabled or not referrer_id or referrer_id == invitee_id:
-                return {'referrer_id': referrer_id, 'amount': 0, 'campaign': campaign} if campaign else None
+                return None
             referrer = await conn.fetchrow(
                 "SELECT referral_fraction FROM users WHERE telegram_id=$1 FOR UPDATE", referrer_id)
             if not referrer:
@@ -5103,7 +5092,7 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
                     """INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
                        VALUES ($1,'referral','payment',$2,$3,$4)""", referrer_id,reward,after,
                     f"Друг {invitee_id}: бонус за первую оплату {bonus} ₽; {payment_key}")
-            return {'referrer_id':referrer_id,'amount':reward,'bonus':bonus,'percent':percent,'campaign':campaign}
+            return {'referrer_id':referrer_id,'amount':reward,'bonus':bonus,'percent':percent}
 
 
 async def nudge_delivery_allowed(telegram_id: int, kind: str) -> bool:
@@ -5249,204 +5238,6 @@ async def admin_reminder_results() -> dict:
         SELECT telegram_id,kind,title,body,created_at,status,clicked_at,connected_at,paid_after
         FROM results ORDER BY created_at DESC LIMIT 30""")
     return {"groups":[dict(row) for row in grouped],"recent":[_jsonable(dict(row)) for row in recent]}
-
-
-async def admin_referral_campaigns() -> list[dict]:
-    rows = await _pool_req().fetch("""
-        SELECT c.*,
-          (SELECT COUNT(*) FROM referral_campaign_friends f WHERE f.campaign_id=c.id) AS friends,
-          (SELECT COUNT(*) FROM referral_campaign_awards a WHERE a.campaign_id=c.id) AS awards,
-          (SELECT COUNT(*) FROM referral_campaign_messages m WHERE m.campaign_id=c.id AND m.status='sent') AS sent,
-          (SELECT COUNT(*) FROM referral_campaign_messages m WHERE m.campaign_id=c.id AND m.status='failed') AS failed,
-          (SELECT COUNT(*) FROM referral_campaign_messages m WHERE m.campaign_id=c.id AND m.status IN ('pending','sending')) AS pending
-        FROM referral_campaigns c ORDER BY c.id DESC LIMIT 20""")
-    return [_jsonable(dict(r)) for r in rows]
-
-
-async def change_referral_campaign(action: str, campaign_id: int | None = None,
-                                   scheduled_at: datetime | None = None) -> None:
-    if action not in ('start', 'stop', 'schedule', 'cancel_schedule', 'scheduled_start'):
-        raise ValueError('Неизвестное действие')
-    settings = get_settings()
-    if action in ('start', 'schedule') and settings.vpn_day_price_rub <= 0:
-        raise ValueError('Акция доступна при положительной цене дня')
-    async with _pool_req().acquire() as conn:
-        async with conn.transaction():
-            await conn.execute('SELECT pg_advisory_xact_lock(73619420)')
-            if action == 'cancel_schedule':
-                await conn.execute('DELETE FROM referral_campaign_schedule WHERE id=1')
-                return
-            if action == 'schedule':
-                if scheduled_at is None or scheduled_at <= _utc_now():
-                    raise ValueError('Выберите дату и время в будущем по МСК')
-                if await conn.fetchval('SELECT id FROM referral_campaigns WHERE stopped_at IS NULL'):
-                    raise ValueError('Сначала завершите текущую акцию')
-                await conn.execute("""INSERT INTO referral_campaign_schedule (id,scheduled_at) VALUES (1,$1)
-                    ON CONFLICT (id) DO UPDATE SET scheduled_at=excluded.scheduled_at""", scheduled_at)
-                return
-            if action == 'scheduled_start':
-                due = await conn.fetchval("""DELETE FROM referral_campaign_schedule
-                    WHERE id=1 AND scheduled_at <= $1 RETURNING scheduled_at""", _utc_now())
-                if due is None:
-                    return
-                if settings.vpn_day_price_rub <= 0:
-                    raise ValueError('Нельзя запустить акцию: проверьте цену дня')
-                action = 'start'
-            if action == 'start':
-                await conn.execute('DELETE FROM referral_campaign_schedule WHERE id=1')
-                new_id = await conn.fetchval("""INSERT INTO referral_campaigns (reward_rub)
-                    SELECT $1 WHERE NOT EXISTS
-                    (SELECT 1 FROM referral_campaigns WHERE stopped_at IS NULL) RETURNING id""",
-                    int(settings.vpn_day_price_rub) * 30 * 3)
-                if new_id:
-                    await conn.execute("""INSERT INTO referral_campaign_messages (campaign_id,telegram_id)
-                        SELECT $1,telegram_id FROM users WHERE bot_started_at IS NOT NULL
-                        AND blocked_at IS NULL AND bot_blocked_at IS NULL AND quiet_notifications = FALSE""", new_id)
-            else:
-                await conn.execute("""UPDATE referral_campaigns SET stopped_at=clock_timestamp()
-                    WHERE id=$1 AND stopped_at IS NULL""", campaign_id)
-                await conn.execute("""UPDATE referral_campaign_messages SET status='cancelled'
-                    WHERE campaign_id=$1 AND status='pending'""", campaign_id)
-
-
-async def _reward_campaign(conn, invitee_id: int, referrer_id: int | None,
-                           payment_key: str, first_payment: bool, paid_at: datetime | None = None) -> dict | None:
-    # Caller holds the campaign advisory lock and provider-payment deduplication row.
-    if not first_payment or not referrer_id or referrer_id == invitee_id:
-        return None
-    if paid_at is None:
-        campaign = await conn.fetchrow('SELECT * FROM referral_campaigns WHERE stopped_at IS NULL')
-    else:
-        campaign = await conn.fetchrow('''SELECT * FROM referral_campaigns WHERE started_at <= $1
-            AND (stopped_at IS NULL OR stopped_at > $1) ORDER BY started_at DESC LIMIT 1''', paid_at)
-    if not campaign:
-        return None
-    inserted = await conn.fetchval("""INSERT INTO referral_campaign_friends
-        (invitee_id,campaign_id,referrer_id,payment_key) VALUES ($1,$2,$3,$4)
-        ON CONFLICT DO NOTHING RETURNING invitee_id""",
-        invitee_id, campaign['id'], referrer_id, payment_key)
-    if not inserted:
-        return None
-    count = await conn.fetchval("""SELECT COUNT(*) FROM referral_campaign_friends
-        WHERE campaign_id=$1 AND referrer_id=$2""", campaign['id'], referrer_id)
-    if count < 3:
-        return None
-    amount = await conn.fetchval("""INSERT INTO referral_campaign_awards (campaign_id,referrer_id,amount)
-        VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING amount""",
-        campaign['id'], referrer_id, campaign['reward_rub'])
-    if amount is None:
-        return None
-    balance = await conn.fetchval("""UPDATE users SET balance_rub=COALESCE(balance_rub,0)+$2,
-        low_balance_notified_at=NULL WHERE telegram_id=$1 RETURNING balance_rub""", referrer_id, amount)
-    await conn.execute("""INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
-        VALUES ($1,'referral','campaign',$2,$3,$4)""", referrer_id, amount, balance,
-        f"Акция #{campaign['id']}: 3 друга, 30 дней на 3 устройства")
-    return {'referrer_id': referrer_id, 'amount': amount, 'campaign_id': campaign['id']}
-
-
-async def claim_campaign_message() -> dict | None:
-    await _pool_req().execute("""UPDATE referral_campaign_messages m SET status='cancelled'
-        WHERE (m.status='pending' OR (m.status='sending' AND m.retry_at <= NOW()))
-          AND (EXISTS (SELECT 1 FROM referral_campaigns c WHERE c.id=m.campaign_id AND c.stopped_at IS NOT NULL)
-            OR EXISTS (SELECT 1 FROM users u WHERE u.telegram_id=m.telegram_id
-                AND (u.blocked_at IS NOT NULL OR u.bot_blocked_at IS NOT NULL OR u.quiet_notifications)))""")
-    row = await _pool_req().fetchrow("""
-        WITH next AS (
-            SELECT m.campaign_id,m.telegram_id FROM referral_campaign_messages m
-            JOIN referral_campaigns c ON c.id=m.campaign_id
-            JOIN users u ON u.telegram_id=m.telegram_id
-            WHERE c.stopped_at IS NULL AND m.status IN ('pending','sending')
-              AND m.retry_at <= NOW() AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL AND u.quiet_notifications = FALSE
-            ORDER BY m.retry_at,m.telegram_id FOR UPDATE OF m SKIP LOCKED LIMIT 1
-        ), claimed AS (
-            UPDATE referral_campaign_messages m SET status='sending',attempts=attempts+1,
-                retry_at=NOW()+INTERVAL '5 minutes'
-            FROM next n WHERE m.campaign_id=n.campaign_id AND m.telegram_id=n.telegram_id
-            RETURNING m.*
-        ) SELECT claimed.*,c.reward_rub FROM claimed JOIN referral_campaigns c ON c.id=claimed.campaign_id
-    """)
-    return dict(row) if row else None
-
-
-async def finish_campaign_message(campaign_id: int, telegram_id: int, *, error: str | None = None,
-                                  retry_seconds: int | None = None, retryable: bool = False) -> None:
-    await _pool_req().execute("""UPDATE referral_campaign_messages
-        SET status=$3,error=$4,retryable=$6,sent_at=CASE WHEN $3='sent' THEN NOW() ELSE NULL END,
-            retry_at=NOW()+($5 * INTERVAL '1 second')
-        WHERE campaign_id=$1 AND telegram_id=$2""", campaign_id,telegram_id,
-        'sent' if error is None else 'pending' if retry_seconds is not None else 'failed',
-        error, retry_seconds or 0, retryable)
-
-
-async def get_referral_campaign_schedule() -> str | None:
-    value = await _pool_req().fetchval('SELECT scheduled_at FROM referral_campaign_schedule WHERE id=1')
-    return value.isoformat() if value else None
-
-
-_CAMPAIGN_PROGRESS_SQL = """
-    SELECT f.referrer_id,COUNT(*) AS friends,
-        COALESCE(SUM(p.topup_rub),0) AS paid_rub,
-        MAX(f.created_at) AS last_payment_at
-    FROM referral_campaign_friends f
-    LEFT JOIN referral_payment_rewards p ON p.payment_key=f.payment_key
-    WHERE f.campaign_id=$1 GROUP BY f.referrer_id
-"""
-
-
-async def admin_referral_campaign_stats(campaign_id: int, page: int = 1) -> dict:
-    pool = _pool_req()
-    campaign = await pool.fetchrow('SELECT * FROM referral_campaigns WHERE id=$1', campaign_id)
-    if not campaign:
-        raise ValueError('Акция не найдена')
-    summary = await pool.fetchrow("WITH progress AS (" + _CAMPAIGN_PROGRESS_SQL + """)
-        SELECT COUNT(*) AS participants,
-          COUNT(*) FILTER (WHERE friends=1) AS one_friend,
-          COUNT(*) FILTER (WHERE friends=2) AS two_friends,
-          COUNT(*) FILTER (WHERE friends>=3) AS completed,
-          COALESCE(SUM(friends),0) AS friends,
-          COALESCE(SUM(paid_rub),0) AS paid_rub FROM progress""", campaign_id)
-    awards = await pool.fetchrow("""SELECT COUNT(*) AS awards,COALESCE(SUM(amount),0) AS awarded_rub
-        FROM referral_campaign_awards WHERE campaign_id=$1""", campaign_id)
-    delivery = await pool.fetchrow("""SELECT COUNT(*) AS recipients,
-        COUNT(*) FILTER (WHERE status='sent') AS sent,
-        COUNT(*) FILTER (WHERE status IN ('pending','sending')) AS pending,
-        COUNT(*) FILTER (WHERE status='failed') AS failed,
-        COUNT(*) FILTER (WHERE status='cancelled') AS cancelled
-        FROM referral_campaign_messages WHERE campaign_id=$1""", campaign_id)
-    page = max(1,page)
-    rows = await pool.fetch("WITH progress AS (" + _CAMPAIGN_PROGRESS_SQL + """)
-        SELECT p.*,u.first_name,u.username,COALESCE(a.amount,0) AS award_rub,a.created_at AS awarded_at
-        FROM progress p JOIN users u ON u.telegram_id=p.referrer_id
-        LEFT JOIN referral_campaign_awards a ON a.campaign_id=$1 AND a.referrer_id=p.referrer_id
-        ORDER BY p.friends DESC,p.last_payment_at DESC,p.referrer_id
-        LIMIT 50 OFFSET $2""",campaign_id,(page-1)*50)
-    failures = await pool.fetch("""SELECT error,retryable,COUNT(*) AS count
-        FROM referral_campaign_messages WHERE campaign_id=$1 AND status='failed'
-        GROUP BY error,retryable ORDER BY count DESC,error LIMIT 30""",campaign_id)
-    retryable_count = await pool.fetchval("""SELECT COUNT(*) FROM referral_campaign_messages m
-        JOIN users u ON u.telegram_id=m.telegram_id
-        WHERE m.campaign_id=$1 AND m.status='failed' AND m.retryable=TRUE
-          AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL""",campaign_id)
-    return {'failures':[dict(row) for row in failures], 'retryable_count':int(retryable_count),
-            'campaign':_jsonable(dict(campaign)), 'summary':{key:int(value) for key,value in dict(summary).items()},
-            'awards':dict(awards),'delivery':dict(delivery),
-            'items':[_jsonable(dict(row)) for row in rows], 'page':page,'limit':50}
-
-
-async def retry_campaign_failures(campaign_id: int) -> int:
-    async with _pool_req().acquire() as conn:
-        async with conn.transaction():
-            await conn.execute('SELECT pg_advisory_xact_lock(73619420)')
-            active = await conn.fetchval('SELECT id FROM referral_campaigns WHERE id=$1 AND stopped_at IS NULL',campaign_id)
-            if not active:
-                raise ValueError('Повтор доступен только для действующей акции')
-            rows = await conn.fetch("""UPDATE referral_campaign_messages AS m
-                SET status='pending',attempts=0,retry_at=NOW()
-                WHERE campaign_id=$1 AND status='failed' AND retryable=TRUE
-                  AND EXISTS (SELECT 1 FROM users u WHERE u.telegram_id=m.telegram_id
-                    AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL AND u.quiet_notifications = FALSE)
-                RETURNING telegram_id""",campaign_id)
-    return len(rows)
 
 
 async def claim_balance_ending_notice(telegram_id: int, day_price: int) -> bool:
@@ -5663,7 +5454,7 @@ async def rate_user_ticket(telegram_id: int, ticket_id: int, rating: int) -> dic
 
 
 async def notification_allowed(telegram_id: int, kind: str) -> bool:
-    optional = (kind.startswith('nudge_') and kind != 'nudge_trial_end') or kind in {'broadcast', 'referral_campaign_start', 'first_device_thanks'}
+    optional = (kind.startswith('nudge_') and kind != 'nudge_trial_end') or kind in {'broadcast', 'first_device_thanks'}
     if not optional:
         return True
     return not bool(await _pool_req().fetchval(
@@ -5682,11 +5473,6 @@ async def set_quiet_notifications(telegram_id: int, quiet: bool) -> bool:
     return row is not None
 
 
-async def cancel_quiet_campaign_message(campaign_id: int, telegram_id: int) -> None:
-    await _pool_req().execute("""UPDATE referral_campaign_messages SET status='cancelled', retryable=FALSE
-        WHERE campaign_id=$1 AND telegram_id=$2 AND status='sending'""", campaign_id, telegram_id)
-
-
 async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str,
                               amount: int, router_days: int = 0, stars: int = 0) -> dict | None:
     """Atomic receipt, credit, accounting and provider state, serialized per customer."""
@@ -5695,8 +5481,6 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
     settings = get_settings()
     async with _pool_req().acquire() as conn:
         async with conn.transaction():
-            from app import ambassadors
-            await ambassadors.lock(conn)
             local = await conn.fetchrow('SELECT * FROM users WHERE telegram_id=$1 FOR UPDATE', telegram_id)
             if not local:
                 raise ValueError('Unknown payment user')
@@ -5740,9 +5524,7 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
                 VALUES ($1,$2,'pay',$3,$4,$5)''',telegram_id,'router' if router_days else 'topup',amount,after,plan_code)
             if provider == 'rollypay':
                 await conn.execute("UPDATE rollypay_orders SET status='granted',paid_at=NOW() WHERE order_id=$1", provider_id)
-            receipt = dict(receipt)
-            await ambassadors.reward(conn, receipt)
-            return receipt
+            return dict(receipt)
 
 
 async def pending_payment_effects() -> list[dict]:
@@ -5771,7 +5553,6 @@ async def reward_referral_menu(invitee_id: int, amount: int) -> dict | None:
                      AND referred_by IS NOT NULL AND referred_by <> telegram_id
                      AND NOT referral_rewarded
                      AND created_at > NOW() - INTERVAL '1 day'
-                     AND NOT EXISTS (SELECT 1 FROM ambassador_clients ac WHERE ac.telegram_id=users.telegram_id)
                      AND EXISTS (SELECT 1 FROM users r WHERE r.telegram_id=users.referred_by AND r.blocked_at IS NULL)
                    RETURNING referred_by, first_name""", invitee_id)
             if not invitee:
@@ -5801,7 +5582,7 @@ async def credit_invitee_bonus_once(telegram_id: int, amount: int) -> int | None
             after = await conn.fetchval('''UPDATE users SET referral_invitee_bonus_at=NOW(),
                 balance_rub=COALESCE(balance_rub,0)+$2,low_balance_notified_at=NULL
                 WHERE telegram_id=$1 AND referred_by IS NOT NULL AND referral_invitee_bonus_at IS NULL
-                AND has_paid_topup AND NOT EXISTS(SELECT 1 FROM ambassador_clients ac WHERE ac.telegram_id=users.telegram_id) RETURNING balance_rub''',telegram_id,amount)
+                AND has_paid_topup RETURNING balance_rub''',telegram_id,amount)
             if after is None:
                 return None
             await conn.execute('''INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
@@ -5838,7 +5619,7 @@ async def queue_connection_complaint(conn, telegram_id: int) -> None:
 
 
 def is_marketing_message(kind: str) -> bool:
-    return kind in {'broadcast', 'referral_campaign_start'} or (
+    return kind == 'broadcast' or (
         kind.startswith('nudge_') and kind not in {'nudge_payment', 'nudge_trial_end'})
 
 
@@ -5875,12 +5656,6 @@ async def finish_optional_message(slot: int, sent: bool) -> None:
         await _pool_req().execute('UPDATE optional_message_slots SET sent_at=NOW() WHERE id=$1',slot)
     else:
         await _pool_req().execute('DELETE FROM optional_message_slots WHERE id=$1 AND sent_at IS NULL',slot)
-
-
-async def defer_campaign_message(campaign_id: int, telegram_id: int) -> None:
-    await _pool_req().execute('''UPDATE referral_campaign_messages SET status='pending',
-        attempts=GREATEST(0,attempts-1),retry_at=NOW()+INTERVAL '24 hours'
-        WHERE campaign_id=$1 AND telegram_id=$2 AND status='sending' ''',campaign_id,telegram_id)
 
 
 async def funnel_message_stats() -> dict:

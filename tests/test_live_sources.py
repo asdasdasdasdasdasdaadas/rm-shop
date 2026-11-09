@@ -13,7 +13,6 @@ class LiveSourceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('&lt;Друг&gt;',text)
         self.assertIn('Без метки источника',live.acquisition_text({}))
         self.assertIn('не удалось получить',live.acquisition_text(None))
-        self.assertNotIn('Амбассадор',live.acquisition_text({'ambassador_id':42}))
         self.assertIn('История',live.acquisition_text({'ad_link_id':1,'ad_kind':'story'}))
 
     async def test_batch_loads_sources_once_and_posts_for_each_user(self):

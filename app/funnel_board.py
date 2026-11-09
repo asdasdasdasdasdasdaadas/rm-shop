@@ -49,7 +49,6 @@ ACTIONS = (
     {"id": "gift", "label": "Экран подарка", "button": "Забрать подарок и подключиться"},
     {"id": "connect", "label": "Подключение", "button": "Подключить VPN"},
     {"id": "topup", "label": "Пополнение баланса", "button": "Пополнить баланс"},
-    {"id": "ambassador", "label": "Раздел амбассадора", "button": "Стать амбассадором"},
     {"id": "help", "label": "Нужна помощь с подключением", "button": "Нужна помощь"},
     {"id": "welcome", "label": "Продолжить знакомство", "button": "Я помогу"},
     {"id": "channel", "label": "Подписка на канал", "button": "Подписаться на канал"},
@@ -110,20 +109,6 @@ CONDITIONS = (
      "where": """NOT COALESCE(u.has_paid_topup, FALSE) AND NOT COALESCE(u.trial_used, FALSE)
         AND u.gift_claimed_at IS NULL""",
      "hint": "Подарок включён, человек его не забрал и не оплачивал."},
-    {"id": "ambassador_earn", "label": "Амбассадор: ещё не зарабатывает", "anchor": "u.bot_started_at", "gate": "ambassador",
-     "where": """NOT EXISTS (SELECT 1 FROM ambassadors a WHERE a.telegram_id = u.telegram_id)
-        AND (NOT COALESCE(u.has_paid_topup, FALSE)
-             OR (COALESCE(u.balance_rub, 0) <= 0
-                 AND (u.balance_exhausted_at IS NOT NULL OR u.trial_used OR u.gift_claimed_at IS NOT NULL)))""",
-     "hint": "Набор амбассадоров открыт. Человек без оплаты или с уже пустым балансом."},
-    {"id": "ambassador_active", "label": "Амбассадор: стабильно пользуется", "anchor": "u.first_online_at", "gate": "ambassador",
-     "where": """COALESCE(u.has_paid_topup, FALSE)
-        AND u.balance_rub >= {price} * GREATEST(1, (SELECT COUNT(*) FROM devices d
-            WHERE d.telegram_id = u.telegram_id AND COALESCE(d.kind, '') <> 'router'))
-        AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
-            AND d.last_online_at > timezone('utc', now()) - INTERVAL '3 days')
-        AND NOT EXISTS (SELECT 1 FROM ambassadors a WHERE a.telegram_id = u.telegram_id)""",
-     "hint": "Набор открыт. Была оплата, хватает баланса на 3 дня и устройство было онлайн за последние 3 дня."},
     {"id": "invite", "label": "Можно пригласить друга", "anchor": "u.first_online_at", "gate": "referral",
      "where": """(u.vpn_feedback = 'ok' OR EXISTS (
             SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
@@ -142,6 +127,9 @@ from app.referral_followup import CONDITION as REFERRAL_FOLLOWUP_CONDITION
 CONDITIONS = CONDITIONS + RECOVERY_CONDITIONS + (REFERRAL_FOLLOWUP_CONDITION,)
 CONDITION_IDS = {row["id"]: row for row in CONDITIONS}
 SPECIAL_ONCE = {"unpaid_invoice", "balance_low", "winback"}
+# Removed features: boards saved earlier may still name them, so they are dropped on load.
+RETIRED_CONDITIONS = {"winback", "ambassador_earn", "ambassador_active"}
+RETIRED_ACTIONS = {"ambassador"}
 
 
 class _Safe(dict):
@@ -150,11 +138,11 @@ class _Safe(dict):
 
 
 def conditions_public() -> list[dict]:
-    return [{"id": row["id"], "label": row["label"], "hint": row["hint"]} for row in CONDITIONS if row["id"] not in {"winback","ambassador_earn","ambassador_active"}]
+    return [{"id": row["id"], "label": row["label"], "hint": row["hint"]} for row in CONDITIONS if row["id"] not in RETIRED_CONDITIONS]
 
 
 def actions_public() -> list[dict]:
-    return [{"id": row["id"], "label": row["label"], "button": row["button"]} for row in ACTIONS if row["id"] != "ambassador"]
+    return [{"id": row["id"], "label": row["label"], "button": row["button"]} for row in ACTIONS]
 
 
 def _button(action_id: str) -> dict:
@@ -278,8 +266,6 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
     rows = []
     for item in button_ids:
         action_id = item if isinstance(item, str) else item["action"]
-        if action_id == "ambassador":
-            continue
         label = _button(action_id)["button"] if isinstance(item, str) else item["text"]
         if action_id == "url":
             rows.append([press(label, item, url=item["url"])])
@@ -292,8 +278,6 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
             rows.append([screen(label, "connect", item)])
         elif action_id == "topup":
             rows.append([screen(label, "topup", item)])
-        elif action_id == "ambassador":
-            rows.append([screen(label, "ambassador", item)])
         elif action_id == "help":
             rows.append([press(label, item, callback_data="help:connect")])
         elif action_id == "welcome":
@@ -577,24 +561,27 @@ async def _ensure_tables() -> None:
 def _parse(raw) -> dict:
     if isinstance(raw, str):
         raw = json.loads(raw)
-    return validate(raw)
+    return validate(without_retired_branches(raw))
 
 
 def _kept_button(button) -> bool:
-    if isinstance(button, str):
-        return button != "ambassador"
-    if isinstance(button, dict):
-        return button.get("action") != "ambassador"
-    return True
+    action = button if isinstance(button, str) else button.get("action") if isinstance(button, dict) else None
+    return action not in RETIRED_ACTIONS
 
 
 def without_retired_branches(graph):
+    """Drop steps and buttons of removed features, so boards saved before the removal still load."""
     graph = json.loads(json.dumps(graph))
+    if not isinstance(graph, dict) or not isinstance(graph.get('branches'), list):
+        return graph
     for branch in graph['branches']:
-        branch['steps'] = [s for s in branch['steps'] if s['condition'] not in {'winback','ambassador_earn','ambassador_active'}]
+        if not isinstance(branch, dict) or not isinstance(branch.get('steps'), list):
+            continue
+        branch['steps'] = [s for s in branch['steps'] if not isinstance(s, dict) or s.get('condition') not in RETIRED_CONDITIONS]
         for step in branch['steps']:
-            step['buttons'] = [button for button in step.get('buttons') or [] if _kept_button(button)]
-    graph['branches'] = [b for b in graph['branches'] if b['steps']]
+            if isinstance(step, dict):
+                step['buttons'] = [button for button in step.get('buttons') or [] if _kept_button(button)]
+    graph['branches'] = [b for b in graph['branches'] if not isinstance(b, dict) or b.get('steps')]
     return graph
 
 
@@ -646,10 +633,6 @@ async def _backfill() -> None:
         ("info_nudge_sent_at IS NOT NULL", "info-1"),
         ("device_nudge_at IS NOT NULL", "device-1"),
         ("first_online_nudge_at IS NOT NULL", "quality-1"),
-        ("ambassador_invite_step >= 1", "active-1"),
-        ("ambassador_invite_step >= 2", "active-2"),
-        ("ambassador_invite_step >= 1", "earn-1"),
-        ("ambassador_invite_step >= 2", "earn-2"),
     ]
     for days in (7, 10, 15, 20, 45):
         for segment in ("setup", "topup", "return"):
@@ -665,7 +648,7 @@ async def _backfill() -> None:
 
 
 async def _gate(condition: str) -> bool:
-    if condition in {"ambassador_earn", "ambassador_active", "winback"}:
+    if condition in RETIRED_CONDITIONS:
         return False
     spec = CONDITION_IDS[condition]
     gate = spec.get("gate")
@@ -675,9 +658,6 @@ async def _gate(condition: str) -> bool:
     if gate == "referral":
         from app.config import get_settings
         return bool(get_settings().referral_program_enabled)
-    if gate == "ambassador":
-        from app.ambassadors import recruitment_offer
-        return bool(await recruitment_offer())
     return True
 
 
@@ -837,12 +817,6 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
             # The offer answered «условия не подошли»: let the regular funnel speak to this person again.
             await db._pool_req().execute(
                 "UPDATE users SET vpn_feedback=NULL WHERE telegram_id=$1 AND vpn_feedback='terms'", uid)
-        if step["condition"] in {"ambassador_active", "ambassador_earn"}:
-            try:
-                from app import ambassadors
-                await ambassadors.mark_invitation_sent(uid, 1 if not prev_id else 2)
-            except Exception:
-                logger.exception("Приглашение амбассадора не отмечено %s", uid)
         sent += 1
         if sent >= STEP_LIMIT:
             break

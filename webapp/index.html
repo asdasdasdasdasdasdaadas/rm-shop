@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="/static/modern-refinement.css?v=9">
 
 <style id="retired-features">
-#view-settings,#view-promo,#view-referrals,#view-ambassador,#homePromoCard,#homeAmbassadorCard{display:none!important}
+#view-settings,#view-promo,#view-referrals,#homePromoCard{display:none!important}
 </style></head>
 <body>
   <div class="app-bg" aria-hidden="true">
@@ -486,12 +486,6 @@
         <button type="button" id="homePromoOpen" class="ref-banner-btn">Ввести промокод</button>
       </section>
 
-      <section id="homeAmbassadorCard" class="section home-ambassador hidden" aria-labelledby="homeAmbassadorTitle">
-        <div class="section-head"><span id="homeAmbassadorTitle" class="h">Станьте амбассадором</span></div>
-        <p id="homeAmbassadorNote" class="section-note"></p>
-        <button type="button" id="homeAmbassadorOpen" class="ref-banner-btn">Узнать условия</button>
-      </section>
-
       <div id="connectWrap" class="section hidden">
         <div class="section-head"><span class="h">Подключение</span></div>
         <div id="connectBody" class="stack"></div>
@@ -596,10 +590,6 @@
       <div id="billingList" class="bill-feed"></div>
     </div>
 
-    <div id="view-ambassador" class="view hidden">
-      <div class="view-head"><p class="wiz-kicker">Партнёрская программа</p><h1 class="wiz-title">Амбассадор</h1></div>
-      <div id="ambassadorContent" aria-live="polite"></div>
-    </div>
     <div id="view-referrals" class="view hidden">
       <div class="view-head">
         <p class="wiz-kicker">Рефералы</p>
@@ -881,7 +871,6 @@
   <script src="qrcode.min.js"></script>
   <script src="/icons/lottie-light.min.js?v=5.12.2"></script>
   <script src="/static/modern-motion.js?v=1"></script>
-  <script src="/static/interface-editor.js?v=5"></script>
   <script src="app.js?v=206"></script>
 </body>
 </html>
