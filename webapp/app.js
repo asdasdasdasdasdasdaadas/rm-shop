@@ -2793,7 +2793,7 @@ async function payPlan(plan, method) {
       try { tg.close(); } catch (_e) {}
     };
     try {
-      tg.showAlert("Окно оплаты в TON отправили в чат с ботом.", done);
+      tg.showAlert("Напишите боту в чате, сколько TON отправить, — он пришлёт карточку для оплаты.", done);
     } catch (_e) {
       done();
     }

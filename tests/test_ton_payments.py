@@ -63,11 +63,66 @@ class QuoteTest(unittest.TestCase):
         self.assertEqual(ton.credited_rub(order, 1_000_000_000), 250)
         self.assertEqual(ton.credited_rub(order, 2_100_000_000), 525)
 
-    def test_widget_amounts_respect_the_minimum(self):
-        with patch.object(ton, "get_settings", return_value=settings(balance_topup_min=400)):
-            self.assertEqual(ton.widget_amounts(), [500, 1000])
-        with patch.object(ton, "get_settings", return_value=settings(balance_topup_min=5000)):
-            self.assertEqual(ton.widget_amounts(), [5000])
+    def test_typed_amounts(self):
+        self.assertEqual(ton.parse_amount("2,5"), 2_500_000_000)
+        self.assertEqual(ton.parse_amount(" 3 TON "), 3 * 10**9)
+        self.assertEqual(ton.parse_amount("0.001 тон"), 1_000_000)
+        for bad in ["", "abc", "0", "-1", "2.5.1", "1e3", "привет 2"]:
+            with self.subTest(bad=bad):
+                self.assertIsNone(ton.parse_amount(bad))
+        self.assertEqual(ton.ton_text(2_500_000_000), "2,5")
+        self.assertEqual(ton.ton_text(3 * 10**9), "3")
+
+    def test_rubles_for_typed_ton_take_the_margin_off(self):
+        self.assertEqual(ton.rub_for_nano(2 * 10**9, Decimal("101"), 1.0), 200)
+        self.assertEqual(ton.rub_for_nano(10**9, Decimal("85.17"), 0), 85)
+
+    def test_amount_limits(self):
+        with patch.object(ton, "get_settings", return_value=settings(balance_topup_min=50, balance_topup_max=1000)):
+            rate = Decimal("101")
+            self.assertEqual(ton.check_amount(10**9, rate), 100)
+            self.assertEqual(ton.check_amount(1_000_000, rate), 1)  # 0.001 TON still gives a whole ruble
+            with self.assertRaisesRegex(ValueError, "Минимум 0,001 TON"):
+                ton.check_amount(999_999, rate)
+            with self.assertRaisesRegex(ValueError, "Максимум 10 TON"):
+                ton.check_amount(11 * 10**9, rate)
+            low, high = ton.limits_nano(rate)
+            self.assertEqual(low, 1_000_000)
+            self.assertLessEqual(ton.rub_for_nano(high, rate, 1.0), 1000)
+
+
+class AmountChatTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        p = patch.object(ton, "get_settings", return_value=settings())
+        p.start()
+        self.addCleanup(p.stop)
+        ton._asked.clear()
+
+    async def test_question_then_number_sends_the_card(self):
+        bot = AsyncMock()
+        with patch.object(ton, "rub_per_ton", AsyncMock(return_value=Decimal("101"))):
+            await ton.ask_amount(bot, 7)
+            self.assertTrue(ton.awaiting_amount(7))
+            self.assertIn("Сколько TON", bot.send_message.await_args.args[1])
+            with patch.object(ton, "send_pay_widget", AsyncMock()) as send:
+                self.assertIsNone(await ton.amount_reply(bot, 7, "2,5"))
+        send.assert_awaited_once_with(bot, 7, nano=2_500_000_000, rub=250)
+        self.assertFalse(ton.awaiting_amount(7))
+
+    async def test_too_small_amount_is_explained(self):
+        with patch.object(ton, "rub_per_ton", AsyncMock(return_value=Decimal("101"))), \
+                patch.object(ton, "send_pay_widget", AsyncMock()) as send:
+            error = await ton.amount_reply(AsyncMock(), 7, "0,0005")
+        self.assertIn("Минимум", error)
+        send.assert_not_awaited()
+
+    async def test_card_state_carries_ton_and_rubles(self):
+        bot = AsyncMock()
+        await ton.send_pay_widget(bot, 7, nano=2_500_000_000, rub=250)
+        sent = bot.await_args.args[0]
+        self.assertEqual(json.loads(sent.chat_data), {"n": 2_500_000_000, "c": 250})
+        self.assertIn(WALLET, sent.html)
+        self.assertIn("2,5 TON", sent.caption)
 
 
 class AccessTest(unittest.TestCase):
@@ -166,11 +221,12 @@ class WidgetQueryTest(unittest.IsolatedAsyncioTestCase):
         self.bot = AsyncMock()
 
     async def test_order_answer_is_a_ton_connect_transaction(self):
-        order = {"order_id": "VPN-ABC234", "nano": 2_020_000_000,
+        order = {"order_id": "VPN-ABC234", "nano": 2_020_000_000, "rub": 500,
                  "valid_until": datetime(2030, 1, 1, tzinfo=timezone.utc)}
         with patch.object(ton, "create_order", AsyncMock(return_value=order)) as create:
-            answer = await ton.handle_query(self.bot, {"chat": {"id": 7}, "message_id": 9}, 7, "t:500")
-        create.assert_awaited_once_with(7, 500, chat_id=7, message_id=9)
+            answer = await ton.handle_query(self.bot, {"chat": {"id": 7}, "message_id": 9}, 7, "t:2020000000")
+        create.assert_awaited_once_with(7, 2_020_000_000, chat_id=7, message_id=9)
+        self.assertEqual(answer["c"], 500)
         message = answer["tx"]["messages"][0]
         self.assertEqual((message["address"], message["amount"]), (WALLET, "2020000000"))
         self.assertEqual(answer["tx"]["valid_until"], 1893456000)
@@ -178,7 +234,7 @@ class WidgetQueryTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_rate_outage_is_reported(self):
         with patch.object(ton, "rub_per_ton", AsyncMock(side_effect=OSError)):
-            answer = await ton.handle_query(self.bot, {}, 7, "t:500")
+            answer = await ton.handle_query(self.bot, {}, 7, "t:2000000000")
         self.assertEqual(answer, {"e": "Курс TON недоступен, попробуйте позже"})
 
     async def test_someone_elses_order_is_not_found(self):
@@ -186,7 +242,7 @@ class WidgetQueryTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await ton.handle_query(self.bot, {}, 7, "q:VPN-ABC234"), {"e": "Счёт не найден"})
 
     async def test_sent_transfer_starts_watching(self):
-        order = {"order_id": "VPN-ABC234", "telegram_id": 7, "rub": 500}
+        order = {"order_id": "VPN-ABC234", "telegram_id": 7, "rub": 500, "nano": 2 * 10**9}
         query = {"chat": {"id": 7}, "message_id": 9,
                  "type": {"type": "sent_transaction", "wallet": {"address": RAW}, "msg_hash": "m"}}
         with patch.object(ton, "get_order", AsyncMock(return_value=order)), \

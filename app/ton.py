@@ -31,7 +31,9 @@ logger = logging.getLogger("rm-shop.ton")
 
 NANO = 10**9
 QUOTE_SECONDS = 10 * 60
-WIDGET_AMOUNTS = (100, 300, 500, 1000)
+AMOUNT_RE = re.compile(r"^\s*(\d{1,6}(?:[.,]\d{1,9})?)\s*(?:ton|тон|gram|грам)?\s*$", re.IGNORECASE)
+ASK_SECONDS = 15 * 60
+MIN_NANO = 1_000_000  # 0.001 TON
 ORDER_RE = re.compile(r"^VPN-[A-Z2-9]{6}$")
 _ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 TONCENTER = "https://toncenter.com/api/v3"
@@ -201,11 +203,46 @@ def allowed(telegram_id: int) -> bool:
     return enabled() or (configured() and int(telegram_id) in get_settings().admin_id_set)
 
 
-def widget_amounts() -> list[int]:
+def parse_amount(text: str | None) -> int | None:
+    """Nanotons from what the user typed: «2.5», «2,5», «3 TON». None if it isn't an amount."""
+    m = AMOUNT_RE.match(text or "")
+    if not m:
+        return None
+    nano = int(Decimal(m.group(1).replace(",", ".")) * NANO)
+    return nano if nano > 0 else None
+
+
+def rub_for_nano(nano: int, rate: Decimal, margin_pct: float) -> int:
+    """Rubles credited for `nano` at `rate` minus the margin, rounded down."""
+    rub = Decimal(int(nano)) / NANO * rate / (Decimal(1) + Decimal(str(margin_pct)) / 100)
+    return int(rub)
+
+
+def ton_text(nano: int) -> str:
+    """2500000000 → «2,5»."""
+    text = f"{Decimal(int(nano)) / NANO:.9f}".rstrip("0").rstrip(".")
+    return text.replace(".", ",")
+
+
+def limits_nano(rate: Decimal) -> tuple[int, int]:
+    """Smallest and largest TON amount for one payment, in nanotons."""
     s = get_settings()
-    low = max(1, int(s.balance_topup_min or 1))
-    amounts = [a for a in WIDGET_AMOUNTS if a >= low]
-    return amounts or [low]
+    margin = Decimal(1) + Decimal(str(s.ton_rate_margin_pct)) / 100
+    high = int(Decimal(int(s.balance_topup_max or 100000)) * margin / rate * 1000) * 10**6
+    return MIN_NANO, max(MIN_NANO, high)
+
+
+def check_amount(nano: int, rate: Decimal) -> int:
+    """Rubles for the amount, or ValueError with a message the user can act on.
+    The balance is whole rubles, so a tiny payment (from 0.001 TON) still gives 1 ₽."""
+    s = get_settings()
+    low, high = limits_nano(rate)
+    if nano < low:
+        raise ValueError(f"Минимум {ton_text(low)} TON")
+    rub = rub_for_nano(nano, rate, s.ton_rate_margin_pct)
+    if rub > int(s.balance_topup_max or 100000):
+        raise ValueError(f"Максимум {ton_text(high)} TON за раз")
+    return max(1, rub)
 
 
 # ---------- orders ----------
@@ -214,14 +251,13 @@ def _new_order_id() -> str:
     return "VPN-" + "".join(secrets.choice(_ALPHABET) for _ in range(6))
 
 
-async def create_order(telegram_id: int, rub: int, *, chat_id: int | None, message_id: int | None) -> dict:
-    s = get_settings()
+async def create_order(telegram_id: int, nano: int, *, chat_id: int | None, message_id: int | None) -> dict:
+    """An order for exactly `nano` TON; the ruble amount is locked at the current rate."""
     if not allowed(telegram_id):
         raise ValueError("Оплата в TON выключена")
-    if rub not in widget_amounts() and not (s.balance_topup_min <= rub <= s.balance_topup_max):
-        raise ValueError("Сумма недоступна")
     rate = await rub_per_ton()
-    nano = quote_nano(rub, rate, s.ton_rate_margin_pct)
+    nano = int(nano)
+    rub = check_amount(nano, rate)
     valid_until = int(time.time()) + QUOTE_SECONDS
     for _ in range(5):
         order_id = _new_order_id()
@@ -395,13 +431,9 @@ _rw = None
 _bot = None
 
 
-def _state(telegram_id: int, *, selected: int | None = None, waiting: str | None = None,
-           paid: dict | None = None, rate: Decimal | None = None) -> dict[str, Any]:
-    amounts = widget_amounts()
-    state: dict[str, Any] = {"a": amounts, "s": selected if selected in amounts else amounts[min(2, len(amounts) - 1)]}
-    if rate:
-        margin = Decimal(1) + Decimal(str(get_settings().ton_rate_margin_pct)) / 100
-        state["r"] = float(round(rate / margin, 2))
+def _state(nano: int, rub: int, *, waiting: str | None = None, paid: dict | None = None) -> dict[str, Any]:
+    """Widget data: n — TON to send (nano), c — rubles it gives, w — order waiting for the chain, ok — credited."""
+    state: dict[str, Any] = {"n": int(nano), "c": int(rub)}
     if waiting:
         state["w"] = waiting
     if paid:
@@ -418,19 +450,19 @@ async def notify_widget_paid(order: dict, amount: int) -> None:
     paid = {"o": order["order_id"], "c": amount, "b": int((user or {}).get("balance_rub") or 0)}
     try:
         await bot(EditMessageWidgetData(chat_id=int(order["chat_id"]), message_id=int(order["message_id"]),
-                                        chat_data=_json(_state(int(order["telegram_id"]), paid=paid))))
+                                        chat_data=_json(_state(order["nano"], order["rub"], paid=paid))))
     except Exception:
         logger.debug("Виджет оплаты TON не обновлён", exc_info=True)
 
 
 async def handle_query(bot, query: dict[str, Any], user_id: int, data: str) -> dict[str, Any]:
-    """Requests from the payment widget: t:<rub> make an order, p:<order> wallet sent it, q:<order> status."""
+    """Requests from the payment widget: t:<nano> make an order, p:<order> wallet sent it, q:<order> status."""
     kind, _, arg = data.partition(":")
     qtype = query.get("type") or {}
     chat_id = (query.get("chat") or {}).get("id")
     message_id = query.get("message_id")
     if kind == "t":
-        if not arg.isdigit():
+        if not arg.isdigit() or not 0 < int(arg) < 10**16:
             return {"e": "Неверная сумма"}
         try:
             order = await create_order(user_id, int(arg), chat_id=chat_id, message_id=message_id)
@@ -439,7 +471,7 @@ async def handle_query(bot, query: dict[str, Any], user_id: int, data: str) -> d
         except Exception:
             logger.exception("Счёт TON не создан")
             return {"e": "Курс TON недоступен, попробуйте позже"}
-        return {"o": order["order_id"], "n": int(order["nano"]), "tx": transaction(order)}
+        return {"o": order["order_id"], "n": int(order["nano"]), "c": int(order["rub"]), "tx": transaction(order)}
     order = await get_order(arg.upper()) if ORDER_RE.match(arg.upper()) else None
     if not order or int(order["telegram_id"]) != user_id:
         return {"e": "Счёт не найден"}
@@ -451,7 +483,7 @@ async def handle_query(bot, query: dict[str, Any], user_id: int, data: str) -> d
             from app.widgets import EditMessageWidgetData, _json
             try:
                 await bot(EditMessageWidgetData(chat_id=int(chat_id), message_id=int(message_id),
-                                                chat_data=_json(_state(user_id, selected=int(order["rub"]),
+                                                chat_data=_json(_state(order["nano"], order["rub"],
                                                                        waiting=order["order_id"]))))
             except Exception:
                 logger.debug("Состояние ожидания TON не записано", exc_info=True)
@@ -510,17 +542,61 @@ async def ton_watch_loop(rw, bot) -> None:
             logger.exception("Фоновая проверка TON не удалась")
 
 
-async def send_pay_widget(bot, telegram_id: int, *, rub: int | None = None):
-    from app.widgets import SendWidget, _json, ton_pay_html
+# Who was asked «Сколько TON отправить?» and when: their next number is the amount.
+_asked: dict[int, float] = {}
+
+
+def awaiting_amount(telegram_id: int) -> bool:
+    asked = _asked.get(int(telegram_id))
+    return bool(asked and time.monotonic() - asked < ASK_SECONDS)
+
+
+async def ask_amount(bot, telegram_id: int, *, rub: int | None = None):
+    """Ask how much TON to send; the reply goes to `amount_reply`."""
+    from aiogram.types import ForceReply
     if not allowed(telegram_id):
         raise ValueError("Оплата в TON выключена")
+    lines = ["<b>Сколько TON отправить?</b>", "Напишите число, например <code>2,5</code>."]
+    try:
+        rate = await rub_per_ton()
+        margin = Decimal(1) + Decimal(str(get_settings().ton_rate_margin_pct)) / 100
+        low, _ = limits_nano(rate)
+        lines.append(f"Курс: 1 TON ≈ {int(rate / margin)} ₽ на баланс. Минимум {ton_text(low)} TON.")
+        if rub:
+            lines.append(f"Для {rub} ₽ — примерно {ton_text(quote_nano(rub, rate, get_settings().ton_rate_margin_pct))} TON.")
+    except Exception:
+        logger.debug("Курс TON для подсказки не получен", exc_info=True)
+    _asked[int(telegram_id)] = time.monotonic()
+    return await bot.send_message(telegram_id, "\n".join(lines), parse_mode="HTML",
+                                  reply_markup=ForceReply(input_field_placeholder="Например, 2,5"))
+
+
+async def amount_reply(bot, telegram_id: int, text: str) -> str | None:
+    """Send the payment card for the typed amount. Returns an error to show, or None when the card is out."""
+    nano = parse_amount(text)
+    if nano is None:
+        return "Не понял сумму. Напишите число, например 2,5"
     try:
         rate = await rub_per_ton()
     except Exception:
-        rate = None
+        logger.warning("Курс TON недоступен", exc_info=True)
+        return "Курс TON сейчас недоступен, попробуйте через минуту"
+    try:
+        rub = check_amount(nano, rate)
+    except ValueError as exc:
+        return str(exc)
+    _asked.pop(int(telegram_id), None)
+    await send_pay_widget(bot, telegram_id, nano=nano, rub=rub)
+    return None
+
+
+async def send_pay_widget(bot, telegram_id: int, *, nano: int, rub: int):
+    from app.widgets import SendWidget, _json, ton_pay_html
+    if not allowed(telegram_id):
+        raise ValueError("Оплата в TON выключена")
     return await bot(SendWidget(
-        chat_id=telegram_id, html=ton_pay_html(), chat_data=_json(_state(telegram_id, selected=rub, rate=rate)),
-        caption="Пополнение баланса в TON. Оплата из кошелька Telegram, зачисление обычно за 15 секунд.",
+        chat_id=telegram_id, html=ton_pay_html(), chat_data=_json(_state(nano, rub)),
+        caption=f"Перевод {ton_text(nano)} TON → ≈ {rub} ₽ на баланс. Курс фиксируется в момент оплаты.",
         allow_queries=True,
     ))
 

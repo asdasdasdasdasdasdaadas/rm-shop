@@ -320,17 +320,45 @@ async def cmd_stats(message: Message) -> None:
 
 
 @router.message(Command("ton"))
-async def cmd_ton(message: Message) -> None:
-    """Top up in TON. Admins can use it before the switch in the admin panel is on."""
+async def cmd_ton(message: Message, command: CommandObject) -> None:
+    """Top up in TON: «/ton 2,5» sends the card at once, bare «/ton» asks how much.
+    Admins can use it before the switch in the admin panel is on."""
     from app import ton
     if not ton.allowed(message.from_user.id):
         return
     try:
-        await ton.send_pay_widget(message.bot, message.from_user.id)
+        if command.args:
+            error = await ton.amount_reply(message.bot, message.from_user.id, command.args)
+            if error:
+                await message.answer(error)
+        else:
+            await ton.ask_amount(message.bot, message.from_user.id)
     except Exception as exc:
-        logging.getLogger(__name__).warning("Виджет TON не отправился", exc_info=True)
+        logging.getLogger(__name__).warning("Оплата TON не открылась", exc_info=True)
         if message.from_user.id in get_settings().admin_id_set:
             await message.answer(f"Виджет TON не отправился: {getattr(exc, 'message', None) or type(exc).__name__}")
+
+
+def _ton_amount_message(message: Message) -> bool:
+    """The answer to «Сколько TON отправить?»: a number, or anything sent as a reply to that question."""
+    from app import ton
+    text = message.text or ""
+    if not message.from_user or text.startswith("/") or not ton.awaiting_amount(message.from_user.id):
+        return False
+    reply = message.reply_to_message
+    return ton.parse_amount(text) is not None or bool(reply and reply.from_user and reply.from_user.is_bot)
+
+
+@router.message(F.chat.type == "private", F.text, _ton_amount_message)
+async def ton_amount(message: Message) -> None:
+    from app import ton
+    try:
+        error = await ton.amount_reply(message.bot, message.from_user.id, message.text)
+    except Exception:
+        logging.getLogger(__name__).warning("Виджет TON не отправился", exc_info=True)
+        error = "Не получилось открыть оплату в TON, попробуйте позже"
+    if error:
+        await message.answer(error)
 
 
 @router.callback_query(F.data == "ton_pay")
@@ -340,7 +368,7 @@ async def ton_pay_button(callback: CallbackQuery) -> None:
         await ack(callback, "Оплата в TON сейчас недоступна", alert=True)
         return
     try:
-        await ton.send_pay_widget(callback.bot, callback.from_user.id)
+        await ton.ask_amount(callback.bot, callback.from_user.id)
     except Exception:
         logging.getLogger(__name__).warning("Виджет TON не отправился", exc_info=True)
         await ack(callback, "Не получилось открыть оплату в TON, попробуйте позже", alert=True)
