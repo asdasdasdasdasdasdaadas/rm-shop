@@ -4772,6 +4772,11 @@ async def admin_list_failed_messages(
     return [_msg_row(dict(r)) for r in rows], int(total or 0)
 
 
+async def has_open_ticket(telegram_id: int) -> bool:
+    return bool(await _pool_req().fetchval(
+        "SELECT EXISTS (SELECT 1 FROM tickets WHERE telegram_id = $1 AND status <> 'closed')", int(telegram_id)))
+
+
 async def open_or_get_ticket(
     telegram_id: int,
     username: str | None = None,

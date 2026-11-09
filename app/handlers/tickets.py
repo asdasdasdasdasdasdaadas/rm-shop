@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import time
+
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app import db
 from app.funnel_ui import answer_funnel
@@ -10,6 +12,31 @@ from app.notices import notice_text
 from app.tickets import attachments_from_message, receive_user_message
 
 router = Router()
+
+# Who pressed «Поддержка» (or another «write to us» button) and when: only then does a chat message become a ticket.
+SUPPORT_SECONDS = 30 * 60
+HINT_SECONDS = 5 * 60
+_support_until: dict[int, float] = {}
+_hinted: dict[int, float] = {}
+
+
+def open_support(telegram_id: int) -> None:
+    _support_until[int(telegram_id)] = time.monotonic() + SUPPORT_SECONDS
+
+
+def close_support(telegram_id: int) -> None:
+    _support_until.pop(int(telegram_id), None)
+
+
+def support_open(telegram_id: int) -> bool:
+    return _support_until.get(int(telegram_id), 0) > time.monotonic()
+
+
+def _support_hint_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Написать в поддержку", callback_data="support_ticket")],
+        [InlineKeyboardButton(text="Главное меню", callback_data="profile")],
+    ])
 
 
 @router.callback_query(F.data == "support_ticket")
@@ -37,6 +64,7 @@ async def help_connect(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "help:feedback")
 async def help_feedback(callback: CallbackQuery) -> None:
     await callback.answer()
+    open_support(callback.from_user.id)
     await callback.message.answer(
         "Спасибо! Напишите здесь, что стоит улучшить или с какой проблемой вы столкнулись. "
         "Можно приложить скриншот — ваше сообщение получит поддержка.")
@@ -54,6 +82,7 @@ async def help_other(callback: CallbackQuery) -> None:
 async def _open_help_ticket(callback: CallbackQuery, body: str) -> None:
     # Viewing help is not a support request: the message handler opens
     # the ticket only when the user sends actual text or an attachment.
+    open_support(callback.from_user.id)
     await callback.message.answer(
         notice_text("help_other"),
         reply_markup=help_ticket_cancel_keyboard(),
@@ -63,7 +92,8 @@ async def _open_help_ticket(callback: CallbackQuery, body: str) -> None:
 @router.callback_query(F.data == "help_ticket_cancel")
 async def help_ticket_cancel(callback: CallbackQuery) -> None:
     await callback.answer("Отменено")
-    await callback.message.edit_text("Обращение отменено. Если понадобится помощь — напишите снова.")
+    close_support(callback.from_user.id)
+    await callback.message.edit_text("Обращение отменено. Если понадобится помощь — нажмите «Поддержка» в меню.")
 
 
 @router.callback_query(F.data.startswith("ticket_close:"))
@@ -79,7 +109,7 @@ async def user_close_prompt(callback: CallbackQuery) -> None:
         await callback.answer("Обращение не найдено", show_alert=True)
         return
     await callback.answer()
-    await callback.message.answer("Закрыть обращение? Новое сообщение откроет следующее.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+    await callback.message.answer("Закрыть обращение? Чтобы написать снова, нажмите «Поддержка» в меню.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="Да, закрыть", callback_data=f"ticket_finish:{ticket_id}"),
         InlineKeyboardButton(text="Отмена", callback_data="ticket_cancel")]]))
 
@@ -103,6 +133,7 @@ async def user_close_ticket(callback: CallbackQuery) -> None:
         await callback.answer("Обращение уже закрыто или недоступно", show_alert=True)
         return
     await callback.answer("Обращение закрыто")
+    close_support(callback.from_user.id)
     await callback.message.edit_text(f"Обращение №{ticket_id} закрыто.\nОцените помощь: 1 — плохо, 5 — отлично.", reply_markup=ticket_rating_keyboard(ticket_id))
 
 
@@ -140,6 +171,17 @@ async def ticket_from_chat(message: Message) -> None:
             return
     if not text and not files:
         return
+    uid = message.from_user.id
+    if not support_open(uid) and not await db.has_open_ticket(uid):
+        # A message out of the blue is not a support request: point to the button instead of opening a ticket.
+        now = time.monotonic()
+        if now - _hinted.get(uid, -HINT_SECONDS) >= HINT_SECONDS:
+            _hinted[uid] = now
+            await message.answer(
+                "Это сообщение никто не увидит: я бот и не читаю переписку.\n\n"
+                "Нужна помощь — нажмите «Написать в поддержку», и следующее сообщение получит команда.",
+                reply_markup=_support_hint_keyboard())
+        return
     try:
         await receive_user_message(
             message.bot,
@@ -159,6 +201,8 @@ async def vpn_feedback(callback: CallbackQuery) -> None:
     value = callback.data.split(':')[1]
     await db.save_vpn_feedback(callback.from_user.id, value)
     await callback.answer("Спасибо, учли ваш ответ")
+    if value in ('help', 'terms'):
+        open_support(callback.from_user.id)
     if value == 'help':
         await answer_funnel(callback.message, "Обращение уже в поддержке. Напишите, что не работает, и приложите скриншот, если можете.", reply_markup=help_connect_reply_keyboard())
     elif value == 'terms':
@@ -169,4 +213,4 @@ async def vpn_feedback(callback: CallbackQuery) -> None:
         from app.keyboards import payment_nudge_keyboard
         await answer_funnel(callback.message, "Рады, что всё работает! Доступ закончился — пополните баланс, чтобы продолжить.", reply_markup=payment_nudge_keyboard(label="Пополнить баланс"))
     else:
-        await answer_funnel(callback.message, "Отлично! Если возникнут вопросы, напишите сюда — поможем.")
+        await answer_funnel(callback.message, "Отлично! Если возникнут вопросы — нажмите «Поддержка» в меню, поможем.")
