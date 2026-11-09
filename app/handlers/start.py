@@ -290,6 +290,18 @@ async def cmd_admin(message: Message) -> None:
     await message.answer(f"Админка: {base}/admin")
 
 
+@router.message(Command("widget"))
+async def cmd_widget(message: Message) -> None:
+    """Test of the Bot API 10.4 balance widget; admins only until it is rolled out."""
+    if message.from_user.id not in get_settings().admin_id_set:
+        return
+    from app.widgets import send_balance_widget
+    try:
+        await send_balance_widget(message.bot, message.from_user.id)
+    except TelegramBadRequest as exc:
+        await message.answer(f"Виджет не отправился: {exc.message}")
+
+
 @router.callback_query(F.data == "funnel_test:click")
 async def funnel_test_click(callback: CallbackQuery) -> None:
     await ack(callback, "Тестовая кнопка. Действия с аккаунтом не выполняются.", alert=True)

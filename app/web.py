@@ -345,6 +345,24 @@ async def api_cabinet_login_status(request: web.Request) -> web.Response:
     return empty
 
 
+def balance_runway(local: dict | None, raw_devices: list[dict], balance_rub: int) -> tuple[int, int]:
+    """How long the balance lasts: (days, hours). Routers are paid separately and don't count."""
+    price = max(1, get_settings().vpn_day_price_rub)
+    billable = [item for item in raw_devices if not _is_router_device(item)]
+    if billable:
+        hours_money = int(balance_rub) * 24 // (price * len(billable))
+        paid = []
+        for item in billable:
+            billed = parse_dt(item.get("last_billed_at"))
+            if billed and not (local or {}).get("trial_waiting_connection"):
+                paid.append(_hours_until(billed + timedelta(hours=24)))
+        hours_left = hours_money + (min(paid) if paid else 0)
+    else:
+        hours_left = int(balance_rub) * 24 // price
+    hours_left = max(0, int(hours_left))
+    return hours_left // 24, hours_left
+
+
 async def api_me(request: web.Request) -> web.Response:
     settings = get_settings()
     telegram_id, parsed = await _resolve_telegram_id(request)
@@ -415,26 +433,12 @@ async def api_me(request: web.Request) -> web.Response:
     trust = await trust_info(
         telegram_id, local, sum(1 for d in devices if d.get("kind") != "router")
     )
-    price = max(1, settings.vpn_day_price_rub)
     billable_raw = [item for item in raw_devices if not _is_router_device(item)]
+    days_left, hours_left = balance_runway(local, raw_devices, balance_rub)
     router_expire = (local or {}).get("router_expire_at") if local else None
     if router_expire is not None and getattr(router_expire, "tzinfo", None) is None:
         router_expire = router_expire.replace(tzinfo=timezone.utc)
     router_active = bool(router_expire and router_expire > datetime.now(timezone.utc))
-    if billable_raw:
-        hours_money = int(balance_rub) * 24 // (price * len(billable_raw))
-        paid = []
-        for item in billable_raw:
-            billed = parse_dt(item.get("last_billed_at"))
-            if billed and not (local or {}).get("trial_waiting_connection"):
-                paid.append(_hours_until(billed + timedelta(hours=24)))
-        hours_left = hours_money + (min(paid) if paid else 0)
-        days_left = hours_left // 24
-    else:
-        hours_left = int(balance_rub) * 24 // price
-        days_left = hours_left // 24
-    days_left = max(0, int(days_left))
-    hours_left = max(0, int(hours_left))
     wallet = await db.referral_wallet(telegram_id)
     refs = await db.referral_stats(telegram_id)
     friends = await db.list_referred_friends(telegram_id)

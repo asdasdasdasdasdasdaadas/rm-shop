@@ -132,6 +132,8 @@ async def main() -> None:
     dp.callback_query.outer_middleware(ReminderClickMiddleware())
     dp["rw"] = rw
     dp["rp"] = rp
+    from app.widgets import UPDATE_TYPES as WIDGET_UPDATES, WidgetQueryMiddleware
+    dp.update.outer_middleware(WidgetQueryMiddleware())
     dp.update.outer_middleware(MaintenanceMiddleware())
     dp.update.outer_middleware(BlockedMiddleware())
     dp.include_router(start_router)
@@ -187,7 +189,7 @@ async def main() -> None:
             await dp.start_polling(
                 bot,
                 drop_pending_updates=True,
-                allowed_updates=list(dict.fromkeys([*dp.resolve_used_update_types(), "my_chat_member"])),
+                allowed_updates=list(dict.fromkeys([*dp.resolve_used_update_types(), "my_chat_member", *WIDGET_UPDATES])),
             )
         finally:
             digest_task.cancel()
