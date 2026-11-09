@@ -809,7 +809,11 @@ function UserDetail({
     ),
     billing = useResource(
       tab === "history" ? `billing?q=${u.telegram_id}&limit=25` : null,
-    );
+    ),
+    gifts = useResource(`users/${u.telegram_id}/gifts`);
+  const [giftsFresh, setGiftsFresh] = useState<Data | null>(null),
+    [giftsRefreshing, setGiftsRefreshing] = useState(false);
+  const giftInfo = giftsFresh || gifts.data;
   const act = async (path: string, body: Data) => {
     const r = await api(`users/${u.telegram_id}/${path}`, body);
     if (r.balance_rub !== undefined)
@@ -823,7 +827,7 @@ function UserDetail({
   };
   return (
     <div className="pt-6 space-y-5">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-lg bg-muted p-3">
           <p className="text-xs text-muted-foreground">Баланс</p>
           <p className="text-xl font-semibold mt-1">{money(u.balance_rub)}</p>
@@ -836,12 +840,22 @@ function UserDetail({
           <p className="text-xs text-muted-foreground">Трафик</p>
           <p className="text-xl font-semibold mt-1">{traffic(u)}</p>
         </div>
+        <button
+          type="button"
+          className="rounded-lg bg-muted p-3 text-left hover:bg-muted/70"
+          onClick={() => setTab("gifts")}
+          title="Оценка по подаркам в профиле Telegram"
+        >
+          <p className="text-xs text-muted-foreground">Состоятельность</p>
+          <WealthStars data={giftInfo} />
+        </button>
       </div>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full h-auto flex-wrap justify-start">
           <TabsTrigger value="summary">Профиль</TabsTrigger>
           <TabsTrigger value="devices">Устройства</TabsTrigger>
           <TabsTrigger value="history">Операции</TabsTrigger>
+          <TabsTrigger value="gifts">Подарки</TabsTrigger>
           <TabsTrigger value="bot-messages">Сообщения бота</TabsTrigger>
           <TabsTrigger value="message">Написать</TabsTrigger>
         </TabsList>
@@ -1107,6 +1121,23 @@ function UserDetail({
             ))}
           </Accordion>
         )}
+        <TabsContent value="gifts" className="pt-4">
+          <UserGifts
+            data={giftInfo}
+            error={gifts.error}
+            refreshing={giftsRefreshing}
+            onRefresh={async () => {
+              setGiftsRefreshing(true);
+              try {
+                setGiftsFresh(await api(`users/${u.telegram_id}/gifts?refresh=1`));
+              } catch (e) {
+                toast.error((e as Error).message);
+              } finally {
+                setGiftsRefreshing(false);
+              }
+            }}
+          />
+        </TabsContent>
         <TabsContent value="bot-messages" className="pt-4">
           <UserBotMessages telegramId={u.telegram_id} />
         </TabsContent>
@@ -1187,6 +1218,136 @@ function UserDetail({
           </Button>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function WealthStars({ data }: { data: Data | null }) {
+  if (!data) return <p className="text-xl font-semibold mt-1">…</p>;
+  const s = data.summary || {};
+  const level = Number(s.level || 0);
+  return (
+    <>
+      <p className="text-xl font-semibold mt-1 tracking-tight" aria-label={`${level} из 5`}>
+        <span className="text-amber-500">{"★".repeat(level)}</span>
+        <span className="text-muted-foreground/40">{"★".repeat(5 - level)}</span>
+      </p>
+      <p className="text-xs text-muted-foreground mt-0.5 truncate">{s.label || "—"}</p>
+    </>
+  );
+}
+
+function giftThumb(fileId?: string) {
+  return fileId ? `/admin/api/gift-thumb?f=${encodeURIComponent(fileId)}` : "";
+}
+
+function UserGifts({
+  data,
+  error,
+  refreshing,
+  onRefresh,
+}: {
+  data: Data | null;
+  error: string;
+  refreshing: boolean;
+  onRefresh: () => Promise<void>;
+}) {
+  if (error && !data) return <Failure message={error} retry={onRefresh} />;
+  if (!data) return <Loading />;
+  const s = data.summary || {};
+  const gifts: Data[] = data.gifts || [];
+  const unique = gifts.filter((g) => g.kind === "unique");
+  const regular = gifts.filter((g) => g.kind === "regular");
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg border p-4 space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm text-muted-foreground">Рейтинг состоятельности</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <WealthStars data={data} />
+            </div>
+          </div>
+          <Button variant="outline" size="sm" disabled={refreshing} onClick={() => void onRefresh()}>
+            {refreshing ? "Обновляем…" : "Обновить"}
+          </Button>
+        </div>
+        <p className="text-sm">
+          NFT: <b>{s.unique_count || 0}</b>
+          {s.rare_count ? ` (редких ${s.rare_count})` : ""} · обычных: <b>{s.regular_count || 0}</b>
+          {s.regular_stars ? ` на ${Number(s.regular_stars).toLocaleString("ru-RU")} ⭐` : ""}
+          {s.total > gifts.length ? ` · показаны ${gifts.length} из ${s.total}` : ""}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Примерная оценка по подаркам, которые человек оставил видимыми в профиле Telegram: обычные — по цене в
+          звёздах, NFT — около 2 500 ⭐ с надбавкой за редкость модели. Скрытые подарки Telegram не показывает.
+          {data.fetched_at ? ` Обновлено ${date(new Date(data.fetched_at * 1000).toISOString())}.` : ""}
+        </p>
+        {data.error && <p className="text-xs text-destructive">{data.error}</p>}
+      </div>
+      {!gifts.length ? (
+        <p className="text-sm text-muted-foreground">В профиле нет видимых подарков.</p>
+      ) : (
+        <>
+          {unique.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">NFT-подарки</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {unique.map((g, i) => (
+                  <a
+                    key={g.slug || i}
+                    href={g.slug ? `https://t.me/nft/${g.slug}` : undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-xl p-3 text-white block hover:opacity-90"
+                    style={{
+                      background: `radial-gradient(circle at 50% 35%, ${g.center || "#5f7aa8"}, ${g.edge || "#2f3d5c"})`,
+                    }}
+                  >
+                    <div className="h-20 flex items-center justify-center">
+                      {g.thumb ? (
+                        <img src={giftThumb(g.thumb)} alt="" className="h-20 w-20 object-contain" loading="lazy" />
+                      ) : (
+                        <span className="text-4xl">🎁</span>
+                      )}
+                    </div>
+                    <p className="text-sm font-semibold mt-2 truncate">{g.title}</p>
+                    <p className="text-xs opacity-85 truncate">
+                      {g.model}
+                      {g.rarity_per_mille ? ` · ${(g.rarity_per_mille / 10).toLocaleString("ru-RU")}%` : ""}
+                    </p>
+                    <p className="text-xs opacity-75 truncate">
+                      {[g.backdrop, g.symbol].filter(Boolean).join(" · ")}
+                      {g.blockchain ? " · в блокчейне" : ""}
+                    </p>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+          {regular.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Обычные подарки</p>
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                {regular.map((g, i) => (
+                  <div key={i} className="rounded-lg bg-muted p-2 text-center">
+                    <div className="h-12 flex items-center justify-center">
+                      {g.thumb ? (
+                        <img src={giftThumb(g.thumb)} alt="" className="h-12 w-12 object-contain" loading="lazy" />
+                      ) : (
+                        <span className="text-3xl">{g.title}</span>
+                      )}
+                    </div>
+                    <p className="text-xs mt-1">
+                      {Number(g.stars || 0).toLocaleString("ru-RU")} ⭐{g.limited ? " · лимит." : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

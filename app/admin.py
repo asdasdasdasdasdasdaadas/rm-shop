@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -115,7 +116,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "121"})
+    return web.json_response({"ok": True, "build": "122"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -349,6 +350,52 @@ async def _enrich_device_network(rw: RemnawaveClient, item: dict) -> dict:
     if isinstance(sessions, list):
         out["sessions"] = sessions
     return out
+
+
+async def api_user_gifts(request: web.Request) -> web.Response:
+    """Gifts on the user's Telegram profile and the wealth rating; ?refresh=1 asks Telegram again."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except (KeyError, TypeError, ValueError):
+        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    if not await db.get_user(telegram_id):
+        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    from app.user_gifts import user_gifts
+    data = await user_gifts(request.app.get("bot"), telegram_id, refresh=request.query.get("refresh") == "1")
+    return web.json_response({"ok": True, **data})
+
+
+_GIFT_THUMBS: dict[str, tuple[bytes, str]] = {}
+_FILE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{10,200}$")
+
+
+async def api_gift_thumb(request: web.Request) -> web.Response:
+    """A gift sticker preview from Telegram, so the admin page can show it as an image."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    file_id = request.query.get("f") or ""
+    bot = request.app.get("bot")
+    if not _FILE_ID_RE.match(file_id) or bot is None:
+        return web.json_response({"ok": False, "error": "Нет файла"}, status=404)
+    hit = _GIFT_THUMBS.get(file_id)
+    if not hit:
+        try:
+            info = await bot.get_file(file_id)
+            data = await bot.download_file(info.file_path)
+            body = data.read() if data else b""
+        except Exception:
+            logger.debug("Превью подарка не скачалось", exc_info=True)
+            return web.json_response({"ok": False, "error": "Не удалось скачать"}, status=502)
+        path = (info.file_path or "").lower()
+        kind = "image/webp" if path.endswith(".webp") else "image/png" if path.endswith(".png") else "image/jpeg"
+        if len(_GIFT_THUMBS) > 500:
+            _GIFT_THUMBS.clear()
+        hit = _GIFT_THUMBS[file_id] = (body, kind)
+    return web.Response(body=hit[0], content_type=hit[1], headers={"Cache-Control": "private, max-age=86400"})
 
 
 async def api_user_devices(request: web.Request) -> web.Response:
@@ -2652,6 +2699,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/statistics", api_statistics)
     app.router.add_get("/admin/api/users", api_users)
     app.router.add_get("/admin/api/users/{telegram_id}/devices", api_user_devices)
+    app.router.add_get("/admin/api/users/{telegram_id}/gifts", api_user_gifts)
+    app.router.add_get("/admin/api/gift-thumb", api_gift_thumb)
     app.router.add_post("/admin/api/users/{telegram_id}/devices/{device_id}/reissue", api_device_reissue)
     app.router.add_post("/admin/api/users/bulk", api_users_bulk)
     app.router.add_get("/admin/api/referrals", api_referrals)

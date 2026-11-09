@@ -826,6 +826,15 @@ CREATE INDEX IF NOT EXISTS ton_orders_open_idx ON ton_orders (created_at) WHERE 
 CREATE INDEX IF NOT EXISTS ton_orders_user_idx ON ton_orders (telegram_id, created_at DESC);
 
 -- Every incoming transfer seen on the shop wallet; order_id is NULL for transfers nobody could match.
+-- Gifts a user shows on the Telegram profile and the wealth rating from them, cached for the admin card.
+CREATE TABLE IF NOT EXISTS user_gifts (
+    telegram_id BIGINT PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
+    data JSONB NOT NULL,
+    level INTEGER NOT NULL DEFAULT 0,
+    points INTEGER NOT NULL DEFAULT 0,
+    fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Total device traffic at the start of each Moscow day: today's traffic is the growth since then.
 CREATE TABLE IF NOT EXISTS traffic_days (
     day DATE PRIMARY KEY,
