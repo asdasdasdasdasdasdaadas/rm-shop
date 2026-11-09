@@ -485,7 +485,7 @@ async def api_me(request: web.Request) -> web.Response:
             "vpn_day_price_rub": settings.vpn_day_price_rub,
             "cabinet_price_enabled": bool(settings.cabinet_price_enabled),
             "pay_crypto": False,
-            "pay_methods": public_pay_methods(),
+            "pay_methods": public_pay_methods(telegram_id),
             "traffic_limit_gb": int(settings.remnawave_traffic_limit_gb or 0),
             "max_devices": settings.max_devices,
             "has_access": bool(balance_rub > 0 or devices or router_active),
@@ -648,7 +648,7 @@ async def api_invoice(request: web.Request) -> web.Response:
     plan = settings.plan_by_code(code)
     if not plan:
         return json_error("Тариф не найден")
-    methods = public_pay_methods()
+    methods = public_pay_methods(telegram_id)
     allowed_ids = [item["id"] for item in methods]
     if not allowed_ids:
         return json_error("Способы оплаты выключены")

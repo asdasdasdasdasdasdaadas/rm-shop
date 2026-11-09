@@ -13,6 +13,7 @@ Requests (1-64 bytes, from the widget):
 """
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import logging
@@ -191,12 +192,15 @@ STATS_HTML = _page(
 <div class="mx" id="mx"></div><div class="lg" id="lg"></div>
 <div class="sec">Новички сегодня</div><div id="fn"></div>
 <div class="sec">Сейчас</div>
-<div class="row" style="margin-top:0"><div class="c"><span class="t">В сети за час</span><b id="o">—</b></div>
-<div class="c"><span class="t">С доступом</span><b id="x">—</b></div><div class="c"><span class="t">Всего</span><b id="a">—</b></div></div>
+<div class="row" style="margin-top:0"><div class="c"><span class="t">Сейчас в сети</span><b id="on">—</b></div>
+<div class="c"><span class="t">Активны сегодня</span><b id="ad">—</b></div><div class="c"><span class="t">Трафик сегодня</span><b id="tb">—</b></div></div>
+<div class="row" style="margin-top:8px"><div class="c"><span class="t">С доступом</span><b id="x">—</b></div>
+<div class="c"><span class="t">Всего пользователей</span><b id="a">—</b></div></div><div class="t" id="nt" style="margin-top:6px"></div>
 <div class="tk" id="k"></div>
 <div class="f"><span class="t" id="u"></span><button id="r">Обновить</button></div>""",
     """let tab=0;const M={rollypay:['Карта/СБП','#34c759'],stars:['Звёзды','#ffb800'],ton:['Gram','#2ea6ff']};
 function n(v){return String(v).replace(/\\B(?=(\\d{3})+(?!\\d))/g,' ')}
+function gb(b){const u=['Б','КБ','МБ','ГБ','ТБ'];let i=0;while(b>=1024&&i<4){b/=1024;i++}return (i>2?b.toFixed(1):Math.round(b)).toString().replace('.',',')+' '+u[i]}
 function chart(){const d=tab?s.g:s.h,mx=Math.max(1,...d),now=new Date(Date.now()+108e5).getUTCHours();
 $('ch').innerHTML=d.map((v,i)=>'<i class="'+(i==now?'nw':i>now?'ft':'')+'" style="height:'+(v?Math.max(6,v/mx*100):2)+'%" title="'+i+':00 — '+(tab?v:rub(v))+'"></i>').join('');
 $('ta').className=tab?'':'on';$('tb').className=tab?'on':''}
@@ -209,7 +213,9 @@ $('mx').innerHTML=m.map(e=>'<i style="flex:'+e[1]+';background:'+(M[e[0]]||['','
 $('lg').innerHTML=m.map(e=>'<span><b style="background:'+(M[e[0]]||['','#999'])[1]+'"></b>'+(M[e[0]]||[e[0]])[0]+' '+n(e[1])+' ₽ · '+Math.round(e[1]/tot*100)+'%</span>').join('');
 const st=[['Пришли в бота',s.n,s.nr?s.nr+' по приглашению':''],['Добавили устройство',s.nd],['Подключились',s.nc],['Оплатили',s.np]];
 $('fn').innerHTML=st.map(e=>'<div class="fr"><div class="fl"><span>'+e[0]+(e[2]?' <span class="t">· '+e[2]+'</span>':'')+'</span><b>'+e[1]+(s.n&&e!==st[0]?' <span class="t">'+Math.round(e[1]/s.n*100)+'%</span>':'')+'</b></div><div class="fb"><i style="width:'+(s.n?e[1]/s.n*100:0)+'%"></i></div></div>').join('');
-$('o').textContent=n(s.o);$('x').textContent=n(s.x);$('a').textContent=n(s.a);
+$('on').textContent=n(s.on);$('ad').textContent=n(s.ad);$('tb').textContent=gb(s.tb);$('x').textContent=n(s.x);$('a').textContent=n(s.a);
+const ds=new Date(Date.now()+108e5);ds.setUTCHours(0,0,0,0);const nt=[];if(!s.an)nt.push('«Сейчас в сети» — по последней сверке с панелью');
+if(s.ts&&s.ts*1e3-(ds-108e5)>9e5)nt.push('трафик считается с '+hm(s.ts));$('nt').textContent=nt.join(' · ');
 const k=$('k');k.textContent=s.k?'Открытых обращений: '+s.k+' — ответьте в админке':'Открытых обращений нет';k.className='tk'+(s.k?' low':'');
 $('u').textContent='Обновлено в '+hm(s.t)}
 $('ta').onclick=()=>{tab=0;chart()};$('tb').onclick=()=>{tab=1;chart()};
@@ -365,20 +371,48 @@ async def referral_state(telegram_id: int, *, with_link: bool = False) -> dict[s
 _DAY_START = "(date_trunc('day', NOW() AT TIME ZONE 'Europe/Moscow') AT TIME ZONE 'Europe/Moscow')"
 
 
+async def note_traffic_baseline() -> None:
+    """Remember the total device traffic once per Moscow day; the first call after midnight sets the baseline."""
+    try:
+        await db._pool_req().execute(
+            """INSERT INTO traffic_days (day, start_bytes)
+               SELECT (NOW() AT TIME ZONE 'Europe/Moscow')::date, COALESCE(SUM(lifetime_traffic_bytes), 0)::bigint
+               FROM devices ON CONFLICT (day) DO NOTHING""")
+    except Exception:
+        logger.debug("Отметка трафика за день не записана", exc_info=True)
+
+
+async def panel_online_now() -> int | None:
+    """Users connected right now, from the Remnawave system stats; None when the panel doesn't say."""
+    from app import runtime
+    if runtime.rw is None:
+        return None
+    try:
+        data = await asyncio.wait_for(runtime.rw.safe_get("/system/stats"), timeout=4)
+        value = ((data or {}).get("onlineStats") or {}).get("onlineNow")
+        return int(value) if value is not None else None
+    except Exception:
+        logger.debug("Онлайн из панели не получен", exc_info=True)
+        return None
+
+
 async def stats_state() -> dict[str, Any]:
     """Today in Moscow time for the admin widget; cheap enough to run every 30 seconds.
 
     v/y — rubles credited today and yesterday by this time, p/f — payments and first payments,
     m — rubles by provider, h/g — rubles and new users per hour, n/nr/nd/nc/np — today's newcomers:
     all, by invitation, added a device, connected, paid. o — online in the last hour,
-    x — with access (balance and a device), a — all users, k — open support tickets."""
+    x — with access (balance and a device), a — all users, k — open support tickets,
+    on — connected right now (an=1 when the panel said so, else seen in the last 15 minutes),
+    ad — people online at some point today, tb — traffic today in bytes, counted since ts."""
     pool = db._pool_req()
     day = _DAY_START
     row = dict(await pool.fetchrow(
         f"""
         SELECT
             (SELECT COUNT(*)::int FROM users) AS a,
-            (SELECT COUNT(DISTINCT telegram_id)::int FROM devices WHERE last_online_at >= NOW() - INTERVAL '1 hour') AS o,
+            (SELECT COUNT(DISTINCT telegram_id)::int FROM devices WHERE last_online_at >= NOW() - INTERVAL '15 minutes') AS o,
+            (SELECT COUNT(DISTINCT telegram_id)::int FROM devices WHERE last_online_at >= {day}) AS ad,
             (SELECT COUNT(*)::int FROM users u WHERE COALESCE(u.balance_rub, 0) > 0
                 AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)) AS x,
             (SELECT COUNT(*)::int FROM tickets WHERE status = 'open') AS k,
@@ -413,6 +447,14 @@ async def stats_state() -> dict[str, Any]:
             FROM users WHERE created_at >= {day} GROUP BY 1"""
     )
 
+    await note_traffic_baseline()
+    traffic = dict(await pool.fetchrow(
+        """SELECT (SELECT COALESCE(SUM(lifetime_traffic_bytes), 0)::bigint FROM devices) - t.start_bytes AS tb,
+                  EXTRACT(EPOCH FROM t.taken_at)::bigint AS ts
+           FROM traffic_days t WHERE t.day = (NOW() AT TIME ZONE 'Europe/Moscow')::date"""
+    ) or {})
+    online = await panel_online_now()
+
     def by_hour(rows) -> list[int]:
         out = [0] * 24
         for r in rows:
@@ -423,7 +465,9 @@ async def stats_state() -> dict[str, Any]:
     state: dict[str, Any] = {k: int(pay.get(k) or 0) for k in ("v", "y", "p", "f")}
     state["m"] = {str(r["m"]): int(r["rub"] or 0) for r in methods if int(r["rub"] or 0)}
     state["h"], state["g"] = by_hour(hours_rub), by_hour(hours_new)
-    state.update({k: int(row.get(k) or 0) for k in ("n", "nr", "nd", "nc", "np", "o", "x", "a", "k")})
+    state.update({k: int(row.get(k) or 0) for k in ("n", "nr", "nd", "nc", "np", "x", "a", "k", "ad")})
+    state["on"], state["an"] = (online, 1) if online is not None else (int(row.get("o") or 0), 0)
+    state["tb"], state["ts"] = max(0, int(traffic.get("tb") or 0)), int(traffic.get("ts") or 0)
     state["t"] = int(time.time())
     return state
 

@@ -297,10 +297,11 @@ def back_profile_keyboard(*, cabinet: bool = False) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def ton_button(text: str = "Gram (TON)") -> InlineKeyboardButton | None:
-    """Pay in Gram (TON) from the chat; None while it is switched off."""
+def ton_button(text: str = "Gram (TON)", *, telegram_id: int | None = None) -> InlineKeyboardButton | None:
+    """Pay in Gram (TON) from the chat; None while it is switched off. Admins see it before the switch is on."""
     from app import ton
-    return InlineKeyboardButton(text=text, callback_data="ton_pay") if ton.enabled() else None
+    shown = ton.enabled() or (telegram_id is not None and ton.allowed(telegram_id))
+    return InlineKeyboardButton(text=text, callback_data="ton_pay") if shown else None
 
 
 def _cabinet_pay_label(settings) -> str:
@@ -311,10 +312,10 @@ def _cabinet_pay_label(settings) -> str:
     return "Пополнить"
 
 
-def buy_keyboard() -> InlineKeyboardMarkup:
+def buy_keyboard(telegram_id: int | None = None) -> InlineKeyboardMarkup:
     settings = get_settings()
     builder = InlineKeyboardBuilder()
-    ton_btn = ton_button()
+    ton_btn = ton_button(telegram_id=telegram_id)
     if runtime.webapp_url:
         # Two equal ways to pay side by side: the cabinet (card, SBP, Stars) and Gram (TON) in the chat.
         cabinet = InlineKeyboardButton(text=_cabinet_pay_label(settings) if ton_btn else "Пополнить",
@@ -331,7 +332,7 @@ def buy_keyboard() -> InlineKeyboardMarkup:
             label = plan["title"]
         builder.row(InlineKeyboardButton(text=label, callback_data=f"buy:{code}"))
     if ton_btn:
-        builder.row(ton_button("Оплатить в Gram (TON)"))
+        builder.row(ton_button("Оплатить в Gram (TON)", telegram_id=telegram_id))
     builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
     return builder.as_markup()
 

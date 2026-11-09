@@ -83,7 +83,7 @@ def configured_pay_methods() -> list[dict[str, Any]]:
         return [dict(item) for item in DEFAULT_PAY_METHODS]
 
 
-def method_available(method_id: str, settings=None) -> bool:
+def method_available(method_id: str, settings=None, *, telegram_id: int | None = None) -> bool:
     s = settings or get_settings()
     key = str(method_id or "").strip().lower()
     if key in {"sbp", "card", "crypto"}:
@@ -92,18 +92,19 @@ def method_available(method_id: str, settings=None) -> bool:
         return True
     if key == "ton":
         from app import ton
-        return ton.enabled()
+        # Admins can try it from the cabinet before the switch is on, the same as /ton.
+        return ton.enabled() or (telegram_id is not None and ton.allowed(telegram_id))
     return False
 
 
-def public_pay_methods() -> list[dict[str, Any]]:
+def public_pay_methods(telegram_id: int | None = None) -> list[dict[str, Any]]:
     settings = get_settings()
     out: list[dict[str, Any]] = []
     for item in configured_pay_methods():
         if not item.get("enabled"):
             continue
         method_id = item["id"]
-        if not method_available(method_id, settings):
+        if not method_available(method_id, settings, telegram_id=telegram_id):
             continue
         base = KNOWN_PAY_METHODS[method_id]
         out.append(
@@ -127,7 +128,7 @@ def admin_pay_methods() -> list[dict[str, Any]]:
         if method_id in {"sbp", "card", "crypto"} and not available:
             hint = "Нужны ключи RollyPay в окружении"
         if method_id == "ton" and not available:
-            hint = "Включите оплату в Gram (TON) в настройках"
+            hint = "Включите оплату в Gram (TON) в настройках — пока её видят только админы"
         out.append(
             {
                 "id": method_id,

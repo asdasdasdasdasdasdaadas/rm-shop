@@ -85,6 +85,8 @@ async def panel_sync_loop(rw: RemnawaveClient) -> None:
             try:
                 await sync_all(rw)
                 logger.info("Сверка с Remnawave завершена")
+                from app.widgets import note_traffic_baseline
+                await note_traffic_baseline()
             except Exception:
                 logger.exception("Сверка с Remnawave не удалась")
         await asyncio.sleep(interval)
@@ -108,6 +110,7 @@ async def main() -> None:
     await load_shop_overlay()
     await db.migrate_legacy_promo_codes()
     rw = RemnawaveClient()
+    runtime.rw = rw
     rp = RollyPayClient() if settings.rollypay_configured else None
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     from app.legal_notice import LegalNoticeRequestMiddleware, LegalNoticeInteractionMiddleware

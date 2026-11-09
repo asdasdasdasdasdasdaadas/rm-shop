@@ -113,7 +113,7 @@ async def my_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         f"Списание: <b>{rub_text(settings.vpn_day_price_rub)}</b> в сутки за устройство, "
         "только пока есть хотя бы одно устройство.\n"
         "Устройства добавляются в кабинете.",
-        reply_markup=buy_keyboard(),
+        reply_markup=buy_keyboard(callback.from_user.id),
     )
 
 
@@ -150,7 +150,7 @@ async def buy_menu(callback: CallbackQuery, rw: RemnawaveClient) -> None:
         f"Сутки на одно устройство: {rub_text(settings.vpn_day_price_rub)}. "
         "Пока устройств нет, баланс не списывается."
     )
-    await edit_funnel(callback.message, text, reply_markup=buy_keyboard())
+    await edit_funnel(callback.message, text, reply_markup=buy_keyboard(callback.from_user.id))
 
 
 @router.callback_query(F.data.startswith("buy:"))

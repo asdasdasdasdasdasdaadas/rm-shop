@@ -158,6 +158,18 @@ class TonButtonsTest(unittest.TestCase):
         self.assertEqual([b.text for b in rows[0]], ["Картой / СБП", "Gram (TON)"])
         self.assertEqual(rows[0][1].callback_data, "ton_pay")
 
+    def test_admins_see_ton_before_the_switch_is_on(self):
+        from app import keyboards, pay_methods
+        s = SimpleNamespace(rollypay_configured=True, stars_enabled=True, shop_plans={})
+        with patch.object(ton, "get_settings", return_value=settings(ton_enabled=False)), \
+                patch.object(keyboards, "get_settings", return_value=s), \
+                patch.object(keyboards.runtime, "webapp_url", "https://example.com/app"):
+            self.assertEqual(len(keyboards.buy_keyboard(42).inline_keyboard[0]), 1)
+            self.assertEqual(keyboards.buy_keyboard(1).inline_keyboard[0][1].text, "Gram (TON)")
+            self.assertTrue(pay_methods.method_available("ton", s, telegram_id=1))
+            self.assertFalse(pay_methods.method_available("ton", s, telegram_id=42))
+            self.assertFalse(pay_methods.method_available("ton", s))
+
     def test_balance_reminder_gets_the_ton_button(self):
         from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
         from app.reminder_tracking import with_ton_button

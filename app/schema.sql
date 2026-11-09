@@ -826,6 +826,13 @@ CREATE INDEX IF NOT EXISTS ton_orders_open_idx ON ton_orders (created_at) WHERE 
 CREATE INDEX IF NOT EXISTS ton_orders_user_idx ON ton_orders (telegram_id, created_at DESC);
 
 -- Every incoming transfer seen on the shop wallet; order_id is NULL for transfers nobody could match.
+-- Total device traffic at the start of each Moscow day: today's traffic is the growth since then.
+CREATE TABLE IF NOT EXISTS traffic_days (
+    day DATE PRIMARY KEY,
+    start_bytes BIGINT NOT NULL,
+    taken_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS ton_incoming (
     tx_hash TEXT PRIMARY KEY,
     sender TEXT,

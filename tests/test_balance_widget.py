@@ -116,22 +116,35 @@ class WidgetQueryTest(unittest.IsolatedAsyncioTestCase):
                 patch.object(widgets.db, 'referral_credit_sum', AsyncMock(return_value=0)):
             self.assertNotIn('r', await self.answer('f'))
 
-    async def test_stats_numbers_for_today(self):
-        rows = {'a': 120, 'o': 7, 'x': 40, 'k': 2, 'n': 5, 'nr': 2, 'nd': 3, 'nc': 2, 'np': 1}
+    async def stats(self, online):
+        rows = {'a': 120, 'o': 4, 'ad': 31, 'x': 40, 'k': 2, 'n': 5, 'nr': 2, 'nd': 3, 'nc': 2, 'np': 1}
         pay = {'v': 900, 'p': 3, 'f': 1, 'y': 600}
+        traffic = {'tb': 5 * 1024**3, 'ts': 1794200000}
         fetch = AsyncMock(side_effect=[
             [{'m': 'rollypay', 'rub': 500}, {'m': 'ton', 'rub': 400}],
             [{'h': 9, 'n': 500}, {'h': 14, 'n': 400}],
             [{'h': 9, 'n': 5}],
         ])
-        pool = SimpleNamespace(fetchrow=AsyncMock(side_effect=[rows, pay]), fetch=fetch)
-        with patch.object(widgets.db, '_pool_req', return_value=pool):
+        pool = SimpleNamespace(fetchrow=AsyncMock(side_effect=[rows, pay, traffic]), fetch=fetch, execute=AsyncMock())
+        rw = SimpleNamespace(safe_get=AsyncMock(return_value=online))
+        with patch.object(widgets.db, '_pool_req', return_value=pool), patch('app.runtime.rw', rw):
             state = await widgets.stats_state()
-        self.assertEqual({k: state[k] for k in ('v', 'y', 'p', 'f', 'n', 'nr', 'nd', 'nc', 'np', 'o', 'x', 'a', 'k')},
-                         {**pay, **rows})
+        self.assertIn('INSERT INTO traffic_days', pool.execute.await_args.args[0])
+        return state
+
+    async def test_stats_numbers_for_today(self):
+        state = await self.stats({'onlineStats': {'onlineNow': 17, 'lastDay': 60}})
+        self.assertEqual({k: state[k] for k in ('v', 'y', 'p', 'f', 'n', 'nr', 'nd', 'nc', 'np', 'x', 'a', 'k', 'ad')},
+                         {'v': 900, 'y': 600, 'p': 3, 'f': 1, 'n': 5, 'nr': 2, 'nd': 3, 'nc': 2, 'np': 1,
+                          'x': 40, 'a': 120, 'k': 2, 'ad': 31})
+        self.assertEqual((state['on'], state['an'], state['tb'], state['ts']), (17, 1, 5 * 1024**3, 1794200000))
         self.assertEqual(state['m'], {'rollypay': 500, 'ton': 400})
         self.assertEqual((len(state['h']), state['h'][9], state['h'][14], state['g'][9]), (24, 500, 400, 5))
         self.assertLessEqual(len(json.dumps(state, separators=(',', ':'))), 1024)
+
+    async def test_online_now_falls_back_to_the_last_sync(self):
+        state = await self.stats({'_error': 'GET /system/stats → 404'})
+        self.assertEqual((state['on'], state['an']), (4, 0))
 
     async def test_stats_only_for_admins(self):
         self.assertEqual(await self.answer('s', user=42), {'e': 'Нет доступа'})
