@@ -12,12 +12,15 @@ import {
 } from "@/components/workspace";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   Send,
   ArrowLeft,
   ArrowRight,
   Check,
+  Clock,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 const audiences: [string, string][] = [
@@ -38,6 +41,55 @@ const announce: Record<string, string> = {
   gift3: "Забрать 3 дня бесплатно",
   referral_news: "Пригласить друзей",
 };
+const pad = (n: number) => String(n).padStart(2, "0");
+// Value for <input type="datetime-local"> in the admin's own time zone.
+const localInput = (d: Date) =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const whenLabel = (iso: string) =>
+  new Date(iso).toLocaleString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+function Scheduled({ items, reload }: { items: Data[]; reload: () => Promise<unknown> }) {
+  const confirm = useConfirm();
+  if (!items?.length) return null;
+  return (
+    <div className="rounded-lg border p-4 space-y-3">
+      <p className="font-medium text-sm">Запланированные рассылки</p>
+      {items.map((item) => (
+        <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
+          <span className="flex items-center gap-2 min-w-0">
+            <Clock className="size-4 shrink-0 text-muted-foreground" />
+            <span className="truncate">
+              {whenLabel(item.at)} · {item.title}
+            </span>
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              confirm({
+                title: "Отменить запланированную рассылку?",
+                description: `${item.title}, ${whenLabel(item.at)}.`,
+                label: "Отменить рассылку",
+                action: async () => {
+                  await api("broadcast", { cancel_scheduled: item.id });
+                  await reload();
+                  toast.success("Рассылка отменена");
+                },
+              })
+            }
+          >
+            <X />
+            Отменить
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
 function Delivery({ data }: { data: Data }) {
   return (
     <div className="rounded-lg border p-4 space-y-3" role="status">
@@ -71,7 +123,9 @@ export function BroadcastPage() {
     [audience, setAudience] = useState("all"),
     [template, setTemplate] = useState(""),
     [text, setText] = useState(""),
-    [sent, setSent] = useState(false);
+    [sent, setSent] = useState(false),
+    [later, setLater] = useState(false),
+    [when, setWhen] = useState(() => localInput(new Date(Date.now() + 3600_000)));
   const confirm = useConfirm(),
     navigate = useNavigate();
   useDirty(!sent && (!!text.trim() || !!template));
@@ -93,26 +147,31 @@ export function BroadcastPage() {
     setTemplate(v);
     setSent(false);
   };
+  const whenDate = new Date(when),
+    whenValid = !later || (!Number.isNaN(whenDate.getTime()) && whenDate.getTime() > Date.now() + 60_000);
   const send = () =>
     confirm({
-      title: "Отправить рассылку?",
-      description: `Аудитория: ${audiences.find(([id]) => id === effectiveAudience)?.[1]}.\nПолучателей сейчас: ${count}. Фактическое число может измениться к началу отправки.\nСообщение отправится в Telegram. Отменить отправленное нельзя.`,
-      label: "Отправить рассылку",
+      title: later ? "Запланировать рассылку?" : "Отправить рассылку?",
+      description: `Аудитория: ${audiences.find(([id]) => id === effectiveAudience)?.[1]}.\nПолучателей сейчас: ${count}. Фактическое число может измениться к началу отправки.\n${later ? `Отправка начнётся ${whenLabel(whenDate.toISOString())}. До этого рассылку можно отменить.` : "Сообщение отправится в Telegram. Отменить отправленное нельзя."}`,
+      label: later ? "Запланировать" : "Отправить рассылку",
       action: async () => {
-        await api(
-          "broadcast",
+        const payload =
           template in announce
             ? { template, text }
             : template
               ? { template }
-              : { text, audience },
+              : { text, audience };
+        await api(
+          "broadcast",
+          later ? { ...payload, scheduled_at: whenDate.toISOString() } : payload,
         );
         setSent(true);
         setText("");
         setTemplate("");
         setStep(0);
+        setLater(false);
         await resource.reload();
-        toast.success("Рассылка запущена");
+        toast.success(later ? "Рассылка запланирована" : "Рассылка запущена");
       },
     });
   return (
@@ -126,6 +185,7 @@ export function BroadcastPage() {
         data && (
           <>
             {(data.running || data.total > 0) && <Delivery data={data} />}
+            <Scheduled items={data.scheduled || []} reload={resource.reload} />
             <div className="flex gap-3 flex-wrap" aria-label="Шаги подготовки">
               {["Аудитория", "Сообщение", "Проверка"].map((label, i) => (
                 <Button
@@ -254,6 +314,35 @@ export function BroadcastPage() {
                           </dd>
                         </div>
                       </dl>
+                      <Field label="Когда отправить">
+                        <Choice
+                          label="Когда отправить"
+                          value={later ? "later" : "now"}
+                          options={[
+                            ["now", "Сразу"],
+                            ["later", "Запланировать на дату и время"],
+                          ]}
+                          onChange={(v) => setLater(v === "later")}
+                        />
+                      </Field>
+                      {later && (
+                        <Field
+                          label="Дата и время"
+                          hint={
+                            whenValid
+                              ? "Время вашего устройства. Рассылка начнётся в течение минуты после него."
+                              : "Выберите время хотя бы на минуту позже текущего."
+                          }
+                        >
+                          <Input
+                            type="datetime-local"
+                            aria-label="Дата и время рассылки"
+                            value={when}
+                            min={localInput(new Date())}
+                            onChange={(e) => setWhen(e.target.value)}
+                          />
+                        </Field>
+                      )}
                       <p className="text-sm text-muted-foreground">
                         После отправки проверьте доставку. Неуспешные сообщения
                         доступны в журнале.
@@ -281,11 +370,13 @@ export function BroadcastPage() {
                       </Button>
                     ) : (
                       <Button
-                        disabled={data.running || !count || !body.trim()}
+                        disabled={(data.running && !later) || !count || !body.trim() || !whenValid}
                         onClick={send}
                       >
-                        <Send />
-                        Отправить {count} пользователям
+                        {later ? <Clock /> : <Send />}
+                        {later
+                          ? `Запланировать на ${whenValid ? whenLabel(whenDate.toISOString()) : "…"}`
+                          : `Отправить ${count} пользователям`}
                       </Button>
                     )}
                   </div>

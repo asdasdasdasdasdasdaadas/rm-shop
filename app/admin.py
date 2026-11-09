@@ -6,6 +6,7 @@ import hmac
 import json
 import logging
 import time
+from datetime import datetime, timedelta, timezone
 
 from html import escape
 
@@ -1982,6 +1983,121 @@ async def api_broadcast_results(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **await db.admin_broadcast_results(page)})
 
 
+def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
+    """Normalise a broadcast request without sending; returns (spec, error)."""
+    template = str(body.get("template") or "").strip()
+    if template not in {"", "invite", "unused", "whitelist", *ANNOUNCE_TEMPLATES}:
+        return None, "Неизвестный шаблон"
+    if template in {"invite", "referral_news"} and not get_settings().referral_program_enabled:
+        return None, "Реферальная программа приостановлена"
+    text = str(body.get("text") or "").strip()
+    audience = "all"
+    if template in ANNOUNCE_TEMPLATES:
+        text = text or ANNOUNCE_DEFAULTS[template]
+    elif template:
+        text = ""  # stored templates are rendered at send time
+        audience = "using" if template == "invite" else "unused" if template == "unused" else "all"
+    else:
+        if not text:
+            return None, "Пустой текст"
+        audience = str(body.get("audience") or "all").strip() or "all"
+        if audience not in {"all", "using", "unused"}:
+            return None, "Неизвестная аудитория"
+    if len(text) > 3500:
+        return None, "Текст слишком длинный"
+    return {"template": template, "text": text, "audience": audience}, None
+
+
+async def _launch_broadcast(app: web.Application, spec: dict) -> tuple[dict, int]:
+    """Start a checked broadcast now. Returns (json payload, http status)."""
+    job = _bc_job(app)
+    if job.get("running"):
+        return {"ok": False, "error": "Рассылка уже идёт", **job}, 409
+    spec, error = _check_broadcast(spec)
+    if error:
+        return {"ok": False, "error": error}, 400
+    template, text, audience = spec["template"], spec["text"], spec["audience"]
+    if template in ANNOUNCE_TEMPLATES:
+        if not await db.list_broadcast_ids("all"):
+            return {"ok": False, "error": "Нет получателей"}, 400
+        return {"ok": True, **_start_broadcast_job(app, text, None, template)}, 200
+    if template:
+        ids = await db.list_broadcast_ids(audience)
+        if not ids:
+            return {"ok": False, "error": "Нет получателей для этого шаблона"}, 400
+        return {"ok": True, **_start_broadcast_job(app, _broadcast_template_preview(template), ids, template)}, 200
+    ids = None if audience == "all" else await db.list_broadcast_ids(audience)
+    if ids is not None and not ids:
+        return {"ok": False, "error": "Нет получателей"}, 400
+    return {"ok": True, **_start_broadcast_job(app, text, ids, None)}, 200
+
+
+SCHEDULE_KV = "scheduled_broadcasts"
+SCHEDULE_MAX_DAYS = 60
+
+
+async def _load_scheduled() -> list[dict]:
+    try:
+        data = json.loads((await db.get_kv(SCHEDULE_KV)) or "[]")
+    except ValueError:
+        data = []
+    return [x for x in data if isinstance(x, dict) and x.get("id") and x.get("at")] if isinstance(data, list) else []
+
+
+async def _save_scheduled(items: list[dict]) -> None:
+    items = sorted(items, key=lambda x: x["at"])
+    await db.set_kv(SCHEDULE_KV, json.dumps(items, ensure_ascii=False))
+
+
+def _parse_when(raw) -> datetime | None:
+    try:
+        when = datetime.fromisoformat(str(raw or "").strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return when if when.tzinfo else None
+
+
+async def run_due_broadcasts(app: web.Application) -> None:
+    """Start the earliest due scheduled broadcast; the rest wait for the running one to finish."""
+    if _bc_job(app).get("running"):
+        return
+    items = await _load_scheduled()
+    now = datetime.now(timezone.utc)
+    due = [x for x in items if (_parse_when(x["at"]) or now) <= now]
+    if not due:
+        return
+    item = due[0]
+    # Drop it first so a crash or restart never sends the same broadcast twice.
+    await _save_scheduled([x for x in items if x["id"] != item["id"]])
+    payload, status = await _launch_broadcast(app, item)
+    if status != 200:
+        logger.warning("Запланированная рассылка %s не запущена: %s", item["id"], payload.get("error"))
+        job = _bc_job(app)
+        job["message"] = f"Запланированная рассылка не запущена: {payload.get('error')}"
+
+
+async def _broadcast_scheduler(app: web.Application) -> None:
+    while True:
+        try:
+            await run_due_broadcasts(app)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Планировщик рассылок")
+        await asyncio.sleep(20)
+
+
+async def _start_broadcast_scheduler(app: web.Application) -> None:
+    app["broadcast_scheduler"] = asyncio.create_task(_broadcast_scheduler(app), name="broadcast-scheduler")
+
+
+async def _stop_broadcast_scheduler(app: web.Application) -> None:
+    task = app.get("broadcast_scheduler")
+    if task:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
 async def api_broadcast(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2000,44 +2116,42 @@ async def api_broadcast(request: web.Request) -> web.Response:
                 "gift3": _broadcast_template_preview("gift3"),
                 "referral_news": _broadcast_template_preview("referral_news"),
             }
+        extra["scheduled"] = await _load_scheduled()
         return web.json_response({"ok": True, **job, **extra})
-    if job.get("running"):
-        return web.json_response({"ok": False, "error": "Рассылка уже идёт", **job}, status=409)
     body = await request.json()
-    template = str(body.get("template") or "").strip()
-    if template in {"invite", "referral_news"} and not get_settings().referral_program_enabled:
-        return web.json_response({"ok": False, "error": "Реферальная программа приостановлена"}, status=400)
-    if template not in {"", "invite", "unused", "whitelist", *ANNOUNCE_TEMPLATES}:
-        return web.json_response({"ok": False, "error": "Неизвестный шаблон"}, status=400)
-    text = str(body.get("text") or "").strip()
-    if template in ANNOUNCE_TEMPLATES:
-        text = text or ANNOUNCE_DEFAULTS[template]
-        if len(text) > 3500:
-            return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
-        if not await db.list_broadcast_ids("all"):
-            return web.json_response({"ok": False, "error": "Нет получателей"}, status=400)
-        started = _start_broadcast_job(request.app, text, None, template)
-        return web.json_response({"ok": True, **started, "audiences": audiences})
-    if template in {"invite", "unused", "whitelist"}:
-        text = _broadcast_template_preview(template)
-        audience = "using" if template == "invite" else "unused" if template == "unused" else "all"
-        ids = await db.list_broadcast_ids(audience)
-        if not ids:
-            return web.json_response({"ok": False, "error": "Нет получателей для этого шаблона"}, status=400)
-        started = _start_broadcast_job(request.app, text, ids, template)
-        return web.json_response({"ok": True, **started, "audiences": audiences})
-    if not text:
-        return web.json_response({"ok": False, "error": "Пустой текст"}, status=400)
-    if len(text) > 3500:
-        return web.json_response({"ok": False, "error": "Текст слишком длинный"}, status=400)
-    audience = str(body.get("audience") or "all").strip() or "all"
-    if audience not in {"all", "using", "unused"}:
-        return web.json_response({"ok": False, "error": "Неизвестная аудитория"}, status=400)
-    ids = None if audience == "all" else await db.list_broadcast_ids(audience)
-    if ids is not None and not ids:
-        return web.json_response({"ok": False, "error": "Нет получателей"}, status=400)
-    started = _start_broadcast_job(request.app, text, ids, None)
-    return web.json_response({"ok": True, **started, "audiences": audiences})
+    cancel_id = str(body.get("cancel_scheduled") or "").strip()
+    if cancel_id:
+        items = await _load_scheduled()
+        left = [x for x in items if x["id"] != cancel_id]
+        if len(left) == len(items):
+            return web.json_response({"ok": False, "error": "Запланированная рассылка не найдена"}, status=404)
+        await _save_scheduled(left)
+        return web.json_response({"ok": True, "scheduled": left})
+    if body.get("scheduled_at"):
+        when = _parse_when(body.get("scheduled_at"))
+        now = datetime.now(timezone.utc)
+        if when is None:
+            return web.json_response({"ok": False, "error": "Укажите дату и время"}, status=400)
+        if when <= now + timedelta(seconds=30):
+            return web.json_response({"ok": False, "error": "Время отправки уже прошло"}, status=400)
+        if when > now + timedelta(days=SCHEDULE_MAX_DAYS):
+            return web.json_response({"ok": False, "error": f"Не дальше чем на {SCHEDULE_MAX_DAYS} дней вперёд"}, status=400)
+        spec, error = _check_broadcast(body)
+        if error:
+            return web.json_response({"ok": False, "error": error}, status=400)
+        import secrets
+        item = {"id": secrets.token_hex(6), "at": when.astimezone(timezone.utc).isoformat(),
+                "title": _broadcast_title(spec["template"]), **spec}
+        items = await _load_scheduled()
+        if len(items) >= 20:
+            return web.json_response({"ok": False, "error": "Не больше 20 запланированных рассылок"}, status=400)
+        items.append(item)
+        await _save_scheduled(items)
+        return web.json_response({"ok": True, "scheduled": await _load_scheduled(), "planned": item})
+    payload, status = await _launch_broadcast(request.app, body)
+    if status == 200:
+        payload["audiences"] = audiences
+    return web.json_response(payload, status=status)
 
 
 async def api_referral_campaigns(request: web.Request) -> web.Response:
@@ -2559,6 +2673,8 @@ async def api_replace_subscriptions(request: web.Request) -> web.Response:
 
 
 def mount_admin(app: web.Application) -> None:
+    app.on_startup.append(_start_broadcast_scheduler)
+    app.on_cleanup.append(_stop_broadcast_scheduler)
     app.router.add_get("/admin", admin_redirect)
     app.router.add_get("/admin/", admin_index)
     app.router.add_get("/admin/stats", admin_index)

@@ -21,7 +21,8 @@ class WhitelistBroadcastTest(unittest.IsolatedAsyncioTestCase):
         start.assert_called_once_with(request.app, 'Сохранённый текст', [1, 2], 'whitelist')
 
     async def test_running_job_prevents_duplicate(self):
-        request = SimpleNamespace(app={'broadcast_job': {'running': True}}, method='POST')
+        request = SimpleNamespace(app={'broadcast_job': {'running': True}}, method='POST',
+                                  json=AsyncMock(return_value={'template': 'whitelist'}))
         with patch.object(admin, '_need_auth', return_value=None), \
              patch.object(admin, '_start_broadcast_job') as start:
             response = await admin.api_broadcast(request)
