@@ -1732,7 +1732,9 @@ async def _broadcast_all(
             except Exception:
                 logger.exception("Broadcast tracking setup failed")
         try:
-            if announce:
+            if gift_id:
+                message = await _send_gift(bot, telegram_id, gift_id, body, markup)
+            elif announce:
                 message = await bot.send_message(telegram_id, body, reply_markup=markup)
             else:
                 message = await _deliver_broadcast(bot, telegram_id, body, markup)
@@ -1763,6 +1765,19 @@ async def _broadcast_all(
         except Exception:
             logger.exception("Broadcast progress persistence failed")
         await asyncio.sleep(0.035)
+
+
+async def _send_gift(bot: Bot, telegram_id: int, gift_id: int, body: str, markup):
+    """Gift as a widget with «Забрать» inside; the button under it stays for apps without widgets."""
+    from aiogram.exceptions import TelegramForbiddenError
+    from app.widgets import send_gift_widget
+    try:
+        return await send_gift_widget(bot, telegram_id, gift_id, caption=body, reply_markup=markup)
+    except TelegramForbiddenError:
+        raise
+    except Exception:
+        logger.warning("Gift widget was not sent to %s, sending text", telegram_id, exc_info=True)
+    return await bot.send_message(telegram_id, body, reply_markup=markup)
 
 
 async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup):

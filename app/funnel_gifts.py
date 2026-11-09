@@ -120,6 +120,12 @@ async def claim_button(callback: CallbackQuery) -> None:
         await callback.answer("Не получилось, попробуйте ещё раз", show_alert=True)
         return
     await callback.answer("Подарок начислен 🎁")
+    message = callback.message
+    if getattr(message, "widget", None) or (getattr(message, "model_extra", None) or {}).get("widget"):
+        # Claimed with the button under the widget: show it in the widget too. The text below still goes out,
+        # because whoever used this button may be on an app that draws only the caption.
+        from app.widgets import mark_gift_claimed
+        await mark_gift_claimed(callback.bot, message.chat.id, message.message_id, int(raw), result)
     text = (f"🎁 Начислили <b>{rub_text(result['gift_rub'])}</b> — это {days_text(result['days'])} VPN "
             f"для ваших устройств: {result['devices']}.")
     if result["debt_repaid_rub"]:

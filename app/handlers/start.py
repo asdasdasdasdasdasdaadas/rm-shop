@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import logging
 from app.funnel_ui import answer_funnel, edit_funnel
 
 import re
@@ -300,6 +302,21 @@ async def cmd_widget(message: Message) -> None:
         await send_balance_widget(message.bot, message.from_user.id)
     except TelegramBadRequest as exc:
         await message.answer(f"Виджет не отправился: {exc.message}")
+
+
+@router.message(Command("stats"))
+async def cmd_stats(message: Message) -> None:
+    """Live service numbers for today as a widget; admins only."""
+    if message.from_user.id not in get_settings().admin_id_set:
+        return
+    from app.widgets import send_stats_widget
+    try:
+        await send_stats_widget(message.bot, message.from_user.id)
+    except TelegramBadRequest as exc:
+        await message.answer(f"Виджет не отправился: {exc.message}")
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Виджет статистики не собрался")
+        await message.answer(f"Статистика не собралась: {type(exc).__name__}")
 
 
 @router.callback_query(F.data == "funnel_test:click")

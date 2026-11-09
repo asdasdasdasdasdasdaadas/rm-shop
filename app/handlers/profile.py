@@ -72,6 +72,19 @@ async def share(callback: CallbackQuery) -> None:
     await user_action(dict(telegram_id=callback.from_user.id, first_name=callback.from_user.first_name,
                      username=callback.from_user.username), 'invite')
     body = invite_message(callback.from_user.id, settings)
+    markup = share_keyboard(settings.bot_username, callback.from_user.id)
+    # A live referral card in place of the menu message; on any error keep the plain invite text.
+    from app.widgets import send_referral_widget
+    try:
+        await send_referral_widget(callback.bot, callback.from_user.id, caption=body, reply_markup=markup)
+    except Exception:
+        logger.warning("Виджет рефералки не отправился, показываем текст", exc_info=True)
+    else:
+        try:
+            await callback.message.delete()
+        except Exception:
+            logger.debug("Меню под карточкой рефералки не удалено", exc_info=True)
+        return
     await edit_funnel(callback.message,
         body,
         preserve=True,

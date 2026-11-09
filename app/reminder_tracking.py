@@ -2,6 +2,7 @@
 import logging
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from aiogram import BaseMiddleware
+from aiogram.exceptions import TelegramForbiddenError
 from app import db
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,9 @@ def tracked_keyboard(markup, token):
     return markup.model_copy(update={'inline_keyboard':rows})
 
 
+BALANCE_WIDGET_KINDS = {'nudge_trial_end', 'low_balance'}
+
+
 async def send_reminder(bot, telegram_id, body, *, kind, title, reply_markup, preserve=False, step_id=None):
     from app.funnel_ui import funnel_body, funnel_keyboard
     if not preserve:
@@ -39,10 +43,20 @@ async def send_reminder(bot, telegram_id, body, *, kind, title, reply_markup, pr
         from pathlib import Path
         from aiogram.types import FSInputFile
         banner = Path(__file__).parent / 'assets' / 'balance-reminder.png'
-        if kind in {'nudge_trial_end', 'low_balance'} and banner.is_file() and len(body) <= 1024:
+        message = None
+        if kind in BALANCE_WIDGET_KINDS and len(body) <= 1024:
+            # A live balance widget with a countdown; old Telegram apps show the caption, errors fall back to the banner.
+            from app.widgets import send_balance_widget
+            try:
+                message = await send_balance_widget(bot, telegram_id, caption=body, reply_markup=reply_markup)
+            except TelegramForbiddenError:
+                raise
+            except Exception:
+                logger.warning('Виджет баланса не отправился, шлём баннер', exc_info=True)
+        if message is None and kind in BALANCE_WIDGET_KINDS and banner.is_file() and len(body) <= 1024:
             message = await bot.send_photo(telegram_id, FSInputFile(banner), caption=body,
                                            parse_mode='HTML', reply_markup=reply_markup)
-        else:
+        elif message is None:
             message=await bot.send_message(telegram_id,body,reply_markup=reply_markup)
     except Exception:
         if token:
