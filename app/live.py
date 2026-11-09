@@ -130,6 +130,22 @@ _ACTION_TITLES = {
 }
 
 
+REFERRAL_ACTIONS = {'invite', 'share', 'copy'}
+
+
+async def _post_referral_action(user: dict, action: str, source: str) -> None:
+    """Every referral click goes to the live channel right away, not only into the daily digest."""
+    if not user.get('first_name') and not user.get('username'):
+        try:
+            user = {**(await db.get_user(int(user['telegram_id'])) or {}), **{k: v for k, v in user.items() if v}}
+        except Exception:
+            logger.debug('Could not load user for referral notice', exc_info=True)
+    kind, emoji, title = _ACTION_TITLES[action]
+    where = 'в боте' if source == 'bot' else 'в личном кабинете'
+    # Fire and forget: the user's tap must not wait for the channel message.
+    post(_heading(kind, emoji, title) + '\n\n' + _who(user) + f'\n<b>Где:</b> {where}')
+
+
 async def user_action(user: dict, action: str, *, source: str = 'bot') -> None:
     if action not in _ACTION_TITLES:
         return
@@ -141,6 +157,8 @@ async def user_action(user: dict, action: str, *, source: str = 'bot') -> None:
             logger.exception('Could not record referral interest')
     if not _chat_id():
         return
+    if action in REFERRAL_ACTIONS:
+        await _post_referral_action(user, action, source)
     try:
         from app.activity_digest import record
         await record(int(user['telegram_id']), action, source)

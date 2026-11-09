@@ -3,12 +3,12 @@ from unittest.mock import AsyncMock, patch
 from app import live, activity_digest
 
 class LiveActionsTest(unittest.IsolatedAsyncioTestCase):
-    async def test_records_actions_without_immediate_message(self):
+    async def test_records_actions_and_posts_only_referral_clicks_at_once(self):
         for action in live._ACTION_TITLES:
             with self.subTest(action=action), patch.object(live, '_chat_id', return_value=-100123), patch.object(activity_digest, 'record', AsyncMock()) as record, patch.object(live, 'post') as post:
-                await live.user_action({'telegram_id':123}, action)
+                await live.user_action({'telegram_id':123, 'first_name':'A'}, action)
                 record.assert_awaited_once_with(123, action, 'bot')
-                post.assert_not_called()
+                self.assertEqual(post.called, action in live.REFERRAL_ACTIONS)
 
     async def test_disabled_channel_and_unknown_action(self):
         with patch.object(activity_digest, 'record', AsyncMock()) as record, patch.object(live, '_chat_id', return_value=None):
