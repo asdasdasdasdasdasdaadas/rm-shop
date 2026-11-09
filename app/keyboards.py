@@ -297,20 +297,29 @@ def back_profile_keyboard(*, cabinet: bool = False) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def ton_button(text: str = "Gram (TON)") -> InlineKeyboardButton | None:
+    """Pay in Gram (TON) from the chat; None while it is switched off."""
+    from app import ton
+    return InlineKeyboardButton(text=text, callback_data="ton_pay") if ton.enabled() else None
+
+
+def _cabinet_pay_label(settings) -> str:
+    if settings.rollypay_configured:
+        return "Картой / СБП"
+    if settings.stars_enabled:
+        return "Звёздами"
+    return "Пополнить"
+
+
 def buy_keyboard() -> InlineKeyboardMarkup:
     settings = get_settings()
     builder = InlineKeyboardBuilder()
-    from app import ton
-    ton_row = [InlineKeyboardButton(text="Оплатить в TON", callback_data="ton_pay")] if ton.enabled() else []
+    ton_btn = ton_button()
     if runtime.webapp_url:
-        builder.row(
-            InlineKeyboardButton(
-                text="Пополнить",
-                web_app=WebAppInfo(url=runtime.webapp_url),
-            )
-        )
-        if ton_row:
-            builder.row(*ton_row)
+        # Two equal ways to pay side by side: the cabinet (card, SBP, Stars) and Gram (TON) in the chat.
+        cabinet = InlineKeyboardButton(text=_cabinet_pay_label(settings) if ton_btn else "Пополнить",
+                                       web_app=WebAppInfo(url=runtime.webapp_url))
+        builder.row(cabinet, *([ton_btn] if ton_btn else []))
         builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
         return builder.as_markup()
     for code, plan in settings.shop_plans.items():
@@ -321,8 +330,8 @@ def buy_keyboard() -> InlineKeyboardMarkup:
         else:
             label = plan["title"]
         builder.row(InlineKeyboardButton(text=label, callback_data=f"buy:{code}"))
-    if ton_row:
-        builder.row(*ton_row)
+    if ton_btn:
+        builder.row(ton_button("Оплатить в Gram (TON)"))
     builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
     return builder.as_markup()
 

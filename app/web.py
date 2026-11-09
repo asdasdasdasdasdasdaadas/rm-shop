@@ -654,15 +654,21 @@ async def api_invoice(request: web.Request) -> web.Response:
         return json_error("Способы оплаты выключены")
     raw_method = str(body.get("method") or "").strip()
     if raw_method == "ton":
-        # TON is paid from the chat: the bot asks there how much TON to send.
+        # TON is paid from the chat: the bot sends the card for this amount there, like a Stars invoice.
         if "ton" not in allowed_ids:
             return json_error("Способ оплаты недоступен")
         from app import ton
         try:
-            await ton.ask_amount(request.app["bot"], telegram_id, rub=int(plan.get("topup_rub") or 0) or None)
+            rub = int(plan.get("topup_rub") or 0)
+            if rub > 0:
+                await ton.send_card_for_rub(request.app["bot"], telegram_id, rub)
+            else:
+                await ton.ask_amount(request.app["bot"], telegram_id)
+        except ValueError as exc:
+            return json_error(str(exc))
         except Exception:
             logger.warning("TON widget was not sent from the cabinet", exc_info=True)
-            return json_error("Не удалось открыть оплату в TON", 502)
+            return json_error("Не удалось открыть оплату в Gram (TON)", 502)
         return web.json_response({"ok": True, "chat": True})
     if raw_method:
         try:

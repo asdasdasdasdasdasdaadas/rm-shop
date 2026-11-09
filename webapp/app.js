@@ -2788,15 +2788,10 @@ async function payPlan(plan, method) {
     return;
   }
   if (inv.chat) {
-    // TON is paid in the chat with the bot: the payment widget is already there.
-    const done = () => {
-      try { tg.close(); } catch (_e) {}
-    };
-    try {
-      tg.showAlert("Напишите боту в чате, сколько TON отправить, — он пришлёт карточку для оплаты.", done);
-    } catch (_e) {
-      done();
-    }
+    // Gram (TON) is paid in the chat with the bot: the card for this amount is already there,
+    // so just go back to the chat, the way a Stars invoice opens on top of it.
+    try { tg.HapticFeedback && tg.HapticFeedback.notificationOccurred("success"); } catch (_e) {}
+    try { tg.close(); } catch (_e) {}
     return;
   }
   if (!inv.invoice_url) throw new Error("Не удалось получить счёт Telegram Stars");

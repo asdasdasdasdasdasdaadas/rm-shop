@@ -336,7 +336,7 @@ async def cmd_ton(message: Message, command: CommandObject) -> None:
     except Exception as exc:
         logging.getLogger(__name__).warning("Оплата TON не открылась", exc_info=True)
         if message.from_user.id in get_settings().admin_id_set:
-            await message.answer(f"Виджет TON не отправился: {getattr(exc, 'message', None) or type(exc).__name__}")
+            await message.answer(f"Карточка Gram (TON) не отправилась: {getattr(exc, 'message', None) or type(exc).__name__}")
 
 
 def _ton_amount_message(message: Message) -> bool:
@@ -356,7 +356,7 @@ async def ton_amount(message: Message) -> None:
         error = await ton.amount_reply(message.bot, message.from_user.id, message.text)
     except Exception:
         logging.getLogger(__name__).warning("Виджет TON не отправился", exc_info=True)
-        error = "Не получилось открыть оплату в TON, попробуйте позже"
+        error = "Не получилось открыть оплату в Gram (TON), попробуйте позже"
     if error:
         await message.answer(error)
 
@@ -365,13 +365,13 @@ async def ton_amount(message: Message) -> None:
 async def ton_pay_button(callback: CallbackQuery) -> None:
     from app import ton
     if not ton.allowed(callback.from_user.id):
-        await ack(callback, "Оплата в TON сейчас недоступна", alert=True)
+        await ack(callback, "Оплата в Gram (TON) сейчас недоступна", alert=True)
         return
     try:
         await ton.ask_amount(callback.bot, callback.from_user.id)
     except Exception:
         logging.getLogger(__name__).warning("Виджет TON не отправился", exc_info=True)
-        await ack(callback, "Не получилось открыть оплату в TON, попробуйте позже", alert=True)
+        await ack(callback, "Не получилось открыть оплату в Gram (TON), попробуйте позже", alert=True)
         return
     await ack(callback)
 

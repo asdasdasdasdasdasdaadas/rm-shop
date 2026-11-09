@@ -27,7 +27,12 @@ async def deliver_payment_notice(bot, receipt):
     status = 'pending'
     try:
         local = await db.get_user(uid) or {}
-        if receipt['router_days']:
+        if key.startswith('ton:') and not receipt['router_days'] and used_vpn(local, await db.list_devices(uid)):
+            # The Gram (TON) card already turned green with the amount and balance: nothing left to say.
+            body = 'Показано в карточке оплаты Gram (TON).'
+            status = 'sent'
+            await db.finish_payment_notice(key, status)
+        elif receipt['router_days']:
             body = 'Оплата получена. Откройте кабинет, чтобы проверить доступ.'
             markup = cabinet_keyboard()
         else:
@@ -43,11 +48,12 @@ async def deliver_payment_notice(bot, receipt):
             else:
                 body += '\n\n📱 Продолжите настройку: добавьте ссылку в VPN-приложение и включите VPN.'
                 markup = onboarding_keyboard(has_device=True)
-        from app.funnel_ui import funnel_body
-        body = funnel_body(body)
-        await send_funnel_message(bot,uid,body,reply_markup=markup)
-        status = 'sent'
-        await db.finish_payment_notice(key,status)
+        if status != 'sent':
+            from app.funnel_ui import funnel_body
+            body = funnel_body(body)
+            await send_funnel_message(bot,uid,body,reply_markup=markup)
+            status = 'sent'
+            await db.finish_payment_notice(key,status)
     except TelegramForbiddenError:
         status = 'blocked'
         await db.finish_payment_notice(key,status)

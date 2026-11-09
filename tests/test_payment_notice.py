@@ -56,6 +56,16 @@ class PaymentNoticeTest(unittest.IsolatedAsyncioTestCase):
         text=self.bot.send_message.call_args.args[1]
         self.assertIn('VPN уже настроен',text);self.assertNotIn('Продолжите настройку',text)
 
+    async def test_ton_payer_with_working_vpn_gets_only_the_card(self):
+        self.devices.return_value=[{'id':1,'last_online_at':'date'}]
+        await notice.deliver_payment_notice(self.bot,dict(self.receipt,payment_key='ton:VPN-ABC234'))
+        self.bot.send_message.assert_not_awaited()
+        self.finish.assert_awaited_once_with('ton:VPN-ABC234','sent')
+
+    async def test_new_ton_payer_still_gets_the_next_step(self):
+        await notice.deliver_payment_notice(self.bot,dict(self.receipt,payment_key='ton:VPN-ABC234'))
+        self.assertIn('Добавьте устройство',self.bot.send_message.call_args.args[1])
+
     async def test_traffic_without_local_devices_counts_as_connected(self):
         self.user.return_value={'balance_rub':94,'lifetime_traffic_bytes':5_000_000}
         await notice.deliver_payment_notice(self.bot,self.receipt)

@@ -28,6 +28,22 @@ def tracked_keyboard(markup, token):
 BALANCE_WIDGET_KINDS = {'nudge_trial_end', 'low_balance'}
 
 
+def with_ton_button(markup):
+    """Put «Gram (TON)» next to the first (top-up) button of a balance reminder, when that payment is on."""
+    from app.keyboards import ton_button
+    button = ton_button()
+    if not button or not markup or not markup.inline_keyboard:
+        return markup
+    rows = [list(row) for row in markup.inline_keyboard]
+    if any(b.callback_data == 'ton_pay' for row in rows for b in row):
+        return markup
+    if len(rows[0]) == 1:
+        rows[0].append(button)
+    else:
+        rows.insert(1, [button])
+    return markup.model_copy(update={'inline_keyboard': rows})
+
+
 async def send_reminder(bot, telegram_id, body, *, kind, title, reply_markup, preserve=False, step_id=None):
     from app.funnel_ui import funnel_body, funnel_keyboard
     if not preserve:
@@ -39,6 +55,11 @@ async def send_reminder(bot, telegram_id, body, *, kind, title, reply_markup, pr
         reply_markup=tracked_keyboard(reply_markup,token)
     except Exception:
         logger.debug('Reminder tracking unavailable',exc_info=True)
+    if kind in BALANCE_WIDGET_KINDS:
+        try:
+            reply_markup = with_ton_button(reply_markup)
+        except Exception:
+            logger.debug('Кнопка Gram (TON) не добавлена', exc_info=True)
     try:
         from pathlib import Path
         from aiogram.types import FSInputFile

@@ -184,8 +184,9 @@ $('ad').onclick=()=>{if(W.copyText){W.copyText(A);msg('Адрес скопиро
 function draw(){if(!s)return;
 if(s.ok){$('cd').className='cd dn';$('rb').textContent='зачислено';$('am').textContent='+'+rub(s.ok.c);
 $('sb').textContent='Баланс: '+rub(s.ok.b);$('pay').hidden=true;$('ed').hidden=true;msg('Счёт '+s.ok.o+' оплачен');stop();return}
-$('am').textContent=tn(s.n)+' TON';$('sb').textContent='≈ '+rub(s.c)+' на баланс';
-$('pay').textContent='Оплатить '+tn(s.n)+' TON';$('ed').hidden=!!ord;if(ord)$('rb').textContent='ждём'}
+$('am').textContent=tn(s.n)+' Gram';
+$('sb').textContent='≈ '+rub(s.c)+' на баланс'+(s.d>0?' · '+s.d+' '+pl(s.d,'день','дня','дней')+' VPN':'');
+$('pay').textContent='Оплатить '+tn(s.n)+' Gram';$('ed').hidden=!!ord;if(ord)$('rb').textContent='ждём'}
 function stop(){if(poll)clearInterval(poll);poll=0}
 function check(){msg('Ищем перевод в блокчейне, обычно 5–15 секунд…');$('rb').textContent='ждём';$('pay').disabled=true;$('ed').hidden=true;if(poll)return;
 poll=setInterval(()=>{if(!busy&&W.isActive!==false)ask('q:'+ord,0,v=>{if(v.ok){s.ok=v.ok;draw()}})},6000)}

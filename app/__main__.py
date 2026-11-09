@@ -6,7 +6,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand, ErrorEvent, MenuButtonCommands, MenuButtonWebApp, WebAppInfo
+from aiogram.types import ErrorEvent, MenuButtonCommands, MenuButtonWebApp, WebAppInfo
 
 from app import db, runtime
 from app.balance import charge_due_devices
@@ -155,9 +155,8 @@ async def main() -> None:
 
     try:
         me = await bot.get_me()
-        await bot.set_my_commands(
-            [BotCommand(command="start", description="Открыть профиль")]
-        )
+        from app import ton
+        await ton.sync_bot_commands(bot)
         if runtime.webapp_url:
             await bot.set_chat_menu_button(
                 menu_button=MenuButtonWebApp(

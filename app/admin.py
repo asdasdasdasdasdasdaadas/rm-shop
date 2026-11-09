@@ -2158,6 +2158,9 @@ async def api_settings(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Не удалось сохранить"}, status=500)
     new_brand = (get_settings().brand_name or "").strip()[:64]
     bot = request.app.get("bot")
+    if bot:
+        from app import ton
+        await ton.sync_bot_commands(bot)
     if bot and new_brand and new_brand != old_brand:
         try:
             await bot.set_my_name(name=new_brand)

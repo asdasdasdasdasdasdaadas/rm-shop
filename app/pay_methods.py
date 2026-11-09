@@ -19,8 +19,8 @@ KNOWN_PAY_METHODS: dict[str, dict[str, str]] = {
         "note": "Оплата звёздами прямо в Telegram, без перехода в банк.",
     },
     "ton": {
-        "title": "TON",
-        "note": "Оплата из кошелька Telegram: пришлём окно оплаты в чат с ботом.",
+        "title": "Gram (TON)",
+        "note": "Оплата из кошелька Telegram: карточка для оплаты придёт в чат с ботом.",
     },
 }
 
@@ -127,7 +127,7 @@ def admin_pay_methods() -> list[dict[str, Any]]:
         if method_id in {"sbp", "card", "crypto"} and not available:
             hint = "Нужны ключи RollyPay в окружении"
         if method_id == "ton" and not available:
-            hint = "Включите оплату в TON в настройках"
+            hint = "Включите оплату в Gram (TON) в настройках"
         out.append(
             {
                 "id": method_id,

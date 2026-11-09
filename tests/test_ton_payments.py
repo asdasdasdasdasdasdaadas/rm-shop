@@ -14,7 +14,7 @@ RAW = "0:6e53c4422311f5db53232687c00b6c72be7fbba6bd8b99da8888ee5dff156490"
 
 def settings(**kw):
     base = dict(ton_enabled=True, ton_wallet=WALLET, ton_rate_margin_pct=1.0, toncenter_api_key="",
-                balance_topup_min=50, balance_topup_max=100000, admin_id_set={1})
+                balance_topup_min=50, balance_topup_max=100000, admin_id_set={1}, vpn_day_price_rub=5)
     base.update(kw)
     return SimpleNamespace(**base)
 
@@ -82,9 +82,9 @@ class QuoteTest(unittest.TestCase):
             rate = Decimal("101")
             self.assertEqual(ton.check_amount(10**9, rate), 100)
             self.assertEqual(ton.check_amount(1_000_000, rate), 1)  # 0.001 TON still gives a whole ruble
-            with self.assertRaisesRegex(ValueError, "Минимум 0,001 TON"):
+            with self.assertRaisesRegex(ValueError, "Минимум 0,001 Gram"):
                 ton.check_amount(999_999, rate)
-            with self.assertRaisesRegex(ValueError, "Максимум 10 TON"):
+            with self.assertRaisesRegex(ValueError, "Максимум 10 Gram"):
                 ton.check_amount(11 * 10**9, rate)
             low, high = ton.limits_nano(rate)
             self.assertEqual(low, 1_000_000)
@@ -103,7 +103,9 @@ class AmountChatTest(unittest.IsolatedAsyncioTestCase):
         with patch.object(ton, "rub_per_ton", AsyncMock(return_value=Decimal("101"))):
             await ton.ask_amount(bot, 7)
             self.assertTrue(ton.awaiting_amount(7))
-            self.assertIn("Сколько TON", bot.send_message.await_args.args[1])
+            text = bot.send_message.await_args.args[1]
+            self.assertIn("Сколько Gram (TON)", text)
+            self.assertIn("1 Gram ≈ 100 ₽ — это примерно 20 дней VPN", text)
             with patch.object(ton, "send_pay_widget", AsyncMock()) as send:
                 self.assertIsNone(await ton.amount_reply(bot, 7, "2,5"))
         send.assert_awaited_once_with(bot, 7, nano=2_500_000_000, rub=250)
@@ -120,9 +122,52 @@ class AmountChatTest(unittest.IsolatedAsyncioTestCase):
         bot = AsyncMock()
         await ton.send_pay_widget(bot, 7, nano=2_500_000_000, rub=250)
         sent = bot.await_args.args[0]
-        self.assertEqual(json.loads(sent.chat_data), {"n": 2_500_000_000, "c": 250})
+        self.assertEqual(json.loads(sent.chat_data), {"n": 2_500_000_000, "c": 250, "d": 50})
         self.assertIn(WALLET, sent.html)
-        self.assertIn("2,5 TON", sent.caption)
+        self.assertIn("2,5 Gram", sent.caption)
+
+    async def test_cabinet_amount_sends_the_card_without_a_question(self):
+        bot = AsyncMock()
+        with patch.object(ton, "rub_per_ton", AsyncMock(return_value=Decimal("101"))), \
+                patch.object(ton, "send_pay_widget", AsyncMock()) as send:
+            await ton.send_card_for_rub(bot, 7, 300)
+        # 300 ₽ at 101 ₽/TON with 1% margin is 3 TON, rounded up to 0.01; never less than asked for.
+        send.assert_awaited_once_with(bot, 7, nano=3_000_000_000, rub=300)
+        bot.send_message.assert_not_awaited()
+        self.assertEqual(ton.nano_for_rub(250, Decimal("101")), 2_500_000_000)
+        self.assertEqual(ton.nano_for_rub(1, Decimal("101")), 10_000_000)
+
+    def test_command_menu_follows_the_switch(self):
+        self.assertEqual([c.command for c in ton.bot_commands()], ["start", "ton"])
+        with patch.object(ton, "get_settings", return_value=settings(ton_enabled=False)):
+            self.assertEqual([c.command for c in ton.bot_commands()], ["start"])
+
+
+class TonButtonsTest(unittest.TestCase):
+    def setUp(self):
+        p = patch.object(ton, "get_settings", return_value=settings())
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_top_up_screen_offers_two_equal_ways(self):
+        from app import keyboards
+        s = SimpleNamespace(rollypay_configured=True, stars_enabled=True, shop_plans={})
+        with patch.object(keyboards, "get_settings", return_value=s), \
+                patch.object(keyboards.runtime, "webapp_url", "https://example.com/app"):
+            rows = keyboards.buy_keyboard().inline_keyboard
+        self.assertEqual([b.text for b in rows[0]], ["Картой / СБП", "Gram (TON)"])
+        self.assertEqual(rows[0][1].callback_data, "ton_pay")
+
+    def test_balance_reminder_gets_the_ton_button(self):
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+        from app.reminder_tracking import with_ton_button
+        markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Пополнить", url="https://x")],
+                                                       [InlineKeyboardButton(text="Меню", callback_data="profile")]])
+        rows = with_ton_button(markup).inline_keyboard
+        self.assertEqual([b.text for b in rows[0]], ["Пополнить", "Gram (TON)"])
+        self.assertEqual(with_ton_button(with_ton_button(markup)).inline_keyboard, rows)
+        with patch.object(ton, "get_settings", return_value=settings(ton_enabled=False)):
+            self.assertIs(with_ton_button(markup), markup)
 
 
 class AccessTest(unittest.TestCase):
@@ -235,7 +280,7 @@ class WidgetQueryTest(unittest.IsolatedAsyncioTestCase):
     async def test_rate_outage_is_reported(self):
         with patch.object(ton, "rub_per_ton", AsyncMock(side_effect=OSError)):
             answer = await ton.handle_query(self.bot, {}, 7, "t:2000000000")
-        self.assertEqual(answer, {"e": "Курс TON недоступен, попробуйте позже"})
+        self.assertEqual(answer, {"e": "Курс Gram недоступен, попробуйте позже"})
 
     async def test_someone_elses_order_is_not_found(self):
         with patch.object(ton, "get_order", AsyncMock(return_value={"order_id": "VPN-ABC234", "telegram_id": 8})):
