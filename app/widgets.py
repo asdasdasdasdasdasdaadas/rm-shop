@@ -118,20 +118,50 @@ draw();setInterval(draw,20000);live('r',v=>{s=v;draw()});""",
 )
 
 REFERRAL_HTML = _page(
-    """<div class="t">Ваша реферальная программа</div>
-<div class="row" style="margin-top:6px"><div class="c"><span class="t">Приглашено</span><b id="i">—</b></div>
-<div class="c"><span class="t">Получили бонус</span><b id="w">—</b></div></div>
-<div class="c" style="margin-top:8px"><span class="t">Заработано</span><b id="m" class="ok">—</b></div>
-<div class="f"><span class="t" id="u"></span><span><button id="cp">Скопировать ссылку</button> <button id="r">↻</button></span></div>""",
-    """let seen=s?s.i:0;
-function draw(){if(!s)return;const i=$('i');i.textContent=s.i;
-if(s.i>seen){i.className='pop';$('u').textContent='+'+(s.i-seen)+' '+pl(s.i-seen,'друг','друга','друзей')+' 🎉'}
+    """<div class="cd"><div class="tp"><span>Приглашайте друзей</span><span class="pi" id="pi" hidden></span></div>
+<div class="em" id="m">—</div><div class="sl">заработано на приглашениях</div>
+<div class="ts"><div><b id="i">—</b><span id="il">пришли по ссылке</span></div><div><b id="w">—</b><span id="wl">получили бонус</span></div></div>
+<div class="gl"><div class="gt"><span id="gn"></span><span id="gp"></span></div><div class="gb"><i id="gi"></i></div></div></div>
+<div class="rl" id="rl" hidden></div>
+<div class="lk" id="lk" hidden><span id="ln"></span><b>копировать</b></div>
+<button id="cp" class="pb">Скопировать приглашение</button>
+<div class="f"><span class="t" id="u"></span><button id="r" class="rf">↻</button></div>""",
+    """let seen=s?s.i:0;const G=[1,3,5,10,25,50,100,250,500,1000];
+function link(){const m=s&&s.c&&s.c.match(/https?:\\/\\/\\S+/);return m?m[0]:''}
+function draw(){if(!s)return;const i=$('i');i.textContent=s.i;$('il').textContent=pl(s.i,'пришёл','пришли','пришли')+' по ссылке';
+if(s.i>seen){i.className='pop';$('u').textContent='+'+(s.i-seen)+' '+pl(s.i-seen,'друг','друга','друзей')+' 🎉';
+if(W.HapticFeedback)W.HapticFeedback.notificationOccurred('success')}
 else $('u').textContent='Обновлено в '+hm(s.t);seen=s.i;
-$('w').textContent=s.w;$('m').textContent=rub(s.m)}
-$('cp').onclick=()=>{if(s&&s.c){W.copyText(s.c);$('u').textContent='Ссылка скопирована'}};
+$('w').textContent=s.w;$('wl').textContent=pl(s.w,'получил','получили','получили')+' бонус';$('m').textContent=rub(s.m);
+if(s.r){$('pi').hidden=false;$('pi').textContent='+'+rub(s.r)+' за друга';$('rl').hidden=false;
+$('rl').textContent='Друг открывает бота по вашей ссылке — '+(s.q?'он получает '+rub(s.q)+', а ':'')+'вам приходит '+rub(s.r)+' на баланс.'}
+const g=G.find(x=>x>s.i)||s.i+1,p=G.filter(x=>x<=s.i).pop()||0;
+$('gn').textContent=s.i?'Цель: '+g+' '+pl(g,'друг','друга','друзей'):'Пригласите первого друга';
+$('gp').textContent=s.i+' / '+g;$('gi').style.width=Math.max(4,(s.i-p)/(g-p)*100)+'%';
+const l=link();if(l){$('lk').hidden=false;$('ln').textContent=l.replace(/^https?:\\/\\//,'')}}
+function copy(t,m){if(!t)return;W.copyText(t);$('u').textContent=m;if(W.HapticFeedback)W.HapticFeedback.impactOccurred('light')}
+$('cp').onclick=()=>copy(s&&s.c,'Приглашение скопировано — отправьте его другу');
+$('lk').onclick=()=>copy(link(),'Ссылка скопирована');
 draw();live('f',v=>{v.c=v.c||(s&&s.c);s=v;draw()});""",
-    ".pop{animation:pop .6s ease}@keyframes pop{40%{transform:scale(1.25)}}",
+    ".cd{border-radius:18px;padding:14px 16px 16px;color:#fff;background:linear-gradient(155deg,#5fd38d 0%,#28a464 55%,#16804a 100%)}"
+    ".tp{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:600;font-size:.92em}"
+    ".pi{background:rgba(255,255,255,.22);border-radius:10px;padding:2px 8px;font-size:.85em;white-space:nowrap}"
+    ".em{font-size:2.2em;font-weight:800;margin-top:10px;line-height:1.1;font-variant-numeric:tabular-nums}"
+    ".sl{font-size:.82em;opacity:.85}"
+    ".ts{display:flex;gap:8px;margin-top:12px}.ts div{flex:1;background:rgba(255,255,255,.16);border-radius:12px;padding:8px 10px}"
+    ".ts b{display:block;font-size:1.35em;font-variant-numeric:tabular-nums}.ts span{font-size:.78em;opacity:.9}"
+    ".gl{margin-top:12px}.gt{display:flex;justify-content:space-between;font-size:.8em;opacity:.92}"
+    ".gb{height:6px;border-radius:3px;background:rgba(255,255,255,.22);margin-top:4px;overflow:hidden}"
+    ".gb i{display:block;height:100%;background:#fff;border-radius:3px;transition:width .6s}"
+    ".rl{font-size:.85em;color:var(--tg-theme-hint-color);margin-top:10px;line-height:1.35}"
+    ".lk{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:10px;"
+    "background:var(--tg-theme-secondary-bg-color);font-family:ui-monospace,Menlo,monospace;font-size:.8em;cursor:pointer}"
+    ".lk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lk b{font-family:inherit;font-size:.9em;"
+    "color:var(--tg-theme-link-color);font-weight:600}"
+    ".pb{width:100%;margin-top:10px;padding:11px 0;font-weight:600;border-radius:12px}.rf{padding:4px 10px}"
+    ".pop{animation:pop .6s ease}@keyframes pop{40%{transform:scale(1.3)}}",
 )
+
 
 GIFT_HTML = _page(
     """<div style="text-align:center;padding:6px 0">
@@ -154,18 +184,54 @@ draw();if(W.ready)W.ready();""",
 )
 
 STATS_HTML = _page(
-    """<div class="t">__BRAND__ · сегодня</div>
-<div class="big ok" id="v">—</div><div class="t" id="pc"></div>
-<div class="row"><div class="c"><span class="t">Новые</span><b id="nu">—</b></div>
-<div class="c"><span class="t">В сети за час</span><b id="on">—</b></div></div>
-<div class="row" style="margin-top:8px"><div class="c"><span class="t">С доступом</span><b id="ac">—</b></div>
-<div class="c"><span class="t">Обращения</span><b id="tk">—</b></div></div>
+    """<div class="hd"><span class="t">__BRAND__ · сегодня</span><span class="dl" id="dl"></span></div>
+<div class="big" id="v">—</div><div class="t" id="pc"></div>
+<div class="sw"><button id="ta" class="on">Пополнения</button><button id="tb">Новые</button></div>
+<div class="ch" id="ch"></div><div class="ax"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
+<div class="mx" id="mx"></div><div class="lg" id="lg"></div>
+<div class="sec">Новички сегодня</div><div id="fn"></div>
+<div class="sec">Сейчас</div>
+<div class="row" style="margin-top:0"><div class="c"><span class="t">В сети за час</span><b id="o">—</b></div>
+<div class="c"><span class="t">С доступом</span><b id="x">—</b></div><div class="c"><span class="t">Всего</span><b id="a">—</b></div></div>
+<div class="tk" id="k"></div>
 <div class="f"><span class="t" id="u"></span><button id="r">Обновить</button></div>""",
-    """function draw(){if(!s)return;$('v').textContent=rub(s.v);
-$('pc').textContent=s.p+' '+pl(s.p,'оплата','оплаты','оплат')+' · всего '+s.a+' '+pl(s.a,'пользователь','пользователя','пользователей');
-$('nu').textContent='+'+s.n;$('on').textContent=s.o;$('ac').textContent=s.x;$('tk').textContent=s.k;
-$('tk').className=s.k?'low':'';$('u').textContent='Обновлено в '+hm(s.t)}
+    """let tab=0;const M={rollypay:['Карта/СБП','#34c759'],stars:['Звёзды','#ffb800'],ton:['Gram','#2ea6ff']};
+function n(v){return String(v).replace(/\\B(?=(\\d{3})+(?!\\d))/g,' ')}
+function chart(){const d=tab?s.g:s.h,mx=Math.max(1,...d),now=new Date(Date.now()+108e5).getUTCHours();
+$('ch').innerHTML=d.map((v,i)=>'<i class="'+(i==now?'nw':i>now?'ft':'')+'" style="height:'+(v?Math.max(6,v/mx*100):2)+'%" title="'+i+':00 — '+(tab?v:rub(v))+'"></i>').join('');
+$('ta').className=tab?'':'on';$('tb').className=tab?'on':''}
+function draw(){if(!s)return;$('v').textContent=rub(s.v);
+const dl=$('dl');if(s.y>0){const p=Math.round((s.v-s.y)/s.y*100);dl.textContent=(p>=0?'+':'')+p+'% к вчера';dl.className='dl '+(p>=0?'up':'dn')}
+else dl.textContent=s.v?'вчера к этому часу 0 ₽':'';
+$('pc').textContent=s.p?s.p+' '+pl(s.p,'оплата','оплаты','оплат')+' · '+s.f+' '+pl(s.f,'первая','первые','первых')+' · средний чек '+rub(Math.round(s.v/s.p)):'Оплат пока нет';
+chart();const m=Object.entries(s.m||{}),tot=m.reduce((a,e)=>a+e[1],0)||1;
+$('mx').innerHTML=m.map(e=>'<i style="flex:'+e[1]+';background:'+(M[e[0]]||['','#999'])[1]+'"></i>').join('');
+$('lg').innerHTML=m.map(e=>'<span><b style="background:'+(M[e[0]]||['','#999'])[1]+'"></b>'+(M[e[0]]||[e[0]])[0]+' '+n(e[1])+' ₽ · '+Math.round(e[1]/tot*100)+'%</span>').join('');
+const st=[['Пришли в бота',s.n,s.nr?s.nr+' по приглашению':''],['Добавили устройство',s.nd],['Подключились',s.nc],['Оплатили',s.np]];
+$('fn').innerHTML=st.map(e=>'<div class="fr"><div class="fl"><span>'+e[0]+(e[2]?' <span class="t">· '+e[2]+'</span>':'')+'</span><b>'+e[1]+(s.n&&e!==st[0]?' <span class="t">'+Math.round(e[1]/s.n*100)+'%</span>':'')+'</b></div><div class="fb"><i style="width:'+(s.n?e[1]/s.n*100:0)+'%"></i></div></div>').join('');
+$('o').textContent=n(s.o);$('x').textContent=n(s.x);$('a').textContent=n(s.a);
+const k=$('k');k.textContent=s.k?'Открытых обращений: '+s.k+' — ответьте в админке':'Открытых обращений нет';k.className='tk'+(s.k?' low':'');
+$('u').textContent='Обновлено в '+hm(s.t)}
+$('ta').onclick=()=>{tab=0;chart()};$('tb').onclick=()=>{tab=1;chart()};
 draw();live('s',v=>{s=v;draw()});""",
+    ".hd{display:flex;justify-content:space-between;align-items:center;gap:8px}"
+    ".dl{font-size:.78em;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--tg-theme-secondary-bg-color)}"
+    ".dl.up{color:#2fa84f}.dl.dn{color:var(--tg-theme-destructive-text-color)}"
+    ".sw{display:flex;gap:4px;margin:12px 0 6px}.sw button{flex:1;padding:5px 0;font-size:.85em;border-radius:8px;"
+    "background:var(--tg-theme-secondary-bg-color);color:var(--tg-theme-text-color)}"
+    ".sw .on{background:var(--tg-theme-button-color);color:var(--tg-theme-button-text-color)}"
+    ".ch{display:flex;align-items:flex-end;gap:2px;height:64px}.ch i{flex:1;border-radius:3px 3px 0 0;"
+    "background:var(--tg-theme-button-color);opacity:.55}.ch .nw{opacity:1}.ch .ft{opacity:.15}"
+    ".ax{display:flex;justify-content:space-between;font-size:.68em;color:var(--tg-theme-hint-color);margin-top:3px}"
+    ".mx{display:flex;height:8px;border-radius:4px;overflow:hidden;margin-top:12px;gap:2px}"
+    ".lg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.78em;margin-top:6px}"
+    ".lg b{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}"
+    ".sec{font-weight:600;margin:16px 0 6px}"
+    ".fr{margin-bottom:8px}.fl{display:flex;justify-content:space-between;font-size:.9em;gap:8px}"
+    ".fb{height:6px;border-radius:3px;background:var(--tg-theme-secondary-bg-color);margin-top:3px;overflow:hidden}"
+    ".fb i{display:block;height:100%;background:var(--tg-theme-accent-text-color);border-radius:3px}"
+    ".row .c b{font-size:1.05em}.tk{font-size:.85em;margin-top:10px;color:var(--tg-theme-hint-color)}"
+    ".tk.low{color:var(--tg-theme-destructive-text-color)}",
 )
 
 
@@ -284,59 +350,82 @@ async def referral_state(telegram_id: int, *, with_link: bool = False) -> dict[s
     refs = await db.referral_stats(telegram_id)
     wallet = await db.referral_wallet(telegram_id)
     earned = max(int((wallet or {}).get("referral_earned") or 0), await db.referral_credit_sum(telegram_id))
+    settings = get_settings()
     state = {"i": int(refs.get("invited") or 0), "w": int(refs.get("rewarded") or 0), "m": earned, "t": int(time.time())}
+    if settings.referral_program_enabled:
+        # r — what the inviter gets per friend, q — what the friend gets.
+        state["r"] = max(0, int(settings.referral_reward_rub or 0))
+        state["q"] = max(0, int(settings.referral_invitee_reward_rub or 0))
     if with_link:
         from app.keyboards import invite_copy_text
         state["c"] = invite_copy_text(telegram_id)
     return state
 
 
+_DAY_START = "(date_trunc('day', NOW() AT TIME ZONE 'Europe/Moscow') AT TIME ZONE 'Europe/Moscow')"
+
+
 async def stats_state() -> dict[str, Any]:
-    """Light numbers for the admin widget: cheap enough to run every 30 seconds."""
+    """Today in Moscow time for the admin widget; cheap enough to run every 30 seconds.
+
+    v/y — rubles credited today and yesterday by this time, p/f — payments and first payments,
+    m — rubles by provider, h/g — rubles and new users per hour, n/nr/nd/nc/np — today's newcomers:
+    all, by invitation, added a device, connected, paid. o — online in the last hour,
+    x — with access (balance and a device), a — all users, k — open support tickets."""
     pool = db._pool_req()
-    row = await pool.fetchrow(
-        """
-        WITH day AS (
-            SELECT (date_trunc('day', NOW() AT TIME ZONE 'Europe/Moscow') AT TIME ZONE 'Europe/Moscow') AS start
-        )
+    day = _DAY_START
+    row = dict(await pool.fetchrow(
+        f"""
         SELECT
-            (SELECT COUNT(*)::int FROM users) AS users_total,
-            (SELECT COUNT(*)::int FROM users, day WHERE created_at >= day.start) AS new_today,
-            (SELECT COUNT(DISTINCT telegram_id)::int FROM devices WHERE last_online_at >= NOW() - INTERVAL '1 hour') AS online,
+            (SELECT COUNT(*)::int FROM users) AS a,
+            (SELECT COUNT(DISTINCT telegram_id)::int FROM devices WHERE last_online_at >= NOW() - INTERVAL '1 hour') AS o,
             (SELECT COUNT(*)::int FROM users u WHERE COALESCE(u.balance_rub, 0) > 0
-                AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)) AS with_access,
-            (SELECT COUNT(*)::int FROM tickets WHERE status = 'open') AS tickets
+                AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)) AS x,
+            (SELECT COUNT(*)::int FROM tickets WHERE status = 'open') AS k,
+            COUNT(*)::int AS n,
+            COUNT(*) FILTER (WHERE u.referred_by IS NOT NULL)::int AS nr,
+            COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id))::int AS nd,
+            COUNT(*) FILTER (WHERE u.first_online_at IS NOT NULL)::int AS nc,
+            COUNT(*) FILTER (WHERE COALESCE(u.has_paid_topup, FALSE))::int AS np
+        FROM users u WHERE u.created_at >= {day}
         """
+    ) or {})
+    pay = dict(await pool.fetchrow(
+        f"""
+        SELECT
+            COALESCE(SUM(amount) FILTER (WHERE created_at >= {day}), 0)::int AS v,
+            COUNT(*) FILTER (WHERE created_at >= {day})::int AS p,
+            COUNT(*) FILTER (WHERE created_at >= {day} AND first_payment)::int AS f,
+            COALESCE(SUM(amount) FILTER (WHERE created_at < NOW() - INTERVAL '1 day'), 0)::int AS y
+        FROM payment_receipts WHERE created_at >= {day} - INTERVAL '1 day'
+        """
+    ) or {})
+    methods = await pool.fetch(
+        f"""SELECT split_part(payment_key, ':', 1) AS m, SUM(amount)::int AS rub FROM payment_receipts
+            WHERE created_at >= {day} GROUP BY 1"""
     )
-    orders = await pool.fetch(
-        """
-        SELECT plan_code, COUNT(*)::int AS n FROM rollypay_orders
-        WHERE status = 'granted'
-          AND created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Europe/Moscow') AT TIME ZONE 'Europe/Moscow')
-        GROUP BY plan_code
-        """
+    hours_rub = await pool.fetch(
+        f"""SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Europe/Moscow')::int AS h, SUM(amount)::int AS n
+            FROM payment_receipts WHERE created_at >= {day} GROUP BY 1"""
     )
-    ton_paid = await pool.fetchrow(
-        """
-        SELECT COUNT(*)::int AS n, COALESCE(SUM(credited_rub), 0)::int AS rub FROM ton_orders
-        WHERE status = 'paid'
-          AND paid_at >= (date_trunc('day', NOW() AT TIME ZONE 'Europe/Moscow') AT TIME ZONE 'Europe/Moscow')
-        """
+    hours_new = await pool.fetch(
+        f"""SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Europe/Moscow')::int AS h, COUNT(*)::int AS n
+            FROM users WHERE created_at >= {day} GROUP BY 1"""
     )
-    settings = get_settings()
-    revenue = sum(settings.topup_rub_for_code(r["plan_code"]) * int(r["n"] or 0) for r in orders)
-    revenue += int((ton_paid or {}).get("rub") or 0)
-    row = dict(row or {})
-    return {
-        "v": int(revenue),
-        "p": sum(int(r["n"] or 0) for r in orders) + int((ton_paid or {}).get("n") or 0),
-        "a": int(row.get("users_total") or 0),
-        "n": int(row.get("new_today") or 0),
-        "o": int(row.get("online") or 0),
-        "x": int(row.get("with_access") or 0),
-        "k": int(row.get("tickets") or 0),
-        "t": int(time.time()),
-    }
+
+    def by_hour(rows) -> list[int]:
+        out = [0] * 24
+        for r in rows:
+            if 0 <= int(r["h"]) < 24:
+                out[int(r["h"])] = int(r["n"] or 0)
+        return out
+
+    state: dict[str, Any] = {k: int(pay.get(k) or 0) for k in ("v", "y", "p", "f")}
+    state["m"] = {str(r["m"]): int(r["rub"] or 0) for r in methods if int(r["rub"] or 0)}
+    state["h"], state["g"] = by_hour(hours_rub), by_hour(hours_new)
+    state.update({k: int(row.get(k) or 0) for k in ("n", "nr", "nd", "nc", "np", "o", "x", "a", "k")})
+    state["t"] = int(time.time())
+    return state
 
 
 # ---------- sending ----------
@@ -394,7 +483,8 @@ async def send_stats_widget(bot: Bot, telegram_id: int) -> Message:
     state = await stats_state()
     return await bot(SendWidget(
         chat_id=telegram_id, html=stats_html(), chat_data=_json(state),
-        caption=f"Сегодня: {state['v']} ₽, оплат {state['p']}, новых {state['n']}", allow_queries=True,
+        caption=f"Сегодня: {state['v']} ₽ пополнений, {state['p']} оплат, {state['n']} новых пользователей",
+        allow_queries=True,
     ))
 
 

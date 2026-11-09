@@ -14,7 +14,8 @@ from app import widgets
 
 
 def settings(**kw):
-    base = dict(brand_name='Лягушка <VPN>', vpn_day_price_rub=5, webapp_public_url='', admin_id_set={1})
+    base = dict(brand_name='Лягушка <VPN>', vpn_day_price_rub=5, webapp_public_url='', admin_id_set={1},
+                referral_program_enabled=True, referral_reward_rub=50, referral_invitee_reward_rub=30)
     base.update(kw)
     return SimpleNamespace(**base)
 
@@ -107,8 +108,30 @@ class WidgetQueryTest(unittest.IsolatedAsyncioTestCase):
                 patch.object(widgets.db, 'referral_wallet', AsyncMock(return_value={'referral_earned': 100})), \
                 patch.object(widgets.db, 'referral_credit_sum', AsyncMock(return_value=150)):
             state = await self.answer('f')
-        self.assertEqual({k: state[k] for k in 'iwm'}, {'i': 4, 'w': 3, 'm': 150})
+        self.assertEqual({k: state[k] for k in 'iwmrq'}, {'i': 4, 'w': 3, 'm': 150, 'r': 50, 'q': 30})
         self.assertNotIn('c', state)
+        with patch.object(widgets, 'get_settings', return_value=settings(referral_program_enabled=False)), \
+                patch.object(widgets.db, 'referral_stats', AsyncMock(return_value={'invited': 0, 'rewarded': 0})), \
+                patch.object(widgets.db, 'referral_wallet', AsyncMock(return_value={})), \
+                patch.object(widgets.db, 'referral_credit_sum', AsyncMock(return_value=0)):
+            self.assertNotIn('r', await self.answer('f'))
+
+    async def test_stats_numbers_for_today(self):
+        rows = {'a': 120, 'o': 7, 'x': 40, 'k': 2, 'n': 5, 'nr': 2, 'nd': 3, 'nc': 2, 'np': 1}
+        pay = {'v': 900, 'p': 3, 'f': 1, 'y': 600}
+        fetch = AsyncMock(side_effect=[
+            [{'m': 'rollypay', 'rub': 500}, {'m': 'ton', 'rub': 400}],
+            [{'h': 9, 'n': 500}, {'h': 14, 'n': 400}],
+            [{'h': 9, 'n': 5}],
+        ])
+        pool = SimpleNamespace(fetchrow=AsyncMock(side_effect=[rows, pay]), fetch=fetch)
+        with patch.object(widgets.db, '_pool_req', return_value=pool):
+            state = await widgets.stats_state()
+        self.assertEqual({k: state[k] for k in ('v', 'y', 'p', 'f', 'n', 'nr', 'nd', 'nc', 'np', 'o', 'x', 'a', 'k')},
+                         {**pay, **rows})
+        self.assertEqual(state['m'], {'rollypay': 500, 'ton': 400})
+        self.assertEqual((len(state['h']), state['h'][9], state['h'][14], state['g'][9]), (24, 500, 400, 5))
+        self.assertLessEqual(len(json.dumps(state, separators=(',', ':'))), 1024)
 
     async def test_stats_only_for_admins(self):
         self.assertEqual(await self.answer('s', user=42), {'e': 'Нет доступа'})
