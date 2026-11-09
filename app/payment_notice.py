@@ -10,6 +10,13 @@ from app.texts import rub_text
 logger = logging.getLogger(__name__)
 
 
+def used_vpn(local: dict, devices: list[dict]) -> bool:
+    """Any sign the VPN already worked: first online, a device seen online, or traffic on the panel.
+    first_online_at alone misses people who connected before it was tracked."""
+    return bool(local.get('first_online_at') or int(local.get('lifetime_traffic_bytes') or 0) > 0
+                or any(d.get('last_online_at') for d in devices))
+
+
 async def deliver_payment_notice(bot, receipt):
     if bot is None:
         return
@@ -27,15 +34,15 @@ async def deliver_payment_notice(bot, receipt):
             devices = await db.list_devices(uid)
             body = notice_text('topup_ok',amount=rub_text(receipt['amount']))
             body += '\nБаланс: ' + rub_text(int(local.get('balance_rub') or 0)) + '.'
-            if not devices:
+            if used_vpn(local, devices):
+                body += '\n\nVPN уже настроен, больше ничего делать не нужно. Если не подключается — напишите в поддержку.'
+                markup = cabinet_keyboard()
+            elif not devices:
                 body += '\n\n📱 Добавьте устройство — покажем, как подключить VPN.'
                 markup = onboarding_keyboard()
-            elif not local.get('first_online_at'):
+            else:
                 body += '\n\n📱 Продолжите настройку: добавьте ссылку в VPN-приложение и включите VPN.'
                 markup = onboarding_keyboard(has_device=True)
-            else:
-                body += '\n\nВключите VPN в приложении. Если соединение не восстановится, напишите в поддержку.'
-                markup = cabinet_keyboard()
         from app.funnel_ui import funnel_body
         body = funnel_body(body)
         await send_funnel_message(bot,uid,body,reply_markup=markup)

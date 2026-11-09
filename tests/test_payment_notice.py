@@ -48,7 +48,18 @@ class PaymentNoticeTest(unittest.IsolatedAsyncioTestCase):
         self.user.return_value={'balance_rub':100,'quiet_notifications':True,'first_online_at':'date'}
         self.devices.return_value=[{'id':1}]
         await notice.deliver_payment_notice(self.bot,self.receipt)
-        self.assertIn('Включите VPN',self.bot.send_message.call_args.args[1])
+        self.assertIn('VPN уже настроен',self.bot.send_message.call_args.args[1])
+
+    async def test_device_seen_online_counts_as_connected(self):
+        self.devices.return_value=[{'id':1,'last_online_at':'date'}]
+        await notice.deliver_payment_notice(self.bot,self.receipt)
+        text=self.bot.send_message.call_args.args[1]
+        self.assertIn('VPN уже настроен',text);self.assertNotIn('Продолжите настройку',text)
+
+    async def test_traffic_without_local_devices_counts_as_connected(self):
+        self.user.return_value={'balance_rub':94,'lifetime_traffic_bytes':5_000_000}
+        await notice.deliver_payment_notice(self.bot,self.receipt)
+        self.assertIn('VPN уже настроен',self.bot.send_message.call_args.args[1])
 
 
 class PaymentNoticeQueueTest(unittest.IsolatedAsyncioTestCase):

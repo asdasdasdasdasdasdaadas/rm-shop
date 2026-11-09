@@ -261,6 +261,13 @@ class WidgetQueryTest(unittest.IsolatedAsyncioTestCase):
             answer = await ton.handle_query(self.bot, {}, 7, "q:VPN-ABC234")
         self.assertEqual(answer, {"ok": {"o": "VPN-ABC234", "c": 500, "b": 620}})
 
+    async def test_wrong_amount_drops_the_card_and_asks_again(self):
+        with patch.object(ton, "ask_amount", AsyncMock()) as ask:
+            answer = await ton.handle_query(self.bot, {"chat": {"id": 7}, "message_id": 9}, 7, "x:")
+        self.assertEqual(answer, {"x": 1})
+        self.bot.delete_message.assert_awaited_once_with(7, 9)
+        ask.assert_awaited_once_with(self.bot, 7)
+
     async def test_widget_routes_ton_requests(self):
         from app import widgets
         with patch.object(ton, "handle_query", AsyncMock(return_value={"w": "x"})) as handle:

@@ -456,7 +456,8 @@ async def notify_widget_paid(order: dict, amount: int) -> None:
 
 
 async def handle_query(bot, query: dict[str, Any], user_id: int, data: str) -> dict[str, Any]:
-    """Requests from the payment widget: t:<nano> make an order, p:<order> wallet sent it, q:<order> status."""
+    """Requests from the payment widget: t:<nano> make an order, p:<order> wallet sent it, q:<order> status,
+    x: wrong amount — drop the card and ask again."""
     kind, _, arg = data.partition(":")
     qtype = query.get("type") or {}
     chat_id = (query.get("chat") or {}).get("id")
@@ -472,6 +473,20 @@ async def handle_query(bot, query: dict[str, Any], user_id: int, data: str) -> d
             logger.exception("Счёт TON не создан")
             return {"e": "Курс TON недоступен, попробуйте позже"}
         return {"o": order["order_id"], "n": int(order["nano"]), "c": int(order["rub"]), "tx": transaction(order)}
+    if kind == "x":
+        if chat_id and message_id:
+            try:
+                await bot.delete_message(int(chat_id), int(message_id))
+            except Exception:
+                logger.debug("Карточку TON не удалось удалить", exc_info=True)
+        try:
+            await ask_amount(bot, user_id)
+        except ValueError as exc:
+            return {"e": str(exc)}
+        except Exception:
+            logger.warning("Вопрос о сумме TON не отправлен", exc_info=True)
+            return {"e": "Не получилось, попробуйте ещё раз"}
+        return {"x": 1}
     order = await get_order(arg.upper()) if ORDER_RE.match(arg.upper()) else None
     if not order or int(order["telegram_id"]) != user_id:
         return {"e": "Счёт не найден"}

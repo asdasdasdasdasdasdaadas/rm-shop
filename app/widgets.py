@@ -171,11 +171,10 @@ draw();live('s',v=>{s=v;draw()});""",
 
 TON_PAY_HTML = _page(
     """<div class="cd" id="cd"><div class="rb" id="rb">к оплате</div>
-<svg width="46" height="46" viewBox="0 0 46 46"><g stroke="#fff" stroke-width="1.6" stroke-linejoin="round" fill="none">
-<path d="M12 6h22l8 11-19 23L4 17z" fill="rgba(255,255,255,.16)"/><path d="M4 17h38M12 6l6 11 5 23 5-23 6-11M18 17l5-11 5 11"/></g></svg>
+<svg width="52" height="52" viewBox="0 0 100 100"><path fill="#fff" d="M66.523 11.333H33.477c-4.401 0-6.601 0-8.592.616a13.792 13.792 0 0 0-4.808 2.625c-1.594 1.341-2.784 3.192-5.164 6.894L4.408 37.81c-1.572 2.446-2.358 3.67-2.572 4.956a6.322 6.322 0 0 0 .362 3.37c.482 1.212 1.51 2.24 3.567 4.296l39.033 39.034c1.821 1.82 2.731 2.731 3.781 3.072.924.3 1.918.3 2.842 0 1.05-.34 1.96-1.251 3.78-3.072l39.035-39.034c2.056-2.056 3.084-3.084 3.566-4.296a6.32 6.32 0 0 0 .362-3.37c-.214-1.287-1-2.51-2.572-4.956L85.087 21.47c-2.38-3.703-3.57-5.554-5.164-6.895a13.792 13.792 0 0 0-4.808-2.625c-1.99-.616-4.191-.616-8.592-.616z"/><path class="st" d="M60.268 24.224c.537-1.45 2.59-1.45 3.126 0l3.71 10.027a2.2 2.2 0 0 0 1.3 1.3l10.027 3.71c1.451.537 1.451 2.59 0 3.126l-10.027 3.71a2.2 2.2 0 0 0-1.3 1.3l-3.71 10.027c-.537 1.451-2.59 1.451-3.126 0l-3.71-10.027a2.2 2.2 0 0 0-1.3-1.3l-10.027-3.71c-1.451-.537-1.451-2.589 0-3.126l10.027-3.71a2.2 2.2 0 0 0 1.3-1.3l3.71-10.027z"/></svg>
 <div class="am" id="am"></div><div class="sb" id="sb"></div>
 <div class="mn">Лягушка&nbsp;VPN</div><div class="mn ad" id="ad">__ADDR__</div></div>
-<button id="pay" class="pb">Оплатить</button>
+<button id="pay" class="pb">Оплатить</button><button id="ed" class="lk">Изменить сумму</button>
 <div class="t" id="u" style="margin-top:8px;text-align:center"></div>""",
     """let ord=s&&s.w,poll=0;const A=$('ad').textContent;
 function tn(n){return (n/1e9).toFixed(9).replace(/\\.?0+$/,'').replace('.',',')}
@@ -184,11 +183,11 @@ $('ad').innerHTML=A.match(/.{1,4}/g).map((g,i)=>g+(i%6==5?'<br>':' ')).join('');
 $('ad').onclick=()=>{if(W.copyText){W.copyText(A);msg('Адрес скопирован')}};
 function draw(){if(!s)return;
 if(s.ok){$('cd').className='cd dn';$('rb').textContent='зачислено';$('am').textContent='+'+rub(s.ok.c);
-$('sb').textContent='Баланс: '+rub(s.ok.b);$('pay').hidden=true;msg('Счёт '+s.ok.o+' оплачен');stop();return}
+$('sb').textContent='Баланс: '+rub(s.ok.b);$('pay').hidden=true;$('ed').hidden=true;msg('Счёт '+s.ok.o+' оплачен');stop();return}
 $('am').textContent=tn(s.n)+' TON';$('sb').textContent='≈ '+rub(s.c)+' на баланс';
-$('pay').textContent='Оплатить '+tn(s.n)+' TON';if(ord)$('rb').textContent='ждём'}
+$('pay').textContent='Оплатить '+tn(s.n)+' TON';$('ed').hidden=!!ord;if(ord)$('rb').textContent='ждём'}
 function stop(){if(poll)clearInterval(poll);poll=0}
-function check(){msg('Ищем перевод в блокчейне, обычно 5–15 секунд…');$('rb').textContent='ждём';$('pay').disabled=true;if(poll)return;
+function check(){msg('Ищем перевод в блокчейне, обычно 5–15 секунд…');$('rb').textContent='ждём';$('pay').disabled=true;$('ed').hidden=true;if(poll)return;
 poll=setInterval(()=>{if(!busy&&W.isActive!==false)ask('q:'+ord,0,v=>{if(v.ok){s.ok=v.ok;draw()}})},6000)}
 const ERR={REJECTED:'Оплата отменена',BAD_REQUEST:'Кошелёк отклонил перевод',NOT_ALLOWED:'Оплата здесь недоступна',RATE_LIMITED:'Слишком часто, подождите'};
 $('pay').onclick=()=>{if(busy||!s)return;if(!W.wallet){msg('Кошелёк Telegram недоступен в этой версии приложения');return}
@@ -199,18 +198,22 @@ msg('Подтвердите перевод в кошельке');return W.wallet
 e=>{if(e&&e.m){msg(e.m);$('pay').disabled=false}else if(e&&(e.code=='TIMEOUT'||e.code=='FAILED')&&ord)check();
 else{msg(ERR[e&&e.code]||'Не получилось, попробуйте ещё раз');$('pay').disabled=false}})
 .finally(()=>{busy=0})};
+$('ed').onclick=()=>{if(busy)return;busy=1;msg('');
+W.request('x:').then(a=>{const v=JSON.parse(a.result||'{}');if(v.e)msg(v.e);else{$('cd').style.opacity=.5;$('pay').hidden=true;$('ed').hidden=true;msg('Напишите в чат новую сумму')}},
+()=>msg('Не получилось, попробуйте ещё раз')).finally(()=>{busy=0})};
 W.onEvent('chatDataChanged',()=>{try{s=JSON.parse(W.chatData)}catch(e){}if(s&&s.w)ord=s.w;draw()});
 draw();if(W.ready)W.ready();if(ord&&!(s&&s.ok))check();""",
     ".cd{position:relative;overflow:hidden;border-radius:18px;padding:16px 16px 14px;color:#fff;text-align:center;"
     "background:linear-gradient(160deg,#5fb4ff 0%,#2f86f0 55%,#1d63d6 100%);transition:background .4s}"
-    ".cd.dn{background:linear-gradient(160deg,#5ad48f 0%,#27a865 60%,#17864d 100%)}"
+    ".cd.dn{background:linear-gradient(160deg,#5ad48f 0%,#27a865 60%,#17864d 100%)}.st{fill:#30a1f5;transition:fill .4s}.dn .st{fill:#27a865}"
     ".rb{position:absolute;top:14px;right:-34px;width:120px;transform:rotate(45deg);background:rgba(255,255,255,.22);"
     "font-size:.7em;font-weight:600;padding:3px 0;letter-spacing:.02em}"
     ".am{font-size:2.1em;font-weight:800;font-variant-numeric:tabular-nums;margin:6px 0 0;line-height:1.15}"
     ".sb{opacity:.85;font-size:.9em;margin-bottom:12px}"
     ".mn{font-family:ui-monospace,Menlo,monospace;font-size:.82em;opacity:.92;line-height:1.5}"
     ".ad{margin-top:6px;letter-spacing:.04em;cursor:pointer}"
-    ".pb{width:100%;margin-top:10px;padding:11px 0;font-weight:600;border-radius:12px}",
+    ".pb{width:100%;margin-top:10px;padding:11px 0;font-weight:600;border-radius:12px}"
+    ".lk{display:block;margin:6px auto 0;background:none;border:0;color:var(--tg-theme-link-color);font-size:.9em}",
 )
 
 
@@ -440,7 +443,7 @@ async def handle_query(bot: Bot, query: dict[str, Any]) -> dict[str, Any]:
         if user_id not in get_settings().admin_id_set:
             return {"e": "Нет доступа"}
         return await stats_state()
-    if data[:2] in ("t:", "p:", "q:"):
+    if data[:2] in ("t:", "p:", "q:", "x:"):
         from app import ton
         return await ton.handle_query(bot, query, user_id, data)
     return {"e": "Неизвестный запрос"}
