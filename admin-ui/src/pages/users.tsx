@@ -149,7 +149,22 @@ const sort: [string, string][] = [
   ["traffic_asc", "Меньше трафика"],
   ["online_desc", "Недавно в сети"],
   ["online_asc", "Давно не заходили"],
+  ["wealth_desc", "Сначала состоятельные"],
+  ["wealth_asc", "Сначала без подарков"],
 ];
+const wealth = (u: Data) =>
+  u.wealth_level == null ? (
+    <span className="text-xs text-muted-foreground">не проверен</span>
+  ) : (
+    <span
+      className="whitespace-nowrap"
+      title={`${u.wealth_points || 0} очков по подаркам в профиле`}
+      aria-label={`${u.wealth_level} из 5`}
+    >
+      <span className="text-amber-500">{"★".repeat(Number(u.wealth_level))}</span>
+      <span className="text-muted-foreground/40">{"★".repeat(5 - Number(u.wealth_level))}</span>
+    </span>
+  );
 const traffic = (u: Data) =>
   `${(Math.max(Number(u.used_traffic_bytes) || 0, Number(u.lifetime_traffic_bytes) || 0) / 1073741824).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ГБ`;
 const identity = (u: Data) => (
@@ -573,6 +588,11 @@ export function UsersPage() {
                   key: "traffic",
                   ...sortable("traffic", "Трафик"),
                   cell: traffic,
+                },
+                {
+                  key: "wealth",
+                  ...sortable("wealth", "Состоятельность"),
+                  cell: wealth,
                 },
                 {
                   key: "status",

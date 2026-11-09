@@ -70,5 +70,23 @@ class UserGiftsFetchTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Telegram не отдал подарки", data["error"])
 
 
+class GiftsScanTest(unittest.IsolatedAsyncioTestCase):
+    async def test_scan_stores_results_and_errors_and_waits_on_flood(self):
+        from aiogram.exceptions import TelegramRetryAfter
+        from aiogram.methods import GetUserGifts
+        pool = SimpleNamespace(execute=AsyncMock())
+        with patch.object(ug.db, "_pool_req", return_value=pool):
+            ok = AsyncMock(return_value=SimpleNamespace(total_count=1, gifts=[unique(200)], next_offset=None))
+            self.assertEqual(await ug.scan_one(ok, 7), ug.SCAN_EVERY_SECONDS)
+            self.assertEqual(pool.execute.await_args.args[3], 3)
+            broken = AsyncMock(side_effect=RuntimeError("Bad Request: user not found"))
+            self.assertEqual(await ug.scan_one(broken, 8), ug.SCAN_EVERY_SECONDS)
+            self.assertIn("user not found", json.loads(pool.execute.await_args.args[2])["error"])
+            calls = pool.execute.await_count
+            flood = AsyncMock(side_effect=TelegramRetryAfter(method=GetUserGifts(user_id=9), message="Flood", retry_after=30))
+            self.assertEqual(await ug.scan_one(flood, 9), 31)
+            self.assertEqual(pool.execute.await_count, calls)  # nothing stored: try this user again later
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,7 @@ in Stars, collectible (NFT) gifts at a fixed amount scaled by the rarity of thei
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -18,6 +19,8 @@ from app import db
 logger = logging.getLogger(__name__)
 
 CACHE_SECONDS = 6 * 3600
+SCAN_EVERY_SECONDS = 4  # one user at a time: ~900 an hour, gentle on the Bot API
+RESCAN_DAYS = 3
 MAX_PAGES = 3  # up to 300 gifts: enough for a rating, cheap on the Bot API
 NFT_STARS = 2500  # a common collectible gift, roughly what one resells for in Stars
 
@@ -164,3 +167,44 @@ async def user_gifts(bot, telegram_id: int, *, refresh: bool = False) -> dict[st
     await _store(telegram_id, data)
     data["fetched_at"] = int(time.time())
     return data
+
+
+async def _next_to_scan() -> int | None:
+    """Never checked first, newest users first; then the ones checked longest ago."""
+    return await db._pool_req().fetchval(
+        f"""SELECT u.telegram_id FROM users u LEFT JOIN user_gifts g ON g.telegram_id = u.telegram_id
+            WHERE u.bot_blocked_at IS NULL
+              AND (g.fetched_at IS NULL OR g.fetched_at < NOW() - INTERVAL '{RESCAN_DAYS} days')
+            ORDER BY g.fetched_at ASC NULLS FIRST, u.created_at DESC LIMIT 1""")
+
+
+async def scan_one(bot, telegram_id: int) -> float:
+    """Check one user and store the result, errors included, so a broken one isn't retried in a loop.
+    Returns how long to wait before the next one."""
+    from aiogram.exceptions import TelegramRetryAfter
+    try:
+        gifts, total = await fetch(bot, telegram_id)
+        await _store(telegram_id, {"gifts": gifts, "summary": summarize(gifts, total)})
+    except TelegramRetryAfter as exc:
+        return float(exc.retry_after) + 1
+    except Exception as exc:
+        error = getattr(exc, "message", None) or str(exc) or type(exc).__name__
+        await _store(telegram_id, {"gifts": [], "summary": summarize([]), "error": f"Telegram не отдал подарки: {error}"})
+    return SCAN_EVERY_SECONDS
+
+
+async def scan_loop(bot) -> None:
+    """Slowly go through every user so the list can be sorted by the rating."""
+    await asyncio.sleep(120)
+    while True:
+        try:
+            telegram_id = await _next_to_scan()
+            if telegram_id is None:
+                await asyncio.sleep(600)
+                continue
+            await asyncio.sleep(await scan_one(bot, int(telegram_id)))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Обход подарков пользователей сбился")
+            await asyncio.sleep(60)

@@ -189,6 +189,8 @@ async def main() -> None:
         nudge_task = asyncio.create_task(trial_nudge_loop(bot, rp), name="trial-nudge")
         from app.ton import ton_watch_loop
         ton_task = asyncio.create_task(ton_watch_loop(rw, bot), name="ton-watch")
+        from app.user_gifts import scan_loop as gifts_scan_loop
+        gifts_task = asyncio.create_task(gifts_scan_loop(bot), name="gifts-scan")
         try:
             await dp.start_polling(
                 bot,
@@ -206,6 +208,7 @@ async def main() -> None:
             dump_task.cancel()
             nudge_task.cancel()
             ton_task.cancel()
+            gifts_task.cancel()
     finally:
         await runner.cleanup()
         if rp is not None:

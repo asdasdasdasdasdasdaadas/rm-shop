@@ -3065,6 +3065,8 @@ def _admin_users_order(extra: dict | None = None) -> str:
         "traffic_asc": "traffic_total_bytes ASC, u.telegram_id DESC",
         "online_desc": "last_online_at DESC NULLS LAST, u.telegram_id DESC",
         "online_asc": "last_online_at ASC NULLS LAST, u.telegram_id DESC",
+        "wealth_desc": "COALESCE(wg.points, -1) DESC, u.telegram_id DESC",
+        "wealth_asc": "COALESCE(wg.points, 2147483647) ASC, u.telegram_id DESC",
     }.get((extra or {}).get("sort"), "u.created_at DESC, u.telegram_id DESC")
 
 
@@ -3287,9 +3289,11 @@ async def admin_list_users(
                    SELECT COALESCE(json_agg(o.plan_code), '[]'::json)
                    FROM rollypay_orders o
                    WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
-               ) AS paid_plan_codes
+               ) AS paid_plan_codes,
+               wg.level AS wealth_level, wg.points AS wealth_points
         FROM users u
         LEFT JOIN users ref ON ref.telegram_id = u.referred_by
+        LEFT JOIN user_gifts wg ON wg.telegram_id = u.telegram_id
         {where}
         ORDER BY {_admin_users_order(extra)}
         LIMIT ${len(args) + 1} OFFSET ${len(args) + 2}
