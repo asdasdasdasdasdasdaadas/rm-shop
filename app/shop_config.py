@@ -54,6 +54,23 @@ def _as_live_chat(value: Any) -> str:
     return parse_live_chat_id(value)
 
 
+def _validate_ton(body: dict) -> dict:
+    """TON fields are optional in a save: missing ones keep their current values."""
+    from app.ton import normalize_wallet
+    s = get_settings()
+    out = {
+        "ton_enabled": bool(body.get("ton_enabled", s.ton_enabled)),
+        "ton_wallet": str(body.get("ton_wallet", s.ton_wallet) or "").strip(),
+        "ton_rate_margin_pct": _as_float(body.get("ton_rate_margin_pct", s.ton_rate_margin_pct), 0, 20, "Запас к курсу TON"),
+        "toncenter_api_key": str(body.get("toncenter_api_key", s.toncenter_api_key) or "").strip()[:200],
+    }
+    if out["ton_wallet"]:
+        out["ton_wallet"] = normalize_wallet(out["ton_wallet"])
+    if out["ton_enabled"] and not out["ton_wallet"]:
+        raise ValueError("Оплата в TON: укажите адрес кошелька")
+    return out
+
+
 def validate_shop(body: dict) -> dict:
     out: dict[str, Any] = {}
     out["brand_name"] = _as_str(body.get("brand_name"), 1, 64, "Название")
@@ -118,6 +135,7 @@ def validate_shop(body: dict) -> dict:
     out["pay_methods"] = validate_pay_methods(body["pay_methods"]) if "pay_methods" in body else admin_pay_methods()
     out["notices"] = validate_notices(body.get("notices"))
     out["faq_items"] = validate_faq(body.get("faq_items"))
+    out.update(_validate_ton(body))
     # Stories are retired and have no fields in the admin panel: keep the stored values as they are.
     for key in ("story_reward_rub", "story_share_text", "story_check_minutes"):
         out[key] = getattr(get_settings(), key)
@@ -186,6 +204,10 @@ def snapshot() -> dict:
             "pay_methods": admin_pay_methods(),
             "notices": public_notices(),
             "faq_items": shop_overlay().get("faq_items"),
+            "ton_enabled": s.ton_enabled,
+            "ton_wallet": s.ton_wallet,
+            "ton_rate_margin_pct": s.ton_rate_margin_pct,
+            "toncenter_api_key": s.toncenter_api_key,
         },
     }
 

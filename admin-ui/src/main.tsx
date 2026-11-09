@@ -45,6 +45,7 @@ import {
   LayoutDashboard,
   Users,
   CreditCard,
+  Gem,
   Receipt,
   LifeBuoy,
   Megaphone,
@@ -67,7 +68,7 @@ import { UsersPage } from "@/pages/users";
 import { FinancePage } from "@/pages/finance";
 import { StatisticsPage } from "@/pages/statistics";
 import { OverviewPage } from "@/pages/overview";
-import { RecordsPage, BackupsPage } from "@/pages/records";
+import { RecordsPage, BackupsPage, TonPage } from "@/pages/records";
 import { SettingsPage } from "@/pages/settings";
 import { AdsPage, ReferralsPage } from "@/pages/marketing";
 import { BroadcastPage } from "@/pages/communications";
@@ -115,6 +116,13 @@ const sections = [
     description: "Счета и успешные оплаты пользователей",
     group: "Финансы",
     icon: CreditCard,
+  },
+  {
+    id: "ton",
+    label: "Оплата в TON",
+    description: "Платежи из кошелька Telegram и неопознанные переводы",
+    group: "Финансы",
+    icon: Gem,
   },
   {
     id: "billing",
@@ -502,6 +510,9 @@ function Workspace({
       break;
     case "backups":
       page = <BackupsPage />;
+      break;
+    case "ton":
+      page = <TonPage />;
       break;
     default:
       page = (

@@ -801,3 +801,37 @@ CREATE INDEX IF NOT EXISTS funnel_gifts_user_idx ON funnel_gifts (telegram_id, c
 ALTER TABLE reminder_deliveries ADD COLUMN IF NOT EXISTS step_id TEXT;
 CREATE INDEX IF NOT EXISTS reminder_deliveries_step_idx ON reminder_deliveries (step_id, created_at)
     WHERE step_id IS NOT NULL;
+
+-- Payments in TON through the chat widget. order_id is also the transfer comment.
+CREATE TABLE IF NOT EXISTS ton_orders (
+    order_id TEXT PRIMARY KEY,
+    telegram_id BIGINT NOT NULL,
+    rub INTEGER NOT NULL,
+    nano BIGINT NOT NULL,
+    rate_rub NUMERIC NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    valid_until TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    chat_id BIGINT,
+    message_id BIGINT,
+    sent_at TIMESTAMPTZ,
+    sender TEXT,
+    msg_hash TEXT,
+    tx_hash TEXT UNIQUE,
+    paid_nano BIGINT,
+    credited_rub INTEGER,
+    paid_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS ton_orders_open_idx ON ton_orders (created_at) WHERE status IN ('pending', 'sent');
+CREATE INDEX IF NOT EXISTS ton_orders_user_idx ON ton_orders (telegram_id, created_at DESC);
+
+-- Every incoming transfer seen on the shop wallet; order_id is NULL for transfers nobody could match.
+CREATE TABLE IF NOT EXISTS ton_incoming (
+    tx_hash TEXT PRIMARY KEY,
+    sender TEXT,
+    nano BIGINT NOT NULL,
+    comment TEXT,
+    order_id TEXT,
+    utime TIMESTAMPTZ,
+    seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

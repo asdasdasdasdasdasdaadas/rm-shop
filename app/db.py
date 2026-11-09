@@ -5501,6 +5501,12 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
                     telegram_id, plan_code, stars, provider_id)
                 if not inserted:
                     return None
+            elif provider == 'ton':
+                order = await conn.fetchrow('SELECT * FROM ton_orders WHERE order_id=$1 FOR UPDATE', provider_id)
+                if not order or order['telegram_id'] != telegram_id:
+                    raise ValueError('Payment order mismatch')
+                if order['status'] == 'paid':
+                    return None
             else:
                 raise ValueError('Unknown payment provider')
             receipt = await conn.fetchrow('''INSERT INTO payment_receipts
@@ -5524,6 +5530,9 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
                 VALUES ($1,$2,'pay',$3,$4,$5)''',telegram_id,'router' if router_days else 'topup',amount,after,plan_code)
             if provider == 'rollypay':
                 await conn.execute("UPDATE rollypay_orders SET status='granted',paid_at=NOW() WHERE order_id=$1", provider_id)
+            elif provider == 'ton':
+                await conn.execute("UPDATE ton_orders SET status='paid',paid_at=NOW(),credited_rub=$2 WHERE order_id=$1",
+                                   provider_id, amount)
             return dict(receipt)
 
 

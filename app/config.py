@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     rollypay_crypto_enabled: bool = False
     rollypay_crypto_method: str = "usdt"
 
+    # Payments in TON through the chat widget (Bot API 10.4). Off until a wallet is set in the admin panel.
+    ton_enabled: bool = False
+    ton_wallet: str = "UQBuU8RCIxH121MjJofAC2xyvn-7pr2LmdqIiO5d_xVkkGgT"
+    ton_rate_margin_pct: float = 1.0
+    toncenter_api_key: str = ""
+
     balance_enabled: bool = True
     vpn_day_price_rub: int = 6
     max_devices: int = 5
@@ -300,6 +306,10 @@ SHOP_KEYS = frozenset(
         "pay_methods",
         "notices",
         "faq_items",
+        "ton_enabled",
+        "ton_wallet",
+        "ton_rate_margin_pct",
+        "toncenter_api_key",
     }
 )
 

@@ -869,3 +869,88 @@ export function BackupsPage() {
     </div>
   );
 }
+
+const tonStatus: Data = {
+  pending: "Счёт выставлен",
+  sent: "Перевод отправлен, ищем",
+  paid: "Зачислено",
+  expired: "Не оплачен",
+};
+const ton = (nano: unknown) =>
+  (Number(nano || 0) / 1e9).toLocaleString("ru-RU", { maximumFractionDigits: 3 }) + " TON";
+export function TonPage() {
+  const resource = useResource("ton");
+  const data = resource.data;
+  return (
+    <div className="space-y-5">
+      <Panel
+        title="Оплата в TON"
+        description={
+          data
+            ? `${data.enabled ? "Включена для всех" : "Выключена для пользователей, админы могут проверить командой /ton"}. Кошелёк: ${data.wallet || "не указан"}. Включается в «Настройки → Оплата в TON».`
+            : "Платежи из кошелька Telegram через виджет в чате"
+        }
+        action={
+          <ActionButton
+            onAction={async () => {
+              const res = await api("ton/scan", {});
+              toast.success(res.credited ? `Зачислено платежей: ${res.credited}` : "Новых переводов нет");
+              await resource.reload();
+            }}
+          >
+            <RefreshCw />
+            Проверить сейчас
+          </ActionButton>
+        }
+      >
+        {resource.error ? (
+          <Failure message={resource.error} retry={resource.reload} />
+        ) : !data ? (
+          <Loading />
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Всего зачислено: {data.paid?.n || 0} оплат на {money(data.paid?.rub)} ({ton(data.paid?.nano)})
+            </p>
+            <DataTable
+              rows={data.orders || []}
+              empty="Счетов в TON пока не было"
+              columns={[
+                { key: "created_at", label: "Создан · МСК", cell: (r) => date(r.created_at) },
+                { key: "who", label: "Клиент", cell: (r) => who(r) },
+                { key: "order_id", label: "Счёт" },
+                { key: "rub", label: "Сумма", cell: (r) => money(r.rub) },
+                { key: "nano", label: "К оплате", cell: (r) => ton(r.nano) },
+                {
+                  key: "status",
+                  label: "Статус",
+                  cell: (r) =>
+                    r.status === "paid"
+                      ? `${tonStatus.paid}: ${money(r.credited_rub)} (${ton(r.paid_nano)})`
+                      : tonStatus[r.status] || r.status,
+                },
+              ]}
+            />
+          </div>
+        )}
+      </Panel>
+      <Panel
+        title="Неопознанные переводы"
+        description="Пришли на кошелёк без номера счёта в комментарии. Найдите клиента и начислите баланс вручную в его карточке."
+      >
+        {data && (
+          <DataTable
+            rows={data.unmatched || []}
+            empty="Таких переводов нет"
+            columns={[
+              { key: "utime", label: "Когда · МСК", cell: (r) => date(r.utime || r.seen_at) },
+              { key: "nano", label: "Сумма", cell: (r) => ton(r.nano) },
+              { key: "sender", label: "Отправитель" },
+              { key: "comment", label: "Комментарий", cell: (r) => r.comment || "—" },
+            ]}
+          />
+        )}
+      </Panel>
+    </div>
+  );
+}

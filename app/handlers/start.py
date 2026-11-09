@@ -319,6 +319,35 @@ async def cmd_stats(message: Message) -> None:
         await message.answer(f"Статистика не собралась: {type(exc).__name__}")
 
 
+@router.message(Command("ton"))
+async def cmd_ton(message: Message) -> None:
+    """Top up in TON. Admins can use it before the switch in the admin panel is on."""
+    from app import ton
+    if not ton.allowed(message.from_user.id):
+        return
+    try:
+        await ton.send_pay_widget(message.bot, message.from_user.id)
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Виджет TON не отправился", exc_info=True)
+        if message.from_user.id in get_settings().admin_id_set:
+            await message.answer(f"Виджет TON не отправился: {getattr(exc, 'message', None) or type(exc).__name__}")
+
+
+@router.callback_query(F.data == "ton_pay")
+async def ton_pay_button(callback: CallbackQuery) -> None:
+    from app import ton
+    if not ton.allowed(callback.from_user.id):
+        await ack(callback, "Оплата в TON сейчас недоступна", alert=True)
+        return
+    try:
+        await ton.send_pay_widget(callback.bot, callback.from_user.id)
+    except Exception:
+        logging.getLogger(__name__).warning("Виджет TON не отправился", exc_info=True)
+        await ack(callback, "Не получилось открыть оплату в TON, попробуйте позже", alert=True)
+        return
+    await ack(callback)
+
+
 @router.callback_query(F.data == "funnel_test:click")
 async def funnel_test_click(callback: CallbackQuery) -> None:
     await ack(callback, "Тестовая кнопка. Действия с аккаунтом не выполняются.", alert=True)

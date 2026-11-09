@@ -78,6 +78,13 @@ async def grant_plan(
     receipt = await db.credit_payment_once(telegram_id, plan_code, payment_key, amount, router_days, stars)
     if receipt is None:
         return None
+    await after_credit(receipt, rw, bot, amount=amount, title=str(plan.get("title") or plan_code))
+    return receipt
+
+
+async def after_credit(receipt: dict, rw: RemnawaveClient, bot: Bot | None, *, amount: int, title: str) -> None:
+    """Referral rewards, panel sync, the receipt message and the live event for a committed payment."""
+    telegram_id, payment_key = int(receipt["telegram_id"]), receipt["payment_key"]
     # Never expose a side-effect failure as a failed payment after the transaction committed.
     try:
         await apply_payment_effects(receipt, rw, bot)
@@ -92,10 +99,9 @@ async def grant_plan(
     try:
         local = await db.get_user(telegram_id)
         live_paid(dict(local or {}, telegram_id=telegram_id), amount=amount,
-                  title=str(plan.get("title") or plan_code), repeat=not receipt['first_payment'])
+                  title=title, repeat=not receipt['first_payment'])
     except Exception:
         logger.exception("Could not publish payment event %s", payment_key)
-    return receipt
 
 
 async def apply_payment_effects(receipt: dict, rw: RemnawaveClient, bot: Bot | None) -> None:

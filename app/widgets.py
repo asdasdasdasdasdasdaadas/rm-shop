@@ -169,6 +169,41 @@ draw();live('s',v=>{s=v;draw()});""",
 )
 
 
+TON_PAY_HTML = _page(
+    """<div class="t">Пополнить в TON</div>
+<div id="pick"><div class="ch" id="ch"></div><div class="t" id="est"></div>
+<button id="pay" style="width:100%;margin-top:8px;padding:9px 0;font-weight:600">Оплатить</button></div>
+<div id="done" hidden><div class="big ok" id="dv"></div><div class="t" id="db"></div></div>
+<div class="t" id="u" style="margin-top:6px"></div>""",
+    """let sel=s&&s.s,ord=s&&s.w,poll=0;
+function tn(n){return (n/1e9).toFixed(3).replace(/\\.?0+$/,'').replace('.',',')+' TON'}
+function msg(t){$('u').textContent=t}
+function draw(){if(!s)return;
+if(s.ok){$('pick').hidden=true;$('done').hidden=false;$('dv').textContent='+'+rub(s.ok.c);
+$('db').textContent='Баланс: '+rub(s.ok.b)+'. Зачислено по счёту '+s.ok.o;msg('');stop();return}
+const c=$('ch');c.innerHTML='';s.a.forEach(v=>{const b=document.createElement('button');b.textContent=rub(v);
+b.className=v==sel?'on':'';b.onclick=()=>{sel=v;draw()};c.appendChild(b)});
+$('est').textContent=s.r?'≈ '+tn(sel/s.r*1e9)+' · курс фиксируем на 10 минут':'Сумму в TON покажет кошелёк';
+$('pay').textContent='Оплатить '+rub(sel)}
+function stop(){if(poll)clearInterval(poll);poll=0}
+function check(){msg('Ищем перевод в блокчейне, обычно 5–15 секунд…');$('pay').disabled=true;if(poll)return;
+poll=setInterval(()=>{if(!busy&&W.isActive!==false)ask('q:'+ord,0,v=>{if(v.ok){s.ok=v.ok;draw()}})},6000)}
+const ERR={REJECTED:'Оплата отменена',BAD_REQUEST:'Кошелёк отклонил перевод',NOT_ALLOWED:'Оплата здесь недоступна',RATE_LIMITED:'Слишком часто, подождите'};
+$('pay').onclick=()=>{if(busy)return;if(!W.wallet){msg('Кошелёк Telegram недоступен в этой версии приложения');return}
+busy=1;$('pay').disabled=true;msg('Готовим счёт…');
+W.request('t:'+sel,{wallet:true}).then(a=>{const v=JSON.parse(a.result||'{}');if(v.e)throw{m:v.e};ord=v.o;
+msg('Подтвердите перевод '+tn(v.n)+' в кошельке');return W.wallet.sendTransaction(v.tx,'p:'+v.o)})
+.then(()=>{if(W.HapticFeedback)W.HapticFeedback.notificationOccurred('success');check()},
+e=>{if(e&&e.m)msg(e.m);else if(e&&(e.code=='TIMEOUT'||e.code=='FAILED')&&ord)check();
+else{msg(ERR[e&&e.code]||'Не получилось, попробуйте ещё раз');$('pay').disabled=false}})
+.finally(()=>{busy=0})};
+W.onEvent('chatDataChanged',()=>{try{s=JSON.parse(W.chatData)}catch(e){}draw()});
+draw();if(W.ready)W.ready();if(ord&&!(s&&s.ok))check();""",
+    ".ch{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0}.ch button{padding:7px 0}"
+    ".ch .on{outline:2px solid var(--tg-theme-button-color)}",
+)
+
+
 def _brand() -> str:
     return html.escape(get_settings().brand_name or "VPN")
 
@@ -192,6 +227,10 @@ def gift_html(days: int) -> str:
 
 def stats_html() -> str:
     return STATS_HTML.replace("__BRAND__", _brand())
+
+
+def ton_pay_html() -> str:
+    return TON_PAY_HTML
 
 
 # ---------- state ----------
@@ -262,12 +301,20 @@ async def stats_state() -> dict[str, Any]:
         GROUP BY plan_code
         """
     )
+    ton_paid = await pool.fetchrow(
+        """
+        SELECT COUNT(*)::int AS n, COALESCE(SUM(credited_rub), 0)::int AS rub FROM ton_orders
+        WHERE status = 'paid'
+          AND paid_at >= (date_trunc('day', NOW() AT TIME ZONE 'Europe/Moscow') AT TIME ZONE 'Europe/Moscow')
+        """
+    )
     settings = get_settings()
     revenue = sum(settings.topup_rub_for_code(r["plan_code"]) * int(r["n"] or 0) for r in orders)
+    revenue += int((ton_paid or {}).get("rub") or 0)
     row = dict(row or {})
     return {
         "v": int(revenue),
-        "p": sum(int(r["n"] or 0) for r in orders),
+        "p": sum(int(r["n"] or 0) for r in orders) + int((ton_paid or {}).get("n") or 0),
         "a": int(row.get("users_total") or 0),
         "n": int(row.get("new_today") or 0),
         "o": int(row.get("online") or 0),
@@ -382,6 +429,9 @@ async def handle_query(bot: Bot, query: dict[str, Any]) -> dict[str, Any]:
         if user_id not in get_settings().admin_id_set:
             return {"e": "Нет доступа"}
         return await stats_state()
+    if data[:2] in ("t:", "p:", "q:"):
+        from app import ton
+        return await ton.handle_query(bot, query, user_id, data)
     return {"e": "Неизвестный запрос"}
 
 

@@ -18,6 +18,10 @@ KNOWN_PAY_METHODS: dict[str, dict[str, str]] = {
         "title": "Telegram Stars",
         "note": "Оплата звёздами прямо в Telegram, без перехода в банк.",
     },
+    "ton": {
+        "title": "TON",
+        "note": "Оплата из кошелька Telegram: пришлём окно оплаты в чат с ботом.",
+    },
 }
 
 DEFAULT_PAY_METHODS: list[dict[str, Any]] = [
@@ -25,6 +29,7 @@ DEFAULT_PAY_METHODS: list[dict[str, Any]] = [
     {"id": "card", "enabled": True},
     {"id": "stars", "enabled": True},
     {"id": "crypto", "enabled": False},
+    {"id": "ton", "enabled": True},
 ]
 
 
@@ -85,6 +90,9 @@ def method_available(method_id: str, settings=None) -> bool:
         return bool(s.rollypay_configured)
     if key == "stars":
         return True
+    if key == "ton":
+        from app import ton
+        return ton.enabled()
     return False
 
 
@@ -118,6 +126,8 @@ def admin_pay_methods() -> list[dict[str, Any]]:
         hint = ""
         if method_id in {"sbp", "card", "crypto"} and not available:
             hint = "Нужны ключи RollyPay в окружении"
+        if method_id == "ton" and not available:
+            hint = "Включите оплату в TON в настройках"
         out.append(
             {
                 "id": method_id,

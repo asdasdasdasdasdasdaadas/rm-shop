@@ -115,7 +115,7 @@ async def admin_index(_request: web.Request) -> web.FileResponse:
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "build": "120"})
+    return web.json_response({"ok": True, "build": "121"})
 
 
 async def api_login(request: web.Request) -> web.Response:
@@ -2216,6 +2216,27 @@ async def api_flags(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **flags, "maintenance_has_photo": has_photo()})
 
 
+async def api_ton(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import ton
+    return web.json_response({"ok": True, **await ton.admin_list()})
+
+
+async def api_ton_scan(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import ton
+    try:
+        credited = await ton.scan(bot=request.app["bot"], rw=request.app.get("rw"), min_interval=0)
+    except Exception as exc:
+        logger.warning("Manual TON scan failed", exc_info=True)
+        return web.json_response({"ok": False, "error": f"Toncenter недоступен: {type(exc).__name__}"}, status=502)
+    return web.json_response({"ok": True, "credited": credited, **await ton.admin_list()})
+
+
 async def api_backups(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2682,6 +2703,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
     app.router.add_get("/admin/api/backups", api_backups)
+    app.router.add_get("/admin/api/ton", api_ton)
+    app.router.add_post("/admin/api/ton/scan", api_ton_scan)
     app.router.add_post("/admin/api/backups", api_backup_create)
     app.router.add_post("/admin/api/backups/restore", api_backup_restore)
     app.router.add_post("/admin/api/backups/delete", api_backup_delete)

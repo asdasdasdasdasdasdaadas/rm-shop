@@ -300,6 +300,8 @@ def back_profile_keyboard(*, cabinet: bool = False) -> InlineKeyboardMarkup:
 def buy_keyboard() -> InlineKeyboardMarkup:
     settings = get_settings()
     builder = InlineKeyboardBuilder()
+    from app import ton
+    ton_row = [InlineKeyboardButton(text="Оплатить в TON", callback_data="ton_pay")] if ton.enabled() else []
     if runtime.webapp_url:
         builder.row(
             InlineKeyboardButton(
@@ -307,6 +309,8 @@ def buy_keyboard() -> InlineKeyboardMarkup:
                 web_app=WebAppInfo(url=runtime.webapp_url),
             )
         )
+        if ton_row:
+            builder.row(*ton_row)
         builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
         return builder.as_markup()
     for code, plan in settings.shop_plans.items():
@@ -317,6 +321,8 @@ def buy_keyboard() -> InlineKeyboardMarkup:
         else:
             label = plan["title"]
         builder.row(InlineKeyboardButton(text=label, callback_data=f"buy:{code}"))
+    if ton_row:
+        builder.row(*ton_row)
     builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
     return builder.as_markup()
 

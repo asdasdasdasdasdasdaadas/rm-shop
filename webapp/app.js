@@ -2787,6 +2787,18 @@ async function payPlan(plan, method) {
     tg.openLink(inv.pay_url);
     return;
   }
+  if (inv.chat) {
+    // TON is paid in the chat with the bot: the payment widget is already there.
+    const done = () => {
+      try { tg.close(); } catch (_e) {}
+    };
+    try {
+      tg.showAlert("Окно оплаты в TON отправили в чат с ботом.", done);
+    } catch (_e) {
+      done();
+    }
+    return;
+  }
   if (!inv.invoice_url) throw new Error("Не удалось получить счёт Telegram Stars");
   if (!tg.initData) {
     window.location.assign(inv.invoice_url);
@@ -2810,6 +2822,13 @@ function payMethodIcon(id) {
     );
   }
   if (id === "stars") return '<span class="stars-logo" aria-hidden="true"></span>';
+  if (id === "ton") {
+    return (
+      '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="#0098EA"/>' +
+      '<path d="M10.6 10.5h10.8c.9 0 1.5 1 1 1.8L16.6 22a.7.7 0 0 1-1.2 0l-5.8-9.7c-.5-.8.1-1.8 1-1.8Z" ' +
+      'fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M16 10.5V22" stroke="#fff" stroke-width="1.6"/></svg>'
+    );
+  }
   return '<img src="/icons/sbp.svg" width="28" height="32" alt="" aria-hidden="true">';
 }
 
@@ -2820,6 +2839,7 @@ function payMethodNoteText(method, methods) {
   if (method === "crypto") return "Выберите валюту и сеть на странице оплаты.";
   if (method === "card") return "Откроем защищённую страницу оплаты.";
   if (method === "stars") return "Оплатите звёздами в Telegram.";
+  if (method === "ton") return "Пришлём окно оплаты в чат с ботом.";
   return "Откроем приложение вашего банка.";
 }
 
