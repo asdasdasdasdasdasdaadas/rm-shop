@@ -2231,17 +2231,20 @@ async def save_rollypay_order(
     plan_code: str,
     payment_id: str,
     pay_url: str,
+    method: str | None = None,
 ) -> None:
+    # Both RollyPay and CISPay orders live here; CISPay ids start with «cis:». method — sbp / card / crypto.
     await _pool_req().execute(
         """
-        INSERT INTO rollypay_orders (order_id, telegram_id, plan_code, payment_id, pay_url, status)
-        VALUES ($1, $2, $3, $4, $5, 'created')
+        INSERT INTO rollypay_orders (order_id, telegram_id, plan_code, payment_id, pay_url, status, method)
+        VALUES ($1, $2, $3, $4, $5, 'created', $6)
         """,
         order_id,
         telegram_id,
         plan_code,
         payment_id,
         pay_url,
+        method,
     )
     await track_checkout(telegram_id, payment_id, pay_url)
 

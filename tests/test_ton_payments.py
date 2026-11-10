@@ -151,7 +151,7 @@ class TonButtonsTest(unittest.TestCase):
 
     def test_top_up_screen_offers_two_equal_ways(self):
         from app import keyboards
-        s = SimpleNamespace(rollypay_configured=True, stars_enabled=True, shop_plans={})
+        s = SimpleNamespace(rollypay_configured=True, rub_pay_configured=True, stars_enabled=True, shop_plans={})
         with patch.object(keyboards, "get_settings", return_value=s), \
                 patch.object(keyboards.runtime, "webapp_url", "https://example.com/app"):
             rows = keyboards.buy_keyboard().inline_keyboard
@@ -160,7 +160,7 @@ class TonButtonsTest(unittest.TestCase):
 
     def test_admins_see_ton_before_the_switch_is_on(self):
         from app import keyboards, pay_methods
-        s = SimpleNamespace(rollypay_configured=True, stars_enabled=True, shop_plans={})
+        s = SimpleNamespace(rollypay_configured=True, rub_pay_configured=True, stars_enabled=True, shop_plans={})
         with patch.object(ton, "get_settings", return_value=settings(ton_enabled=False)), \
                 patch.object(keyboards, "get_settings", return_value=s), \
                 patch.object(keyboards.runtime, "webapp_url", "https://example.com/app"):

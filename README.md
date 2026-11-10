@@ -153,6 +153,18 @@ Deep-link: `https://t.me/<BOT_USERNAME>?start=ref_<telegram_id>`.
 
 `ROLLYPAY_TEST=true` — тестовые платежи. На ключе `rpk_live_` флаг игнорируется: иначе страница кассы открывается, а QR СБП не активируется.
 
+### CISPay: СБП и криптовалюта
+
+СБП и криптовалюта идут через [CISPay](https://cispay.app/developers), если заданы `CISPAY_SHOP_ID` и `CISPAY_API_KEY`. Список способов задаётся в `CISPAY_METHODS` (по умолчанию `sbp,crypto`). Карта остаётся на RollyPay. Gram (TON) и Stars от кассы не зависят.
+
+- Счёт: `POST /payments`, покупатель платит на странице CISPay. Крипта выставляется в рублях, CISPay сам пересчитывает её в USDT; минимум около 5 USD.
+- В настройках магазина CISPay укажите webhook: `https://<ваш-домен>/webhooks/cispay`. Подпись — `X-Signature`, HMAC-SHA256 тела с `CISPAY_API_KEY`.
+- Кнопка «Проверить оплату» и напоминания о неоплаченном счёте спрашивают статус через `GET /payments/status`.
+- Тестовые платежи из Песочницы (`is_sandbox`) зачисляются только при `CISPAY_TEST=true`.
+- Проверка ключей: `docker compose exec bot python -m app.check_cispay`.
+
+Заказы CISPay лежат в той же таблице `rollypay_orders`, id платежа хранится с префиксом `cis:`. Поэтому отчёты, воронки и счета, выставленные до переключения, продолжают работать.
+
 Telegram Stars (`STARS_ENABLED`) по умолчанию выключены.
 
 ## Админка
@@ -235,6 +247,8 @@ cp .env.example .env
 | `ROLLYPAY_API_KEY` | Ключ кассы |
 | `ROLLYPAY_SIGNING_SECRET` | Секрет подписи вебхука |
 | `ROLLYPAY_TEST` | `false` на боевых платежах |
+| `CISPAY_SHOP_ID` | ID магазина CISPay (СБП и крипта) |
+| `CISPAY_API_KEY` | Секретный ключ магазина `cis_sec_...`, им же подписан вебхук |
 | `WEBAPP_ENABLED` | `true` если нужен кабинет |
 | `WEBAPP_PUBLIC_URL` | `https://...` без слэша в конце |
 
@@ -249,6 +263,8 @@ cp .env.example .env
 | `STARS_ENABLED` | `false` | Оплата Stars: 1 звезда = 1 рубль |
 | `ROLLYPAY_API_URL` | `https://rollypay.io` | API кассы (не `api.rollypay.io`) |
 | `ROLLYPAY_PAYMENT_METHOD` | пусто | в кассу всегда уходит `sbp`, как в SDK |
+| `CISPAY_METHODS` | `sbp,crypto` | Способы, которые идут через CISPay вместо RollyPay |
+| `CISPAY_TEST` | `false` | Зачислять тестовые платежи Песочницы |
 | `VPN_DAY_PRICE_RUB` | `6` | Цена суток VPN на одно устройство |
 | `PROMO_ENABLED` | `true` | Промокоды |
 | `PROMO_CODES` | `TEST:3` | `КОД:дни`, несколько через запятую |

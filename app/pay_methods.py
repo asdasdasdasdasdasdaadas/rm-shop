@@ -87,7 +87,8 @@ def method_available(method_id: str, settings=None, *, telegram_id: int | None =
     s = settings or get_settings()
     key = str(method_id or "").strip().lower()
     if key in {"sbp", "card", "crypto"}:
-        return bool(s.rollypay_configured)
+        ready = getattr(s, "rub_method_ready", None)
+        return ready(key) if callable(ready) else bool(getattr(s, "rollypay_configured", False))
     if key == "stars":
         return True
     if key == "ton":

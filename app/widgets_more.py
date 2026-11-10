@@ -63,7 +63,7 @@ RECEIPT_HTML = _more(
 <div class="nx" id="nx"></div>
 <div class="iv" id="iv" hidden><span>🎁 <b id="ir"></b> за каждого друга</span><button id="cp">Пригласить</button></div>
 <div class="f"><span class="t" id="u"></span><button id="r" class="rf" aria-label="Обновить">↻</button></div>""",
-    """const M={rollypay:'Карта/СБП',stars:'Звёзды',ton:'Gram',crypto:'Крипта'},
+    """const M={rollypay:'Карта/СБП',sbp:'СБП',card:'Карта',stars:'Звёзды',ton:'Gram',crypto:'Крипта'},
 N={ok:'✓ VPN уже работает — больше ничего делать не нужно',nd:'📱 Добавьте устройство — покажем, как подключить VPN',
 su:'📱 Осталось добавить ссылку в VPN-приложение и включить VPN'};let go=1;
 function draw(){if(!s)return;$('mt').textContent=M[s.m]||'оплачено';
@@ -215,7 +215,11 @@ async def receipt_state(telegram_id: int, receipt: dict, step: str) -> dict[str,
     from app.widgets import balance_state
     state = await balance_state(telegram_id)
     key = str(receipt.get("payment_key") or "")
-    state.update(a=int(receipt.get("amount") or 0), m=key.split(":", 1)[0], k=step)
+    method = key.split(":", 1)[0]
+    if method == "rollypay":
+        order = await db.get_rollypay_order(key.split(":", 1)[1])
+        method = str((order or {}).get("method") or method)
+    state.update(a=int(receipt.get("amount") or 0), m=method, k=step)
     settings = get_settings()
     if settings.referral_program_enabled and int(settings.referral_reward_rub or 0) > 0:
         from app.keyboards import invite_copy_text

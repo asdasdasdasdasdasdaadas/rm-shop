@@ -188,7 +188,7 @@ async def _create_plan_invoice(
     if not plan:
         await ack(callback, "Тариф не найден", alert=True)
         return
-    if settings.rollypay_configured:
+    if settings.rub_pay_configured:
         if rp is None:
             await ack(callback, "Оплата временно недоступна. Попробуйте позже", alert=True)
             return
@@ -224,7 +224,7 @@ async def _create_plan_invoice(
             )
             return
         await db.save_rollypay_order(
-            order_id, callback.from_user.id, code, payment_id, pay_url
+            order_id, callback.from_user.id, code, payment_id, pay_url, pay_method
         )
         await edit_funnel(callback.message,
             f"<b>{plan['title']}</b> — {plan['rub_str']} рублей\n\n"

@@ -680,7 +680,7 @@ async def api_invoice(request: web.Request) -> web.Response:
     else:
         pay_method = allowed_ids[0]
     if pay_method in {"sbp", "card", "crypto"}:
-        if not settings.rollypay_configured:
+        if not settings.rub_method_ready(pay_method):
             return json_error("Оплата в рублях не настроена")
         rp: RollyPayClient | None = request.app.get("rp")
         if rp is None:
@@ -702,7 +702,7 @@ async def api_invoice(request: web.Request) -> web.Response:
         payment_id = str(data.get("payment_id") or "")
         if not pay_url or not payment_id:
             return json_error("Не удалось получить ссылку на оплату", 502)
-        await db.save_rollypay_order(order_id, telegram_id, code, payment_id, pay_url)
+        await db.save_rollypay_order(order_id, telegram_id, code, payment_id, pay_url, pay_method)
         return web.json_response({"ok": True, "pay_url": pay_url, "order_id": order_id})
     if pay_method == "stars":
         try:
@@ -1200,11 +1200,47 @@ async def rollypay_webhook(request: web.Request) -> web.Response:
     return web.Response(text="OK")
 
 
+async def cispay_webhook(request: web.Request) -> web.Response:
+    """CISPay status change: credit on PAID. Signature — hex HMAC-SHA256 of the raw body with CISPAY_API_KEY."""
+    from app.cispay import is_cispay_payment, verify_webhook as verify_cispay
+    settings = get_settings()
+    if not settings.cispay_configured:
+        return web.Response(status=503, text="cispay is not configured")
+    body = await request.read()
+    if not verify_cispay(body, request.headers.get("X-Signature") or "", settings.cispay_api_key):
+        return web.Response(status=403, text="invalid signature")
+    try:
+        event = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return web.Response(status=400, text="invalid json")
+    if not isinstance(event, dict) or event.get("event") or str(event.get("status") or "").upper() != "PAID":
+        return web.Response(text="OK")  # Subscriptions and non-final statuses need nothing from us.
+    if event.get("is_sandbox") and not settings.cispay_test:
+        logger.warning("CISPay: тестовый платёж %s пропущен (CISPAY_TEST=false)", event.get("order_id"))
+        return web.Response(text="OK")
+    order_id = str(event.get("order_id") or "")
+    order = await db.get_rollypay_order(order_id) if order_id else None
+    if not order and event.get("id"):
+        order = await db.get_rollypay_order_by_payment("cis:" + str(event["id"]))
+    if not order or not is_cispay_payment(order.get("payment_id")):
+        logger.warning("CISPay webhook: unknown order %s / %s", order_id, event.get("id"))
+        return web.Response(text="OK")
+    if order["status"] == "granted":
+        return web.Response(text="OK")
+    try:
+        await fulfill_rollypay_order(order["order_id"], request.app["rw"], bot=request.app["bot"])
+    except RemnawaveError as exc:
+        logger.exception("CISPay fulfill failed: %s", exc)
+        return web.Response(status=500, text="fulfill failed")
+    return web.Response(text="OK")
+
+
 def build_web_app() -> web.Application:
     settings = get_settings()
     app = web.Application(client_max_size=80 * 1024 * 1024)
     app.router.add_get("/health", health)
     app.router.add_post("/webhooks/rollypay", rollypay_webhook)
+    app.router.add_post("/webhooks/cispay", cispay_webhook)
     if settings.webapp_enabled:
         app.router.add_get("/", index)
         app.router.add_get("/app.css", webapp_css)

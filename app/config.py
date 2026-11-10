@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     rollypay_payment_method: str = ""
     rollypay_crypto_enabled: bool = False
     rollypay_crypto_method: str = "usdt"
+    # CISPay (https://cispay.app/developers): which of our methods go there instead of RollyPay.
+    cispay_api_url: str = "https://api.cispay.app"
+    cispay_shop_id: str = ""
+    cispay_api_key: str = ""
+    cispay_methods: str = "sbp,crypto"
+    cispay_test: bool = False
 
     # Payments in TON through the chat widget (Bot API 10.4). Off until a wallet is set in the admin panel.
     ton_enabled: bool = False
@@ -127,6 +133,25 @@ class Settings(BaseSettings):
     @property
     def rollypay_configured(self) -> bool:
         return bool(self.rollypay_api_key.strip())
+
+    @property
+    def cispay_configured(self) -> bool:
+        return bool(self.cispay_shop_id.strip() and self.cispay_api_key.strip())
+
+    @property
+    def cispay_method_set(self) -> set[str]:
+        if not self.cispay_configured:
+            return set()
+        return {x.strip().lower() for x in self.cispay_methods.split(",") if x.strip().lower() in {"sbp", "crypto", "card"}}
+
+    @property
+    def rub_pay_configured(self) -> bool:
+        """Some provider takes rubles: RollyPay, CISPay or both."""
+        return self.rollypay_configured or bool(self.cispay_method_set)
+
+    def rub_method_ready(self, method: str) -> bool:
+        key = str(method or "").lower()
+        return key in self.cispay_method_set or (self.rollypay_configured and key in {"sbp", "card", "crypto"})
 
     @property
     def plans(self) -> dict[str, dict]:

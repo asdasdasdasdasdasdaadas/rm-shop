@@ -97,6 +97,10 @@ def _warn_deploy(settings) -> None:
         logger.warning("ADMIN_PASSWORD пуст: вход в /admin не сработает")
     if settings.webapp_enabled and not settings.webapp_public_url.startswith("https://"):
         logger.warning("Для Mini App нужен HTTPS в WEBAPP_PUBLIC_URL (требование Telegram)")
+    if settings.cispay_configured and not settings.cispay_method_set:
+        logger.warning("CISPAY_METHODS пуст: CISPay настроен, но ни один способ оплаты на него не идёт")
+    if settings.cispay_test:
+        logger.warning("CISPAY_TEST=true: тестовые платежи CISPay (is_sandbox) зачисляются на баланс")
     if settings.rollypay_configured and settings.rollypay_test:
         logger.warning("ROLLYPAY_TEST=true: платежи идут в тестовом режиме")
     if "rmshop:rmshop@" in settings.database_url:
@@ -111,7 +115,9 @@ async def main() -> None:
     await db.migrate_legacy_promo_codes()
     rw = RemnawaveClient()
     runtime.rw = rw
-    rp = RollyPayClient() if settings.rollypay_configured else None
+    from app.cispay import CISPayClient, PaymentRouter
+    rp = PaymentRouter(RollyPayClient() if settings.rollypay_configured else None,
+                       CISPayClient() if settings.cispay_configured else None) if settings.rub_pay_configured else None
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     from app.legal_notice import LegalNoticeRequestMiddleware, LegalNoticeInteractionMiddleware
     bot.session.middleware(LegalNoticeRequestMiddleware())

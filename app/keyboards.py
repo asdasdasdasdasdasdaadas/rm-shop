@@ -305,7 +305,7 @@ def ton_button(text: str = "Gram (TON)", *, telegram_id: int | None = None) -> I
 
 
 def _cabinet_pay_label(settings) -> str:
-    if settings.rollypay_configured:
+    if settings.rub_pay_configured:
         return "Картой / СБП"
     if settings.stars_enabled:
         return "Звёздами"
@@ -324,7 +324,7 @@ def buy_keyboard(telegram_id: int | None = None) -> InlineKeyboardMarkup:
         builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
         return builder.as_markup()
     for code, plan in settings.shop_plans.items():
-        if settings.rollypay_configured:
+        if settings.rub_pay_configured:
             label = f"{plan['title']} — {plan['rub_str']} рублей"
         elif settings.stars_enabled:
             label = f"{plan['title']} — {plan['stars']} звёзд"
