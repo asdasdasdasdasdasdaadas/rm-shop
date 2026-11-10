@@ -371,6 +371,26 @@
   const METHOD_EMO = { ton: "💎", stars: "⭐", sbp: "🏦", card: "💳", crypto: "🪙" };
   const METHOD_SUB = { ton: "Из кошелька Telegram, окно придёт в чат", stars: "Звёздами Telegram", sbp: "Через приложение банка", card: "Visa, Mastercard, Мир", crypto: "Валюту и сеть выберете при оплате" };
   const methodSub = (m) => METHOD_SUB[m.id] || m.note || "";
+  // Each payment method has its own widget: Gram keeps the blue gem, Stars is gold, SBP wears its own colours.
+  const STARBIG = (w) => `<svg width="${w}" height="${w}" viewBox="0 0 100 100"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6c2"/><stop offset=".55" stop-color="#ffd23f"/><stop offset="1" stop-color="#f29a0c"/></linearGradient></defs>` +
+    `<path fill="url(#sg)" stroke="#fff" stroke-width="3" stroke-linejoin="round" d="M50 6l12.6 27.3 29.9 3.4-22.3 20.3 6.2 29.4L50 71.5 23.6 86.4l6.2-29.4L7.5 36.7l29.9-3.4z"/>` +
+    `<path fill="#fff" opacity=".75" d="M41 30c2-4 4-8 9-15 1 6 1 10 0 16-3 0-6 0-9-1z"/></svg>`;
+  const SBPBIG = (w) => `<div style="width:${w}px;height:${w}px;border-radius:${Math.round(w * .28)}px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(0,0,0,.25)"><img src="/icons/sbp.svg" width="${Math.round(w * .5)}" height="${Math.round(w * .58)}" alt=""></div>`;
+  const CARDBIG = (w) => `<svg width="${w}" height="${Math.round(w * .72)}" viewBox="0 0 100 72"><rect x="2" y="2" width="96" height="68" rx="12" fill="#fff"/><rect x="2" y="16" width="96" height="12" fill="#2b3a66"/>` +
+    `<rect x="12" y="40" width="22" height="16" rx="3" fill="#f2c14e"/><rect x="44" y="46" width="40" height="5" rx="2.5" fill="#c9cfdc"/></svg>`;
+  const LOOK = {
+    ton: { c: "blue", ill: (w) => GEM(w) },
+    stars: { c: "stars", ill: (w) => STARBIG(w + 8) },
+    sbp: { c: "sbp", ill: (w) => SBPBIG(w + 4) },
+    card: { c: "cardpay", ill: (w) => CARDBIG(w + 14) },
+    crypto: { c: "slate", ill: () => "🪙" },
+  };
+  const look = (m) => LOOK[(m && m.id) || ""] || LOOK.ton;
+  const WAIT_TEXT = {
+    stars: ["Открыли счёт в Telegram", "<b>обычно мгновенно</b>"],
+    sbp: ["Открыли оплату через СБП", "<b>подтвердите в приложении банка</b>"],
+    card: ["Открыли защищённую страницу оплаты", "<b>обычно до минуты</b>"],
+  };
   const daysFor = (amount) => Math.floor(amount / (dayPrice() * Math.max(1, phones().length)));
   const amountLine = () => (amountOk(pay.amount) ? `≈ ${days(daysFor(pay.amount))} VPN` : `Укажите сумму от ${rub(me.topup_min || 1)}`);
   SCR.topup = {
@@ -379,7 +399,8 @@
       const chips = [100, 300, 500, 1000].filter(amountOk);
       const m = curMethod();
       const inChips = chips.includes(pay.amount) && !pay.custom;
-      return hc("blue", { ill: GEM(72), n: `<span id="amtN">${rub(pay.amount)}</span>`, p: `<span id="amtP">${amountLine()}</span>`,
+      const L = look(m);
+      return hc(L.c, { ill: L.ill(72), n: `<span id="amtN">${rub(pay.amount)}</span>`, p: `<span id="amtP">${amountLine()}</span>`,
         x: `<div class="chp">${chips.map((v) => `<button type="button" data-act="amt" data-v="${v}" class="${inChips && v === pay.amount ? "on" : ""}">${fmt(v)}</button>`).join("")}` +
           `<button type="button" data-act="amtc" class="${inChips ? "" : "on"}">Своя</button></div>` +
           `<div class="inp" id="amtI"${inChips ? " hidden" : ""}><input id="amtInput" inputmode="numeric" maxlength="6" placeholder="Сумма" value="${inChips ? "" : pay.amount}"><span class="sfx">₽</span></div>`,
@@ -413,7 +434,8 @@
 
   SCR.method = {
     h() {
-      return hc("blue", { ill: GEM(64), h: "Чем оплатить?", p: `${rub(pay.amount)} на баланс · без автоплатежей` }) +
+      const L = look(curMethod());
+      return hc(L.c, { ill: L.ill(64), h: "Чем оплатить?", p: `${rub(pay.amount)} на баланс · без автоплатежей` }) +
         ST("Способы") + cd(payMethods().map((m) => [E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), esc(methodSub(m))) + V(RD(m.id === pay.method)), `data-act="meth" data-v="${esc(m.id)}"`])) +
         `<div class="bot"><button type="button" class="bbtn" data-act="back">Готово</button></div>`;
     },
@@ -424,11 +446,12 @@
   SCR.wait = {
     h() {
       const m = curMethod() || { title: "" };
-      return hc("blue", { cls: "shim", rb: "ждём", ill: GEM(56), n: rub(pay.amount), p: `${esc(m.title)} · ≈ ${days(daysFor(pay.amount))} VPN`,
+      const L = look(m), wt = WAIT_TEXT[m.id] || [pay.kind === "stars" ? "Открыли счёт в Telegram" : "Открыли страницу оплаты", "<b>обычно до минуты</b>"];
+      return hc(L.c, { cls: "shim", rb: "ждём", ill: L.ill(56), n: rub(pay.amount), p: `${esc(m.title)} · ≈ ${days(daysFor(pay.amount))} VPN`,
         pill: "Ждём оплату…", pd: true, r: "ref", rl: "Проверить", ra: 'data-act="refresh"' }) +
         ST("Как это работает") +
-        tl([[CHK(22), pay.kind === "stars" ? "Открыли счёт в Telegram" : "Открыли страницу оплаты", timeHM(new Date()), "ok"],
-          ["2", "Ждём подтверждение", "<b>обычно до минуты</b>", "run"],
+        tl([[CHK(22), wt[0], timeHM(new Date()), "ok"],
+          ["2", "Ждём подтверждение", wt[1], "run"],
           ["3", "Зачислим на баланс", "и пришлём сообщение в чат"]]) +
         (pay.url ? `<button type="button" class="lnk" data-act="reopen">Открыть оплату ещё раз</button>` : "") +
         NOTE("Можно закрыть кабинет — деньги всё равно придут, а бот пришлёт сообщение.", true);
@@ -1078,7 +1101,19 @@
       i.focus();
     },
     pay: (b) => startPay(b),
-    meth(b) { haptic(); pay.method = b.dataset.v; cur.el.querySelectorAll(".rd").forEach((r) => r.classList.toggle("on", r.closest("[data-v]").dataset.v === pay.method)); },
+    meth(b) {
+      haptic();
+      pay.method = b.dataset.v;
+      cur.el.querySelectorAll(".rd").forEach((r) => r.classList.toggle("on", r.closest("[data-v]").dataset.v === pay.method));
+      // The widget on top changes to the chosen method's look.
+      const h = cur.el.querySelector(".hc"), L = look(curMethod());
+      Object.values(LOOK).forEach((x) => h.classList.remove(x.c));
+      h.classList.add(L.c);
+      const ill = h.querySelector(".ill");
+      const fresh = ill.cloneNode(false);
+      fresh.innerHTML = `<div>${L.ill(64)}</div>`;
+      ill.replaceWith(fresh);
+    },
     reopen: () => pay.url && tg.openLink(pay.url),
     plat(b) { haptic(); wiz.platform = b.dataset.v; wiz.client = (appsFor(wiz.platform)[0] || {}).id || ""; go("wiz2"); },
     replat: () => go("wiz1"),
