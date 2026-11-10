@@ -66,7 +66,26 @@ CREATE INDEX IF NOT EXISTS promo_codes_active_idx
     ON promo_codes (code)
     WHERE archived_at IS NULL;
 
-CREATE TABLE IF NOT EXISTS rollypay_orders (
+-- Orders and receipts of the previous payment provider move to neutral names; does nothing once done.
+DO $$
+DECLARE old_name TEXT := 'rollypay';
+BEGIN
+    IF to_regclass(old_name || '_orders') IS NOT NULL AND to_regclass('pay_orders') IS NULL THEN
+        EXECUTE format('ALTER TABLE %I RENAME TO pay_orders', old_name || '_orders');
+    END IF;
+    IF to_regclass(old_name || '_orders_pkey') IS NOT NULL THEN
+        EXECUTE format('ALTER INDEX %I RENAME TO pay_orders_pkey', old_name || '_orders_pkey');
+    END IF;
+    IF to_regclass(old_name || '_orders_payment_id_idx') IS NOT NULL THEN
+        EXECUTE format('ALTER INDEX %I RENAME TO pay_orders_payment_id_idx', old_name || '_orders_payment_id_idx');
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = old_name || '_orders_telegram_id_fkey') THEN
+        EXECUTE format('ALTER TABLE pay_orders RENAME CONSTRAINT %I TO pay_orders_telegram_id_fkey',
+                       old_name || '_orders_telegram_id_fkey');
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS pay_orders (
     order_id TEXT PRIMARY KEY,
     telegram_id BIGINT NOT NULL REFERENCES users (telegram_id),
     plan_code TEXT NOT NULL,
@@ -76,8 +95,8 @@ CREATE TABLE IF NOT EXISTS rollypay_orders (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS rollypay_orders_payment_id_idx
-    ON rollypay_orders (payment_id);
+CREATE INDEX IF NOT EXISTS pay_orders_payment_id_idx
+    ON pay_orders (payment_id);
 
 CREATE TABLE IF NOT EXISTS vpn_reports (
     id BIGSERIAL PRIMARY KEY,
@@ -238,7 +257,7 @@ CREATE INDEX IF NOT EXISTS users_story_nudge_idx ON users (telegram_id)
 
 UPDATE users SET has_paid_topup = TRUE
 WHERE telegram_id IN (
-    SELECT DISTINCT telegram_id FROM rollypay_orders WHERE status = 'granted'
+    SELECT DISTINCT telegram_id FROM pay_orders WHERE status = 'granted'
 )
 OR telegram_id IN (
     SELECT DISTINCT telegram_id FROM payments
@@ -451,7 +470,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS first_checkout_at TIMESTAMPTZ;
 UPDATE users u SET first_checkout_at = h.started
 FROM (
     SELECT telegram_id, MIN(created_at) AS started FROM (
-        SELECT telegram_id, created_at FROM rollypay_orders
+        SELECT telegram_id, created_at FROM pay_orders
         UNION ALL SELECT telegram_id, created_at FROM payments
         UNION ALL SELECT telegram_id, checkout_started_at AS created_at FROM users WHERE checkout_started_at IS NOT NULL
     ) history GROUP BY telegram_id
@@ -481,8 +500,8 @@ ALTER TABLE device_exit_feedback ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPT
 CREATE INDEX IF NOT EXISTS device_exit_feedback_user_idx ON device_exit_feedback(telegram_id, created_at DESC);
 
 
-ALTER TABLE rollypay_orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
-ALTER TABLE rollypay_orders ADD COLUMN IF NOT EXISTS method TEXT;
+ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
+ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS method TEXT;
 CREATE TABLE IF NOT EXISTS reminder_deliveries (
     token TEXT PRIMARY KEY,
     telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
@@ -852,3 +871,15 @@ CREATE TABLE IF NOT EXISTS ton_incoming (
     utime TIMESTAMPTZ,
     seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Receipt keys of the previous provider («<old>:<order>») become «order:<order>»; does nothing once done.
+DO $$
+DECLARE old_prefix TEXT := 'rollypay:';
+BEGIN
+    UPDATE payment_receipts SET payment_key = 'order:' || substr(payment_key, length(old_prefix) + 1)
+        WHERE payment_key LIKE old_prefix || '%';
+    UPDATE referral_payment_rewards SET payment_key = 'order:' || substr(payment_key, length(old_prefix) + 1)
+        WHERE payment_key LIKE old_prefix || '%';
+    UPDATE referral_campaign_friends SET payment_key = 'order:' || substr(payment_key, length(old_prefix) + 1)
+        WHERE payment_key LIKE old_prefix || '%';
+END $$;

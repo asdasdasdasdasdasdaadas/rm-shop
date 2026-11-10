@@ -1,8 +1,7 @@
 """CISPay (https://cispay.app/developers): the shop's payment provider for SBP, cards and crypto.
 
-Orders are kept in `rollypay_orders` and receipts under `rollypay:<order_id>`: the names stay from the
-previous provider, so reports, funnels and old payments keep working. The CISPay transaction id is stored
-with the `cis:` prefix; an id without it belongs to the old provider and can no longer be checked.
+Orders are kept in `pay_orders` and receipts under `order:<order_id>`. The CISPay transaction id is
+stored with the `cis:` prefix; an id without it belongs to the old provider and can no longer be checked.
 """
 from __future__ import annotations
 

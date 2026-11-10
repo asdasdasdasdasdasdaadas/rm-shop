@@ -43,7 +43,7 @@ class FunnelTest(unittest.IsolatedAsyncioTestCase):
     async def test_repeat_stars_and_mixed_payments(self):
         await self.pool.execute("INSERT INTO payments (telegram_id, plan_code) VALUES (1, 'topup_100')")
         self.assertEqual((await self.counts())['repeat_paid'], 0)
-        await self.pool.execute("INSERT INTO rollypay_orders (order_id, telegram_id, plan_code, status) VALUES ('o1', 1, 'topup_100', 'granted')")
+        await self.pool.execute("INSERT INTO pay_orders (order_id, telegram_id, plan_code, status) VALUES ('o1', 1, 'topup_100', 'granted')")
         row = await self.counts()
         self.assertEqual((row['paid'], row['repeat_paid']), (1, 1))
 

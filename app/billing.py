@@ -155,15 +155,15 @@ async def _lock_for(order_id: str) -> asyncio.Lock:
         return lock
 
 
-async def fulfill_rollypay_order(
+async def fulfill_pay_order(
     order_id: str, rw: RemnawaveClient, bot: Bot | None = None
 ) -> dict | None:
     lock = await _lock_for(order_id)
     async with lock:
-        order = await db.get_rollypay_order(order_id)
+        order = await db.get_pay_order(order_id)
         if not order:
             return None
         if order["status"] == "granted":
             return None
-        user = await grant_plan(int(order["telegram_id"]), order["plan_code"], rw, bot=bot, payment_key=f"rollypay:{order_id}")
+        user = await grant_plan(int(order["telegram_id"]), order["plan_code"], rw, bot=bot, payment_key=f"order:{order_id}")
         return user

@@ -84,13 +84,13 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
             p=patch.object(mod,'get_settings',return_value=self.settings);p.start();self.addCleanup(p.stop)
         p=patch.object(db,'_pool_req',return_value=self.pool);p.start();self.addCleanup(p.stop)
         await self.pool.execute("INSERT INTO users (telegram_id,bot_started_at,has_paid_topup) VALUES (1,NOW()-INTERVAL '2 days',FALSE)")
-        await self.pool.execute("INSERT INTO rollypay_orders (order_id,telegram_id,plan_code,status) VALUES ('one',1,'topup_100','created')")
+        await self.pool.execute("INSERT INTO pay_orders (order_id,telegram_id,plan_code,status) VALUES ('one',1,'topup_100','created')")
 
     async def asyncTearDown(self):
         self.proc.stdin.close()
         await self.proc.wait()
 
-    async def credit(self,key='rollypay:one'):
+    async def credit(self,key='order:one'):
         return await db.credit_payment_once(1,'topup_100',key,100,stars=50)
 
     async def balance(self):
@@ -102,7 +102,7 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         await self.pool.query(db.SCHEMA_PATH.read_text(),script=True)
         self.assertIsNone(await self.credit())
         self.assertEqual(await self.balance(),100)
-        self.assertEqual(await self.pool.fetchval("SELECT status FROM rollypay_orders WHERE order_id='one'"),'granted')
+        self.assertEqual(await self.pool.fetchval("SELECT status FROM pay_orders WHERE order_id='one'"),'granted')
         self.assertEqual(await self.pool.fetchval("SELECT COUNT(*) FROM billing_events WHERE kind='topup'"),1)
 
     async def test_accounting_failure_rolls_back_then_retry_succeeds(self):
@@ -113,7 +113,7 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
             await self.credit()
         self.assertEqual(await self.balance(),0)
         self.assertEqual(await self.pool.fetchval('SELECT COUNT(*) FROM payment_receipts'),0)
-        self.assertEqual(await self.pool.fetchval("SELECT status FROM rollypay_orders WHERE order_id='one'"),'created')
+        self.assertEqual(await self.pool.fetchval("SELECT status FROM pay_orders WHERE order_id='one'"),'created')
         await self.pool.execute('DROP TRIGGER fail_log ON billing_events')
         await self.credit()
         self.assertEqual(await self.balance(),100)
@@ -128,7 +128,7 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_historical_stars_and_order_never_recredited(self):
         await self.pool.execute("INSERT INTO payments (telegram_id,plan_code,stars,telegram_payment_id) VALUES (1,'topup_100',50,'old')")
-        await self.pool.execute("UPDATE rollypay_orders SET status='granted' WHERE order_id='one'")
+        await self.pool.execute("UPDATE pay_orders SET status='granted' WHERE order_id='one'")
         self.assertIsNone(await self.credit('stars:old'))
         self.assertIsNone(await self.credit())
         self.assertEqual(await self.balance(),0)
@@ -196,10 +196,10 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await db.list_due_invite_nudges(),[])
 
     async def test_public_fulfillment_and_replay_run_effects_once(self):
-        await self.pool.execute("UPDATE rollypay_orders SET plan_code='b100'")
+        await self.pool.execute("UPDATE pay_orders SET plan_code='b100'")
         with patch('app.balance.sync_user_billing',AsyncMock()) as sync, patch('app.live.paid'):
-            first=await billing.fulfill_rollypay_order('one',None,None)
-            second=await billing.fulfill_rollypay_order('one',None,None)
+            first=await billing.fulfill_pay_order('one',None,None)
+            second=await billing.fulfill_pay_order('one',None,None)
         self.assertIsNotNone(first)
         self.assertIsNone(second)
         sync.assert_awaited_once()

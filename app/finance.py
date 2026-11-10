@@ -5,9 +5,9 @@ from app import db
 from app.config import get_settings
 
 PAYMENTS_SQL = '''WITH events AS (
- SELECT 'rollypay:'||o.order_id AS id,o.telegram_id,o.plan_code,
+ SELECT 'order:'||o.order_id AS id,o.telegram_id,o.plan_code,
  COALESCE(o.paid_at,o.created_at) AS at,'RUB' AS currency,r.amount::bigint AS amount
- FROM rollypay_orders o LEFT JOIN payment_receipts r ON r.payment_key='rollypay:'||o.order_id
+ FROM pay_orders o LEFT JOIN payment_receipts r ON r.payment_key='order:'||o.order_id
  WHERE o.status='granted'
  UNION ALL
  SELECT 'stars:'||p.telegram_payment_id,p.telegram_id,p.plan_code,p.created_at,'XTR',p.stars::bigint
@@ -30,7 +30,7 @@ DUE_SQL = '''WITH candidates AS (
  WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'') <> 'router') dev
  WHERE u.blocked_at IS NULL AND (
  EXISTS(SELECT 1 FROM payments p WHERE p.telegram_id=u.telegram_id) OR
- EXISTS(SELECT 1 FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted'))
+ EXISTS(SELECT 1 FROM pay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted'))
 )
 SELECT * FROM candidates WHERE balance_low OR router_due
 ORDER BY balance_rub,router_expire_at NULLS LAST,telegram_id'''

@@ -40,6 +40,6 @@ async def resume_checkout(telegram_id: int, token: str, rp) -> tuple[str, str | 
         return 'stale', None
     url = latest.get('checkout_url')
     if not url and payment_id:
-        order = await db.get_rollypay_order_by_payment(payment_id)
+        order = await db.get_order_by_payment(payment_id)
         url = order.get('pay_url') if order else None
     return ('active', url) if url else ('expired', None)

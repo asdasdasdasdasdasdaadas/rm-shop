@@ -121,7 +121,7 @@ class WidgetQueryTest(unittest.IsolatedAsyncioTestCase):
         pay = {'v': 900, 'p': 3, 'f': 1, 'y': 600}
         traffic = {'tb': 5 * 1024**3, 'ts': 1794200000}
         fetch = AsyncMock(side_effect=[
-            [{'m': 'rollypay', 'rub': 500}, {'m': 'ton', 'rub': 400}],
+            [{'m': 'order', 'rub': 500}, {'m': 'ton', 'rub': 400}],
             [{'h': 9, 'n': 500}, {'h': 14, 'n': 400}],
             [{'h': 9, 'n': 5}],
         ])
@@ -138,7 +138,7 @@ class WidgetQueryTest(unittest.IsolatedAsyncioTestCase):
                          {'v': 900, 'y': 600, 'p': 3, 'f': 1, 'n': 5, 'nr': 2, 'nd': 3, 'nc': 2, 'np': 1,
                           'x': 40, 'a': 120, 'k': 2, 'ad': 31})
         self.assertEqual((state['on'], state['an'], state['tb'], state['ts']), (17, 1, 5 * 1024**3, 1794200000))
-        self.assertEqual(state['m'], {'rollypay': 500, 'ton': 400})
+        self.assertEqual(state['m'], {'order': 500, 'ton': 400})
         self.assertEqual((len(state['h']), state['h'][9], state['h'][14], state['g'][9]), (24, 500, 400, 5))
         self.assertLessEqual(len(json.dumps(state, separators=(',', ':'))), 1024)
 

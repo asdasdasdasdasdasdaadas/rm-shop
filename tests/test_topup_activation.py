@@ -17,7 +17,7 @@ class TopupActivationTest(unittest.IsolatedAsyncioTestCase):
                   'expire_at': datetime.now(timezone.utc) + timedelta(days=30)}
         rw = SimpleNamespace(extend_panel_user=AsyncMock(side_effect=panel_error or (RuntimeError('unavailable') if panel_failure else None)))
         lock = asyncio.Lock()
-        credit = AsyncMock(return_value=dict(payment_key='rollypay:test',telegram_id=123,router_days=0,amount=100,first_payment=False,referral_enabled=True,invitee_bonus=0))
+        credit = AsyncMock(return_value=dict(payment_key='order:test',telegram_id=123,router_days=0,amount=100,first_payment=False,referral_enabled=True,invitee_bonus=0))
         refund = AsyncMock()
         spend = AsyncMock(return_value=True)
         with ExitStack() as stack:
@@ -37,10 +37,10 @@ class TopupActivationTest(unittest.IsolatedAsyncioTestCase):
             stack.enter_context(patch.object(referrals, 'maybe_reward_invitee', AsyncMock()))
             async def debit(*args):
                 self.assertTrue(lock.locked())
-                credit.assert_awaited_once_with(123, 'topup', 'rollypay:test', 100, 0, 0)
+                credit.assert_awaited_once_with(123, 'topup', 'order:test', 100, 0, 0)
                 return True
             spend.side_effect = debit
-            await billing.grant_plan(123, 'topup', rw, payment_key='rollypay:test')
+            await billing.grant_plan(123, 'topup', rw, payment_key='order:test')
         return rw, credit, spend, refund
 
     async def test_disabled_device_activated_before_payment_returns(self):
@@ -55,11 +55,11 @@ class TopupActivationTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_activation_outage_does_not_fail_credited_payment(self):
         rw, credit, spend, refund = await self.scenario(panel_failure=True)
-        credit.assert_awaited_once_with(123, 'topup', 'rollypay:test', 100, 0, 0)
+        credit.assert_awaited_once_with(123, 'topup', 'order:test', 100, 0, 0)
 
     async def test_duplicate_order_does_not_credit_or_activate_again(self):
-        with patch.object(db, 'get_rollypay_order', AsyncMock(return_value={'status': 'granted'})), patch.object(billing, 'grant_plan', AsyncMock()) as grant:
-            await billing.fulfill_rollypay_order('already-paid', SimpleNamespace())
+        with patch.object(db, 'get_pay_order', AsyncMock(return_value={'status': 'granted'})), patch.object(billing, 'grant_plan', AsyncMock()) as grant:
+            await billing.fulfill_pay_order('already-paid', SimpleNamespace())
         grant.assert_not_awaited()
 
     async def test_panel_rejection_refunds_daily_charge_but_keeps_topup(self):

@@ -19,7 +19,7 @@ from aiogram.utils.web_app import safe_parse_webapp_init_data
 from app import db, runtime
 from app.admin import mount_admin
 from app.partners import mount_partners
-from app.billing import fulfill_rollypay_order
+from app.billing import fulfill_pay_order
 from app.config import ROOT, get_settings
 from app.faq import faq_items
 from app.keyboards import (
@@ -702,7 +702,7 @@ async def api_invoice(request: web.Request) -> web.Response:
         payment_id = str(data.get("payment_id") or "")
         if not pay_url or not payment_id:
             return json_error("Не удалось получить ссылку на оплату", 502)
-        await db.save_rollypay_order(order_id, telegram_id, code, payment_id, pay_url, pay_method)
+        await db.save_pay_order(order_id, telegram_id, code, payment_id, pay_url, pay_method)
         return web.json_response({"ok": True, "pay_url": pay_url, "order_id": order_id})
     if pay_method == "stars":
         try:
@@ -1178,16 +1178,16 @@ async def cispay_webhook(request: web.Request) -> web.Response:
         logger.warning("CISPay: тестовый платёж %s пропущен (CISPAY_TEST=false)", event.get("order_id"))
         return web.Response(text="OK")
     order_id = str(event.get("order_id") or "")
-    order = await db.get_rollypay_order(order_id) if order_id else None
+    order = await db.get_pay_order(order_id) if order_id else None
     if not order and event.get("id"):
-        order = await db.get_rollypay_order_by_payment("cis:" + str(event["id"]))
+        order = await db.get_order_by_payment("cis:" + str(event["id"]))
     if not order or not is_cispay_payment(order.get("payment_id")):
         logger.warning("CISPay webhook: unknown order %s / %s", order_id, event.get("id"))
         return web.Response(text="OK")
     if order["status"] == "granted":
         return web.Response(text="OK")
     try:
-        await fulfill_rollypay_order(order["order_id"], request.app["rw"], bot=request.app["bot"])
+        await fulfill_pay_order(order["order_id"], request.app["rw"], bot=request.app["bot"])
     except RemnawaveError as exc:
         logger.exception("CISPay fulfill failed: %s", exc)
         return web.Response(status=500, text="fulfill failed")

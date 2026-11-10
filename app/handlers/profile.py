@@ -10,7 +10,7 @@ from aiogram.types import LinkPreviewOptions, CallbackQuery, LabeledPrice, Messa
 
 from app import db
 from app.checkout import resume_checkout
-from app.billing import fulfill_rollypay_order, grant_plan
+from app.billing import fulfill_pay_order, grant_plan
 from app.config import get_settings
 from app.handlers.start import ack, gate_or_continue, show_profile
 from app.keyboards import (
@@ -223,7 +223,7 @@ async def _create_plan_invoice(
                 reply_markup=back_profile_keyboard(),
             )
             return
-        await db.save_rollypay_order(
+        await db.save_pay_order(
             order_id, callback.from_user.id, code, payment_id, pay_url, pay_method
         )
         await edit_funnel(callback.message,
@@ -268,11 +268,11 @@ async def resume_payment(callback: CallbackQuery, rp: CISPayClient | None) -> No
 
 
 @router.callback_query(F.data.startswith("rpc:"))
-async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: CISPayClient | None) -> None:
+async def check_payment(callback: CallbackQuery, rw: RemnawaveClient, rp: CISPayClient | None) -> None:
     if not await gate_or_continue(callback):
         return
     order_id = callback.data.split(":", 1)[1]
-    order = await db.get_rollypay_order(order_id)
+    order = await db.get_pay_order(order_id)
     if not order or int(order["telegram_id"]) != callback.from_user.id:
         await ack(callback, "Заказ не найден", alert=True)
         return
@@ -295,7 +295,7 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: CISPa
         return
     await ack(callback)
     try:
-        user = await fulfill_rollypay_order(order_id, rw, bot=callback.bot)
+        user = await fulfill_pay_order(order_id, rw, bot=callback.bot)
     except RemnawaveError as exc:
         await edit_funnel(callback.message,
             notice_text("payment_panel_error", error=exc),

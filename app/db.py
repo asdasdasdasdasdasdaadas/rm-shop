@@ -1823,7 +1823,7 @@ async def delete_user(telegram_id: int) -> bool:
             await conn.execute("DELETE FROM vpn_reports WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM promo_uses WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM payments WHERE telegram_id = $1", telegram_id)
-            await conn.execute("DELETE FROM rollypay_orders WHERE telegram_id = $1", telegram_id)
+            await conn.execute("DELETE FROM pay_orders WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM cabinet_tokens WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM billing_events WHERE telegram_id = $1", telegram_id)
             await conn.execute("DELETE FROM referral_payouts WHERE telegram_id = $1", telegram_id)
@@ -2225,7 +2225,7 @@ async def mark_devices_billed(
     )
 
 
-async def save_rollypay_order(
+async def save_pay_order(
     order_id: str,
     telegram_id: int,
     plan_code: str,
@@ -2236,7 +2236,7 @@ async def save_rollypay_order(
     # CISPay orders (ids «cis:…»); the table keeps its old name, older rows are the previous provider's. method — sbp / card / crypto.
     await _pool_req().execute(
         """
-        INSERT INTO rollypay_orders (order_id, telegram_id, plan_code, payment_id, pay_url, status, method)
+        INSERT INTO pay_orders (order_id, telegram_id, plan_code, payment_id, pay_url, status, method)
         VALUES ($1, $2, $3, $4, $5, 'created', $6)
         """,
         order_id,
@@ -2294,20 +2294,20 @@ async def cancel_payment_nudge(telegram_id: int, token: str) -> None:
     )
 
 
-async def get_rollypay_order(order_id: str) -> dict | None:
-    row = await _pool_req().fetchrow("SELECT * FROM rollypay_orders WHERE order_id = $1", order_id)
+async def get_pay_order(order_id: str) -> dict | None:
+    row = await _pool_req().fetchrow("SELECT * FROM pay_orders WHERE order_id = $1", order_id)
     return _as_dict(row)
 
 
-async def get_rollypay_order_by_payment(payment_id: str) -> dict | None:
-    row = await _pool_req().fetchrow("SELECT * FROM rollypay_orders WHERE payment_id = $1", payment_id)
+async def get_order_by_payment(payment_id: str) -> dict | None:
+    row = await _pool_req().fetchrow("SELECT * FROM pay_orders WHERE payment_id = $1", payment_id)
     return _as_dict(row)
 
 
-async def mark_rollypay_paid(order_id: str) -> bool:
+async def mark_order_paid(order_id: str) -> bool:
     row = await _pool_req().fetchrow(
         """
-        UPDATE rollypay_orders SET status = 'granted', paid_at = NOW()
+        UPDATE pay_orders SET status = 'granted', paid_at = NOW()
         WHERE order_id = $1 AND status <> 'granted'
         RETURNING order_id
         """,
@@ -2628,7 +2628,7 @@ async def admin_statistics(days: int = 30) -> dict:
             UNION ALL SELECT created_at, 'devices', '', 1 FROM devices
             UNION ALL SELECT created_at, 'promo', '', 1 FROM promo_uses
             UNION ALL SELECT COALESCE(paid_at, created_at), 'payments', plan_code, 1
-                FROM rollypay_orders WHERE status = 'granted'
+                FROM pay_orders WHERE status = 'granted'
             UNION ALL SELECT created_at, 'stars', '', stars FROM payments
             UNION ALL SELECT created_at, 'star_payments', '', 1 FROM payments
         )
@@ -2763,7 +2763,7 @@ WITH first_payments AS (
         SELECT telegram_id, created_at AS paid_at FROM payments
         UNION ALL
         SELECT telegram_id, COALESCE(paid_at, created_at) AS paid_at
-        FROM rollypay_orders WHERE status = 'granted'
+        FROM pay_orders WHERE status = 'granted'
     ) events GROUP BY telegram_id
 )
 SELECT COUNT(*)::int AS total,
@@ -2807,11 +2807,11 @@ async def admin_stats() -> dict:
         FROM users
         """
     )
-    orders = await pool.fetch("SELECT status, COUNT(*)::int AS n FROM rollypay_orders GROUP BY status")
+    orders = await pool.fetch("SELECT status, COUNT(*)::int AS n FROM pay_orders GROUP BY status")
     plans = await pool.fetch(
         """
         SELECT plan_code, COUNT(*)::int AS n
-        FROM rollypay_orders
+        FROM pay_orders
         WHERE status = 'granted'
         GROUP BY plan_code
         """
@@ -2929,14 +2929,14 @@ WITH all_flags AS (
         (u.first_device_at IS NOT NULL OR EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id)) AS has_device,
         u.first_online_at IS NOT NULL AS connected,
         (u.first_checkout_at IS NOT NULL OR EXISTS (
-            SELECT 1 FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id)) AS checkout,
+            SELECT 1 FROM pay_orders o WHERE o.telegram_id=u.telegram_id)) AS checkout,
         (COALESCE(u.has_paid_topup,FALSE) OR
-            EXISTS (SELECT 1 FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted') OR
+            EXISTS (SELECT 1 FROM pay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted') OR
             EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id=u.telegram_id)) AS paid,
-        ((SELECT COUNT(*) FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted') +
+        ((SELECT COUNT(*) FROM pay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted') +
          (SELECT COUNT(*) FROM payments p WHERE p.telegram_id=u.telegram_id)) >= 2 AS repeat_paid,
         EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id=u.telegram_id) AS paid_stars,
-        EXISTS (SELECT 1 FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted') AS paid_rollypay,
+        EXISTS (SELECT 1 FROM pay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted') AS paid_rub,
         EXISTS (SELECT 1 FROM users inv WHERE inv.referred_by=u.telegram_id AND inv.bot_started_at IS NOT NULL) AS invited,
         EXISTS (SELECT 1 FROM promo_uses p WHERE p.telegram_id=u.telegram_id) AS promo
     FROM users u
@@ -2957,7 +2957,7 @@ _FUNNEL_PREDICATES = {
     "entered": "TRUE", "from_ref": "from_ref", "from_ad": "from_ad", "organic": "organic",
     "legal": "legal", "trial": "trial", "device": "has_device", "connected": "connected",
     "checkout": "checkout OR paid", "paid": "paid", "repeat_paid": "repeat_paid",
-    "paid_stars": "paid_stars", "paid_rollypay": "paid_rollypay",
+    "paid_stars": "paid_stars", "paid_rub": "paid_rub",
     "referred": "invited", "promo": "promo", "blocked": "blocked",
     "device_no_online": "has_device AND NOT connected AND device_at <= NOW() - INTERVAL '24 hours'",
     "checkout_drop": "checkout AND NOT paid AND checkout_at <= NOW() - INTERVAL '20 minutes'", "no_legal": "NOT legal",
@@ -3123,14 +3123,14 @@ def _admin_users_filter(query: str, extra: dict | None = None) -> tuple[str, lis
     if paid == "yes":
         clauses.append(
             """EXISTS (
-                SELECT 1 FROM rollypay_orders o
+                SELECT 1 FROM pay_orders o
                 WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
             )"""
         )
     elif paid == "no":
         clauses.append(
             """NOT EXISTS (
-                SELECT 1 FROM rollypay_orders o
+                SELECT 1 FROM pay_orders o
                 WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
             )"""
         )
@@ -3278,19 +3278,19 @@ async def admin_list_users(
                ) AS invited_count,
                (
                    SELECT COUNT(*)::int
-                   FROM rollypay_orders o
+                   FROM pay_orders o
                    WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
                ) AS paid_topup_count,
                (SELECT COUNT(*)::int FROM payments p WHERE p.telegram_id=u.telegram_id) AS stars_payment_count,
                (SELECT COALESCE(SUM(p.stars),0) FROM payments p WHERE p.telegram_id=u.telegram_id) AS paid_stars_amount,
                (
                    SELECT MAX(o.created_at)
-                   FROM rollypay_orders o
+                   FROM pay_orders o
                    WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
                ) AS last_paid_at,
                (
                    SELECT COALESCE(json_agg(o.plan_code), '[]'::json)
-                   FROM rollypay_orders o
+                   FROM pay_orders o
                    WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
                ) AS paid_plan_codes,
                wg.level AS wealth_level, wg.points AS wealth_points
@@ -3460,7 +3460,7 @@ async def admin_list_orders(
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     total = await pool.fetchval(
         f"""
-        SELECT COUNT(*)::int FROM rollypay_orders o
+        SELECT COUNT(*)::int FROM pay_orders o
         LEFT JOIN users u ON u.telegram_id = o.telegram_id
         {where}
         """,
@@ -3470,7 +3470,7 @@ async def admin_list_orders(
     rows = await pool.fetch(
         f"""
         SELECT o.*, u.username, u.first_name
-        FROM rollypay_orders o
+        FROM pay_orders o
         LEFT JOIN users u ON u.telegram_id = o.telegram_id
         {where}
         ORDER BY o.created_at DESC
@@ -3495,7 +3495,7 @@ async def admin_topup_summary(limit: int = 50) -> dict:
         """
         SELECT o.telegram_id, u.username, u.first_name, o.plan_code,
                COUNT(*)::int AS n, MAX(o.created_at) AS last_paid_at
-        FROM rollypay_orders o
+        FROM pay_orders o
         LEFT JOIN users u ON u.telegram_id = o.telegram_id
         WHERE o.status = 'granted'
         GROUP BY o.telegram_id, u.username, u.first_name, o.plan_code
@@ -3937,7 +3937,7 @@ async def list_due_unpaid_nudges(limit: int = 20, skip_ids: list[int] | None = N
           AND NOT COALESCE(u.has_paid_topup, FALSE)
           AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
           AND NOT EXISTS (
-              SELECT 1 FROM rollypay_orders o
+              SELECT 1 FROM pay_orders o
               WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
           )
           AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id = u.telegram_id)
@@ -4475,9 +4475,9 @@ async def purge_stale_unpaid_orders(*, batch: int = 2000) -> int:
     limit = max(100, min(5000, int(batch)))
     status = await _pool_req().execute(
         f"""
-        DELETE FROM rollypay_orders
+        DELETE FROM pay_orders
         WHERE order_id IN (
-            SELECT order_id FROM rollypay_orders
+            SELECT order_id FROM pay_orders
             WHERE {_stale_unpaid_order()}
             LIMIT $1
         )
@@ -5209,7 +5209,7 @@ async def track_reminder_connections() -> None:
 _REMINDER_RESULTS_SQL = _REMINDER_CLICKS_SQL.rstrip() + """,
 payments_seen AS (
     SELECT telegram_id, created_at AS paid_at FROM payments
-    UNION ALL SELECT telegram_id, paid_at FROM rollypay_orders WHERE status='granted' AND paid_at IS NOT NULL
+    UNION ALL SELECT telegram_id, paid_at FROM pay_orders WHERE status='granted' AND paid_at IS NOT NULL
 ), results AS (
     SELECT r.*,
       EXISTS (SELECT 1 FROM payment_receipts p WHERE p.first_payment AND p.telegram_id=r.telegram_id AND EXISTS (SELECT 1 FROM clicks c
@@ -5290,7 +5290,7 @@ async def update_broadcast_run(run_id: int, job: dict, *, finished: bool = False
 
 _BROADCAST_PAYMENTS_SQL = _REMINDER_CLICKS_SQL.rstrip() + ''', payment_events AS (
     SELECT 'rub' AS currency, plan_code, telegram_id, paid_at, 0::bigint AS stars
-    FROM rollypay_orders WHERE status='granted' AND paid_at IS NOT NULL
+    FROM pay_orders WHERE status='granted' AND paid_at IS NOT NULL
     UNION ALL SELECT 'stars', plan_code, telegram_id, created_at, stars FROM payments
 ), attributed AS (
     SELECT p.*, r.broadcast_id FROM payment_events p
@@ -5387,7 +5387,7 @@ WITH first_payments AS (
     SELECT telegram_id, MIN(paid_at) AS first_paid_at FROM (
         SELECT telegram_id, created_at AS paid_at FROM payments
         UNION ALL
-        SELECT telegram_id, paid_at FROM rollypay_orders WHERE status='granted' AND paid_at IS NOT NULL
+        SELECT telegram_id, paid_at FROM pay_orders WHERE status='granted' AND paid_at IS NOT NULL
     ) p GROUP BY telegram_id
 ), periods AS (
     SELECT 'before' AS period, $1::timestamptz - INTERVAL '28 days' AS starts, $1::timestamptz AS ends
@@ -5499,8 +5499,8 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
             if await conn.fetchval('SELECT 1 FROM payment_receipts WHERE payment_key=$1', payment_key):
                 return None
             provider, provider_id = payment_key.split(':', 1)
-            if provider == 'rollypay':
-                order = await conn.fetchrow('SELECT * FROM rollypay_orders WHERE order_id=$1 FOR UPDATE', provider_id)
+            if provider == 'order':
+                order = await conn.fetchrow('SELECT * FROM pay_orders WHERE order_id=$1 FOR UPDATE', provider_id)
                 if not order or order['telegram_id'] != telegram_id or order['plan_code'] != plan_code:
                     raise ValueError('Payment order mismatch')
                 if order['status'] == 'granted':
@@ -5540,8 +5540,8 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
                   THEN NULL ELSE trial_end_nudge_at END WHERE telegram_id=$1''', telegram_id,max(1,settings.vpn_day_price_rub))
             await conn.execute('''INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
                 VALUES ($1,$2,'pay',$3,$4,$5)''',telegram_id,'router' if router_days else 'topup',amount,after,plan_code)
-            if provider == 'rollypay':
-                await conn.execute("UPDATE rollypay_orders SET status='granted',paid_at=NOW() WHERE order_id=$1", provider_id)
+            if provider == 'order':
+                await conn.execute("UPDATE pay_orders SET status='granted',paid_at=NOW() WHERE order_id=$1", provider_id)
             elif provider == 'ton':
                 await conn.execute("UPDATE ton_orders SET status='paid',paid_at=NOW(),credited_rub=$2 WHERE order_id=$1",
                                    provider_id, amount)

@@ -21,7 +21,7 @@ ELIGIBLE = """u.telegram_id=$1 AND u.checkout_token=$2
     AND u.checkout_nudge_at IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id=u.telegram_id AND p.created_at>=u.checkout_started_at)
     AND NOT EXISTS (SELECT 1 FROM payment_receipts p WHERE p.telegram_id=u.telegram_id AND p.created_at>=u.checkout_started_at)
-    AND NOT EXISTS (SELECT 1 FROM rollypay_orders p WHERE p.telegram_id=u.telegram_id AND p.status='granted' AND p.paid_at>=u.checkout_started_at)"""
+    AND NOT EXISTS (SELECT 1 FROM pay_orders p WHERE p.telegram_id=u.telegram_id AND p.status='granted' AND p.paid_at>=u.checkout_started_at)"""
 
 async def current(telegram_id, token):
     return await db._pool_req().fetchrow(f'SELECT u.* FROM users u WHERE {ELIGIBLE}',telegram_id,token)

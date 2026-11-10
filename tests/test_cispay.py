@@ -117,9 +117,9 @@ class WebhookTest(unittest.IsolatedAsyncioTestCase):
 
     async def call(self, req, order, **kw):
         with patch.object(webapp, 'get_settings', return_value=settings(**kw)), \
-                patch.object(webapp.db, 'get_rollypay_order', AsyncMock(return_value=order)), \
-                patch.object(webapp.db, 'get_rollypay_order_by_payment', AsyncMock(return_value=None)), \
-                patch.object(webapp, 'fulfill_rollypay_order', AsyncMock()) as fulfill:
+                patch.object(webapp.db, 'get_pay_order', AsyncMock(return_value=order)), \
+                patch.object(webapp.db, 'get_order_by_payment', AsyncMock(return_value=None)), \
+                patch.object(webapp, 'fulfill_pay_order', AsyncMock()) as fulfill:
             resp = await webapp.cispay_webhook(req)
         return resp, fulfill
 
@@ -148,7 +148,7 @@ class WebhookTest(unittest.IsolatedAsyncioTestCase):
                                      self.ORDER, cispay_test=True)
         fulfill.assert_awaited_once()
 
-    async def test_rollypay_or_paid_orders_are_left_alone(self):
+    async def test_other_or_paid_orders_are_left_alone(self):
         for order in ({'order_id': 'o1', 'payment_id': 'rp-1', 'status': 'created'},
                       dict(self.ORDER, status='granted'), None):
             _, fulfill = await self.call(self.request({'order_id': 'o1', 'status': 'PAID'}), order)

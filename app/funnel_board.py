@@ -83,7 +83,7 @@ CONDITIONS = (
      "hint": "Подарок или устройство уже есть, но VPN ещё ни разу не подключался. Не раньше чем через 30 минут."},
     {"id": "unpaid", "label": "Не было первой оплаты", "anchor": "u.bot_started_at",
      "where": """NOT COALESCE(u.has_paid_topup, FALSE)
-        AND NOT EXISTS (SELECT 1 FROM rollypay_orders o WHERE o.telegram_id = u.telegram_id AND o.status = 'granted')
+        AND NOT EXISTS (SELECT 1 FROM pay_orders o WHERE o.telegram_id = u.telegram_id AND o.status = 'granted')
         AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id = u.telegram_id)
         AND u.first_online_at IS NOT NULL AND NOT u.trial_waiting_connection
         AND COALESCE(u.balance_rub,0) <= 0

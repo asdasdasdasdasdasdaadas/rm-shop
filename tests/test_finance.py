@@ -34,17 +34,17 @@ class FinanceSQLTest(unittest.TestCase):
         query('''CREATE TABLE users(telegram_id bigint,first_name text,username text,balance_rub int,router_expire_at timestamptz,billing_paused_at timestamptz,blocked_at timestamptz);
         CREATE TABLE devices(telegram_id bigint,kind text);
         CREATE TABLE payments(telegram_id bigint,telegram_payment_id text,plan_code text,created_at timestamptz,stars bigint);
-        CREATE TABLE rollypay_orders(order_id text,telegram_id bigint,plan_code text,paid_at timestamptz,created_at timestamptz,status text);
+        CREATE TABLE pay_orders(order_id text,telegram_id bigint,plan_code text,paid_at timestamptz,created_at timestamptz,status text);
         CREATE TABLE payment_receipts(payment_key text,amount int);
         INSERT INTO users VALUES(1,'Paid','paid',6,NULL,NULL,NULL),(2,'Free','free',0,NULL,NULL,NULL),(3,'Router','router',100,NOW()+INTERVAL '2 days',NULL,NULL),(4,'Paused','paused',0,NULL,NOW(),NULL),(5,'Pending','pending',0,NULL,NULL,NULL),(6,'Funded','funded',500,NULL,NULL,NULL);
         INSERT INTO devices VALUES(1,''),(2,''),(3,'router'),(4,''),(5,''),(6,'');
         INSERT INTO payments VALUES(1,'s1','s','2026-09-01',50),(3,'s3','s','2026-10-28',100),(4,'s4','s','2026-10-28',100),(6,'s6','s','2026-10-28',100);
-        INSERT INTO rollypay_orders VALUES('r1',1,'b300','2026-10-28','2026-10-27','granted'),('r5',5,'b300',NULL,'2026-10-28','pending');
-        INSERT INTO payment_receipts VALUES('rollypay:r1',300);''',script=True)
+        INSERT INTO pay_orders VALUES('r1',1,'b300','2026-10-28','2026-10-27','granted'),('r5',5,'b300',NULL,'2026-10-28','pending');
+        INSERT INTO payment_receipts VALUES('order:r1',300);''',script=True)
         due=query(DUE_SQL,[6,3])
         self.assertEqual({int(r['telegram_id']) for r in due},{1,3})
         history=query(PAYMENTS_SQL,['2026-10-28T00:00:00Z','2026-10-29T00:00:00Z'])
-        payment=next(r for r in history if r['id']=='rollypay:r1')
+        payment=next(r for r in history if r['id']=='order:r1')
         self.assertEqual(int(payment['payment_number']),2)
         self.assertEqual(int(payment['amount']),300)
         self.assertNotIn(5,{int(r['telegram_id']) for r in history})

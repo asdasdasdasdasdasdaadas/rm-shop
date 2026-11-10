@@ -20,7 +20,7 @@ class FunnelAnalyticsTest(unittest.TestCase):
                 balance_rub INTEGER DEFAULT 0, billing_paused_at TEXT, vpn_feedback TEXT, router_expire_at TEXT, trial_waiting_connection INTEGER DEFAULT 0);
             CREATE TABLE app_flags (key TEXT,value TEXT);
             CREATE TABLE devices (telegram_id INTEGER,created_at TEXT,kind TEXT,last_billed_at TEXT,expire_at TEXT);
-            CREATE TABLE rollypay_orders (telegram_id INTEGER,status TEXT);
+            CREATE TABLE pay_orders (telegram_id INTEGER,status TEXT);
             CREATE TABLE payments (telegram_id INTEGER);
             CREATE TABLE promo_uses (telegram_id INTEGER);
         ''')
@@ -33,7 +33,7 @@ class FunnelAnalyticsTest(unittest.TestCase):
         self.conn.execute("UPDATE users SET first_checkout_at='2026-09-13' WHERE telegram_id=4")
         self.conn.execute('UPDATE users SET referred_by=2 WHERE telegram_id=9')
         self.conn.executemany('INSERT INTO payments VALUES (?)',[(2,),(2,),(3,),(6,),(9,)])
-        self.conn.executemany('INSERT INTO rollypay_orders VALUES (?,?)',[(3,'granted'),(7,'granted'),(4,'pending')])
+        self.conn.executemany('INSERT INTO pay_orders VALUES (?,?)',[(3,'granted'),(7,'granted'),(4,'pending')])
         self.bounds=['2026-09-01','2026-10-01']
 
     def query(self,sql,args):
@@ -51,7 +51,7 @@ class FunnelAnalyticsTest(unittest.TestCase):
         self.assertEqual(row['paid'],3)
         self.assertEqual(row['repeat_paid'],2)  # Two Stars and one Stars + one cash payment.
         self.assertEqual(row['paid_stars'],2)
-        self.assertEqual(row['paid_rollypay'],2)
+        self.assertEqual(row['paid_rub'],2)
         self.assertEqual(row['connected_transition'],2)  # User 3 skipped the gift.
         self.assertEqual(row['checkout_transition'],2)
         self.assertEqual(row['gift_no_online'],1)

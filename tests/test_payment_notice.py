@@ -8,7 +8,7 @@ from app import payment_notice as notice
 class PaymentNoticeTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.stack=ExitStack();self.addCleanup(self.stack.close)
-        self.receipt=dict(payment_key='rollypay:one',telegram_id=1,amount=100,router_days=0)
+        self.receipt=dict(payment_key='order:one',telegram_id=1,amount=100,router_days=0)
         self.claim=self.stack.enter_context(patch.object(notice.db,'claim_payment_notice',AsyncMock(return_value=True)))
         self.finish=self.stack.enter_context(patch.object(notice.db,'finish_payment_notice',AsyncMock()))
         self.stack.enter_context(patch.object(notice.db,'log_bot_message',AsyncMock()))
@@ -25,14 +25,14 @@ class PaymentNoticeTest(unittest.IsolatedAsyncioTestCase):
         rows=args.kwargs['reply_markup'].inline_keyboard
         self.assertEqual(rows[0][0].text,'Личный кабинет')
         self.assertEqual(rows[1][0].callback_data,'profile')
-        self.finish.assert_awaited_once_with('rollypay:one','sent')
+        self.finish.assert_awaited_once_with('order:one','sent')
 
     async def test_failure_stays_pending_and_retry_succeeds(self):
         self.bot.send_message.side_effect=[TimeoutError(),None]
         await notice.deliver_payment_notice(self.bot,self.receipt)
         self.finish.assert_not_awaited()
         await notice.deliver_payment_notice(self.bot,self.receipt)
-        self.finish.assert_awaited_once_with('rollypay:one','sent')
+        self.finish.assert_awaited_once_with('order:one','sent')
 
     async def test_already_claimed_or_sent_does_not_send(self):
         self.claim.return_value=False

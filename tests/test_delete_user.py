@@ -21,7 +21,7 @@ class DeleteUserTest(unittest.IsolatedAsyncioTestCase):
           CREATE TABLE referral_campaign_awards (referrer_id INTEGER REFERENCES users(telegram_id));
           INSERT INTO referral_campaign_awards VALUES (1),(2);
         ''')
-        tables = ['trust_loans','vpn_reports','promo_uses','payments','rollypay_orders',
+        tables = ['trust_loans','vpn_reports','promo_uses','payments','pay_orders',
                   'cabinet_tokens','billing_events','referral_payouts','message_log','devices',
                   'referral_campaign_messages','cabinet_login_challenges']
         for table in tables:

@@ -53,7 +53,7 @@ class TrackingResultsTest(unittest.IsolatedAsyncioTestCase):
         CREATE TABLE reminder_clicks (id INTEGER PRIMARY KEY AUTOINCREMENT,token TEXT,clicked_at TEXT DEFAULT '2026-09-21 12:00:00');
         CREATE TABLE payments (telegram_id INTEGER,created_at TEXT);
         CREATE TABLE payment_receipts (telegram_id INTEGER,created_at TEXT,first_payment INTEGER,amount INTEGER);
-        CREATE TABLE rollypay_orders (telegram_id INTEGER,status TEXT,paid_at TEXT);
+        CREATE TABLE pay_orders (telegram_id INTEGER,status TEXT,paid_at TEXT);
         CREATE TABLE devices (telegram_id INTEGER,last_online_at TEXT);
         ''')
         def query(sql,args):
@@ -102,7 +102,7 @@ class TrackingResultsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((rows['nudge_trial']['paid'],rows['nudge_trial']['connected']),(1,1))
         # Reopening an older message is a new real click, not a lost/overwritten history.
         self.conn.execute("INSERT INTO reminder_clicks (token,clicked_at) VALUES ('older','2026-09-20 12:00:00')")
-        self.conn.execute("INSERT INTO rollypay_orders VALUES (1,'granted','2026-09-20 13:00:00')")
+        self.conn.execute("INSERT INTO pay_orders VALUES (1,'granted','2026-09-20 13:00:00')")
         rows={r['kind']:r for r in (await db.admin_reminder_results())['groups']}
         self.assertEqual(rows['nudge_info']['paid'],1)
         self.assertEqual(rows['nudge_trial']['paid'],1)

@@ -205,7 +205,7 @@ STATS_HTML = _page(
 <div><b id="tr">—</b><span>трафик</span></div><div><b id="x">—</b><span>с доступом</span></div>
 <div><b id="a">—</b><span>всего</span></div><div id="kk"><b id="k">—</b><span>обращения</span></div></div></div>
 <div class="f"><span class="t" id="u"></span><button id="r" class="rf" aria-label="Обновить">↻</button></div>""",
-    """let tab=0,shown=0;const M={rollypay:['Карта/СБП','#3ccf74'],sbp:['СБП','#3ccf74'],card:['Карта','#8c7bff'],crypto:['Крипта','#26a17b'],stars:['Звёзды','#ffb800'],ton:['Gram','#2ea6ff']};
+    """let tab=0,shown=0;const M={order:['Карта/СБП','#3ccf74'],sbp:['СБП','#3ccf74'],card:['Карта','#8c7bff'],crypto:['Крипта','#26a17b'],stars:['Звёзды','#ffb800'],ton:['Gram','#2ea6ff']};
 function n(v){return String(v).replace(/\\B(?=(\\d{3})+(?!\\d))/g,' ')}
 function gb(b){const u=['Б','КБ','МБ','ГБ','ТБ'];let i=0;while(b>=1024&&i<4){b/=1024;i++}return (i>2?b.toFixed(1):Math.round(b)).toString().replace('.',',')+' '+u[i]}
 function count(to){const e=$('v'),from=shown,t0=performance.now();shown=to;
@@ -464,7 +464,7 @@ async def stats_state() -> dict[str, Any]:
     ) or {})
     methods = await pool.fetch(
         f"""SELECT COALESCE(o.method, split_part(r.payment_key, ':', 1)) AS m, SUM(r.amount)::int AS rub
-            FROM payment_receipts r LEFT JOIN rollypay_orders o ON r.payment_key = 'rollypay:' || o.order_id
+            FROM payment_receipts r LEFT JOIN pay_orders o ON r.payment_key = 'order:' || o.order_id
             WHERE r.created_at >= {day} GROUP BY 1"""
     )
     hours_rub = await pool.fetch(

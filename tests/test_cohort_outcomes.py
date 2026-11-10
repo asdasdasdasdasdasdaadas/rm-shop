@@ -11,7 +11,7 @@ class CohortOutcomesTest(unittest.IsolatedAsyncioTestCase):
         conn.create_function('LEAST',2,min)
         conn.executescript('''CREATE TABLE users(telegram_id INTEGER,bot_started_at TEXT,first_online_at TEXT);
             CREATE TABLE payments(telegram_id INTEGER,created_at TEXT);
-            CREATE TABLE rollypay_orders(telegram_id INTEGER,paid_at TEXT,status TEXT);
+            CREATE TABLE pay_orders(telegram_id INTEGER,paid_at TEXT,status TEXT);
             INSERT INTO users VALUES
             (1,'2026-09-01 00:00:00','2026-09-01 01:00:00'),
             (2,'2026-09-10 00:00:00','2026-09-12 00:00:00'),
@@ -20,7 +20,7 @@ class CohortOutcomesTest(unittest.IsolatedAsyncioTestCase):
             (5,'2026-09-25 00:00:00',NULL),
             (6,'2026-09-19 00:00:00',NULL);
             INSERT INTO payments VALUES (1,'2026-09-02 00:00:00'),(3,'2026-09-21 00:00:00'),(4,'2026-09-26 14:00:00'),(5,'2026-09-25 01:00:00'),(6,'2026-09-27 00:00:00');
-            INSERT INTO rollypay_orders VALUES (1,'2026-09-03 00:00:00','granted'),(2,'2026-09-12 00:00:00','created');''')
+            INSERT INTO pay_orders VALUES (1,'2026-09-03 00:00:00','granted'),(2,'2026-09-12 00:00:00','created');''')
         async def fetch(sql,epoch,now):
             sql=sql.replace('::timestamptz','').replace('::int','')
             for expression,replacement in [

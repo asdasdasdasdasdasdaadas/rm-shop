@@ -10,7 +10,7 @@ SQL = '''
 WITH paid_events AS (
  SELECT telegram_id, created_at AS paid_at FROM payments
  UNION ALL
- SELECT telegram_id, paid_at FROM rollypay_orders
+ SELECT telegram_id, paid_at FROM pay_orders
  WHERE status='granted' AND paid_at IS NOT NULL
 ), ranked AS (
  SELECT telegram_id, paid_at, ROW_NUMBER() OVER (PARTITION BY telegram_id ORDER BY paid_at) AS n

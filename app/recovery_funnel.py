@@ -12,7 +12,7 @@ GIFT = 'claim_gift'
 CONNECT = {'action': 'connect', 'text': 'Подключить VPN'}
 PAID = """(COALESCE(u.has_paid_topup,FALSE)
  OR EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id=u.telegram_id)
- OR EXISTS (SELECT 1 FROM rollypay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted'))"""
+ OR EXISTS (SELECT 1 FROM pay_orders o WHERE o.telegram_id=u.telegram_id AND o.status='granted'))"""
 DEVICE = "EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'') <> 'router')"
 SEEN = "GREATEST(u.first_online_at,u.bot_started_at,(SELECT MAX(d.last_online_at) FROM devices d WHERE d.telegram_id=u.telegram_id))"
 IDLE = f"({SEEN} <= NOW() - INTERVAL '7 days')"

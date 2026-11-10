@@ -92,7 +92,7 @@ class QueryTest(unittest.IsolatedAsyncioTestCase):
 class DeliveryTest(unittest.IsolatedAsyncioTestCase):
     async def test_payment_notice_sends_a_receipt_widget(self):
         bot = AsyncMock()
-        receipt = dict(payment_key='rollypay:1', telegram_id=5, amount=300, router_days=0)
+        receipt = dict(payment_key='order:1', telegram_id=5, amount=300, router_days=0)
         with patch.object(payment_notice.db, 'claim_payment_notice', AsyncMock(return_value=True)), \
                 patch.object(payment_notice.db, 'finish_payment_notice', AsyncMock()) as finish, \
                 patch.object(payment_notice.db, 'log_bot_message', AsyncMock()), \
@@ -107,11 +107,11 @@ class DeliveryTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json.loads(method.chat_data), {'a': 300})
         self.assertEqual(method.reply_markup.inline_keyboard[0][0].text, 'Личный кабинет')
         bot.send_message.assert_not_awaited()
-        finish.assert_awaited_once_with('rollypay:1', 'sent')
+        finish.assert_awaited_once_with('order:1', 'sent')
 
     async def test_blocked_bot_is_not_retried_as_text(self):
         bot = AsyncMock(side_effect=TelegramForbiddenError(method=SendMessage(chat_id=5, text='x'), message='blocked'))
-        receipt = dict(payment_key='rollypay:2', telegram_id=5, amount=300, router_days=0)
+        receipt = dict(payment_key='order:2', telegram_id=5, amount=300, router_days=0)
         with patch.object(payment_notice.db, 'claim_payment_notice', AsyncMock(return_value=True)), \
                 patch.object(payment_notice.db, 'finish_payment_notice', AsyncMock()) as finish, \
                 patch.object(payment_notice.db, 'log_bot_message', AsyncMock()), \
@@ -121,7 +121,7 @@ class DeliveryTest(unittest.IsolatedAsyncioTestCase):
                 patch.object(more, 'receipt_state', AsyncMock(return_value={})):
             await payment_notice.deliver_payment_notice(bot, receipt)
         bot.send_message.assert_not_awaited()
-        finish.assert_awaited_once_with('rollypay:2', 'blocked')
+        finish.assert_awaited_once_with('order:2', 'blocked')
 
     async def test_new_ticket_ack_falls_back_to_text(self):
         bot = SimpleNamespace(send_message=AsyncMock())

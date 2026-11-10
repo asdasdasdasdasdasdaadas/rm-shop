@@ -120,7 +120,7 @@ class WinbackPostgresTest(unittest.IsolatedAsyncioTestCase):
     async def test_owner_deletion_does_not_turn_code_public(self):
         await self.exhausted()
         offer=await db.prepare_winback_offer(1,6)
-        await self.pool.execute('DELETE FROM rollypay_orders WHERE telegram_id=1')
+        await self.pool.execute('DELETE FROM pay_orders WHERE telegram_id=1')
         await self.pool.execute('DELETE FROM users WHERE telegram_id=1')
         await self.pool.execute('INSERT INTO users(telegram_id) VALUES (2)')
         with self.assertRaisesRegex(ValueError,'другому'):

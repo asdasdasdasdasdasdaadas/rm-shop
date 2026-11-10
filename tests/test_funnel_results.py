@@ -16,7 +16,7 @@ class ResultsTest(unittest.TestCase):
             return result['rows']
         query('''CREATE TABLE users(telegram_id bigint,first_online_at timestamptz);
         CREATE TABLE message_log(id bigint,telegram_id bigint,kind text,source text,status text,title text,created_at timestamptz,extra jsonb);
-        CREATE TABLE rollypay_orders(order_id text,telegram_id bigint,paid_at timestamptz,created_at timestamptz,status text);
+        CREATE TABLE pay_orders(order_id text,telegram_id bigint,paid_at timestamptz,created_at timestamptz,status text);
         CREATE TABLE payment_receipts(payment_key text,amount bigint);
         CREATE TABLE payments(telegram_id bigint,created_at timestamptz,stars bigint);
         INSERT INTO users VALUES(1,'2026-10-05'),(2,NULL);
@@ -26,12 +26,12 @@ class ResultsTest(unittest.TestCase):
          (3,1,'nudge_board','test','sent','Test','2026-10-05','{"step_id":"test"}'),
          (4,2,'nudge_board','auto','failed','First','2026-10-02','{"step_id":"first","error_raw":"Forbidden: bot was blocked by the user"}'),
          (5,3,'nudge_board','auto','failed','First','2026-10-03','{"step_id":"first","error_raw":"Forbidden: user is deactivated"}');
-        INSERT INTO rollypay_orders VALUES
+        INSERT INTO pay_orders VALUES
          ('a',1,'2026-10-03','2026-10-03','granted'),
          ('b',1,'2026-10-06','2026-10-06','granted'),
          ('unknown',1,'2026-10-07','2026-10-07','granted'),
          ('late',1,'2026-10-12','2026-10-12','granted');
-        INSERT INTO payment_receipts VALUES('rollypay:a',100),('rollypay:b',300),('rollypay:late',500);
+        INSERT INTO payment_receipts VALUES('order:a',100),('order:b',300),('order:late',500);
         INSERT INTO payments VALUES(1,'2026-10-06',50);''',script=True)
         rows={r['step']:r for r in query(SQL,['2026-10-01','2026-10-20'])}
         self.assertEqual(set(rows),{'first','second'})
