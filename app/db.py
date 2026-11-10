@@ -2304,6 +2304,23 @@ async def get_order_by_payment(payment_id: str) -> dict | None:
     return _as_dict(row)
 
 
+async def unpaid_cispay_orders(hours: int, limit: int) -> list[dict]:
+    """CISPay invoices not credited yet, from the last `hours`: the ones checked longest ago come first."""
+    rows = await _pool_req().fetch(
+        """UPDATE pay_orders SET checked_at = NOW() WHERE order_id IN (
+               SELECT order_id FROM pay_orders WHERE payment_id LIKE 'cis:%' AND status NOT IN ('granted', 'expired')
+                 AND created_at >= NOW() - make_interval(hours => $1)
+               ORDER BY checked_at NULLS FIRST, created_at DESC LIMIT $2)
+           RETURNING *""",
+        int(hours), int(limit))
+    return [dict(r) for r in rows]
+
+
+async def mark_order_expired(order_id: str) -> None:
+    """The invoice can no longer be paid: stop asking the provider about it."""
+    await _pool_req().execute("UPDATE pay_orders SET status = 'expired' WHERE order_id = $1 AND status <> 'granted'", order_id)
+
+
 async def claim_order_fail_notice(order_id: str) -> bool:
     """True once per unpaid order: the caller then tells the buyer the payment failed."""
     row = await _pool_req().fetchval(

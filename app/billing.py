@@ -167,3 +167,45 @@ async def fulfill_pay_order(
             return None
         user = await grant_plan(int(order["telegram_id"]), order["plan_code"], rw, bot=bot, payment_key=f"order:{order_id}")
         return user
+
+
+RECONCILE_SECONDS = 120
+RECONCILE_HOURS = 72
+RECONCILE_BATCH = 40
+
+
+async def reconcile_cispay_orders(rp, rw: RemnawaveClient, bot: Bot | None) -> int:
+    """Ask CISPay about unpaid invoices of the last days and credit the paid ones.
+
+    The webhook does this as soon as the payment goes through; this pass covers a webhook that never
+    arrived (wrong URL in the shop settings, the server was down). Crediting is idempotent per order."""
+    from app.cispay import CISPayError, payment_is_paid
+    if rp is None:
+        return 0
+    credited = 0
+    for order in await db.unpaid_cispay_orders(RECONCILE_HOURS, RECONCILE_BATCH):
+        try:
+            payment = await rp.get_payment(order["payment_id"])
+        except CISPayError as exc:
+            logger.info("CISPay status of %s is unknown: %s", order["order_id"], exc)
+            continue
+        if not payment_is_paid(payment):
+            if payment.get("status") == "expired":
+                await db.mark_order_expired(order["order_id"])
+            continue
+        logger.warning("CISPay order %s is paid but was not credited: crediting now", order["order_id"])
+        try:
+            if await fulfill_pay_order(order["order_id"], rw, bot=bot) is not None:
+                credited += 1
+        except Exception:
+            logger.exception("CISPay reconcile credit failed: %s", order["order_id"])
+    return credited
+
+
+async def cispay_reconcile_loop(rp, rw: RemnawaveClient, bot: Bot) -> None:
+    while True:
+        try:
+            await reconcile_cispay_orders(rp, rw, bot)
+        except Exception:
+            logger.exception("CISPay reconcile pass failed")
+        await asyncio.sleep(RECONCILE_SECONDS)

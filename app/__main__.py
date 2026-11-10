@@ -180,8 +180,9 @@ async def main() -> None:
                 await bot.set_my_name(name=name)
             except Exception:
                 logger.warning("Не удалось выставить имя бота в Telegram из названия сервиса")
-        from app.billing import payment_effects_loop
+        from app.billing import cispay_reconcile_loop, payment_effects_loop
         payment_effects_task = asyncio.create_task(payment_effects_loop(rw, bot), name="payment-effects")
+        reconcile_task = asyncio.create_task(cispay_reconcile_loop(rp, rw, bot), name="cispay-reconcile")
         sync_task = asyncio.create_task(panel_sync_loop(rw), name="panel-sync")
         charge_task = asyncio.create_task(balance_charge_loop(rw, bot), name="balance-charge")
         stale_task = asyncio.create_task(stale_records_loop(), name="stale-records")
@@ -203,7 +204,8 @@ async def main() -> None:
             digest_task.cancel()
             await asyncio.gather(digest_task, return_exceptions=True)
             payment_effects_task.cancel()
-            await asyncio.gather(payment_effects_task, return_exceptions=True)
+            reconcile_task.cancel()
+            await asyncio.gather(payment_effects_task, reconcile_task, return_exceptions=True)
             sync_task.cancel()
             charge_task.cancel()
             stale_task.cancel()

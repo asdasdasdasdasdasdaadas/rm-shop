@@ -208,5 +208,29 @@ class FailedPaymentTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('не прошла', bot.send_message.await_args.args[1])
 
 
+class ReconcileTest(unittest.IsolatedAsyncioTestCase):
+    async def test_paid_invoices_without_webhook_are_credited(self):
+        from app import billing
+        orders = [{'order_id': 'paid', 'payment_id': 'cis:1'}, {'order_id': 'gone', 'payment_id': 'cis:2'},
+                  {'order_id': 'wait', 'payment_id': 'cis:3'}, {'order_id': 'err', 'payment_id': 'cis:4'}]
+        answers = {'cis:1': {'status': 'paid'}, 'cis:2': {'status': 'expired'}, 'cis:3': {'status': 'pending'}}
+
+        async def get_payment(pid):
+            if pid not in answers:
+                raise cispay.CISPayError('timeout')
+            return answers[pid]
+        rp = SimpleNamespace(get_payment=get_payment)
+        with patch.object(billing.db, 'unpaid_cispay_orders', AsyncMock(return_value=orders)), \
+                patch.object(billing.db, 'mark_order_expired', AsyncMock()) as expired, \
+                patch.object(billing, 'fulfill_pay_order', AsyncMock(return_value={'ok': 1})) as fulfill:
+            self.assertEqual(await billing.reconcile_cispay_orders(rp, object(), None), 1)
+        self.assertEqual([c.args[0] for c in fulfill.await_args_list], ['paid'])
+        expired.assert_awaited_once_with('gone')
+
+    async def test_nothing_without_cispay(self):
+        from app import billing
+        self.assertEqual(await billing.reconcile_cispay_orders(None, object(), None), 0)
+
+
 if __name__ == '__main__':
     unittest.main()
