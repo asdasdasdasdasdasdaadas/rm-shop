@@ -4644,6 +4644,9 @@ _USER_BILLING_KINDS = (
     "referral_payout",
     "referral_revoke",
     "story",
+    "topup",
+    "router",
+    "promo",
 )
 
 
@@ -4663,7 +4666,13 @@ async def user_billing_history(telegram_id: int, *, days: int = 7) -> list[dict]
         window,
         list(_USER_BILLING_KINDS),
     )
-    return [_jsonable(dict(r)) for r in rows]
+    items = [_jsonable(dict(r)) for r in rows]
+    settings = get_settings()
+    for item in items:
+        # Payments keep the tariff code (b300, 1m) as the note: meaningless to the customer.
+        if item.get("kind") in ("topup", "router") and settings.plan_by_code(str(item.get("note") or "")):
+            item["note"] = None
+    return items
 
 
 async def admin_list_reports(

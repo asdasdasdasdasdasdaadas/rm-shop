@@ -1294,6 +1294,29 @@ async def api_billing(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
 
 
+async def _notify_credit(bot, telegram_id: int, amount: int) -> None:
+    """Tell the client about rubles added from the admin panel: a receipt card, text where widgets don't work."""
+    if bot is None or amount <= 0:
+        return
+    from aiogram.exceptions import TelegramForbiddenError
+    from app.keyboards import cabinet_keyboard
+    from app.widgets_more import send_admin_credit_widget
+    markup = cabinet_keyboard()
+    try:
+        await send_admin_credit_widget(bot, telegram_id, amount, reply_markup=markup)
+        return
+    except TelegramForbiddenError:
+        return
+    except Exception:
+        logger.info("Виджет начисления не отправился, шлём текст: %s", telegram_id, exc_info=True)
+    try:
+        local = await db.get_user(telegram_id) or {}
+        await bot.send_message(telegram_id, f"💰 На баланс начислено {amount} ₽. Баланс: {int(local.get('balance_rub') or 0)} ₽.",
+                               reply_markup=markup)
+    except Exception:
+        logger.warning("Сообщение о начислении не доставлено: %s", telegram_id, exc_info=True)
+
+
 async def api_grant(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -1315,6 +1338,7 @@ async def api_grant(request: web.Request) -> web.Response:
         note="Начисление из админки",
     )
     billing = await sync_user_billing(request.app["rw"], telegram_id, request.app.get("bot"))
+    await _notify_credit(request.app.get("bot"), telegram_id, days)
     return web.json_response({"ok": True, "balance_rub": total, "billing": billing})
 
 
@@ -1342,6 +1366,7 @@ async def api_balance(request: web.Request) -> web.Response:
         note="Правка баланса в админке",
     )
     billing = await sync_user_billing(request.app["rw"], telegram_id, request.app.get("bot"))
+    await _notify_credit(request.app.get("bot"), telegram_id, amount)
     return web.json_response({"ok": True, "balance_rub": total, "billing": billing})
 
 
