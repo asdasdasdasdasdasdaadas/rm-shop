@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, timezone
 
 from app import db
-from app.rollypay import payment_is_paid
+from app.cispay import payment_is_paid
 
 
 async def resume_checkout(telegram_id: int, token: str, rp) -> tuple[str, str | None]:

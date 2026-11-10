@@ -21,7 +21,7 @@ from app.notices import notice_text
 from app.referrals import trial_grant_rub
 from app.referral_terms import referral_terms
 from app.reminder_tracking import send_reminder
-from app.rollypay import payment_is_paid
+from app.cispay import payment_is_paid
 from app.texts import days_text, rub_text
 from app.tg_err import fail_extra
 

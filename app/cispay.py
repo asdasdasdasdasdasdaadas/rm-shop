@@ -1,8 +1,8 @@
-"""CISPay (https://cispay.app/developers): SBP and crypto invoices on a hosted payment page.
+"""CISPay (https://cispay.app/developers): the shop's payment provider for SBP, cards and crypto.
 
-Orders live in `rollypay_orders` next to the RollyPay ones, so every report, funnel and the
-`rollypay:<order_id>` receipt key keep working; the CISPay transaction id is stored there as
-`cis:<uuid>`, which is how `PaymentRouter` knows where to ask for the status.
+Orders are kept in `rollypay_orders` and receipts under `rollypay:<order_id>`: the names stay from the
+previous provider, so reports, funnels and old payments keep working. The CISPay transaction id is stored
+with the `cis:` prefix; an id without it belongs to the old provider and can no longer be checked.
 """
 from __future__ import annotations
 
@@ -13,20 +13,39 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import aiohttp
-from rollypay.exceptions import RollyPayError
-
 from app.config import get_settings
 
 logger = logging.getLogger("rm-shop.cispay")
 
 PREFIX = "cis:"
 METHODS = {"sbp": "SBP", "crypto": "CRYPTO", "card": "CARD"}
-# CISPay statuses in the words the rest of the shop already understands (see rollypay.payment_is_paid).
+# CISPay statuses in the lowercase words the checkout, reminders and «Проверить оплату» use.
 STATUSES = {"PENDING": "pending", "PAID": "paid", "FAILED": "failed", "EXPIRED": "expired", "REFUNDED": "refunded"}
 
 
-class CISPayError(RollyPayError):
-    """Raised for any CISPay failure; a RollyPayError so the existing checkout error handling applies."""
+class CISPayError(Exception):
+    """Any CISPay failure: no connection, a refused request or an unusable answer."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+        self.message = message
+
+
+def payment_is_paid(payment: dict | None) -> bool:
+    status = str((payment or {}).get("status") or "").lower()
+    return status in {"paid", "succeeded"}
+
+
+def resolve_payment_method(choice: str | None = None) -> str:
+    """Our method id from the cabinet or a bot button; an empty choice means SBP."""
+    raw = str(choice or "").strip().lower()
+    if not raw or raw == "fiat":
+        return "sbp"
+    if raw in {"sbp", "card", "crypto", "stars"}:
+        return raw
+    if raw in {"usdt", "btc", "eth", "ton"}:
+        raise ValueError("Выберите способ оплаты crypto; валюту и сеть выбирают на странице оплаты")
+    raise ValueError("Неизвестный способ оплаты")
 
 
 def is_cispay_payment(payment_id: str | None) -> bool:
@@ -45,7 +64,7 @@ def kopecks(amount_rub: Any) -> int:
 
 
 def normalize(data: dict) -> dict:
-    """The transaction with a lowercase status and our prefixed id, as the RollyPay payments look."""
+    """The transaction with a lowercase status, our prefixed id and the page link as «pay_url»."""
     out = dict(data or {})
     out["provider_status"] = out.get("status")
     out["status"] = STATUSES.get(str(out.get("status") or "").upper(), str(out.get("status") or "").lower())
@@ -96,6 +115,8 @@ class CISPayClient:
     async def create_payment(self, *, amount_rub: str, order_id: str, description: str, customer_id: str,
                              metadata: dict | None = None, payment_method: str | None = None) -> dict:
         method = METHODS.get(str(payment_method or "sbp").lower())
+        if method and str(payment_method or "sbp").lower() not in get_settings().cispay_method_set:
+            method = None
         if not method:
             raise CISPayError("Этот способ оплаты не поддерживается CISPay")
         redirect = (get_settings().webapp_public_url or "").rstrip("/") or None
@@ -124,8 +145,9 @@ class CISPayClient:
 
     async def get_payment(self, payment_id: str) -> dict:
         raw = str(payment_id or "")
-        raw = raw[len(PREFIX):] if raw.startswith(PREFIX) else raw
-        return normalize(await self._request("GET", "/payments/status", params={"id": raw}))
+        if not raw.startswith(PREFIX):
+            raise CISPayError("Счёт выставлен прежней кассой, его статус больше не проверить")
+        return normalize(await self._request("GET", "/payments/status", params={"id": raw[len(PREFIX):]}))
 
     async def capabilities(self) -> dict:
         return await self._request("GET", "/store/capabilities")
@@ -138,50 +160,3 @@ def verify_webhook(body: bytes, signature: str, api_key: str) -> bool:
     expected = hmac.new(api_key.strip().encode(), body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature.strip().lower())
 
-
-class PaymentRouter:
-    """One object for the checkout code: methods listed in CISPAY_METHODS go to CISPay, the rest to RollyPay.
-
-    Status checks follow the stored payment id, so older RollyPay invoices still resolve after the switch."""
-
-    def __init__(self, rollypay=None, cispay: CISPayClient | None = None) -> None:
-        self.rollypay = rollypay
-        self.cispay = cispay
-
-    def provider_for(self, method: str | None) -> str | None:
-        key = str(method or "sbp").lower()
-        if self.cispay is not None and key in get_settings().cispay_method_set:
-            return "cispay"
-        if self.rollypay is not None:
-            return "rollypay"
-        return None
-
-    async def create_payment(self, *, payment_method: str | None = None, **kwargs: Any) -> dict:
-        provider = self.provider_for(payment_method)
-        if provider == "cispay":
-            return await self.cispay.create_payment(payment_method=payment_method, **kwargs)
-        if provider == "rollypay":
-            return await self.rollypay.create_payment(payment_method=payment_method, **kwargs)
-        raise CISPayError("Оплата этим способом не настроена")
-
-    async def get_payment(self, payment_id: str) -> dict:
-        if is_cispay_payment(payment_id):
-            if self.cispay is None:
-                raise CISPayError("CISPay не настроен")
-            return await self.cispay.get_payment(payment_id)
-        if self.rollypay is None:
-            raise CISPayError("RollyPay не настроен")
-        return await self.rollypay.get_payment(payment_id)
-
-    async def terminal_id(self) -> str:
-        if self.rollypay is None:
-            raise RuntimeError("RollyPay не настроен")
-        return await self.rollypay.terminal_id()
-
-    async def aclose(self) -> None:
-        for client in (self.rollypay, self.cispay):
-            if client is not None:
-                try:
-                    await client.aclose()
-                except Exception:
-                    logger.debug("Клиент оплаты не закрылся", exc_info=True)

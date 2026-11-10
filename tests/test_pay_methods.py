@@ -11,7 +11,7 @@ class PaymentMethodsTest(unittest.TestCase):
     def setUp(self):
         self.overlay = {}
         config = ModuleType('app.config')
-        config.get_settings = lambda: SimpleNamespace(rollypay_configured=True)
+        config.get_settings = lambda: SimpleNamespace(rub_method_ready=lambda key: True)
         config.shop_overlay = lambda: self.overlay
         spec = importlib.util.spec_from_file_location(
             'payment_menu_under_test', Path(__file__).parents[1] / 'app/pay_methods.py')
@@ -35,7 +35,7 @@ class PaymentMethodsTest(unittest.TestCase):
         self.assertEqual(self.module.public_pay_methods(), [])
 
     def test_unconfigured_provider_hidden(self):
-        self.module.get_settings = lambda: SimpleNamespace(rollypay_configured=False)
+        self.module.get_settings = lambda: SimpleNamespace(rub_method_ready=lambda key: False)
         self.overlay['pay_methods'] = [
             {'id': key, 'enabled': True} for key in ('card', 'stars', 'sbp')]
         self.assertEqual([m['id'] for m in self.module.public_pay_methods()], ['stars'])

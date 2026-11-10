@@ -13,7 +13,7 @@ KEY = 'cis_sec_test'
 
 def settings(**kw):
     base = dict(cispay_shop_id='0190-shop', cispay_api_key=KEY, cispay_methods='sbp,crypto', cispay_test=False,
-                cispay_api_url='https://api.cispay.app', rollypay_api_key='', webapp_public_url='https://vpn.test')
+                cispay_api_url='https://api.cispay.app', webapp_public_url='https://vpn.test')
     base.update(kw)
     return Settings(_env_file=None, bot_token='1:x', required_channel_id='-1', required_channel_url='https://t.me/x',
                     remnawave_base_url='https://panel.test', remnawave_token='t', legal_offer_url='https://o.test',
@@ -41,7 +41,7 @@ class HelpersTest(unittest.TestCase):
             cispay.kopecks('0')
 
     def test_status_reads_like_the_rest_of_the_shop(self):
-        from app.rollypay import payment_is_paid
+        from app.cispay import payment_is_paid
         paid = cispay.normalize({'id': 'abc', 'status': 'PAID', 'payment_url': 'https://pay'})
         self.assertTrue(payment_is_paid(paid))
         self.assertEqual((paid['payment_id'], paid['pay_url']), ('cis:abc', 'https://pay'))
@@ -52,7 +52,8 @@ class HelpersTest(unittest.TestCase):
         self.assertEqual(s.cispay_method_set, {'sbp', 'crypto'})
         self.assertTrue(s.rub_method_ready('sbp') and s.rub_method_ready('crypto'))
         self.assertFalse(s.rub_method_ready('card'))
-        self.assertTrue(settings(rollypay_api_key='rpk_live_x').rub_method_ready('card'))
+        self.assertTrue(settings(cispay_methods='sbp,crypto,card').rub_method_ready('card'))
+        self.assertEqual(settings(cispay_methods='').cispay_method_set, set())
         self.assertEqual(settings(cispay_api_key='').cispay_method_set, set())
 
 
@@ -79,24 +80,31 @@ class ClientTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client._request.await_args.kwargs['params'], {'id': 'u1'})
 
 
-class RouterTest(unittest.IsolatedAsyncioTestCase):
-    async def test_routes_by_method_and_by_stored_id(self):
-        rolly = SimpleNamespace(create_payment=AsyncMock(return_value={'r': 1}), get_payment=AsyncMock(return_value={'r': 2}))
-        cis = SimpleNamespace(create_payment=AsyncMock(return_value={'c': 1}), get_payment=AsyncMock(return_value={'c': 2}))
-        router = cispay.PaymentRouter(rolly, cis)
-        with patch.object(cispay, 'get_settings', return_value=settings()):
-            self.assertEqual(await router.create_payment(payment_method='sbp', order_id='a'), {'c': 1})
-            self.assertEqual(await router.create_payment(payment_method='crypto', order_id='b'), {'c': 1})
-            self.assertEqual(await router.create_payment(payment_method='card', order_id='c'), {'r': 1})
-        self.assertEqual(await router.get_payment('cis:x'), {'c': 2})
-        self.assertEqual(await router.get_payment('rp-123'), {'r': 2})
+class MethodsTest(unittest.IsolatedAsyncioTestCase):
+    def test_method_choice(self):
+        self.assertEqual(cispay.resolve_payment_method(None), 'sbp')
+        self.assertEqual(cispay.resolve_payment_method('card'), 'card')
+        self.assertEqual(cispay.resolve_payment_method('crypto'), 'crypto')
+        for raw in ('usdt', 'unknown'):
+            with self.assertRaises(ValueError):
+                cispay.resolve_payment_method(raw)
 
-    async def test_unconfigured_method_is_an_error_the_checkout_catches(self):
-        from app.rollypay import RollyPayError
-        router = cispay.PaymentRouter(None, SimpleNamespace())
+    async def test_methods_outside_cispay_methods_are_refused(self):
         with patch.object(cispay, 'get_settings', return_value=settings()):
-            with self.assertRaises(RollyPayError):
-                await router.create_payment(payment_method='card', order_id='c')
+            client = cispay.CISPayClient()
+            client._request = AsyncMock()
+            with self.assertRaises(cispay.CISPayError):
+                await client.create_payment(amount_rub='300', order_id='o', description='d', customer_id='1',
+                                            payment_method='card')
+        client._request.assert_not_awaited()
+
+    async def test_old_provider_invoices_are_not_sent_to_cispay(self):
+        with patch.object(cispay, 'get_settings', return_value=settings()):
+            client = cispay.CISPayClient()
+        client._request = AsyncMock()
+        with self.assertRaises(cispay.CISPayError):
+            await client.get_payment('rp-123')
+        client._request.assert_not_awaited()
 
 
 class WebhookTest(unittest.IsolatedAsyncioTestCase):

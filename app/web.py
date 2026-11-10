@@ -49,7 +49,7 @@ from app.remnawave import (
     panel_lease_until,
     username_taken,
 )
-from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, resolve_payment_method, verify_webhook
+from app.cispay import CISPayClient, CISPayError, resolve_payment_method
 from app.sync import fetch_panel
 from app.notices import notice_text
 from app.texts import days_text, minutes_text, rub_text
@@ -682,7 +682,7 @@ async def api_invoice(request: web.Request) -> web.Response:
     if pay_method in {"sbp", "card", "crypto"}:
         if not settings.rub_method_ready(pay_method):
             return json_error("Оплата в рублях не настроена")
-        rp: RollyPayClient | None = request.app.get("rp")
+        rp: CISPayClient | None = request.app.get("rp")
         if rp is None:
             return json_error("Оплата не настроена")
         order_id = uuid.uuid4().hex
@@ -695,8 +695,8 @@ async def api_invoice(request: web.Request) -> web.Response:
                 metadata={"telegram_id": str(telegram_id), "plan": code},
                 payment_method=pay_method,
             )
-        except RollyPayError as exc:
-            logger.exception("RollyPay create failed: %s", exc)
+        except CISPayError as exc:
+            logger.exception("CISPay create failed: %s", exc)
             return json_error("Не удалось создать платёж", 502)
         pay_url = str(data.get("pay_url") or "")
         payment_id = str(data.get("payment_id") or "")
@@ -1159,47 +1159,6 @@ async def health(_request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
-async def rollypay_webhook(request: web.Request) -> web.Response:
-    settings = get_settings()
-    body = await request.read()
-    signature = request.headers.get("X-Signature") or ""
-    timestamp = request.headers.get("X-Timestamp") or ""
-    if not settings.rollypay_signing_secret:
-        return web.Response(status=503, text="signing secret is not set")
-    if not verify_webhook(body, timestamp, signature, settings.rollypay_signing_secret):
-        return web.Response(status=403, text="invalid signature")
-    try:
-        event = json.loads(body.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return web.Response(status=400, text="invalid json")
-    order_id = str(event.get("order_id") or "")
-    payment_id = str(event.get("payment_id") or "")
-    if not payment_is_paid(event):
-        return web.Response(text="OK")
-    rw: RemnawaveClient = request.app["rw"]
-    bot: Bot = request.app["bot"]
-    order = await db.get_rollypay_order(order_id) if order_id else None
-    if not order and payment_id:
-        order = await db.get_rollypay_order_by_payment(payment_id)
-    if not order:
-        logger.warning("RollyPay webhook: unknown order %s / %s", order_id, payment_id)
-        return web.Response(text="OK")
-    order_id = order["order_id"]
-    if order["status"] == "granted":
-        return web.Response(text="OK")
-    rw: RemnawaveClient = request.app["rw"]
-    bot: Bot = request.app["bot"]
-    plan = settings.plan_by_code(order["plan_code"]) or {"title": "пополнение", "days": 0, "topup_rub": 0}
-    try:
-        user = await fulfill_rollypay_order(order_id, rw, bot=bot)
-    except RemnawaveError as exc:
-        logger.exception("RollyPay fulfill failed: %s", exc)
-        return web.Response(status=500, text="fulfill failed")
-    if user is None:
-        return web.Response(text="OK")
-    return web.Response(text="OK")
-
-
 async def cispay_webhook(request: web.Request) -> web.Response:
     """CISPay status change: credit on PAID. Signature — hex HMAC-SHA256 of the raw body with CISPAY_API_KEY."""
     from app.cispay import is_cispay_payment, verify_webhook as verify_cispay
@@ -1239,7 +1198,6 @@ def build_web_app() -> web.Application:
     settings = get_settings()
     app = web.Application(client_max_size=80 * 1024 * 1024)
     app.router.add_get("/health", health)
-    app.router.add_post("/webhooks/rollypay", rollypay_webhook)
     app.router.add_post("/webhooks/cispay", cispay_webhook)
     if settings.webapp_enabled:
         app.router.add_get("/", index)
@@ -1287,7 +1245,7 @@ def build_web_app() -> web.Application:
     return app
 
 
-async def start_http(bot: Bot, rw: RemnawaveClient, rp: RollyPayClient | None) -> web.AppRunner:
+async def start_http(bot: Bot, rw: RemnawaveClient, rp: CISPayClient | None) -> web.AppRunner:
     settings = get_settings()
     app = build_web_app()
     app["bot"] = bot

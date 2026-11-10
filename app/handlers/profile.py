@@ -34,7 +34,7 @@ from app.referrals import (
     trial_is_available,
 )
 from app.reports import ReportCooldown, submit_vpn_report
-from app.rollypay import RollyPayClient, RollyPayError, payment_is_paid, resolve_payment_method
+from app.cispay import CISPayClient, CISPayError, payment_is_paid, resolve_payment_method
 from app.notices import notice_text
 from app.texts import minutes_text, rub_text
 
@@ -154,7 +154,7 @@ async def buy_menu(callback: CallbackQuery, rw: RemnawaveClient) -> None:
 
 
 @router.callback_query(F.data.startswith("buy:"))
-async def buy_plan(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
+async def buy_plan(callback: CallbackQuery, rp: CISPayClient | None) -> None:
     if not await gate_or_continue(callback):
         return
     code = callback.data.split(":", 1)[1]
@@ -167,7 +167,7 @@ async def buy_plan(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
 
 
 @router.callback_query(F.data.startswith("rpm:"))
-async def buy_plan_method(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
+async def buy_plan_method(callback: CallbackQuery, rp: CISPayClient | None) -> None:
     if not await gate_or_continue(callback):
         return
     parts = callback.data.split(":")
@@ -179,7 +179,7 @@ async def buy_plan_method(callback: CallbackQuery, rp: RollyPayClient | None) ->
 
 async def _create_plan_invoice(
     callback: CallbackQuery,
-    rp: RollyPayClient | None,
+    rp: CISPayClient | None,
     code: str,
     method: str,
 ) -> None:
@@ -208,8 +208,8 @@ async def _create_plan_invoice(
                 metadata={"telegram_id": str(callback.from_user.id), "plan": code},
                 payment_method=pay_method,
             )
-        except RollyPayError as exc:
-            logger.exception("RollyPay create failed: %s", exc)
+        except CISPayError as exc:
+            logger.exception("CISPay create failed: %s", exc)
             await edit_funnel(callback.message,
                 "Не удалось создать платёж.",
                 reply_markup=back_profile_keyboard(),
@@ -248,7 +248,7 @@ async def _create_plan_invoice(
 
 
 @router.callback_query(F.data.startswith("resume_pay:"))
-async def resume_payment(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
+async def resume_payment(callback: CallbackQuery, rp: CISPayClient | None) -> None:
     if not await gate_or_continue(callback):
         return
     await ack(callback)
@@ -268,7 +268,7 @@ async def resume_payment(callback: CallbackQuery, rp: RollyPayClient | None) -> 
 
 
 @router.callback_query(F.data.startswith("rpc:"))
-async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: RollyPayClient | None) -> None:
+async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: CISPayClient | None) -> None:
     if not await gate_or_continue(callback):
         return
     order_id = callback.data.split(":", 1)[1]
@@ -283,7 +283,7 @@ async def check_rollypay(callback: CallbackQuery, rw: RemnawaveClient, rp: Rolly
     plan = settings.plan_by_code(order["plan_code"]) or {"title": "пополнение"}
     try:
         payment = await rp.get_payment(order["payment_id"])
-    except RollyPayError:
+    except CISPayError:
         await ack(callback, "Не удалось проверить оплату.", alert=True)
         return
     status = str(payment.get("status") or "")
@@ -415,9 +415,8 @@ async def vpn_down(callback: CallbackQuery, rw: RemnawaveClient) -> None:
 
 
 @router.callback_query(F.data.startswith('paywhy:') | F.data.startswith('payreason:'))
-async def checkout_reason(callback: CallbackQuery, rp: RollyPayClient | None) -> None:
+async def checkout_reason(callback: CallbackQuery, rp: CISPayClient | None) -> None:
     from app import checkout_feedback
-    from app.rollypay import payment_is_paid
     from app.keyboards import help_connect_reply_keyboard
     parts = callback.data.split(':')
     token = parts[-1]

@@ -2233,7 +2233,7 @@ async def save_rollypay_order(
     pay_url: str,
     method: str | None = None,
 ) -> None:
-    # Both RollyPay and CISPay orders live here; CISPay ids start with «cis:». method — sbp / card / crypto.
+    # CISPay orders (ids «cis:…»); the table keeps its old name, older rows are the previous provider's. method — sbp / card / crypto.
     await _pool_req().execute(
         """
         INSERT INTO rollypay_orders (order_id, telegram_id, plan_code, payment_id, pay_url, status, method)

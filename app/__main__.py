@@ -18,7 +18,6 @@ from app.handlers.payout_mod import router as payout_mod_router
 from app.handlers.tickets import router as tickets_router
 from app.live import router as live_router
 from app.remnawave import RemnawaveClient
-from app.rollypay import RollyPayClient
 from app.sync import sync_all
 from app.maintenance import MaintenanceMiddleware
 from app.block import BlockedMiddleware
@@ -101,8 +100,6 @@ def _warn_deploy(settings) -> None:
         logger.warning("CISPAY_METHODS пуст: CISPay настроен, но ни один способ оплаты на него не идёт")
     if settings.cispay_test:
         logger.warning("CISPAY_TEST=true: тестовые платежи CISPay (is_sandbox) зачисляются на баланс")
-    if settings.rollypay_configured and settings.rollypay_test:
-        logger.warning("ROLLYPAY_TEST=true: платежи идут в тестовом режиме")
     if "rmshop:rmshop@" in settings.database_url:
         logger.warning("В DATABASE_URL пароль по умолчанию. Смените POSTGRES_PASSWORD перед продом")
 
@@ -115,9 +112,8 @@ async def main() -> None:
     await db.migrate_legacy_promo_codes()
     rw = RemnawaveClient()
     runtime.rw = rw
-    from app.cispay import CISPayClient, PaymentRouter
-    rp = PaymentRouter(RollyPayClient() if settings.rollypay_configured else None,
-                       CISPayClient() if settings.cispay_configured else None) if settings.rub_pay_configured else None
+    from app.cispay import CISPayClient
+    rp = CISPayClient() if settings.cispay_configured else None
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     from app.legal_notice import LegalNoticeRequestMiddleware, LegalNoticeInteractionMiddleware
     bot.session.middleware(LegalNoticeRequestMiddleware())

@@ -49,19 +49,11 @@ class Settings(BaseSettings):
     plan_12m_rub: float = 1499.0
     stars_enabled: bool = False
 
-    rollypay_api_url: str = "https://rollypay.io"
-    rollypay_api_key: str = ""
-    rollypay_signing_secret: str = ""
-    rollypay_test: bool = False
-    rollypay_terminal_id: str = ""
-    rollypay_payment_method: str = ""
-    rollypay_crypto_enabled: bool = False
-    rollypay_crypto_method: str = "usdt"
-    # CISPay (https://cispay.app/developers): which of our methods go there instead of RollyPay.
+    # CISPay (https://cispay.app/developers): the payment provider for SBP, cards and crypto.
     cispay_api_url: str = "https://api.cispay.app"
     cispay_shop_id: str = ""
     cispay_api_key: str = ""
-    cispay_methods: str = "sbp,crypto"
+    cispay_methods: str = "sbp,crypto,card"
     cispay_test: bool = False
 
     # Payments in TON through the chat widget (Bot API 10.4). Off until a wallet is set in the admin panel.
@@ -131,10 +123,6 @@ class Settings(BaseSettings):
         return [x.strip() for x in self.remnawave_squad_uuids.split(",") if x.strip()]
 
     @property
-    def rollypay_configured(self) -> bool:
-        return bool(self.rollypay_api_key.strip())
-
-    @property
     def cispay_configured(self) -> bool:
         return bool(self.cispay_shop_id.strip() and self.cispay_api_key.strip())
 
@@ -146,12 +134,12 @@ class Settings(BaseSettings):
 
     @property
     def rub_pay_configured(self) -> bool:
-        """Some provider takes rubles: RollyPay, CISPay or both."""
-        return self.rollypay_configured or bool(self.cispay_method_set)
+        """CISPay takes rubles for at least one method."""
+        return bool(self.cispay_method_set)
 
     def rub_method_ready(self, method: str) -> bool:
         key = str(method or "").lower()
-        return key in self.cispay_method_set or (self.rollypay_configured and key in {"sbp", "card", "crypto"})
+        return key in self.cispay_method_set
 
     @property
     def plans(self) -> dict[str, dict]:

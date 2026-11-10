@@ -88,7 +88,7 @@ def method_available(method_id: str, settings=None, *, telegram_id: int | None =
     key = str(method_id or "").strip().lower()
     if key in {"sbp", "card", "crypto"}:
         ready = getattr(s, "rub_method_ready", None)
-        return ready(key) if callable(ready) else bool(getattr(s, "rollypay_configured", False))
+        return bool(ready(key)) if callable(ready) else False
     if key == "stars":
         return True
     if key == "ton":
@@ -127,7 +127,7 @@ def admin_pay_methods() -> list[dict[str, Any]]:
         available = method_available(method_id, settings)
         hint = ""
         if method_id in {"sbp", "card", "crypto"} and not available:
-            hint = "Нужны ключи RollyPay в окружении"
+            hint = "Нужны ключи CISPay (CISPAY_SHOP_ID, CISPAY_API_KEY) и способ в CISPAY_METHODS"
         if method_id == "ton" and not available:
             hint = "Включите оплату в Gram (TON) в настройках — пока её видят только админы"
         out.append(
