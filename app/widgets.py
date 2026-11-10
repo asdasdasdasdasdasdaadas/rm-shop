@@ -120,13 +120,15 @@ draw();setInterval(draw,20000);live('r',v=>{s=v;draw()});""",
 
 REFERRAL_HTML = _page(
     """<div class="cd"><div class="sp"></div><div class="tp"><span class="gi">🎁</span><span>Друзья</span><span class="pi" id="pi" hidden></span></div>
-<div class="em" id="m">—</div><div class="sl" id="sl">заработано на друзьях</div>
+<div class="jb" id="jb" hidden></div><div class="em" id="m">—</div><div class="sl" id="sl">заработано на друзьях</div>
 <div class="gl"><div class="gt"><span id="gn"></span><b id="gp"></b></div><div class="gb"><i id="gi"></i></div></div>
 <div class="ts"><span><b id="i">—</b> <span id="il">пришли по ссылке</span></span><span><b id="w">—</b> <span id="wl">получили бонус</span></span></div>
 <div class="lk" id="lk" hidden><span id="ln"></span><svg width="18" height="18" viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2.5" fill="#fff"/><rect x="4" y="7" width="12" height="15" rx="2.5" fill="#fff" opacity=".6"/></svg></div>
 <button id="cp" class="pb">Скопировать приглашение</button></div>
 <div class="f"><span class="t" id="u"></span><button id="r" class="rf" aria-label="Обновить">↻</button></div>""",
-    """let seen=s?s.i:0,shown=0;const G=[1,3,5,10,25,50,100,250,500,1000];
+    """let seen=s?s.i:0,shown=0;const G=[1,3,5,10,25,50,100,250,500,1000],J=s&&s.j;
+if(J){const b=$('jb');b.hidden=false;b.textContent='🎉 '+(J.n||'Друг')+(J.k=='pay'?' оплатил VPN':' пришёл по ссылке')+' · +'+rub(J.a);
+if(W.HapticFeedback)W.HapticFeedback.notificationOccurred('success')}
 function link(){const m=s&&s.c&&s.c.match(/https?:\\/\\/\\S+/);return m?m[0]:''}
 function count(to){const e=$('m'),from=shown,t0=performance.now();shown=to;
 (function f(t){const k=Math.min(1,(t-t0)/900),v=Math.round(from+(to-from)*(1-Math.pow(1-k,3)));e.textContent='+'+rub(v);if(k<1)requestAnimationFrame(f)})(t0)}
@@ -154,6 +156,7 @@ draw();live('f',v=>{v.c=v.c||(s&&s.c);s=v;draw()});""",
     "radial-gradient(circle at 50% 0,rgba(140,160,255,.35),transparent 60%)}"
     ".tp{position:relative;display:flex;align-items:center;gap:8px;font-weight:700;font-size:.95em;text-align:left}"
     ".gi{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.18);font-size:17px}"
+    ".jb{position:relative;margin-top:10px;padding:7px 10px;border-radius:12px;background:rgba(255,255,255,.2);font-weight:700;font-size:.9em;animation:in .5s}"
     ".pi{margin-left:auto;background:rgba(255,255,255,.2);border-radius:99px;padding:4px 10px;font-size:.8em;white-space:nowrap}"
     ".em{position:relative;font-size:2.4em;font-weight:800;margin-top:8px;line-height:1.05;font-variant-numeric:tabular-nums;letter-spacing:-.02em}"
     ".em.sm{font-size:1.75em}.sl{position:relative;font-size:.85em;opacity:.85;margin-top:4px}"
@@ -576,10 +579,14 @@ async def send_balance_widget(
     ))
 
 
-async def send_referral_widget(bot: Bot, telegram_id: int, *, caption: str, reply_markup=None) -> Message:
+async def send_referral_widget(bot: Bot, telegram_id: int, *, caption: str, reply_markup=None,
+                               reward: dict | None = None) -> Message:
+    """reward — {a: rubles, n: friend's name, k: menu|pay}: shown as a banner for the reward this message is about."""
     if not _fits(caption):
         raise ValueError("caption is too long for a widget")
     state = await referral_state(telegram_id, with_link=True)
+    if reward:
+        state["j"] = reward
     return await bot(SendWidget(
         chat_id=telegram_id, html=referral_html(), chat_data=_json(state), caption=caption, parse_mode="HTML",
         allow_queries=True, reply_markup=reply_markup,
@@ -653,6 +660,9 @@ async def handle_query(bot: Bot, query: dict[str, Any]) -> dict[str, Any]:
         return await balance_state(user_id)
     if data == "f":
         return await referral_state(user_id)
+    if data == "o":
+        from app.widgets_care import setup_state
+        return await setup_state(user_id)
     if data.startswith("g:"):
         return await _claim_gift(bot, query, user_id, data[2:])
     if data == "s":

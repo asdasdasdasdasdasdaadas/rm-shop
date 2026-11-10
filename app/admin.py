@@ -2610,11 +2610,8 @@ async def _notify_reissued(bot: Bot, by_user: dict[int, list[tuple[str, str]]]) 
             seen.add(key)
             unique.append((title, url))
         try:
-            await bot.send_message(
-                telegram_id,
-                subscription_reissued_text(unique),
-                reply_markup=cabinet_keyboard(),
-            )
+            from app.widgets_care import notify_new_key
+            await notify_new_key(bot, telegram_id, unique)
             sent += 1
         except Exception:
             logger.debug("Не удалось написать о перевыпуске %s", telegram_id, exc_info=True)

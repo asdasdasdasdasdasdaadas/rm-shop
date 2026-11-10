@@ -852,6 +852,22 @@ async def api_check_connection(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **connection_result(panel)})
 
 
+def _key_to_chat(request: web.Request, telegram_id: int, links: list[tuple[str, str]]) -> None:
+    """Also put the new link into the chat as a copy card, so it is at hand in Telegram; never delays the answer."""
+    bot = request.app.get("bot")
+    if not bot or not any(url for _title, url in links):
+        return
+
+    async def send() -> None:
+        try:
+            from app.widgets_care import notify_new_key
+            await notify_new_key(bot, telegram_id, links)
+        except Exception:
+            logger.debug("Новая ссылка не отправлена в чат %s", telegram_id, exc_info=True)
+
+    asyncio.create_task(send(), name=f"new-key-{telegram_id}")
+
+
 async def api_reissue_device(request: web.Request) -> web.Response:
     denied = await _if_down()
     if denied:
@@ -875,6 +891,7 @@ async def api_reissue_device(request: web.Request) -> web.Response:
     except RemnawaveError as exc:
         return json_error(str(exc), 502)
     await db.save_device_subscription(int(item["remnawave_id"]), user)
+    _key_to_chat(request, telegram_id, [(str(item.get("title") or ""), user.get("subscriptionUrl") or "")])
     return web.json_response({"ok": True, "subscription_url": user.get("subscriptionUrl") or ""})
 
 
@@ -956,6 +973,7 @@ async def api_reissue_subscription(request: web.Request) -> web.Response:
     except RemnawaveError as exc:
         return json_error(str(exc), 502)
     await db.save_panel_snapshot(telegram_id, user)
+    _key_to_chat(request, telegram_id, [("", user.get("subscriptionUrl") or "")])
     return web.json_response({"ok": True, "subscription_url": user.get("subscriptionUrl") or ""})
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from app.funnel_ui import send_funnel_message
 from html import escape
 from math import ceil
@@ -13,6 +15,8 @@ from app.keyboards import with_referral_share, cabinet_keyboard, share_keyboard
 from app.remnawave import RemnawaveClient
 from app.texts import friends_acc, rub_text
 from app.referral_terms import REFERRAL_BONUS_RUB
+
+logger = logging.getLogger(__name__)
 
 
 def invitee_extra_days(local: dict | None) -> int:
@@ -112,6 +116,29 @@ def topup_ok_text(amount: str, *, can_share: bool, local: dict | None = None) ->
     return funnel_body(body)
 
 
+async def _send_reward(bot: Bot, chat: int, text: str, *, amount: int, friend: dict | None = None) -> None:
+    """A referral bonus as a card: the friends widget with a «+N ₽» banner for whoever invited (friend = {n, k}),
+    the «начисление · по приглашению» receipt for the friend. Old Telegram apps get the same text."""
+    from aiogram.exceptions import TelegramForbiddenError
+    from app.funnel_ui import funnel_body, funnel_keyboard
+    markup = with_referral_share(chat, cabinet_keyboard())
+    try:
+        if friend is not None:
+            from app.widgets import send_referral_widget
+            await send_referral_widget(bot, chat, caption=funnel_body(text), reply_markup=funnel_keyboard(markup),
+                                       reward={"a": int(amount), **friend})
+        else:
+            from app.widgets_more import send_admin_credit_widget
+            await send_admin_credit_widget(bot, chat, int(amount), funnel_keyboard(markup), source="ref",
+                                           caption=funnel_body(text))
+        return
+    except TelegramForbiddenError:
+        raise
+    except Exception:
+        logger.debug("Карточка реферального бонуса не отправилась %s, шлём текст", chat, exc_info=True)
+    await send_funnel_message(bot, chat, text, reply_markup=markup)
+
+
 async def maybe_reward_menu(bot: Bot | None, telegram_id: int) -> int:
     """50 ₽ to the friend and to whoever invited them, once the friend reaches the main menu."""
     if not get_settings().referral_program_enabled:
@@ -124,14 +151,15 @@ async def maybe_reward_menu(bot: Bot | None, telegram_id: int) -> int:
         return 0
     amount = f"{result['amount']} ₽"
     if bot:
+        raw_name = str(result.get("friend_name") or "Друг")[:32]
         name = escape(result.get("friend_name") or "друг")
-        for chat, text in (
-            (telegram_id, f"🎁 Вы пришли по ссылке друга — начислили <b>{amount}</b> на баланс."),
-            (result["referrer_id"], f"🎁 {name} пришёл по вашей ссылке. Вам начислено <b>{amount}</b>!"),
+        for chat, text, friend in (
+            (telegram_id, f"🎁 Вы пришли по ссылке друга — начислили <b>{amount}</b> на баланс.", None),
+            (result["referrer_id"], f"🎁 {name} пришёл по вашей ссылке. Вам начислено <b>{amount}</b>!",
+             {"n": raw_name, "k": "menu"}),
         ):
             try:
-                await send_funnel_message(bot, chat, text,
-                    reply_markup=with_referral_share(chat, cabinet_keyboard()))
+                await _send_reward(bot, chat, text, amount=int(result["amount"]), friend=friend)
             except Exception:
                 pass
     return result["amount"]
@@ -149,11 +177,8 @@ async def maybe_reward_invitee(bot: Bot | None, telegram_id: int, *, enabled: bo
         return 0
     if bot:
         try:
-            await send_funnel_message(bot,
-                telegram_id,
-                notice_text("referral_invitee_paid", amount=rub_text(amount)),
-                reply_markup=with_referral_share(telegram_id, cabinet_keyboard()),
-            )
+            await _send_reward(bot, telegram_id, notice_text("referral_invitee_paid", amount=rub_text(amount)),
+                               amount=amount)
         except Exception:
             pass
     return amount
@@ -173,8 +198,8 @@ async def maybe_reward_referrer(
         **({"paid_at": paid_at} if paid_at is not None else {}))
     if result and result['amount'] > 0 and bot:
         try:
-            await send_funnel_message(bot, result['referrer_id'],
+            await _send_reward(bot, result['referrer_id'],
                 f"🎁 Друг {name} впервые пополнил баланс. Вам начислено {rub_text(result['amount'])}!",
-                reply_markup=with_referral_share(result["referrer_id"], cabinet_keyboard()))
+                amount=int(result['amount']), friend={"n": str(friend_name or "Друг")[:32], "k": "pay"})
         except Exception:
             pass

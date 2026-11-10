@@ -63,10 +63,10 @@ RECEIPT_HTML = _more(
 <div class="nx" id="nx"></div>
 <div class="iv" id="iv" hidden><span>🎁 <b id="ir"></b> за каждого друга</span><button id="cp">Пригласить</button></div>
 <div class="f"><span class="t" id="u"></span><button id="r" class="rf" aria-label="Обновить">↻</button></div>""",
-    """const M={admin:'от поддержки',order:'Карта/СБП',sbp:'СБП',card:'Карта',stars:'Звёзды',ton:'Gram',crypto:'Крипта'},
+    """const M={admin:'от поддержки',ref:'по приглашению',order:'Карта/СБП',sbp:'СБП',card:'Карта',stars:'Звёзды',ton:'Gram',crypto:'Крипта'},
 N={ok:'✓ VPN уже работает — больше ничего делать не нужно',nd:'📱 Добавьте устройство — покажем, как подключить VPN',
 su:'📱 Осталось добавить ссылку в VPN-приложение и включить VPN'};let go=1;
-function draw(){if(!s)return;$('mt').textContent=M[s.m]||'оплачено';if(s.m=='admin')$('hw').textContent='начисление';
+function draw(){if(!s)return;$('mt').textContent=M[s.m]||'оплачено';if(s.m=='admin'||s.m=='ref')$('hw').textContent='начисление';
 if(go){go=0;up($('a'),s.a,'+');H('success')}
 $('b').textContent='Баланс: '+rub(s.b);const on=s.n>0&&s.e>s.t;
 $('e').textContent=on?dm(s.e,'short'):'—';$('d').textContent=on?s.d:'—';$('dl').textContent=pl(s.d,'день','дня','дней');
@@ -273,16 +273,19 @@ async def receipt_state(telegram_id: int, receipt: dict, step: str) -> dict[str,
 
 
 async def send_admin_credit_widget(bot: Bot, telegram_id: int, amount: int,
-                                   reply_markup: InlineKeyboardMarkup | None = None) -> Message:
-    """The receipt card for rubles an admin added in the admin panel: «начисление · от поддержки»."""
+                                   reply_markup: InlineKeyboardMarkup | None = None, *,
+                                   source: str = "admin", caption: str | None = None) -> Message:
+    """The receipt card for rubles credited without a payment: «начисление · от поддержки» for the admin panel,
+    «начисление · по приглашению» (source="ref") for a referral bonus."""
     from app.payment_notice import used_vpn
     local = await db.get_user(telegram_id) or {}
     devices = await db.list_devices(telegram_id)
     step = "ok" if used_vpn(local, devices) else ("su" if devices else "nd")
-    state = await receipt_state(telegram_id, {"payment_key": "admin:", "amount": int(amount)}, step)
-    caption = f"💰 На баланс начислено {int(amount)} ₽. Баланс: {state['b']} ₽."
+    state = await receipt_state(telegram_id, {"payment_key": f"{source}:", "amount": int(amount)}, step)
+    caption = caption or f"💰 На баланс начислено {int(amount)} ₽. Баланс: {state['b']} ₽."
+    _fits(caption)
     return await bot(SendWidget(chat_id=telegram_id, html=receipt_html(), chat_data=_json(state), caption=caption,
-                                allow_queries=True, reply_markup=reply_markup))
+                                parse_mode="HTML", allow_queries=True, reply_markup=reply_markup))
 
 
 async def send_receipt_widget(bot: Bot, telegram_id: int, receipt: dict, *, step: str, caption: str,

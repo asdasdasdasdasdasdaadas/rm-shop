@@ -26,6 +26,19 @@ def tracked_keyboard(markup, token):
 
 
 BALANCE_WIDGET_KINDS = {'nudge_trial_end', 'low_balance'}
+# Setup reminders go out as a live checklist; «balance is ending» as a ticking countdown.
+SETUP_WIDGET_KINDS = {'first_device_thanks', 'nudge_device', 'nudge_nodevice'}
+
+
+async def _care_widget(bot, kind, telegram_id, body, reply_markup):
+    if len(body) > 1024:
+        return None
+    from app import widgets_care
+    if kind == 'nudge_trial_end':
+        return await widgets_care.send_countdown_widget(bot, telegram_id, caption=body, reply_markup=reply_markup)
+    if kind in SETUP_WIDGET_KINDS:
+        return await widgets_care.send_setup_widget(bot, telegram_id, caption=body, reply_markup=reply_markup)
+    return None
 
 
 def with_ton_button(markup):
@@ -65,7 +78,14 @@ async def send_reminder(bot, telegram_id, body, *, kind, title, reply_markup, pr
         from aiogram.types import FSInputFile
         banner = Path(__file__).parent / 'assets' / 'balance-reminder.png'
         message = None
-        if kind in BALANCE_WIDGET_KINDS and len(body) <= 1024:
+        if kind == 'nudge_trial_end' or kind in SETUP_WIDGET_KINDS:
+            try:
+                message = await _care_widget(bot, kind, telegram_id, body, reply_markup)
+            except TelegramForbiddenError:
+                raise
+            except Exception:
+                logger.warning('Виджет %s не отправился', kind, exc_info=True)
+        if message is None and kind in BALANCE_WIDGET_KINDS and len(body) <= 1024:
             # A live balance widget with a countdown; old Telegram apps show the caption, errors fall back to the banner.
             from app.widgets import send_balance_widget
             try:
