@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import React, { useState } from "react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { CountUp, Spark } from "@/components/widgets";
 import {
   ChartContainer,
   ChartTooltip,
@@ -8,7 +9,6 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Choice,
   DataTable,
@@ -21,7 +21,7 @@ import {
 import { date, money, useResource, who, type Data } from "@/lib/api";
 import { OverviewPage } from "./overview";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw, UserPlus, PlugZap, BadgeRussianRuble, Receipt, Star, Smartphone } from "lucide-react";
 
 const metrics: Record<string, string> = {
   registered: "Регистрации",
@@ -39,6 +39,13 @@ const metrics: Record<string, string> = {
   repeat: "Повторные оплаты",
 };
 const number = (v: unknown) => Number(v || 0).toLocaleString("ru-RU");
+const STAT_TONE: Record<string, string> = { registered: "#3e88f7", connected: "#5856d6", rub: "#2fbf6f", payments: "#ff9500" };
+const STAT_ICON: Record<string, React.ReactNode> = {
+  registered: <UserPlus />,
+  connected: <PlugZap />,
+  rub: <BadgeRussianRuble />,
+  payments: <Receipt />,
+};
 export function HistoryChart({
   title,
   description,
@@ -50,7 +57,7 @@ export function HistoryChart({
   rows: Data[];
   keys: string[];
 }) {
-  const colors = ["var(--foreground)", "#3b82f6", "#14b8a6"];
+  const colors = ["#2fbf6f", "#3e88f7", "#af52de"];
   return (
     <Panel title={title} description={description}>
       <ChartContainer
@@ -62,8 +69,16 @@ export function HistoryChart({
           ]),
         )}
       >
-        <BarChart accessibilityLayer data={rows} margin={{ left: 0, right: 8 }}>
-          <CartesianGrid vertical={false} />
+        <AreaChart accessibilityLayer data={rows} margin={{ left: 0, right: 8, top: 8 }}>
+          <defs>
+            {keys.map((key) => (
+              <linearGradient key={key} id={"hg-" + key} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={`var(--color-${key})`} stopOpacity={0.4} />
+                <stop offset="100%" stopColor={`var(--color-${key})`} stopOpacity={0} />
+              </linearGradient>
+            ))}
+          </defs>
+          <CartesianGrid vertical={false} strokeDasharray="3 6" />
           <XAxis
             dataKey="day"
             tickLine={false}
@@ -95,14 +110,19 @@ export function HistoryChart({
             }
           />
           {keys.map((key) => (
-            <Bar
+            <Area
               key={key}
+              type="monotone"
               dataKey={key}
-              fill={`var(--color-${key})`}
-              radius={[3, 3, 0, 0]}
+              stroke={`var(--color-${key})`}
+              strokeWidth={2.5}
+              fill={`url(#hg-${key})`}
+              dot={false}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--card)" }}
+              animationDuration={1100}
             />
           ))}
-        </BarChart>
+        </AreaChart>
       </ChartContainer>
       {!rows.some((row) => keys.some((key) => row[key] > 0)) && (
         <p className="mt-3 text-sm text-muted-foreground">
@@ -227,51 +247,49 @@ export function StatisticsPage() {
           <Loading />
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="adm-stats">
               {[
                 ["registered", "Новые пользователи"],
                 ["connected", "Впервые подключились"],
                 ["rub", "Оплачено в рублях"],
                 ["payments", "Успешные рублёвые оплаты"],
               ].map(([key, label]) => (
-                <Card key={key}>
-                  <CardContent className="p-0">
-                    <button
-                      className="w-full p-5 text-left rounded-xl hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      aria-pressed={
-                        chart ===
-                        (key === "rub"
-                          ? "revenue"
-                          : key === "payments"
-                            ? "payments"
-                            : "acquisition")
-                      }
-                      onClick={() =>
-                        setChart(
-                          key === "rub"
-                            ? "revenue"
-                            : key === "payments"
-                              ? "payments"
-                              : "acquisition",
-                        )
-                      }
-                    >
-                      <p className="text-sm text-muted-foreground">{label}</p>
-                      <p className="text-3xl font-semibold my-2">
-                        {key === "rub"
-                          ? money(totals[key])
-                          : number(totals[key])}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        За выбранный период · показать график
-                      </p>
-                    </button>
-                  </CardContent>
-                </Card>
+                <button
+                  key={key}
+                  className="adm-stat"
+                  style={{ ["--tone" as string]: STAT_TONE[key] }}
+                  aria-pressed={
+                    chart ===
+                    (key === "rub"
+                      ? "revenue"
+                      : key === "payments"
+                        ? "payments"
+                        : "acquisition")
+                  }
+                  onClick={() =>
+                    setChart(
+                      key === "rub"
+                        ? "revenue"
+                        : key === "payments"
+                          ? "payments"
+                          : "acquisition",
+                    )
+                  }
+                >
+                  <span className="adm-stat-top">
+                    <span className="adm-tile" style={{ background: STAT_TONE[key] }}>{STAT_ICON[key]}</span>
+                    <span className="adm-stat-label">{label}</span>
+                  </span>
+                  <b>
+                    <CountUp value={Number(totals[key] || 0)} format={(n) => (key === "rub" ? money(Math.round(n)) : number(Math.round(n)))} />
+                  </b>
+                  <Spark values={rows.map((r) => Number(r[key] || 0))} color={STAT_TONE[key]} />
+                  <small>За выбранный период · показать график</small>
+                </button>
               ))}
             </div>
             <div
-              className="flex flex-wrap gap-2"
+              className="adm-seg"
               role="group"
               aria-label="Показатель графика"
             >
@@ -343,13 +361,16 @@ export function StatisticsPage() {
                 ],
                 ["Оплачено Stars", number(totals.stars) + " Stars"],
                 ["Добавлено устройств", number(totals.devices)],
-              ].map(([label, value]) => (
-                <Card key={label}>
-                  <CardContent className="pt-5">
-                    <p className="text-sm text-muted-foreground">{label}</p>
-                    <p className="mt-2 text-2xl font-semibold">{value}</p>
-                  </CardContent>
-                </Card>
+              ].map(([label, value], i) => (
+                <div key={label} className="adm-mini">
+                  <span className="adm-tile" style={{ background: ["#22975a", "#f5a70f", "#5856d6"][i] }}>
+                    {[<Receipt key="r" />, <Star key="s" />, <Smartphone key="d" />][i]}
+                  </span>
+                  <div>
+                    <p>{label}</p>
+                    <b>{value}</b>
+                  </div>
+                </div>
               ))}
             </div>
             <Button

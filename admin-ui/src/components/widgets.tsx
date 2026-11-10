@@ -332,3 +332,25 @@ export function DashboardWidgets({ s }: { s: Data }) {
     </div>
   );
 }
+
+/** Tiny SVG sparkline (no chart library) that draws itself in. */
+export function Spark({ values, color = "var(--primary)", height = 36 }: { values: number[]; color?: string; height?: number }) {
+  const w = 120, h = height, n = values.length;
+  if (n < 2) return null;
+  const max = Math.max(...values, 1), min = Math.min(...values, 0);
+  const pts = values.map((v, i) => [(i / (n - 1)) * w, h - 3 - ((v - min) / (max - min || 1)) * (h - 6)]);
+  const line = pts.map(([x, y], i) => (i ? "L" : "M") + x.toFixed(1) + "," + y.toFixed(1)).join(" ");
+  const id = "sp" + Math.abs(values.reduce((a, v, i) => a + v * (i + 1), n)).toString(36);
+  return (
+    <svg className="adm-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={`${line} L${w},${h} L0,${h} Z`} fill={`url(#${id})`} className="adm-spark-fill" />
+      <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" pathLength={1} className="adm-spark-line" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
