@@ -115,7 +115,7 @@
   const GP = "M66.5 11.3H33.5c-4.4 0-6.6 0-8.6.6a13.8 13.8 0 0 0-4.8 2.6c-1.6 1.3-2.8 3.2-5.2 6.9L4.4 37.8c-1.6 2.4-2.4 3.7-2.6 5a6.3 6.3 0 0 0 .4 3.4c.5 1.2 1.5 2.2 3.6 4.3l39 39c1.8 1.8 2.7 2.7 3.8 3.1.9.3 1.9.3 2.8 0 1.1-.3 2-1.3 3.8-3.1l39-39c2.1-2.1 3.1-3.1 3.6-4.3a6.3 6.3 0 0 0 .4-3.4c-.2-1.3-1-2.5-2.6-5L85.1 21.5c-2.4-3.7-3.6-5.6-5.2-6.9a13.8 13.8 0 0 0-4.8-2.6c-2-.6-4.2-.6-8.6-.6z";
   const SPK = "M60.3 24.2c.5-1.5 2.6-1.5 3.1 0l3.7 10a2.2 2.2 0 0 0 1.3 1.3l10 3.7c1.5.5 1.5 2.6 0 3.1l-10 3.7a2.2 2.2 0 0 0-1.3 1.3l-3.7 10c-.5 1.5-2.6 1.5-3.1 0l-3.7-10a2.2 2.2 0 0 0-1.3-1.3l-10-3.7c-1.5-.5-1.5-2.6 0-3.1l10-3.7a2.2 2.2 0 0 0 1.3-1.3z";
   const GEM = (w) => `<svg width="${w}" height="${w}" viewBox="0 0 100 100"><path fill="#fff" d="${GP}"/><path class="gst" fill="#2f86f0" style="transition:fill .7s" d="${SPK}"/></svg>`;
-  const FROG = (s, gray) => `<img class="frog" src="/icons/frog.jpg" width="${s}" height="${s}" style="width:${s}px;height:${s}px${gray ? ";filter:grayscale(.85)" : ""}" alt="">`;
+  const FROG = (s, gray) => `<span class="frogw"><img class="frog" src="/icons/frog.jpg" width="${s}" height="${s}" style="width:${s}px;height:${s}px${gray ? ";filter:grayscale(.85)" : ""}" alt=""></span>`;
   const CHK = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const IC = {
     share: '<svg width="24" height="24" viewBox="0 0 24 24"><path d="M14 5l7 6-7 6v-3.5c-5 0-8 1.5-10 5 .7-5.5 3.5-9.5 10-10.5z" fill="currentColor"/></svg>',
@@ -329,7 +329,6 @@
           giftLater,
           [E("🎁") + "Пригласить друзей" + V((me.referral_program_enabled ? `+${rub(me.referral_reward_rub || 50)} ` : "") + CV), 'data-go="friends"'],
           trustShown() ? [E("🤝") + "Обещанный платёж" + V((trust.open ? "открыт " : "") + CV), 'data-go="promise"'] : null,
-          [E("💬") + "Поддержка" + V(CV), 'data-act="support"'],
           [E("⚙️") + "Настройки" + V(CV), 'data-go="settings"'],
         ]);
     },
@@ -423,23 +422,11 @@
       const L = look(m);
       return hc(L.c, { ill: L.ill(72), n: `<span id="amtN">${rub(pay.amount)}</span>`, p: `<span id="amtP">${amountLine()}</span>`,
         x: `<div class="chp">${chips.map((v) => `<button type="button" data-act="amt" data-v="${v}" class="${inChips && v === pay.amount ? "on" : ""}">${fmt(v)}</button>`).join("")}` +
-          `<button type="button" data-act="amtc" class="${inChips ? "" : "on"}">Своя</button></div>` +
-          `<div class="inp" id="amtI"${inChips ? " hidden" : ""}><input id="amtInput" inputmode="numeric" maxlength="6" placeholder="Сумма" value="${inChips ? "" : pay.amount}"><span class="sfx">₽</span></div>`,
+          `<button type="button" data-act="amtc" class="${inChips ? "" : "on"}">${inChips ? "Своя" : fmt(pay.amount) + " ✎"}</button></div>`,
         pill: m ? `Оплатить ${rub(pay.amount)}` : "Оплата недоступна", pd: !m || !amountOk(pay.amount), pa: 'data-act="pay" id="payB"' }) +
         (m ? ST("Способ оплаты") + cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), esc(methodSub(m))) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
           payMethods().length > 1 ? 'data-go="method"' : ""]]) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
         NOTE(`Баланс ${rub(me.balance_rub)} · разовая оплата, автоплатежей нет`, true);
-    },
-    on(el) {
-      const box = el.querySelector("#amtI"), i = box.querySelector("input");
-      i.oninput = () => {
-        const v = i.value.replace(/\D/g, "");
-        if (v !== i.value) i.value = v;
-        pay.amount = Number(v) || 0;
-        box.classList.toggle("bad", Boolean(v) && !amountOk(pay.amount));
-        paintAmount(el);
-      };
-      i.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); i.blur(); } };
     },
   };
   function paintAmount(el, old) {
@@ -452,6 +439,139 @@
     b.classList.toggle("dim", !ok);
     b.querySelector("span").textContent = curMethod() ? `Оплатить ${amountOk(pay.amount) ? rub(pay.amount) : ""}`.trim() : "Оплата недоступна";
   }
+
+  // ---------- own amount: big number, own keypad, live hints ----------
+  const GRAM = (w) => `<svg width="${w}" height="${w}" viewBox="0 0 100 100"><path fill="#30A1F5" d="${GP}"/><path fill="#fff" d="${SPK}"/></svg>`;
+  const AM_ICON = { ton: () => GRAM(42), stars: () => STARBIG(52), sbp: () => `<img src="/icons/sbp.svg" width="30" height="35" alt="">`, card: () => CARDBIG(40), crypto: () => "🪙" };
+  const AM_TONE = { ton: "", stars: "gold", sbp: "green", card: "green", crypto: "" };
+  const amt = { v: "", mode: "rub", rolling: false };
+  const amN = () => Number(amt.v) || 0;
+  const amBig = () => (amt.mode === "rub" ? fmt(amN()) : fmt(daysFor(amN())));
+  SCR.amount = {
+    h() {
+      const m = curMethod();
+      const id = (m && m.id) || "ton";
+      return `<div class="am ${AM_TONE[id] || ""}" id="am">` +
+        (m ? cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), `Баланс ${rub(me.balance_rub)}`) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
+          payMethods().length > 1 ? 'data-go="method"' : ""]]) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
+        `<div class="am-stage zero" id="amStage"><div class="am-glow"></div>` +
+          `<div class="am-w" id="amW"><button type="button" class="am-ico in" id="amIco" data-act="amtico" aria-label="Способ оплаты">${(AM_ICON[id] || AM_ICON.ton)()}</button>` +
+          `<div class="am-num" id="amNum"><span>0</span></div><div class="am-caret"></div><div class="am-unit" id="amUnit">₽</div></div>` +
+          `<button type="button" class="am-sub" id="amSub" data-act="amtsw"><span id="amSubT"></span><span class="sw">⇅</span></button>` +
+          `<div class="am-hint">Наберите сумму</div></div>` +
+        `<div class="am-bottom"><div class="am-quick">${[100, 500, 1000].map((q) => `<button type="button" data-act="amtq" data-v="${q}">+${fmt(q)}</button>`).join("")}</div>` +
+          `<button type="button" class="am-pay off" id="amPay" data-act="amtpay"><span>Введите сумму</span></button>` +
+          `<div class="am-padw"><div><div class="am-pad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "c", "0", "b"].map((k) =>
+            `<button type="button" data-act="amtk" data-v="${k}"${k === "c" || k === "b" ? ' class="fn"' : ""} aria-label="${k === "b" ? "Стереть" : k === "c" ? "Очистить" : k}">${k === "b" ? "⌫" : k === "c" ? "C" : k}</button>`).join("")}</div></div></div></div>` +
+        `</div>`;
+    },
+    on(el) {
+      amt.rolling = false;
+      amSetNum(el, amBig(), null);
+      amSide(el);
+      // The keypad slides up with a ring, like tapping the amount in Telegram.
+      timers.push(setTimeout(() => {
+        if (!cur || cur.el !== el) return;
+        const r = el.querySelector("#amW").getBoundingClientRect();
+        amRing(r.left + r.width / 2, r.top + r.height / 2);
+        el.querySelector("#am").classList.add("open");
+      }, 380));
+    },
+  };
+  function amRing(x, y) {
+    const r = document.createElement("div");
+    r.className = "am-ring";
+    r.style.left = `${x}px`; r.style.top = `${y}px`;
+    cur.el.querySelector("#am").appendChild(r);
+    setTimeout(() => r.remove(), 650);
+  }
+  function amSetNum(el, s, prev) {
+    const num = el.querySelector("#amNum");
+    if (prev != null && s.length > prev.length && prev !== "0") {
+      num.innerHTML = [...s].map((c, i) => `<span class="${i === s.length - 1 ? "in" : ""}">${c}</span>`).join("");
+    } else if (prev != null && s.length < prev.length && s !== "0") {
+      num.innerHTML = [...s].map((c) => `<span>${c}</span>`).join("") + `<span class="out">${prev.slice(-1)}</span>`;
+      setTimeout(() => { const o = num.querySelector(".out"); if (o) o.remove(); }, 230);
+    } else num.innerHTML = [...s].map((c) => `<span class="${prev != null ? "in" : ""}">${c}</span>`).join("");
+    num.className = "am-num" + (s.length >= 7 ? " l6" : s.length >= 6 ? " l5" : "");
+  }
+  function amSide(el) {
+    const n = amN(), ok = amountOk(n), min = Number(me.topup_min) || 1, max = Number(me.topup_max) || 100000;
+    el.querySelector("#amStage").classList.toggle("zero", !n);
+    const sub = el.querySelector("#amSub");
+    sub.classList.toggle("bad", Boolean(n) && !ok);
+    el.querySelector("#amSubT").textContent = !n ? "" : n < min ? `Минимум ${rub(min)}` : n > max ? `Максимум ${rub(max)}`
+      : amt.mode === "rub" ? `≈ ${days(daysFor(n))} VPN` : rub(n);
+    const u = el.querySelector("#amUnit");
+    u.textContent = amt.mode === "rub" ? "₽" : pl(daysFor(n), "день", "дня", "дней");
+    u.classList.toggle("days", amt.mode !== "rub");
+    const p = el.querySelector("#amPay");
+    p.classList.toggle("off", !ok || !curMethod());
+    p.querySelector("span").textContent = !curMethod() ? "Оплата недоступна" : ok ? `Оплатить ${rub(n)}` : "Введите сумму";
+  }
+  function amtShake() {
+    const w = cur.el.querySelector("#amW");
+    w.classList.remove("shake"); void w.offsetWidth; w.classList.add("shake");
+    notify("error");
+  }
+  function amtPress(k) {
+    if (!cur || cur.key !== "amount" || amt.rolling) return;
+    const el = cur.el, prev = amBig();
+    if (k === "b") { if (!amt.v) return amtShake(); amt.v = amt.v.slice(0, -1); }
+    else if (k === "c") { if (!amt.v) return; amt.v = ""; }
+    else { const nx = (amt.v === "0" ? "" : amt.v) + k; if (nx.length > 6 || nx === "0") return amtShake(); amt.v = nx; }
+    haptic();
+    el.querySelector("#am").classList.add("open");
+    if (amt.mode !== "rub") { amt.mode = "rub"; amRoll(); return; }
+    amSetNum(el, amBig(), prev);
+    amSide(el);
+    if (amN() > (Number(me.topup_max) || 100000)) amtShake();
+  }
+  function amRoll() {
+    const el = cur.el, num = el.querySelector("#amNum"), target = amBig(), t0 = performance.now();
+    amt.rolling = true;
+    num.className = "am-num" + (target.length >= 7 ? " l6" : target.length >= 6 ? " l5" : "");
+    amSide(el);
+    (function f(t) {
+      if (!cur || cur.el !== el) { amt.rolling = false; return; }
+      const k = Math.min(1, (t - t0) / 520);
+      if (k < 1) {
+        num.innerHTML = [...target].map((c, i) => (/\d/.test(c) && k < 0.55 + i * 0.1
+          ? `<span class="roll" style="--dy:${Math.round(Math.random() * 16 - 8)}px">${Math.floor(Math.random() * 10)}</span>` : `<span>${c}</span>`)).join("");
+        requestAnimationFrame(f);
+      } else { num.innerHTML = [...target].map((c) => `<span>${c}</span>`).join(""); amt.rolling = false; }
+    })(t0);
+  }
+  function amtQuick(b) {
+    if (amt.rolling) return;
+    haptic();
+    const r = b.getBoundingClientRect();
+    amRing(r.left + r.width / 2, r.top + r.height / 2);
+    amt.v = String(Math.min(Number(me.topup_max) || 100000, amN() + Number(b.dataset.v)));
+    amt.mode = "rub";
+    cur.el.querySelector("#am").classList.add("open");
+    amRoll();
+  }
+  function amSwap(b) {
+    if (!amountOk(amN()) || amt.rolling) return;
+    haptic("medium");
+    const r = b.getBoundingClientRect();
+    amRing(r.left + r.width / 2, r.top + r.height / 2);
+    amt.mode = amt.mode === "rub" ? "days" : "rub";
+    amRoll();
+  }
+  function amBoom() {
+    const i = cur.el.querySelector("#amIco");
+    i.classList.remove("boom", "in"); void i.offsetWidth; i.classList.add("boom");
+    haptic("medium");
+  }
+  // A computer keyboard types into the amount too.
+  document.addEventListener("keydown", (e) => {
+    if (!cur || cur.key !== "amount" || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (/^\d$/.test(e.key)) { e.preventDefault(); amtPress(e.key); }
+    else if (e.key === "Backspace") { e.preventDefault(); amtPress("b"); }
+    else if (e.key === "Enter") { e.preventDefault(); ACT.amtpay(cur.el.querySelector("#amPay")); }
+  });
 
   SCR.method = {
     h() {
@@ -756,7 +876,7 @@
     live: true,
     h() {
       const u = me.user || {};
-      const photo = u.photo ? `<img class="frog" src="${esc(u.photo)}" width="80" height="80" style="width:80px;height:80px" alt="" onerror="this.src='/icons/frog.jpg'">` : FROG(80);
+      const photo = u.photo ? `<span class="frogw"><img class="frog" src="${esc(u.photo)}" width="80" height="80" style="width:80px;height:80px" alt="" onerror="this.src='/icons/frog.jpg'"></span>` : FROG(80);
       const quiet = Boolean(me.quiet_notifications);
       return hc("slate", { ill: photo, h: esc(u.name || "Профиль"), p: esc(u.username || `ID ${u.id || ""}`), pill: "Скопировать ID", pa: 'data-act="copyid"', r: "msg", rl: "Поддержка", ra: 'data-act="support"' }) +
         (me.notification_settings_available ? ST("Уведомления") + cd([["Режим тишины" + `<span class="tg ${quiet ? "" : "off"}"></span>`, 'data-act="quiet"']]) +
@@ -1112,14 +1232,16 @@
       cur.el.querySelector("#amtI").hidden = true;
       paintAmount(cur.el, old);
     },
-    amtc(b) {
-      haptic();
-      pay.custom = true;
-      cur.el.querySelectorAll(".chp button").forEach((c) => c.classList.toggle("on", c === b));
-      const box = cur.el.querySelector("#amtI"), i = box.querySelector("input");
-      box.hidden = false;
-      i.value = String(pay.amount || "");
-      i.focus();
+    amtc() { haptic(); amt.v = pay.custom && amountOk(pay.amount) ? String(pay.amount) : ""; amt.mode = "rub"; go("amount"); },
+    amtk(b) { amtPress(b.dataset.v); },
+    amtq(b) { amtQuick(b); },
+    amtsw(b) { amSwap(b); },
+    amtico() { amBoom(); },
+    amtpay(b) {
+      const n = Number(amt.v) || 0;
+      if (!amountOk(n)) return amtShake();
+      pay.amount = n; pay.custom = true;
+      startPay(b);
     },
     pay: (b) => startPay(b),
     meth(b) {
