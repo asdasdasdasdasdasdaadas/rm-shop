@@ -1747,6 +1747,8 @@ async def _broadcast_all(
         targets = [{"telegram_id": int(item), "first_name": None} for item in ids]
     else:
         targets = await db.list_broadcast_targets("all")
+    media = job.get("media") if not tpl else None
+    media_kw = {"media": media, "cache": {}} if media else {}
     job["total"] = len(targets)
     if job.get("run_id"):
         await db.update_broadcast_run(job["run_id"], job)
@@ -1785,6 +1787,8 @@ async def _broadcast_all(
         extra = {"template": tpl or "custom", "broadcast_id": job.get("run_id")}
         if gift_id:
             extra["gift_id"] = gift_id
+        if media:
+            extra["media"] = media["kind"]
         token = None
         if announce and job.get("run_id"):
             try:
@@ -1809,7 +1813,7 @@ async def _broadcast_all(
             elif announce:
                 message = await bot.send_message(telegram_id, body, reply_markup=markup)
             else:
-                message = await _deliver_broadcast(bot, telegram_id, body, markup)
+                message = await _deliver_broadcast(bot, telegram_id, body, markup, **media_kw)
         except Exception as exc:
             job["failed"] = int(job.get("failed") or 0) + 1
             status = "failed"
@@ -1852,9 +1856,14 @@ async def _send_gift(bot: Bot, telegram_id: int, gift_id: int, body: str, markup
     return await bot.send_message(telegram_id, body, reply_markup=markup)
 
 
-async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup):
+async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup, media: dict | None = None,
+                             cache: dict | None = None):
     from app.funnel_ui import funnel_body, funnel_keyboard
     body, markup = funnel_body(body), funnel_keyboard(markup)
+    if media:
+        # Photo, GIF or video with the text as its caption; the file goes up to Telegram once per broadcast.
+        from app.broadcast_media import send
+        return await send(bot, telegram_id, media, body, markup, cache)
     return await bot.send_message(telegram_id, body, reply_markup=markup)
 
 
@@ -1944,7 +1953,11 @@ async def _run_broadcast_job(
     job = _bc_job(app)
     bot: Bot = app["bot"]
     try:
-        job["run_id"] = await db.create_broadcast_run(_broadcast_title(template or ""), text, template or "custom", job.get("scope", "all"))
+        stored = text
+        if job.get("media"):
+            from app.broadcast_media import KIND_LABEL
+            stored = f"[{KIND_LABEL[job['media']['kind']]}] {text}".strip()
+        job["run_id"] = await db.create_broadcast_run(_broadcast_title(template or ""), stored, template or "custom", job.get("scope", "all"))
         await _broadcast_all(bot, text, job, ids, template)
         prefix = "Выбранным. " if job.get("scope") == "selected" else ""
         job["message"] = f"{prefix}Отправлено: {job.get('sent') or 0}, ошибок: {job.get('failed') or 0}"
@@ -1972,6 +1985,7 @@ def _new_bc_job() -> dict:
         "failed": 0,
         "error": None,
         "message": "",
+        "media": None,
     }
 
 
@@ -1988,9 +2002,11 @@ def _start_broadcast_job(
     text: str,
     ids: list[int] | None = None,
     template: str | None = None,
+    media: dict | None = None,
 ) -> dict:
     job = _bc_job(app)
     job.update(_new_bc_job())
+    job["media"] = media
     job["running"] = True
     job["scope"] = "selected" if ids is not None else "all"
     job["template"] = str(template or "")
@@ -2040,14 +2056,25 @@ def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
         text = ""  # stored templates are rendered at send time
         audience = "using" if template == "invite" else "unused" if template == "unused" else "all"
     else:
-        if not text:
+        if not text and not body.get("media"):
             return None, "Пустой текст"
         audience = str(body.get("audience") or "all").strip() or "all"
         if audience not in {"all", "using", "unused"}:
             return None, "Неизвестная аудитория"
+    from app.broadcast_media import CAPTION_LIMIT, check as check_media
+    media, error = check_media(body.get("media"))
+    if error:
+        return None, error
+    if media and template:
+        return None, "Фото, GIF и видео можно приложить только к своему сообщению"
     if len(text) > 3500:
         return None, "Текст слишком длинный"
-    return {"template": template, "text": text, "audience": audience}, None
+    if media and len(text) > CAPTION_LIMIT - 60:
+        return None, f"С вложением текст не длиннее {CAPTION_LIMIT - 60} символов: это подпись к медиа в Telegram"
+    spec = {"template": template, "text": text, "audience": audience}
+    if media:
+        spec["media"] = media
+    return spec, None
 
 
 async def _launch_broadcast(app: web.Application, spec: dict) -> tuple[dict, int]:
@@ -2071,6 +2098,8 @@ async def _launch_broadcast(app: web.Application, spec: dict) -> tuple[dict, int
     ids = None if audience == "all" else await db.list_broadcast_ids(audience)
     if ids is not None and not ids:
         return {"ok": False, "error": "Нет получателей"}, 400
+    if spec.get("media"):
+        return {"ok": True, **_start_broadcast_job(app, text, ids, None, spec["media"])}, 200
     return {"ok": True, **_start_broadcast_job(app, text, ids, None)}, 200
 
 
@@ -2194,6 +2223,33 @@ async def api_broadcast(request: web.Request) -> web.Response:
     if status == 200:
         payload["audiences"] = audiences
     return web.json_response(payload, status=status)
+
+
+async def api_broadcast_media(request: web.Request) -> web.Response:
+    """Multipart «file» (+ «as_gif»=1 to send a video as a looping GIF); returns {id, kind} for the broadcast."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app.broadcast_media import MAX_BYTES, store
+    reader = await request.multipart()
+    data, filename, as_gif = b"", "", False
+    async for part in reader:
+        if part.name == "as_gif":
+            as_gif = (await part.text()).strip() in {"1", "true", "on"}
+        elif part.name == "file":
+            filename = part.filename or ""
+            chunks, size = [], 0
+            while chunk := await part.read_chunk(1 << 16):
+                size += len(chunk)
+                if size > MAX_BYTES:
+                    return web.json_response({"ok": False, "error": "Файл больше 50 МБ — Telegram не примет его от бота"}, status=400)
+                chunks.append(chunk)
+            data = b"".join(chunks)
+    try:
+        media = await asyncio.to_thread(store, data, filename, as_gif)
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    return web.json_response({"ok": True, "media": media})
 
 
 async def api_referral_settings(request: web.Request) -> web.Response:
@@ -2779,6 +2835,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/broadcast-results", api_broadcast_results)
     app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
+    app.router.add_post("/admin/api/broadcast/media", api_broadcast_media)
     app.router.add_get("/admin/api/backups", api_backups)
     app.router.add_get("/admin/api/ton", api_ton)
     app.router.add_post("/admin/api/ton/scan", api_ton_scan)

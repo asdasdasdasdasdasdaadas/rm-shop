@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, useResource, type Data } from "@/lib/api";
 import {
   Choice,
@@ -21,6 +21,8 @@ import {
   Check,
   Clock,
   X,
+  ImagePlus,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 const audiences: [string, string][] = [
@@ -41,6 +43,87 @@ const announce: Record<string, string> = {
   gift3: "Забрать 3 дня бесплатно",
   referral_news: "Пригласить друзей",
 };
+// Telegram caption limit is 1024; the bot adds a short «Откройте личный кабинет 👇» line.
+const CAPTION_MAX = 964;
+const kindLabel: Record<string, string> = { photo: "Фото", animation: "GIF", video: "Видео" };
+type Media = { id: string; kind: string; name: string; url: string; video: boolean };
+function MediaPicker({
+  media,
+  onChange,
+}: {
+  media: Media | null;
+  onChange: (m: Media | null) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null),
+    file = useRef<File | null>(null),
+    [busy, setBusy] = useState(false);
+  const upload = async (f: File, asGif: boolean) => {
+    const body = new FormData();
+    body.append("file", f);
+    if (asGif) body.append("as_gif", "1");
+    setBusy(true);
+    try {
+      const r = await api("broadcast/media", body);
+      file.current = f;
+      onChange({
+        ...r.media,
+        name: f.name,
+        url: URL.createObjectURL(f),
+        video: f.type.startsWith("video/"),
+      });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  };
+  return (
+    <div className="space-y-3">
+      <input
+        ref={input}
+        type="file"
+        hidden
+        accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) upload(f, false);
+        }}
+      />
+      {media ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
+          <span className="truncate">
+            {kindLabel[media.kind]} · {media.name}
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => onChange(null)}>
+            <X />
+            Убрать
+          </Button>
+        </div>
+      ) : (
+        <Button variant="outline" disabled={busy} onClick={() => input.current?.click()}>
+          {busy ? <Loader2 className="animate-spin" /> : <ImagePlus />}
+          {busy ? "Загружаем…" : "Прикрепить фото, GIF или видео"}
+        </Button>
+      )}
+      {media?.video && (
+        <Choice
+          label="Как отправить видео"
+          value={media.kind}
+          options={[
+            ["video", "Видео со звуком и плеером"],
+            ["animation", "Как GIF: без звука, крутится по кругу"],
+          ]}
+          onChange={(v) => file.current && v !== media.kind && upload(file.current, v === "animation")}
+          disabled={busy}
+        />
+      )}
+      <p className="text-xs text-muted-foreground">
+        JPG, PNG, WEBP — фото до 10 МБ; GIF, MP4, MOV, WEBM — до 50 МБ. Текст станет подписью.
+      </p>
+    </div>
+  );
+}
 const pad = (n: number) => String(n).padStart(2, "0");
 // Value for <input type="datetime-local"> in the admin's own time zone.
 const localInput = (d: Date) =>
@@ -125,10 +208,13 @@ export function BroadcastPage() {
     [text, setText] = useState(""),
     [sent, setSent] = useState(false),
     [later, setLater] = useState(false),
+    [media, setMedia] = useState<Media | null>(null),
     [when, setWhen] = useState(() => localInput(new Date(Date.now() + 3600_000)));
   const confirm = useConfirm(),
     navigate = useNavigate();
-  useDirty(!sent && (!!text.trim() || !!template));
+  useDirty(!sent && (!!text.trim() || !!template || !!media));
+  // The preview keeps a local copy of the file; free it when the attachment changes or the page closes.
+  useEffect(() => () => { if (media) URL.revokeObjectURL(media.url); }, [media]);
   const data = resource.data,
     effectiveAudience =
       template === "invite"
@@ -140,7 +226,10 @@ export function BroadcastPage() {
             : audience,
     count = data?.audiences?.[effectiveAudience] ?? 0,
     editable = !template || template in announce,
-    body = editable ? text : data?.previews?.[template] || "";
+    body = editable ? text : data?.previews?.[template] || "",
+    attached = !template ? media : null,
+    tooLong = !!attached && text.length > CAPTION_MAX,
+    ready = (!!body.trim() || !!attached) && !tooLong;
   const selectTemplate = (v: string) => {
     if (v in announce) setText(data?.previews?.[v] || "");
     else if (template in announce) setText("");
@@ -160,7 +249,7 @@ export function BroadcastPage() {
             ? { template, text }
             : template
               ? { template }
-              : { text, audience };
+              : { text, audience, ...(attached ? { media: { id: attached.id, kind: attached.kind } } : {}) };
         await api(
           "broadcast",
           later ? { ...payload, scheduled_at: whenDate.toISOString() } : payload,
@@ -168,6 +257,7 @@ export function BroadcastPage() {
         setSent(true);
         setText("");
         setTemplate("");
+        setMedia(null);
         setStep(0);
         setLater(false);
         await resource.reload();
@@ -273,7 +363,7 @@ export function BroadcastPage() {
                       ) : (
                         <Field
                           label="Текст сообщения"
-                          hint={`${text.length} / 3500 символов. Поддерживается Telegram HTML.${template in announce ? ` Под текстом будет кнопка «${announce[template]}».` : ""}`}
+                          hint={`${text.length} / ${attached ? CAPTION_MAX : 3500} символов${attached ? " (подпись к медиа)" : ""}. Поддерживается Telegram HTML.${template in announce ? ` Под текстом будет кнопка «${announce[template]}».` : ""}`}
                         >
                           <Textarea
                             aria-label="Текст рассылки"
@@ -286,6 +376,11 @@ export function BroadcastPage() {
                             rows={12}
                             placeholder="Что нового и что пользователю нужно сделать?"
                           />
+                        </Field>
+                      )}
+                      {step === 1 && !template && (
+                        <Field label="Фото, GIF или видео">
+                          <MediaPicker media={media} onChange={(m) => { setMedia(m); setSent(false); }} />
                         </Field>
                       )}
                     </>
@@ -307,6 +402,12 @@ export function BroadcastPage() {
                             }
                           </dd>
                         </div>
+                        {attached && (
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-muted-foreground">Вложение</dt>
+                            <dd>{kindLabel[attached.kind]}</dd>
+                          </div>
+                        )}
                         <div className="flex justify-between">
                           <dt className="text-muted-foreground">Сценарий</dt>
                           <dd>
@@ -361,7 +462,7 @@ export function BroadcastPage() {
                     {step < 2 ? (
                       <Button
                         disabled={
-                          data.running || !count || (step === 1 && !body.trim())
+                          data.running || !count || (step === 1 && !ready)
                         }
                         onClick={() => setStep(step + 1)}
                       >
@@ -370,7 +471,7 @@ export function BroadcastPage() {
                       </Button>
                     ) : (
                       <Button
-                        disabled={(data.running && !later) || !count || !body.trim() || !whenValid}
+                        disabled={(data.running && !later) || !count || !ready || !whenValid}
                         onClick={send}
                       >
                         {later ? <Clock /> : <Send />}
@@ -387,8 +488,24 @@ export function BroadcastPage() {
                 description="Текст и структура сообщения. Telegram-разметка показана исходным текстом."
               >
                 <div className="rounded-xl bg-muted/50 p-4">
-                  <div className="rounded-xl bg-background border p-4 text-sm whitespace-pre-wrap break-words min-h-40">
-                    {body || "Здесь появится текст сообщения."}
+                  <div className="rounded-xl bg-background border overflow-hidden">
+                    {attached &&
+                      (attached.video ? (
+                        <video
+                          src={attached.url}
+                          className="w-full max-h-80 object-cover bg-black"
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          controls={attached.kind === "video"}
+                        />
+                      ) : (
+                        <img src={attached.url} alt="" className="w-full max-h-80 object-cover" />
+                      ))}
+                    <div className="p-4 text-sm whitespace-pre-wrap break-words min-h-20">
+                      {body || (attached ? "" : "Здесь появится текст сообщения.")}
+                    </div>
                   </div>
                   {
                     <div className="border rounded-lg mt-2 p-3 text-center text-sm text-muted-foreground">
