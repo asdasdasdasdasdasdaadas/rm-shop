@@ -115,7 +115,7 @@
   const GP = "M66.5 11.3H33.5c-4.4 0-6.6 0-8.6.6a13.8 13.8 0 0 0-4.8 2.6c-1.6 1.3-2.8 3.2-5.2 6.9L4.4 37.8c-1.6 2.4-2.4 3.7-2.6 5a6.3 6.3 0 0 0 .4 3.4c.5 1.2 1.5 2.2 3.6 4.3l39 39c1.8 1.8 2.7 2.7 3.8 3.1.9.3 1.9.3 2.8 0 1.1-.3 2-1.3 3.8-3.1l39-39c2.1-2.1 3.1-3.1 3.6-4.3a6.3 6.3 0 0 0 .4-3.4c-.2-1.3-1-2.5-2.6-5L85.1 21.5c-2.4-3.7-3.6-5.6-5.2-6.9a13.8 13.8 0 0 0-4.8-2.6c-2-.6-4.2-.6-8.6-.6z";
   const SPK = "M60.3 24.2c.5-1.5 2.6-1.5 3.1 0l3.7 10a2.2 2.2 0 0 0 1.3 1.3l10 3.7c1.5.5 1.5 2.6 0 3.1l-10 3.7a2.2 2.2 0 0 0-1.3 1.3l-3.7 10c-.5 1.5-2.6 1.5-3.1 0l-3.7-10a2.2 2.2 0 0 0-1.3-1.3l-10-3.7c-1.5-.5-1.5-2.6 0-3.1l10-3.7a2.2 2.2 0 0 0 1.3-1.3z";
   const GEM = (w) => `<svg width="${w}" height="${w}" viewBox="0 0 100 100"><path fill="#fff" d="${GP}"/><path class="gst" fill="#2f86f0" style="transition:fill .7s" d="${SPK}"/></svg>`;
-  const FROG = (s, gray) => `<span class="frogw"><img class="frog" src="/icons/frog.jpg" width="${s}" height="${s}" style="width:${s}px;height:${s}px${gray ? ";filter:grayscale(.85)" : ""}" alt=""></span>`;
+  const FROG = (s, gray) => `<span class="frogw"><img class="frog" src="/icons/frog.png" width="${s}" height="${s}" style="width:${s}px;height:${s}px${gray ? ";filter:grayscale(.85)" : ""}" alt=""></span>`;
   const CHK = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const IC = {
     share: '<svg width="24" height="24" viewBox="0 0 24 24"><path d="M14 5l7 6-7 6v-3.5c-5 0-8 1.5-10 5 .7-5.5 3.5-9.5 10-10.5z" fill="currentColor"/></svg>',
@@ -876,7 +876,7 @@
     live: true,
     h() {
       const u = me.user || {};
-      const photo = u.photo ? `<span class="frogw"><img class="frog" src="${esc(u.photo)}" width="80" height="80" style="width:80px;height:80px" alt="" onerror="this.src='/icons/frog.jpg'"></span>` : FROG(80);
+      const photo = u.photo ? `<span class="frogw"><img class="frog" src="${esc(u.photo)}" width="80" height="80" style="width:80px;height:80px" alt="" onerror="this.src='/icons/frog.png'"></span>` : FROG(80);
       const quiet = Boolean(me.quiet_notifications);
       return hc("slate", { ill: photo, h: esc(u.name || "Профиль"), p: esc(u.username || `ID ${u.id || ""}`), pill: "Скопировать ID", pa: 'data-act="copyid"', r: "msg", rl: "Поддержка", ra: 'data-act="support"' }) +
         (me.notification_settings_available ? ST("Уведомления") + cd([["Режим тишины" + `<span class="tg ${quiet ? "" : "off"}"></span>`, 'data-act="quiet"']]) +
