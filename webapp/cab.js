@@ -450,15 +450,16 @@
   // In days mode the keypad types days; the ruble amount follows as days × price of a day for all devices.
   const amPerDay = () => dayPrice() * Math.max(1, phones().length);
   const amDays = () => (amt.mode === "rub" ? daysFor(amN()) : Number(amt.d) || 0);
+  const amRow = (m) => cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), `Баланс ${rub(me.balance_rub)}`) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
+    payMethods().length > 1 ? 'data-go="method"' : ""]]);
   SCR.amount = {
     h() {
       const m = curMethod();
       const id = (m && m.id) || "ton";
       return `<div class="am ${AM_TONE[id] || ""}" id="am">` +
-        (m ? cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), `Баланс ${rub(me.balance_rub)}`) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
-          payMethods().length > 1 ? 'data-go="method"' : ""]]) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
+        (m ? amRow(m) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
         `<div class="am-stage zero" id="amStage"><svg width="0" height="0" style="position:absolute"><filter id="amGoo"><feGaussianBlur stdDeviation="3.5"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 22 -9"/></filter></svg><div class="am-glow"></div>` +
-          `<div class="am-w" id="amW"><button type="button" class="am-ico in" id="amIco" data-act="amtico" aria-label="Способ оплаты">${(AM_ICON[id] || AM_ICON.ton)()}</button>` +
+          `<div class="am-w" id="amW"><button type="button" class="am-ico in" id="amIco" data-act="amtico" aria-label="Сменить способ оплаты"><span class="am-ic">${(AM_ICON[id] || AM_ICON.ton)()}</span></button>` +
           `<div class="am-num" id="amNum"><span>0</span></div><div class="am-caret"></div><div class="am-unit" id="amUnit">₽</div></div>` +
           `<button type="button" class="am-sub" id="amSub" data-act="amtsw"><span id="amSubT"></span><span class="sw">⇅</span></button>` +
           `<div class="am-hint">Наберите сумму</div></div>` +
@@ -599,6 +600,35 @@
     amt.mode = amt.mode === "rub" ? "days" : "rub";
     if (amt.mode === "days") { const d = daysFor(amN()); amt.d = d ? String(d) : ""; }
     amRoll();
+  }
+  // Tapping the method icon flips to the next payment method: the old icon spins away, the new one springs in,
+  // the accent colour flows over and the method row above changes with it.
+  function amCycle() {
+    const list = payMethods(), m = curMethod();
+    if (list.length < 2 || !m) return amBoom();
+    const el = cur.el, next = list[(list.findIndex((x) => x.id === m.id) + 1) % list.length];
+    pay.method = next.id;
+    haptic("medium");
+    const ico = el.querySelector("#amIco"), am = el.querySelector("#am");
+    ico.classList.remove("in", "boom");
+    ico.querySelectorAll(".am-ic.go").forEach((o) => o.remove());
+    const old = ico.querySelector(".am-ic");
+    if (old) { old.classList.remove("come"); old.classList.add("go"); setTimeout(() => old.remove(), 320); }
+    const nw = document.createElement("span");
+    nw.className = "am-ic come";
+    nw.innerHTML = (AM_ICON[next.id] || AM_ICON.ton)();
+    ico.appendChild(nw);
+    const r = ico.getBoundingClientRect();
+    amRing(r.left + r.width / 2, r.top + r.height / 2);
+    Object.values(AM_TONE).forEach((t) => t && am.classList.remove(t));
+    if (AM_TONE[next.id]) am.classList.add(AM_TONE[next.id]);
+    const row = am.querySelector(".cd");
+    if (row) {
+      const t = document.createElement("div"); t.innerHTML = amRow(next);
+      const fresh = t.firstElementChild; fresh.classList.add("am-rsw");
+      row.replaceWith(fresh);
+    }
+    amSide(el);
   }
   function amBoom() {
     const i = cur.el.querySelector("#amIco");
@@ -1276,7 +1306,7 @@
     amtk(b) { amtPress(b.dataset.v); },
     amtq(b) { amtQuick(b); },
     amtsw(b) { amSwap(b); },
-    amtico() { amBoom(); },
+    amtico() { amCycle(); },
     amtpay(b) {
       const n = Number(amt.v) || 0;
       if (!amountOk(n)) return amtShake();

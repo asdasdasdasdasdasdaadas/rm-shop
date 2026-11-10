@@ -230,12 +230,13 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 }
 
 /* ---------- own amount ---------- */
-.am { --acc: #3d8ff5; --glow: 47, 134, 240; display: flex; flex-direction: column; min-height: calc(100vh - var(--st) - var(--sb) - 36px); position: relative; overflow: hidden; }
+@property --acc { syntax: "<color>"; inherits: true; initial-value: #3d8ff5; }
+.am { transition: --acc .45s ease; --acc: #3d8ff5; --glow: 47, 134, 240; display: flex; flex-direction: column; min-height: calc(100vh - var(--st) - var(--sb) - 36px); position: relative; overflow: hidden; }
 .am.gold { --acc: #f5a70f; --glow: 255, 190, 40; }
 .am.green { --acc: #2fbf6f; --glow: 60, 200, 120; }
 .am .cd { animation: none; }
 .am-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; min-height: 200px; }
-.am-glow { position: absolute; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(var(--glow), .24), rgba(var(--glow), 0) 65%); pointer-events: none; transition: transform .5s, opacity .5s; }
+.am-glow { position: absolute; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--acc) 26%, transparent), transparent 65%); pointer-events: none; transition: transform .5s, opacity .5s; }
 .am-stage.zero .am-glow { transform: scale(.75); opacity: .6; }
 .am-w { position: relative; display: flex; align-items: center; transition: transform .45s cubic-bezier(.3, 1.25, .4, 1); }
 .am.open .am-w { transform: scale(.86); }
@@ -293,3 +294,20 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .am-pad button { height: 52px; border-radius: 14px; background: var(--card); font-size: 26px; font-weight: 500; transition: background .15s, transform .08s; }
 .am-pad button:active { background: #2c2e35; transform: scale(.95); }
 .am-pad button.fn { background: transparent; font-size: 22px; }
+
+/* method switch on icon tap */
+.am-ico { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.am-ico:active .am-ic:not(.go) { transform: scale(.88); transition: transform .1s; }
+.am-ic { display: flex; align-items: center; justify-content: center; }
+.am-ic.go { position: absolute; inset: 0; pointer-events: none; animation: amIcGo .34s cubic-bezier(.55, 0, .85, .45) forwards; }
+@keyframes amIcGo { 0% { transform: none; } 30% { transform: translateY(4px) scale(1.06); } 100% { transform: translateY(-46px) rotate(-40deg) scale(.3); filter: blur(5px); opacity: 0; } }
+.am-ic.come { animation: amIcCome .7s both; }
+@keyframes amIcCome {
+  0%, 18% { transform: translateY(44px) rotate(42deg) scale(.3); filter: blur(6px); opacity: 0; animation-timing-function: cubic-bezier(.2, .7, .3, 1); }
+  52% { transform: translateY(-6px) rotate(-8deg) scale(1.2); filter: none; opacity: 1; animation-timing-function: ease-in-out; }
+  74% { transform: translateY(1px) rotate(3deg) scale(.96); }
+  100% { transform: none; } }
+.am-rsw .tt, .am-rsw .e { animation: amRsw .42s cubic-bezier(.25, 1.2, .4, 1) both; }
+.am-rsw .e { animation-delay: .04s; }
+@keyframes amRsw { 0% { transform: translateY(14px); opacity: 0; filter: blur(4px); } 100% { transform: none; opacity: 1; filter: none; } }
+.am-pay, .am-unit, .am-caret { transition-property: opacity, transform, background-color, color; transition-duration: .2s, .1s, .45s, .45s; }
