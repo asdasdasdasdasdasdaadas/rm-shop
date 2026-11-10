@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def _unwrap(payload: Any) -> Any:
@@ -700,7 +703,32 @@ class RemnawaveClient:
         users = _as_users(data)
         if not users:
             raise RemnawaveError("Панель не вернула пользователя после перевыпуска ссылки")
+        # A new link must be addable on any phone: devices bound to the old link
+        # would otherwise keep the HWID slots and the app reports the device limit.
+        await self.clear_hwid_devices(str(users[0].get("uuid") or user.get("uuid") or uid))
         return users[0]
+
+    async def clear_hwid_devices(self, user_uuid: str) -> bool:
+        """Unbind every HWID device of a panel user; best effort, never raises."""
+        if not user_uuid:
+            return False
+        try:
+            await self._request("POST", "/hwid/devices/delete-all", json={"userUuid": user_uuid})
+            return True
+        except RemnawaveError as exc:
+            logger.info("HWID delete-all unavailable for %s: %s", user_uuid, exc)
+        try:
+            devices = panel_hwid_devices(await self._request("GET", f"/hwid/devices/{user_uuid}"))
+            for device in devices:
+                if device["hwid"]:
+                    await self._request(
+                        "POST", "/hwid/devices/delete",
+                        json={"userUuid": user_uuid, "hwid": device["hwid"]},
+                    )
+            return True
+        except RemnawaveError:
+            logger.warning("Cannot clear HWID devices for %s", user_uuid, exc_info=True)
+            return False
 
     async def bulk_revoke_subscription(self, user_ids: list[int]) -> None:
         if not user_ids:
