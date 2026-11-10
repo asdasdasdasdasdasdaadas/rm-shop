@@ -311,3 +311,34 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .am-rsw .e { animation-delay: .04s; }
 @keyframes amRsw { 0% { transform: translateY(14px); opacity: 0; filter: blur(4px); } 100% { transform: none; opacity: 1; filter: none; } }
 .am-pay, .am-unit, .am-caret { transition-property: opacity, transform, background-color, color; transition-duration: .2s, .1s, .45s, .45s; }
+
+/* ---------- friends widget ---------- */
+.hc.fr { padding-top: 30px; }
+.frs { display: flex; justify-content: center; margin-bottom: 16px; }
+.frs span { width: 58px; height: 58px; border-radius: 99px; display: grid; place-items: center; font-size: 24px; font-weight: 700; color: #fff;
+  background: var(--c); border: 3px solid #3a4a9e; text-shadow: 0 1px 3px rgba(0, 0, 0, .3); margin-left: -14px; box-shadow: 0 10px 22px rgba(0, 0, 0, .28);
+  animation: frIn .6s var(--ease) both; animation-delay: calc(.1s + var(--i) * .09s); }
+.frs span:first-child { margin-left: 0; }
+.frs .more { background: rgba(255, 255, 255, .22); font-size: 18px; }
+.frs .add { background: transparent; border: 2.5px dashed rgba(255, 255, 255, .55); box-shadow: none; font-size: 22px; font-weight: 500; color: rgba(255, 255, 255, .85); }
+@keyframes frIn { from { transform: translateY(18px) scale(.4) rotate(-20deg); } 70% { transform: translateY(-3px) scale(1.06); } }
+.hc.fr .K { font-size: 15px; font-weight: 600; opacity: .85; }
+.hc.fr .N { font-size: 52px; }
+.frl { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; margin-top: 16px; padding: 12px 14px 12px 18px;
+  border-radius: 18px; background: rgba(9, 14, 50, .32); border: 1px dashed rgba(255, 255, 255, .35); font-size: 15px; font-weight: 600; color: #fff;
+  transition: transform .15s, background .2s; }
+.frl span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.frl svg { flex-shrink: 0; width: 20px; height: 20px; }
+.frl:active { transform: scale(.97); background: rgba(9, 14, 50, .5); }
+.hc.fr .acts { margin-top: 12px; }
+.hc.fr .acts .pill { flex: 1; }
+.frt { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 12px 0; }
+.frt > div { background: var(--card); border-radius: 22px; padding: 14px 8px 12px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  animation: up .5s var(--ease) both; animation-delay: calc(.18s + var(--i) * .07s); }
+.frt .e { font-size: 22px; line-height: 1.2; }
+.frt b { font-size: 22px; font-weight: 700; margin-top: 4px; white-space: nowrap; }
+.frt small { font-size: 12.5px; color: var(--hint); }
+.frlist .rw { animation: up .45s var(--ease) both; animation-delay: calc(.3s + var(--i) * .06s); }
+.fra { width: 40px; height: 40px; border-radius: 99px; background: var(--c); text-shadow: 0 1px 3px rgba(0, 0, 0, .3); display: grid; place-items: center; flex-shrink: 0; color: #fff; font-weight: 700; font-size: 17px; }
+.frp { margin-left: auto; flex-shrink: 0; font-size: 13px; font-weight: 600; padding: 5px 11px; border-radius: 99px; background: #2a2d34; color: var(--hint); }
+.frp.ok { background: rgba(60, 207, 116, .16); color: #5fe08f; }
