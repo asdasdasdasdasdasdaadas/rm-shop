@@ -372,15 +372,36 @@
   const METHOD_SUB = { ton: "Из кошелька Telegram, окно придёт в чат", stars: "Звёздами Telegram", sbp: "Через приложение банка", card: "Visa, Mastercard, Мир", crypto: "Валюту и сеть выберете при оплате" };
   const methodSub = (m) => METHOD_SUB[m.id] || m.note || "";
   // Each payment method has its own widget: Gram keeps the blue gem, Stars is gold, SBP wears its own colours.
-  const STARBIG = (w) => `<svg width="${w}" height="${w}" viewBox="0 0 100 100"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6c2"/><stop offset=".55" stop-color="#ffd23f"/><stop offset="1" stop-color="#f29a0c"/></linearGradient></defs>` +
-    `<path fill="url(#sg)" stroke="#fff" stroke-width="3" stroke-linejoin="round" d="M50 6l12.6 27.3 29.9 3.4-22.3 20.3 6.2 29.4L50 71.5 23.6 86.4l6.2-29.4L7.5 36.7l29.9-3.4z"/>` +
-    `<path fill="#fff" opacity=".75" d="M41 30c2-4 4-8 9-15 1 6 1 10 0 16-3 0-6 0-9-1z"/></svg>`;
+  // Telegram's own Stars animation (icons/telegram-stars.json), played by the bundled lottie-light.
+  const STARBIG = (w) => `<div class="tgstar" style="width:${w}px;height:${w}px"></div>`;
+  let lottieP = null;
+  const lottieLib = () => lottieP || (lottieP = new Promise((ok, no) => {
+    if (window.lottie) return ok(window.lottie);
+    const sc = document.createElement("script");
+    sc.src = "/icons/lottie-light.min.js?v=5.12.2";
+    sc.onload = () => ok(window.lottie);
+    sc.onerror = () => { lottieP = null; no(); };
+    document.head.appendChild(sc);
+  }));
+  const mountStars = (root) => {
+    const boxes = [...root.querySelectorAll(".tgstar:not([data-on])")];
+    if (!boxes.length) return;
+    boxes.forEach((b) => b.setAttribute("data-on", ""));
+    const still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    lottieLib().then((L) => boxes.forEach((b) => {
+      if (!b.isConnected) return;
+      const a = L.loadAnimation({ container: b, renderer: "svg", loop: true, autoplay: !still, path: "/icons/telegram-stars.json",
+        rendererSettings: { preserveAspectRatio: "xMidYMid meet" } });
+      if (still) a.addEventListener("DOMLoaded", () => a.goToAndStop(40, true));
+    })).catch(() => boxes.forEach((b) => { b.textContent = "⭐"; b.classList.add("fb"); }));
+  };
+  new MutationObserver(() => mountStars(document)).observe(document.getElementById("root"), { childList: true, subtree: true });
   const SBPBIG = (w) => `<div style="width:${w}px;height:${w}px;border-radius:${Math.round(w * .28)}px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(0,0,0,.25)"><img src="/icons/sbp.svg" width="${Math.round(w * .5)}" height="${Math.round(w * .58)}" alt=""></div>`;
   const CARDBIG = (w) => `<svg width="${w}" height="${Math.round(w * .72)}" viewBox="0 0 100 72"><rect x="2" y="2" width="96" height="68" rx="12" fill="#fff"/><rect x="2" y="16" width="96" height="12" fill="#2b3a66"/>` +
     `<rect x="12" y="40" width="22" height="16" rx="3" fill="#f2c14e"/><rect x="44" y="46" width="40" height="5" rx="2.5" fill="#c9cfdc"/></svg>`;
   const LOOK = {
     ton: { c: "blue", ill: (w) => GEM(w) },
-    stars: { c: "stars", ill: (w) => STARBIG(w + 8) },
+    stars: { c: "stars", ill: (w) => STARBIG(w + 28) },
     sbp: { c: "sbp", ill: (w) => SBPBIG(w + 4) },
     card: { c: "cardpay", ill: (w) => CARDBIG(w + 14) },
     crypto: { c: "slate", ill: () => "🪙" },

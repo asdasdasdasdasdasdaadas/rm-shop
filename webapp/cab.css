@@ -50,9 +50,11 @@ a { color: var(--link); text-decoration: none; }
 .hc.red { background: linear-gradient(165deg, #6e1714 0%, #c8352c 55%, #f0685a 100%); }
 .hc.slate { background: linear-gradient(170deg, #1f2a3d 0%, #354764 55%, #5c7397 100%); }
 .hc.stars { background: linear-gradient(165deg, #6e3d00 0%, #d98a0b 52%, #ffc93d 100%); }
-.hc.sbp { background: linear-gradient(160deg, #2c1650 0%, #5b2a86 42%, #1f7a6a 100%); }
-.hc.cardpay { background: linear-gradient(165deg, #141b2e 0%, #26345c 55%, #46609c 100%); }
+.hc.sbp { background: linear-gradient(160deg, #5fd38d 0%, #28a464 58%, #16804a 100%); }
+.hc.cardpay { background: linear-gradient(160deg, #5fd38d 0%, #28a464 58%, #16804a 100%); }
 .hc { transition: background .5s; }
+.tgstar { margin: -10px auto; filter: drop-shadow(0 8px 18px rgba(120, 60, 0, .35)); }
+.tgstar.fb { display: flex; align-items: center; justify-content: center; font-size: 56px; }
 .hc.gold { background: linear-gradient(165deg, #6b4a06 0%, #c28d15 55%, #f1c94c 100%); }
 .hc.compact { padding: 20px 22px; }
 .hc.compact .ill { font-size: 64px; }
