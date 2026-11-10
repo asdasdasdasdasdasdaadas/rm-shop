@@ -789,9 +789,6 @@
   };
 
   // ---------- friends ----------
-  const FR_TONES = ["#ff8a5c", "#5ea8ff", "#3ccf74", "#c27bff", "#ffc23d", "#ff6b9a"];
-  const frInitial = (f) => esc((String(f.name || f.username || "Д").trim()[0] || "Д").toUpperCase());
-  const frTone = (f, i) => FR_TONES[(String(f.name || f.username || "").length + i) % FR_TONES.length];
   SCR.friends = {
     live: true,
     h() {
@@ -799,34 +796,15 @@
       const reward = Number(me.referral_reward_rub) || 50;
       const terms = me.referral_terms && typeof me.referral_terms === "object" ? me.referral_terms : {};
       const friends = Array.isArray(me.referrals) ? me.referrals : [];
-      const invited = Math.max(Number(me.invited_count) || 0, friends.length), earned = Number(me.referral_earned) || 0;
-      const paid = friends.filter((f) => f.paid).length;
-      // Friends sit on the widget as a stack of round avatars; an empty slot invites the next one.
-      const shown = friends.slice(0, 4);
-      const more = invited - shown.length;
-      const stack = shown.length
-        ? `<div class="frs" aria-hidden="true">${shown.map((f, i) => `<span style="--c:${frTone(f, i)};--i:${i}">${frInitial(f)}</span>`).join("")}${
-          more > 0 ? `<span class="more" style="--i:${shown.length}">+${more}</span>` : ""}<span class="add" style="--i:${shown.length + (more > 0 ? 1 : 0)}">＋</span></div>`
-        : `<div class="ill"><div>🎁</div></div>`;
-      const link = me.invite_url ? `<button type="button" class="frl" data-act="copyinvite" aria-label="Скопировать ссылку-приглашение"><span>${
-        esc(String(me.invite_url).replace(/^https?:\/\//, ""))}</span>${IC.copy}</button>` : "";
-      const head = earned > 0
-        ? `<div class="K">Заработано на друзьях</div><div class="N">${cnt(earned, " ₽", "+")}</div>`
-        : `<div class="H">${on ? `Пригласите друзей и получайте по ${rub(reward)}` : "Пригласите друзей"}</div>`;
-      const sub = on
-        ? (earned > 0 ? `За каждого нового друга — ещё ${rub(reward)} на баланс` : "Как только друг откроет бота по вашей ссылке, вы оба получите бонус на баланс")
-        : "Пользоваться вместе приятнее. Сейчас новые награды не начисляются";
-      const hero = `<section class="hc indigo ref fr"><div class="ov"></div>${stack}${head}<div class="P">${sub}</div>${link}<div class="acts">` +
-        `<button type="button" class="pill" data-act="share">${IC.share}<span>Поделиться</span></button></div></section>`;
-      const tiles = !invited && !earned ? "" : `<div class="frt">${[["👥", invited, "", "приглашено"], ["✅", paid, "", "оплатили"], ["💰", earned, " ₽", "получено"]]
-        .map((t, i) => `<div style="--i:${i}"><span class="e">${t[0]}</span><b>${cnt(t[1], t[2])}</b><small>${t[3]}</small></div>`).join("")}</div>`;
+      const invited = Number(me.invited_count) || 0, earned = Number(me.referral_earned) || 0;
+      const hero = hc("indigo", { ill: "🎁", h: on ? `Пригласите друзей и получайте по ${rub(reward)}` : "Пригласите друзей",
+        p: on ? "Как только друг откроет бота по вашей ссылке, вы оба получите бонус на баланс" : "Пользоваться вместе приятнее. Сейчас новые награды не начисляются",
+        pill: "Поделиться", pi: "share", pa: 'data-act="share"', r: "copy", rl: "Скопировать", ra: 'data-act="copyinvite"', cls: "ref" });
       const how = on ? ST("Как это работает") + tl([["1", "Друг открывает бота по ссылке", esc(terms.friend || "и получает подарок")],
-        ["2", "Начинает пользоваться VPN", esc(terms.when || "")], ["🎁", `Вам ${rub(reward)} на баланс`, esc(terms.how || "")]]) : "";
-      const list = friends.length ? ST(`Ваши друзья <span style="color:var(--hint);font-weight:500">· ${invited}</span>`) +
-        `<div class="cd frlist">${friends.map((f, i) => `<div class="rw" style="--i:${i}"><span class="fra" style="--c:${frTone(f, i)}">${frInitial(f)}</span>${
-          TT(esc(f.name || "друг"), f.username ? "@" + esc(f.username) : "")}<span class="frp${f.paid ? " ok" : ""}">${f.paid ? `+${rub(reward)}` : "ждём оплату"}</span></div>`).join("")}</div>`
-        : (on ? NOTE("Здесь появятся друзья, которые откроют бота по вашей ссылке.") : "");
-      return hero + tiles + how + list + (terms.note ? NOTE(esc(terms.note)) : "");
+        ["2", "Начинает пользоваться VPN", esc(terms.when || "")], ["🎁", `Вам ${rub(reward)} на баланс`, earned ? `<b>+${rub(earned)}</b> уже получено` : esc(terms.how || "")]]) : "";
+      const stats = ST("Ваши друзья") + cd([E("👥") + "Приглашено" + V(String(invited)), E("💰") + "Получено" + V(rub(earned))]);
+      const list = friends.length ? cd(friends.map((f) => E(f.paid ? "✅" : "⏳") + TT(esc(f.name || "друг") + (f.username ? ` · @${esc(f.username)}` : ""), f.paid ? "есть оплата" : "ещё без оплаты"))) : "";
+      return hero + how + stats + list + (terms.note ? NOTE(esc(terms.note)) : "");
     },
     sig: () => JSON.stringify([me.invited_count, me.referral_earned, me.referrals, me.referral_program_enabled]),
   };
