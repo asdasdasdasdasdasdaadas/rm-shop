@@ -596,11 +596,19 @@ async def send_gift_widget(bot: Bot, telegram_id: int, gift_id: int, *, caption:
     ))
 
 
+def stats_caption(state: dict) -> str:
+    """Text under the widget, also the whole message in apps without widgets."""
+    today = (state.get("c") or [[0] * 9])[0]
+    paid = (state.get("P") or {}).get("a", 0)
+    return (f"Сегодня: {state.get('v', 0)} ₽ пополнений, {state.get('p', 0)} оплат · "
+            f"новых {today[0]}, подключились {today[5]}, оплатили {today[6]} · платящих всего {paid}")
+
+
 async def send_stats_widget(bot: Bot, telegram_id: int) -> Message:
     state = await stats_state()
     return await bot(SendWidget(
         chat_id=telegram_id, html=stats_html(), chat_data=_json(state),
-        caption=f"Сегодня: {state['v']} ₽ пополнений, {state['p']} оплат, {state['n']} новых пользователей",
+        caption=stats_caption(state),
         allow_queries=True,
     ))
 

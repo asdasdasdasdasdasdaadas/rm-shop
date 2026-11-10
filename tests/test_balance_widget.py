@@ -152,6 +152,18 @@ class WidgetQueryTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('first_device_at IS NOT NULL', self.cohort_sql)
         self.assertIn("NOW() - INTERVAL '1 day'", self.cohort_sql)
 
+    async def test_stats_widget_is_sent_with_the_new_state(self):
+        # Regression: the caption read a key the state no longer has and /stats failed with KeyError.
+        state = await self.stats(None)
+        bot = AsyncMock()
+        with patch.object(widgets, 'stats_state', AsyncMock(return_value=state)), \
+                patch.object(widgets, 'get_settings', return_value=settings()):
+            await widgets.send_stats_widget(bot, 1)
+        method = bot.await_args.args[0]
+        self.assertEqual(method.caption, 'Сегодня: 900 ₽ пополнений, 3 оплат · новых 5, подключились 2, '
+                                         'оплатили 1 · платящих всего 30')
+        self.assertEqual(json.loads(method.chat_data)['c'][0][0], 5)
+
     async def test_online_now_falls_back_to_the_last_sync(self):
         state = await self.stats({'_error': 'GET /system/stats → 404'})
         self.assertEqual((state['on'], state['an']), (4, 0))
