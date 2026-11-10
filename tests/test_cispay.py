@@ -13,7 +13,7 @@ KEY = 'cis_sec_test'
 
 def settings(**kw):
     base = dict(cispay_shop_id='0190-shop', cispay_api_key=KEY, cispay_methods='sbp,crypto', cispay_test=False,
-                cispay_api_url='https://api.cispay.app', webapp_public_url='https://vpn.test')
+                cispay_api_url='https://api.cispay.app', webapp_public_url='https://vpn.test', bot_username='@frog_vpn_bot')
     base.update(kw)
     return Settings(_env_file=None, bot_token='1:x', required_channel_id='-1', required_channel_url='https://t.me/x',
                     remnawave_base_url='https://panel.test', remnawave_token='t', legal_offer_url='https://o.test',
@@ -69,7 +69,8 @@ class ClientTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((method, path), ('POST', '/payments'))
         self.assertEqual((body['amount'], body['currency'], body['payment_method'], body['customer_id']),
                          (30000, 'RUB', 'CRYPTO', '77'))
-        self.assertEqual(body['redirect_success_url'], 'https://vpn.test')
+        self.assertEqual(body['redirect_success_url'], 'https://t.me/frog_vpn_bot')
+        self.assertEqual(body['redirect_fail_url'], 'https://t.me/frog_vpn_bot')
         self.assertEqual((data['payment_id'], data['pay_url'], data['status']), ('cis:u1', 'https://pay/u1', 'pending'))
 
     async def test_status_strips_the_prefix(self):

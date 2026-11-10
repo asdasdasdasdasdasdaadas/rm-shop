@@ -146,6 +146,7 @@ Deep-link: `https://t.me/<BOT_USERNAME>?start=ref_<telegram_id>`.
 Касса: [CISPay](https://cispay.app/developers) — СБП, карта и криптовалюта. Нужны `CISPAY_SHOP_ID` и `CISPAY_API_KEY`. Список способов задаётся в `CISPAY_METHODS` (по умолчанию `sbp,crypto,card`). Gram (TON) и Stars от кассы не зависят.
 
 - Счёт: `POST /payments`, покупатель платит на странице CISPay. Крипта выставляется в рублях, CISPay сам пересчитывает её в USDT; минимум около 5 USD.
+- После оплаты и после неудачной попытки CISPay возвращает покупателя в бота: `https://t.me/<BOT_USERNAME>`. Эту же ссылку можно поставить адресом возврата по умолчанию в настройках магазина.
 - В настройках магазина CISPay укажите webhook: `https://<ваш-домен>/webhooks/cispay`. Подпись — `X-Signature`, HMAC-SHA256 тела с `CISPAY_API_KEY`.
 - Кнопка «Проверить оплату» и напоминания о неоплаченном счёте спрашивают статус через `GET /payments/status`.
 - Тестовые платежи из Песочницы (`is_sandbox`) зачисляются только при `CISPAY_TEST=true`.

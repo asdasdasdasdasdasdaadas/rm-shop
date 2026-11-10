@@ -62,6 +62,12 @@ def kopecks(amount_rub: Any) -> int:
     return result
 
 
+def bot_link() -> str | None:
+    """https://t.me/<bot>: where the payment page sends the buyer back; None until BOT_USERNAME is set."""
+    handle = (get_settings().bot_username or "").strip().lstrip("@")
+    return f"https://t.me/{handle}" if handle and handle != "your_bot" else None
+
+
 def normalize(data: dict) -> dict:
     """The transaction with a lowercase status, our prefixed id and the page link as «pay_url»."""
     out = dict(data or {})
@@ -118,7 +124,7 @@ class CISPayClient:
             method = None
         if not method:
             raise CISPayError("Этот способ оплаты не поддерживается CISPay")
-        redirect = (get_settings().webapp_public_url or "").rstrip("/") or None
+        redirect = bot_link()
         try:
             amount = kopecks(amount_rub)
         except ValueError as exc:
@@ -134,6 +140,7 @@ class CISPayClient:
             "payload": str((metadata or {}).get("plan") or "")[:1024] or None,
         }
         if redirect:
+            # After paying, and after a failed attempt, the buyer goes straight back to the chat with the bot.
             body["redirect_success_url"] = redirect
             body["redirect_fail_url"] = redirect
         logger.info("CISPay create order=%s method=%s amount=%s", order_id, method, body["amount"])
