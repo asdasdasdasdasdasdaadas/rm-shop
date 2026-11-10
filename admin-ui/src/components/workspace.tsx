@@ -355,11 +355,15 @@ export function ActionButton({
   children,
   variant = "default",
   disabled = false,
+  className,
+  "aria-label": ariaLabel,
 }: {
   onAction: () => Promise<unknown>;
   children: ReactNode;
   variant?: "default" | "outline" | "destructive" | "ghost";
   disabled?: boolean;
+  className?: string;
+  "aria-label"?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
@@ -367,6 +371,8 @@ export function ActionButton({
     <Button
       type="button"
       variant={variant}
+      className={className}
+      aria-label={ariaLabel}
       disabled={busy || disabled}
       onClick={async () => {
         if (lock.current) return;

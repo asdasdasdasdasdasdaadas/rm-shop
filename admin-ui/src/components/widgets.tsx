@@ -263,7 +263,7 @@ function PaySoonWidget({ pay }: { pay: Data }) {
   );
 }
 
-const ago = (v: unknown) => {
+export const ago = (v: unknown) => {
   const t = Date.parse(String(v || ""));
   if (isNaN(t)) return "—";
   const m = Math.max(0, Math.round((Date.now() - t) / 60000));

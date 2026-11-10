@@ -27,7 +27,8 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { Download, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Download, Plus, RefreshCw, Trash2, Paperclip, SendHorizontal, Star as StarIcon, X as XIcon } from "lucide-react";
+import { Avatar, ago } from "@/components/widgets";
 export const billKinds: Data = {
   charge: "Списание",
   disable: "Отключение",
@@ -485,6 +486,9 @@ export function RecordsPage({
         <Loading />
       ) : (
         <>
+          {kind === "tickets" ? (
+            <TicketInbox rows={resource.data.items || []} onOpen={setSelected} />
+          ) : (
           <DataTable
             rows={resource.data.items || []}
             columns={columns[kind]}
@@ -495,6 +499,7 @@ export function RecordsPage({
               />
             }
           />
+          )}
           <Pager
             page={page}
             total={resource.data.total || 0}
@@ -539,8 +544,9 @@ export function RecordsPage({
           }
         }}
       >
-        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader>
+        <SheetContent className={"w-full sm:max-w-2xl overflow-y-auto" + (kind === "tickets" ? " adm-chat-sheet" : "")}>
+          <SheetHeader className={kind === "tickets" ? "adm-chat-head" : ""}>
+            {kind === "tickets" && selected && <Avatar row={selected} size={44} />}
             <SheetTitle>
               {kind === "tickets"
                 ? "Обращение №" + selected?.id
@@ -618,19 +624,34 @@ function Ticket({
   if (resource.error)
     return <Failure message={resource.error} retry={resource.reload} />;
   if (!resource.data) return <Loading />;
+  const t = resource.data.ticket || {};
+  const send = async () => {
+    const form = new FormData();
+    form.append("text", text);
+    files.forEach((f) => form.append("file", f));
+    const r = await api("tickets/" + id, form);
+    resource.setData(r);
+    setText("");
+    setFiles([]);
+    await onUpdate();
+    toast.success("Ответ отправлен");
+  };
   return (
-    <div className="space-y-4 pt-5">
-      <div className="flex justify-between">
-        <Status value={resource.data.ticket?.status} />
-        {resource.data.ticket?.support_rating && (
-          <span className="text-sm">
-            Оценка: {resource.data.ticket.support_rating} / 5 ★
+    <div className="adm-chat">
+      <div className="adm-chat-bar">
+        <Status value={t.status} />
+        {t.support_rating && (
+          <span className="adm-chat-rate" title="Оценка поддержки">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <StarIcon key={n} className={n <= Number(t.support_rating) ? "on" : ""} />
+            ))}
           </span>
         )}
         <Button
           variant="outline"
           size="sm"
-          disabled={resource.data.ticket?.status === "closed"}
+          className="ml-auto"
+          disabled={t.status === "closed"}
           onClick={() =>
             confirm({
               title: "Закрыть обращение?",
@@ -647,65 +668,117 @@ function Ticket({
           Закрыть обращение
         </Button>
       </div>
-      <div className="space-y-3">
+      <div className="adm-chat-log">
         {(resource.data.messages || []).map((m: Data, i: number) => (
           <div
             key={m.id || i}
-            className={`rounded-xl p-4 ${m.author === "admin" ? "bg-muted ml-5" : "border mr-5"}`}
+            className={"adm-bubble " + (m.author === "admin" ? "me" : "them")}
           >
-            <p className="text-xs text-muted-foreground mb-2">
-              {m.author === "admin" ? "Поддержка" : "Клиент"} ·{" "}
-              {date(m.created_at)}
+            <p className="adm-bubble-who">
+              {m.author === "admin" ? "Поддержка" : "Клиент"}
             </p>
-            <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
+            {m.body && <p className="adm-bubble-text">{m.body}</p>}
             {(m.attachments || []).map((a: Data) => (
               <a
                 key={a.id}
                 href={a.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block underline text-sm mt-2"
+                className="adm-bubble-file"
               >
+                <Paperclip className="size-3.5" />
                 {a.original_name || "Открыть вложение"}
               </a>
             ))}
+            <span className="adm-bubble-time">{date(m.created_at)}</span>
           </div>
         ))}
       </div>
-      <Field
-        label="Ответ клиенту"
-        hint="Ответ появится в Telegram и личном кабинете."
-      >
-        <Textarea
-          aria-label="Ответ клиенту"
-          rows={5}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-      </Field>
-      <Input
-        type="file"
-        multiple
-        aria-label="Вложения к ответу"
-        onChange={(e) => setFiles(Array.from(e.target.files || []))}
-      />
-      <ActionButton
-        disabled={!text.trim() && !files.length}
-        onAction={async () => {
-          const form = new FormData();
-          form.append("text", text);
-          files.forEach((f) => form.append("file", f));
-          const r = await api("tickets/" + id, form);
-          resource.setData(r);
-          setText("");
-          setFiles([]);
-          await onUpdate();
-          toast.success("Ответ отправлен");
-        }}
-      >
-        Отправить ответ
-      </ActionButton>
+      <div className="adm-composer">
+        {files.length > 0 && (
+          <div className="adm-files">
+            {files.map((f, i) => (
+              <span key={f.name + i}>
+                <Paperclip className="size-3.5" />
+                {f.name}
+                <button
+                  type="button"
+                  aria-label={"Убрать " + f.name}
+                  onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                >
+                  <XIcon className="size-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="adm-composer-row">
+          <label className="adm-attach" title="Прикрепить файл">
+            <Paperclip />
+            <input
+              type="file"
+              multiple
+              aria-label="Вложения к ответу"
+              className="sr-only"
+              onChange={(e) => setFiles(Array.from(e.target.files || []))}
+            />
+          </label>
+          <Textarea
+            aria-label="Ответ клиенту"
+            placeholder={t.status === "closed" ? "Ответ откроет обращение снова" : "Сообщение…"}
+            rows={2}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && (text.trim() || files.length)) {
+                e.preventDefault();
+                void send().catch((err) => toast.error((err as Error).message));
+              }
+            }}
+          />
+          <ActionButton
+            className="adm-send"
+            aria-label="Отправить ответ"
+            disabled={!text.trim() && !files.length}
+            onAction={send}
+          >
+            <SendHorizontal />
+          </ActionButton>
+        </div>
+        <p className="adm-composer-hint">⌘ + Enter — отправить · ответ придёт в Telegram и в кабинет</p>
+      </div>
     </div>
+  );
+}
+function TicketInbox({ rows, onOpen }: { rows: Data[]; onOpen: (r: Data) => void }) {
+  if (!rows.length)
+    return (
+      <Empty
+        title="Записей пока нет"
+        description="Проверьте выбранный период и условия поиска."
+      />
+    );
+  return (
+    <ul className="adm-inbox">
+      {rows.map((r) => (
+        <li key={r.id}>
+          <button type="button" onClick={() => onOpen(r)} aria-label={`Открыть диалог №${r.id}`}>
+            <Avatar row={r} size={46} />
+            <span className="adm-inbox-main">
+              <span className="adm-inbox-top">
+                <b>{who(r)}</b>
+                <small>№{r.id} · {ago(r.last_message_at || r.created_at)}</small>
+              </span>
+              <span className="adm-inbox-text">{r.last_body || "Вложение"}</span>
+            </span>
+            <span className={"adm-inbox-st " + String(r.status || "")}>
+              {r.status === "open" ? "Ждёт ответа" : r.status === "pending" ? "Отвечено" : r.status === "closed" ? "Закрыто" : String(r.status || "")}
+            </span>
+            {r.support_rating ? <span className="adm-inbox-rate">{r.support_rating}★</span> : null}
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 export function BackupsPage() {

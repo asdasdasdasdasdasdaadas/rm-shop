@@ -318,3 +318,58 @@ nav[aria-label="Разделы админки"] button:hover .adm-tile { transfo
 .adm-mini b { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
 .recharts-cartesian-grid line { stroke: var(--border); }
 .recharts-text { fill: var(--muted-foreground); font-size: 12px; }
+
+/* ---------- support: Telegram-like inbox and chat ---------- */
+.adm-inbox { list-style: none; margin: 0; padding: 6px; background: var(--card); border-radius: var(--radius-xl); box-shadow: var(--card-shadow); }
+.adm-inbox li { animation: admIn .4s cubic-bezier(.2,.8,.2,1) both; }
+.adm-inbox li:nth-child(2) { animation-delay: .03s; } .adm-inbox li:nth-child(3) { animation-delay: .06s; } .adm-inbox li:nth-child(4) { animation-delay: .09s; } .adm-inbox li:nth-child(n+5) { animation-delay: .12s; }
+.adm-inbox li + li button { border-top: 1px solid var(--border); border-radius: 0; }
+.adm-inbox li + li button:hover { border-radius: 16px; border-top-color: transparent; }
+.adm-inbox button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; text-align: left; transition: background .15s; }
+.adm-inbox button:hover { background: var(--secondary); }
+.adm-inbox-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.adm-inbox-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.adm-inbox-top b { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-inbox-top small { font-size: 12px; color: var(--muted-foreground); flex-shrink: 0; }
+.adm-inbox-text { font-size: 14px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-inbox-st { flex-shrink: 0; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; background: var(--secondary); color: var(--muted-foreground); }
+.adm-inbox-st.open { background: #ff9500; color: #2b1700; }
+.adm-inbox-st.pending { background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--foreground); }
+.adm-inbox-rate { flex-shrink: 0; font-size: 12px; font-weight: 700; color: #f5a70f; }
+@media (max-width: 560px) { .adm-inbox-st { display: none; } .adm-inbox-st.open { display: block; width: 10px; height: 10px; padding: 0; font-size: 0; } }
+.adm-chat-sheet { display: flex; flex-direction: column; padding-bottom: 0; background: var(--background); }
+.adm-chat-head { display: grid !important; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center; text-align: left; }
+.adm-chat-head > .adm-avatar { grid-row: span 2; }
+.adm-chat { flex: 1; display: flex; flex-direction: column; gap: 12px; padding-top: 14px; min-height: 0; }
+.adm-chat-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.adm-chat-rate { display: inline-flex; gap: 2px; } .adm-chat-rate svg { width: 15px; height: 15px; color: var(--border); } .adm-chat-rate svg.on { color: #f5a70f; fill: #f5a70f; }
+.adm-chat-log { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 22px; background:
+  radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 40%),
+  radial-gradient(circle at 80% 90%, color-mix(in srgb, #3e88f7 7%, transparent), transparent 40%), var(--card); min-height: 200px; }
+.adm-bubble { max-width: 82%; padding: 8px 12px 6px; border-radius: 18px; position: relative; animation: admBubble .35s cubic-bezier(.3, 1.3, .4, 1) both; }
+.adm-bubble.them { align-self: flex-start; background: var(--secondary); border-bottom-left-radius: 6px; transform-origin: 0 100%; }
+.adm-bubble.me { align-self: flex-end; background: #17804a; color: #fff; border-bottom-right-radius: 6px; transform-origin: 100% 100%; }
+@keyframes admBubble { from { transform: scale(.85); } }
+.adm-bubble-who { font-size: 12px; font-weight: 700; margin-bottom: 2px; color: #6aa6ff; }
+.adm-bubble.me .adm-bubble-who { color: #fff; }
+:root:not([data-theme="dark"]) .adm-bubble.them .adm-bubble-who { color: #1d5fc4; }
+.adm-bubble-text { font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.adm-bubble-file { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 6px 10px; border-radius: 12px; background: #0000001f; font-size: 13px; font-weight: 600; color: inherit; text-decoration: none; }
+.adm-bubble-time { display: block; text-align: right; font-size: 11px; margin-top: 2px; color: var(--muted-foreground); }
+.adm-bubble.me .adm-bubble-time { color: #fff; }
+.adm-composer { position: sticky; bottom: 0; margin: 0 -24px; padding: 10px 24px 16px; background: color-mix(in srgb, var(--background) 85%, transparent); backdrop-filter: blur(16px); }
+.adm-composer-row { display: flex; align-items: flex-end; gap: 8px; }
+.adm-composer-row textarea { min-height: 44px; max-height: 200px; resize: vertical; border-radius: 22px; padding: 11px 16px; background: var(--card); }
+.adm-attach { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; background: var(--card); color: var(--muted-foreground); cursor: pointer; transition: background .15s, color .15s; }
+.adm-attach:hover { background: var(--secondary); color: var(--foreground); }
+.adm-attach:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+.adm-attach svg { width: 20px; height: 20px; }
+.adm-send { width: 44px; height: 44px; padding: 0; border-radius: 50%; flex-shrink: 0; }
+.adm-send svg { width: 20px !important; height: 20px !important; }
+.adm-send:not(:disabled) { animation: admPop .35s cubic-bezier(.3,1.4,.4,1); }
+.adm-files { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.adm-files span { display: inline-flex; align-items: center; gap: 6px; padding: 5px 6px 5px 10px; border-radius: 99px; background: var(--card); font-size: 12px; font-weight: 600; }
+.adm-files button { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; } .adm-files button:hover { background: var(--secondary); }
+.adm-composer-hint { font-size: 11px; color: var(--muted-foreground); text-align: right; margin-top: 6px; }
+:root:not([data-theme="dark"]) .adm-inbox-rate { color: #9a5a00; }
+:root:not([data-theme="dark"]) .adm-inbox-st.open { background: #c25e00; color: #fff; }
