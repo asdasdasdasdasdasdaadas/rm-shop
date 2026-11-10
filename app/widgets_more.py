@@ -80,6 +80,28 @@ draw();live('r',v=>{Object.assign(s,{b:v.b,d:v.d,n:v.n,e:v.e,t:v.t});draw()});""
     "border-radius:12px;background:var(--tg-theme-secondary-bg-color);font-size:.9em}.iv button{padding:6px 12px}",
 )
 
+FAIL_HTML = _more(
+    """<div class="cd rd"><div class="hd"><span>__BRAND__ · оплата</span><span class="pl" id="mt"></span></div>
+<div class="fx"><span class="xi" aria-hidden="true">!</span><div><div class="em sm">Оплата не прошла</div>
+<div class="sb">Деньги не списались<span id="am"></span></div></div></div></div>
+<div class="tp"><div id="tp"></div><div id="ot"></div>
+<div>💬 Если деньги всё-таки списались — напишите в поддержку</div></div>""",
+    """const M={sbp:'СБП',card:'Карта',crypto:'Крипта'},O={sbp:'карта или крипта',card:'СБП или крипта',crypto:'СБП или карта'},
+T={sbp:'🏦 Проверьте баланс и лимит переводов в приложении банка',crypto:'🪙 Отправляйте точную сумму в той сети, что выбрали на странице'};
+$('tp').textContent=T[s&&s.m]||'💳 Проверьте баланс и лимиты карты в банке';
+if(s){$('mt').textContent=M[s.m]||'счёт';if(s.a)$('am').textContent=' · '+rub(s.a);
+$('ot').textContent='🔁 Попробуйте ещё раз или другой способ'+(O[s.m]?': '+O[s.m]:'');H('error')}
+if(W.ready)W.ready();""",
+    ".rd{background:linear-gradient(150deg,#ec6a6a,#d34444 60%,#a93030)}"
+    ".fx{display:flex;align-items:center;gap:12px;margin-top:10px}"
+    ".xi{flex:0 0 46px;height:46px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;"
+    "justify-content:center;font-size:1.6em;font-weight:800;animation:sk .6s .2s ease-in-out}"
+    "@keyframes sk{20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}"
+    ".fx .em{margin:0}"
+    ".tp{margin-top:10px;padding:8px 12px;border-radius:12px;background:var(--tg-theme-secondary-bg-color);font-size:.9em}"
+    ".tp div{padding:4px 0}",
+)
+
 TICKET_HTML = _more(
     """<div class="cd bl" id="cd"><div class="hd"><span>Поддержка · №<b id="id"></b></span><span class="pl" id="st"></span></div>
 <div class="em sm" id="h"></div><div class="sb" id="sb"></div></div>
@@ -184,6 +206,29 @@ draw();live('F',v=>{s=v;draw()});""",
 
 def receipt_html() -> str:
     return RECEIPT_HTML.replace("__BRAND__", _brand())
+
+
+def fail_html() -> str:
+    return FAIL_HTML.replace("__BRAND__", _brand())
+
+
+def fail_text() -> str:
+    return ("Оплата не прошла, деньги не списались.\n\n"
+            "Попробуйте ещё раз или выберите другой способ. Если деньги всё-таки списались — напишите в поддержку.")
+
+
+def fail_keyboard() -> InlineKeyboardMarkup:
+    from app.keyboards import payment_nudge_keyboard
+    rows = payment_nudge_keyboard(label="Попробовать снова").inline_keyboard
+    return InlineKeyboardMarkup(inline_keyboard=[*rows, [InlineKeyboardButton(text="Поддержка", callback_data="support_ticket")]])
+
+
+async def send_fail_widget(bot: Bot, telegram_id: int, order: dict, event: dict | None = None) -> Message:
+    """a — rubles of the failed top-up, m — the method the buyer tried."""
+    plan = get_settings().plan_by_code(str(order.get("plan_code") or "")) or {}
+    state = {"a": int(plan.get("topup_rub") or 0), "m": str(order.get("method") or "")}
+    return await bot(SendWidget(chat_id=telegram_id, html=fail_html(), chat_data=_json(state), caption=fail_text(),
+                                reply_markup=fail_keyboard()))
 
 
 def ticket_html() -> str:

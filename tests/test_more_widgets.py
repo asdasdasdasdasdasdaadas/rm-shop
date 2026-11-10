@@ -22,7 +22,7 @@ class PagesTest(unittest.TestCase):
     def test_every_new_widget_fits_telegram_limits(self):
         with patch.object(widgets, 'get_settings', return_value=settings()):
             pages = [more.receipt_html(), more.ticket_html(), more.admin_ticket_html(),
-                     more.digest_html(), more.forecast_html()]
+                     more.digest_html(), more.forecast_html(), more.fail_html()]
         for page in pages:
             raw = page.encode()
             with self.subTest(page=page[:80]):

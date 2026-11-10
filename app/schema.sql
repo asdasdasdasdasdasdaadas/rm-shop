@@ -502,6 +502,7 @@ CREATE INDEX IF NOT EXISTS device_exit_feedback_user_idx ON device_exit_feedback
 
 ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
 ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS method TEXT;
+ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS fail_notice_at TIMESTAMPTZ;
 CREATE TABLE IF NOT EXISTS reminder_deliveries (
     token TEXT PRIMARY KEY,
     telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,

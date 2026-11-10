@@ -156,5 +156,57 @@ class WebhookTest(unittest.IsolatedAsyncioTestCase):
             fulfill.assert_not_awaited()
 
 
+class FailedPaymentTest(unittest.IsolatedAsyncioTestCase):
+    ORDER = {'order_id': 'o1', 'payment_id': 'cis:u1', 'status': 'created', 'telegram_id': 5,
+             'plan_code': 'b300', 'method': 'card'}
+
+    async def call(self, event, *, claimed=True, order=None, bot=None):
+        body, sig = signed(event)
+        async def read():
+            return body
+        bot = bot or AsyncMock()
+        req = SimpleNamespace(read=read, headers={'X-Signature': sig}, app={'rw': object(), 'bot': bot})
+        with patch.object(webapp, 'get_settings', return_value=settings()), \
+                patch.object(webapp.db, 'get_pay_order', AsyncMock(return_value=order or self.ORDER)), \
+                patch.object(webapp.db, 'get_order_by_payment', AsyncMock(return_value=None)), \
+                patch.object(webapp.db, 'claim_order_fail_notice', AsyncMock(return_value=claimed)) as claim, \
+                patch.object(webapp, 'fulfill_pay_order', AsyncMock()) as fulfill, \
+                patch('app.widgets_more.get_settings', return_value=SimpleNamespace(
+                    plan_by_code=lambda code: {'topup_rub': 300}, brand_name='VPN')), \
+                patch('app.widgets.get_settings', return_value=SimpleNamespace(brand_name='VPN')), \
+                patch('app.keyboards.mini_app_url', return_value='https://vpn.test/app'):
+            resp = await webapp.cispay_webhook(req)
+        return resp, bot, claim, fulfill
+
+    async def test_failed_payment_sends_one_widget(self):
+        resp, bot, claim, fulfill = await self.call({'order_id': 'o1', 'status': 'FAILED'})
+        self.assertEqual(resp.status, 200)
+        claim.assert_awaited_once_with('o1')
+        fulfill.assert_not_awaited()
+        method = bot.await_args.args[0]
+        self.assertEqual(method.__api_method__, 'sendWidget')
+        self.assertEqual(json.loads(method.chat_data), {'a': 300, 'm': 'card'})
+        texts = [b.text for row in method.reply_markup.inline_keyboard for b in row]
+        self.assertEqual(texts, ['Попробовать снова', 'Поддержка'])
+
+    async def test_repeated_or_late_failures_stay_quiet(self):
+        _, bot, _, _ = await self.call({'order_id': 'o1', 'status': 'FAILED'}, claimed=False)
+        bot.assert_not_awaited()
+        _, bot, claim, _ = await self.call({'order_id': 'o1', 'status': 'FAILED'}, order=dict(self.ORDER, status='granted'))
+        claim.assert_not_awaited()
+        bot.assert_not_awaited()
+
+    async def test_expired_invoice_sends_nothing(self):
+        _, bot, claim, _ = await self.call({'order_id': 'o1', 'status': 'EXPIRED'})
+        claim.assert_not_awaited()
+        bot.assert_not_awaited()
+
+    async def test_old_telegram_gets_text(self):
+        bot = AsyncMock(side_effect=RuntimeError('no widgets'))
+        bot.send_message = AsyncMock()
+        await self.call({'order_id': 'o1', 'status': 'FAILED'}, bot=bot)
+        self.assertIn('не прошла', bot.send_message.await_args.args[1])
+
+
 if __name__ == '__main__':
     unittest.main()

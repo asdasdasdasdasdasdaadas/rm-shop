@@ -2304,6 +2304,14 @@ async def get_order_by_payment(payment_id: str) -> dict | None:
     return _as_dict(row)
 
 
+async def claim_order_fail_notice(order_id: str) -> bool:
+    """True once per unpaid order: the caller then tells the buyer the payment failed."""
+    row = await _pool_req().fetchval(
+        """UPDATE pay_orders SET fail_notice_at = NOW()
+           WHERE order_id = $1 AND fail_notice_at IS NULL AND status <> 'granted' RETURNING 1""", order_id)
+    return bool(row)
+
+
 async def mark_order_paid(order_id: str) -> bool:
     row = await _pool_req().fetchrow(
         """

@@ -1159,6 +1159,26 @@ async def health(_request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def _notify_payment_failed(bot: Bot, order: dict, event: dict) -> None:
+    """One «Оплата не прошла» card per order; an expired invoice (the buyer just left) sends nothing."""
+    if not await db.claim_order_fail_notice(order["order_id"]):
+        return
+    from aiogram.exceptions import TelegramForbiddenError
+    from app.widgets_more import fail_text, send_fail_widget
+    uid = int(order["telegram_id"])
+    try:
+        await send_fail_widget(bot, uid, order, event)
+    except TelegramForbiddenError:
+        return
+    except Exception:
+        logger.info("Виджет ошибки оплаты не отправился, шлём текст: %s", order["order_id"], exc_info=True)
+        from app.widgets_more import fail_keyboard
+        try:
+            await bot.send_message(uid, fail_text(), reply_markup=fail_keyboard())
+        except Exception:
+            logger.warning("Сообщение об ошибке оплаты не доставлено: %s", order["order_id"], exc_info=True)
+
+
 async def cispay_webhook(request: web.Request) -> web.Response:
     """CISPay status change: credit on PAID. Signature — hex HMAC-SHA256 of the raw body with CISPAY_API_KEY."""
     from app.cispay import is_cispay_payment, verify_webhook as verify_cispay
@@ -1172,8 +1192,9 @@ async def cispay_webhook(request: web.Request) -> web.Response:
         event = json.loads(body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         return web.Response(status=400, text="invalid json")
-    if not isinstance(event, dict) or event.get("event") or str(event.get("status") or "").upper() != "PAID":
-        return web.Response(text="OK")  # Subscriptions and non-final statuses need nothing from us.
+    status = str(event.get("status") or "").upper() if isinstance(event, dict) else ""
+    if not isinstance(event, dict) or event.get("event") or status not in ("PAID", "FAILED"):
+        return web.Response(text="OK")  # Subscriptions, expired and pending invoices need nothing from us.
     if event.get("is_sandbox") and not settings.cispay_test:
         logger.warning("CISPay: тестовый платёж %s пропущен (CISPAY_TEST=false)", event.get("order_id"))
         return web.Response(text="OK")
@@ -1185,6 +1206,9 @@ async def cispay_webhook(request: web.Request) -> web.Response:
         logger.warning("CISPay webhook: unknown order %s / %s", order_id, event.get("id"))
         return web.Response(text="OK")
     if order["status"] == "granted":
+        return web.Response(text="OK")
+    if status == "FAILED":
+        await _notify_payment_failed(request.app["bot"], order, event)
         return web.Response(text="OK")
     try:
         await fulfill_pay_order(order["order_id"], request.app["rw"], bot=request.app["bot"])
