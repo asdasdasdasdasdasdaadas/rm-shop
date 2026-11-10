@@ -444,9 +444,12 @@
   const GRAM = (w) => `<svg width="${w}" height="${w}" viewBox="0 0 100 100"><path fill="#30A1F5" d="${GP}"/><path fill="#fff" d="${SPK}"/></svg>`;
   const AM_ICON = { ton: () => GRAM(42), stars: () => STARBIG(52), sbp: () => `<img src="/icons/sbp.svg" width="30" height="35" alt="">`, card: () => CARDBIG(40), crypto: () => "🪙" };
   const AM_TONE = { ton: "", stars: "gold", sbp: "green", card: "green", crypto: "" };
-  const amt = { v: "", mode: "rub", rolling: false };
+  const amt = { v: "", d: "", mode: "rub", rolling: false };
   const amN = () => Number(amt.v) || 0;
-  const amBig = () => (amt.mode === "rub" ? fmt(amN()) : fmt(daysFor(amN())));
+  const amBig = () => (amt.mode === "rub" ? fmt(amN()) : fmt(Number(amt.d) || 0));
+  // In days mode the keypad types days; the ruble amount follows as days × price of a day for all devices.
+  const amPerDay = () => dayPrice() * Math.max(1, phones().length);
+  const amDays = () => (amt.mode === "rub" ? daysFor(amN()) : Number(amt.d) || 0);
   SCR.amount = {
     h() {
       const m = curMethod();
@@ -537,8 +540,9 @@
     el.querySelector("#amSubT").textContent = !n ? "" : n < min ? `Минимум ${rub(min)}` : n > max ? `Максимум ${rub(max)}`
       : amt.mode === "rub" ? `≈ ${days(daysFor(n))} VPN` : rub(n);
     const u = el.querySelector("#amUnit");
-    u.textContent = amt.mode === "rub" ? "₽" : pl(daysFor(n), "день", "дня", "дней");
+    u.textContent = amt.mode === "rub" ? "₽" : pl(amDays(), "день", "дня", "дней");
     u.classList.toggle("days", amt.mode !== "rub");
+    el.querySelector(".am-hint").textContent = amt.mode === "rub" ? "Наберите сумму" : "Наберите количество дней";
     const p = el.querySelector("#amPay");
     p.classList.toggle("off", !ok || !curMethod());
     p.querySelector("span").textContent = !curMethod() ? "Оплата недоступна" : ok ? `Оплатить ${rub(n)}` : "Введите сумму";
@@ -551,12 +555,13 @@
   function amtPress(k) {
     if (!cur || cur.key !== "amount" || amt.rolling) return;
     const el = cur.el, prev = amBig();
-    if (k === "b") { if (!amt.v) return amtShake(); amt.v = amt.v.slice(0, -1); }
-    else if (k === "c") { if (!amt.v) return; amt.v = ""; }
-    else { const nx = (amt.v === "0" ? "" : amt.v) + k; if (nx.length > 6 || nx === "0") return amtShake(); amt.v = nx; }
+    const ed = amt.mode === "rub" ? amt.v : amt.d, lim = amt.mode === "rub" ? 6 : 5;
+    const set = (x) => { if (amt.mode === "rub") amt.v = x; else { amt.d = x; amt.v = x ? String(Number(x) * amPerDay()) : ""; } };
+    if (k === "b") { if (!ed) return amtShake(); set(ed.slice(0, -1)); }
+    else if (k === "c") { if (!ed) return; set(""); }
+    else { const nx = (ed === "0" ? "" : ed) + k; if (nx.length > lim || nx === "0") return amtShake(); set(nx); }
     haptic();
     el.querySelector("#am").classList.add("open");
-    if (amt.mode !== "rub") { amt.mode = "rub"; amRoll(); return; }
     amSetNum(el, amBig(), prev);
     amSide(el);
     if (amN() > (Number(me.topup_max) || 100000)) amtShake();
@@ -587,11 +592,12 @@
     amRoll();
   }
   function amSwap(b) {
-    if (!amountOk(amN()) || amt.rolling) return;
+    if (!amN() || amt.rolling) return;
     haptic("medium");
     const r = b.getBoundingClientRect();
     amRing(r.left + r.width / 2, r.top + r.height / 2);
     amt.mode = amt.mode === "rub" ? "days" : "rub";
+    if (amt.mode === "days") { const d = daysFor(amN()); amt.d = d ? String(d) : ""; }
     amRoll();
   }
   function amBoom() {
@@ -1266,7 +1272,7 @@
       cur.el.querySelector("#amtI").hidden = true;
       paintAmount(cur.el, old);
     },
-    amtc() { haptic(); amt.v = pay.custom && amountOk(pay.amount) ? String(pay.amount) : ""; amt.mode = "rub"; go("amount"); },
+    amtc() { haptic(); amt.v = pay.custom && amountOk(pay.amount) ? String(pay.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount"); },
     amtk(b) { amtPress(b.dataset.v); },
     amtq(b) { amtQuick(b); },
     amtsw(b) { amSwap(b); },
