@@ -328,7 +328,6 @@
         cd([
           giftLater,
           [E("🎁") + "Пригласить друзей" + V((me.referral_program_enabled ? `+${rub(me.referral_reward_rub || 50)} ` : "") + CV), 'data-go="friends"'],
-          [E("🧾") + "История" + V(CV), 'data-go="history"'],
           trustShown() ? [E("🤝") + "Обещанный платёж" + V((trust.open ? "открыт " : "") + CV), 'data-go="promise"'] : null,
           [E("💬") + "Поддержка" + V(CV), 'data-act="support"'],
           [E("⚙️") + "Настройки" + V(CV), 'data-go="settings"'],
