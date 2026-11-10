@@ -197,59 +197,71 @@ draw();if(W.ready)W.ready();""",
 )
 
 STATS_HTML = _page(
-    """<div class="hd"><span class="t">__BRAND__ · сегодня</span><span class="dl" id="dl"></span></div>
-<div class="big" id="v">—</div><div class="t" id="pc"></div>
-<div class="sw"><button id="ta" class="on">Пополнения</button><button id="tb">Новые</button></div>
-<div class="ch" id="ch"></div><div class="ax"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
+    """<div class="hc"><div class="hd"><span>__BRAND__ · сегодня</span><span class="dl" id="dl"></span></div>
+<div class="em" id="v">—</div><div class="pc" id="pc"></div>
+<div class="sw"><button id="ta" class="on">Пополнения</button><button id="tn">Новые</button></div>
+<div class="ch" id="ch"></div><div class="ax"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div></div>
 <div class="mx" id="mx"></div><div class="lg" id="lg"></div>
-<div class="sec">Новички сегодня</div><div id="fn"></div>
+<div class="sec">Новички сегодня</div><div class="cd" id="fn"></div>
 <div class="sec">Сейчас</div>
-<div class="row" style="margin-top:0"><div class="c"><span class="t">Сейчас в сети</span><b id="on">—</b></div>
-<div class="c"><span class="t">Активны сегодня</span><b id="ad">—</b></div><div class="c"><span class="t">Трафик сегодня</span><b id="tb">—</b></div></div>
-<div class="row" style="margin-top:8px"><div class="c"><span class="t">С доступом</span><b id="x">—</b></div>
-<div class="c"><span class="t">Всего пользователей</span><b id="a">—</b></div></div><div class="t" id="nt" style="margin-top:6px"></div>
-<div class="tk" id="k"></div>
-<div class="f"><span class="t" id="u"></span><button id="r">Обновить</button></div>""",
-    """let tab=0;const M={rollypay:['Карта/СБП','#34c759'],stars:['Звёзды','#ffb800'],ton:['Gram','#2ea6ff']};
+<div class="gr"><div><i>🟢</i><b id="on">—</b><span>в сети</span></div><div><i>⚡</i><b id="ad">—</b><span>активны сегодня</span></div>
+<div><i>📶</i><b id="tr">—</b><span>трафик сегодня</span></div><div><i>🔑</i><b id="x">—</b><span>с доступом</span></div>
+<div><i>👥</i><b id="a">—</b><span>всего</span></div><div id="kk"><i>💬</i><b id="k">—</b><span>обращения</span></div></div>
+<div class="t" id="nt" style="margin-top:6px"></div>
+<div class="f"><span class="t" id="u"></span><button id="r" class="rf" aria-label="Обновить">↻</button></div>""",
+    """let tab=0,shown=0;const M={rollypay:['Карта/СБП','#3ccf74'],stars:['Звёзды','#ffb800'],ton:['Gram','#2ea6ff']};
 function n(v){return String(v).replace(/\\B(?=(\\d{3})+(?!\\d))/g,' ')}
 function gb(b){const u=['Б','КБ','МБ','ГБ','ТБ'];let i=0;while(b>=1024&&i<4){b/=1024;i++}return (i>2?b.toFixed(1):Math.round(b)).toString().replace('.',',')+' '+u[i]}
+function count(to){const e=$('v'),from=shown,t0=performance.now();shown=to;
+(function f(t){const k=Math.min(1,(t-t0)/900);e.textContent=rub(Math.round(from+(to-from)*(1-Math.pow(1-k,3))));if(k<1)requestAnimationFrame(f)})(t0)}
 function chart(){const d=tab?s.g:s.h,mx=Math.max(1,...d),now=new Date(Date.now()+108e5).getUTCHours();
-$('ch').innerHTML=d.map((v,i)=>'<i class="'+(i==now?'nw':i>now?'ft':'')+'" style="height:'+(v?Math.max(6,v/mx*100):2)+'%" title="'+i+':00 — '+(tab?v:rub(v))+'"></i>').join('');
-$('ta').className=tab?'':'on';$('tb').className=tab?'on':''}
-function draw(){if(!s)return;$('v').textContent=rub(s.v);
-const dl=$('dl');if(s.y>0){const p=Math.round((s.v-s.y)/s.y*100);dl.textContent=(p>=0?'+':'')+p+'% к вчера';dl.className='dl '+(p>=0?'up':'dn')}
-else dl.textContent=s.v?'вчера к этому часу 0 ₽':'';
-$('pc').textContent=s.p?s.p+' '+pl(s.p,'оплата','оплаты','оплат')+' · '+s.f+' '+pl(s.f,'первая','первые','первых')+' · средний чек '+rub(Math.round(s.v/s.p)):'Оплат пока нет';
-chart();const m=Object.entries(s.m||{}),tot=m.reduce((a,e)=>a+e[1],0)||1;
-$('mx').innerHTML=m.map(e=>'<i style="flex:'+e[1]+';background:'+(M[e[0]]||['','#999'])[1]+'"></i>').join('');
-$('lg').innerHTML=m.map(e=>'<span><b style="background:'+(M[e[0]]||['','#999'])[1]+'"></b>'+(M[e[0]]||[e[0]])[0]+' '+n(e[1])+' ₽ · '+Math.round(e[1]/tot*100)+'%</span>').join('');
-const st=[['Пришли в бота',s.n,s.nr?s.nr+' по приглашению':''],['Добавили устройство',s.nd],['Подключились',s.nc],['Оплатили',s.np]];
-$('fn').innerHTML=st.map(e=>'<div class="fr"><div class="fl"><span>'+e[0]+(e[2]?' <span class="t">· '+e[2]+'</span>':'')+'</span><b>'+e[1]+(s.n&&e!==st[0]?' <span class="t">'+Math.round(e[1]/s.n*100)+'%</span>':'')+'</b></div><div class="fb"><i style="width:'+(s.n?e[1]/s.n*100:0)+'%"></i></div></div>').join('');
-$('on').textContent=n(s.on);$('ad').textContent=n(s.ad);$('tb').textContent=gb(s.tb);$('x').textContent=n(s.x);$('a').textContent=n(s.a);
-const ds=new Date(Date.now()+108e5);ds.setUTCHours(0,0,0,0);const nt=[];if(!s.an)nt.push('«Сейчас в сети» — по последней сверке с панелью');
+$('ch').innerHTML=d.map((v,i)=>'<i class="'+(i==now?'nw':i>now?'ft':'')+'" style="--d:'+i*18+'ms;height:'+(v?Math.max(6,v/mx*100):3)+'%" title="'+i+':00 — '+(tab?v:rub(v))+'"></i>').join('');
+$('ta').className=tab?'':'on';$('tn').className=tab?'on':''}
+function draw(){if(!s)return;if(s.v!=shown)count(s.v);
+const dl=$('dl');if(s.y>0){const p=Math.round((s.v-s.y)/s.y*100);dl.textContent=(p>=0?'▲ ':'▼ ')+Math.abs(p)+'% к вчера';dl.className='dl '+(p>=0?'up':'dn')}
+else{dl.textContent=s.v?'вчера 0 ₽':'';dl.className='dl'}
+$('pc').textContent=s.p?s.p+' '+pl(s.p,'оплата','оплаты','оплат')+' · '+s.f+' '+pl(s.f,'первая','первые','первых')+' · чек '+rub(Math.round(s.v/s.p)):'Оплат пока нет';
+chart();const m=Object.entries(s.m||{}),tot=m.reduce((a,e)=>a+e[1],0)||1,c=e=>(M[e[0]]||['','#8b95a5'])[1];
+$('mx').innerHTML=m.map(e=>'<i style="flex:'+e[1]+';background:'+c(e)+'"></i>').join('');
+$('lg').innerHTML=m.map(e=>'<span><b style="background:'+c(e)+'"></b>'+(M[e[0]]||[e[0]])[0]+' · '+n(e[1])+' ₽ · '+Math.round(e[1]/tot*100)+'%</span>').join('');
+const st=[['🙋','Пришли в бота',s.n,s.nr?s.nr+' по приглашению':''],['📱','Добавили устройство',s.nd],['🔌','Подключились',s.nc],['💳','Оплатили',s.np]];
+$('fn').innerHTML=st.map((e,i)=>'<div class="fr"><i>'+e[0]+'</i><div class="fm"><div class="fl"><span>'+e[1]+(e[3]?' <em>· '+e[3]+'</em>':'')+'</span><b>'+e[2]+(s.n&&i?' <em>'+Math.round(e[2]/s.n*100)+'%</em>':'')+'</b></div><div class="fb"><i style="width:'+(s.n?e[2]/s.n*100:0)+'%"></i></div></div></div>').join('');
+$('on').textContent=n(s.on);$('ad').textContent=n(s.ad);$('tr').textContent=gb(s.tb);$('x').textContent=n(s.x);$('a').textContent=n(s.a);$('k').textContent=s.k;
+$('kk').className=s.k?'al':'';
+const ds=new Date(Date.now()+108e5);ds.setUTCHours(0,0,0,0);const nt=[];if(!s.an)nt.push('«В сети» — по последней сверке с панелью');
 if(s.ts&&s.ts*1e3-(ds-108e5)>9e5)nt.push('трафик считается с '+hm(s.ts));$('nt').textContent=nt.join(' · ');
-const k=$('k');k.textContent=s.k?'Открытых обращений: '+s.k+' — ответьте в админке':'Открытых обращений нет';k.className='tk'+(s.k?' low':'');
 $('u').textContent='Обновлено в '+hm(s.t)}
-$('ta').onclick=()=>{tab=0;chart()};$('tb').onclick=()=>{tab=1;chart()};
+$('ta').onclick=()=>{tab=0;chart()};$('tn').onclick=()=>{tab=1;chart()};
 draw();live('s',v=>{s=v;draw()});""",
-    ".hd{display:flex;justify-content:space-between;align-items:center;gap:8px}"
-    ".dl{font-size:.78em;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--tg-theme-secondary-bg-color)}"
-    ".dl.up{color:#2fa84f}.dl.dn{color:var(--tg-theme-destructive-text-color)}"
-    ".sw{display:flex;gap:4px;margin:12px 0 6px}.sw button{flex:1;padding:5px 0;font-size:.85em;border-radius:8px;"
-    "background:var(--tg-theme-secondary-bg-color);color:var(--tg-theme-text-color)}"
-    ".sw .on{background:var(--tg-theme-button-color);color:var(--tg-theme-button-text-color)}"
-    ".ch{display:flex;align-items:flex-end;gap:2px;height:64px}.ch i{flex:1;border-radius:3px 3px 0 0;"
-    "background:var(--tg-theme-button-color);opacity:.55}.ch .nw{opacity:1}.ch .ft{opacity:.15}"
-    ".ax{display:flex;justify-content:space-between;font-size:.68em;color:var(--tg-theme-hint-color);margin-top:3px}"
-    ".mx{display:flex;height:8px;border-radius:4px;overflow:hidden;margin-top:12px;gap:2px}"
+    ".hc{border-radius:22px;padding:14px 14px 10px;color:#fff;background:linear-gradient(160deg,#5fd38d 0%,#28a464 58%,#16804a 100%);"
+    "animation:in .5s cubic-bezier(.2,.8,.2,1)}@keyframes in{from{transform:translateY(10px) scale(.97)}}"
+    ".hd{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.85em;font-weight:600}"
+    ".dl{font-size:.9em;font-weight:700;padding:3px 9px;border-radius:99px;background:rgba(255,255,255,.22)}.dl:empty{display:none}"
+    ".dl.dn{background:rgba(120,10,10,.35)}"
+    ".em{font-size:2.5em;font-weight:800;margin-top:8px;line-height:1.05;font-variant-numeric:tabular-nums;letter-spacing:-.02em}"
+    ".pc{font-size:.82em;opacity:.9;margin-top:3px}"
+    ".sw{display:flex;gap:2px;margin:12px 0 10px;padding:3px;border-radius:99px;background:rgba(0,40,15,.28)}"
+    ".sw button{flex:1;padding:6px 0;font-size:.82em;font-weight:600;border-radius:99px;background:none;color:#fff;transition:background .2s,color .2s}"
+    ".sw .on{background:#fff;color:#16804a}"
+    ".ch{display:flex;align-items:flex-end;gap:2px;height:70px}.ch i{flex:1;border-radius:4px 4px 1px 1px;background:rgba(255,255,255,.6);"
+    "transform-origin:bottom;animation:gr .5s var(--d) cubic-bezier(.2,.8,.2,1) both}.ch .nw{background:#fff;box-shadow:0 0 10px rgba(255,255,255,.8)}"
+    ".ch .ft{background:rgba(255,255,255,.18)}@keyframes gr{from{transform:scaleY(0)}}"
+    ".ax{display:flex;justify-content:space-between;font-size:.68em;opacity:.8;margin-top:4px}"
+    ".mx{display:flex;height:10px;border-radius:99px;overflow:hidden;margin-top:12px;gap:2px}"
     ".lg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.78em;margin-top:6px}"
-    ".lg b{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}"
-    ".sec{font-weight:600;margin:16px 0 6px}"
-    ".fr{margin-bottom:8px}.fl{display:flex;justify-content:space-between;font-size:.9em;gap:8px}"
-    ".fb{height:6px;border-radius:3px;background:var(--tg-theme-secondary-bg-color);margin-top:3px;overflow:hidden}"
-    ".fb i{display:block;height:100%;background:var(--tg-theme-accent-text-color);border-radius:3px}"
-    ".row .c b{font-size:1.05em}.tk{font-size:.85em;margin-top:10px;color:var(--tg-theme-hint-color)}"
-    ".tk.low{color:var(--tg-theme-destructive-text-color)}",
+    ".lg b{display:inline-block;width:8px;height:8px;border-radius:99px;margin-right:5px}"
+    ".sec{font-weight:700;margin:16px 0 8px}"
+    ".cd{background:var(--tg-theme-secondary-bg-color);border-radius:18px;padding:4px 12px}"
+    ".fr{display:flex;align-items:center;gap:10px;padding:8px 0}.fr+.fr{border-top:1px solid rgba(128,128,128,.15)}.fr>i{font-style:normal;font-size:1.15em}"
+    ".fm{flex:1;min-width:0}.fl{display:flex;justify-content:space-between;font-size:.88em;gap:8px}"
+    ".fl em,.gr span{font-style:normal;color:var(--tg-theme-hint-color);font-weight:400}"
+    ".fb{height:6px;border-radius:99px;background:rgba(128,128,128,.18);margin-top:5px;overflow:hidden}"
+    ".fb i{display:block;height:100%;background:linear-gradient(90deg,#8fe3b0,#28a464);border-radius:99px}"
+    ".gr{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}"
+    ".gr div{background:var(--tg-theme-secondary-bg-color);border-radius:14px;padding:8px 6px;text-align:center}"
+    ".gr i{font-style:normal;display:block;font-size:1.05em}.gr b{display:block;font-size:1.1em;font-variant-numeric:tabular-nums;margin-top:2px}"
+    ".gr span{font-size:.7em}.gr .al{background:rgba(236,57,66,.16)}.gr .al b{color:var(--tg-theme-destructive-text-color)}"
+    ".rf{width:32px;height:32px;padding:0;border-radius:99px}",
 )
 
 
