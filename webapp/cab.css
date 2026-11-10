@@ -245,18 +245,24 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .am-ico.boom > * { animation: amBoom 1.1s cubic-bezier(.3, 1.3, .4, 1); filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .45)); }
 @keyframes amIn { from { transform: translate(50px, -60px) scale(3.6); opacity: 0; } 30% { opacity: 1; } }
 @keyframes amBoom { 22% { transform: scale(3.2) translateX(12px) rotate(-14deg); } 40% { transform: scale(3) translateX(12px) rotate(10deg); } 58% { transform: scale(3.1) translateX(12px) rotate(-5deg); } }
-.am-num { position: relative; z-index: 1; display: flex; font-weight: 800; font-size: 72px; letter-spacing: -2px; line-height: 1; font-variant-numeric: tabular-nums; transition: font-size .25s; }
+.am-num { position: relative; z-index: 1; display: flex; font-weight: 800; font-size: 72px; letter-spacing: -2px; line-height: 1; font-variant-numeric: tabular-nums; }
 .am-num.l5 { font-size: 62px; } .am-num.l6 { font-size: 54px; }
 .am-num span { display: inline-block; }
-.am-num .in { animation: amBlob .42s cubic-bezier(.2, .9, .3, 1.2); }
-@keyframes amBlob { 0% { transform: scale(.35, .55); filter: blur(10px); opacity: 0; } 35% { transform: scale(.9, 1.05); filter: blur(6px); opacity: 1; } 100% { transform: none; filter: none; } }
-.am-num .out { position: absolute; right: 0; animation: amGone .22s ease-in forwards; }
-@keyframes amGone { to { transform: scale(.4); filter: blur(8px); opacity: 0; } }
+.am-num .add { transform-origin: 0 62%; animation: amAdd .2s linear both; }
+@keyframes amAdd { 0% { transform: translateX(-.12em) scale(.32); opacity: .25; color: rgba(255,255,255,.5); }
+  38% { transform: none; opacity: 1; color: rgba(255,255,255,.55); animation-timing-function: ease-in; } 70% { color: rgba(255,255,255,.6); } 100% { transform: none; color: #fff; } }
+.am-num .out { position: absolute; top: 0; transform-origin: 0 62%; animation: amOut .18s ease-in forwards; }
+@keyframes amOut { 40% { color: rgba(255,255,255,.55); } 100% { transform: translateX(-.1em) scale(.3); opacity: 0; color: rgba(255,255,255,.5); } }
+.am-num.goo { filter: url(#amGoo); }
+.am-num .melt { position: absolute; left: 0; top: 0; color: #fff; animation: amMelt .08s ease-in forwards; }
+@keyframes amMelt { 0% { filter: blur(0); } 60% { transform: scale(.9, .96); filter: blur(5px); opacity: 1; } 100% { transform: scale(.8, .9); filter: blur(9px); opacity: 0; } }
+.am-num .form { animation: amForm .12s cubic-bezier(.3, .7, .4, 1) both; }
+@keyframes amForm { 0% { transform: scale(.82, .9); filter: blur(9px); opacity: 0; color: #fff; } 45% { filter: blur(5px); opacity: 1; } 75% { transform: scale(1.02); filter: blur(1.5px); } 100% { transform: none; filter: none; color: #fff; } }
 .am-num .roll { filter: blur(1.6px); transform: translateY(var(--dy, 0)); }
 .am-stage.zero .am-num { color: rgba(255, 255, 255, .3); }
 .am-caret { z-index: 1; width: 3px; height: 52px; margin: 0 5px 0 6px; border-radius: 2px; background: var(--acc); opacity: 0; transition: opacity .2s; }
 .am.open .am-caret { opacity: 1; animation: amBlink 1.05s steps(1) infinite .3s; }
-@keyframes amBlink { 50% { opacity: 0; } }
+@keyframes amBlink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
 .am-unit { z-index: 1; color: var(--acc); font-weight: 800; font-size: 34px; margin-left: 4px; }
 .am.open .am-unit { margin-left: 0; }
 .am-unit.days { font-size: 26px; }

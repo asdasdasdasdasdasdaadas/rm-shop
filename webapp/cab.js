@@ -454,7 +454,7 @@
       return `<div class="am ${AM_TONE[id] || ""}" id="am">` +
         (m ? cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), `Баланс ${rub(me.balance_rub)}`) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
           payMethods().length > 1 ? 'data-go="method"' : ""]]) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
-        `<div class="am-stage zero" id="amStage"><div class="am-glow"></div>` +
+        `<div class="am-stage zero" id="amStage"><svg width="0" height="0" style="position:absolute"><filter id="amGoo"><feGaussianBlur stdDeviation="3.5"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 22 -9"/></filter></svg><div class="am-glow"></div>` +
           `<div class="am-w" id="amW"><button type="button" class="am-ico in" id="amIco" data-act="amtico" aria-label="Способ оплаты">${(AM_ICON[id] || AM_ICON.ton)()}</button>` +
           `<div class="am-num" id="amNum"><span>0</span></div><div class="am-caret"></div><div class="am-unit" id="amUnit">₽</div></div>` +
           `<button type="button" class="am-sub" id="amSub" data-act="amtsw"><span id="amSubT"></span><span class="sw">⇅</span></button>` +
@@ -485,15 +485,49 @@
     cur.el.querySelector("#am").appendChild(r);
     setTimeout(() => r.remove(), 650);
   }
+  // Typing motion, taken frame by frame from the reference: a new digit grows out of the caret in gray and turns white,
+  // a lone "0" melts into a blob and re-forms as the digit, and the whole row glides to its new centre (FLIP).
   function amSetNum(el, s, prev) {
-    const num = el.querySelector("#amNum");
-    if (prev != null && s.length > prev.length && prev !== "0") {
-      num.innerHTML = [...s].map((c, i) => `<span class="${i === s.length - 1 ? "in" : ""}">${c}</span>`).join("");
-    } else if (prev != null && s.length < prev.length && s !== "0") {
-      num.innerHTML = [...s].map((c) => `<span>${c}</span>`).join("") + `<span class="out">${prev.slice(-1)}</span>`;
-      setTimeout(() => { const o = num.querySelector(".out"); if (o) o.remove(); }, 230);
-    } else num.innerHTML = [...s].map((c) => `<span class="${prev != null ? "in" : ""}">${c}</span>`).join("");
-    num.className = "am-num" + (s.length >= 7 ? " l6" : s.length >= 6 ? " l5" : "");
+    const num = el.querySelector("#amNum"), w = el.querySelector("#amW");
+    const keep = [el.querySelector("#amIco"), el.querySelector(".am-caret"), el.querySelector("#amUnit")];
+    const old = [...num.children].filter((c) => !c.classList.contains("out"));
+    const k = w.getBoundingClientRect().width / (w.offsetWidth || 1) || 1;
+    const x0 = new Map();
+    keep.concat(old).forEach((n) => n && x0.set(n, n.getBoundingClientRect().left));
+    const span = (c, cls) => { const e = document.createElement("span"); e.textContent = c; if (cls) e.className = cls; return e; };
+    let moved = [];
+    if (prev == null) num.replaceChildren(...[...s].map((c) => span(c)));
+    else if (s.length === prev.length + 1 && s.startsWith(prev) && prev !== "0") {
+      num.querySelectorAll(".out").forEach((o) => o.remove());
+      num.appendChild(span(s.slice(-1), "add"));
+      moved = old;
+    } else if (s.length === prev.length - 1 && prev.startsWith(s) && s !== "0") {
+      num.querySelectorAll(".out").forEach((o) => o.remove());
+      const last = old[old.length - 1], nb = num.getBoundingClientRect();
+      const lx = (last.getBoundingClientRect().left - nb.left) / k;
+      last.className = "out"; last.style.left = lx + "px";
+      moved = old;
+      setTimeout(() => last.remove(), 200);
+    } else if (prev === "0" && s.length === 1) {
+      const o = old[0]; o.className = "melt";
+      num.classList.add("goo");
+      num.appendChild(span(s, "form"));
+      setTimeout(() => { o.remove(); num.classList.remove("goo"); }, 85);
+    } else num.replaceChildren(...[...s].map((c) => span(c, "form")));
+    num.className = "am-num" + (num.classList.contains("goo") ? " goo" : "") + (s.length >= 7 ? " l6" : s.length >= 6 ? " l5" : "");
+    if (prev == null) return;
+    const car = keep[1];
+    if (car) { car.style.animation = "none"; void car.offsetWidth; car.style.animation = ""; }
+    const anim = [];
+    keep.concat(moved).forEach((n) => {
+      if (!n || !x0.has(n)) return;
+      const dx = (x0.get(n) - n.getBoundingClientRect().left) / k;
+      if (Math.abs(dx) < 0.5) return;
+      n.style.transition = "none"; n.style.translate = dx + "px 0"; anim.push(n);
+    });
+    if (!anim.length) return;
+    void num.offsetWidth;
+    anim.forEach((n) => { n.style.transition = "translate .24s cubic-bezier(.25,.85,.3,1)"; n.style.translate = "0 0"; });
   }
   function amSide(el) {
     const n = amN(), ok = amountOk(n), min = Number(me.topup_min) || 1, max = Number(me.topup_max) || 100000;
