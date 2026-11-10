@@ -6,7 +6,7 @@ import React, {
   type ReactNode,
 } from "react";
 import { createRoot } from "react-dom/client";
-import { api } from "@/lib/api";
+import { api, useResource } from "@/lib/api";
 import {
   ConfirmProvider,
   Failure,
@@ -62,7 +62,6 @@ import {
   LogOut,
   ChevronRight,
   Loader2,
-  ShieldCheck,
 } from "lucide-react";
 import { UsersPage } from "@/pages/users";
 import { FinancePage } from "@/pages/finance";
@@ -74,6 +73,13 @@ import { AdsPage, ReferralsPage } from "@/pages/marketing";
 import { BroadcastPage } from "@/pages/communications";
 import { FunnelPage } from "@/pages/funnel";
 import "./theme.css";
+// Telegram-settings style: every section gets its own coloured tile.
+const TILE: Record<string, string> = {
+  statistics: "#3e88f7", overview: "#5856d6", users: "#2fb46a", tickets: "#ff9500",
+  finance: "#22975a", orders: "#34aadc", ton: "#30a1f5", billing: "#8e8e93",
+  referrals: "#ff2d55", ads: "#af52de", funnel: "#5ac8fa", broadcast: "#007aff",
+  messages: "#ff9f0a", settings: "#636366", backups: "#a2845e",
+};
 const sections = [
   {
     id: "statistics",
@@ -215,7 +221,7 @@ function Admin() {
   const [auth, setAuth] = useState<boolean | null>(null),
     [brand, setBrand] = useState("VPN"),
     [theme, setTheme] = useState<"light" | "dark">(() =>
-      localStorage.getItem("way-admin-theme") === "dark" ? "dark" : "light",
+      localStorage.getItem("way-admin-theme") === "light" ? "light" : "dark",
     ),
     [password, setPassword] = useState(""),
     [loginError, setLoginError] = useState(""),
@@ -277,7 +283,7 @@ function Admin() {
             }}
           />
         ) : (
-          <main className="min-h-dvh grid place-items-center p-6 bg-muted/30">
+          <main className="adm-login min-h-dvh grid place-items-center p-6">
             {auth === null && !sessionError ? (
               <div className="w-80">
                 <Loading />
@@ -289,8 +295,8 @@ function Admin() {
             ) : (
               <Card className="w-full max-w-sm">
                 <CardHeader>
-                  <ShieldCheck className="size-8 mb-5" />
-                  <CardTitle className="text-2xl">Панель управления</CardTitle>
+                  <img src="/icons/frog.png" alt="" className="adm-frog size-16 mb-5" />
+                  <CardTitle className="text-2xl font-extrabold">Панель управления</CardTitle>
                   <CardDescription>
                     Войдите для работы с клиентами и сервисом.
                   </CardDescription>
@@ -419,12 +425,16 @@ function Workspace({
       window.removeEventListener("keydown", key);
     };
   }, []);
+  // Live counters on the menu: open tickets and pending payouts.
+  const live = useResource("stats", 120000).data;
+  const badge: Record<string, number> = {
+    tickets: Number(live?.tickets_open || 0),
+    referrals: Number(live?.users?.payouts_pending || 0),
+  };
   const nav = (
     <div className="flex min-h-full flex-col">
       <div className="flex items-center gap-3 px-3 py-5">
-        <div className="rounded-lg bg-primary p-2 text-primary-foreground">
-          <ShieldCheck className="size-5" />
-        </div>
+        <img src="/icons/frog.png" alt="" className="adm-frog" />
         <div className="min-w-0">
           <p className="font-semibold truncate">{brand}</p>
           <p className="text-xs text-muted-foreground">Управление сервисом</p>
@@ -443,12 +453,19 @@ function Workspace({
                   <Button
                     key={s.id}
                     variant={s.id === current.id ? "secondary" : "ghost"}
-                    className="w-full justify-start h-9 px-3 text-[13px]"
+                    className="w-full justify-start h-10 px-2 text-[13px] gap-3 rounded-[12px]"
                     aria-current={s.id === current.id ? "page" : undefined}
                     onClick={() => navigate(s.id)}
                   >
-                    <s.icon className="size-4 shrink-0" />
-                    {s.label}
+                    <span className="adm-tile" style={{ background: TILE[s.id] || "#6b7280" }}>
+                      <s.icon />
+                    </span>
+                    <span className="truncate">{s.label}</span>
+                    {badge[s.id] > 0 && (
+                      <span className="adm-badge" aria-hidden="true">
+                        {badge[s.id]}
+                      </span>
+                    )}
                   </Button>
                 ))}
             </div>
@@ -524,11 +541,11 @@ function Workspace({
   return (
     <Navigation.Provider value={navigate}>
       <div className="min-h-dvh lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
-        <aside className="hidden lg:block sticky top-0 h-dvh overflow-y-auto border-r bg-card px-3">
+        <aside className="hidden lg:block sticky top-0 h-dvh overflow-y-auto bg-card px-3">
           {nav}
         </aside>
         <div className="min-w-0">
-          <header className="flex items-center justify-between gap-4 border-b bg-card px-4 sm:px-8 h-16">
+          <header className="sticky top-0 z-30 flex items-center justify-between gap-4 bg-background/80 backdrop-blur-xl px-4 sm:px-8 h-16">
             <div className="flex items-center gap-3 min-w-0">
               <Button
                 variant="ghost"

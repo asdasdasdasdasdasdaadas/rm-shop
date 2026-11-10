@@ -10,12 +10,12 @@ import {
   useNavigate,
 } from "@/components/workspace";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowUpRight, RefreshCw, CircleCheck } from "lucide-react";
 import { messageKinds } from "./records";
 import { funnelRoute } from "@/lib/contracts.mjs";
+import { CountUp, Delta, DashboardWidgets } from "@/components/widgets";
 const main = [
   ["entered", "Запустили бота"],
   ["trial", "Забрали подарок"],
@@ -170,60 +170,67 @@ export function OverviewPage({
       )}
       {!analyticsOnly && (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="adm-hero grid gap-1 p-2 sm:grid-cols-2 xl:grid-cols-4">
             {[
               [
                 "Пользователи",
                 u.users_total || 0,
                 "Всего зарегистрировано",
                 "users",
+                Number(u.users_total || 0),
               ],
               [
                 "Онлайн за сутки",
                 s.online?.day || 0,
                 "Пользовались VPN за 24 часа",
                 "users?online=1d",
+                Number(s.online?.day || 0),
               ],
               [
                 "Сумма пополнений",
                 money(s.topups?.amount_rub || s.revenue_rub),
                 "За всё время",
                 "orders?status=granted",
+                Number(s.topups?.amount_rub || s.revenue_rub || 0),
               ],
               [
                 "Платящие пользователи",
                 s.paying_users?.total ?? s.topups?.payers ?? 0,
                 "Хотя бы одно пополнение",
                 "users?paid=yes",
+                Number(s.paying_users?.total ?? s.topups?.payers ?? 0),
               ],
-            ].map(([label, value, hint, path]) => (
-              <Card key={String(label)}>
-                <CardContent className="pt-5">
-                  <button
-                    className="w-full text-left"
-                    onClick={() => navigate(String(path))}
-                  >
-                    <div className="flex justify-between text-muted-foreground">
-                      <span className="text-sm">{label}</span>
-                      <ArrowUpRight className="size-4" />
-                    </div>
-                    <p className="text-3xl font-semibold tracking-tight my-3">
-                      {value}
-                      {path === "users?paid=yes" && s.paying_users && (
-                        <span
-                          className="ml-3 inline-flex align-middle rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium tracking-normal text-emerald-700 dark:text-emerald-400"
-                          title="Впервые оплатили сегодня, с 00:00 по Москве"
-                        >
-                          +{s.paying_users.new_today ?? 0} за день
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{hint}</p>
-                  </button>
-                </CardContent>
-              </Card>
+            ].map(([label, value, hint, path, raw]) => (
+              <button
+                key={String(label)}
+                className="adm-kpi"
+                onClick={() => navigate(String(path))}
+              >
+                <small className="flex justify-between">
+                  {label}
+                  <ArrowUpRight className="size-4" />
+                </small>
+                <b>
+                  {typeof raw === "number" ? (
+                    <CountUp value={raw} format={(n) => (path === "orders?status=granted" ? money(Math.round(n)) : Math.round(n).toLocaleString("ru-RU"))} />
+                  ) : (
+                    value
+                  )}
+                  {path === "users?online=1d" && <Delta now={Number(s.online?.day || 0)} prev={Number(s.online?.day_prev || 0)} />}
+                  {path === "users?paid=yes" && s.paying_users && (
+                    <span
+                      className="ml-3 inline-flex align-middle rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold tracking-normal text-white"
+                      title="Впервые оплатили сегодня, с 00:00 по Москве"
+                    >
+                      +{s.paying_users.new_today ?? 0} за день
+                    </span>
+                  )}
+                </b>
+                <span>{hint}</span>
+              </button>
             ))}
           </div>
+          <DashboardWidgets s={s} />
         </>
       )}
       <Tabs

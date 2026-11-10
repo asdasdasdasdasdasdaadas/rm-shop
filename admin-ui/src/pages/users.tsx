@@ -46,6 +46,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Avatar } from "@/components/widgets";
 import { billKinds, messageKinds } from "./records";
 import { paymentSummary } from "@/lib/contracts.mjs";
 import {
@@ -168,11 +169,14 @@ const wealth = (u: Data) =>
 const traffic = (u: Data) =>
   `${(Math.max(Number(u.used_traffic_bytes) || 0, Number(u.lifetime_traffic_bytes) || 0) / 1073741824).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ГБ`;
 const identity = (u: Data) => (
-  <div>
-    <div className="font-medium">{who(u)}</div>
+  <div className="flex items-center gap-3">
+    <Avatar row={u} size={34} />
+    <div className="min-w-0">
+    <div className="font-semibold">{who(u)}</div>
     <div className="text-xs text-muted-foreground">
       {u.username ? "@" + u.username + " · " : ""}
       {u.telegram_id}
+    </div>
     </div>
   </div>
 );
