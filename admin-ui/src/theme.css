@@ -165,9 +165,9 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .adm-hero .adm-kpi small { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: #ffffffe6; }
 .adm-hero .adm-kpi b { display: block; font-size: 34px; font-weight: 800; letter-spacing: -0.03em; margin: 8px 0 6px; font-variant-numeric: tabular-nums; }
 .adm-hero .adm-kpi > span { font-size: 12px; color: #ffffffd9; }
-@keyframes admRise { from { opacity: 0; transform: translateY(14px) scale(.98); } }
+@keyframes admRise { from { transform: translateY(14px) scale(.98); } }
 #workspace-main > div:last-child > div { animation: admIn .4s cubic-bezier(.2,.8,.2,1) both; }
-@keyframes admIn { from { opacity: 0; transform: translateY(8px); } }
+@keyframes admIn { from { transform: translateY(10px); } }
 /* Bordered blocks become borderless cards; inside a card they sink into the page colour. */
 :is(.rounded-lg, .rounded-xl).border:not(.border-dashed, .border-destructive) { border-color: transparent; background-color: var(--card); box-shadow: var(--card-shadow); }
 .bg-card :is(.rounded-lg, .rounded-xl).border:not(.border-dashed, .border-destructive) { background-color: var(--background); box-shadow: none; }
@@ -249,3 +249,43 @@ tbody tr:hover { background: color-mix(in srgb, var(--secondary) 60%, transparen
 nav[aria-label="Разделы админки"] button[aria-current="page"] { background: var(--secondary); box-shadow: inset 3px 0 0 var(--primary); }
 nav[aria-label="Разделы админки"] button .adm-tile { transition: transform .2s cubic-bezier(.3,1.4,.4,1); }
 nav[aria-label="Разделы админки"] button:hover .adm-tile { transform: scale(1.1) rotate(-6deg); }
+
+/* ---------- client card ---------- */
+.adm-client { background: var(--background); }
+.adm-chero { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 26px 20px 22px; border-radius: 26px; color: #fff; animation: admRise .55s cubic-bezier(.2,.8,.2,1) both; }
+.adm-chero.green { background: linear-gradient(160deg, #3fbf78 0%, #22975a 55%, #146b3f 100%); }
+.adm-chero.red { background: linear-gradient(165deg, #6e1714 0%, #c8352c 55%, #e5574b 100%); }
+.adm-chero.orange { background: linear-gradient(165deg, #7a3410 0%, #d0661f 55%, #f09a3e 100%); }
+.adm-chero.slate { background: linear-gradient(170deg, #1f2a3d 0%, #354764 55%, #5c7397 100%); }
+.adm-chero::before { content: ""; position: absolute; top: -60px; left: 50%; width: 320px; height: 320px; margin-left: -160px; border-radius: 50%; background: radial-gradient(circle, #ffffff33, #ffffff00 65%); pointer-events: none; }
+.adm-chero .adm-avatar { position: relative; box-shadow: 0 10px 26px #00000059, 0 0 0 4px #ffffff40; animation: admPop .7s .1s cubic-bezier(.3, 1.4, .4, 1) both; }
+.adm-chero h2 { position: relative; margin-top: 14px; font-size: 24px; font-weight: 800; }
+.adm-chero-id { position: relative; font-size: 13px; color: #ffffffd9; margin-top: 2px; }
+.adm-chero-st { position: relative; margin-top: 10px; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 99px; background: #ffffff2e; }
+.adm-chero-bal { position: relative; margin-top: 16px; display: flex; flex-direction: column; align-items: center; }
+.adm-chero-bal > span { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.adm-chero-bal small { font-size: 12px; color: #ffffffd9; margin-top: 4px; }
+.adm-qa { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.adm-qa button { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px 10px; border-radius: 18px; background: var(--card); box-shadow: var(--card-shadow); font-size: 12px; font-weight: 600; color: var(--primary); transition: transform .15s, background .15s; animation: admIn .45s cubic-bezier(.2,.8,.2,1) both; }
+.adm-qa button:nth-child(2) { animation-delay: .04s; } .adm-qa button:nth-child(3) { animation-delay: .08s; } .adm-qa button:nth-child(4) { animation-delay: .12s; } .adm-qa button:nth-child(5) { animation-delay: .16s; }
+.adm-qa button:hover { background: var(--secondary); }
+.adm-qa button:active { transform: scale(.94); }
+.adm-qa button svg { width: 22px; height: 22px; }
+.adm-ctiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.adm-ctiles > * { text-align: left; background: var(--card); border-radius: 18px; padding: 12px 14px; box-shadow: var(--card-shadow); min-width: 0; }
+.adm-ctiles p { font-size: 12px; color: var(--muted-foreground); }
+.adm-ctiles b { display: block; font-size: 20px; font-weight: 800; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-ctiles button { transition: transform .15s, background .15s; } .adm-ctiles button:hover { background: var(--secondary); }
+@media (max-width: 560px) { .adm-ctiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .adm-qa button { font-size: 11px; } }
+.adm-rows { background: var(--card); border-radius: 20px; box-shadow: var(--card-shadow); padding: 4px 16px; margin: 0; }
+.adm-rows > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 12px 0; font-size: 14px; }
+.adm-rows > div + div { border-top: 1px solid var(--border); }
+.adm-rows dt { color: var(--muted-foreground); flex-shrink: 0; }
+.adm-rows dd { margin: 0; text-align: right; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.adm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.adm-chips button { padding: 6px 12px; border-radius: 99px; background: var(--secondary); font-size: 13px; font-weight: 600; transition: transform .15s, background .15s; }
+.adm-chips button:hover { background: color-mix(in srgb, var(--primary) 18%, var(--secondary)); }
+.adm-chips button:active { transform: scale(.94); }
+.adm-tabrow { overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
+.adm-tabrow::-webkit-scrollbar { display: none; }
+.adm-tabrow > * { flex-shrink: 0; }

@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api, date, money, qs, useResource, who, type Data } from "@/lib/api";
 import {
-  ActionButton,
   Choice,
   DataTable,
   Empty,
@@ -40,13 +39,19 @@ import {
   SlidersHorizontal,
   MoreHorizontal,
   X,
-  Copy,
   ArrowDownUp,
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Avatar } from "@/components/widgets";
+import { Avatar, CountUp } from "@/components/widgets";
+import {
+  Wallet as WalletIcon,
+  Send as SendIcon,
+  Smartphone,
+  Receipt,
+  Copy as CopyIcon,
+} from "lucide-react";
 import { billKinds, messageKinds } from "./records";
 import { paymentSummary } from "@/lib/contracts.mjs";
 import {
@@ -780,8 +785,8 @@ export function UsersPage() {
           if (!open) closeUser();
         }}
       >
-        <SheetContent className="overflow-y-auto w-full sm:max-w-2xl">
-          <SheetHeader>
+        <SheetContent className="adm-client overflow-y-auto w-full sm:max-w-2xl">
+          <SheetHeader className="sr-only">
             <SheetTitle>{user ? who(user) : "Клиент"}</SheetTitle>
             <SheetDescription>
               {user?.username ? "@" + user.username + " · " : ""}Telegram ID{" "}
@@ -805,6 +810,10 @@ export function UsersPage() {
     </div>
   );
 }
+const heroTone = (u: Data) =>
+  u.blocked_at ? "red" : u.billing_paused_at ? "orange" : String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "green" : "slate";
+const heroStatus = (u: Data) =>
+  u.blocked_at ? "Заблокирован" : u.billing_paused_at ? "Списания на паузе" : String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "Доступ активен" : "Нет доступа";
 function UserDetail({
   user,
   onChange,
@@ -850,32 +859,57 @@ function UserDetail({
     toast.success("Изменения сохранены");
   };
   return (
-    <div className="pt-6 space-y-5">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="rounded-lg bg-muted p-3">
-          <p className="text-xs text-muted-foreground">Баланс</p>
-          <p className="text-xl font-semibold mt-1">{money(u.balance_rub)}</p>
+    <div className="pt-7 space-y-5">
+      <section className={"adm-chero " + heroTone(u)}>
+        <Avatar row={u} size={76} />
+        <h2>{who(u)}</h2>
+        <p className="adm-chero-id">
+          {u.username ? "@" + u.username + " · " : ""}ID {u.telegram_id}
+        </p>
+        <span className="adm-chero-st">{heroStatus(u)}</span>
+        <div className="adm-chero-bal">
+          <CountUp value={Number(u.balance_rub || 0)} format={(n) => money(Math.round(n))} />
+          <small>баланс</small>
         </div>
-        <div className="rounded-lg bg-muted p-3">
-          <p className="text-xs text-muted-foreground">Пригласил</p>
-          <p className="text-xl font-semibold mt-1">{u.invited_count || 0}</p>
+      </section>
+      <div className="adm-qa">
+        {([
+          ["Пополнить", <WalletIcon key="w" />, () => { setTab("summary"); setTimeout(() => document.getElementById("adm-amount")?.focus(), 60); }],
+          ["Сообщение", <SendIcon key="s" />, () => setTab("message")],
+          ["Устройства", <Smartphone key="d" />, () => setTab("devices")],
+          ["Платежи", <Receipt key="r" />, () => navigate("orders?q=" + u.telegram_id)],
+          ["Скопировать ID", <CopyIcon key="c" />, async () => { await navigator.clipboard.writeText(String(u.telegram_id)); toast.success("ID скопирован"); }],
+        ] as [string, ReactNode, () => void][]).map(([label, icon, fn]) => (
+          <button key={label} type="button" onClick={fn}>
+            <span>{icon}</span>
+            {label === "Скопировать ID" ? "ID" : label}
+          </button>
+        ))}
+      </div>
+      <div className="adm-ctiles">
+        <div>
+          <p>Устройства</p>
+          <b><CountUp value={Number(u.device_count || 0)} /></b>
         </div>
-        <div className="rounded-lg bg-muted p-3">
-          <p className="text-xs text-muted-foreground">Трафик</p>
-          <p className="text-xl font-semibold mt-1">{traffic(u)}</p>
+        <div>
+          <p>Пригласил</p>
+          <b><CountUp value={Number(u.invited_count || 0)} /></b>
+        </div>
+        <div>
+          <p>Трафик</p>
+          <b>{traffic(u)}</b>
         </div>
         <button
           type="button"
-          className="rounded-lg bg-muted p-3 text-left hover:bg-muted/70"
           onClick={() => setTab("gifts")}
           title="Оценка по подаркам в профиле Telegram"
         >
-          <p className="text-xs text-muted-foreground">Состоятельность</p>
+          <p>Состоятельность</p>
           <WealthStars data={giftInfo} />
         </button>
       </div>
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="w-full h-auto flex-wrap justify-start">
+        <TabsList className="adm-tabrow w-full justify-start">
           <TabsTrigger value="summary">Профиль</TabsTrigger>
           <TabsTrigger value="devices">Устройства</TabsTrigger>
           <TabsTrigger value="history">Операции</TabsTrigger>
@@ -884,7 +918,7 @@ function UserDetail({
           <TabsTrigger value="message">Написать</TabsTrigger>
         </TabsList>
         <TabsContent value="summary" className="space-y-5 pt-4">
-          <dl className="grid grid-cols-2 gap-3 text-sm">
+          <dl className="adm-rows">
             {[
               ["Зарегистрировался", date(u.created_at)],
               ["Был в сети", date(u.last_online_at)],
@@ -898,8 +932,8 @@ function UserDetail({
               ["Срок подписки", date(u.expire_at)],
             ].map(([k, v]) => (
               <div key={String(k)}>
-                <dt className="text-muted-foreground text-xs">{k}</dt>
-                <dd className="mt-1">{v}</dd>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
               </div>
             ))}
           </dl>
@@ -907,8 +941,16 @@ function UserDetail({
             title="Изменить баланс"
             description="Положительная сумма — начисление, отрицательная — списание."
           >
+            <div className="adm-chips">
+              {[100, 300, 500, 1000, -100].map((v) => (
+                <button key={v} type="button" onClick={() => setAmount(String(Number(amount || 0) + v))}>
+                  {v > 0 ? "+" : "−"}{Math.abs(v).toLocaleString("ru-RU")} ₽
+                </button>
+              ))}
+            </div>
             <div className="flex gap-3">
               <Input
+                id="adm-amount"
                 aria-label="Сумма изменения баланса"
                 type="number"
                 placeholder="Например, 100 или −100"
@@ -938,24 +980,6 @@ function UserDetail({
             </div>
           </Panel>
           <div className="flex flex-wrap gap-2">
-            <ActionButton
-              variant="outline"
-              onAction={async () => {
-                await navigator.clipboard.writeText(String(u.telegram_id));
-                toast.success("ID скопирован");
-              }}
-            >
-              <Copy />
-              ID
-            </ActionButton>
-            <Button
-              variant="outline"
-              onClick={() => {
-                navigate("orders?q=" + u.telegram_id);
-              }}
-            >
-              Все платежи
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline">
