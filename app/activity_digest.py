@@ -31,6 +31,16 @@ def format_digest(day, rows, users):
     return '\n'.join(lines)
 
 
+async def _send(bot, chat, day, rows, users):
+    # Day results as a card (money, newcomers, activity bars); plain text where a widget can't go.
+    from app.widgets_more import send_digest_widget
+    try:
+        return await send_digest_widget(bot, chat, day, rows, users)
+    except Exception:
+        logger.info('Виджет итогов дня не отправился, шлём текст', exc_info=True)
+    return await bot.send_message(chat, format_digest(day, rows, users), parse_mode='HTML', request_timeout=30)
+
+
 async def send_due(bot, now=None):
     from app.live import _chat_id
     chat = _chat_id()
@@ -51,7 +61,7 @@ async def send_due(bot, now=None):
                 COUNT(DISTINCT telegram_id)::int AS users FROM admin_activity_daily
                 WHERE day=$1 GROUP BY action ORDER BY action''', day)
             users = await conn.fetchval('SELECT COUNT(DISTINCT telegram_id) FROM admin_activity_daily WHERE day=$1', day)
-            await bot.send_message(chat, format_digest(day, rows, users), parse_mode='HTML', request_timeout=30)
+            await _send(bot, chat, day, rows, users)
             await conn.execute('INSERT INTO admin_activity_digests(day) VALUES ($1)', day)
     return True
 

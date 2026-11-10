@@ -88,7 +88,7 @@ function rub(v){return String(v).replace(/\\B(?=(\\d{3})+(?!\\d))/g,' ')+' ₽'}
 function hm(t){const d=new Date(t*1000);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
 function ask(q,tap,ok){if(busy)return;busy=1;const b=$('r');if(tap&&b)b.disabled=true;
 W.request(q).then(a=>{let v=null;try{v=JSON.parse(a.result)}catch(e){}
-if(v&&v.e){$('u').textContent=v.e}else if(v){ok(v)}},
+if(v&&typeof v.e=='string'){$('u').textContent=v.e}else if(v){ok(v)}},
 e=>{if(tap)$('u').textContent=e.code=='RATE_LIMITED'?'Слишком часто, подождите':'Не удалось обновить'})
 .finally(()=>{busy=0;if(b)b.disabled=false})}
 function live(q,ok){const go=t=>ask(q,t,ok);const b=$('r');
@@ -606,6 +606,9 @@ async def handle_query(bot: Bot, query: dict[str, Any]) -> dict[str, Any]:
         if user_id not in get_settings().admin_id_set:
             return {"e": "Нет доступа"}
         return await stats_state()
+    if data == "F" or data[:2] in ("z:", "k:", "v:", "A:", "C:", "W:"):
+        from app import widgets_more
+        return await widgets_more.handle_query(bot, user_id, data)
     if data[:2] in ("t:", "p:", "q:", "x:"):
         from app import ton
         return await ton.handle_query(bot, query, user_id, data)

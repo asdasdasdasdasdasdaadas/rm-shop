@@ -25,6 +25,7 @@ async def deliver_payment_notice(bot, receipt):
         return
     body = ''
     status = 'pending'
+    step = None
     try:
         local = await db.get_user(uid) or {}
         if key.startswith('ton:') and not receipt['router_days'] and used_vpn(local, await db.list_devices(uid)):
@@ -42,16 +43,31 @@ async def deliver_payment_notice(bot, receipt):
             if used_vpn(local, devices):
                 body += '\n\nVPN уже настроен, больше ничего делать не нужно. Если не подключается — напишите в поддержку.'
                 markup = cabinet_keyboard()
+                step = 'ok'
             elif not devices:
                 body += '\n\n📱 Добавьте устройство — покажем, как подключить VPN.'
                 markup = onboarding_keyboard()
+                step = 'nd'
             else:
                 body += '\n\n📱 Продолжите настройку: добавьте ссылку в VPN-приложение и включите VPN.'
                 markup = onboarding_keyboard(has_device=True)
+                step = 'su'
         if status != 'sent':
-            from app.funnel_ui import funnel_body
+            from app.funnel_ui import funnel_body, funnel_keyboard
             body = funnel_body(body)
-            await send_funnel_message(bot,uid,body,reply_markup=markup)
+            sent = None
+            if step:
+                # A receipt card with the amount and how long the balance lasts; any failure falls back to text.
+                from app.widgets_more import send_receipt_widget
+                try:
+                    sent = await send_receipt_widget(bot, uid, receipt, step=step, caption=body,
+                                                     reply_markup=funnel_keyboard(markup))
+                except (TelegramForbiddenError, TelegramRetryAfter):
+                    raise
+                except Exception:
+                    logger.info('Чек-виджет не отправился, шлём текст: %s', key, exc_info=True)
+            if sent is None:
+                await send_funnel_message(bot,uid,body,reply_markup=markup)
             status = 'sent'
             await db.finish_payment_notice(key,status)
     except TelegramForbiddenError:

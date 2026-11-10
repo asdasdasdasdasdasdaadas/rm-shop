@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 from aiohttp import web
 from aiogram import Bot
+from aiogram.exceptions import TelegramForbiddenError
 from aiogram.types import FSInputFile, Message, InlineKeyboardMarkup, InlineKeyboardButton
 
 from app import db
@@ -128,11 +129,7 @@ async def receive_user_message(
     if ack_user and bot:
         try:
             if created:
-                await bot.send_message(
-                    telegram_id,
-                    "💬 Сообщение отправлено! Ответим в этом чате. Можно добавить детали или скриншот.",
-                    reply_markup=ticket_close_keyboard(ticket_id),
-                )
+                await _ack_new_ticket(bot, telegram_id, ticket_id)
             else:
                 await bot.send_message(telegram_id, "✅ Сообщение отправлено в поддержку.", reply_markup=ticket_close_keyboard(ticket_id))
         except Exception:
@@ -140,6 +137,20 @@ async def receive_user_message(
     if notify_admins and bot:
         await _notify_admins(bot, ticket, text, created=created, source=source, files=saved)
     return ticket
+
+
+async def _ack_new_ticket(bot: Bot, telegram_id: int, ticket_id: int) -> None:
+    text = "💬 Сообщение отправлено! Ответим в этом чате. Можно добавить детали или скриншот."
+    # A live ticket card: status, «Закрыть» and stars after closing; text with a button where widgets don't work.
+    from app.widgets_more import send_ticket_widget
+    try:
+        await send_ticket_widget(bot, telegram_id, ticket_id, caption=text)
+        return
+    except TelegramForbiddenError:
+        raise
+    except Exception:
+        logger.debug("Виджет обращения не отправился %s", ticket_id, exc_info=True)
+    await bot.send_message(telegram_id, text, reply_markup=ticket_close_keyboard(ticket_id))
 
 
 async def receive_admin_reply(
@@ -189,6 +200,14 @@ def ticket_rating_keyboard(ticket_id: int):
 async def notify_ticket_closed(bot, ticket: dict):
     if not bot:
         return
+    if not ticket.get("support_rating"):
+        from app.widgets_more import send_ticket_widget
+        try:
+            await send_ticket_widget(bot, int(ticket["telegram_id"]), int(ticket["id"]),
+                                     caption=f"Обращение №{ticket['id']} закрыто. Оцените помощь поддержки.")
+            return
+        except Exception:
+            logger.debug("Виджет закрытия не отправился ticket=%s", ticket["id"], exc_info=True)
     try:
         await bot.send_message(int(ticket["telegram_id"]),
             f"Обращение №{ticket['id']} закрыто. Если проблема вернётся — напишите снова.\n\n"
@@ -283,6 +302,16 @@ async def _notify_admins(
         f"{escape(preview_text)}"
     )
     for admin_id in settings.admin_id_set:
+        if created:
+            # A new ticket comes as a client card with «Ответить здесь» and «Закрыть»; files follow it.
+            from app.widgets_more import send_admin_ticket_widget
+            try:
+                await send_admin_ticket_widget(bot, admin_id, tid, caption=text, source=source)
+                if files:
+                    await _deliver_files(bot, admin_id, "", files)
+                continue
+            except Exception:
+                logger.debug("Виджет нового обращения не отправился %s", tid, exc_info=True)
         try:
             await _deliver_files(bot, admin_id, text, files or [])
         except Exception:

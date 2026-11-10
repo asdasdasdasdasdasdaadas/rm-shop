@@ -319,6 +319,38 @@ async def cmd_stats(message: Message) -> None:
         await message.answer(f"Статистика не собралась: {type(exc).__name__}")
 
 
+@router.message(Command("forecast"))
+async def cmd_forecast(message: Message) -> None:
+    """Expected repeat payments for 7 and 30 days and whose balance ends soon, as a widget; admins only."""
+    if message.from_user.id not in get_settings().admin_id_set:
+        return
+    from app.widgets_more import send_forecast_widget
+    try:
+        await send_forecast_widget(message.bot, message.from_user.id)
+    except TelegramBadRequest as exc:
+        await message.answer(f"Виджет не отправился: {exc.message}")
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Виджет прогноза не собрался")
+        await message.answer(f"Прогноз не собрался: {type(exc).__name__}")
+
+
+@router.message(Command("digest"))
+async def cmd_digest(message: Message) -> None:
+    """Yesterday's results (Moscow time) as a widget; admins only."""
+    if message.from_user.id not in get_settings().admin_id_set:
+        return
+    from datetime import datetime, timedelta
+    from app.widgets_more import MSK, send_digest_widget
+    day = datetime.now(MSK).date() - timedelta(days=1)
+    try:
+        await send_digest_widget(message.bot, message.from_user.id, day)
+    except TelegramBadRequest as exc:
+        await message.answer(f"Виджет не отправился: {exc.message}")
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Виджет итогов дня не собрался")
+        await message.answer(f"Итоги не собрались: {type(exc).__name__}")
+
+
 @router.message(Command("ton"))
 async def cmd_ton(message: Message, command: CommandObject) -> None:
     """Top up in TON: «/ton 2,5» sends the card at once, bare «/ton» asks how much.

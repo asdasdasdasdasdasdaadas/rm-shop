@@ -172,6 +172,21 @@ async def ticket_from_chat(message: Message) -> None:
     if not text and not files:
         return
     uid = message.from_user.id
+    from app import widgets_more
+    reply_to = widgets_more.reply_target(uid)
+    if reply_to is not None:
+        # An admin pressed «Ответить здесь» on a ticket card: this message is the answer.
+        from app.config import get_settings
+        from app.tickets import receive_admin_reply
+        widgets_more.stop_reply(uid)
+        if uid in get_settings().admin_id_set:
+            try:
+                await receive_admin_reply(message.bot, reply_to, text, files)
+            except (KeyError, ValueError) as exc:
+                await message.answer(f"Ответ не отправлен: {exc}")
+                return
+            await message.answer(f"✅ Ответ отправлен в обращение #{reply_to}.")
+            return
     if not support_open(uid) and not await db.has_open_ticket(uid):
         # A message out of the blue is not a support request: point to the button instead of opening a ticket.
         now = time.monotonic()
