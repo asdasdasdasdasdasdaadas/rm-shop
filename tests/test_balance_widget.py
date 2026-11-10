@@ -117,30 +117,40 @@ class WidgetQueryTest(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn('r', await self.answer('f'))
 
     async def stats(self, online):
-        rows = {'a': 120, 'o': 4, 'ad': 31, 'x': 40, 'k': 2, 'n': 5, 'nr': 2, 'nd': 3, 'nc': 2, 'np': 1}
+        rows = {'a': 120, 'o': 4, 'ad': 31, 'x': 40, 'k': 2}
+        cohort = lambda i, *v: dict(zip(['i', *'nrlgdcpbs'], (i, *v)))
+        payers = {'a': 30, 'x': 22, 'r': 9, 't': 3, 'y': 4, 'm': 18, 'v': 9000}
         pay = {'v': 900, 'p': 3, 'f': 1, 'y': 600}
         traffic = {'tb': 5 * 1024**3, 'ts': 1794200000}
         fetch = AsyncMock(side_effect=[
+            [cohort(0, 5, 2, 1, 4, 3, 2, 1, 0, 300), cohort(2, 9, 1, 0, 7, 6, 5, 2, 1, 800)],
             [{'m': 'order', 'rub': 500}, {'m': 'ton', 'rub': 400}],
             [{'h': 9, 'n': 500}, {'h': 14, 'n': 400}],
-            [{'h': 9, 'n': 5}],
         ])
-        pool = SimpleNamespace(fetchrow=AsyncMock(side_effect=[rows, pay, traffic]), fetch=fetch, execute=AsyncMock())
+        pool = SimpleNamespace(fetchrow=AsyncMock(side_effect=[rows, payers, pay, traffic]), fetch=fetch, execute=AsyncMock())
         rw = SimpleNamespace(safe_get=AsyncMock(return_value=online))
         with patch.object(widgets.db, '_pool_req', return_value=pool), patch('app.runtime.rw', rw):
             state = await widgets.stats_state()
         self.assertIn('INSERT INTO traffic_days', pool.execute.await_args.args[0])
+        self.cohort_sql = fetch.await_args_list[0].args[0]
         return state
 
     async def test_stats_numbers_for_today(self):
         state = await self.stats({'onlineStats': {'onlineNow': 17, 'lastDay': 60}})
-        self.assertEqual({k: state[k] for k in ('v', 'y', 'p', 'f', 'n', 'nr', 'nd', 'nc', 'np', 'x', 'a', 'k', 'ad')},
-                         {'v': 900, 'y': 600, 'p': 3, 'f': 1, 'n': 5, 'nr': 2, 'nd': 3, 'nc': 2, 'np': 1,
-                          'x': 40, 'a': 120, 'k': 2, 'ad': 31})
+        self.assertEqual({k: state[k] for k in ('v', 'y', 'p', 'f', 'x', 'a', 'k', 'ad')},
+                         {'v': 900, 'y': 600, 'p': 3, 'f': 1, 'x': 40, 'a': 120, 'k': 2, 'ad': 31})
+        # today, yesterday by this time (no rows → zeros), all of yesterday
+        self.assertEqual(state['c'], [[5, 2, 1, 4, 3, 2, 1, 0, 300], [0] * 9, [9, 1, 0, 7, 6, 5, 2, 1, 800]])
+        self.assertEqual(state['P'], {'a': 30, 'x': 22, 'r': 9, 't': 3, 'y': 4, 'm': 18, 'v': 9000})
         self.assertEqual((state['on'], state['an'], state['tb'], state['ts']), (17, 1, 5 * 1024**3, 1794200000))
         self.assertEqual(state['m'], {'order': 500, 'ton': 400})
-        self.assertEqual((len(state['h']), state['h'][9], state['h'][14], state['g'][9]), (24, 500, 400, 5))
+        self.assertEqual((len(state['h']), state['h'][9], state['h'][14]), (24, 500, 400))
         self.assertLessEqual(len(json.dumps(state, separators=(',', ':'))), 1024)
+
+    async def test_newcomers_count_deleted_devices_and_any_payment(self):
+        await self.stats(None)
+        self.assertIn('first_device_at IS NOT NULL', self.cohort_sql)
+        self.assertIn("NOW() - INTERVAL '1 day'", self.cohort_sql)
 
     async def test_online_now_falls_back_to_the_last_sync(self):
         state = await self.stats({'_error': 'GET /system/stats → 404'})

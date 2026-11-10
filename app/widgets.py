@@ -197,11 +197,14 @@ draw();if(W.ready)W.ready();""",
 STATS_HTML = _page(
     """<div class="hc"><div class="hd"><span>__BRAND__ · сегодня</span><span class="dl" id="dl"></span></div>
 <div class="em" id="v">—</div><div class="pc" id="pc"></div></div>
-<div class="sw"><button id="t0" class="on">Оплаты</button><button id="t1">Новички</button><button id="t2">Сейчас</button></div>
+<div class="sw"><button id="t0" class="on">Оплаты</button><button id="t1">Новички</button><button id="t2">Платящие</button><button id="t3">Сейчас</button></div>
 <div class="pn" id="p0"><div class="ch" id="ch"></div><div class="ax"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
 <div class="mx" id="mx"></div><div class="lg" id="lg"></div></div>
-<div class="pn" id="p1" hidden><div class="ch sm" id="cg"></div><div class="q4" id="fn"></div></div>
-<div class="pn" id="p2" hidden><div class="gr"><div><b id="on">—</b><span>в сети</span></div><div><b id="ad">—</b><span>за день</span></div>
+<div class="pn" id="p1" hidden><table class="nt" id="fn"></table></div>
+<div class="pn" id="p2" hidden><div class="gr"><div><b id="pa">—</b><span>платили всего</span></div><div><b id="px">—</b><span>с доступом</span></div>
+<div><b id="pr">—</b><span>платили 2+ раз</span></div><div><b id="pt">—</b><span>сегодня</span></div><div><b id="py">—</b><span>вчера</span></div>
+<div><b id="pm">—</b><span>за 30 дней</span></div></div><div class="pq" id="pq"></div></div>
+<div class="pn" id="p3" hidden><div class="gr"><div><b id="on">—</b><span>в сети</span></div><div><b id="ad">—</b><span>за день</span></div>
 <div><b id="tr">—</b><span>трафик</span></div><div><b id="x">—</b><span>с доступом</span></div>
 <div><b id="a">—</b><span>всего</span></div><div id="kk"><b id="k">—</b><span>обращения</span></div></div></div>
 <div class="f"><span class="t" id="u"></span><button id="r" class="rf" aria-label="Обновить">↻</button></div>""",
@@ -212,7 +215,7 @@ function count(to){const e=$('v'),from=shown,t0=performance.now();shown=to;
 (function f(t){const k=Math.min(1,(t-t0)/900);e.textContent=rub(Math.round(from+(to-from)*(1-Math.pow(1-k,3))));if(k<1)requestAnimationFrame(f)})(t0)}
 function bars(id,d,money){const mx=Math.max(1,...d),now=new Date(Date.now()+108e5).getUTCHours();
 $(id).innerHTML=d.map((v,i)=>'<i class="'+(i==now?'nw':i>now?'ft':'')+'" style="--d:'+i*15+'ms;height:'+(v?Math.max(6,v/mx*100):3)+'%" title="'+i+':00 — '+(money?rub(v):v)+'"></i>').join('')}
-function show(t){tab=t;[0,1,2].forEach(i=>{$('t'+i).className=i==t?'on':'';$('p'+i).hidden=i!=t});draw()}
+function show(t){tab=t;[0,1,2,3].forEach(i=>{$('t'+i).className=i==t?'on':'';$('p'+i).hidden=i!=t});draw()}
 function draw(){if(!s)return;if(s.v!=shown)count(s.v);
 const dl=$('dl');if(s.y>0){const p=Math.round((s.v-s.y)/s.y*100);dl.textContent=(p>=0?'▲ ':'▼ ')+Math.abs(p)+'% к вчера';dl.className='dl '+(p>=0?'up':'dn')}
 else{dl.textContent=s.v?'вчера 0 ₽':'';dl.className='dl'}
@@ -220,14 +223,18 @@ $('pc').textContent=s.p?s.p+' '+pl(s.p,'оплата','оплаты','оплат
 if(tab==0){bars('ch',s.h,1);const m=Object.entries(s.m||{}),tot=m.reduce((a,e)=>a+e[1],0)||1,c=e=>(M[e[0]]||['','#8b95a5'])[1];
 $('mx').innerHTML=m.map(e=>'<i style="flex:'+e[1]+';background:'+c(e)+'"></i>').join('');
 $('lg').innerHTML=m.map(e=>'<span><b style="background:'+c(e)+'"></b>'+(M[e[0]]||[e[0]])[0]+' '+Math.round(e[1]/tot*100)+'%</span>').join('')}
-if(tab==1){bars('cg',s.g,0);const st=[['пришли',s.n,s.nr?s.nr+' по ссылке':''],['устройство',s.nd],['в сети',s.nc],['оплатили',s.np]];
-$('fn').innerHTML=st.map((e,i)=>'<div><b>'+e[1]+'</b><span>'+e[0]+'</span><em>'+(i?(s.n?Math.round(e[1]/s.n*100):0)+'%':e[2]||'&nbsp;')+'</em></div>').join('')}
+if(tab==1&&s.c){const L=['Пришли','по ссылке','по рекламе','взяли подарок','устройство','подключились','оплатили','блок бота','₽ с них'];
+$('fn').innerHTML='<tr><td></td><th>сегодня</th><th>вчера к '+hm(s.t)+'</th><th>вчера</th></tr>'+L.map((l,i)=>'<tr class="r'+i+'"><td>'+l+'</td>'
++s.c.map(k=>'<td>'+(i>7?rub(k[8]):k[i])+(i&&i<8&&k[0]?'<em>'+Math.round(k[i]/k[0]*100)+'%</em>':'')+'</td>').join('')+'</tr>').join('')}
+if(s.P){const P=s.P;'axrtym'.split('').forEach(k=>$('p'+k).textContent=n(P[k]));
+$('pq').textContent=(s.a?Math.round(P.a/s.a*100):0)+'% пользователей платили · '+(P.a?Math.round(P.r/P.a*100):0)+'% из них повторно · '
++rub(P.m?Math.round(P.v/P.m):0)+' на платящего за 30 дней'}
 $('on').textContent=n(s.on);$('ad').textContent=n(s.ad);$('tr').textContent=gb(s.tb);$('x').textContent=n(s.x);$('a').textContent=n(s.a);$('k').textContent=s.k;
 $('kk').className=s.k?'al':'';
 const ds=new Date(Date.now()+108e5);ds.setUTCHours(0,0,0,0);const nt=[];if(!s.an)nt.push('«в сети» — по последней сверке с панелью');
-if(s.ts&&s.ts*1e3-(ds-108e5)>9e5)nt.push('трафик с '+hm(s.ts));$('p2').title=nt.join(' · ');
+if(s.ts&&s.ts*1e3-(ds-108e5)>9e5)nt.push('трафик с '+hm(s.ts));$('p3').title=nt.join(' · ');
 $('u').textContent='Обновлено в '+hm(s.t)}
-[0,1,2].forEach(i=>$('t'+i).onclick=()=>{if(W.HapticFeedback)W.HapticFeedback.selectionChanged&&W.HapticFeedback.selectionChanged();show(i)});
+[0,1,2,3].forEach(i=>$('t'+i).onclick=()=>{if(W.HapticFeedback)W.HapticFeedback.selectionChanged&&W.HapticFeedback.selectionChanged();show(i)});
 draw();live('s',v=>{s=v;draw()});""",
     ".hc{border-radius:20px;padding:12px 14px;color:#fff;background:linear-gradient(160deg,#5fd38d 0%,#28a464 58%,#16804a 100%);"
     "animation:in .5s cubic-bezier(.2,.8,.2,1)}@keyframes in{from{transform:translateY(8px) scale(.97)}}"
@@ -239,19 +246,24 @@ draw();live('s',v=>{s=v;draw()});""",
     ".sw{display:flex;gap:2px;margin:10px 0 8px;padding:3px;border-radius:99px;background:var(--tg-theme-secondary-bg-color)}"
     ".sw button{flex:1;padding:5px 0;font-size:.8em;font-weight:600;border-radius:99px;background:none;color:var(--tg-theme-text-color)}"
     ".sw .on{background:#28a464;color:#fff}"
-    ".pn{height:118px;animation:pf .3s ease}@keyframes pf{from{transform:translateY(4px)}}"
-    ".ch{display:flex;align-items:flex-end;gap:2px;height:62px}.ch.sm{height:46px}.ch i{flex:1;border-radius:3px 3px 1px 1px;background:#28a464;opacity:.6;"
+    ".pn{min-height:118px;animation:pf .3s ease}@keyframes pf{from{transform:translateY(4px)}}"
+    ".ch{display:flex;align-items:flex-end;gap:2px;height:62px}.ch i{flex:1;border-radius:3px 3px 1px 1px;background:#28a464;opacity:.6;"
     "transform-origin:bottom;animation:gr .45s var(--d) cubic-bezier(.2,.8,.2,1) both}.ch .nw{opacity:1;box-shadow:0 0 8px rgba(60,207,116,.8)}"
     ".ch .ft{opacity:.15}@keyframes gr{from{transform:scaleY(0)}}"
     ".ax{display:flex;justify-content:space-between;font-size:.66em;color:var(--tg-theme-hint-color);margin-top:3px}"
     ".mx{display:flex;height:8px;border-radius:99px;overflow:hidden;margin-top:10px;gap:2px}"
     ".lg{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:.75em;margin-top:5px}"
     ".lg b{display:inline-block;width:7px;height:7px;border-radius:99px;margin-right:4px}"
-    ".q4,.gr{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:8px}.gr{grid-template-columns:repeat(3,1fr);margin-top:0}"
-    ".q4 div,.gr div{background:var(--tg-theme-secondary-bg-color);border-radius:12px;padding:6px 4px;text-align:center;min-width:0}"
-    ".q4 b,.gr b{display:block;font-size:1.05em;font-variant-numeric:tabular-nums;white-space:nowrap}"
-    ".q4 span,.gr span,.q4 em{display:block;font-size:.66em;font-style:normal;color:var(--tg-theme-hint-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
-    ".q4 em{color:#28a464;font-weight:700}.gr div{padding:9px 4px}.gr .al{background:rgba(236,57,66,.16)}.gr .al b{color:var(--tg-theme-destructive-text-color)}"
+    ".gr{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}"
+    ".gr div{background:var(--tg-theme-secondary-bg-color);border-radius:12px;padding:9px 4px;text-align:center;min-width:0}"
+    ".gr b{display:block;font-size:1.05em;font-variant-numeric:tabular-nums;white-space:nowrap}"
+    ".gr span{display:block;font-size:.66em;color:var(--tg-theme-hint-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+    ".nt{width:100%;border-collapse:collapse;font-size:.74em;font-variant-numeric:tabular-nums}"
+    ".nt td,.nt th{padding:1px 3px;text-align:right;white-space:nowrap}.nt th{font-weight:600;font-size:.9em}"
+    ".nt th,.nt td:first-child{color:var(--tg-theme-hint-color)}.nt td:first-child{text-align:left}"
+    ".nt em{font-style:normal;font-size:.82em;color:#28a464;margin-left:3px}.nt .r0,.nt .r5,.nt .r6{font-weight:700}"
+    ".nt .r0 td,.nt .r5 td,.nt .r6 td{color:var(--tg-theme-text-color)}.nt .r1 td:first-child,.nt .r2 td:first-child{padding-left:10px}"
+    ".pq{font-size:.72em;color:var(--tg-theme-hint-color);margin-top:6px}.gr .al{background:rgba(236,57,66,.16)}.gr .al b{color:var(--tg-theme-destructive-text-color)}"
     ".f{margin-top:6px}.rf{width:30px;height:30px;padding:0;border-radius:99px}",
 )
 
@@ -428,8 +440,11 @@ async def stats_state() -> dict[str, Any]:
     """Today in Moscow time for the admin widget; cheap enough to run every 30 seconds.
 
     v/y — rubles credited today and yesterday by this time, p/f — payments and first payments,
-    m — rubles by provider, h/g — rubles and new users per hour, n/nr/nd/nc/np — today's newcomers:
-    all, by invitation, added a device, connected, paid. o — online in the last hour,
+    m — rubles by provider, h — rubles per hour. c — newcomers (first contact with the bot) for today,
+    yesterday by this time and all of yesterday: [came, by invitation, by ad link, took the gift,
+    added a device, connected, paid, blocked the bot, rubles they paid]; conversions are as of now.
+    P — paying users: a ever paid, x paid and have access, r paid twice or more, t/y/m paid today,
+    yesterday and in 30 days, v rubles in 30 days. o — online in the last hour,
     x — with access (balance and a device), a — all users, k — open support tickets,
     on — connected right now (an=1 when the panel said so, else seen in the last 15 minutes),
     ad — people online at some point today, tb — traffic today in bytes, counted since ts."""
@@ -443,13 +458,43 @@ async def stats_state() -> dict[str, Any]:
             (SELECT COUNT(DISTINCT telegram_id)::int FROM devices WHERE last_online_at >= {day}) AS ad,
             (SELECT COUNT(*)::int FROM users u WHERE COALESCE(u.balance_rub, 0) > 0
                 AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)) AS x,
-            (SELECT COUNT(*)::int FROM tickets WHERE status = 'open') AS k,
-            COUNT(*)::int AS n,
-            COUNT(*) FILTER (WHERE u.referred_by IS NOT NULL)::int AS nr,
-            COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id))::int AS nd,
-            COUNT(*) FILTER (WHERE u.first_online_at IS NOT NULL)::int AS nc,
-            COUNT(*) FILTER (WHERE COALESCE(u.has_paid_topup, FALSE))::int AS np
-        FROM users u WHERE u.created_at >= {day}
+            (SELECT COUNT(*)::int FROM tickets WHERE status = 'open') AS k
+        """
+    ) or {})
+    # Same cohort rules everywhere: a device counts even if it was deleted later, «paid» is any credited payment.
+    cohorts = await pool.fetch(
+        f"""
+        WITH k(i, a, b) AS (VALUES (0, {day}, NOW()),
+                                   (1, {day} - INTERVAL '1 day', NOW() - INTERVAL '1 day'),
+                                   (2, {day} - INTERVAL '1 day', {day}))
+        SELECT k.i, COUNT(u.telegram_id)::int AS n,
+            COUNT(*) FILTER (WHERE u.referred_by IS NOT NULL)::int AS r,
+            COUNT(*) FILTER (WHERE u.ad_link_id IS NOT NULL)::int AS l,
+            COUNT(*) FILTER (WHERE u.trial_used)::int AS g,
+            COUNT(*) FILTER (WHERE u.first_device_at IS NOT NULL
+                OR EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id))::int AS d,
+            COUNT(*) FILTER (WHERE u.first_online_at IS NOT NULL)::int AS c,
+            COUNT(*) FILTER (WHERE u.has_paid_topup)::int AS p,
+            COUNT(*) FILTER (WHERE u.bot_blocked_at IS NOT NULL)::int AS b,
+            COALESCE((SELECT SUM(r.amount) FROM payment_receipts r JOIN users v ON v.telegram_id = r.telegram_id
+                      WHERE v.created_at >= k.a AND v.created_at < k.b), 0)::int AS s
+        FROM k LEFT JOIN users u ON u.created_at >= k.a AND u.created_at < k.b
+        GROUP BY k.i, k.a, k.b ORDER BY k.i
+        """
+    )
+    payers = dict(await pool.fetchrow(
+        f"""
+        SELECT
+            (SELECT COUNT(*)::int FROM users WHERE has_paid_topup) AS a,
+            (SELECT COUNT(*)::int FROM users u WHERE u.has_paid_topup AND COALESCE(u.balance_rub, 0) > 0
+                AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)) AS x,
+            (SELECT COUNT(*)::int FROM (SELECT 1 FROM payment_receipts GROUP BY telegram_id HAVING COUNT(*) > 1) z) AS r,
+            COUNT(DISTINCT telegram_id) FILTER (WHERE created_at >= {day})::int AS t,
+            COUNT(DISTINCT telegram_id) FILTER (WHERE created_at >= {day} - INTERVAL '1 day'
+                AND created_at < {day})::int AS y,
+            COUNT(DISTINCT telegram_id)::int AS m,
+            COALESCE(SUM(amount), 0)::int AS v
+        FROM payment_receipts WHERE created_at >= NOW() - INTERVAL '30 days'
         """
     ) or {})
     pay = dict(await pool.fetchrow(
@@ -471,10 +516,6 @@ async def stats_state() -> dict[str, Any]:
         f"""SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Europe/Moscow')::int AS h, SUM(amount)::int AS n
             FROM payment_receipts WHERE created_at >= {day} GROUP BY 1"""
     )
-    hours_new = await pool.fetch(
-        f"""SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Europe/Moscow')::int AS h, COUNT(*)::int AS n
-            FROM users WHERE created_at >= {day} GROUP BY 1"""
-    )
 
     await note_traffic_baseline()
     traffic = dict(await pool.fetchrow(
@@ -493,8 +534,11 @@ async def stats_state() -> dict[str, Any]:
 
     state: dict[str, Any] = {k: int(pay.get(k) or 0) for k in ("v", "y", "p", "f")}
     state["m"] = {str(r["m"]): int(r["rub"] or 0) for r in methods if int(r["rub"] or 0)}
-    state["h"], state["g"] = by_hour(hours_rub), by_hour(hours_new)
-    state.update({k: int(row.get(k) or 0) for k in ("n", "nr", "nd", "nc", "np", "x", "a", "k", "ad")})
+    state["h"] = by_hour(hours_rub)
+    rows = {int(r["i"]): r for r in cohorts}
+    state["c"] = [[int((rows.get(i) or {}).get(k) or 0) for k in "nrlgdcpbs"] for i in range(3)]
+    state["P"] = {k: int(payers.get(k) or 0) for k in "axrtymv"}
+    state.update({k: int(row.get(k) or 0) for k in ("x", "a", "k", "ad")})
     state["on"], state["an"] = (online, 1) if online is not None else (int(row.get("o") or 0), 0)
     state["tb"], state["ts"] = max(0, int(traffic.get("tb") or 0)), int(traffic.get("ts") or 0)
     state["t"] = int(time.time())
