@@ -119,48 +119,60 @@ draw();setInterval(draw,20000);live('r',v=>{s=v;draw()});""",
 )
 
 REFERRAL_HTML = _page(
-    """<div class="cd"><div class="tp"><span>Приглашайте друзей</span><span class="pi" id="pi" hidden></span></div>
-<div class="em" id="m">—</div><div class="sl">заработано на приглашениях</div>
+    """<div class="cd"><div class="sp"></div><div class="tp"><span class="gi">🎁</span><span>Друзья</span><span class="pi" id="pi" hidden></span></div>
+<div class="em" id="m">—</div><div class="sl" id="sl">заработано на друзьях</div>
+<div class="gl"><div class="gt"><span id="gn"></span><b id="gp"></b></div><div class="gb"><i id="gi"></i></div></div>
 <div class="ts"><div><b id="i">—</b><span id="il">пришли по ссылке</span></div><div><b id="w">—</b><span id="wl">получили бонус</span></div></div>
-<div class="gl"><div class="gt"><span id="gn"></span><span id="gp"></span></div><div class="gb"><i id="gi"></i></div></div></div>
+<div class="lk" id="lk" hidden><span id="ln"></span><svg width="18" height="18" viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2.5" fill="#fff"/><rect x="4" y="7" width="12" height="15" rx="2.5" fill="#fff" opacity=".6"/></svg></div>
+<button id="cp" class="pb">Скопировать приглашение</button></div>
 <div class="rl" id="rl" hidden></div>
-<div class="lk" id="lk" hidden><span id="ln"></span><b>копировать</b></div>
-<button id="cp" class="pb">Скопировать приглашение</button>
-<div class="f"><span class="t" id="u"></span><button id="r" class="rf">↻</button></div>""",
-    """let seen=s?s.i:0;const G=[1,3,5,10,25,50,100,250,500,1000];
+<div class="f"><span class="t" id="u"></span><button id="r" class="rf" aria-label="Обновить">↻</button></div>""",
+    """let seen=s?s.i:0,shown=0;const G=[1,3,5,10,25,50,100,250,500,1000];
 function link(){const m=s&&s.c&&s.c.match(/https?:\\/\\/\\S+/);return m?m[0]:''}
+function count(to){const e=$('m'),from=shown,t0=performance.now();shown=to;
+(function f(t){const k=Math.min(1,(t-t0)/900),v=Math.round(from+(to-from)*(1-Math.pow(1-k,3)));e.textContent='+'+rub(v);if(k<1)requestAnimationFrame(f)})(t0)}
 function draw(){if(!s)return;const i=$('i');i.textContent=s.i;$('il').textContent=pl(s.i,'пришёл','пришли','пришли')+' по ссылке';
 if(s.i>seen){i.className='pop';$('u').textContent='+'+(s.i-seen)+' '+pl(s.i-seen,'друг','друга','друзей')+' 🎉';
 if(W.HapticFeedback)W.HapticFeedback.notificationOccurred('success')}
 else $('u').textContent='Обновлено в '+hm(s.t);seen=s.i;
-$('w').textContent=s.w;$('wl').textContent=pl(s.w,'получил','получили','получили')+' бонус';$('m').textContent=rub(s.m);
-if(s.r){$('pi').hidden=false;$('pi').textContent='+'+rub(s.r)+' за друга';$('rl').hidden=false;
+$('w').textContent=s.w;$('wl').textContent=pl(s.w,'получил','получили','получили')+' бонус';
+const m=$('m');if(s.m>0){m.className='em';$('sl').textContent='заработано на друзьях';if(s.m!=shown)count(s.m)}
+else{m.className='em sm';m.textContent=s.r?'+'+rub(s.r)+' за друга':'Зовите друзей';$('sl').textContent=s.r?'на баланс за каждого, кто придёт по ссылке':'вместе пользоваться приятнее'}
+if(s.r){$('pi').hidden=s.m<=0;$('pi').textContent='+'+rub(s.r)+' за друга';$('rl').hidden=false;
 $('rl').textContent='Друг открывает бота по вашей ссылке — '+(s.q?'он получает '+rub(s.q)+', а ':'')+'вам приходит '+rub(s.r)+' на баланс.'}
-const g=G.find(x=>x>s.i)||s.i+1,p=G.filter(x=>x<=s.i).pop()||0;
-$('gn').textContent=s.i?'Цель: '+g+' '+pl(g,'друг','друга','друзей'):'Пригласите первого друга';
-$('gp').textContent=s.i+' / '+g;$('gi').style.width=Math.max(4,(s.i-p)/(g-p)*100)+'%';
+const g=G.find(x=>x>s.i)||s.i+1;
+$('gn').textContent=s.i?'Цель — '+g+' '+pl(g,'друг','друга','друзей'):'Пригласите первого друга';
+$('gp').textContent=s.i+' из '+g;$('gi').style.width=Math.max(6,s.i/g*100)+'%';
 const l=link();if(l){$('lk').hidden=false;$('ln').textContent=l.replace(/^https?:\\/\\//,'')}}
 function copy(t,m){if(!t)return;W.copyText(t);$('u').textContent=m;if(W.HapticFeedback)W.HapticFeedback.impactOccurred('light')}
 $('cp').onclick=()=>copy(s&&s.c,'Приглашение скопировано — отправьте его другу');
 $('lk').onclick=()=>copy(link(),'Ссылка скопирована');
 draw();live('f',v=>{v.c=v.c||(s&&s.c);s=v;draw()});""",
-    ".cd{border-radius:18px;padding:14px 16px 16px;color:#fff;background:linear-gradient(155deg,#5fd38d 0%,#28a464 55%,#16804a 100%)}"
-    ".tp{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:600;font-size:.92em}"
-    ".pi{background:rgba(255,255,255,.22);border-radius:10px;padding:2px 8px;font-size:.85em;white-space:nowrap}"
-    ".em{font-size:2.2em;font-weight:800;margin-top:10px;line-height:1.1;font-variant-numeric:tabular-nums}"
-    ".sl{font-size:.82em;opacity:.85}"
-    ".ts{display:flex;gap:8px;margin-top:12px}.ts div{flex:1;background:rgba(255,255,255,.16);border-radius:12px;padding:8px 10px}"
-    ".ts b{display:block;font-size:1.35em;font-variant-numeric:tabular-nums}.ts span{font-size:.78em;opacity:.9}"
-    ".gl{margin-top:12px}.gt{display:flex;justify-content:space-between;font-size:.8em;opacity:.92}"
-    ".gb{height:6px;border-radius:3px;background:rgba(255,255,255,.22);margin-top:4px;overflow:hidden}"
-    ".gb i{display:block;height:100%;background:#fff;border-radius:3px;transition:width .6s}"
-    ".rl{font-size:.85em;color:var(--tg-theme-hint-color);margin-top:10px;line-height:1.35}"
-    ".lk{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:10px;"
-    "background:var(--tg-theme-secondary-bg-color);font-family:ui-monospace,Menlo,monospace;font-size:.8em;cursor:pointer}"
-    ".lk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lk b{font-family:inherit;font-size:.9em;"
-    "color:var(--tg-theme-link-color);font-weight:600}"
-    ".pb{width:100%;margin-top:10px;padding:11px 0;font-weight:600;border-radius:12px}.rf{padding:4px 10px}"
-    ".pop{animation:pop .6s ease}@keyframes pop{40%{transform:scale(1.3)}}",
+    ".cd{position:relative;overflow:hidden;border-radius:22px;padding:16px 16px 14px;color:#fff;text-align:center;"
+    "background:linear-gradient(180deg,#26307a 0%,#3d4ea3 55%,#6177cc 100%);animation:in .5s cubic-bezier(.2,.8,.2,1)}"
+    "@keyframes in{from{transform:translateY(10px) scale(.97)}}"
+    ".sp{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 15% 12%,rgba(255,255,255,.22) 0 1.5px,transparent 2px),"
+    "radial-gradient(circle at 85% 20%,rgba(255,255,255,.3) 0 1.5px,transparent 2px),radial-gradient(circle at 70% 8%,rgba(255,255,255,.18) 0 1px,transparent 1.5px),"
+    "radial-gradient(circle at 50% 0,rgba(140,160,255,.35),transparent 60%)}"
+    ".tp{position:relative;display:flex;align-items:center;gap:8px;font-weight:700;font-size:.95em;text-align:left}"
+    ".gi{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.18);font-size:17px}"
+    ".pi{margin-left:auto;background:rgba(255,255,255,.2);border-radius:99px;padding:4px 10px;font-size:.8em;white-space:nowrap}"
+    ".em{position:relative;font-size:2.6em;font-weight:800;margin-top:14px;line-height:1.05;font-variant-numeric:tabular-nums;letter-spacing:-.02em}"
+    ".em.sm{font-size:1.75em}.sl{position:relative;font-size:.85em;opacity:.85;margin-top:4px}"
+    ".gl{position:relative;margin-top:16px;text-align:left}.gt{display:flex;justify-content:space-between;font-size:.8em;opacity:.95}"
+    ".gb{height:8px;border-radius:99px;background:rgba(9,14,50,.35);margin-top:6px;overflow:hidden}"
+    ".gb i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#8fe3b0,#3ccf74);box-shadow:0 0 12px rgba(60,207,116,.7);"
+    "transition:width .9s cubic-bezier(.2,.8,.2,1)}"
+    ".ts{position:relative;display:flex;gap:8px;margin-top:12px}.ts div{flex:1;background:rgba(255,255,255,.14);border-radius:14px;padding:9px 6px}"
+    ".ts b{display:block;font-size:1.4em;font-variant-numeric:tabular-nums}.ts span{font-size:.75em;opacity:.9}"
+    ".lk{position:relative;display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;padding:10px 12px 10px 14px;"
+    "border-radius:14px;background:rgba(9,14,50,.32);border:1px dashed rgba(255,255,255,.4);font-weight:600;font-size:.85em;cursor:pointer}"
+    ".lk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lk svg{flex-shrink:0}"
+    ".pb{position:relative;width:100%;margin-top:10px;padding:12px 0;font-weight:700;border-radius:99px;background:#fff!important;color:#1f2a6b!important}"
+    ".pb:active,.lk:active{transform:scale(.97)}"
+    ".rl{font-size:.82em;color:var(--tg-theme-hint-color);margin-top:10px;line-height:1.35}"
+    ".rf{width:32px;height:32px;padding:0;border-radius:99px}"
+    ".pop{display:inline-block;animation:pop .6s ease}@keyframes pop{40%{transform:scale(1.35)}}",
 )
 
 
