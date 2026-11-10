@@ -248,19 +248,25 @@ TON_PAY_HTML = _page(
 <div class="mn">Лягушка&nbsp;VPN</div><div class="mn ad" id="ad">__ADDR__</div></div>
 <button id="pay" class="pb">Оплатить</button><button id="ed" class="lk">Изменить сумму</button>
 <div class="t" id="u" style="margin-top:8px;text-align:center"></div>""",
-    """let ord=s&&s.w,poll=0;const A=$('ad').textContent;
+    """let ord=s&&s.w,poll=0,was=s&&s.ok;const A=$('ad').textContent,R=requestAnimationFrame;
 function tn(n){return (n/1e9).toFixed(9).replace(/\\.?0+$/,'').replace('.',',')}
 function msg(t){$('u').textContent=t}
 $('ad').innerHTML=A.match(/.{1,4}/g).map((g,i)=>g+(i%6==5?'<br>':' ')).join('');
 $('ad').onclick=()=>{if(W.copyText){W.copyText(A);msg('Адрес скопирован')}};
 function draw(){if(!s)return;
-if(s.ok){$('cd').className='cd dn';$('rb').textContent='зачислено';$('am').textContent='+'+rub(s.ok.c);
-$('sb').textContent='Баланс: '+rub(s.ok.b);$('pay').hidden=true;$('ed').hidden=true;msg('Счёт '+s.ok.o+' оплачен');stop();return}
+if(s.ok){const c=s.ok.c,t0=performance.now(),go=!was;was=1;$('cd').className='cd dn'+(go?' go':'');$('rb').textContent='зачислено';
+(function f(){const k=go?Math.min(1,(performance.now()-t0)/800):1;$('am').textContent='+'+rub(Math.round(c*(1-(1-k)**3)));if(k<1)R(f)})();
+$('sb').textContent='Баланс: '+rub(s.ok.b);$('pay').hidden=true;$('ed').hidden=true;msg('Счёт '+s.ok.o+' оплачен');stop();
+if(go){if(W.HapticFeedback)W.HapticFeedback.notificationOccurred('success');boom()}return}
 $('am').textContent=tn(s.n)+' Gram';
 $('sb').textContent='≈ '+rub(s.c)+' на баланс'+(s.d>0?' · '+s.d+' '+pl(s.d,'день','дня','дней')+' VPN':'');
-$('pay').textContent='Оплатить '+tn(s.n)+' Gram';$('ed').hidden=!!ord;if(ord)$('rb').textContent='ждём'}
+$('pay').textContent='Оплатить '+tn(s.n)+' Gram';$('ed').hidden=!!ord;if(ord){$('rb').textContent='ждём';$('cd').className='cd wt'}}
+function boom(){const e=document.createElement('canvas'),x=e.getContext('2d'),w=e.width=innerWidth,h=e.height=innerHeight,P=[];let t=0;
+e.style.cssText='position:fixed;inset:0;pointer-events:none';document.body.appendChild(e);
+for(let i=0;i<70;i++)P.push([w/2,h*.35,Math.random()*9-4.5,-Math.random()*7-2,['#5ad48f','#fff','#30a1f5','#ffd84d'][i%4]]);
+(function f(){x.clearRect(0,0,w,h);for(const p of P){p[0]+=p[2];p[1]+=p[3];p[3]+=.22;x.fillStyle=p[4];x.fillRect(p[0],p[1],5,6)}if(++t<100)R(f);else e.remove()})()}
 function stop(){if(poll)clearInterval(poll);poll=0}
-function check(){msg('Ищем перевод в блокчейне, обычно 5–15 секунд…');$('rb').textContent='ждём';$('pay').disabled=true;$('ed').hidden=true;if(poll)return;
+function check(){msg('Ищем перевод в блокчейне, обычно 5–15 секунд…');$('rb').textContent='ждём';if(!(s&&s.ok))$('cd').className='cd wt';$('pay').disabled=true;$('ed').hidden=true;if(poll)return;
 poll=setInterval(()=>{if(!busy&&W.isActive!==false)ask('q:'+ord,0,v=>{if(v.ok){s.ok=v.ok;draw()}})},6000)}
 const ERR={REJECTED:'Оплата отменена',BAD_REQUEST:'Кошелёк отклонил перевод',NOT_ALLOWED:'Оплата здесь недоступна',RATE_LIMITED:'Слишком часто, подождите'};
 $('pay').onclick=()=>{if(busy||!s)return;if(!W.wallet){msg('Кошелёк Telegram недоступен в этой версии приложения');return}
@@ -276,9 +282,16 @@ W.request('x:').then(a=>{const v=JSON.parse(a.result||'{}');if(v.e)msg(v.e);else
 ()=>msg('Не получилось, попробуйте ещё раз')).finally(()=>{busy=0})};
 W.onEvent('chatDataChanged',()=>{try{s=JSON.parse(W.chatData)}catch(e){}if(s&&s.w)ord=s.w;draw()});
 draw();if(W.ready)W.ready();if(ord&&!(s&&s.ok))check();""",
-    ".cd{position:relative;overflow:hidden;border-radius:18px;padding:16px 16px 14px;color:#fff;text-align:center;"
-    "background:linear-gradient(160deg,#5fb4ff 0%,#2f86f0 55%,#1d63d6 100%);transition:background .4s}"
-    ".cd.dn{background:linear-gradient(160deg,#5ad48f 0%,#27a865 60%,#17864d 100%)}.st{fill:#30a1f5;transition:fill .4s}.dn .st{fill:#27a865}"
+    "[hidden]{display:none!important}"
+    ".cd{position:relative;z-index:0;overflow:hidden;border-radius:18px;padding:16px 16px 14px;color:#fff;text-align:center;"
+    "background:linear-gradient(160deg,#5fb4ff 0%,#2f86f0 55%,#1d63d6 100%)}"
+    ".cd:before,.cd:after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none}"
+    ".cd:before{background:linear-gradient(160deg,#5ad48f 0%,#27a865 60%,#17864d 100%);opacity:0;transition:opacity .6s}.dn:before{opacity:1}"
+    ".wt:after{background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.3),transparent 65%);animation:sh 1.5s infinite}"
+    "@keyframes sh{0%{transform:translateX(-100%)}to{transform:translateX(100%)}}"
+    ".go{animation:pp .8s ease-out}.go svg{animation:pp .8s .1s ease-out}"
+    "@keyframes pp{30%{transform:scale(1.06);box-shadow:0 0 30px 6px rgba(70,220,130,.7)}}"
+    ".st{fill:#30a1f5;transition:fill .6s}.dn .st{fill:#27a865}"
     ".rb{position:absolute;top:14px;right:-34px;width:120px;transform:rotate(45deg);background:rgba(255,255,255,.22);"
     "font-size:.7em;font-weight:600;padding:3px 0;letter-spacing:.02em}"
     ".am{font-size:2.1em;font-weight:800;font-variant-numeric:tabular-nums;margin:6px 0 0;line-height:1.15}"
