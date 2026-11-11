@@ -605,8 +605,11 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await page
     .getByText("Результаты автоматических сообщений", { exact: true })
     .waitFor();
-  await page.getByText("ABCD-EFGH-JKLM", { exact: true }).waitFor();
-  await accessibility("Winback statistics");
+  await page
+    .getByText("Что остановило оплату", { exact: true })
+    .first()
+    .waitFor();
+  await accessibility("Retention statistics");
   await page.screenshot({
     path: path.join(screenshots, "winback.png"),
     fullPage: true,
@@ -862,10 +865,16 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   assert.equal(draftTest.telegram_id,'123');
   assert.equal(draftTest.graph.branches[0].steps[0].buttons[2].url,'https://example.org/news');
   await page.getByRole("button", {name:"Главное меню бота",exact:true}).click();
-  await page.getByLabel("Текст главного меню",{exact:true}).fill("Привет, {name}! Баланс: {balance}");
+  // The menu text lives in the bot's code; the admin panel edits only its buttons.
+  await page.getByText("Кнопки меню *",{exact:true}).waitFor();
   await Promise.all([page.waitForResponse(r=>r.url().endsWith("/funnel-board")&&r.request().method()==="POST"),page.getByRole("button", {name:"Сохранить воронку",exact:true}).click()]);
   const menuSave=posts.filter(p=>p.key==='funnel-board').at(-1).payload.graph;
-  assert.equal(menuSave.main_menu.text,'Привет, {name}! Баланс: {balance}');
+  // An untouched menu is saved without main_menu (the bot keeps its default); its test sends the default buttons.
+  await page.getByRole("button",{name:"Тест меню на админе",exact:true}).click();
+  await page.getByText("Тест: отправлено 1 сообщений админу",{exact:true}).first().waitFor();
+  const menuTest=posts.filter(p=>p.key==='funnel-test').at(-1).payload;
+  assert.equal(menuTest.scenario,'main-menu');
+  assert.ok(menuTest.graph.main_menu.buttons.length>0,'Main menu test carries its buttons');
   assert.equal(menuSave.branches[0].steps[0].buttons[2].text,'Наш сайт');
   assert.equal(menuSave.branches[0].steps[0].buttons[2].emoji,'123');
 
@@ -884,8 +893,6 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
     "Операции по балансу",
     "Поддержка",
     "Реферальная программа",
-    "Акции",
-    "Промокоды",
     "Источники трафика",
     "Воронка",
     "Журнал доставки",
@@ -899,16 +906,10 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
       .first()
       .waitFor();
   }
-  await nav("Промокоды");
-  await page
-    .getByRole("button", { name: "Создать промокод", exact: true })
-    .first()
-    .click();
-  await page.getByLabel("Дни подарка", { exact: true }).fill("5");
-  await page.getByRole("button", { name: "Сохранить промокод" }).click();
-  await page.getByRole("dialog").waitFor({ state: "hidden" });
-  assert.equal(posts.find((p) => p.key === "promos").payload.days, 5);
-  assert.equal(posts.filter((p) => p.key === "promos").length, 1);
+  // The advertisers panel sits on the traffic sources page; losing it once crashed the whole section.
+  await nav("Источники трафика");
+  await page.getByText("Рекламодатели", { exact: true }).first().waitFor();
+  await accessibility("Traffic sources");
   await nav("Клиенты");
   await page.getByRole("button", { name: "Открыть", exact: true }).click();
   await page.getByRole("button", { name: "Управление", exact: true }).click();
@@ -939,22 +940,24 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   await page.getByRole("button", { name: "Открыть меню" }).click();
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Акции", exact: true })
+    .getByRole("button", { name: "Источники трафика", exact: true })
     .click();
-  await page.getByRole("heading", { name: "Акции", exact: true }).waitFor();
+  await page
+    .getByRole("heading", { name: "Источники трафика", exact: true })
+    .waitFor();
   assert.equal(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
     true,
   );
-  await page.getByText("Первые оплаты", { exact: true }).waitFor();
+  await page.getByText("Рекламодатели", { exact: true }).first().waitFor();
   await page.waitForTimeout(250);
   await page.screenshot({
-    path: path.join(screenshots, "mobile-campaigns.png"),
+    path: path.join(screenshots, "mobile-traffic-sources.png"),
     fullPage: true,
   });
-  await accessibility("Mobile campaigns");
+  await accessibility("Mobile traffic sources");
   assert.deepEqual(errors, []);
   assert.equal(
     posts.some((p) => p.key.endsWith("/delete")),
@@ -962,7 +965,7 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   );
   await browser.close();
   console.log(
-    "UX workflows verified: login, 14 screens, balance error/retry, filters, isolated settings save, dirty navigation, broadcast cancellation, promo creation, deletion guard, mobile.",
+    "UX workflows verified: login, all sections, balance error/retry, filters, isolated settings save, dirty navigation, broadcast cancellation, traffic sources, deletion guard, mobile.",
   );
   console.log("Screenshots:", screenshots);
 })().catch((e) => {
