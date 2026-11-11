@@ -1,16 +1,19 @@
 import { useState } from "react";
-import { api, useResource } from "@/lib/api";
+import { api, useResource, type Data } from "@/lib/api";
 import {
   ActionButton,
   DataTable,
+  Empty,
   Failure,
   Field,
   Loading,
+  Panel,
   useConfirm,
   useNavigate,
 } from "@/components/workspace";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -161,5 +164,123 @@ export function ReferralsPage() {
       </div>
       <RecordsPage kind="referrals" />
     </div>
+  );
+}
+// Advertisers: each gets a secret page where they create ad links and see their stats.
+function PartnersPanel({ onChange }: { onChange: () => Promise<void> }) {
+  const resource = useResource("partners"),
+    [open, setOpen] = useState(false),
+    [title, setTitle] = useState("");
+  const confirm = useConfirm();
+  const copyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Ссылка для рекламодателя скопирована");
+    } catch {
+      toast.success("Ссылка для рекламодателя", { description: url, duration: 20000 });
+    }
+  };
+  const items = (resource.data?.items || []) as Data[];
+  return (
+    <Panel
+      title="Рекламодатели"
+      description="У каждого своя страница по секретной ссылке: там он создаёт рекламные ссылки и видит по ним статистику. Удалять ссылки он не может."
+      action={
+        <Button variant="outline" onClick={() => setOpen(true)}>
+          <Plus />
+          Добавить
+        </Button>
+      }
+    >
+      {resource.error ? (
+        <Failure message={resource.error} retry={resource.reload} />
+      ) : !resource.data ? (
+        <Loading />
+      ) : !items.length ? (
+        <Empty
+          title="Рекламодателей пока нет"
+          description="Добавьте рекламодателя и отправьте ему ссылку на его страницу."
+        />
+      ) : (
+        <DataTable
+          rows={items}
+          columns={[
+            {
+              key: "title",
+              label: "Рекламодатель",
+              cell: (r) => (
+                <span className="flex items-center gap-2">
+                  {r.title}
+                  {r.revoked && <Badge variant="secondary">Отключён</Badge>}
+                </span>
+              ),
+            },
+            { key: "links", label: "Ссылок" },
+            { key: "clicks", label: "Переходы" },
+            { key: "users", label: "Пользователи" },
+            {
+              key: "actions",
+              label: "",
+              cell: (r) =>
+                r.revoked ? null : (
+                  <div className="flex gap-2">
+                    <ActionButton variant="outline" onAction={() => copyLink(r.url)}>
+                      <Copy />
+                      Ссылка
+                    </ActionButton>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        confirm({
+                          title: `Отключить доступ «${r.title}»?`,
+                          description:
+                            "Его страница перестанет открываться. Созданные им ссылки продолжат работать и останутся в статистике.",
+                          action: async () => {
+                            await api(`partners/${r.id}/revoke`, {});
+                            await resource.reload();
+                          },
+                        })
+                      }
+                    >
+                      Отключить
+                    </Button>
+                  </div>
+                ),
+            },
+          ]}
+        />
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Новый рекламодатель</DialogTitle>
+            <DialogDescription>
+              Название увидит и сам рекламодатель — в заголовке своей страницы.
+            </DialogDescription>
+          </DialogHeader>
+          <Field label="Название">
+            <Input
+              aria-label="Название рекламодателя"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Например, блогер Анна"
+            />
+          </Field>
+          <ActionButton
+            disabled={title.trim().length < 2}
+            onAction={async () => {
+              const data = await api("partners", { title });
+              setOpen(false);
+              setTitle("");
+              await Promise.all([resource.reload(), onChange()]);
+              if (data?.item?.url) await copyLink(data.item.url);
+            }}
+          >
+            Создать и скопировать ссылку
+          </ActionButton>
+        </DialogContent>
+      </Dialog>
+    </Panel>
   );
 }
