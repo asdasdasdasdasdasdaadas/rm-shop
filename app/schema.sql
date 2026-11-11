@@ -896,3 +896,8 @@ CREATE TABLE IF NOT EXISTS referral_link_visits (
     PRIMARY KEY (referrer_id, visitor_id)
 );
 CREATE INDEX IF NOT EXISTS invitation_card_events_user_idx ON invitation_card_events(telegram_id);
+
+-- How a user first reached the bot: start (/start, payload = its parameter, '' for none), app (Mini App,
+-- payload = start_param), support, report or other. NULL for users who came before this was recorded.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_entry_via TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_start_payload TEXT;

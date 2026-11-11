@@ -120,7 +120,7 @@ async def receive_user_message(
     files = _prepare_uploads(attachments)
     if not text and not files:
         raise ValueError("Пустое сообщение")
-    await db.upsert_user(telegram_id, username, first_name)
+    await db.upsert_user(telegram_id, username, first_name, entry="support")
     ticket, created = await db.open_or_get_ticket(telegram_id, username, first_name)
     ticket_id = int(ticket["id"])
     msg = await db.add_ticket_message(ticket_id, "user", text)

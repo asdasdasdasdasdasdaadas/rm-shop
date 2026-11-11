@@ -197,7 +197,40 @@ def acquisition_text(source: dict | None) -> str:
             person = {'telegram_id': uid, 'first_name': source.get(prefix + '_name'),
                       'username': source.get(prefix + '_username')}
             lines.append(f'{label}: {_who(person)}')
-    return '<b>Источник:</b> ' + ('\n'.join(lines) if lines else 'Без метки источника')
+    if not lines:
+        lines.append(_untagged(source))
+    return '<b>Источник:</b> ' + '\n'.join(lines)
+
+
+_ENTRY = {'support': 'сначала написал в поддержку', 'report': 'сначала отправил жалобу на VPN',
+          'other': 'появился не через /start'}
+
+
+def _untagged(source: dict) -> str:
+    """Why a user has no ad link or inviter: what they opened the bot with, and any friend's link that did not count."""
+    via = source.get('first_entry_via')
+    payload = str(source.get('first_start_payload') or '').strip()
+    code = f' <code>{escape(payload[:64])}</code>' if payload else ''
+    if via == 'start':
+        if not payload:
+            text = 'без метки — открыл бота обычной ссылкой или из поиска (/start без параметра)'
+        elif payload.startswith('ad_'):
+            text = f'рекламная метка{code}, но такой ссылки нет — удалена или опечатка'
+        elif payload.startswith('ref_'):
+            text = f'реферальная метка{code} не засчитана — пригласивший не найден или это его собственная ссылка'
+        else:
+            text = f'без метки источника, /start с параметром{code}'
+    elif via == 'app':
+        text = 'без метки — сначала открыл мини-приложение, а не /start' + (f', параметр{code}' if payload else '')
+    elif via in _ENTRY:
+        text = f'без метки — {_ENTRY[via]}'
+    else:
+        text = 'без метки источника (пришёл до того, как бот начал записывать вход)'
+    if source.get('tried_referrer_id'):
+        friend = {'telegram_id': source['tried_referrer_id'], 'first_name': source.get('tried_referrer_name'),
+                  'username': source.get('tried_referrer_username')}
+        text += f'\nПозже переходил по ссылке {_who(friend)}, но уже был в боте — не засчитано'
+    return text[0].upper() + text[1:]
 
 
 async def _first_online_notifications(users: list[dict]) -> None:
@@ -207,9 +240,14 @@ async def _first_online_notifications(users: list[dict]) -> None:
     try:
         rows = await db._pool_req().fetch("""SELECT u.telegram_id,u.ad_link_id,
             a.title AS ad_title,a.slug AS ad_slug,a.kind AS ad_kind,
-            u.referred_by AS referrer_id,r.first_name AS referrer_name,r.username AS referrer_username
+            u.referred_by AS referrer_id,r.first_name AS referrer_name,r.username AS referrer_username,
+            u.first_entry_via,u.first_start_payload,
+            t.telegram_id AS tried_referrer_id,t.first_name AS tried_referrer_name,t.username AS tried_referrer_username
             FROM users u LEFT JOIN ad_links a ON a.id=u.ad_link_id
             LEFT JOIN users r ON r.telegram_id=u.referred_by
+            LEFT JOIN LATERAL (SELECT x.telegram_id,x.first_name,x.username FROM referral_link_visits v
+                JOIN users x ON x.telegram_id=v.referrer_id
+                WHERE v.visitor_id=u.telegram_id AND NOT v.attached ORDER BY v.created_at LIMIT 1) t ON TRUE
             WHERE u.telegram_id=ANY($1::bigint[])""", [int(u['telegram_id']) for u in users])
         sources = {int(row['telegram_id']): dict(row) for row in rows}
     except Exception:

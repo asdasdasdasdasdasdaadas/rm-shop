@@ -369,7 +369,7 @@ async def submit_vpn_report(
         if wait.total_seconds() > 0:
             raise ReportCooldown(int(wait.total_seconds()))
 
-    await db.upsert_user(telegram_id, username, first_name)
+    await db.upsert_user(telegram_id, username, first_name, entry="report")
     local = await db.get_user(telegram_id)
     devices = await db.list_devices(telegram_id)
     flags = {

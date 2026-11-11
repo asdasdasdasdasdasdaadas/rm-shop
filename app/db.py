@@ -140,9 +140,14 @@ async def upsert_user(
     first_name: str | None,
     referred_by: int | None = None,
     ad_link_id: int | None = None,
+    *,
+    entry: str = "other",
+    payload: str | None = None,
 ) -> dict | None:
+    """`entry`/`payload` say how a brand-new user first reached us; they are kept only on the first insert."""
     pool = _pool_req()
     ref = referred_by if referred_by and referred_by != telegram_id else None
+    payload = None if payload is None else str(payload).strip()[:128]
     ad_id = int(ad_link_id) if ad_link_id else None
     row = await pool.fetchrow(
         """
@@ -150,8 +155,9 @@ async def upsert_user(
             SELECT referred_by FROM users WHERE telegram_id = $1
         ),
         upsert AS (
-            INSERT INTO users (telegram_id, username, first_name, referred_by, ad_link_id)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO users (telegram_id, username, first_name, referred_by, ad_link_id,
+                               first_entry_via, first_start_payload)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             ON CONFLICT (telegram_id) DO UPDATE SET
                 username = EXCLUDED.username,
                 first_name = EXCLUDED.first_name,
@@ -185,6 +191,8 @@ async def upsert_user(
         first_name,
         ref,
         ad_id,
+        str(entry or "other")[:16],
+        payload,
     )
     if ref and row:
         try:

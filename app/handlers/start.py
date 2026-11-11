@@ -155,6 +155,8 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
         message.from_user.first_name,
         referred_by=ref,
         ad_link_id=ad_id,
+        entry="start",
+        payload=command.args or "",
     )
     await db.mark_bot_started(message.from_user.id)
     await _maybe_live_invite(row)

@@ -28,6 +28,33 @@ class ReferralVisitTest(unittest.IsolatedAsyncioTestCase):
         (await self.run_upsert(5, None)).assert_not_awaited()
 
 
+class FirstEntryTest(unittest.IsolatedAsyncioTestCase):
+    async def test_entry_and_payload_go_into_the_insert_only(self):
+        pool = MagicMock()
+        pool.fetchrow = AsyncMock(return_value=None)
+        with patch.object(db, '_pool_req', return_value=pool):
+            await db.upsert_user(5, None, 'x', entry='start', payload='  ad_gone ')
+        sql, args = pool.fetchrow.await_args.args[0], pool.fetchrow.await_args.args[1:]
+        self.assertEqual(args[-2:], ('start', 'ad_gone'))
+        self.assertNotIn('first_entry_via =', sql)  # an existing user keeps how they first came
+
+
+class UntaggedSourceTest(unittest.TestCase):
+    def test_explains_why_there_is_no_tag(self):
+        from app import live
+        text = lambda **kw: live.acquisition_text(kw)
+        self.assertIn('/start без параметра', text(first_entry_via='start', first_start_payload=''))
+        self.assertIn('такой ссылки нет', text(first_entry_via='start', first_start_payload='ad_old'))
+        self.assertIn('не засчитана', text(first_entry_via='start', first_start_payload='ref_9'))
+        self.assertIn('&lt;b&gt;', text(first_entry_via='start', first_start_payload='<b>'))
+        self.assertIn('мини-приложение', text(first_entry_via='app', first_start_payload=''))
+        self.assertIn('поддержку', text(first_entry_via='support'))
+        self.assertIn('до того', text())
+        tried = text(first_entry_via='start', first_start_payload='', tried_referrer_id=42, tried_referrer_name='Аня')
+        self.assertIn('tg://user?id=42', tried)
+        self.assertIn('уже был в боте', tried)
+
+
 class UserListSqlTest(unittest.TestCase):
     def test_sorts_by_real_money_and_friends(self):
         self.assertIn('payment_receipts', db._admin_users_order({'sort': 'paid_desc'}))
