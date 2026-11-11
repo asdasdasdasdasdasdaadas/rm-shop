@@ -186,6 +186,17 @@ async def upsert_user(
         ref,
         ad_id,
     )
+    if ref and row:
+        try:
+            await pool.execute(
+                """INSERT INTO referral_link_visits (referrer_id, visitor_id, attached)
+                SELECT $1, $2, $3 WHERE EXISTS (SELECT 1 FROM users WHERE telegram_id = $1)
+                ON CONFLICT (referrer_id, visitor_id) DO UPDATE
+                SET attached = referral_link_visits.attached OR EXCLUDED.attached""",
+                ref, telegram_id, row["referred_by"] == ref,
+            )
+        except Exception:
+            logging.getLogger("rm-shop.db").exception("referral visit %s -> %s", ref, telegram_id)
     return _as_dict(row)
 
 
@@ -3075,6 +3086,11 @@ _ADMIN_TRAFFIC_SQL = """CAST(GREATEST(
     COALESCE(u.used_traffic_bytes, 0), COALESCE(u.lifetime_traffic_bytes, 0)) AS BIGINT)"""
 
 
+_ADMIN_REAL_PAID_SQL = """(
+    SELECT COALESCE(SUM(r.amount), 0)::bigint FROM payment_receipts r WHERE r.telegram_id = u.telegram_id
+)"""
+
+
 def _admin_users_order(extra: dict | None = None) -> str:
     access = """CASE
         WHEN u.blocked_at IS NOT NULL THEN 0
@@ -3093,6 +3109,10 @@ def _admin_users_order(extra: dict | None = None) -> str:
         "traffic_asc": "traffic_total_bytes ASC, u.telegram_id DESC",
         "online_desc": "last_online_at DESC NULLS LAST, u.telegram_id DESC",
         "online_asc": "last_online_at ASC NULLS LAST, u.telegram_id DESC",
+        "paid_desc": f"{_ADMIN_REAL_PAID_SQL} DESC, u.telegram_id DESC",
+        "paid_asc": f"{_ADMIN_REAL_PAID_SQL} ASC, u.telegram_id DESC",
+        "invited_desc": "invited_count DESC, u.telegram_id DESC",
+        "invited_asc": "invited_count ASC, u.telegram_id DESC",
         "wealth_desc": "COALESCE(wg.points, -1) DESC, u.telegram_id DESC",
         "wealth_asc": "COALESCE(wg.points, 2147483647) ASC, u.telegram_id DESC",
     }.get((extra or {}).get("sort"), "u.created_at DESC, u.telegram_id DESC")
@@ -3302,6 +3322,41 @@ async def admin_list_users(
                    SELECT COUNT(*)::int FROM users inv WHERE inv.referred_by = u.telegram_id
                ) AS invited_count,
                (
+                   SELECT COUNT(*)::int FROM users inv
+                   WHERE inv.referred_by = u.telegram_id AND inv.first_online_at IS NOT NULL
+               ) AS invited_connected,
+               (
+                   SELECT COUNT(*)::int FROM users inv
+                   WHERE inv.referred_by = u.telegram_id AND inv.has_paid_topup
+               ) AS invited_paid,
+               (
+                   SELECT COALESCE(SUM(r.amount), 0)::bigint FROM payment_receipts r
+                   JOIN users inv ON inv.telegram_id = r.telegram_id
+                   WHERE inv.referred_by = u.telegram_id
+               ) AS invited_paid_rub,
+               (
+                   SELECT COUNT(*)::int FROM invitation_card_events e
+                   WHERE e.telegram_id = u.telegram_id AND e.action = 'share'
+               ) AS invite_shares,
+               (
+                   SELECT COUNT(*)::int FROM invitation_card_events e
+                   WHERE e.telegram_id = u.telegram_id AND e.action = 'copy'
+               ) AS invite_copies,
+               (
+                   SELECT COUNT(*)::int FROM referral_link_visits v
+                   WHERE v.referrer_id = u.telegram_id AND NOT v.attached
+               ) AS invite_missed,
+               {_ADMIN_REAL_PAID_SQL} AS real_paid_receipts_rub,
+               (
+                   SELECT COUNT(*)::int FROM payment_receipts r WHERE r.telegram_id = u.telegram_id
+               ) AS real_paid_count,
+               (
+                   SELECT COALESCE(json_agg(o.plan_code), '[]'::json)
+                   FROM pay_orders o
+                   WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
+                     AND NOT EXISTS (SELECT 1 FROM payment_receipts r WHERE r.payment_key = 'order:' || o.order_id)
+               ) AS legacy_plan_codes,
+               (
                    SELECT COUNT(*)::int
                    FROM pay_orders o
                    WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
@@ -3342,6 +3397,17 @@ async def admin_list_users(
         if not isinstance(codes, list):
             codes = []
         item["paid_topup_rub"] = sum(settings.topup_rub_for_code(c) for c in codes)
+        legacy = item.pop("legacy_plan_codes", None) or []
+        if isinstance(legacy, str):
+            try:
+                legacy = json.loads(legacy)
+            except ValueError:
+                legacy = []
+        legacy = legacy if isinstance(legacy, list) else []
+        # Real money: every provider receipt (card, SBP, Stars, TON) plus card orders from before receipts existed.
+        item["real_paid_rub"] = int(item.pop("real_paid_receipts_rub", 0) or 0) + sum(
+            settings.topup_rub_for_code(c) for c in legacy)
+        item["real_paid_count"] = int(item.get("real_paid_count") or 0) + len(legacy)
         items.append(item)
     return items, int(total or 0)
 

@@ -885,3 +885,14 @@ BEGIN
     UPDATE referral_campaign_friends SET payment_key = 'order:' || substr(payment_key, length(old_prefix) + 1)
         WHERE payment_key LIKE old_prefix || '%';
 END $$;
+
+-- Who opened a member's invite link; attached = the visitor became that member's friend. A visitor who already
+-- used the bot (or came by someone else's link) stays unattached: it is an invite attempt, not a friend.
+CREATE TABLE IF NOT EXISTS referral_link_visits (
+    referrer_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    visitor_id BIGINT NOT NULL,
+    attached BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (referrer_id, visitor_id)
+);
+CREATE INDEX IF NOT EXISTS invitation_card_events_user_idx ON invitation_card_events(telegram_id);

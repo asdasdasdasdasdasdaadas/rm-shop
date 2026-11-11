@@ -53,7 +53,7 @@ import {
   Copy as CopyIcon,
 } from "lucide-react";
 import { billKinds, messageKinds } from "./records";
-import { paymentSummary } from "@/lib/contracts.mjs";
+import { attemptsSummary, friendsSummary, inviteTries, paymentSummary, realPaidSummary } from "@/lib/contracts.mjs";
 import {
   Accordion,
   AccordionItem,
@@ -147,6 +147,9 @@ const sort: [string, string][] = [
   ["", "Сначала новые"],
   ["balance_desc", "Больше денег на балансе"],
   ["balance_asc", "Меньше денег на балансе"],
+  ["paid_desc", "Больше оплатили деньгами"],
+  ["paid_asc", "Меньше оплатили деньгами"],
+  ["invited_desc", "Больше пригласили друзей"],
   ["devices_desc", "Больше устройств"],
   ["devices_asc", "Меньше устройств"],
   ["status_desc", "Сначала активный доступ"],
@@ -475,6 +478,16 @@ export function UsersPage() {
                     <p className="font-medium mt-1">{money(u.balance_rub)}</p>
                   </div>
                   <div>
+                    <p className="text-xs text-muted-foreground">Оплатил</p>
+                    <p className="font-medium mt-1">{money(u.real_paid_rub)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Друзья / попытки</p>
+                    <p className="mt-1">
+                      {Number(u.invited_count || 0)} / {inviteTries(u)}
+                    </p>
+                  </div>
+                  <div>
                     <p className="text-xs text-muted-foreground">
                       Устройства / трафик
                     </p>
@@ -576,6 +589,33 @@ export function UsersPage() {
                       }
                     >
                       {money(u.balance_rub)}
+                    </span>
+                  ),
+                },
+                {
+                  key: "paid",
+                  ...sortable("paid", "Оплатил"),
+                  cell: (u) => (
+                    <span className="whitespace-nowrap" title={realPaidSummary(u)}>
+                      {Number(u.real_paid_rub) > 0 ? money(u.real_paid_rub) : "—"}
+                    </span>
+                  ),
+                },
+                {
+                  key: "invited",
+                  ...sortable("invited", "Друзья"),
+                  cell: (u) => (
+                    <span
+                      className="whitespace-nowrap"
+                      title={`${friendsSummary(u)}\nПопытки: ${attemptsSummary(u)}`}
+                    >
+                      {Number(u.invited_count || 0)}
+                      {Number(u.invited_paid) > 0 && (
+                        <span className="text-muted-foreground"> · {u.invited_paid} опл.</span>
+                      )}
+                      {inviteTries(u) > 0 && (
+                        <span className="text-muted-foreground"> · {inviteTries(u)} попыт.</span>
+                      )}
                     </span>
                   ),
                 },
@@ -887,13 +927,21 @@ function UserDetail({
         ))}
       </div>
       <div className="adm-ctiles">
+        <div title={realPaidSummary(u)}>
+          <p>Оплатил деньгами</p>
+          <b><CountUp value={Number(u.real_paid_rub || 0)} format={(n) => money(Math.round(n))} /></b>
+        </div>
+        <div title={friendsSummary(u)}>
+          <p>Пригласил</p>
+          <b><CountUp value={Number(u.invited_count || 0)} /></b>
+        </div>
+        <div title={attemptsSummary(u)}>
+          <p>Пытался пригласить</p>
+          <b><CountUp value={inviteTries(u)} /></b>
+        </div>
         <div>
           <p>Устройства</p>
           <b><CountUp value={Number(u.device_count || 0)} /></b>
-        </div>
-        <div>
-          <p>Пригласил</p>
-          <b><CountUp value={Number(u.invited_count || 0)} /></b>
         </div>
         <div>
           <p>Трафик</p>
@@ -927,7 +975,10 @@ function UserDetail({
                 u.trial_used ? "Использован" : "Не использован",
               ],
               ["Пригласивший", u.referred_by || "—"],
+              ["Оплатил деньгами", realPaidSummary(u)],
               ["Оплаты", paymentSummary(u)],
+              ["Друзья", friendsSummary(u)],
+              ["Попытки пригласить", attemptsSummary(u)],
               ["Последняя оплата", date(u.last_paid_at)],
               ["Срок подписки", date(u.expire_at)],
             ].map(([k, v]) => (

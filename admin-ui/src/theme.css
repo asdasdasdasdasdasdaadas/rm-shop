@@ -271,7 +271,7 @@ nav[aria-label="Разделы админки"] button:hover .adm-tile { transfo
 .adm-qa button:hover { background: var(--secondary); }
 .adm-qa button:active { transform: scale(.94); }
 .adm-qa button svg { width: 22px; height: 22px; }
-.adm-ctiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.adm-ctiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .adm-ctiles > * { text-align: left; background: var(--card); border-radius: 18px; padding: 12px 14px; box-shadow: var(--card-shadow); min-width: 0; }
 .adm-ctiles p { font-size: 12px; color: var(--muted-foreground); }
 .adm-ctiles b { display: block; font-size: 20px; font-weight: 800; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
