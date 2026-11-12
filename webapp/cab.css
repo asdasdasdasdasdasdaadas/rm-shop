@@ -311,3 +311,29 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .am-rsw .e { animation-delay: .04s; }
 @keyframes amRsw { 0% { transform: translateY(14px); opacity: 0; filter: blur(4px); } 100% { transform: none; opacity: 1; filter: none; } }
 .am-pay, .am-unit, .am-caret { transition-property: opacity, transform, background-color, color; transition-duration: .2s, .1s, .45s, .45s; }
+
+/* app picker on the install step: the recommended app in the card, the rest under «Другие приложения · N» */
+.amk { display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(160deg, #4b5263, #2a2e38); color: #fff; font-weight: 800; flex-shrink: 0; }
+.ill .amk { box-shadow: 0 16px 26px rgba(0, 0, 0, .35); }
+.fx { animation: fin .35s ease both; }
+.alt { margin: 14px 12px 0; background: var(--card); border-radius: 22px; overflow: hidden; animation: up .5s .2s var(--ease) both; }
+.alt .ah { display: flex; align-items: center; gap: 12px; padding: 14px 18px; width: 100%; text-align: left; font-size: 16.5px; }
+.alt .ah .cv { margin-left: auto; transition: transform .35s var(--ease); }
+.alt .al { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ava { display: flex; flex-shrink: 0; max-width: 220px; transition: max-width .4s var(--ease); }
+.ava > * { border: 2px solid var(--card); margin-left: -9px; box-sizing: content-box; transition: transform .35s var(--ease), opacity .3s; }
+.ava > :first-child { margin-left: 0; }
+.alt.on .ava { max-width: 0; }
+.alt.on .ava > * { transform: translateY(-6px) scale(.6); opacity: 0; }
+.alt.on .ah .cv { transform: rotate(90deg); }
+.als { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s var(--ease); }
+.alt.on .als { grid-template-rows: 1fr; }
+.als > div { overflow: hidden; padding: 0 18px; }
+.ar { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 0; border-top: 1px solid var(--sep); opacity: 0; transform: translateX(-14px);
+  transition: opacity .35s var(--ease), transform .35s var(--ease); }
+.alt.on .ar { opacity: 1; transform: none; transition-delay: calc(.08s + var(--i) * .06s); }
+.ar .at { display: flex; flex-direction: column; min-width: 0; font-size: 16.5px; }
+.ar .at span { font-size: 13.5px; color: var(--hint); margin-top: 1px; }
+.ar .ak { margin-left: auto; display: flex; }
+.ar .ak svg path { stroke: #3fc6b4; }
+@media (prefers-reduced-motion: reduce) { .ar, .ava, .ava > *, .als { transition: none; } }

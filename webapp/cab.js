@@ -248,7 +248,9 @@
   }
   function appIcon(a, size) {
     if (a && a.icon) return `<img src="${esc(a.icon)}" width="${size}" height="${size}" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * .24)}px" alt="">`;
-    return `<span style="font-size:${Math.round(size * .9)}px">📲</span>`;
+    // No icon: a tile with the app's short mark, so the picker still looks like a row of apps.
+    const mark = esc(String((a && (a.mark || a.name)) || "?").slice(0, 3));
+    return `<span class="amk" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * .24)}px;font-size:${Math.round(size * (mark.length > 2 ? .3 : .4))}px">${mark}</span>`;
   }
 
   // ---------- onboarding analytics ----------
@@ -726,18 +728,26 @@
           pill: "Написать в поддержку", pa: 'data-act="support"' });
       }
       const dl = (a.stores || {})[wiz.platform];
-      const others = list.filter((x) => x.id !== a.id);
       return hc("teal", { ill: appIcon(a, 92), h: `Установите ${esc(a.name)}`, p: `Бесплатно в ${storeName(wiz.platform)}. Уже стоит — жмите ✓`,
         x: '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>',
         pill: dl ? "Скачать" : "Готово, установлено", pa: dl ? 'data-act="store"' : 'data-act="create"', r: "chk", rl: "Приложение установлено", ra: 'data-act="create" id="wizOk"' }) +
+        appMore(list, a) +
         ST("Как это работает") +
         tl([["1", `Установите ${esc(a.name)}`, "займёт полминуты"], ["2", "Вернитесь сюда и нажмите ✓", "<b>создадим ключ</b> для этого устройства"],
           ["3", "Подключите в один тап", `${dayPrice()} ₽ в день, пока пользуетесь`]]) +
-        (others.length ? ST("Другие приложения") + cd(others.map((x) => [appIcon(x, 32) + x.name + V(CV), `data-act="client" data-v="${esc(x.id)}"`])) : "") +
         cd([[E(PLAT_EMO[wiz.platform] || "📱") + esc(platTitle(wiz.platform)) + V("Другое устройство " + CV), 'data-act="replat"']]);
     },
     on() { track("wizard_2"); },
   };
+  // The recommended app stays in the card; the rest fold into «Другие приложения · N» and open as a list.
+  function appMore(list, a) {
+    if (list.length < 2) return "";
+    const others = list.filter((x) => x.id !== a.id);
+    const rows = list.map((x, i) => `<button type="button" class="ar" data-act="client" data-v="${esc(x.id)}" style="--i:${i}">${appIcon(x, 42)}<span class="at"><b>${esc(x.name)}</b>
+      <span>${i ? "" : "★ рекомендуем · "}${x.deep_link ? "ключ добавится сам" : "ключ вставляется вручную"}</span></span><span class="ak">${x.id === a.id ? CHK(18) : ""}</span></button>`).join("");
+    return `<div class="alt"><button type="button" class="ah" data-act="appmore" aria-expanded="false"><span class="ava">${others.slice(0, 3).map((x) => appIcon(x, 30)).join("")}</span>
+      <span class="al">Ещё ${others.length} ${pl(others.length, "приложение", "приложения", "приложений")}</span>${CV}</button><div class="als"><div>${rows}</div></div></div>`;
+  }
   SCR.wiz3 = {
     h() {
       const a = appById(wiz.client) || { name: "приложение" };
@@ -1330,7 +1340,30 @@
     reopen: () => pay.url && tg.openLink(pay.url),
     plat(b) { haptic(); wiz.platform = b.dataset.v; wiz.client = (appsFor(wiz.platform)[0] || {}).id || ""; go("wiz2"); },
     replat: () => go("wiz1"),
-    client(b) { haptic(); wiz.client = b.dataset.v; rerender(false); },
+    appmore(b) {
+      haptic();
+      const alt = b.closest(".alt"), on = alt.classList.toggle("on");
+      b.setAttribute("aria-expanded", String(on));
+    },
+    client(b) {
+      haptic();
+      wiz.client = b.dataset.v;
+      const el = cur.el, alt = el.querySelector(".alt");
+      if (alt) alt.classList.remove("on");
+      // Swap the card in place: the icon pops in, texts fade, the list folds back with the new app checked.
+      T(() => {
+        if (!cur || cur.el !== el) return;
+        const tmp = document.createElement("div");
+        tmp.innerHTML = SCR.wiz2.h();
+        const swap = (o, n, still) => { if (o && n) { if (still) n.classList.add("still"); o.replaceWith(n); } };
+        swap(el.querySelector(".hc .ill"), tmp.querySelector(".hc .ill"));
+        ["H", "P"].forEach((c) => { const n = tmp.querySelector(`.hc .${c}`); if (n) n.classList.add("fx"); swap(el.querySelector(`.hc .${c}`), n); });
+        swap(el.querySelector(".hc .acts"), tmp.querySelector(".hc .acts"));
+        swap(el.querySelector(".alt"), tmp.querySelector(".alt"), true);
+        const tl = el.querySelector(".tl"), ntl = tmp.querySelector(".tl");
+        swap(tl && tl.parentNode, ntl && ntl.parentNode, true);
+      }, alt ? 280 : 0);
+    },
     store() {
       const a = appById(wiz.client);
       const url = a && (a.stores || {})[wiz.platform];
