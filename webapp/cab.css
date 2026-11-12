@@ -319,9 +319,30 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .alt { margin: 14px 12px 0; background: var(--card); border-radius: 22px; overflow: hidden; animation: up .5s .2s var(--ease) both; }
 .alt .ah { display: flex; align-items: center; gap: 12px; padding: 14px 18px; width: 100%; text-align: left; font-size: 16.5px; }
 .alt .ah .cv { margin-left: auto; transition: transform .35s var(--ease); }
-.alt .al { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alt .al { display: flex; flex-direction: column; min-width: 0; }
+.alt .al b, .alt .al span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alt .al b { font-weight: 600; }
+.alt .al span { font-size: 13.5px; color: var(--hint); margin-top: 1px; }
+.altw { position: relative; }
+/* «Можно выбрать другое приложение»: a white bubble under the apps row, once per user, hides by itself */
+.atip { position: absolute; left: 18px; right: 18px; top: calc(100% + 10px); z-index: 3; display: flex; align-items: center; gap: 10px; padding: 10px 6px 10px 14px; border-radius: 16px;
+  background: #fff; color: #1d2340; font-size: 14px; font-weight: 600; box-shadow: 0 12px 30px rgba(0, 0, 0, .4); transform-origin: 30% 0;
+  animation: tipin .5s 1.2s cubic-bezier(.3, 1.4, .5, 1) both, tipout .3s 7s ease forwards; }
+.atip::after { content: ""; position: absolute; left: 40px; bottom: 100%; border: 8px solid transparent; border-bottom-color: #fff; }
+.atip .x { margin-left: auto; padding: 0 8px; color: #1d2340; opacity: .5; font-size: 15px; }
+@keyframes tipin { from { opacity: 0; transform: scale(.6) translateY(-10px); } }
+@keyframes tipout { to { opacity: 0; transform: scale(.9); visibility: hidden; } }
+/* «Инструкция по установке»: a row like «Другие приложения», only when the app has a guide link */
+.gde { display: flex; align-items: center; gap: 12px; margin: 14px 12px 0; width: calc(100% - 24px); padding: 14px 18px; border-radius: 22px; background: var(--card); text-align: left;
+  font-size: 16.5px; animation: up .5s .15s var(--ease) both; }
+.gde .gi { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: linear-gradient(160deg, #3fc6b4, #178f8f); }
+.gde .al { display: flex; flex-direction: column; min-width: 0; }
+.gde .al b { font-weight: 600; }
+.gde .al span { font-size: 13.5px; color: var(--hint); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gde .cv { margin-left: auto; }
+.gde + .altw .alt { margin-top: 10px; }
 .ava { display: flex; flex-shrink: 0; max-width: 220px; transition: max-width .4s var(--ease); }
-.ava > * { border: 2px solid var(--card); margin-left: -9px; box-sizing: content-box; transition: transform .35s var(--ease), opacity .3s; }
+.ava > * { border: 2px solid var(--card); box-sizing: content-box; margin-left: -9px; transition: transform .35s var(--ease), opacity .3s; }
 .ava > :first-child { margin-left: 0; }
 .alt.on .ava { max-width: 0; }
 .alt.on .ava > * { transform: translateY(-6px) scale(.6); opacity: 0; }

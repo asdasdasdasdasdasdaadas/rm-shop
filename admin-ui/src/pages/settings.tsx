@@ -596,6 +596,7 @@ function ListEditor({
                   ["mark", "Короткая метка"],
                   ["icon", "URL иконки"],
                   ["deep_link", "Ссылка импорта подписки"],
+                  ["guide", "Ссылка «Как установить» (статья или видео)"],
                 ]
             ).map(([key, label]) => (
               <Field key={key} label={label}>
@@ -675,6 +676,7 @@ function ListEditor({
                 mark: "",
                 icon: "",
                 deep_link: "",
+                guide: "",
                 platforms: ["ios"],
                 stores: {},
               },

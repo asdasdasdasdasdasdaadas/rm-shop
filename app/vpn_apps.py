@@ -99,6 +99,18 @@ DEFAULT_VPN_APPS: list[dict[str, Any]] = [
 ]
 
 
+def _clean_guide(value: Any, app_id: str) -> str:
+    """Link to an install guide (article or video) shown as «Как установить» in the cabinet."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if not (text.startswith("http://") or text.startswith("https://")):
+        raise ValueError(f"{app_id}: ссылка «Как установить» должна начинаться с http(s)")
+    if len(text) > 500:
+        raise ValueError(f"{app_id}: ссылка «Как установить» слишком длинная")
+    return text
+
+
 def _clean_url(value: Any) -> str:
     text = str(value or "").strip()
     if not text:
@@ -168,6 +180,7 @@ def validate_vpn_apps(raw: Any) -> list[dict[str, Any]]:
                 "deep_link": deep,
                 "platforms": platforms,
                 "stores": stores,
+                "guide": _clean_guide(item.get("guide"), app_id),
             }
         )
     return out

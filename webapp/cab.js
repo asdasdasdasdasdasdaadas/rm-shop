@@ -731,22 +731,34 @@
       return hc("teal", { ill: appIcon(a, 92), h: `Установите ${esc(a.name)}`, p: `Бесплатно в ${storeName(wiz.platform)}. Уже стоит — жмите ✓`,
         x: '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>',
         pill: dl ? "Скачать" : "Готово, установлено", pa: dl ? 'data-act="store"' : 'data-act="create"', r: "chk", rl: "Приложение установлено", ra: 'data-act="create" id="wizOk"' }) +
-        appMore(list, a) +
+        guideRow(a) + appMore(list, a) +
         ST("Как это работает") +
         tl([["1", `Установите ${esc(a.name)}`, "займёт полминуты"], ["2", "Вернитесь сюда и нажмите ✓", "<b>создадим ключ</b> для этого устройства"],
           ["3", "Подключите в один тап", `${dayPrice()} ₽ в день, пока пользуетесь`]]) +
         cd([[E(PLAT_EMO[wiz.platform] || "📱") + esc(platTitle(wiz.platform)) + V("Другое устройство " + CV), 'data-act="replat"']]);
     },
-    on() { track("wizard_2"); },
+    on() {
+      track("wizard_2");
+      // «Можно выбрать другое приложение» shows once per user, under the apps row.
+      if (cur && cur.el.querySelector(".atip")) store.set("alt_tip", 1);
+    },
   };
+  // «Как установить»: the app's guide (article or video) from the admin settings; nothing when it is not set.
+  function guideRow(a) {
+    return a && a.guide ? `<button type="button" class="gde" data-act="guide" data-v="${esc(a.id)}"><span class="gi">${GUIDE_IC}</span>
+      <span class="al"><b>Инструкция по установке</b><span>Пошагово, как поставить ${esc(a.name)}</span></span>${CV}</button>` : "";
+  }
+  const GUIDE_IC = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>';
   // The recommended app stays in the card; the rest fold into «Другие приложения · N» and open as a list.
   function appMore(list, a) {
     if (list.length < 2) return "";
     const others = list.filter((x) => x.id !== a.id);
     const rows = list.map((x, i) => `<button type="button" class="ar" data-act="client" data-v="${esc(x.id)}" style="--i:${i}">${appIcon(x, 42)}<span class="at"><b>${esc(x.name)}</b>
       <span>${i ? "" : "★ рекомендуем · "}${x.deep_link ? "ключ добавится сам" : "ключ вставляется вручную"}</span></span><span class="ak">${x.id === a.id ? CHK(18) : ""}</span></button>`).join("");
-    return `<div class="alt"><button type="button" class="ah" data-act="appmore" aria-expanded="false"><span class="ava">${others.slice(0, 3).map((x) => appIcon(x, 30)).join("")}</span>
-      <span class="al">Ещё ${others.length} ${pl(others.length, "приложение", "приложения", "приложений")}</span>${CV}</button><div class="als"><div>${rows}</div></div></div>`;
+    const names = others.slice(0, 3).map((x) => esc(x.name)).join(", ") + (others.length > 3 ? ` и ещё ${others.length - 3}` : "");
+    const tip = store.get("alt_tip") ? "" : '<div class="atip">💡 Можно выбрать другое приложение<button type="button" class="x" data-act="tipx" aria-label="Закрыть">✕</button></div>';
+    return `<div class="altw"><div class="alt"><button type="button" class="ah" data-act="appmore" aria-expanded="false"><span class="ava">${others.slice(0, 3).map((x) => appIcon(x, 30)).join("")}</span>
+      <span class="al"><b>Другие приложения</b><span>${names}</span></span>${CV}</button><div class="als"><div>${rows}</div></div></div>${tip}</div>`;
   }
   SCR.wiz3 = {
     h() {
@@ -760,7 +772,8 @@
           ["2", "Включите VPN в приложении", "разрешите VPN-подключение, если спросит"],
           ["3", "Готово — VPN работает", `<b>${dayPrice()} ₽ в день</b>, пока устройство добавлено`]]) +
         `<div style="height:12px"></div>` +
-        cd([[E("🆘") + "Не получилось — помогите" + V(CV), 'data-act="helpconnect"'], [E("🏠") + "В кабинет" + V(CV), 'data-act="home"']]);
+        cd([a.guide && [E("📖") + `Как подключить в ${esc(a.name)}` + V(CV), `data-act="guide" data-v="${esc(a.id)}"`],
+          [E("🆘") + "Не получилось — помогите" + V(CV), 'data-act="helpconnect"'], [E("🏠") + "В кабинет" + V(CV), 'data-act="home"']]);
     },
     on() { track("wizard_4"); },
   };
@@ -1340,8 +1353,17 @@
     reopen: () => pay.url && tg.openLink(pay.url),
     plat(b) { haptic(); wiz.platform = b.dataset.v; wiz.client = (appsFor(wiz.platform)[0] || {}).id || ""; go("wiz2"); },
     replat: () => go("wiz1"),
+    guide(b) {
+      const a = appById(b.dataset.v);
+      if (!a || !a.guide) return;
+      haptic();
+      tg.openLink ? tg.openLink(a.guide) : window.open(a.guide, "_blank", "noopener");
+    },
+    tipx(b) { const t = b.closest(".atip"); if (t) t.remove(); },
     appmore(b) {
       haptic();
+      const tip = cur && cur.el.querySelector(".atip");
+      if (tip) tip.remove();
       const alt = b.closest(".alt"), on = alt.classList.toggle("on");
       b.setAttribute("aria-expanded", String(on));
     },
@@ -1359,6 +1381,9 @@
         swap(el.querySelector(".hc .ill"), tmp.querySelector(".hc .ill"));
         ["H", "P"].forEach((c) => { const n = tmp.querySelector(`.hc .${c}`); if (n) n.classList.add("fx"); swap(el.querySelector(`.hc .${c}`), n); });
         swap(el.querySelector(".hc .acts"), tmp.querySelector(".hc .acts"));
+        const g = el.querySelector(".gde"), ng = tmp.querySelector(".gde");
+        if (ng) ng.classList.add("still");
+        if (g && ng) swap(g, ng); else if (g) g.remove(); else if (ng) { const w = el.querySelector(".altw"); if (w) w.before(ng); }
         swap(el.querySelector(".alt"), tmp.querySelector(".alt"), true);
         const tl = el.querySelector(".tl"), ntl = tmp.querySelector(".tl");
         swap(tl && tl.parentNode, ntl && ntl.parentNode, true);
