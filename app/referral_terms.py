@@ -1,9 +1,9 @@
 """Public referral terms shared by the bot, FAQ and cabinet."""
 from app.config import get_settings
 
-# Paid to both the inviter and the friend once the friend reaches the bot's main menu.
+# The friend gets it on reaching the bot's main menu; the inviter once the friend first connects VPN.
 REFERRAL_BONUS_RUB = 50
-REFERRAL_REWARD_LABEL = "50 ₽ вам и другу"
+REFERRAL_REWARD_LABEL = "другу 50 ₽ сразу, вам 50 ₽, когда друг подключит VPN"
 
 
 def referral_terms(settings=None) -> dict[str, str]:
@@ -13,12 +13,12 @@ def referral_terms(settings=None) -> dict[str, str]:
         return {
             "note": "Реферальная программа приостановлена. Новые награды не начисляются, уже полученный баланс сохраняется.",
             "when": "Во время паузы начислений нет. Друзьям, пришедшим за время паузы, бонус позже не начисляется.",
-            "how": f"Условия при включении: по {bonus} вам и новому другу, когда он откроет меню бота.",
+            "how": f"Условия при включении: другу {bonus} сразу, вам {bonus}, когда друг подключит VPN.",
             "friend": "",
         }
     return {
         "note": "Награды начисляются, пока программа активна.",
-        "when": f"🎁 По {bonus} вам и другу, как только он откроет меню бота. Друг должен прийти по вашей ссылке.",
-        "how": f"{bonus} вам и {bonus} другу один раз за каждого нового друга — сразу, как он дойдёт до главного меню.",
-        "friend": f"Другу по вашей ссылке — {bonus} на баланс сразу при входе в меню.",
+        "when": f"🎁 Другу {bonus} сразу, вам {bonus}, когда друг подключит VPN. Друг должен прийти по вашей ссылке.",
+        "how": f"Другу {bonus} на баланс сразу, как он откроет бота, вам {bonus} — когда он впервые подключит VPN. Один раз за каждого нового друга.",
+        "friend": "",
     }

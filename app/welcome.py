@@ -3,7 +3,6 @@ from app.funnel_ui import answer_funnel
 
 import asyncio
 import logging
-from html import escape
 
 from aiogram import Bot
 from aiogram.enums import ChatAction
@@ -12,7 +11,7 @@ from aiogram.types import LinkPreviewOptions, Message
 
 from app import db
 from app.config import get_settings
-from app.keyboards import with_referral_share, support_welcome_keyboard
+from app.keyboards import with_referral_share
 from app.keyboards import channel_keyboard, legal_text, onboarding_keyboard, profile_keyboard
 from app.notices import notice_text
 from app.referrals import trial_is_available
@@ -130,7 +129,7 @@ async def send_welcome_intro(
     referral_bonus = (settings.referral_program_enabled and local and local.get("referred_by")
                       and not local.get("referral_menu_bonus_at"))
     if referral_bonus:
-        hello += "\n\nВы пришли по ссылке друга — откройте меню бота, и мы начислим вам 50 ₽."
+        hello += "\n\nВы пришли по ссылке друга — откройте меню бота, и мы сразу начислим вам 50 ₽."
     trial_on = trial_is_available(local)
     days = days_text(settings.trial_days)
     hi = (
@@ -138,26 +137,19 @@ async def send_welcome_intro(
         if trial_on
         else notice_text("welcome_intro_hi_plain", name=name)
     )
-    support_on = support_welcome_enabled()
-    support = notice_text("support_welcome", brand=escape(brand))
-    parts = [hi, hello, support] if support_on else [hi, hello]
+    parts = [hi, hello]
     try:
         await send_welcome_sticker(bot, chat_id)
         await _pause(bot, chat_id)
-        # The intro is a plain story: no cabinet / main menu buttons until «Я помогу».
+        # The intro is a plain story: the cabinet and the gift come with the next message.
         await answer_funnel(message, hi, preserve=True)
         await _pause(bot, chat_id)
         await answer_funnel(message, hello, reply_markup=with_referral_share(user.id) if referral_bonus else None,
                             preserve=True)
         await _pause(bot, chat_id)
-        if support_on:
-            # Only «Я помогу» here: no cabinet or main menu buttons before the intro is finished.
-            await answer_funnel(message, support, reply_markup=support_welcome_keyboard(), preserve=True,
-                                 link_preview_options=LinkPreviewOptions(is_disabled=True))
-        else:
-            # «Будем на связи» is switched off in the admin panel: go straight to the cabinet step.
-            await db.complete_welcome_support(user.id)
-            await send_welcome_continuation(message, user.id, in_channel=in_channel)
+        # Straight to the gift and the cabinet: no «Будем на связи» step in between.
+        await db.complete_welcome_support(user.id)
+        await send_welcome_continuation(message, user.id, in_channel=in_channel)
         await _log(user.id, user.first_name, "\n\n".join(parts), ok=True)
         return True
     except Exception as exc:
@@ -199,18 +191,3 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
     last += "\n\n" + legal_text()
     await answer_funnel(message, last, reply_markup=kb, preserve=in_channel, link_preview_options=LinkPreviewOptions(is_disabled=True))
     await db.mark_legal_notice(telegram_id)
-
-
-def support_welcome_enabled() -> bool:
-    return bool(getattr(get_settings(), "welcome_support_enabled", False))
-
-
-async def show_pending_welcome(message: Message, telegram_id: int) -> bool:
-    if not support_welcome_enabled():
-        return False
-    local=await db.get_user(telegram_id)
-    if not local or not local.get('welcome_support_pending'):
-        return False
-    await answer_funnel(message, notice_text('support_welcome',brand=escape(get_settings().brand_name)),
-                         reply_markup=support_welcome_keyboard(),preserve=True,link_preview_options=LinkPreviewOptions(is_disabled=True))
-    return True

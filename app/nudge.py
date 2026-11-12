@@ -46,7 +46,7 @@ def invite_nudge_text(telegram_id: int, first_name: str | None) -> str:
     settings = get_settings()
     name = first_name or "привет"
     link = f"https://t.me/{settings.bot_username}?start=ref_{telegram_id}"
-    reward = "50 ₽ вам и другу"
+    reward = "50 ₽"
     terms = referral_terms(settings)
     when = terms["when"] + (" " + terms["friend"] if terms["friend"] else "")
     if not settings.referral_program_enabled:
@@ -123,17 +123,11 @@ async def _deliver_unbudgeted(
     return ok
 
 
-def _idle_notice_key(segment: str, days: int) -> str:
-    """Notice key of the «давно не заходил» texts; the funnel board and its preview use them."""
-    if days == 45:
-        return "idle_comeback"
-    if segment == "return":
-        if days == 7:
-            return "return_check"
-        if days == 20:
-            return "return_last"
-        return f"idle_return_{days}"
-    return f"idle_{segment}_{days}"
+def gift_ending_text() -> str:
+    settings = get_settings()
+    minimum = max(1, int(settings.balance_topup_min or 50))
+    price = max(1, int(settings.vpn_day_price_rub or 1))
+    return notice_text("gift_ending_nudge", min=minimum, days=days_text(max(1, minimum // price)))
 
 
 async def send_due_trial_end_nudges(
@@ -158,7 +152,12 @@ async def send_due_trial_end_nudges(
         count = max(1, int(row.get("device_count") or 1))
         from app.balance_notifications import balance_details, balance_keyboard
         suffix = balance_details(int(row.get('balance_rub') or 0), count, settings.vpn_day_price_rub)
-        text = ((body or "").strip() or notice_text("balance_ending_nudge")) + suffix
+        gift = stage == 1 and not row.get("paid")
+        if gift:
+            # Never paid: the balance is the gift, so the last day sells the first top-up.
+            text = gift_ending_text()
+        else:
+            text = ((body or "").strip() or notice_text("balance_ending_nudge")) + suffix
         if button_ids is None:
             reply, keep = balance_keyboard(), True
         else:
@@ -166,7 +165,7 @@ async def send_due_trial_end_nudges(
             reply, keep = board_markup(button_ids, telegram_id), True
         ok = await _deliver(
             bot, kind="nudge_trial_end", telegram_id=telegram_id, first_name=row.get("first_name"),
-            title="Баланс заканчивается", body=text, reply_markup=reply, extra=None, preserve=keep,
+            title="Подарок заканчивается" if gift else "Баланс заканчивается", body=text, reply_markup=reply, extra=None, preserve=keep,
         )
         if not ok:
             await db.release_balance_ending_notice(telegram_id, stage=stage)
@@ -252,6 +251,11 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
             retry_skip = await db.nudge_retry_suppressed_ids()
             muted = await db.exit_feedback_suppressed_ids()
             muted.extend(await db.quiet_notification_ids())
+            try:
+                from app.referrals import reward_connected_friends
+                await reward_connected_friends(bot)
+            except Exception:
+                logger.exception("Бонус за подключившегося друга не начислен")
             from app.funnel_board import send_due as send_board
             n, _ids = await send_board(bot, rp, retry_skip, muted)
             if n:

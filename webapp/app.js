@@ -3573,7 +3573,7 @@ function paintRefBanner(me) {
   if (pill) pill.textContent = active ? `и получите ${reward} ₽ на баланс` : "Пользоваться вместе приятнее";
   if (note) {
     note.textContent = active
-      ? `Отправьте другу ссылку. Как только он откроет меню бота, вы оба получите по ${reward} ₽.`
+      ? `Отправьте другу ссылку: ему ${reward} ₽ сразу, вам ${reward} ₽, когда он подключит VPN.`
       : "Отправьте ссылку другу — пусть тоже попробует VPN. Сейчас новые награды не начисляются.";
     note.classList.remove("hidden");
   }

@@ -3839,7 +3839,7 @@ async def list_due_trial_end_nudges(
           AND NOT (u.telegram_id = ANY($2::bigint[]))
         )
         -- Stage 1: less than a day left (everyone). Stage 3: up to three days left, for people who paid before.
-        SELECT telegram_id, first_name, balance_rub, device_count,
+        SELECT telegram_id, first_name, balance_rub, device_count, paid,
                CASE WHEN balance_rub <= $3 * GREATEST(device_count, 1) THEN 1 ELSE 3 END AS stage
         FROM due
         WHERE balance_rub <= $3 * GREATEST(device_count, 1) OR (paid AND balance_warn3_at IS NULL)
@@ -5384,7 +5384,8 @@ async def finish_payment_effects(payment_key: str) -> None:
 
 
 async def reward_referral_menu(invitee_id: int, amount: int) -> dict | None:
-    """Pay the referrer and the invited friend once, when the friend first reaches the main menu."""
+    """Pay the invited friend once, when they first reach the main menu. Whoever invited them is paid
+    later, when the friend first connects VPN (claim_referral_connect_rewards)."""
     if amount < 1:
         return None
     async with _pool_req().acquire() as conn:
@@ -5393,29 +5394,55 @@ async def reward_referral_menu(invitee_id: int, amount: int) -> dict | None:
                 """UPDATE users SET referral_menu_bonus_at=NOW()
                    WHERE telegram_id=$1 AND referral_menu_bonus_at IS NULL
                      AND referred_by IS NOT NULL AND referred_by <> telegram_id
-                     AND NOT referral_rewarded
+                     AND referral_invitee_bonus_at IS NULL
                      AND created_at > NOW() - INTERVAL '1 day'
                      AND EXISTS (SELECT 1 FROM users r WHERE r.telegram_id=users.referred_by AND r.blocked_at IS NULL)
                    RETURNING referred_by, first_name""", invitee_id)
             if not invitee:
                 return None
-            referrer_id = int(invitee['referred_by'])
-            # The payment-time bonuses check these flags, so nobody is paid twice for one friend.
+            # referral_invitee_bonus_at keeps the payment-time friend bonus from paying twice.
             friend_after = await conn.fetchval(
-                """UPDATE users SET referral_rewarded=TRUE, referral_invitee_bonus_at=NOW(),
+                """UPDATE users SET referral_invitee_bonus_at=NOW(),
                    balance_rub=COALESCE(balance_rub,0)+$2, low_balance_notified_at=NULL
                    WHERE telegram_id=$1 RETURNING balance_rub""", invitee_id, amount)
-            referrer_after = await conn.fetchval(
-                """UPDATE users SET balance_rub=COALESCE(balance_rub,0)+$2,
-                   referral_earned=COALESCE(referral_earned,0)+$2, low_balance_notified_at=NULL
-                   WHERE telegram_id=$1 RETURNING balance_rub""", referrer_id, amount)
-            await conn.executemany(
+            await conn.execute(
                 """INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
-                   VALUES ($1,'referral',$2,$3,$4,$5)""",
-                [(referrer_id, 'menu', amount, referrer_after, f'Друг {invitee_id} дошёл до меню'),
-                 (invitee_id, 'invitee', amount, friend_after, 'Бонус за приход по ссылке друга')])
-            return {'referrer_id': referrer_id, 'invitee_id': invitee_id, 'amount': amount,
+                   VALUES ($1,'referral','invitee',$2,$3,'Бонус за приход по ссылке друга')""",
+                invitee_id, amount, friend_after)
+            return {'referrer_id': int(invitee['referred_by']), 'invitee_id': invitee_id, 'amount': amount,
                     'friend_name': invitee['first_name']}
+
+
+async def claim_referral_connect_rewards(amount: int, limit: int = 50) -> list[dict]:
+    """Pay whoever invited a friend once that friend first connects VPN. One payment per friend:
+    referral_connect_bonus_at marks it, and referral_rewarded stops the first-payment bonus from paying again."""
+    if amount < 1:
+        return []
+    out: list[dict] = []
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            rows = await conn.fetch(
+                """UPDATE users u SET referral_connect_bonus_at=NOW(), referral_rewarded=TRUE
+                   WHERE u.telegram_id IN (
+                       SELECT i.telegram_id FROM users i JOIN users r ON r.telegram_id=i.referred_by
+                       WHERE i.referral_connect_bonus_at IS NULL AND i.first_online_at IS NOT NULL
+                         AND i.referred_by <> i.telegram_id AND NOT i.referral_rewarded
+                         AND r.blocked_at IS NULL
+                       ORDER BY i.first_online_at LIMIT $1 FOR UPDATE OF i SKIP LOCKED)
+                   RETURNING u.telegram_id, u.referred_by, u.first_name""", limit)
+            for row in rows:
+                referrer_id = int(row['referred_by'])
+                after = await conn.fetchval(
+                    """UPDATE users SET balance_rub=COALESCE(balance_rub,0)+$2,
+                       referral_earned=COALESCE(referral_earned,0)+$2, low_balance_notified_at=NULL
+                       WHERE telegram_id=$1 RETURNING balance_rub""", referrer_id, amount)
+                await conn.execute(
+                    """INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
+                       VALUES ($1,'referral','connect',$2,$3,$4)""",
+                    referrer_id, amount, after, f'Друг {row["telegram_id"]} подключил VPN')
+                out.append({'referrer_id': referrer_id, 'invitee_id': int(row['telegram_id']),
+                            'amount': amount, 'friend_name': row['first_name']})
+    return out
 
 
 async def credit_invitee_bonus_once(telegram_id: int, amount: int) -> int | None:

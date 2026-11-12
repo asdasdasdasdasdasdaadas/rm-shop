@@ -22,7 +22,7 @@ from app.keyboards import (
     welcome_text,
 )
 from app.referrals import trial_is_available
-from app.welcome import send_welcome_intro, send_welcome_continuation, show_pending_welcome
+from app.welcome import send_welcome_intro, send_welcome_continuation
 from app.remnawave import RemnawaveClient
 from app.sync import fetch_panel, has_access
 
@@ -119,10 +119,6 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
 async def gate_or_continue(event: Message | CallbackQuery) -> bool:
     user = event.from_user
     bot = event.bot
-    if await show_pending_welcome(event.message if isinstance(event, CallbackQuery) else event, user.id):
-        if isinstance(event, CallbackQuery):
-            await ack(event)
-        return False
     if not await is_channel_member(bot, user.id):
         text = welcome_text()
         kb = channel_keyboard()
@@ -169,8 +165,6 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
         )
         if ok:
             return
-    if await show_pending_welcome(message, message.from_user.id):
-        return
     if not in_channel:
         await answer_funnel(message,
             welcome_text(), reply_markup=channel_keyboard(), link_preview_options=LinkPreviewOptions(is_disabled=True)
@@ -200,9 +194,6 @@ async def welcome_continue(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data == "check_sub")
 async def check_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
-    if await show_pending_welcome(callback.message, callback.from_user.id):
-        await ack(callback)
-        return
     await db.upsert_user(
         callback.from_user.id,
         callback.from_user.username,
@@ -218,9 +209,6 @@ async def check_sub(callback: CallbackQuery, rw: RemnawaveClient) -> None:
 
 @router.callback_query(F.data == "accept_legal")
 async def accept_legal(callback: CallbackQuery, rw: RemnawaveClient) -> None:
-    if await show_pending_welcome(callback.message, callback.from_user.id):
-        await ack(callback)
-        return
     if not await is_channel_member(callback.bot, callback.from_user.id):
         await edit_funnel(callback.message,
             welcome_text(), reply_markup=channel_keyboard(), link_preview_options=LinkPreviewOptions(is_disabled=True)
@@ -245,9 +233,6 @@ async def open_profile(callback: CallbackQuery, rw: RemnawaveClient) -> None:
 
 @router.callback_query(F.data == "try_again")
 async def try_again(callback: CallbackQuery, rw: RemnawaveClient) -> None:
-    if await show_pending_welcome(callback.message, callback.from_user.id):
-        await ack(callback)
-        return
     user = callback.from_user
     await ack(callback)
     await db.upsert_user(user.id, user.username, user.first_name)

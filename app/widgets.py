@@ -127,7 +127,7 @@ REFERRAL_HTML = _page(
 <button id="cp" class="pb">Скопировать приглашение</button></div>
 <div class="f"><span class="t" id="u"></span><button id="r" class="rf" aria-label="Обновить">↻</button></div>""",
     """let seen=s?s.i:0,shown=0;const G=[1,3,5,10,25,50,100,250,500,1000],J=s&&s.j;
-if(J){const b=$('jb');b.hidden=false;b.textContent='🎉 '+(J.n||'Друг')+(J.k=='pay'?' оплатил VPN':' пришёл по ссылке')+' · +'+rub(J.a);
+if(J){const b=$('jb');b.hidden=false;b.textContent='🎉 '+(J.n||'Друг')+(J.k=='pay'?' оплатил VPN':J.k=='connect'?' подключил VPN':' пришёл по ссылке')+' · +'+rub(J.a);
 if(W.HapticFeedback)W.HapticFeedback.notificationOccurred('success')}
 function link(){const m=s&&s.c&&s.c.match(/https?:\\/\\/\\S+/);return m?m[0]:''}
 function count(to){const e=$('m'),from=shown,t0=performance.now();shown=to;

@@ -1,5 +1,4 @@
 from aiogram.types import InlineKeyboardMarkup
-from app.funnel_ui import funnel_keyboard
 """Onboarding transitions without Telegram, panel or database connections."""
 from contextlib import ExitStack
 from types import SimpleNamespace
@@ -15,7 +14,6 @@ from app.keyboards import legal_text, profile_text, welcome_text
 class OnboardingTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.stack = ExitStack()
-        self.stack.enter_context(patch.object(start, "show_pending_welcome", AsyncMock(return_value=False)))
         self.addCleanup(self.stack.close)
         self.db = self.stack.enter_context(patch.object(start, 'db'))
         for name in ('upsert_user', 'claim_welcome_intro', 'mark_legal_notice',
@@ -103,10 +101,12 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                 db = stack.enter_context(patch.object(welcome, 'db'))
                 db.get_user = AsyncMock(return_value={})
                 db.mark_legal_notice = AsyncMock()
+                db.complete_welcome_support = AsyncMock()
                 stack.enter_context(patch.object(welcome, 'get_settings', return_value=SimpleNamespace(
                     brand_name='VPN', referral_invitee_reward_rub=0, referral_program_enabled=False,
                     balance_enabled=False, trial_enabled=False, trial_days=0)))
                 stack.enter_context(patch.object(welcome.logger, 'warning'))
+                stack.enter_context(patch('app.funnel_board.menu_content', AsyncMock(return_value=None)))
                 stack.enter_context(patch.object(welcome, 'trial_is_available', return_value=False))
                 stack.enter_context(patch.object(welcome, 'notice_text', return_value='Hello'))
                 stack.enter_context(patch.object(welcome, 'legal_text', return_value='Legal links'))
@@ -123,11 +123,9 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                 if failed:
                     db.mark_legal_notice.assert_not_awaited()
                 else:
-                    db.mark_legal_notice.assert_not_awaited()
-                    await welcome.send_welcome_continuation(message,123,in_channel=True)
+                    # No «Будем на связи» step: the cabinet message follows the intro right away.
                     db.mark_legal_notice.assert_awaited_once_with(123)
                     keyboard.assert_called_once()
-                    self.assertEqual(message.answer.call_args.kwargs['reply_markup'], funnel_keyboard(InlineKeyboardMarkup(inline_keyboard=[])))
                     self.assertIn('Legal links', message.answer.call_args.args[0])
                     self.assertTrue(message.answer.call_args.kwargs['link_preview_options'].is_disabled)
 

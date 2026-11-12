@@ -3,9 +3,9 @@ from html import escape
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from app.config import get_settings
 from app.keyboards import (cabinet_keyboard, onboarding_keyboard, payment_nudge_keyboard,
-                           share_keyboard, vpn_feedback_keyboard, support_welcome_keyboard, channel_keyboard)
+                           share_keyboard, vpn_feedback_keyboard, channel_keyboard)
 from app.notices import notice_text
-from app.nudge import trial_nudge_text, invite_nudge_text, info_nudge_text, _idle_notice_key
+from app.nudge import trial_nudge_text, invite_nudge_text, info_nudge_text, gift_ending_text
 from app.texts import days_text, rub_text
 from app.referrals import topup_ok_text
 
@@ -21,12 +21,8 @@ def catalog(telegram_id: int) -> list[dict]:
         notice_text('welcome_intro_hi', name='Тестовый пользователь', days=days_text(s.trial_days)), None)
     add('intro', 'start', 'Знакомство с сервисом', 'После приветствия',
         notice_text('welcome_intro_hello', name='Тестовый пользователь', brand=escape(s.brand_name)), None)
-    add('support', 'start', 'Согласие помочь сервису', 'Перед продолжением регистрации',
-        notice_text('support_welcome', brand=escape(s.brand_name)), support_welcome_keyboard())
     add('gift', 'start', 'Подарок ещё не забрали', 'Напоминание о пробном доступе; подарок не получен',
         trial_nudge_text('Тестовый пользователь', already_granted=False), onboarding_keyboard(gift=True))
-    add('resume_welcome', 'start', 'Не завершил приветствие', 'Через 24 часа; не нажал «Я помогу»',
-        notice_text('trial_resume_welcome'), support_welcome_keyboard())
     if s.required_channel_enabled:
         add('resume_channel', 'start', 'Не подписался на канал', 'Через 24 часа; приветствие завершено, подписка на канал не подтверждена',
             notice_text('trial_resume_channel'), channel_keyboard())
@@ -40,6 +36,8 @@ def catalog(telegram_id: int) -> list[dict]:
         notice_text('vpn_quality_check'), vpn_feedback_keyboard())
     add('ending', 'payment', 'Баланс заканчивается', 'Пользователь подходит к концу оплаченного доступа',
         notice_text('balance_ending_nudge'), payment_nudge_keyboard(label='Пополнить баланс'))
+    add('gift_ending', 'payment', 'Подарок заканчивается', 'Вместо «Баланс заканчивается», если человек ещё ни разу не платил',
+        gift_ending_text(), payment_nudge_keyboard(label='Пополнить баланс'))
     add('empty', 'payment', 'Не хватает на сутки', 'Баланс меньше стоимости суток устройства',
         notice_text('low_balance', price=rub_text(s.vpn_day_price_rub)), payment_nudge_keyboard(label='Пополнить баланс'))
     add('invoice', 'payment', 'Счёт не оплачен', 'Через 10 минут после создания неоплаченного счёта',
@@ -50,12 +48,6 @@ def catalog(telegram_id: int) -> list[dict]:
         invite_nudge_text(telegram_id, 'Тестовый пользователь'), share_keyboard(s.bot_username, telegram_id))
     add('info', 'referral', 'Как устроен сервис', 'Через 96 часов после первого онлайна; пользовался за последние 7 дней; нет нерешённой проблемы',
         info_nudge_text(), cabinet_keyboard())
-    for days in (7, 10, 15, 20, 45):
-        for segment, label in [('setup', 'не подключился'), ('topup', 'закончились деньги'), ('return', 'баланс есть')]:
-            markup = onboarding_keyboard(gift=True) if segment == 'setup' else payment_nudge_keyboard(label='Пополнить баланс') if segment == 'topup' else vpn_feedback_keyboard(returning=True)
-            key = _idle_notice_key(segment, days)
-            add(f'{segment}_{days}', f'return_{segment}', f'Возврат: {label}, {days} дней',
-                f'{days} дней без использования; ветка «{label}». Шаги идут по порядку: 7, 10, 15, 20 и 45 дней.', notice_text(key), markup)
     add('nodevice_1', 'nodevice', 'Без устройства',
         'Сутки после запуска бота, устройства нет. Повтор через 7 дней.',
         notice_text('nodevice_1'), onboarding_keyboard(gift=True))
@@ -82,23 +74,19 @@ def catalog(telegram_id: int) -> list[dict]:
 
 
 MESSAGE_KINDS = {
-    'welcome': 'welcome_intro', 'intro': 'welcome_intro', 'support': 'welcome_intro',
-    'resume_welcome': 'nudge_trial', 'resume_channel': 'nudge_trial', 'gift': 'nudge_trial', 'device': 'first_device_thanks', 'setup': 'nudge_device',
-    'quality': 'nudge_first_online', 'ending': 'nudge_trial_end', 'empty': 'low_balance',
+    'welcome': 'welcome_intro', 'intro': 'welcome_intro',
+    'resume_channel': 'nudge_trial', 'gift': 'nudge_trial', 'device': 'first_device_thanks', 'setup': 'nudge_device',
+    'quality': 'nudge_first_online', 'ending': 'nudge_trial_end', 'gift_ending': 'nudge_trial_end', 'empty': 'low_balance',
     'invoice': 'nudge_payment', 'invite': 'nudge_invite', 'info': 'nudge_info',
-    **{f'{segment}_{day}': 'nudge_idle' for segment in ('setup','topup','return') for day in (7,10,15,20,45)},
     'nodevice_1': 'nudge_nodevice', 'nodevice_2': 'nudge_nodevice',
     'unpaid_1': 'nudge_unpaid', 'unpaid_2': 'nudge_unpaid',
 }
 
 
 SCENARIOS = {
-    'start': ('Первое подключение', ['welcome', 'intro', 'support', 'gift', 'device', 'setup', 'quality']),
-    'payment': ('Баланс и неоплаченный счёт', ['ending', 'empty', 'invoice', 'paid']),
+    'start': ('Первое подключение', ['welcome', 'intro', 'gift', 'device', 'setup', 'quality']),
+    'payment': ('Баланс и неоплаченный счёт', ['gift_ending', 'ending', 'empty', 'invoice', 'paid']),
     'referral': ('Приглашение друзей', ['invite']),
-    'return_setup': ('Возврат: не подключился', ['setup_7', 'setup_10', 'setup_15', 'setup_20', 'setup_45']),
-    'return_topup': ('Возврат: нет денег', ['topup_7', 'topup_10', 'topup_15', 'topup_20', 'topup_45']),
-    'return_return': ('Возврат: баланс есть', ['return_7', 'return_10', 'return_15', 'return_20', 'return_45']),
     'nodevice': ('Без устройства', ['nodevice_1', 'nodevice_2']),
     'unpaid': ('Без первой оплаты', ['unpaid_1', 'unpaid_2']),
 }

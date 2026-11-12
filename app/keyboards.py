@@ -44,12 +44,8 @@ def tariff_block() -> str:
     minimum = max(1, int(getattr(settings, 'balance_topup_min', 50) or 50))
     lines = [f'💸 <b>{price} ₽ в день</b> за устройство · без подписки · пополнение от {minimum} ₽']
     if getattr(settings, 'referral_program_enabled', False):
-        mine = max(0, int(getattr(settings, 'referral_reward_rub', 0) or 0))
-        friend = max(0, int(getattr(settings, 'referral_invitee_reward_rub', 0) or 0))
-        if mine and mine == friend:
-            lines.append(f'🎁 Друг пополнит баланс — обоим по {mine} ₽')
-        elif mine:
-            lines.append(f'🎁 Друг пополнит баланс — вам {mine} ₽')
+        from app.referral_terms import REFERRAL_BONUS_RUB as bonus
+        lines.append(f'🎁 Позовите друга: ему {bonus} ₽ сразу, вам {bonus} ₽, когда он подключит VPN')
     return '\n'.join(lines)
 
 
@@ -357,7 +353,7 @@ def invite_message(telegram_id: int, settings=None) -> str:
     icon = f'<tg-emoji emoji-id="{PINNED_ICONS["invite"]}">👥</tg-emoji>'
     body = icon + ' <b>Поделитесь ссылкой с другом</b>\n'
     if settings.referral_program_enabled:
-        body += 'Как только друг откроет меню бота, вы оба получите по <b>50 ₽</b> на баланс.'
+        body += 'Другу <b>50 ₽</b> сразу, вам <b>50 ₽</b>, когда друг подключит VPN.'
     else:
         body += escape(terms['note']) + '\n\n' + escape(terms['when'])
     link = escape(invite_url(telegram_id, settings.bot_username))
@@ -495,7 +491,7 @@ def about_service_content():
         f'Пополнить можно от {minimum} ₽.'
     )
     if getattr(settings, 'referral_program_enabled', True):
-        body += '\n\n' + _pack_emoji('gift', '📦') + ' <b>Позовите друга</b>\nКак только он откроет меню бота, вы оба получите по 50 ₽.'
+        body += '\n\n' + _pack_emoji('gift', '📦') + ' <b>Позовите друга</b>\nДругу 50 ₽ сразу, вам 50 ₽, когда он подключит VPN.'
     body += '\n\n' + _pack_emoji('cabinet', '👤') + ' <b>Где кабинет</b>\nЗдесь, в боте: <b>Главное меню</b> → <b>Личный кабинет</b>.'
     rows = [[InlineKeyboardButton(text='Главное меню', callback_data='profile', style='success')]]
     rows.append([

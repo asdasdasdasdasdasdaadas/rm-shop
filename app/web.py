@@ -504,7 +504,9 @@ async def api_me(request: web.Request) -> web.Response:
             "referral_program_enabled": settings.referral_program_enabled,
             "referral_percent": 0,
             "referral_invitee_reward_rub": (
-                int(settings.referral_invitee_reward_rub or 0) if settings.referral_program_enabled else 0
+                # Nothing more at the first payment once the friend took the menu bonus.
+                int(settings.referral_invitee_reward_rub or 0)
+                if settings.referral_program_enabled and not (local or {}).get("referral_invitee_bonus_at") else 0
             ),
             "referred": bool((local or {}).get("referred_by")),
             **ref_view,

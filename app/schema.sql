@@ -806,6 +806,10 @@ CREATE INDEX IF NOT EXISTS ad_links_partner_idx ON ad_links (partner_id) WHERE p
 -- old invitees are not paid retroactively; new rows start as NULL.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_menu_bonus_at TIMESTAMPTZ DEFAULT 'epoch';
 ALTER TABLE users ALTER COLUMN referral_menu_bonus_at SET DEFAULT NULL;
+-- Inviter's bonus once the invited friend first connects VPN. Existing rows get the epoch:
+-- under the old rule the inviter was already paid when the friend reached the menu.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_connect_bonus_at TIMESTAMPTZ DEFAULT 'epoch';
+ALTER TABLE users ALTER COLUMN referral_connect_bonus_at SET DEFAULT NULL;
 -- Gift days offered inside funnel messages: one tap credits N days for the user's devices.
 CREATE TABLE IF NOT EXISTS funnel_gifts (
     id BIGSERIAL PRIMARY KEY,

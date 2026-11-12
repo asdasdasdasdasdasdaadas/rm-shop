@@ -60,15 +60,6 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
             take.assert_not_awaited()
 
 
-class IdleNoticeKeyTest(IsolatedAsyncioTestCase):
-    def test_return_chain_keeps_existing_ends_and_adds_middle(self):
-        self.assertEqual(nudge._idle_notice_key('return', 7), 'return_check')
-        self.assertEqual(nudge._idle_notice_key('return', 10), 'idle_return_10')
-        self.assertEqual(nudge._idle_notice_key('return', 20), 'return_last')
-        self.assertEqual(nudge._idle_notice_key('setup', 15), 'idle_setup_15')
-        self.assertEqual(nudge._idle_notice_key('topup', 45), 'idle_comeback')
-
-
 class RetryPolicySqlTest(IsolatedAsyncioTestCase):
     def setUp(self):
         p = patch.object(db, "notification_allowed", AsyncMock(return_value=True))

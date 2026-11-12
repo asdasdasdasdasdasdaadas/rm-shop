@@ -105,12 +105,11 @@ def topup_ok_text(amount: str, *, can_share: bool, local: dict | None = None) ->
     body = notice_text("topup_ok", amount=amount)
     if local is not None:
         body += "\nБаланс: " + rub_text(int(local.get("balance_rub") or 0)) + "."
-        body += "\nПодключение и состояние доступа — в кабинете."
         can_share = can_share and not local.get("quiet_notifications")
     if can_share and get_settings().referral_program_enabled:
         body += (
             "\n\n🎁 Пригласите друга: "
-            "вы оба получите по 50 ₽, как только он откроет меню бота."
+            "другу 50 ₽ сразу, вам 50 ₽, когда он подключит VPN."
         )
     from app.funnel_ui import funnel_body
     return funnel_body(body)
@@ -140,7 +139,8 @@ async def _send_reward(bot: Bot, chat: int, text: str, *, amount: int, friend: d
 
 
 async def maybe_reward_menu(bot: Bot | None, telegram_id: int) -> int:
-    """50 ₽ to the friend and to whoever invited them, once the friend reaches the main menu."""
+    """50 ₽ to the invited friend once they reach the main menu; whoever invited them hears that the friend
+    came and gets their 50 ₽ when the friend connects VPN (reward_connected_friends)."""
     if not get_settings().referral_program_enabled:
         return 0
     try:
@@ -151,18 +151,39 @@ async def maybe_reward_menu(bot: Bot | None, telegram_id: int) -> int:
         return 0
     amount = f"{result['amount']} ₽"
     if bot:
-        raw_name = str(result.get("friend_name") or "Друг")[:32]
-        name = escape(result.get("friend_name") or "друг")
-        for chat, text, friend in (
-            (telegram_id, f"🎁 Вы пришли по ссылке друга — начислили <b>{amount}</b> на баланс.", None),
-            (result["referrer_id"], f"🎁 {name} пришёл по вашей ссылке. Вам начислено <b>{amount}</b>!",
-             {"n": raw_name, "k": "menu"}),
-        ):
-            try:
-                await _send_reward(bot, chat, text, amount=int(result["amount"]), friend=friend)
-            except Exception:
-                pass
+        try:
+            await _send_reward(bot, telegram_id, f"🎁 Вы пришли по ссылке друга — начислили <b>{amount}</b> на баланс.",
+                               amount=int(result["amount"]))
+        except Exception:
+            pass
+        name = escape(result.get("friend_name") or "Друг")
+        try:
+            await send_funnel_message(
+                bot, result["referrer_id"],
+                f"👋 {name} пришёл по вашей ссылке. Как только он подключит VPN, вам начислим <b>{amount}</b>.",
+                reply_markup=with_referral_share(result["referrer_id"], cabinet_keyboard()))
+        except Exception:
+            pass
     return result["amount"]
+
+
+async def reward_connected_friends(bot: Bot | None) -> int:
+    """50 ₽ to whoever invited a friend, once that friend first connects VPN. Runs from the reminder loop."""
+    if not get_settings().referral_program_enabled:
+        return 0
+    rewards = await db.claim_referral_connect_rewards(REFERRAL_BONUS_RUB)
+    for item in rewards:
+        if not bot:
+            break
+        raw_name = str(item.get("friend_name") or "Друг")[:32]
+        name = escape(item.get("friend_name") or "Друг")
+        try:
+            await _send_reward(bot, item["referrer_id"],
+                               f"🎁 {name} подключил VPN по вашей ссылке. Вам начислено <b>{item['amount']} ₽</b>!",
+                               amount=int(item["amount"]), friend={"n": raw_name, "k": "connect"})
+        except Exception:
+            pass
+    return len(rewards)
 
 
 async def maybe_reward_invitee(bot: Bot | None, telegram_id: int, *, enabled: bool | None = None, amount: int | None = None) -> int:

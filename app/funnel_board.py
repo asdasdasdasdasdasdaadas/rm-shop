@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import datetime, timedelta, timezone
 from html import escape
 
 from app.funnel_gifts import ACTION as GIFT_ACTION, gift_label
@@ -35,13 +36,10 @@ AND NOT EXISTS (
 
 OWNED_NOTICE_KEYS = frozenset({
     "paid_setup_nudge", "winback_promo", "payment_nudge", "balance_ending_nudge",
-    "trial_nudge", "trial_resume_welcome", "trial_resume_channel",
+    "trial_nudge", "trial_resume_channel",
     "invite_nudge", "info_nudge", "vpn_quality_check",
-    "return_check", "return_last", "device_setup_nudge", "device_nudge_1",
-    "nodevice_1", "nodevice_2", "unpaid_1", "unpaid_2", "idle_comeback",
-    *(f"idle_setup_{day}" for day in (7, 10, 15, 20)),
-    *(f"idle_topup_{day}" for day in (7, 10, 15, 20)),
-    *(f"idle_return_{day}" for day in (7, 10, 15, 20)),
+    "device_setup_nudge", "device_nudge_1",
+    "nodevice_1", "nodevice_2", "unpaid_1", "unpaid_2",
 })
 
 ACTIONS = (
@@ -342,7 +340,7 @@ def render_text(text: str, telegram_id: int, first_name: str | None) -> str:
         "name": name,
         "link": f"https://t.me/{settings.bot_username}?start=ref_{int(telegram_id)}",
         "price": rub_text(settings.vpn_day_price_rub),
-        "reward": "50 ₽ вам и другу",
+        "reward": "50 ₽",
         "when": when,
         "gift_days": gift_label(),
     })
@@ -436,7 +434,7 @@ async def _flag(name: str, default: bool) -> bool:
 
 async def default_graph() -> dict:
     from app.notices import notice_text
-    from app.nudge import _idle_notice_key, trial_nudge_text
+    from app.nudge import trial_nudge_text
 
     def tx(key: str, **kwargs) -> str:
         try:
@@ -453,16 +451,6 @@ async def default_graph() -> dict:
     trial_on = await _flag("trial_nudge", True)
     invite_on = await _flag("invite_nudge", True)
     info_on = await _flag("info_nudge", True)
-    idle_buttons = {
-        "setup": ["connect", "help"],
-        "topup": ["topup", "menu"],
-        "return": ["feedback_ok", "feedback_help", "feedback_later"],
-    }
-    idle_titles = {
-        "setup": "Не подключался",
-        "topup": "Баланс пуст",
-        "return": "Есть баланс",
-    }
     branches = [
         {"id": "invoice", "title": "Неоплаченный счёт", "steps": [
             _step("pay-1", "unpaid_invoice", 0, tx("payment_nudge"), ["resume_pay", "menu"], enabled=pay_on),
@@ -485,14 +473,6 @@ async def default_graph() -> dict:
             _step("quality-1", "quality", 20, tx("vpn_quality_check"), ["feedback_ok", "feedback_help", "feedback_terms"]),
         ]},
     ]
-    for segment, title in idle_titles.items():
-        steps = []
-        for days, hours in ((7, 168), (10, 240), (15, 360), (20, 480), (45, 1080)):
-            steps.append(_step(
-                f"idle-{segment}-{days}", "idle_" + segment, hours,
-                tx(_idle_notice_key(segment, days)), idle_buttons[segment],
-            ))
-        branches.append({"id": f"idle-{segment}", "title": title, "steps": steps})
     branches.extend([
         {"id": "friends", "title": "Пригласить друга", "steps": [
             _step("invite-1", "invite", 48, tx("invite_nudge"), ["share", "copy", "menu"], enabled=invite_on),
@@ -859,6 +839,9 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None,
         sent += count
         touched.extend(ids)
         skip.extend(ids)
+    # Reminders and offers wait for daytime in Moscow; the money warnings above go out any time.
+    if not reminder_hours():
+        return sent, touched
     terms_ids = set(await db.terms_feedback_ids())
     marketing = await db.marketing_suppressed_ids()
     skip.extend(marketing)
@@ -880,6 +863,17 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None,
             if not spec.get("special"):
                 prev = step["id"]
     return sent, touched
+
+
+REMINDER_HOURS_MSK = (10, 21)
+_MSK = timezone(timedelta(hours=3))  # Moscow has no daylight saving time.
+
+
+def reminder_hours(now: datetime | None = None) -> bool:
+    """10:00–21:00 by Moscow time: the window for reminders and offers."""
+    start, end = REMINDER_HOURS_MSK
+    hour = (now or datetime.now(timezone.utc)).astimezone(_MSK).hour
+    return start <= hour < end
 
 
 def _terms_skip(skip: list[int], terms_ids: set[int], touched: list[int]) -> list[int]:

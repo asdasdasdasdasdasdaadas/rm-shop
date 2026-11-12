@@ -14,7 +14,7 @@ class AboutServiceTest(unittest.TestCase):
         self.assertNotIn('В браузере', text)
         self.assertIn('6 ₽ в день за одно устройство', text)
         self.assertIn('Пополнить можно от 50 ₽', text)
-        self.assertIn('вы оба получите по 50 ₽', text)
+        self.assertIn('Другу 50 ₽ сразу, вам 50 ₽, когда он подключит VPN', text)
         # No «Открыть в браузере» button, even when the mini app has a public URL.
         self.assertEqual([len(row) for row in markup.inline_keyboard], [1, 2])
         self.assertEqual(markup.inline_keyboard[1][0].url, settings.legal_offer_url)
