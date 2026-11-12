@@ -35,17 +35,3 @@ class FunnelFixesTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('device_created_next_step',active)
         self.assertIn('trial_resume_channel',active)
 
-    async def test_trial_reminder_matches_welcome_channel_or_cabinet(self):
-        for pending,channel,expected in [(True,False,'Я помогу'),(False,False,'канал'),(False,True,'подарок')]:
-            with ExitStack() as stack:
-                stack.enter_context(patch.object(nudge,'get_settings',return_value=Settings.model_construct(trial_enabled=True)))
-                stack.enter_context(patch.object(nudge,'trial_grant_rub',return_value=18))
-                stack.enter_context(patch.object(keyboards,'mini_app_url',return_value='https://example.org'))
-                stack.enter_context(patch.object(db,'flag_on',AsyncMock(side_effect=lambda key: key=='trial_nudge')))
-                stack.enter_context(patch.object(db,'list_due_trial_nudges',AsyncMock(return_value=[{'telegram_id':1,'welcome_support_pending':pending}])))
-                stack.enter_context(patch.object(nudge,'_trial_channel_ready',AsyncMock(return_value=channel)))
-                stack.enter_context(patch('app.welcome.support_welcome_enabled',return_value=True))
-                deliver=stack.enter_context(patch.object(nudge,'_deliver',AsyncMock(return_value=True)))
-                stack.enter_context(patch.object(nudge,'channel_keyboard',return_value=None))
-                await nudge.send_due_trial_nudges(AsyncMock())
-                self.assertIn(expected,deliver.call_args.kwargs['body'])

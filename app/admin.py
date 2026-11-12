@@ -1071,7 +1071,7 @@ async def retry_logged_message(bot: Bot, row: dict) -> tuple[bool, str]:
     kind = str(row.get("kind") or "")
     telegram_id = row.get("telegram_id")
     if kind == "nudge_winback":
-        return False, "Персональный код повторяет автоматическая очередь с проверкой срока и лимитов"
+        return False, "Промокоды на возвращение больше не отправляются"
     if row.get("source") == "campaign":
         return False, "Сообщения прошлых акций повторно не отправляются"
     if kind in _MSG_RETRY_SKIP:
@@ -2335,8 +2335,6 @@ async def api_flags(request: web.Request) -> web.Response:
         await db.set_flag("trial_nudge", bool(body.get("trial_nudge")))
     if "invite_nudge" in body:
         await db.set_flag("invite_nudge", bool(body.get("invite_nudge")))
-    if "winback_promo" in body:
-        await db.set_flag("winback_promo", bool(body.get("winback_promo")))
     if "info_nudge" in body:
         await db.set_flag("info_nudge", bool(body.get("info_nudge")))
     if "story_nudge" in body:

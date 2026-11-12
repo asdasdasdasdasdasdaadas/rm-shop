@@ -11,7 +11,8 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
 
 from app import db
-from app.access import is_channel_member
+# Customers (paid or have a device) pass the channel check even after leaving the channel.
+from app.access import channel_gate_passed as is_channel_member
 from app.config import get_settings
 from app.live import invited as live_invited
 from app.keyboards import (
@@ -278,11 +279,6 @@ async def cmd_welcome_sticker(message: Message) -> None:
         return
     await db.set_welcome_sticker_file_id(sticker.file_id)
     await message.answer("Стикер для первого запуска сохранён.")
-
-
-@router.message(Command("info"))
-async def cmd_info(message: Message) -> None:
-    await message.answer("Platega test")
 
 
 @router.message(Command("admin"))

@@ -42,32 +42,6 @@ class FunnelDeliveryTest(IsolatedAsyncioTestCase):
         self.bot.send_message.assert_not_awaited()
         self.mark.assert_not_awaited()
 
-    async def test_failed_device_reminder_does_not_advance_stage(self):
-        with patch.object(db, 'list_due_device_nudges', AsyncMock(return_value=[{'telegram_id':1,'has_device':True}])), \
-             patch.object(db, 'mark_device_nudge_sent', AsyncMock()) as mark:
-            self.bot.send_message.side_effect = TimeoutError()
-            self.assertEqual(await nudge.send_due_device_nudges(self.bot), (0,[1]))
-            mark.assert_not_awaited()
-
-    async def test_return_messages_match_state_and_preserve_stage_on_failure(self):
-        for online, balance, trial, segment, markup in [
-            (None, 10, False, 'setup', {'gift':True,'has_device':False}),
-            ('2026-09-01', 0, True, 'topup', funnel_keyboard(InlineKeyboardMarkup(inline_keyboard=[]))),
-            ('2026-09-01', 20, True, 'return', {'has_device':False}),
-        ]:
-            for days in [7,20]:
-                with self.subTest(segment=segment, days=days), \
-                     patch.object(db, 'list_due_idle_nudges', AsyncMock(return_value=[dict(telegram_id=1,first_online_at=online,balance_rub=balance,trial_used=trial,idle_days=days)])), \
-                     patch.object(db, 'mark_idle_nudge_sent', AsyncMock()) as mark, \
-                     patch.object(nudge, 'notice_text', return_value='message') as text:
-                    self.bot.send_message.side_effect = [TimeoutError(), None]
-                    await nudge.send_due_idle_nudges(self.bot)
-                    mark.assert_not_awaited()
-                    await nudge.send_due_idle_nudges(self.bot)
-                    mark.assert_awaited_once_with(1,days)
-                    text.assert_called_with(nudge._idle_notice_key(segment, days))
-                    self.assertEqual(self.bot.send_message.call_args.kwargs['reply_markup'], funnel_keyboard(nudge.vpn_feedback_keyboard(returning=True) if segment == 'return' else InlineKeyboardMarkup(inline_keyboard=[])))
-
     async def test_device_created_message_is_next_step_and_skips_connected(self):
         with patch.object(db, 'user_is_blocked', AsyncMock(return_value=False)), \
              patch.object(db, 'get_user', AsyncMock(return_value={'first_online_at':None})) as user, \
@@ -134,61 +108,3 @@ class RetryPolicySqlTest(IsolatedAsyncioTestCase):
             self.assertTrue(await db.nudge_delivery_allowed(2,'nudge_trial'))
             conn.execute("UPDATE message_log SET created_at='2026-09-19 10:00:00'")
             self.assertTrue(await db.nudge_delivery_allowed(1,'nudge_trial'))
-
-
-class IdleSelectionSqlTest(IsolatedAsyncioTestCase):
-    async def test_never_connected_deleted_devices_active_and_finished_sequences(self):
-        import sqlite3
-        import json
-        import re
-        conn=sqlite3.connect(':memory:')
-        self.addCleanup(conn.close)
-        conn.row_factory=sqlite3.Row
-        conn.executescript('''
-            CREATE TABLE users (telegram_id INTEGER, first_name TEXT, first_online_at TEXT, balance_rub INTEGER,
-                trial_used INTEGER, bot_started_at TEXT, bot_blocked_at TEXT, blocked_at TEXT,
-                billing_paused_at TEXT, idle_nudge_at TEXT, idle_nudge_step INTEGER);
-            CREATE TABLE devices (telegram_id INTEGER, last_online_at TEXT);
-        ''')
-        conn.executescript("ALTER TABLE users ADD COLUMN idle_snoozed_at TEXT; ALTER TABLE users ADD COLUMN vpn_feedback TEXT; CREATE TABLE tickets(telegram_id INTEGER,status TEXT);")
-        async def fetch(sql,*args):
-            # SQLite lacks LATERAL; inline the two scalar expressions without changing the selection rules.
-            sql=re.sub(r'            CROSS JOIN LATERAL \(.*?\) step', '', sql, flags=re.S)
-            last='COALESCE(seen.last_seen, u.first_online_at, u.bot_started_at)'
-            step=f'(CASE WHEN u.idle_nudge_at IS NULL OR {last} > u.idle_nudge_at THEN 0 ELSE COALESCE(u.idle_nudge_step,0) END)'
-            sql=sql.replace('activity.last_seen',last).replace('step.v',step)
-            sql=re.sub(r"timezone\('utc', now\(\)\) - INTERVAL '(\d+) days'",r"datetime('2026-09-21 12:00:00', '-\1 days')",sql)
-            sql=sql.replace('u.telegram_id = ANY($2::bigint[])','u.telegram_id IN (SELECT value FROM json_each($2))')
-            return conn.execute(sql,{'1':args[0],'2':json.dumps(args[1])}).fetchall()
-        for uid in range(1,7):
-            conn.execute("INSERT INTO users (telegram_id,bot_started_at,balance_rub) VALUES (?,'2026-09-10',10)",(uid,))
-        conn.execute("UPDATE users SET first_online_at='2026-09-11' WHERE telegram_id IN (2,3)")
-        conn.execute("INSERT INTO devices VALUES (3,'2026-09-21 11:00:00')")
-        conn.execute("UPDATE users SET bot_blocked_at='2026-09-20' WHERE telegram_id=4")
-        conn.execute("UPDATE users SET billing_paused_at='2026-09-20' WHERE telegram_id=5")
-        conn.execute("UPDATE users SET idle_nudge_at='2026-09-20',idle_nudge_step=20 WHERE telegram_id=6")
-        with patch.object(db,'_pool_req',return_value=SimpleNamespace(fetch=fetch)):
-            rows=await db.list_due_idle_nudges()
-            self.assertEqual([r['telegram_id'] for r in rows],[1,2])
-            self.assertEqual([r['idle_days'] for r in rows],[7,7])
-            self.assertFalse(rows[1]['has_device'])
-            self.assertEqual([r['telegram_id'] for r in await db.list_due_idle_nudges(skip_ids=[1])],[2])
-            conn.execute("UPDATE users SET idle_snoozed_at='2026-09-20' WHERE telegram_id=1")
-            self.assertEqual([r['telegram_id'] for r in await db.list_due_idle_nudges()],[2])
-            conn.execute("INSERT INTO tickets VALUES (2,'open')")
-            self.assertEqual(await db.list_due_idle_nudges(),[])
-            conn.execute("DELETE FROM tickets")
-            conn.execute("UPDATE users SET vpn_feedback='help' WHERE telegram_id=2")
-            self.assertEqual(await db.list_due_idle_nudges(),[])
-            conn.execute("UPDATE users SET idle_snoozed_at=NULL,vpn_feedback=NULL")
-            # A new successful connection resets the old completed sequence.
-            conn.execute("INSERT INTO devices VALUES (6,'2026-09-13')")
-            conn.execute("UPDATE users SET idle_nudge_at='2026-09-01' WHERE telegram_id=6")
-            self.assertEqual([r['telegram_id'] for r in await db.list_due_idle_nudges()],[1,2,6])
-            # A long absence still starts at day 7. Later steps wait for their own day.
-            conn.execute("UPDATE users SET bot_started_at='2026-07-01',idle_nudge_at=NULL,idle_nudge_step=0 WHERE telegram_id=1")
-            self.assertEqual(next(r['idle_days'] for r in await db.list_due_idle_nudges() if r['telegram_id']==1),7)
-            conn.execute("UPDATE users SET idle_nudge_at='2026-07-02',idle_nudge_step=7 WHERE telegram_id=1")
-            self.assertEqual(next(r['idle_days'] for r in await db.list_due_idle_nudges() if r['telegram_id']==1),10)
-            conn.execute("UPDATE users SET idle_nudge_step=20 WHERE telegram_id=1")
-            self.assertEqual(next(r['idle_days'] for r in await db.list_due_idle_nudges() if r['telegram_id']==1),45)

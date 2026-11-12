@@ -35,3 +35,21 @@ async def is_channel_member(bot: Bot, user_id: int, *, force: bool = False) -> b
         ok = False
     _cache[user_id] = (now + _CACHE_TTL, ok)
     return ok
+
+
+async def is_customer(user_id: int) -> bool:
+    """Has paid or has a device: the channel is only asked of newcomers, never of someone who already uses the service."""
+    from app import db
+    local = await db.get_user(user_id)
+    if local and local.get("has_paid_topup"):
+        return True
+    return await db.device_count(user_id) > 0
+
+
+async def channel_gate_passed(bot: Bot, user_id: int, *, force: bool = False) -> bool:
+    """The channel check for bot menus and buttons: customers pass even after leaving the channel."""
+    if not get_settings().required_channel_enabled:
+        return True
+    if await is_customer(user_id):
+        return True
+    return await is_channel_member(bot, user_id, force=force)

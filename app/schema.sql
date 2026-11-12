@@ -901,3 +901,5 @@ CREATE INDEX IF NOT EXISTS invitation_card_events_user_idx ON invitation_card_ev
 -- payload = start_param), support, report or other. NULL for users who came before this was recorded.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_entry_via TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_start_payload TEXT;
+-- Early «баланс заканчивается» (three days ahead) for people who paid before; the one-day warning stays in trial_end_nudge_at.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_warn3_at TIMESTAMPTZ;

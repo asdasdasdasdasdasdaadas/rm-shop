@@ -188,12 +188,7 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
     async def test_quality_and_info_require_resolved_support_and_online(self):
         await self.pool.execute("UPDATE users SET first_online_at=NOW()-INTERVAL '5 days'")
         await self.pool.execute("INSERT INTO devices (telegram_id,title,last_online_at) VALUES (1,'Phone',NOW())")
-        self.assertEqual(len(await db.list_due_info_nudges()),1)
-        self.assertEqual(len(await db.list_due_first_online_nudges()),1)
         await self.pool.execute("INSERT INTO tickets (telegram_id,status) VALUES (1,'pending')")
-        self.assertEqual(await db.list_due_info_nudges(),[])
-        self.assertEqual(await db.list_due_first_online_nudges(),[])
-        self.assertEqual(await db.list_due_invite_nudges(),[])
 
     async def test_public_fulfillment_and_replay_run_effects_once(self):
         await self.pool.execute("UPDATE pay_orders SET plan_code='b100'")
@@ -226,20 +221,13 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         with patch.object(nudge,'get_settings',return_value=self.settings), \
              patch.object(referrals,'get_settings',return_value=self.settings), \
              patch.object(keyboards,'get_settings',return_value=self.settings), \
-             patch.object(nudge,'_trial_channel_ready',AsyncMock(return_value=True)):
-            bot=SimpleNamespace(send_message=AsyncMock(return_value=SimpleNamespace(message_id=10)))
-            self.assertEqual((await nudge.send_due_trial_nudges(bot))[0],1)
-            self.assertEqual((await nudge.send_due_trial_nudges(bot))[0],0)
-            self.assertEqual(await self.balance(),0)  # Reminder never grants gift.
+             patch.object(nudge,'get_settings',return_value=self.settings):
+            self.assertEqual(await self.balance(),0)
             self.assertEqual(await db.claim_trial_balance(1,18),18)
             self.assertIsNone(await db.claim_trial_balance(1,18))
-            await self.pool.execute("UPDATE users SET gift_claimed_at=NOW()-INTERVAL '31 minutes'")
-            self.assertEqual(len(await db.list_due_device_nudges()),1)
             await db.claim_first_online(1)
-            self.assertEqual(await db.list_due_device_nudges(),[])
             await self.credit()
             self.assertEqual(await self.balance(),118)
-            self.assertEqual(await db.list_due_trial_nudges(),[])
 
     async def test_marketing_prefilter_and_delivery_stats(self):
         await self.pool.execute("INSERT INTO tickets (telegram_id,status) VALUES (1,'pending')")

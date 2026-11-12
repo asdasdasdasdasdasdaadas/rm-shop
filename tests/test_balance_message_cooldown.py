@@ -62,6 +62,7 @@ class BalanceMessageCooldownTest(unittest.IsolatedAsyncioTestCase):
             stack.enter_context(patch.object(db,'flag_on',AsyncMock(return_value=False)))
             stack.enter_context(patch.object(db,'nudge_delivery_allowed',AsyncMock(return_value=True)))
             stack.enter_context(patch.object(db,'claim_balance_ending_notice',AsyncMock(return_value=False)))
+            stack.enter_context(patch.object(db,'rearm_balance_warnings',AsyncMock()))
             stack.enter_context(patch.object(db,'list_due_trial_end_nudges',AsyncMock(return_value=[{'telegram_id':1}])))
             bot=SimpleNamespace(send_message=AsyncMock())
             self.assertEqual(await nudge.send_due_trial_end_nudges(bot),(0,[]))

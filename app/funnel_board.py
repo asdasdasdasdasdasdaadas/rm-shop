@@ -71,7 +71,7 @@ CONDITIONS = (
     {"id": "unpaid_invoice", "label": "Неоплаченный счёт", "special": "invoice",
      "hint": "Уходит примерно через 10 минут после счёта. Пауза на карточке здесь не используется. Не тратит дневной лимит. Кнопка «Продолжить оплату счёта» открывает этот счёт."},
     {"id": "balance_low", "label": "Баланс заканчивается", "special": "balance",
-     "hint": "Один раз, пока баланс снова не пополнят. Пауза на карточке здесь не используется. К тексту добавляется остаток баланса. Не тратит дневной лимит."},
+     "hint": "За 3 дня до конца (тем, кто уже платил) и когда осталось меньше суток — по разу, пока баланс снова не вырастет. Приходит и тем, кто выключил напоминания. Пауза на карточке здесь не используется. К тексту добавляется остаток и на сколько его хватит. Не тратит дневной лимит."},
     {"id": "no_device", "label": "Нет устройства", "anchor": "u.bot_started_at",
      "where": "NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)",
      "hint": "Бот запущен, устройство не добавлено. Срок считается от запуска бота."},
@@ -119,14 +119,12 @@ CONDITIONS = (
      "where": """EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
         AND d.last_online_at > timezone('utc', now()) - INTERVAL '7 days')""",
      "hint": "Устройство было онлайн за последнюю неделю. В тексте можно оставить {price}."},
-    {"id": "winback", "label": "Промокод на 5 дней", "special": "winback",
-     "hint": "Личный код, когда баланс уже пуст. Срок задаёт сам промокод, пауза на карточке здесь не используется. Условия кода добавляются к тексту. Можно оставить {code}, {devices} и {amount}."},
 )
 from app.recovery_funnel import CONDITIONS as RECOVERY_CONDITIONS
 from app.referral_followup import CONDITION as REFERRAL_FOLLOWUP_CONDITION
 CONDITIONS = CONDITIONS + RECOVERY_CONDITIONS + (REFERRAL_FOLLOWUP_CONDITION,)
 CONDITION_IDS = {row["id"]: row for row in CONDITIONS}
-SPECIAL_ONCE = {"unpaid_invoice", "balance_low", "winback"}
+SPECIAL_ONCE = {"unpaid_invoice", "balance_low"}
 # Removed features: boards saved earlier may still name them, so they are dropped on load.
 RETIRED_CONDITIONS = {"winback", "ambassador_earn", "ambassador_active"}
 RETIRED_ACTIONS = {"ambassador"}
@@ -455,7 +453,6 @@ async def default_graph() -> dict:
     trial_on = await _flag("trial_nudge", True)
     invite_on = await _flag("invite_nudge", True)
     info_on = await _flag("info_nudge", True)
-    win_on = await _flag("winback_promo", True)
     idle_buttons = {
         "setup": ["connect", "help"],
         "topup": ["topup", "menu"],
@@ -505,9 +502,6 @@ async def default_graph() -> dict:
         ]},
         {"id": "gift", "title": "Подарок не забран", "steps": [
             _step("trial-1", "trial", 24, gift_text, ["gift", "help"], enabled=trial_on),
-        ]},
-        {"id": "return", "title": "Промокод на возвращение", "steps": [
-            _step("winback-1", "winback", 0, tx("winback_promo"), ["cabinet", "menu"], enabled=win_on),
         ]},
     ])
     from app.recovery_funnel import upgrade
@@ -823,10 +817,12 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
     return sent, touched
 
 
-async def send_due(bot, rp=None, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
+async def send_due(bot, rp=None, skip_ids: list[int] | None = None,
+                   optional_skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
+    """skip_ids: never write to them this run. optional_skip_ids: muted for reminders (quiet mode, «не нужен»),
+    but still told that their paid balance is running out."""
     from app import db
     from app import nudge
-    from app.winback import send_due as send_winback
     if await db.flag_on("maintenance"):
         return 0, []
     try:
@@ -834,7 +830,8 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None) -> tuple[int
     except Exception:
         logger.exception("Доска воронки не прочиталась")
         return 0, []
-    skip = [int(item) for item in (skip_ids or [])]
+    hard_skip = [int(item) for item in (skip_ids or [])]
+    skip = hard_skip + [int(item) for item in (optional_skip_ids or [])]
     sent = 0
     touched: list[int] = []
     invoice = _first(graph, "unpaid_invoice")
@@ -854,10 +851,10 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None) -> tuple[int
             sent += count
             touched.extend(ids)
             skip.extend(ids)
-    skip.extend(await db.nudge_suppressed_ids(hours=6))
+    # Balance warnings are about money already paid: only the hard skips and people written to this run.
     if balance and balance["enabled"] and sent < RUN_LIMIT:
         count, ids = await nudge.send_due_trial_end_nudges(
-            bot, skip, body=balance["text"], button_ids=balance["buttons"],
+            bot, hard_skip + touched, body=balance["text"], button_ids=balance["buttons"],
         )
         sent += count
         touched.extend(ids)
@@ -868,7 +865,6 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None) -> tuple[int
     skip.extend(await db.nudge_suppressed_ids(hours=24))
     # People who only answered «условия не подошли» stay reachable for the terms offer;
     # its slot reservation still applies the daily and weekly caps.
-    winback_done = False
     for branch in graph["branches"]:
         prev = None
         enabled = [step for step in branch["steps"] if step["enabled"]]
@@ -876,15 +872,7 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None) -> tuple[int
             if sent >= RUN_LIMIT:
                 return sent, touched
             spec = CONDITION_IDS[step["condition"]]
-            if spec.get("special") == "winback" and not winback_done:
-                count, ids = await send_winback(
-                    bot, skip, custom=step["text"], force=True, button_ids=step["buttons"],
-                )
-                sent += count
-                touched.extend(ids)
-                skip.extend(ids)
-                winback_done = True
-            elif not spec.get("special") and not is_setup_assist(step, prev):
+            if not spec.get("special") and not is_setup_assist(step, prev):
                 count, ids = await _send_step(bot, step, prev, _terms_skip(skip, terms_ids, touched) if step["condition"] == "terms_offer" else skip)
                 sent += count
                 touched.extend(ids)

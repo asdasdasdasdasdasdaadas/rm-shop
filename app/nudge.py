@@ -2,21 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import math
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
 from app import db
 from app.config import get_settings
-from app.keyboards import (
-    cabinet_keyboard,
-    vpn_feedback_keyboard,
-    onboarding_keyboard,
-    payment_nudge_keyboard,
-    share_keyboard,
-    support_welcome_keyboard, channel_keyboard,
-)
+from app.keyboards import onboarding_keyboard, payment_nudge_keyboard
 from app.notices import notice_text
 from app.referrals import trial_grant_rub
 from app.referral_terms import referral_terms
@@ -131,128 +123,8 @@ async def _deliver_unbudgeted(
     return ok
 
 
-async def _trial_channel_ready(bot: Bot, telegram_id: int) -> bool:
-    from app.access import is_channel_member
-    return await is_channel_member(bot, telegram_id)
-
-
-async def send_due_trial_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    settings = get_settings()
-    touched: list[int] = []
-    if not settings.trial_enabled:
-        return 0, touched
-    if not await db.flag_on("trial_nudge"):
-        return 0, touched
-    if await db.flag_on("maintenance"):
-        return 0, touched
-    sent = 0
-    for row in await db.list_due_trial_nudges(NUDGE_BATCH, skip_ids):
-        telegram_id = int(row["telegram_id"])
-        already = bool(row.get("trial_used"))
-        body = trial_nudge_text(row.get("first_name"), already_granted=already)
-        markup = onboarding_keyboard(gift=True)
-        from app.welcome import support_welcome_enabled
-        only_welcome = bool(row.get('welcome_support_pending')) and support_welcome_enabled()
-        if only_welcome:
-            body = notice_text('trial_resume_welcome')
-            markup = support_welcome_keyboard()
-        elif not await _trial_channel_ready(bot, telegram_id):
-            body = notice_text('trial_resume_channel')
-            markup = channel_keyboard()
-        ok = await _deliver(
-            bot,
-            kind="nudge_trial",
-            telegram_id=telegram_id,
-            first_name=row.get("first_name"),
-            title="Напоминание: триал",
-            body=body,
-            reply_markup=markup,
-            preserve=only_welcome,
-        )
-        touched.append(telegram_id)
-        if ok:
-            sent += 1
-    return sent, touched
-
-
-async def send_due_invite_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    touched: list[int] = []
-    if not get_settings().referral_program_enabled or not await db.flag_on("invite_nudge"):
-        return 0, touched
-    if await db.flag_on("maintenance"):
-        return 0, touched
-    sent = 0
-    for row in await db.list_due_invite_nudges(NUDGE_BATCH, skip_ids):
-        telegram_id = int(row["telegram_id"])
-        if not get_settings().referral_program_enabled:
-            break
-        body = invite_nudge_text(telegram_id, row.get("first_name"))
-        ok = await _deliver(
-            bot,
-            kind="nudge_invite",
-            telegram_id=telegram_id,
-            first_name=row.get("first_name"),
-            title="Напоминание: пригласить друга",
-            body=body,
-            reply_markup=share_keyboard(get_settings().bot_username, telegram_id),
-        )
-        touched.append(telegram_id)
-        if ok:
-            sent += 1
-    return sent, touched
-
-
-async def send_due_info_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    touched: list[int] = []
-    if not await db.flag_on("info_nudge"):
-        return 0, touched
-    if await db.flag_on("maintenance"):
-        return 0, touched
-    sent = 0
-    body = info_nudge_text()
-    for row in await db.list_due_info_nudges(NUDGE_BATCH, skip_ids):
-        telegram_id = int(row["telegram_id"])
-        ok = await _deliver(
-            bot,
-            kind="nudge_info",
-            telegram_id=telegram_id,
-            first_name=row.get("first_name"),
-            title="Напоминание: кабинет",
-            body=body,
-            reply_markup=cabinet_keyboard(),
-        )
-        touched.append(telegram_id)
-        if ok:
-            sent += 1
-    return sent, touched
-
-
-
-
-
-
-async def send_due_device_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    touched: list[int] = []
-    if await db.flag_on("maintenance"):
-        return 0, touched
-    sent = 0
-    for row in await db.list_due_device_nudges(NUDGE_BATCH, skip_ids):
-        telegram_id = int(row["telegram_id"])
-        step = min(3, int(row.get("device_nudge_count") or 0) + 1)
-        body = notice_text("device_setup_nudge" if row.get("has_device") else "paid_setup_nudge" if row.get("has_paid_topup") and not row.get("gift_claimed_at") else "device_nudge_1")
-        ok = await _deliver(
-            bot, kind="nudge_device", telegram_id=telegram_id, first_name=row.get("first_name"),
-            title="Подарок без первого подключения", body=body, reply_markup=onboarding_keyboard(has_device=bool(row.get("has_device"))), extra={"step": step},
-        )
-        if ok:
-            await db.mark_device_nudge_sent(telegram_id)
-        touched.append(telegram_id)
-        if ok:
-            sent += 1
-    return sent, touched
-
-
 def _idle_notice_key(segment: str, days: int) -> str:
+    """Notice key of the «давно не заходил» texts; the funnel board and its preview use them."""
     if days == 45:
         return "idle_comeback"
     if segment == "return":
@@ -262,115 +134,6 @@ def _idle_notice_key(segment: str, days: int) -> str:
             return "return_last"
         return f"idle_return_{days}"
     return f"idle_{segment}_{days}"
-
-
-async def send_due_nodevice_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    touched: list[int] = []
-    if await db.flag_on("maintenance"):
-        return 0, touched
-    sent = 0
-    for row in await db.list_due_nodevice_nudges(20, skip_ids):
-        telegram_id = int(row["telegram_id"])
-        step = int(row.get("nudge_step") or 0)
-        if step not in {1, 2}:
-            continue
-        ok = await _deliver(
-            bot, kind="nudge_nodevice", telegram_id=telegram_id, first_name=row.get("first_name"),
-            title="Нет устройства", body=notice_text("nodevice_1" if step == 1 else "nodevice_2"),
-            reply_markup=onboarding_keyboard(gift=not row.get("trial_used"), has_device=False),
-            extra={"step": step},
-        )
-        if ok:
-            await db.mark_nodevice_nudge_sent(telegram_id, step)
-        touched.append(telegram_id)
-        if ok:
-            sent += 1
-    return sent, touched
-
-
-async def send_due_unpaid_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    touched: list[int] = []
-    if await db.flag_on("maintenance"):
-        return 0, touched
-    sent = 0
-    for row in await db.list_due_unpaid_nudges(20, skip_ids):
-        telegram_id = int(row["telegram_id"])
-        step = int(row.get("nudge_step") or 0)
-        if step not in {1, 2}:
-            continue
-        ok = await _deliver(
-            bot, kind="nudge_unpaid", telegram_id=telegram_id, first_name=row.get("first_name"),
-            title="Без первой оплаты", body=notice_text("unpaid_1" if step == 1 else "unpaid_2"),
-            reply_markup=payment_nudge_keyboard(label="Пополнить баланс"), extra={"step": step},
-        )
-        if ok:
-            await db.mark_unpaid_nudge_sent(telegram_id, step)
-        touched.append(telegram_id)
-        if ok:
-            sent += 1
-    return sent, touched
-
-
-async def send_due_idle_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    touched: list[int] = []
-    if await db.flag_on("maintenance"):
-        return 0, touched
-    sent = 0
-    for row in await db.list_due_idle_nudges(NUDGE_BATCH, skip_ids):
-        telegram_id = int(row["telegram_id"])
-        days = int(row.get("idle_days") or 0)
-        if days not in {7, 10, 15, 20, 45}:
-            continue
-        if row.get("first_online_at") is None:
-            segment = "setup"
-            markup = onboarding_keyboard(gift=not row.get("trial_used"), has_device=bool(row.get("has_device")))
-        elif int(row.get("balance_rub") or 0) <= 0:
-            segment = "topup"
-            markup = payment_nudge_keyboard(label="Пополнить баланс")
-        else:
-            segment = "return"
-            markup = vpn_feedback_keyboard(returning=True)
-        body = notice_text(_idle_notice_key(segment, days))
-        title = f"Напоминание: не пользуется {days} дн."
-        ok = await _deliver(
-            bot, kind="nudge_idle", telegram_id=telegram_id, first_name=row.get("first_name"),
-            title=title, body=body, reply_markup=markup, extra={"days": days, "segment": segment},
-        )
-        if ok:
-            await db.mark_idle_nudge_sent(telegram_id, days)
-        touched.append(telegram_id)
-        if ok:
-            sent += 1
-    return sent, touched
-
-
-def _days_left_from_row(row: dict) -> int:
-    price = max(1, int(get_settings().vpn_day_price_rub or 1))
-    n = max(1, int(row.get("device_count") or 0))
-    bal = max(0, int(row.get("balance_rub") or 0))
-    return max(0, bal // (price * n))
-
-
-async def send_due_first_online_nudges(bot: Bot, skip_ids: list[int] | None = None) -> tuple[int, list[int]]:
-    touched: list[int] = []
-    if await db.flag_on("maintenance"):
-        return 0, touched
-    sent = 0
-    for row in await db.list_due_first_online_nudges(NUDGE_BATCH, skip_ids):
-        telegram_id = int(row["telegram_id"])
-        if not await db.nudge_delivery_allowed(telegram_id, "nudge_first_online"):
-            continue
-        body = notice_text("vpn_quality_check")
-        ok = await _deliver(
-            bot, kind="nudge_first_online", telegram_id=telegram_id, first_name=row.get("first_name"),
-            title="Напоминание: после первого онлайна", body=body, reply_markup=vpn_feedback_keyboard(), extra=None,
-        )
-        if ok:
-            await db.mark_first_online_nudge_sent(telegram_id)
-        touched.append(telegram_id)
-        if ok:
-            sent += 1
-    return sent, touched
 
 
 async def send_due_trial_end_nudges(
@@ -384,11 +147,13 @@ async def send_due_trial_end_nudges(
     if await db.flag_on("maintenance"):
         return 0, touched
     sent = 0
+    await db.rearm_balance_warnings(settings.vpn_day_price_rub)
     for row in await db.list_due_trial_end_nudges(settings.vpn_day_price_rub, NUDGE_BATCH, skip_ids):
         telegram_id = int(row["telegram_id"])
+        stage = 3 if int(row.get("stage") or 1) == 3 else 1
         if not await db.nudge_delivery_allowed(telegram_id, "nudge_trial_end"):
             continue
-        if not await db.claim_balance_ending_notice(telegram_id, settings.vpn_day_price_rub):
+        if not await db.claim_balance_ending_notice(telegram_id, settings.vpn_day_price_rub, stage=stage):
             continue
         count = max(1, int(row.get("device_count") or 1))
         from app.balance_notifications import balance_details, balance_keyboard
@@ -404,7 +169,7 @@ async def send_due_trial_end_nudges(
             title="Баланс заканчивается", body=text, reply_markup=reply, extra=None, preserve=keep,
         )
         if not ok:
-            await db.release_balance_ending_notice(telegram_id)
+            await db.release_balance_ending_notice(telegram_id, stage=stage)
         touched.append(telegram_id)
         if ok:
             sent += 1
@@ -485,10 +250,10 @@ async def trial_nudge_loop(bot: Bot, rp=None) -> None:
             await db.resolve_exit_feedback()
             await db.resolve_recovered_vpn_feedback()
             retry_skip = await db.nudge_retry_suppressed_ids()
-            retry_skip.extend(await db.exit_feedback_suppressed_ids())
-            quiet_ids = await db.quiet_notification_ids()
+            muted = await db.exit_feedback_suppressed_ids()
+            muted.extend(await db.quiet_notification_ids())
             from app.funnel_board import send_due as send_board
-            n, _ids = await send_board(bot, rp, retry_skip + quiet_ids)
+            n, _ids = await send_board(bot, rp, retry_skip, muted)
             if n:
                 logger.info("Воронка: %s", n)
         except Exception:

@@ -62,7 +62,7 @@ async def stale_records_loop() -> None:
         try:
             stale = await db.purge_stale_unpaid_orders()
             if stale:
-                logger.info("Удалены неоплаченные счета старше 30 минут: %s", stale)
+                logger.info("Удалены неоплаченные счета старше недели: %s", stale)
         except Exception:
             logger.exception("Очистка неоплаченных счетов не удалась")
         try:

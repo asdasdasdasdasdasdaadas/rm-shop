@@ -84,7 +84,8 @@ class ExitFeedbackStorageTest(unittest.IsolatedAsyncioTestCase):
                 self.conn.execute('DELETE FROM devices WHERE telegram_id=2')
                 self.conn.execute("INSERT INTO device_exit_feedback VALUES ('token',2,'2026-09-21 10:00:00',?,'2026-09-21 12:00:00',NULL)",(reason,))
                 self.assertEqual(await db.exit_feedback_suppressed_ids(),[2])
-                for kind in ('nudge_payment','nudge_trial_end','nudge_first_online','nudge_idle','nudge_invite','nudge_trial','low_balance'):
+                # Balance warnings (nudge_trial_end, low_balance) are about paid money and are not paused here.
+                for kind in ('nudge_payment','nudge_first_online','nudge_idle','nudge_invite','nudge_trial'):
                     self.assertFalse(await db.nudge_delivery_allowed(2,kind))
                 # Creating a device or an old panel timestamp does not prove recovery.
                 self.conn.execute('INSERT INTO devices (id,telegram_id) VALUES (21,2)')

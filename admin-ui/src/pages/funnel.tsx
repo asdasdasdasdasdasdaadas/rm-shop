@@ -63,7 +63,7 @@ type Graph = {
 };
 type Option = { id: string; label: string; hint?: string; button?: string };
 
-const ONCE = new Set(["unpaid_invoice", "balance_low", "winback"]);
+const ONCE = new Set(["unpaid_invoice", "balance_low"]);
 
 function nid(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;

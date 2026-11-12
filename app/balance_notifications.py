@@ -14,7 +14,14 @@ BALANCE_EMPTY = (
 def balance_details(balance: int, devices: int, day_price: int) -> str:
     def rub_text(value):
         return f"{value:,} ₽".replace(",", " ")
-    return f'\n\nОстаток: <b>{rub_text(balance)}</b>'
+    per_day = max(1, int(day_price)) * max(1, int(devices))
+    days = max(0, int(balance)) // per_day
+    if days >= 1:
+        from app.texts import days_text
+        left = f"хватит примерно на {days_text(days)}"
+    else:
+        left = "меньше чем на сутки"
+    return f'\n\nОстаток: <b>{rub_text(balance)}</b>, {left}.'
 
 
 def balance_keyboard():

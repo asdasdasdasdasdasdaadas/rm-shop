@@ -2,11 +2,10 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 class RetiredFeaturesTest(unittest.IsolatedAsyncioTestCase):
-    async def test_no_promo_send_even_when_forced(self):
-        from app.winback import send_due
-        bot=AsyncMock()
-        self.assertEqual(await send_due(bot,force=True),(0,[]))
-        bot.send_message.assert_not_called()
+    def test_no_promo_step_in_funnel(self):
+        from app import funnel_board
+        self.assertNotIn('winback', funnel_board.CONDITION_IDS)
+        self.assertIn('winback', funnel_board.RETIRED_CONDITIONS)
 
     async def test_no_promo_redemption(self):
         from app import db
