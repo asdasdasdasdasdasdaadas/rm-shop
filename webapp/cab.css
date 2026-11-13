@@ -413,3 +413,15 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .napps i { font-style: normal; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #4a4e57; display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 800; flex: none; }
 .napps button.on i { background: var(--blue); border-color: var(--blue); }
+
+/* browser login: «Войти через Telegram», QR on a computer, nickname as a fallback */
+.tgbtn { display: flex; align-items: center; justify-content: center; gap: 10px; height: 54px; border-radius: 99px; background: #2aabee; color: #fff; font-weight: 700; font-size: 17px;
+  margin-top: 20px; width: 100%; text-decoration: none; box-shadow: 0 8px 24px rgba(42, 171, 238, .35); transition: transform .12s; }
+.tgbtn:active { transform: scale(.97); }
+.tgbtn svg { flex: none; }
+.lqr { width: 180px; height: 180px; margin: 4px auto 0; background: #fff; border-radius: 18px; padding: 12px; box-sizing: border-box; }
+.lqr svg { display: block; width: 100%; height: 100%; }
+.lwait { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; font-size: 14.5px; color: rgba(255, 255, 255, .9); }
+.lspin { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, .3); border-top-color: #fff; animation: lspin .8s linear infinite; flex: none; }
+@keyframes lspin { to { transform: rotate(360deg); } }
+.lalt { display: block; margin: 18px auto 0; color: var(--link); font-size: 15px; font-weight: 600; background: none; border: 0; padding: 8px 12px; }

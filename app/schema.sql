@@ -430,6 +430,10 @@ CREATE INDEX IF NOT EXISTS cabinet_login_challenges_tg_idx
     ON cabinet_login_challenges (telegram_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS cabinet_login_challenges_exp_idx
     ON cabinet_login_challenges (expires_at);
+-- «Войти через Telegram»: the browser asks first, the account is known only after /start in the bot.
+ALTER TABLE cabinet_login_challenges ALTER COLUMN telegram_id DROP NOT NULL;
+ALTER TABLE cabinet_login_challenges ADD COLUMN IF NOT EXISTS device TEXT NOT NULL DEFAULT '';
+ALTER TABLE cabinet_tokens ADD COLUMN IF NOT EXISTS device TEXT NOT NULL DEFAULT '';
 
 
 

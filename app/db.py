@@ -4046,7 +4046,7 @@ def _cabinet_token_hash(raw: str) -> str:
     return hashlib.sha256((raw or "").encode("utf-8")).hexdigest()
 
 
-async def issue_cabinet_token(telegram_id: int, days: int = 10, *, replace: bool = False) -> str:
+async def issue_cabinet_token(telegram_id: int, days: int = 10, *, replace: bool = False, device: str = "") -> str:
     raw = secrets.token_urlsafe(32)
     expires = _utc_now() + timedelta(days=max(1, days))
     pool = _pool_req()
@@ -4054,14 +4054,33 @@ async def issue_cabinet_token(telegram_id: int, days: int = 10, *, replace: bool
         await pool.execute("DELETE FROM cabinet_tokens WHERE telegram_id = $1", int(telegram_id))
     await pool.execute(
         """
-        INSERT INTO cabinet_tokens (token_hash, telegram_id, expires_at)
-        VALUES ($1, $2, $3)
+        INSERT INTO cabinet_tokens (token_hash, telegram_id, expires_at, device)
+        VALUES ($1, $2, $3, $4)
         """,
         _cabinet_token_hash(raw),
         int(telegram_id),
         expires,
+        (device or "")[:80],
     )
     return raw
+
+
+def cabinet_token_ref(raw: str) -> str:
+    """A short id of a browser session that fits in a bot button: 16 hex chars of the token hash."""
+    return _cabinet_token_hash(raw)[:16]
+
+
+async def end_cabinet_session(telegram_id: int, ref: str) -> bool:
+    """«Это был не я»: the browser that got this session is logged out. Only the owner's own sessions."""
+    ref = (ref or "").strip().lower()
+    if len(ref) != 16 or any(c not in "0123456789abcdef" for c in ref):
+        return False
+    row = await _pool_req().fetchrow(
+        "DELETE FROM cabinet_tokens WHERE telegram_id = $1 AND left(token_hash, 16) = $2 RETURNING token_hash",
+        int(telegram_id),
+        ref,
+    )
+    return row is not None
 
 
 async def delete_cabinet_token(raw: str) -> None:
@@ -4098,29 +4117,48 @@ def _ip_hash(ip: str) -> str:
     return hashlib.sha256((ip or "").encode("utf-8")).hexdigest()
 
 
-async def create_cabinet_login_challenge(telegram_id: int, ip: str) -> str:
+async def create_cabinet_login_challenge(telegram_id: int | None, ip: str, device: str = "") -> str:
+    """A login request. Without telegram_id the account is filled in later, when the bot gets /start lk_<id>."""
     challenge_id = secrets.token_urlsafe(16)
     expires = _utc_now() + timedelta(minutes=10)
     pool = _pool_req()
+    if telegram_id is not None:
+        await pool.execute(
+            """
+            UPDATE cabinet_login_challenges
+            SET status = 'expired'
+            WHERE telegram_id = $1 AND status = 'pending'
+            """,
+            int(telegram_id),
+        )
     await pool.execute(
         """
-        UPDATE cabinet_login_challenges
-        SET status = 'expired'
-        WHERE telegram_id = $1 AND status = 'pending'
-        """,
-        int(telegram_id),
-    )
-    await pool.execute(
-        """
-        INSERT INTO cabinet_login_challenges (id, telegram_id, ip_hash, status, expires_at)
-        VALUES ($1, $2, $3, 'pending', $4)
+        INSERT INTO cabinet_login_challenges (id, telegram_id, ip_hash, status, expires_at, device)
+        VALUES ($1, $2, $3, 'pending', $4, $5)
         """,
         challenge_id,
-        int(telegram_id),
+        int(telegram_id) if telegram_id is not None else None,
         _ip_hash(ip),
         expires,
+        (device or "")[:80],
     )
     return challenge_id
+
+
+async def bind_cabinet_login_challenge(challenge_id: str, telegram_id: int) -> dict | None:
+    """The person opened the bot from «Войти через Telegram»: the request becomes theirs. Someone else's or stale — None."""
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE cabinet_login_challenges
+        SET telegram_id = $2
+        WHERE id = $1 AND status = 'pending' AND expires_at > timezone('utc', now())
+          AND (telegram_id IS NULL OR telegram_id = $2)
+        RETURNING *
+        """,
+        (challenge_id or "").strip(),
+        int(telegram_id),
+    )
+    return _as_dict(row) if row else None
 
 
 async def get_cabinet_login_challenge(challenge_id: str, ip: str | None = None) -> dict | None:
@@ -4165,7 +4203,7 @@ async def approve_cabinet_login_challenge(challenge_id: str, telegram_id: int, d
             cid,
         )
         return None
-    token = await issue_cabinet_token(int(telegram_id), days, replace=False)
+    token = await issue_cabinet_token(int(telegram_id), days, replace=False, device=str(row["device"] or ""))
     await _pool_req().execute(
         """
         UPDATE cabinet_login_challenges

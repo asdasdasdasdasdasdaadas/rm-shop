@@ -57,11 +57,18 @@ DEFAULT_NOTICES = {'paid_setup_nudge': '📱 Баланс пополнен — �
                  '\n'
                  'Сохраните запасную ссылку на кабинет — она действует 10 дней:\n'
                  '{url}',
- 'cabinet_login': '🔐 Подтвердить вход в кабинет?\n'
+ 'cabinet_login': '🔐 <b>Вход в кабинет</b>\n'
                   '\n'
-                  'Если это вы — нажмите «Подтвердить». Если нет — «Отклонить».',
- 'cabinet_login_ok': '✅ Вход подтверждён. Вернитесь в браузер — кабинет откроется сам.',
- 'cabinet_login_no': 'Вход отклонён.',
+                  '💻 {device}\n'
+                  '🕘 {time}\n'
+                  '\n'
+                  'Это вы входите? Если нет — нажмите «Это не я», никто не войдёт.',
+ 'cabinet_login_ok': '✅ Вход подтверждён: {device}.\n'
+                     'Вернитесь в браузер — кабинет уже открыт.\n'
+                     '\n'
+                     'Если это были не вы — нажмите кнопку ниже, сеанс сразу завершится.',
+ 'cabinet_login_no': '🚫 Вход отклонён, никто не вошёл.',
+ 'cabinet_login_ended': 'Сеанс завершён — этот браузер вышел из кабинета.',
  'cabinet_login_gone': 'Время подтверждения истекло. Начните вход заново.',
  'trust_collect': '💳 С баланса списано {amount} за обещанный платёж. Если средств не хватает, пополните '
                   'баланс.',
@@ -222,9 +229,10 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "profile_balance", "title": "Профиль", "hint": "{name} {balance} {price}"},
     {"key": "low_balance", "title": "Не хватает денег на сутки", "hint": "{price}"},
     {"key": "cabinet_link", "title": "Запасная ссылка без VPN", "hint": "{url}"},
-    {"key": "cabinet_login", "title": "Подтверждение входа на сайт", "hint": ""},
-    {"key": "cabinet_login_ok", "title": "Вход на сайт подтверждён", "hint": ""},
+    {"key": "cabinet_login", "title": "Подтверждение входа на сайт", "hint": "{device} {time}"},
+    {"key": "cabinet_login_ok", "title": "Вход на сайт подтверждён", "hint": "{device}"},
     {"key": "cabinet_login_no", "title": "Вход на сайт отклонён", "hint": ""},
+    {"key": "cabinet_login_ended", "title": "Сеанс на сайте завершён из бота", "hint": ""},
     {"key": "cabinet_login_gone", "title": "Заявка на вход устарела", "hint": ""},
     {"key": "trust_collect", "title": "Списание обещанного платежа", "hint": "{amount}"},
     {"key": "trial_resume_channel", "title": "Напоминание: не подписался на канал", "hint": ""},
@@ -521,6 +529,14 @@ MENU_PREVIOUS_DEFAULTS = {'profile_balance': '👋 Здравствуйте, {na
                           'Подключение и управление — в личном кабинете.'}
 
 
+# Login texts before «Да, это я» with the device: a saved copy of them follows the new default.
+LOGIN_PREVIOUS_DEFAULTS = {
+    'cabinet_login': '🔐 Подтвердить вход в кабинет?\n\nЕсли это вы — нажмите «Подтвердить». Если нет — «Отклонить».',
+    'cabinet_login_ok': '✅ Вход подтверждён. Вернитесь в браузер — кабинет откроется сам.',
+    'cabinet_login_no': 'Вход отклонён.',
+}
+
+
 def public_notices() -> dict[str, str]:
     raw = shop_overlay().get("notices")
     overlay = raw if isinstance(raw, dict) else {}
@@ -528,7 +544,7 @@ def public_notices() -> dict[str, str]:
     for key, default in DEFAULT_NOTICES.items():
         val = overlay.get(key)
         text = str(val).strip() if isinstance(val, str) else ""
-        out[key] = default if text in (LEGACY_NOTICE_DEFAULTS.get(key), PREVIOUS_NOTICE_DEFAULTS.get(key), ENGAGEMENT_PREVIOUS_DEFAULTS.get(key), BALANCE_PREVIOUS_DEFAULTS.get(key), MENU_PREVIOUS_DEFAULTS.get(key)) else text or default
+        out[key] = default if text in (LEGACY_NOTICE_DEFAULTS.get(key), PREVIOUS_NOTICE_DEFAULTS.get(key), ENGAGEMENT_PREVIOUS_DEFAULTS.get(key), BALANCE_PREVIOUS_DEFAULTS.get(key), MENU_PREVIOUS_DEFAULTS.get(key), LOGIN_PREVIOUS_DEFAULTS.get(key)) else text or default
     return out
 
 

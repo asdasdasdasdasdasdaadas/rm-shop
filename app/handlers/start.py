@@ -8,6 +8,7 @@ import re
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart
+from app.cabinet_login import start_challenge_id
 from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
 
 from app import db
@@ -141,6 +142,7 @@ async def gate_or_continue(event: Message | CallbackQuery) -> bool:
 @router.message(CommandStart())
 async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObject) -> None:
     payload = command.args or message.text
+    login_id = start_challenge_id(command.args)
     ref = _parse_ref(payload)
     ad_id = None
     slug = _parse_ad(payload)
@@ -153,9 +155,15 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
         referred_by=ref,
         ad_link_id=ad_id,
         entry="start",
-        payload=command.args or "",
+        payload="lk" if login_id else command.args or "",
     )
     await db.mark_bot_started(message.from_user.id)
+    if login_id:
+        # «Войти через Telegram» on the site: ask «Это вы?» and nothing else.
+        from app.handlers.cabinet_login import open_from_start
+
+        await open_from_start(message, login_id)
+        return
     await _maybe_live_invite(row)
     in_channel = await is_channel_member(message.bot, message.from_user.id)
     if await db.claim_welcome_intro(message.from_user.id):

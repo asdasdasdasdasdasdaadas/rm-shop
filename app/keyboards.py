@@ -115,16 +115,24 @@ def cabinet_login_keyboard(challenge_id: str) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Подтвердить",
+                    text="Да, это я",
                     callback_data=f"lk:y:{challenge_id}",
+                    style="success",
                 ),
                 InlineKeyboardButton(
-                    text="Отклонить",
+                    text="Это не я",
                     callback_data=f"lk:n:{challenge_id}",
                     style="danger",
                 ),
             ]
         ]
+    )
+
+
+def cabinet_session_keyboard(ref: str) -> InlineKeyboardMarkup:
+    """Under «Вход подтверждён»: one tap logs that browser out again."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="Это был не я — завершить сеанс", callback_data=f"lk:x:{ref}")]]
     )
 
 

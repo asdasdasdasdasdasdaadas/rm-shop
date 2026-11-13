@@ -22,6 +22,7 @@ from app.partners import mount_partners
 from app.billing import fulfill_pay_order
 from app.config import ROOT, get_settings
 from app.faq import faq_items
+from app.cabinet_login import START_PREFIX, device_label, request_text as login_request_text
 from app.keyboards import (
     cabinet_login_keyboard,
     invite_copy_text,
@@ -308,11 +309,11 @@ def _client_ip(request: web.Request) -> str:
     return forwarded or request.remote or "0.0.0.0"
 
 
-def _cabinet_login_limited(ip: str) -> bool:
+def _cabinet_login_limited(ip: str, limit: int = 12) -> bool:
     now = time.time()
     window = 600.0
     hits = [t for t in _cabinet_login_hits.get(ip, []) if now - t < window]
-    if len(hits) >= 12:
+    if len(hits) >= limit:
         _cabinet_login_hits[ip] = hits
         return True
     hits.append(now)
@@ -324,13 +325,23 @@ async def api_cabinet_login(request: web.Request) -> web.Response:
     empty = web.json_response({"ok": True})
     if await db.flag_on("maintenance"):
         return empty
-    if _cabinet_login_limited(_client_ip(request)):
-        return empty
     try:
         payload = await request.json()
     except Exception:
         payload = {}
-    nick = str((payload or {}).get("username") or (payload or {}).get("q") or "").strip().lstrip("@").strip()
+    payload = payload if isinstance(payload, dict) else {}
+    via_tg = payload.get("via") == "tg"
+    # The login page asks for a Telegram link on every open and it messages no one, so many people
+    # behind one mobile-carrier IP get a looser limit than nickname logins.
+    if _cabinet_login_limited(("tg:" if via_tg else "") + _client_ip(request), 60 if via_tg else 12):
+        return empty
+    device = device_label(request.headers.get("User-Agent"))
+    if via_tg:
+        # «Войти через Telegram» / QR: no nickname, the bot learns who it is from /start lk_<id>.
+        wait_id = await db.create_cabinet_login_challenge(None, _client_ip(request), device)
+        link = f"https://t.me/{get_settings().bot_username.lstrip('@')}?start={START_PREFIX}{wait_id}"
+        return web.json_response({"ok": True, "wait": wait_id, "link": link})
+    nick = str(payload.get("username") or payload.get("q") or "").strip().lstrip("@").strip()
     if not _CABINET_LOGIN_RE.match(nick):
         return empty
     user = await db.get_user_by_username(nick)
@@ -339,11 +350,11 @@ async def api_cabinet_login(request: web.Request) -> web.Response:
     bot: Bot | None = request.app.get("bot")
     if not bot:
         return empty
-    wait_id = await db.create_cabinet_login_challenge(int(user["telegram_id"]), _client_ip(request))
+    wait_id = await db.create_cabinet_login_challenge(int(user["telegram_id"]), _client_ip(request), device)
     try:
         await bot.send_message(
             int(user["telegram_id"]),
-            notice_text("cabinet_login"),
+            login_request_text(device),
             reply_markup=cabinet_login_keyboard(wait_id),
         )
     except Exception:

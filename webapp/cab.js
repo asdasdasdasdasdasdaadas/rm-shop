@@ -1220,20 +1220,59 @@
   SCR.boot = { h: () => `<div class="boot">${hc("", { cls: "shim", ill: "" })}<div style="height:22px"></div><div class="cd"></div></div>`, bare: true };
   SCR.fail = { h: (p) => hc("red", { ill: "⚠️", h: "Не удалось загрузить", p: esc(p.msg || "Проверьте интернет и попробуйте ещё раз"), pill: "Повторить", pa: 'data-act="retry"' }), bare: true };
   SCR.maint = { h: (p) => hc("slate", { ill: p.blocked ? "🔒" : "🛠️", h: p.blocked ? "Доступ ограничен" : "Технические работы", p: esc(p.notice || "Скоро вернёмся") }), bare: true };
+  // Browser login. Main way: «Войти через Telegram» (on a computer also a QR code) opens the bot with a ready
+  // request, the person taps «Да, это я» and this page logs in by itself. By nickname is the fallback.
+  const TGI = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 4.3 2.9 11.5c-1.3.5-1.3 1.2-.2 1.6l4.8 1.5 1.8 5.6c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.7 3.5c.9.5 1.5.2 1.7-.8l3.1-14.6c.3-1.3-.5-1.9-1.4-1.5zM8.3 14.2l9.6-6c.5-.3.9-.1.5.2l-7.9 7.2-.3 3.4-1.9-4.8z" fill="#fff"/></svg>';
   SCR.login = {
     bare: true,
     h(p) {
-      return hc("blue", { cls: p.waiting ? "shim" : "", ill: FROG(78), h: "Вход в кабинет", p: esc(p.msg || "Введите ваш логин Telegram"),
-        x: `<div class="inp"><input id="loginUser" autocomplete="username" autocapitalize="off" placeholder="@username"${p.waiting ? " disabled" : ""}></div>`,
-        pill: p.waiting ? "Ждём подтверждения…" : "Войти", pd: p.waiting, pa: 'data-act="login"' }) +
-        NOTE("Пришлём запрос на вход в чат с ботом — подтвердите его там.", true);
+      if (p.nick) {
+        return hc("blue", { cls: p.waiting ? "shim" : "", ill: FROG(78), h: "Вход по нику", p: esc(p.msg || "Введите ваш логин Telegram"),
+          x: `<div class="inp"><input id="loginUser" autocomplete="username" autocapitalize="off" placeholder="@username"${p.waiting ? " disabled" : ""}></div>`,
+          pill: p.waiting ? "Ждём подтверждения…" : "Войти", pd: p.waiting, pa: 'data-act="login"' }) +
+          NOTE("Пришлём запрос на вход в чат с ботом — подтвердите его там.", true) +
+          `<button type="button" class="lalt" data-act="loginTg">Войти через Telegram без ника</button>`;
+      }
+      const pc = isPc();
+      // On a phone tg:// opens the app and this tab stays put, so after «Да, это я» the person comes back to it.
+      // A computer opens t.me in a new tab (Telegram Desktop or the web version), the QR always carries t.me.
+      const btn = p.link ? (pc ? `<a class="tgbtn" href="${esc(p.link)}" target="_blank" rel="noopener" data-act="loginOpen">`
+        : `<a class="tgbtn" href="${esc(tgApp(p.link))}" data-act="loginOpen">`) + `${TGI}<span>Войти через Telegram</span></a>` : "";
+      const qr = pc && p.link ? `<div class="lqr" aria-label="QR-код для входа"></div>` : "";
+      const msg = p.msg || (p.failed ? "Не получилось подготовить вход. Обновите страницу или войдите по нику."
+        : pc ? "Наведите камеру телефона на код и нажмите «Да, это я» в Telegram" : "Нажмите кнопку и подтвердите вход в Telegram");
+      return hc("blue", { cls: p.link || p.failed ? "" : "shim", ill: qr ? "" : FROG(78), h: "Вход в кабинет", p: esc(msg),
+        x: qr + btn + (p.opened ? `<div class="lwait"><span class="lspin"></span>Ждём «Да, это я» в Telegram…</div>` : "") }) +
+        `<button type="button" class="lalt" data-act="loginNick">Войти по нику</button>`;
     },
-    on(el) {
-      const i = el.querySelector("#loginUser");
-      if (!i.disabled) setTimeout(() => i.focus(), 60);
-      i.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ACT.login(); } });
+    on(el, p) {
+      if (p.nick) {
+        const i = el.querySelector("#loginUser");
+        if (!i.disabled) setTimeout(() => i.focus(), 60);
+        i.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ACT.login(); } });
+        return;
+      }
+      if (!p.link && !p.failed) { tgLogin(); return; }
+      const box = el.querySelector(".lqr");
+      if (box) qrLib().then(() => {
+        const q = qrcode(0, "M"); q.addData(p.link); q.make();
+        box.innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+      }).catch(() => box.remove());
     },
   };
+  function tgApp(link) {
+    const m = String(link).match(/^https:\/\/t\.me\/([A-Za-z0-9_]+)\?start=([A-Za-z0-9_-]+)$/);
+    return m ? `tg://resolve?domain=${m[1]}&start=${m[2]}` : link;
+  }
+  let qrLoad = null;
+  function qrLib() {
+    if (typeof qrcode === "function") return Promise.resolve();
+    qrLoad = qrLoad || new Promise((ok, fail) => {
+      const sc = document.createElement("script"); sc.src = "/qrcode.min.js"; sc.onload = ok; sc.onerror = () => { qrLoad = null; fail(); };
+      document.head.appendChild(sc);
+    });
+    return qrLoad;
+  }
 
   // =====================================================================
   // engine
@@ -1765,33 +1804,61 @@
       const i = cur.el.querySelector("#loginUser");
       const username = (i.value || "").trim();
       if (!username) { i.focus(); return; }
-      go("login", { waiting: true, msg: "Входим…" }, "x");
+      const seq = ++loginSeq;
+      go("login", { nick: true, waiting: true, msg: "Входим…" }, "x");
       try {
         const res = await fetch("/api/cabinet-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
         const data = await res.json().catch(() => ({}));
+        if (seq !== loginSeq) return;
         if (data && data.token) { saveToken(data.token); go("boot", {}, "x"); await load(); return; }
-        if (data && data.wait) { await waitLogin(data.wait, username); return; }
+        if (data && data.wait) {
+          go("login", { nick: true, waiting: true, msg: "Подтвердите вход в Telegram — мы прислали запрос в чат с ботом" }, "x");
+          const st = await pollLogin(seq, data.wait);
+          if (st === "declined") decoy(username);
+          else if (st === "expired") go("login", { nick: true, msg: "Время подтверждения истекло. Попробуйте ещё раз." }, "x");
+          return;
+        }
         decoy(username);
-      } catch (_e) { decoy(username); }
+      } catch (_e) { if (seq === loginSeq) decoy(username); }
+    },
+    loginNick() { loginSeq++; go("login", { nick: true }, "x"); },
+    loginTg() { tgLogin(); },
+    loginOpen() {
+      // the link opens Telegram in a new tab/app; this page keeps waiting and logs in by itself
+      if (cur && cur.params && !cur.params.opened) { cur.params.opened = true; setTimeout(() => cur && cur.key === "login" && rerender(), 400); }
+      return true;
     },
   };
 
   let loginSeq = 0;
-  async function waitLogin(id, username) {
-    const seq = ++loginSeq;
-    go("login", { waiting: true, msg: "Подтвердите вход в Telegram — мы прислали запрос в чат с ботом" }, "x");
+  // Waits for «Да, это я». Returns "approved" (already logged in), "declined", "expired" or "stopped".
+  async function pollLogin(seq, id) {
     const started = Date.now();
     while (seq === loginSeq && Date.now() - started < 600000) {
       await new Promise((r) => setTimeout(r, 1400));
-      if (seq !== loginSeq) return;
+      if (seq !== loginSeq) return "stopped";
       try {
         const data = await (await fetch("/api/cabinet-login/status?id=" + encodeURIComponent(id))).json();
-        if (data && data.token) { saveToken(data.token); go("boot", {}, "x"); await load(); return; }
-        if (data && data.status === "declined") { decoy(username); return; }
-        if (data && data.status === "expired") break;
+        if (seq !== loginSeq) return "stopped";
+        if (data && data.token) { loginSeq++; saveToken(data.token); go("boot", {}, "x"); await load(); return "approved"; }
+        if (data && (data.status === "declined" || data.status === "expired")) return data.status;
       } catch (_e) { /* keep waiting */ }
     }
-    if (seq === loginSeq) go("login", { msg: "Время подтверждения истекло. Попробуйте ещё раз." }, "x");
+    return seq === loginSeq ? "expired" : "stopped";
+  }
+  async function tgLogin(msg) {
+    const seq = ++loginSeq;
+    let data = null;
+    try {
+      const res = await fetch("/api/cabinet-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ via: "tg" }) });
+      data = await res.json();
+    } catch (_e) { data = null; }
+    if (seq !== loginSeq) return;
+    if (!data || !data.link || !data.wait) { go("login", { failed: true }, "x"); return; }
+    go("login", { link: data.link, msg }, "x");
+    const st = await pollLogin(seq, data.wait);
+    if (st === "declined") tgLogin("Вход отклонён в Telegram. Если это были вы — попробуйте ещё раз.");
+    else if (st === "expired") tgLogin(); // a fresh link and QR, the old one is no longer valid
   }
   // An unknown or declined login sees an ordinary search page, not a hint that the account exists.
   function decoy(q) {
