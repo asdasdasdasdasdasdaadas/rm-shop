@@ -226,7 +226,15 @@
   ];
   const apps = () => (me && Array.isArray(me.vpn_apps) && me.vpn_apps.length ? me.vpn_apps : DEFAULT_APPS);
   const appsFor = (p) => apps().filter((a) => (a.platforms || []).includes(p));
-  const appById = (id) => apps().find((a) => a.id === id) || DEFAULT_APPS.find((a) => a.id === id) || null;
+  // «Другое приложение»: one we have no link for — the key is copied and pasted by hand.
+  const OTHER_APP = { id: "other", name: "своё приложение", mark: "📋", deep_link: "", platforms: [] };
+  const appById = (id) => (id === "other" ? OTHER_APP : apps().find((a) => a.id === id) || DEFAULT_APPS.find((a) => a.id === id) || null);
+  // The app this person uses on a platform: the one saved for the device, then the last one picked here, then the recommended one.
+  function prefApp(p, saved) {
+    const list = appsFor(p), ok = (id) => (id && (id === "other" || list.some((a) => a.id === id)) ? id : "");
+    return ok(saved) || ok(store.get("app_" + p)) || (list[0] || {}).id || "";
+  }
+  const devApp = (d) => appById(prefApp(d.platform, d.client));
   const platTitle = (id) => (PLATFORMS.find((p) => p.id === id) || { title: "Устройство" }).title;
   const storeName = (p) => (["ios", "macos", "appletv"].includes(p) ? "App Store" : ["android", "androidtv"].includes(p) ? "Google Play" : "интернете");
   function detectPlatform() {
@@ -274,7 +282,9 @@
   addEventListener("beforeunload", flushThanks);
 
   // ---------- wizard and pay state ----------
-  const wiz = { platform: "ios", client: "", url: "", deviceId: null, title: "", fromOffer: false };
+  const wiz = { platform: "ios", client: "", url: "", deviceId: null, title: "", fromOffer: false, has: false };
+  // Ask «Уже есть приложение?» only while we do not know which app they use on this platform.
+  const appStep = () => (appsFor(wiz.platform).length > 1 && !store.get("app_" + wiz.platform) ? "wizq" : "wiz2");
   const pay = { amount: 0, custom: false, method: "", url: "", base: 0, kind: "" };
   const support = { files: [], context: null, poll: 0, draft: "" };
 
@@ -722,10 +732,44 @@
     },
     on() { track("wizard_1"); },
   };
+  SCR.wizq = {
+    h() {
+      const list = appsFor(wiz.platform), rec = list[0];
+      const others = list.slice(1, 4).map((a) => esc(a.name)).join(", ");
+      return hc("teal", { ill: "📲", h: "Приложение для VPN", p: "Через него будет работать подключение", x: '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>' }) +
+        ST("У вас уже есть приложение для VPN?") +
+        `<div class="q2"><button type="button" data-act="hasno" style="--i:0">${appIcon(rec, 44)}<span class="qt"><b>Нет, поставлю</b><span>Рекомендуем ${esc(rec.name)} — бесплатно, за минуту</span></span>${CV}</button>` +
+        `<button type="button" data-act="hasyes" style="--i:1"><span class="qe">✅</span><span class="qt"><b>Да, уже есть</b><span>${others} и другие</span></span>${CV}</button></div>` +
+        `<div style="height:14px"></div>` +
+        cd([[E(PLAT_EMO[wiz.platform] || "📱") + esc(platTitle(wiz.platform)) + V("Другое устройство " + CV), 'data-act="replat"']]);
+    },
+    on() { track("wizard_2"); },
+  };
+  SCR.wizhave = {
+    h() {
+      const list = appsFor(wiz.platform);
+      return hc("teal", { cls: "compact", h: "Какое у вас?", p: "Добавим ключ прямо в него" }) +
+        `<div class="agrid">${list.map((a, i) => `<button type="button" data-act="haveapp" data-v="${esc(a.id)}" style="--i:${i}">${appIcon(a, 54)}<b>${esc(a.name)}</b></button>`).join("")}` +
+        `<button type="button" data-act="haveapp" data-v="other" style="--i:${list.length}"><span class="aio">📋</span><b>Другое</b></button></div>` +
+        NOTE("Нет в списке — выберите «Другое»: скопируем ключ, а вы вставите его в своё приложение.");
+    },
+  };
   SCR.wiz2 = {
     h() {
       const list = appsFor(wiz.platform);
-      if (!list.some((a) => a.id === wiz.client)) wiz.client = (list[0] || {}).id || "";
+      if (wiz.has && (wiz.client === "other" || list.some((a) => a.id === wiz.client))) {
+        const own = appById(wiz.client), other = wiz.client === "other";
+        return hc("teal", { ill: other ? "📋" : appIcon(own, 92), h: other ? "Своё приложение" : `${esc(own.name)} уже стоит`,
+          p: other ? "Создадим ключ — вы вставите его в своё приложение" : `Создадим ключ и добавим его в ${esc(own.name)}`,
+          x: '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>',
+          pill: "Создать ключ", pa: 'data-act="create" id="wizOk"' }) +
+          ST("Как это работает") +
+          tl([["1", "Нажмите «Создать ключ»", "<b>отдельный ключ</b> для этого устройства"],
+            ["2", other ? "Скопируйте ключ и вставьте в приложение" : `Подтвердите добавление в ${esc(own.name)}`, other ? "обычно «+» → «Импорт из буфера»" : "кнопка откроет приложение"],
+            ["3", "Включите VPN", `${dayPrice()} ₽ в день, пока пользуетесь`]]) +
+          cd([[E("🔄") + "Выбрать другое приложение" + V(CV), 'data-act="hasyes"']]);
+      }
+      if (!list.some((a) => a.id === wiz.client)) wiz.client = prefApp(wiz.platform);
       const a = appById(wiz.client);
       if (!a) {
         return hc("teal", { ill: PLAT_EMO[wiz.platform] || "📱", h: "Пока нет инструкции", p: `Для ${esc(platTitle(wiz.platform))} напишите в поддержку — поможем`,
@@ -768,6 +812,16 @@
     h() {
       const a = appById(wiz.client) || { name: "приложение" };
       const short = wiz.url ? wiz.url.replace(/^https?:\/\//, "").slice(0, 28) + "…" : "";
+      if (wiz.client === "other") {
+        return hc("green", { rb: "ключ", ill: "🛡️", h: "Добавьте ключ в приложение", p: "Скопируйте и вставьте его в своё приложение для VPN",
+          x: `<div class="mono">${esc(short)}</div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>`,
+          pill: "Скопировать ключ", pa: 'data-act="copykey"' }) +
+          ST("Дальше") +
+          tl([["1", "Скопируйте ключ", "кнопка выше"], ["2", "Вставьте в приложение", "обычно «+» → «Импорт из буфера» или «Добавить подписку»"],
+            ["3", "Включите VPN", `<b>${dayPrice()} ₽ в день</b>, пока устройство добавлено`]]) +
+          `<div style="height:12px"></div>` +
+          cd([[E("🆘") + "Не получилось — помогите" + V(CV), 'data-act="helpconnect"'], [E("🏠") + "В кабинет" + V(CV), 'data-act="home"']]);
+      }
       return hc("green", { rb: "ключ", ill: "🛡️", h: "Подключите VPN", p: `Ключ добавится в ${esc(a.name)} сам`,
         x: `<div class="mono">${esc(short)}</div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>`,
         pill: `Добавить в ${esc(a.name)}`, pa: 'data-act="connect"', r: "copy", rl: "Скопировать ключ", ra: 'data-act="copykey"' }) +
@@ -908,6 +962,42 @@
     sync();
     if (!multi) { inputs[0].focus({ preventScroll: true }); inputs[0].select(); } // in the tap itself, so iOS opens the keyboard
   }
+  // «I already have another app»: the device remembers it, and «Открыть» adds the key there instead of the recommended one.
+  function appSheet(d) {
+    if (document.querySelector(".nsw")) return;
+    const list = appsFor(d.platform), was = (devApp(d) || {}).id;
+    const w = document.createElement("div");
+    w.className = "nsw";
+    w.innerHTML = `<div class="nsh" role="dialog" aria-label="Приложение для VPN"><div class="grab"></div><h3>Каким приложением пользуетесь?</h3>` +
+      `<div class="nsub">Кнопка «Открыть» будет добавлять ключ в него</div><div class="napps">` +
+      list.concat([OTHER_APP]).map((a, i) => `<button type="button" class="${a.id === was ? "on" : ""}" data-v="${esc(a.id)}" style="--i:${i}">${appIcon(a, 40)}<span class="at"><b>${a.id === "other" ? "Другое приложение" : esc(a.name)}</b>` +
+        `<span>${a.id === "other" ? "скопируем ключ — вставите вручную" : !i ? "★ рекомендуем" : a.deep_link ? "ключ добавится сам" : "ключ вставляется вручную"}</span></span><i>${a.id === was ? "✓" : ""}</i></button>`).join("") +
+      `</div><button type="button" class="ncancel">Отмена</button></div>`;
+    document.body.appendChild(w);
+    const close = () => { w.classList.add("out"); setTimeout(() => w.remove(), 320); };
+    w.querySelector(".ncancel").onclick = close;
+    w.addEventListener("click", (e) => { if (e.target === w) close(); });
+    w.querySelectorAll(".napps button").forEach((b) => {
+      b.onclick = async () => {
+        const id = b.dataset.v, a = appById(id);
+        if (id === was) { close(); return; }
+        notify("success");
+        store.set("app_" + d.platform, id);
+        const old = d.client;
+        d.client = id;
+        close();
+        rerender();
+        toast(id === "other" ? "Ключ будем копировать — вставьте его в своё приложение" : `Теперь ключ откроется в ${(a && a.name) || "приложении"}`);
+        try {
+          await api(`/api/devices/${d.id}`, { method: "PATCH", body: JSON.stringify({ client: id }) });
+        } catch (e) {
+          d.client = old;
+          rerender();
+          showErr(e);
+        }
+      };
+    });
+  }
   function renamedFlash(ids) {
     if (!cur) return;
     if (cur.key === "device") { const h = cur.el.querySelector(".hc .H"), i = cur.el.querySelector(".hc .ill"); [h, i].forEach((x) => x && x.classList.add("npop")); }
@@ -919,14 +1009,16 @@
     h(p) {
       const d = deviceById(p.id);
       if (!d) return hc("slate", { ill: "📱", h: "Устройство удалено", pill: "На главную", pa: 'data-act="home"' });
-      const a = appById(appsFor(d.platform)[0] ? appsFor(d.platform)[0].id : "happ");
+      const a = devApp(d) || appById("happ");
       const fresh = d.active && d.connected === false;
       return hc("teal", { rb: !d.active ? "пауза" : fresh ? "ждёт" : "онлайн", ill: devIcon(d), h: esc(d.title || "Устройство"),
         p: !d.active ? "Неактивно — пополните баланс" : fresh ? `Ключ готов — добавьте его в ${esc((a && a.name) || "приложение")} и включите VPN`
           : `Активно · ${dayPrice()} ₽ в день`,
-        pill: `Открыть в ${esc((a && a.name) || "приложении")}`, pa: `data-act="devopen"`, r: "copy", rl: "Скопировать ключ", ra: 'data-act="devcopy"' }) +
+        ...(a && a.id === "other" ? { pill: "Скопировать ключ", pa: 'data-act="devcopy"' }
+          : { pill: `Открыть в ${esc((a && a.name) || "приложении")}`, pa: `data-act="devopen"`, r: "copy", rl: "Скопировать ключ", ra: 'data-act="devcopy"' }) }) +
         ST("Устройство") +
         cd([[E("✏️") + TT("Название", esc(d.title || "Устройство")) + V(CV), 'data-act="rename"'],
+          a ? [`<span class="e">${appIcon(a, 26)}</span>` + TT("Приложение", a.id === "other" ? "Своё — ключ вставляется вручную" : esc(a.name)) + V("сменить " + CV), 'data-act="devapp"'] : null,
           `${E("🔑")}${TT("Ключ подписки", `<span style="font-family:ui-monospace,Menlo,monospace">${esc((d.subscription_url || "").replace(/^https?:\/\//, "").slice(0, 34))}…</span>`)}`,
           fresh ? null : [E("💡") + TT("Перестал работать VPN?", "Выпустим новый ключ, старый отключится") + V(CV), 'data-act="reissue"'],
           [E("🆘") + "Помощь с подключением" + V(CV), 'data-act="helpdevice"']]) +
@@ -1327,7 +1419,7 @@
     haptic();
     Object.assign(wiz, { url: "", deviceId: null, title: "", fromOffer: Boolean(fromOffer) });
     const p = detectPlatform();
-    if (p) { wiz.platform = p; wiz.client = (appsFor(p)[0] || {}).id || ""; go("wiz2"); }
+    if (p) { wiz.platform = p; wiz.client = prefApp(p); wiz.has = wiz.client === "other"; go(appStep()); }
     else go("wiz1");
   }
   function resume() {
@@ -1335,7 +1427,7 @@
     const d = devs.slice().sort((a, b) => b.id - a.id)[0];
     if (!d || !d.subscription_url) { startWizard(); return; }
     Object.assign(wiz, { platform: d.platform || detectPlatform() || "ios", url: d.subscription_url, deviceId: d.id, title: d.title });
-    wiz.client = (appsFor(wiz.platform)[0] || {}).id || "happ";
+    wiz.client = prefApp(wiz.platform, d.client) || "happ";
     go("wiz3");
   }
   let creating = false;
@@ -1346,7 +1438,8 @@
     try {
       const names = { ios: "Мой iPhone", android: "Мой Android", macos: "MacBook", windows: "Ноутбук", androidtv: "Телевизор", appletv: "Apple TV" };
       const title = names[wiz.platform] || "Моё устройство";
-      const made = await post("/api/devices", { title, platform: wiz.platform });
+      const made = await post("/api/devices", { title, platform: wiz.platform, client: wiz.client });
+      if (wiz.client) store.set("app_" + wiz.platform, wiz.client);
       Object.assign(wiz, { title, url: made.subscription_url || "", deviceId: made.device_id });
       if (made.first_device) thanksArmed = true;
       store.set("onboard", 1);
@@ -1498,7 +1591,21 @@
       ill.replaceWith(fresh);
     },
     reopen: () => pay.url && tg.openLink(pay.url),
-    plat(b) { haptic(); wiz.platform = b.dataset.v; wiz.client = (appsFor(wiz.platform)[0] || {}).id || ""; go("wiz2"); },
+    plat(b) { haptic(); wiz.platform = b.dataset.v; wiz.client = prefApp(wiz.platform); wiz.has = wiz.client === "other"; go(appStep()); },
+    hasno() {
+      haptic();
+      wiz.has = false;
+      wiz.client = (appsFor(wiz.platform)[0] || {}).id || "";
+      go("wiz2");
+    },
+    hasyes() { haptic(); go("wizhave"); },
+    haveapp(b) {
+      notify("success");
+      wiz.client = b.dataset.v;
+      wiz.has = true;
+      store.set("app_" + wiz.platform, wiz.client);
+      go("wiz2");
+    },
     replat: () => go("wiz1"),
     guide(b) {
       const a = appById(b.dataset.v);
@@ -1546,8 +1653,9 @@
     copykey: () => copy(wiz.url, "Ключ скопирован"),
     devopen() {
       const d = deviceById(cur.params.id);
-      if (d) openClient((appsFor(d.platform)[0] || {}).id, d.subscription_url);
+      if (d) openClient((devApp(d) || {}).id, d.subscription_url);
     },
+    devapp() { const d = deviceById(cur.params.id); if (d) { haptic(); appSheet(d); } },
     devcopy() { const d = deviceById(cur.params.id); if (d) copy(d.subscription_url, "Ключ скопирован"); },
     rename() { const d = deviceById(cur.params.id); if (d) { haptic(); nameSheet([d]); } },
     dupes() { const g = dupeGroup(); if (g) { haptic(); nameSheet(g); } },

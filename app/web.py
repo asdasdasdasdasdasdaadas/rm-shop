@@ -452,6 +452,7 @@ async def api_me(request: web.Request) -> web.Response:
                 "online_at": item["last_online_at"].isoformat() if item.get("last_online_at") else None,
                 "expire_at": expire.isoformat() if expire else None,
                 "platform": item.get("platform") or "",
+                "client": item.get("client") or "",
                 "kind": "router" if _is_router_device(item) else "",
             }
         )
@@ -855,7 +856,7 @@ async def _api_add_device_locked(request: web.Request) -> web.Response:
             await db.add_balance_rub(telegram_id, price)
         return json_error(str(last_error or "Не удалось создать устройство"), 502)
     rw_id = int(user["id"])
-    device = await db.add_device(telegram_id, title, rw_id, platform, None)
+    device = await db.add_device(telegram_id, title, rw_id, platform, clean_client_id(body.get("client")) or None)
     await db.save_device_subscription(rw_id, user)
     if was_first:
         await db.mark_first_device_thanks_pending(telegram_id)
@@ -980,6 +981,12 @@ def clean_device_title(raw) -> str:
     return re.sub(r"\s+", " ", text).strip()[:DEVICE_TITLE_MAX].strip()
 
 
+def clean_client_id(raw) -> str:
+    """A VPN app id from the app list (vpn_apps): short lowercase slug, '' if it does not look like one."""
+    text = str(raw or "").strip().lower()
+    return text if re.fullmatch(r"[a-z0-9][a-z0-9_.-]{0,31}", text) else ""
+
+
 async def api_rename_device(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tg(request)
     if denied:
@@ -991,18 +998,27 @@ async def api_rename_device(request: web.Request) -> web.Response:
         return json_error("Устройство не найдено", 404)
     if not isinstance(body, dict):
         return json_error("Введите название")
-    title = clean_device_title(body.get("title"))
-    if not title:
-        return json_error("Введите название")
+    title = None
+    if "title" in body:
+        title = clean_device_title(body.get("title"))
+        if not title:
+            return json_error("Введите название")
+    client = None
+    if "client" in body:
+        client = clean_client_id(body.get("client"))
+        if not client:
+            return json_error("Такого приложения нет")
+    if title is None and client is None and body.get("icon") is None:
+        return json_error("Нечего сохранять")
     icon = body.get("icon")
     if icon is not None:
         icon = str(icon)
         if icon and icon not in DEVICE_ICONS:
             return json_error("Такой иконки нет")
-    row = await db.rename_device(telegram_id, device_id, title, icon)
+    row = await db.rename_device(telegram_id, device_id, title, icon, client)
     if not row:
         return json_error("Устройство не найдено", 404)
-    return web.json_response({"ok": True, "title": row["title"], "icon": row.get("icon") or ""})
+    return web.json_response({"ok": True, "title": row["title"], "icon": row.get("icon") or "", "client": row.get("client") or ""})
 
 
 async def api_vpn_feedback(request: web.Request) -> web.Response:

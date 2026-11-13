@@ -1974,18 +1974,21 @@ async def get_device(telegram_id: int, device_id: int) -> dict | None:
     return _as_dict(row)
 
 
-async def rename_device(telegram_id: int, device_id: int, title: str, icon: str | None = None) -> dict | None:
-    """The customer's name (and icon) for a device; None when the device is not theirs."""
+async def rename_device(
+    telegram_id: int, device_id: int, title: str | None, icon: str | None = None, client: str | None = None
+) -> dict | None:
+    """The customer's name, icon and VPN app for a device (None leaves a field as is); None when the device is not theirs."""
     row = await _pool_req().fetchrow(
         """
-        UPDATE devices SET title = $3, icon = COALESCE($4, icon)
+        UPDATE devices SET title = COALESCE($3, title), icon = COALESCE($4, icon), client = COALESCE($5, client)
         WHERE id = $1 AND telegram_id = $2
-        RETURNING id, title, icon
+        RETURNING id, title, icon, client
         """,
         device_id,
         telegram_id,
         title,
         icon,
+        client,
     )
     return _as_dict(row)
 
