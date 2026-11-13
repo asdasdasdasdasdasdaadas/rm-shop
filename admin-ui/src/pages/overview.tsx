@@ -19,6 +19,7 @@ import { CountUp, Delta, DashboardWidgets } from "@/components/widgets";
 const main = [
   ["entered", "Запустили бота"],
   ["trial", "Забрали подарок"],
+  ["device", "Добавили устройство"],
   ["connected", "Подключились"],
   ["checkout", "Начали оплату"],
   ["paid", "Оплатили"],
@@ -31,6 +32,7 @@ const leaks = [
   ["online_no_paid", "Подключались, но не оплатили"],
   ["checkout_drop", "Счёт без оплаты"],
   ["paid_no_repeat", "Не пополнили повторно"],
+  ["paid_empty", "Платили, деньги кончились"],
 ];
 const sources = [
   ["organic", "Без рекламной метки"],

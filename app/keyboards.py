@@ -80,6 +80,17 @@ def cabinet_button() -> InlineKeyboardButton | None:
     )
 
 
+def mini_app_screen(screen: str):
+    """The cabinet opened straight on one screen (topup, promise, …); None without a mini app URL."""
+    url = mini_app_url()
+    if not url:
+        return None
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query))
+    query["screen"] = screen
+    return WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query))))
+
+
 def payment_nudge_keyboard(token: str | None = None, *, label: str = "Продолжить оплату") -> InlineKeyboardMarkup:
     if token:
         return InlineKeyboardMarkup(inline_keyboard=[[

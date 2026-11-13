@@ -65,8 +65,11 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
     if await db.claim_low_balance_notice(tg_id):
         from app.balance_notifications import balance_keyboard
         body = notice_text("low_balance", price=rub_text(price))
+        from app.trust import promise_available
+        promise = await promise_available(tg_id)
         try:
-            await send_reminder(bot, tg_id, body, kind="low_balance", title="Мало баланса", reply_markup=balance_keyboard(), preserve=True)
+            await send_reminder(bot, tg_id, body, kind="low_balance", title="Мало баланса",
+                                reply_markup=balance_keyboard(promise=promise), preserve=True)
             await db.log_bot_message(
                 kind="low_balance",
                 source="auto",

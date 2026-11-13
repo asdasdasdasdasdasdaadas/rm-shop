@@ -417,8 +417,10 @@
   const amountLine = () => (amountOk(pay.amount) ? `≈ ${days(daysFor(pay.amount))} VPN` : `Укажите сумму от ${rub(me.topup_min || 1)}`);
   SCR.topup = {
     h() {
-      if (!amountOk(pay.amount)) pay.amount = amountOk(500) ? 500 : Number(me.topup_min) || 100;
-      const chips = [100, 300, 500, 1000].filter(amountOk);
+      // The first payment starts small: «от 50 ₽» in the bot should not open on 500 ₽.
+      const firstPay = !me.has_paid_topup, start = firstPay ? 100 : 500;
+      if (!amountOk(pay.amount)) pay.amount = amountOk(start) ? start : Number(me.topup_min) || 100;
+      const chips = [...new Set(firstPay ? [Number(me.topup_min) || 50, 100, 300, 500] : [100, 300, 500, 1000])].filter(amountOk);
       const m = curMethod();
       const inChips = chips.includes(pay.amount) && !pay.custom;
       const L = look(m);
@@ -1650,6 +1652,7 @@
     go("home", {}, "x");
     if (entry === "support") { openSupport(); return; }
     if (entry === "topup") { go("topup"); return; }
+    if (entry === "promise") { const t = me.trust || {}; go(t.open || t.available ? "promise" : "topup"); return; }
     if (entry === "gift" && me.trial_available) { go("gift"); return; }
     if (entry === "connect" || entry === "gift") { if (phones().length) resume(); else startWizard(); return; }
     if (showOffer()) { go("gift"); return; }

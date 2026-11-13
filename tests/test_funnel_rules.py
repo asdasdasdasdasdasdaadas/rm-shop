@@ -125,5 +125,61 @@ class RetiredTextsTest(unittest.TestCase):
         self.assertIn("gift_ending_nudge", notices.DEFAULT_NOTICES)
 
 
+class PaidEmptyTest(unittest.TestCase):
+    def test_branch_has_no_gift_and_offers_promise(self):
+        from app import recovery_funnel as rf
+        branch = rf.paid_branches()[0]
+        actions = [b if isinstance(b, str) else b["action"] for st in branch["steps"] for b in st["buttons"]]
+        self.assertNotIn(rf.GIFT, actions)
+        self.assertIn("promise", actions)
+        self.assertEqual([st["wait_hours"] for st in branch["steps"]], [24, 48, 96])
+        funnel_board.validate({"branches": rf.branches()})
+
+    def test_idle_branch_skips_paid_customers_out_of_money(self):
+        from app import recovery_funnel as rf
+        idle = next(c for c in rf.CONDITIONS if c["id"] == "recover_idle")
+        self.assertIn("{exhausted}", idle["where"])
+        self.assertIn("NOT (", idle["where"])
+
+    def test_saved_board_gets_new_branch_and_faster_steps_once(self):
+        from app import recovery_funnel as rf
+        old = {"branches": [b for b in rf.branches() if b["id"] != "paid-empty"]}
+        for b in old["branches"]:
+            if b["id"] == "online":
+                b["steps"] = [st for st in b["steps"] if st["id"] != rf.ONLINE_MID_ID]
+            if b["id"] == "nodevice":
+                b["steps"][0]["wait_hours"] = 24
+        new = funnel_board.validate(rf.add_paid_empty(old))
+        self.assertEqual(new["branches"][0]["id"], "paid-empty")
+        online = next(b for b in new["branches"] if b["id"] == "online")
+        self.assertEqual(online["steps"][1]["id"], rf.ONLINE_MID_ID)
+        self.assertEqual(next(b for b in new["branches"] if b["id"] == "nodevice")["steps"][0]["wait_hours"], 2)
+        self.assertEqual(funnel_board.validate(rf.add_paid_empty(new)), new)
+        # An admin-tuned delay stays.
+        old["branches"][[b["id"] for b in old["branches"]].index("nodevice")]["steps"][0]["wait_hours"] = 6
+        tuned = rf.add_paid_empty(old)
+        self.assertEqual(next(b for b in tuned["branches"] if b["id"] == "nodevice")["steps"][0]["wait_hours"], 6)
+
+
+class PromiseButtonTest(unittest.TestCase):
+    def setUp(self):
+        from app import keyboards
+        p = patch.object(keyboards, "mini_app_url", return_value="https://x.test/app")
+        p.start(); self.addCleanup(p.stop)
+
+    def test_balance_keyboard(self):
+        from app.balance_notifications import balance_keyboard
+        rows = balance_keyboard(promise=True).inline_keyboard
+        self.assertEqual([r[0].text for r in rows], ["Пополнить баланс", "🤝 Обещанный платёж", "Главное меню"])
+        self.assertIn("screen=promise", rows[1][0].web_app.url)
+        self.assertNotIn("🤝 Обещанный платёж", [r[0].text for r in balance_keyboard().inline_keyboard])
+
+    def test_funnel_button_only_when_available(self):
+        texts = lambda m: [r[0].text for r in m.inline_keyboard]
+        with patch("app.keyboards.mini_app_url", return_value="https://x.test/app"):
+            self.assertIn("🤝 Обещанный платёж", texts(funnel_board.markup(["topup", "promise"], 1, promise=True)))
+            self.assertNotIn("🤝 Обещанный платёж", texts(funnel_board.markup(["topup", "promise"], 1)))
+
+
 if __name__ == "__main__":
     unittest.main()

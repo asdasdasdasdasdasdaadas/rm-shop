@@ -2998,7 +2998,9 @@ def _funnel_cte() -> str:
 
 _FUNNEL_PREDICATES = {
     "entered": "TRUE", "from_ref": "from_ref", "from_ad": "from_ad", "organic": "organic",
-    "legal": "legal", "trial": "trial", "device": "has_device", "connected": "connected",
+    "legal": "legal", "trial": "trial",
+    # A connection needs a device, so people who connected count here even after deleting it.
+    "device": "has_device OR connected", "connected": "connected",
     "checkout": "checkout OR paid", "paid": "paid", "repeat_paid": "repeat_paid",
     "paid_stars": "paid_stars", "paid_rub": "paid_rub",
     "referred": "invited", "promo": "promo", "blocked": "blocked",
@@ -3006,6 +3008,8 @@ _FUNNEL_PREDICATES = {
     "checkout_drop": "checkout AND NOT paid AND checkout_at <= NOW() - INTERVAL '20 minutes'", "no_legal": "NOT legal",
     "no_gift": "NOT trial AND NOT paid AND bot_started_at <= NOW() - INTERVAL '24 hours'", "gift_no_online": "trial AND NOT connected AND gift_at <= NOW() - INTERVAL '24 hours'",
     "online_no_paid": "connected AND NOT paid AND access_exhausted", "paid_no_repeat": "paid AND NOT repeat_paid AND access_exhausted",
+    "paid_empty": "paid AND access_exhausted",
+    "progress_paid_empty": "paid AND NOT access_exhausted",
     "progress_no_gift": "NOT trial AND NOT paid AND bot_started_at > NOW() - INTERVAL '24 hours'",
     "progress_gift_no_online": "trial AND NOT connected AND gift_at > NOW() - INTERVAL '24 hours'",
     "progress_device_no_online": "has_device AND NOT connected AND device_at > NOW() - INTERVAL '24 hours'",
@@ -3016,7 +3020,8 @@ _FUNNEL_PREDICATES = {
     "unpaid_terms": "connected AND NOT paid AND vpn_feedback='terms'",
     "unpaid_ok": "connected AND NOT paid AND vpn_feedback='ok'",
     "unpaid_no_feedback": "connected AND NOT paid AND vpn_feedback IS NULL",
-    "trial_transition": "trial", "connected_transition": "trial AND connected",
+    "trial_transition": "trial", "device_transition": "trial AND (has_device OR connected)",
+    "connected_transition": "connected",
     "checkout_transition": "connected AND (checkout OR paid)",
     "paid_transition": "paid", "repeat_paid_transition": "repeat_paid",
 }

@@ -60,6 +60,7 @@ ACTIONS = (
     {"id": "about", "label": "О сервисе", "button": "О сервисе"},
     {"id": "invite", "label": "Пригласить друга", "button": "Пригласить"},
     {"id": "menu", "label": "Главное меню", "button": "В главное меню"},
+    {"id": "promise", "label": "Обещанный платёж (видна, только когда он доступен)", "button": "🤝 Обещанный платёж"},
     {"id": "claim_gift", "label": "Забрать подарочные дни (личный подарок, не чаще раза в 14 дней)",
      "button": f"🎁 Забрать {gift_label()}"},
 )
@@ -226,7 +227,8 @@ def main_menu_markup(button_ids, telegram_id):
     return keyboard.model_copy(update={"inline_keyboard": rows})
 
 
-def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gift_id: int | None = None):
+def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gift_id: int | None = None,
+           promise: bool = False):
     from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
     from aiogram.types import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
@@ -312,6 +314,10 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
             rows.append([press(label, item, callback_data="about_service" if action_id == "about" else "share")])
         elif action_id == "menu":
             rows.append([press(label, item, callback_data="profile")])
+        elif action_id == "promise":
+            # Shown only to people who can take a promised payment right now (see trust.promise_available).
+            if promise and mini_app_url():
+                rows.append([screen(label, "promise", item)])
         elif action_id == GIFT_ACTION:
             # Without an issued gift (preview, cooldown) the button would promise nothing: leave it out.
             if gift_id:
@@ -343,6 +349,7 @@ def render_text(text: str, telegram_id: int, first_name: str | None) -> str:
         "reward": "50 ₽",
         "when": when,
         "gift_days": gift_label(),
+        "min_topup": f"{max(1, int(settings.balance_topup_min or 50))} ₽",
     })
     try:
         return str(text or "").format_map(values)
@@ -680,7 +687,7 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int], *, 
                 WHERE p.telegram_id = u.telegram_id AND p.step_id = $5
             )"""
     cycle_clause = ""
-    if step['condition'] in {'recover_idle', 'recover_online', 'recover_late'}:
+    if step['condition'] in {'recover_idle', 'recover_online', 'recover_late', 'recover_topup'}:
         cycle_anchor = SEEN if step['condition'] in {'recover_idle', 'recover_late'} else anchor
         cycle_clause = f" AND s.sent_at >= {cycle_anchor}"
         time_sql = time_sql.replace("p.step_id = $5", f"p.step_id = $5 AND p.sent_at >= {cycle_anchor}")
@@ -737,6 +744,7 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
     kind = "nudge_setup_assist" if is_setup_assist(step, prev_id) else KINDS.get(step["condition"], "nudge_board")
     from app import funnel_gifts
     wants_gift = any((b if isinstance(b, str) else b.get("action")) == GIFT_ACTION for b in step["buttons"])
+    wants_promise = any((b if isinstance(b, str) else b.get("action")) == "promise" for b in step["buttons"])
     async for row in _candidates(step, prev_id, skip, touched):
         uid = int(row["telegram_id"])
         if wants_gift and not await funnel_gifts.can_issue(uid):
@@ -758,6 +766,10 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                 if gift_id is None:
                     continue
             body = render_text(step['text'], uid, row.get('first_name'))
+            promise = False
+            if wants_promise:
+                from app.trust import promise_available
+                promise = await promise_available(uid)
             buttons = step['buttons']
             if step['condition'] == 'recover_idle':
                 funded = await db.has_funded_access(uid)
@@ -770,7 +782,7 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                 bot, kind=kind, telegram_id=uid, first_name=row.get("first_name"),
                 title=CONDITION_IDS[step["condition"]]["label"],
                 body=body,
-                reply_markup=markup(buttons, uid, gift_id=gift_id), preserve=True,
+                reply_markup=markup(buttons, uid, gift_id=gift_id, promise=promise), preserve=True,
                 extra={"step_id": step["id"], **({"gift_id": gift_id} if gift_id else {})},
             )
         except Exception:

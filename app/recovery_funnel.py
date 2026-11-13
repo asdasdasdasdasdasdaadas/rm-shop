@@ -8,6 +8,7 @@ LABEL_VERSION = 'funnel_action_labels_v2'
 ACTION_LABELS = {'gift': 'Забрать подарок', 'connect': 'Подключить VPN', 'topup': 'Пополнить баланс'}
 OWNED_BRANCHES = {'nodevice','online','unpaid','quality','gift','idle-setup','idle-topup','idle-return','late','terms-offer'}
 OFFERS_VERSION = 'funnel_offers_v3'
+PAID_EMPTY_VERSION = 'funnel_paid_empty_v1'
 GIFT = 'claim_gift'
 CONNECT = {'action': 'connect', 'text': 'Подключить VPN'}
 PAID = """(COALESCE(u.has_paid_topup,FALSE)
@@ -16,6 +17,10 @@ PAID = """(COALESCE(u.has_paid_topup,FALSE)
 DEVICE = "EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'') <> 'router')"
 SEEN = "GREATEST(u.first_online_at,u.bot_started_at,(SELECT MAX(d.last_online_at) FROM devices d WHERE d.telegram_id=u.telegram_id))"
 IDLE = f"({SEEN} <= NOW() - INTERVAL '7 days')"
+# When a paying customer's access ran out: a day after the last daily charge. It moves only with a new charge,
+# so every time the money runs out again the chain starts over.
+EMPTY_AT = ("((SELECT MAX(d.last_billed_at) FROM devices d WHERE d.telegram_id=u.telegram_id "
+            "AND COALESCE(d.kind,'') <> 'router') + INTERVAL '1 day')")
 AUDIENCE = f"(u.first_online_at IS NULL OR NOT {PAID} OR {IDLE})"
 CONDITIONS = (
  {'id':'recover_gift','label':'Подключение: подарок не забран','anchor':'u.bot_started_at','gate':'trial',
@@ -34,9 +39,13 @@ CONDITIONS = (
  {'id':'recover_payment','label':'Первая оплата: доступ закончился','anchor':'u.first_online_at',
   'where':f"u.first_online_at IS NOT NULL AND NOT {PAID} AND NOT {IDLE} AND {{exhausted}}",
   'hint':'Пользовался VPN, доступ закончился, первой оплаты не было. Помощь и отказ от условий исключают отправку.'},
+ {'id':'recover_topup','label':'Платил раньше: деньги кончились','anchor':EMPTY_AT,
+  'where':f"{PAID} AND {DEVICE} AND {{exhausted}}",
+  'hint':'Уже платил, устройство есть, баланс кончился и VPN выключен. Отсчёт — от момента, когда доступ закончился. '
+         'Пополнение останавливает цепочку; когда деньги кончатся снова, она начнётся заново. Подарков здесь нет.'},
  {'id':'recover_idle','label':'Возврат: не пользовался неделю','anchor':SEEN,
-  'where':f"u.first_online_at IS NOT NULL AND {IDLE}",
-  'hint':'Был подтверждённый онлайн, затем не пользовался VPN неделю. Возобновление подключения или ответ «Пока не нужен» останавливают цепочку.'},
+  'where':f"u.first_online_at IS NOT NULL AND {IDLE} AND NOT ({PAID} AND {{exhausted}})",
+  'hint':'Был подтверждённый онлайн, затем не пользовался VPN неделю (кроме платившего, у которого кончились деньги — для него своя ветка). Возобновление подключения или ответ «Пока не нужен» останавливают цепочку.'},
  {'id':'recover_late','label':'Возврат: не пользовался 30+ дней','anchor':SEEN,
   'where':f"u.first_online_at IS NOT NULL AND {SEEN} <= NOW() - INTERVAL '30 days'",
   'hint':'Был онлайн, потом пропал на месяц и дольше. Пауза считается от последнего появления. После возвращения цепочка начнётся заново при следующем уходе.'},
@@ -85,7 +94,7 @@ def branches():
        'Поможем начать? Установите приложение, добавьте подписку и включите VPN. Если застряли — мы рядом.',
        NEW_THIRD['gift']
       ],['gift','menu','help']),
-      ('nodevice','recover_setup','Подарок есть → добавить устройство',24,[
+      ('nodevice','recover_setup','Подарок есть → добавить устройство',2,[
        'Давайте подключим устройство 👋 Откройте кабинет — там короткая инструкция.',
        'Что мешает подключиться? Нажмите «Нужна помощь» — разберёмся вместе.',
        NEW_THIRD['nodevice']
@@ -118,7 +127,62 @@ def branches():
             [{'action':buttons[0],'text':ACTION_LABELS.get(buttons[0], 'Личный кабинет')}, *buttons[1:]],
             'anchor' if i==0 else 'previous')
       for i,text in enumerate(texts)]} for bid,condition,title,first,texts,buttons in plans]
-    return result + extra_branches()
+    for branch in result:
+        if branch['id'] == 'online':
+            branch['steps'].insert(1, online_mid_step())
+    return result + extra_branches() + paid_branches()
+
+
+ONLINE_MID_ID = 'recovery-recover-online-mid'
+ONLINE_MID_TEXT = ('Застряли на подключении? Откройте кабинет — там пошаговая инструкция для вашего приложения. '
+                   'Обычно хватает добавить подписку и нажать кнопку подключения.\n\nНе выходит — нажмите «Нужна помощь», '
+                   'ответим в чате.')
+
+
+def online_mid_step():
+    """Between the first-hour nudge and the two-day one: half a day after the device was added."""
+    from app.funnel_board import _step
+    return _step(ONLINE_MID_ID, 'recover_online', 11, ONLINE_MID_TEXT,
+                 [{'action': 'connect', 'text': 'Подключить VPN'}, 'help', 'menu'], 'previous')
+
+
+PAID_EMPTY_TEXTS = (
+    '🔌 <b>VPN на паузе</b> — на балансе закончились деньги.\n\n'
+    'Пополните от {min_topup}, и он включится сам: заново настраивать ничего не нужно.',
+    'VPN всё ещё выключен 👋 Пополнение займёт минуту — после него всё заработает на тех же устройствах.',
+    'Что-то не так с VPN? Если он работал плохо или не подошли условия — ответьте одной кнопкой, разберёмся.',
+)
+
+
+def paid_branches():
+    from app.funnel_board import _step
+    topup = {'action': 'topup', 'text': 'Пополнить баланс'}
+    return [{'id': 'paid-empty', 'title': 'Платил, деньги кончились → пополнение', 'steps': [
+        _step('recovery-recover-topup-1', 'recover_topup', 24, PAID_EMPTY_TEXTS[0], [topup, 'promise', 'menu']),
+        _step('recovery-recover-topup-2', 'recover_topup', 48, PAID_EMPTY_TEXTS[1], [topup, 'promise', 'help'], 'previous'),
+        _step('recovery-recover-topup-3', 'recover_topup', 96, PAID_EMPTY_TEXTS[2],
+              [topup, 'feedback_help', 'feedback_terms', 'feedback_later'], 'previous'),
+    ]}]
+
+
+def add_paid_empty(graph):
+    """The paid-customer branch, faster setup help and the half-day connection step for saved boards.
+    Only defaults are touched: a step whose timing the admin changed keeps it."""
+    result = copy.deepcopy(graph)
+    used = {b['id'] for b in result['branches']} | {s['id'] for b in result['branches'] for s in b['steps']}
+    for branch in result['branches']:
+        ids = [s['id'] for s in branch['steps']]
+        for step in branch['steps']:
+            if step['id'] == 'recovery-recover-setup-1' and int(step.get('wait_hours') or 0) == 24:
+                step['wait_hours'] = 2
+        if 'recovery-recover-online-1' in ids and ONLINE_MID_ID not in used:
+            branch['steps'].insert(ids.index('recovery-recover-online-1') + 1, online_mid_step())
+            used.add(ONLINE_MID_ID)
+    for branch in paid_branches():
+        if branch['id'] in used or any(s['id'] in used for s in branch['steps']) or len(result['branches']) >= 32:
+            continue
+        result['branches'].insert(0, branch)
+    return result
 
 
 def third_buttons(bid, buttons):
@@ -148,7 +212,28 @@ def upgrade(graph):
 
 async def migrate(pool, graph):
     graph = await _migrate_journeys(pool, graph)
-    return await _migrate_offers(pool, graph)
+    graph = await _migrate_offers(pool, graph)
+    return await _migrate_once(pool, graph, PAID_EMPTY_VERSION, add_paid_empty)
+
+
+async def _migrate_once(pool, graph, version, change):
+    from app.funnel_board import validate
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute('SELECT pg_advisory_xact_lock(73619429)')
+            if await conn.fetchval('SELECT value FROM app_flags WHERE key=$1', version):
+                return graph
+            row = await conn.fetchrow('SELECT graph FROM funnel_graphs WHERE id=1 FOR UPDATE')
+            raw = row['graph'] if row else graph
+            if isinstance(raw, str):
+                raw = json.loads(raw)
+            updated = validate(change(raw))
+            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+                               version + '_backup', json.dumps(raw, ensure_ascii=False))
+            await conn.execute('UPDATE funnel_graphs SET graph=$1::jsonb,updated_at=NOW() WHERE id=1',
+                               json.dumps(updated, ensure_ascii=False))
+            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2)', version, '1')
+            return updated
 
 
 def refresh_offers(graph):

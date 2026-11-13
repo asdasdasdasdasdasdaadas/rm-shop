@@ -158,11 +158,19 @@ async def send_due_trial_end_nudges(
             text = gift_ending_text()
         else:
             text = ((body or "").strip() or notice_text("balance_ending_nudge")) + suffix
+        promise = False
+        if not gift and stage == 1:
+            from app.trust import promise_available
+            promise = await promise_available(telegram_id)
         if button_ids is None:
-            reply, keep = balance_keyboard(), True
+            reply, keep = balance_keyboard(promise=promise), True
         else:
+            from app.balance_notifications import with_promise
             from app.funnel_board import markup as board_markup
-            reply, keep = board_markup(button_ids, telegram_id), True
+            reply, keep = board_markup(button_ids, telegram_id, promise=promise), True
+            if promise and not any(
+                    (b if isinstance(b, str) else b.get("action")) == "promise" for b in button_ids):
+                reply = with_promise(reply, True)
         ok = await _deliver(
             bot, kind="nudge_trial_end", telegram_id=telegram_id, first_name=row.get("first_name"),
             title="Подарок заканчивается" if gift else "Баланс заканчивается", body=text, reply_markup=reply, extra=None, preserve=keep,

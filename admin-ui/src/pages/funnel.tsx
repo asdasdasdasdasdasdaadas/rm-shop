@@ -907,7 +907,8 @@ export function FunnelPage() {
                   }
                 />
                 <span className="block text-xs text-muted-foreground">
-                  Можно оставить {"{name}"}, {"{link}"}, {"{price}"}. Для
+                  Можно оставить {"{name}"}, {"{link}"}, {"{price}"},{" "}
+                  {"{min_topup}"} (минимальное пополнение), {"{gift_days}"}. Для
                   промокода ещё {"{code}"}, {"{devices}"} и {"{amount}"}. Один
                   человек получает не больше одного такого сообщения в сутки и
                   трёх в неделю.

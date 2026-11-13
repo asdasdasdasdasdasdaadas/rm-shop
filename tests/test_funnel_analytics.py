@@ -52,7 +52,9 @@ class FunnelAnalyticsTest(unittest.TestCase):
         self.assertEqual(row['repeat_paid'],2)  # Two Stars and one Stars + one cash payment.
         self.assertEqual(row['paid_stars'],2)
         self.assertEqual(row['paid_rub'],2)
-        self.assertEqual(row['connected_transition'],2)  # User 3 skipped the gift.
+        self.assertEqual(row['device'],3)  # Connected users count as having had a device.
+        self.assertEqual(row['device_transition'],2)  # User 3 skipped the gift.
+        self.assertEqual(row['connected_transition'],3)
         self.assertEqual(row['checkout_transition'],2)
         self.assertEqual(row['gift_no_online'],1)
         self.assertEqual(row['checkout_drop'],1)

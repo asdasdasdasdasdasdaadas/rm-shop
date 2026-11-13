@@ -89,6 +89,18 @@ async def trust_info(telegram_id: int, local: dict | None, device_count: int) ->
     }
 
 
+async def promise_available(telegram_id: int) -> bool:
+    """Whether a «Обещанный платёж» button would lead somewhere right now; never raises."""
+    try:
+        local = await db.get_user(telegram_id)
+        if not local:
+            return False
+        info = await trust_info(telegram_id, local, await db.billable_device_count(telegram_id))
+        return bool(info["available"])
+    except Exception:
+        return False
+
+
 async def take_trust(telegram_id: int) -> dict:
     settings = get_settings()
     if not settings.trust_enabled:

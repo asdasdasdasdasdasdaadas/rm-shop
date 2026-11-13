@@ -24,10 +24,24 @@ def balance_details(balance: int, devices: int, day_price: int) -> str:
     return f'\n\nОстаток: <b>{rub_text(balance)}</b>, {left}.'
 
 
-def balance_keyboard():
+def balance_keyboard(*, promise: bool = False):
     from aiogram.types import InlineKeyboardButton
     from app.keyboards import payment_nudge_keyboard
-    markup = payment_nudge_keyboard(label='Пополнить баланс')
+    markup = with_promise(payment_nudge_keyboard(label='Пополнить баланс'), promise)
     return markup.model_copy(update={'inline_keyboard': markup.inline_keyboard + [[
         InlineKeyboardButton(text='Главное меню', callback_data='profile')
     ]]})
+
+
+def with_promise(markup, promise: bool):
+    """Add «Обещанный платёж» under the top-up button when the person can take one right now."""
+    if not promise or markup is None:
+        return markup
+    from aiogram.types import InlineKeyboardButton
+    from app.keyboards import mini_app_screen
+    app = mini_app_screen("promise")
+    if not app:
+        return markup
+    button = InlineKeyboardButton(text='🤝 Обещанный платёж', web_app=app)
+    rows = list(markup.inline_keyboard)
+    return markup.model_copy(update={'inline_keyboard': rows[:1] + [[button]] + rows[1:]})
