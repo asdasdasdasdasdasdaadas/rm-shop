@@ -414,6 +414,7 @@
         cd([
           giftLater,
           [E("🎁") + "Пригласить друзей" + V((me.referral_program_enabled ? `+${rub(me.referral_reward_rub || 50)} ` : "") + CV), 'data-go="friends"'],
+          me.gifts_enabled ? [E("💝") + "Подарить другу" + V(CV), 'data-act="gfgive"'] : null,
           trustShown() ? [E("🤝") + "Обещанный платёж" + V((trust.open ? "открыт " : "") + CV), 'data-go="promise"'] : null,
           [E("⚙️") + "Настройки" + V(CV), 'data-go="settings"'],
         ]);
@@ -532,22 +533,28 @@
   const GRAM = (w) => `<svg width="${w}" height="${w}" viewBox="0 0 100 100"><path fill="#30A1F5" d="${GP}"/><path fill="#fff" d="${SPK}"/></svg>`;
   const AM_ICON = { ton: () => GRAM(42), stars: () => STARBIG(52), sbp: () => `<img src="/icons/sbp.svg" width="30" height="35" alt="">`, card: () => CARDBIG(40), crypto: () => "🪙" };
   const AM_TONE = { ton: "", stars: "gold", sbp: "green", card: "green", crypto: "" };
-  const amt = { v: "", d: "", mode: "rub", rolling: false };
+  const amt = { v: "", d: "", mode: "rub", rolling: false, gift: false };
+  // The same screen types a gift for a friend («Своя» in «Подарить»): its own limits, one device's day price, no payment method.
+  const amOk = (n) => (amt.gift ? gOk(n) : amountOk(n));
+  const amMin = () => (amt.gift ? gLim()[0] : Number(me.topup_min) || 1);
+  const amMax = () => (amt.gift ? gLim()[1] : Number(me.topup_max) || 100000);
   const amN = () => Number(amt.v) || 0;
   const amBig = () => (amt.mode === "rub" ? fmt(amN()) : fmt(Number(amt.d) || 0));
   // In days mode the keypad types days; the ruble amount follows as days × price of a day for all devices.
-  const amPerDay = () => dayPrice() * Math.max(1, phones().length);
-  const amDays = () => (amt.mode === "rub" ? daysFor(amN()) : Number(amt.d) || 0);
+  const amPerDay = () => (amt.gift ? dayPrice() : dayPrice() * Math.max(1, phones().length));
+  const amDays = () => (amt.mode === "rub" ? (amt.gift ? gDays(amN()) : daysFor(amN())) : Number(amt.d) || 0);
   const amRow = (m) => cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), `Баланс ${rub(me.balance_rub)}`) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
     payMethods().length > 1 ? 'data-go="method"' : ""]]);
   SCR.amount = {
     h() {
       const m = curMethod();
       const id = (m && m.id) || "ton";
-      return `<div class="am ${AM_TONE[id] || ""}" id="am">` +
-        (m ? amRow(m) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
+      const gift = amt.gift;
+      return `<div class="am ${gift ? "" : AM_TONE[id] || ""}" id="am">` +
+        (gift ? NOTE(`Подарок другу · от ${rub(gLim()[0])} до ${rub(gLim()[1])}`, true) : m ? amRow(m) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
         `<div class="am-stage zero" id="amStage"><svg width="0" height="0" style="position:absolute"><filter id="amGoo"><feGaussianBlur stdDeviation="3.5"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 22 -9"/></filter></svg><div class="am-glow"></div>` +
-          `<div class="am-w" id="amW"><button type="button" class="am-ico in" id="amIco" data-act="amtico" aria-label="Сменить способ оплаты"><span class="am-ic">${(AM_ICON[id] || AM_ICON.ton)()}</span></button>` +
+          (gift ? `<div class="am-gift"></div>` : "") +
+          `<div class="am-w" id="amW">${gift ? "" : `<button type="button" class="am-ico in" id="amIco" data-act="amtico" aria-label="Сменить способ оплаты"><span class="am-ic">${(AM_ICON[id] || AM_ICON.ton)()}</span></button>`}` +
           `<div class="am-num" id="amNum"><span>0</span></div><div class="am-caret"></div><div class="am-unit" id="amUnit">₽</div></div>` +
           `<button type="button" class="am-sub" id="amSub" data-act="amtsw"><span id="amSubT"></span><span class="sw">⇅</span></button>` +
           `<div class="am-hint">Наберите сумму</div></div>` +
@@ -559,6 +566,7 @@
     },
     on(el) {
       amt.rolling = false;
+      if (amt.gift) mountAmGift(el);
       amSetNum(el, amBig(), null);
       amSide(el);
       // The keypad slides up with a ring, like tapping the amount in Telegram.
@@ -622,19 +630,21 @@
     anim.forEach((n) => { n.style.transition = "translate .24s cubic-bezier(.25,.85,.3,1)"; n.style.translate = "0 0"; });
   }
   function amSide(el) {
-    const n = amN(), ok = amountOk(n), min = Number(me.topup_min) || 1, max = Number(me.topup_max) || 100000;
+    const n = amN(), ok = amOk(n), min = amMin(), max = amMax();
     el.querySelector("#amStage").classList.toggle("zero", !n);
     const sub = el.querySelector("#amSub");
     sub.classList.toggle("bad", Boolean(n) && !ok);
     el.querySelector("#amSubT").textContent = !n ? "" : n < min ? `Минимум ${rub(min)}` : n > max ? `Максимум ${rub(max)}`
-      : amt.mode === "rub" ? `≈ ${days(daysFor(n))} VPN` : rub(n);
+      : amt.mode === "rub" ? `≈ ${days(amDays())} VPN` : rub(n);
     const u = el.querySelector("#amUnit");
     u.textContent = amt.mode === "rub" ? "₽" : pl(amDays(), "день", "дня", "дней");
     u.classList.toggle("days", amt.mode !== "rub");
-    el.querySelector(".am-hint").textContent = amt.mode === "rub" ? "Наберите сумму" : "Наберите количество дней";
+    el.querySelector(".am-hint").textContent = amt.gift ? (amt.mode === "rub" ? "Сколько подарить?" : "Сколько дней подарить?")
+      : amt.mode === "rub" ? "Наберите сумму" : "Наберите количество дней";
     const p = el.querySelector("#amPay");
-    p.classList.toggle("off", !ok || !curMethod());
-    p.querySelector("span").textContent = !curMethod() ? "Оплата недоступна" : ok ? `Оплатить ${rub(n)}` : "Введите сумму";
+    const can = amt.gift || curMethod();
+    p.classList.toggle("off", !ok || !can);
+    p.querySelector("span").textContent = !can ? "Оплата недоступна" : ok ? `${amt.gift ? "Подарить" : "Оплатить"} ${rub(n)}` : "Введите сумму";
   }
   function amtShake() {
     const w = cur.el.querySelector("#amW");
@@ -653,7 +663,7 @@
     el.querySelector("#am").classList.add("open");
     amSetNum(el, amBig(), prev);
     amSide(el);
-    if (amN() > (Number(me.topup_max) || 100000)) amtShake();
+    if (amN() > amMax()) amtShake();
   }
   function amRoll() {
     const el = cur.el, num = el.querySelector("#amNum"), target = amBig(), t0 = performance.now();
@@ -675,7 +685,7 @@
     haptic();
     const r = b.getBoundingClientRect();
     amRing(r.left + r.width / 2, r.top + r.height / 2);
-    amt.v = String(Math.min(Number(me.topup_max) || 100000, amN() + Number(b.dataset.v)));
+    amt.v = String(Math.min(amMax(), amN() + Number(b.dataset.v)));
     amt.mode = "rub";
     cur.el.querySelector("#am").classList.add("open");
     amRoll();
@@ -686,7 +696,7 @@
     const r = b.getBoundingClientRect();
     amRing(r.left + r.width / 2, r.top + r.height / 2);
     amt.mode = amt.mode === "rub" ? "days" : "rub";
-    if (amt.mode === "days") { const d = daysFor(amN()); amt.d = d ? String(d) : ""; }
+    if (amt.mode === "days") { const d = amt.gift ? gDays(amN()) : daysFor(amN()); amt.d = d ? String(d) : ""; if (amt.gift) amt.v = d ? String(d * amPerDay()) : ""; }
     amRoll();
   }
   // Tapping the method icon flips to the next payment method: the old icon spins away, the new one springs in,
@@ -1086,7 +1096,14 @@
   // ---------- friends ----------
   SCR.friends = {
     live: true,
-    h() {
+    h(p) {
+      const seg = me.gifts_enabled ? `<div class="seg">${[["invite", "Пригласить"], ["give", "Подарить"]].map(([v, t]) =>
+        `<button type="button" data-act="gftab" data-v="${v}" class="${(p.tab || "invite") === v ? "on" : ""}">${t}</button>`).join("")}</div>` : "";
+      if (me.gifts_enabled && p.tab === "give") return seg + giveTab();
+      return seg + this.invite();
+    },
+    on(el, p) { if (p.tab === "give") { mountGift(el); if (!gs.data) loadGifts(); } },
+    invite() {
       const on = Boolean(me.referral_program_enabled);
       const reward = Number(me.referral_reward_rub) || 50;
       const terms = me.referral_terms && typeof me.referral_terms === "object" ? me.referral_terms : {};
@@ -1101,13 +1118,14 @@
       const list = friends.length ? cd(friends.map((f) => E(f.paid ? "✅" : "⏳") + TT(esc(f.name || "друг") + (f.username ? ` · @${esc(f.username)}` : ""), f.paid ? "есть оплата" : "ещё без оплаты"))) : "";
       return hero + how + stats + list + (terms.note ? NOTE(esc(terms.note)) : "");
     },
-    sig: () => JSON.stringify([me.invited_count, me.referral_earned, me.referrals, me.referral_program_enabled]),
+    sig: (p) => JSON.stringify([me.invited_count, me.referral_earned, me.referrals, me.referral_program_enabled, me.gifts_enabled, p && p.tab === "give" ? me.balance_rub : 0]),
   };
 
   // ---------- history ----------
   const BILL = { charge: "VPN", pause: "Пауза тарификации", disable: "Отключение", revive: "Включение", trial: "Подарок", admin_balance: "Баланс",
     admin_grant: "Начисление", trust: "Обещанный платёж", trust_collect: "Возврат обещанного", device_delete: "Удаление устройства", referral: "Бонус за друга",
-    referral_payout: "Реферальная награда", referral_revoke: "Возврат за друга", story: "Награда за историю", topup: "Пополнение", router: "Роутер", promo: "Промокод" };
+    referral_payout: "Реферальная награда", referral_revoke: "Возврат за друга", story: "Награда за историю", topup: "Пополнение", router: "Роутер", promo: "Промокод",
+    gift_sent: "Подарок другу", gift_received: "Подарок от друга", gift_return: "Подарок вернулся" };
   SCR.history = {
     h(p) {
       const data = p.data;
@@ -1658,13 +1676,20 @@
       cur.el.querySelector("#amtI").hidden = true;
       paintAmount(cur.el, old);
     },
-    amtc() { haptic(); amt.v = pay.custom && amountOk(pay.amount) ? String(pay.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount"); },
+    amtc() { haptic(); amt.gift = false; amt.v = pay.custom && amountOk(pay.amount) ? String(pay.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount"); },
     amtk(b) { amtPress(b.dataset.v); },
     amtq(b) { amtQuick(b); },
     amtsw(b) { amSwap(b); },
     amtico() { amCycle(); },
     amtpay(b) {
       const n = Number(amt.v) || 0;
+      if (amt.gift) {
+        if (!gOk(n)) return amtShake();
+        haptic();
+        gs.amount = n; gs.custom = true;
+        back();
+        return;
+      }
       if (!amountOk(n)) return amtShake();
       pay.amount = n; pay.custom = true;
       startPay(b);
@@ -1917,6 +1942,404 @@
     },
   };
 
+  // =====================================================================
+  // «Подарить другу»: the giver's tab in «Пригласить друзей», the friend's gift screen
+  // =====================================================================
+  // The gift is Wallet's own animation (icons/wallet_gift*.json, see icons/PAYMENT-ASSETS.md), split into box and lid
+  // so the lid can fly off. Particles, the beam and coins are ours.
+  const gs = { amount: 0, custom: false, data: null, busy: false };
+  const gLim = () => [Math.max(1, Number(me.gift_min) || 60), Math.max(1, Number(me.gift_max) || 20000)];
+  const gOk = (n) => { const [lo, hi] = gLim(); return Number.isFinite(n) && n >= lo && n <= hi; };
+  const gDays = (n) => Math.floor((Number(n) || 0) / dayPrice());
+  const gPresets = () => [30, 90, 360].map((d) => d * dayPrice()).filter(gOk);
+  const gDaysLine = (n) => `≈ ${days(gDays(n))} VPN`;
+  const HEART = '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z" fill="#fff"/></svg>';
+  const GIFT_IC = '<svg width="22" height="22" viewBox="0 0 24 24" fill="#c4c9d3"><path d="M4 11h7v10H6a2 2 0 0 1-2-2zm9 0h7v8a2 2 0 0 1-2 2h-5zM3 7h8v3H3zm10 0h8v3h-8z"/><path d="M12 7C9 2 5 4 7 7m5 0c3-5 7-3 5 0" stroke="#c4c9d3" stroke-width="1.6" fill="none"/></svg>';
+  const GSTAR = (s, c) => `<svg width="${s}" height="${s}" viewBox="0 0 20 20"><path d="M10 0c.9 5.6 4.4 9.1 10 10-5.6.9-9.1 4.4-10 10-.9-5.6-4.4-9.1-10-10C5.6 9.1 9.1 5.6 10 0z" fill="${c || "#fff"}"/></svg>`;
+  const gScene = () => `<div class="gf-ill" data-act="gfbox"><div class="gf-box"><div class="gf-rays"></div><div class="gf-glow"></div><div class="gf-lot gf-body"></div><div class="gf-beam"><i class="wide"></i>${
+    [[10, 210, -22, 1.9, 0], [6, 190, -13, 1.5, .4], [14, 220, -5, 2.2, .9], [8, 215, 3, 1.7, .2], [12, 205, 11, 2, .7], [6, 185, 19, 1.6, 1.1], [9, 200, 26, 2.3, .5]]
+      .map(([w, h, r, d, dl]) => `<i class="sh" style="--w:${w}px;--h:${h}px;--r:${r}deg;--d:${d}s;--dl:${dl}s"></i>`).join("")
+  }<i class="core"></i><i class="pool"></i></div><div class="gf-lot gf-lid"></div><div class="gf-flash"></div></div></div>`;
+  const reduced = () => window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Box and lid are two players started on the same frame, so they move as one gift until the lid flies off.
+  function mountGift(el) {
+    const ill = el && el.querySelector(".gf-ill:not([data-on])");
+    if (!ill) return;
+    ill.setAttribute("data-on", "");
+    lottieLib().then((L) => {
+      if (!ill.isConnected) return;
+      const mk = (c, f) => L.loadAnimation({ container: ill.querySelector(c), renderer: "svg", loop: true, autoplay: false, path: `/icons/${f}`,
+        rendererSettings: { preserveAspectRatio: "xMidYMid meet" } });
+      const A = [mk(".gf-body", "wallet_gift_body.json"), mk(".gf-lid", "wallet_gift_lid.json")];
+      let ready = 0;
+      A.forEach((a) => a.addEventListener("DOMLoaded", () => { if (++ready === 2) A.forEach((b) => (reduced() ? b.goToAndStop(40, true) : b.goToAndPlay(0, true))); }));
+      ill._players = A;
+    }).catch(() => { ill.querySelector(".gf-body").innerHTML = '<div style="font-size:96px;line-height:159px">🎁</div>'; });
+  }
+  function mountAmGift(el) {
+    const box = el && el.querySelector(".am-gift:not([data-on])");
+    if (!box) return;
+    box.setAttribute("data-on", "");
+    lottieLib().then((L) => { if (box.isConnected) L.loadAnimation({ container: box, renderer: "svg", loop: !reduced(), autoplay: !reduced(), path: "/icons/wallet_gift.json" }); })
+      .catch(() => { box.textContent = "🎁"; });
+  }
+
+  // ---------- the giver ----------
+  function giveTab() {
+    const presets = gPresets(), [lo] = gLim();
+    if (!gOk(gs.amount)) { gs.amount = presets[0] || lo; gs.custom = false; }
+    const own = gs.custom && !presets.includes(gs.amount);
+    const chips = presets.map((v) => `<button type="button" data-act="gfamt" data-v="${v}" class="${!own && v === gs.amount ? "on" : ""}">${rub(v)}</button>`).join("") +
+      `<button type="button" data-act="gfown" class="${own ? "on" : ""}">${own ? rub(gs.amount) + " ✎" : "Своя"}</button>`;
+    const hero = `<section class="hc indigo gf"><div class="ov"></div>${gScene()}<div class="K">Подарок другу</div><div class="N gf-amt">${rub(gs.amount)}</div>` +
+      `<div class="P gf-days">${gDaysLine(gs.amount)}</div><div class="chp">${chips}</div>` +
+      `<div class="acts"><button type="button" class="pill" data-act="gfsend">${IC.share}<span>Подарить</span></button>` +
+      `<button type="button" class="rnd" aria-label="Скопировать ссылку" data-act="gfcopy">${IC.copy}</button></div></section>`;
+    const how = ST("Как это работает") + tl([["1", "Выберите сумму", `Спишем с баланса — <b>${rub(gs.amount)}</b>`],
+      ["2", "Отправьте подарок другу", "Карточка с кнопкой придёт от вас"], [GIFT_IC, "Друг открывает подарок", "Деньги сразу на его балансе"]]);
+    const d = gs.data;
+    const sent = d && Array.isArray(d.sent) ? d.sent : [];
+    const ST_TXT = { active: "ждёт друга", claimed: "открыт", returned: "вернулся к вам" };
+    const list = sent.length ? ST("Ваши подарки") + cd(sent.map((g) => {
+      const when = parseDate(g.claimed_at || g.created_at);
+      const sub = [g.status === "claimed" && g.friend_name ? esc(g.friend_name) : ST_TXT[g.status] || "", when ? dayLabel(when) : ""].filter(Boolean).join(" · ");
+      return [E(g.status === "claimed" ? "✅" : g.status === "returned" ? "↩️" : "🎁") + TT(rub(g.amount_rub), sub) + (g.status === "active" ? V(CV) : ""),
+        g.status === "active" ? `data-act="gfitem" data-code="${esc(g.code)}"` : ""];
+    }).map((r) => (r[1] ? r : r[0]))) : "";
+    const can = d ? Number(d.giftable_rub) || 0 : null;
+    const note = can == null ? "" : NOTE(can >= gs.amount ? `Баланс ${rub(me.balance_rub)} · подарить можно до ${rub(can)}`
+      : can > 0 ? `Подарить можно до ${rub(can)} — это деньги, которые вы внесли сами` : "Подарить можно только свои деньги — сначала пополните баланс", true);
+    const faq = ST("Частые вопросы") + cd([
+      ["Что получит друг?", `Сумму на баланс: ${rub(gs.amount)} — это ${gDaysLine(gs.amount)} на одном устройстве. Карта не нужна.`],
+      ["А если друг не откроет?", "Пока подарок не открыт, его можно вернуть себе на баланс: нажмите на него в списке «Ваши подарки»."],
+      ["Какие деньги можно подарить?", "Только те, что вы внесли сами. Бонусы, пробный период и промокоды подарить нельзя."],
+    ].map(([q, a]) => `<button type="button" class="rw q" data-act="gfq"><span class="qh"><b>${q}</b><span class="cv" style="margin-left:auto">›</span></span><span class="ans">${a}</span></button>`));
+    return hero + note + how + list + faq;
+  }
+  function gPaint(el, old) {
+    const n = el.querySelector(".gf-amt");
+    if (n && Number.isFinite(old) && old !== gs.amount) countTo(n, old, gs.amount, " ₽"); else if (n) n.textContent = rub(gs.amount);
+    const p = el.querySelector(".gf-days");
+    if (p) p.textContent = gDaysLine(gs.amount);
+  }
+  async function loadGifts() {
+    try { gs.data = await api("/api/gifts"); } catch (_e) { gs.data = null; }
+    if (cur && cur.key === "friends" && cur.params.tab === "give") rerender(true);
+  }
+  async function shareGift(res, copyOnly) {
+    const text = res.share_text || "Подарок на VPN";
+    if (copyOnly) { copy(`${text}\n\n${res.url}`, "Ссылка на подарок скопирована"); return; }
+    if (res.prepared_id && typeof tg.shareMessage === "function" && (typeof tg.isVersionAtLeast !== "function" || tg.isVersionAtLeast("8.0"))) {
+      call(() => tg.shareMessage(res.prepared_id, () => {}));
+      return;
+    }
+    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(res.url)}&text=${encodeURIComponent(text)}`);
+  }
+  async function sendGift(copyOnly) {
+    if (gs.busy) return;
+    const n = gs.amount;
+    if (!gOk(n)) return;
+    haptic();
+    if (!gs.data) await loadGifts();
+    const can = gs.data ? Number(gs.data.giftable_rub) || 0 : 0;
+    if (n > can) {
+      const need = n - can, min = Number(me.topup_min) || 1;
+      if (await confirmAsk(can > 0 ? `Подарить можно до ${rub(can)}. Пополнить баланс на ${rub(Math.max(min, need))}?` : `Подарить можно только свои деньги. Пополнить баланс на ${rub(Math.max(min, need))}?`)) {
+        pay.amount = Math.max(min, need); pay.custom = true; go("topup");
+      }
+      return;
+    }
+    const left = (Number(me.balance_rub) || 0) - n, perDay = dayPrice() * Math.max(1, phones().length);
+    const warn = phones().length && left < perDay ? `\n\nНа балансе останется ${rub(left)} — VPN может встать на паузу.` : "";
+    if (!(await confirmAsk(`Подарить ${rub(n)} с баланса?\n\nДруг получит ссылку. Пока он её не откроет, подарок можно вернуть.${warn}`))) return;
+    gs.busy = true;
+    try {
+      const res = await post("/api/gifts", { amount: n });
+      me.balance_rub = res.balance_rub;
+      notify("success");
+      shareGift(res, copyOnly);
+      loadGifts();
+      load(true).catch(() => {});
+    } catch (e) { showErr(e); }
+    gs.busy = false;
+  }
+  async function giftItem(code) {
+    const g = ((gs.data && gs.data.sent) || []).find((x) => x.code === code);
+    if (!g) return;
+    haptic();
+    const pick = (id) => {
+      if (id === "send") post(`/api/gifts/${encodeURIComponent(code)}/share`).then((r) => shareGift(r)).catch(showErr);
+      else if (id === "copy") post(`/api/gifts/${encodeURIComponent(code)}/share`).then((r) => shareGift(r, true)).catch(showErr);
+      else if (id === "back") returnGift(g);
+    };
+    if (typeof tg.showPopup === "function" && inTelegram()) {
+      call(() => tg.showPopup({ title: `Подарок ${rub(g.amount_rub)}`, message: "Друг ещё не открыл его.",
+        buttons: [{ id: "send", type: "default", text: "Отправить ещё раз" }, { id: "back", type: "destructive", text: "Вернуть на баланс" }, { id: "x", type: "cancel" }] }, pick));
+    } else if (await confirmAsk(`Подарок ${rub(g.amount_rub)} ещё не открыли. Вернуть его на баланс?`)) returnGift(g, true);
+    else pick("copy");
+  }
+  async function returnGift(g, asked) {
+    if (!asked && !(await confirmAsk(`Вернуть ${rub(g.amount_rub)} на баланс? Ссылка у друга перестанет работать.`))) return;
+    try {
+      const r = await post(`/api/gifts/${encodeURIComponent(g.code)}/return`);
+      me.balance_rub = r.balance_rub;
+      notify("success");
+      toast(`${rub(r.amount_rub)} снова на балансе`);
+      loadGifts();
+      load(true).catch(() => {});
+    } catch (e) { showErr(e); }
+  }
+
+  // ---------- the friend ----------
+  SCR.present = {
+    h(p) {
+      const g = p.gift;
+      if (!g) {
+        return p.error ? hc("indigo", { ill: "🎁", h: "Подарок", p: esc(p.error), pill: "На главную", pa: 'data-act="gfhome"' })
+          : hc("indigo", { cls: "shim", ill: "🎁", h: "Подарок", p: "Открываю…" }) + `<div class="cd" style="height:150px"></div>`;
+      }
+      const name = esc(g.from_name || "друга");
+      let txt, acts;
+      if (g.mine) {
+        txt = `<div class="H">Это ваш подарок</div><div class="P">${rub(g.amount_rub)} ждут друга — отправьте ему ссылку</div>`;
+        acts = `<button type="button" class="pill" data-act="gfresend">${IC.share}<span>Отправить другу</span></button>`;
+      } else if (g.claimed_by_me || p.opened) {
+        txt = `<div class="N gf-amt">${rub(g.amount_rub)}</div><div class="P gf-days">${gDaysLine(g.amount_rub)} · уже на балансе</div>`;
+        acts = `<button type="button" class="pill" data-act="gfvpn"><span>${phones().length ? "Открыть VPN" : "Подключить VPN"}</span></button>` +
+          (g.thanked ? "" : `<button type="button" class="rnd" aria-label="Сказать спасибо" data-act="gfthanks">${HEART}</button>`);
+      } else if (g.status === "active") {
+        txt = `<div class="K">${name} дарит вам</div><div class="H">Подарок на VPN</div>`;
+        acts = `<button type="button" class="pill" data-act="gfopen"><span>Открыть подарок</span></button>`;
+      } else {
+        txt = `<div class="H">${g.status === "claimed" ? "Подарок уже открыли" : "Подарок отменён"}</div><div class="P">${g.status === "claimed" ? "Каждый подарок открывается один раз" : "Подарок вернулся к тому, кто его отправил"}</div>`;
+        acts = `<button type="button" class="pill" data-act="gfhome"><span>На главную</span></button>`;
+      }
+      const hero = `<section class="hc indigo gf${g.claimed_by_me || p.opened ? " opened" : ""}"><div class="ov"></div>${gScene()}<div class="gf-txt">${txt}</div><div class="acts">${acts}</div></section>`;
+      if (g.mine || (g.status !== "active" && !g.claimed_by_me)) return hero;
+      return hero + ST("Как это работает") + tl([["1", "Откройте подарок", "Он ничего вам не стоит — подарок уже оплачен"],
+        ["2", "Подключите VPN в один тап", "Кабинет подскажет, что установить"],
+        [GIFT_IC, `Пользуйтесь ${days(gDays(g.amount_rub))}`, `<b>${rub(g.amount_rub)}</b> лягут на ваш баланс`]]);
+    },
+    on(el, p) {
+      mountGift(el);
+      if (!p.gift && !p.error) loadPresent(p.code);
+      if (p.gift && (p.gift.claimed_by_me || p.opened)) gOpenedStill(el);
+    },
+  };
+  async function loadPresent(code) {
+    let gift = null, error = "";
+    const c = encodeURIComponent(code || "");
+    try { gift = await api(`/api/gifts/${c}`); } catch (e) { error = e.message || "Подарок не найден"; }
+    if (cur && cur.key === "present" && cur.params.code === code) { cur.params.gift = gift; cur.params.error = error; rerender(false); }
+  }
+  // An already opened gift: the lid is gone and the light keeps shining, without the show.
+  function gOpenedStill(el) {
+    const h = el.querySelector(".hc.gf");
+    if (!h) return;
+    const q = (c) => h.querySelector(c);
+    q(".gf-lid").style.opacity = 0;
+    q(".gf-beam").style.opacity = 1; q(".gf-beam").classList.add("breathe");
+    q(".gf-rays").style.opacity = .5; q(".gf-glow").style.opacity = .75;
+    if (!reduced()) gMotes(q(".gf-beam"));
+  }
+
+  // ---------- the opening ----------
+  const gSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const EZ = { out: "cubic-bezier(.16,1,.3,1)" };
+  function gPart(h, html, cls) { const e = document.createElement(cls === "i" ? "i" : "span"); e.className = "gf-p"; e.innerHTML = html || ""; h.appendChild(e); return e; }
+  function gBurst(h, x0, y0) {
+    for (let i = 0; i < 18; i++) {
+      const s = 8 + Math.random() * 12, el = gPart(h, GSTAR(s, ["#fff", "#cbd7ff", "#ffd08a", "#9fb4ff"][i % 4]));
+      const a = -Math.PI / 2 + (Math.random() - .5) * 2.8, d = 60 + Math.random() * 90, x1 = x0 + Math.cos(a) * d, y1 = y0 + Math.sin(a) * d * .8;
+      el.animate([{ transform: `translate(${x0}px,${y0}px) scale(.2)`, opacity: 1 }, { transform: `translate(${x1}px,${y1}px) scale(1) rotate(90deg)`, opacity: 1, offset: .6 },
+        { transform: `translate(${x1}px,${y1 + 30}px) scale(.4) rotate(140deg)`, opacity: 0 }], { duration: 1100 + Math.random() * 500, easing: "cubic-bezier(.2,.7,.3,1)", fill: "forwards" }).onfinish = () => el.remove();
+    }
+  }
+  function gConfetti(h, x0, y0) {
+    const cols = ["#ffb067", "#ffd9a8", "#ffffff", "#8fa4ff", "#e2733a"];
+    for (let i = 0; i < 26; i++) {
+      const el = gPart(h, "", "i"), w = 5 + Math.random() * 4;
+      el.style.cssText = `width:${w}px;height:${w * 1.8}px;border-radius:2px;background:${cols[i % cols.length]}`;
+      const a = -Math.PI / 2 + (Math.random() - .5) * 2.2, v = 120 + Math.random() * 120, x1 = x0 + Math.cos(a) * v * .9, y1 = y0 + Math.sin(a) * v;
+      el.animate([{ transform: `translate(${x0}px,${y0}px) rotate(0)`, opacity: 1 }, { transform: `translate(${x1}px,${y1}px) rotate(${(Math.random() - .5) * 500}deg)`, opacity: 1, offset: .45 },
+        { transform: `translate(${x1 + (Math.random() - .5) * 60}px,${y1 + 260}px) rotate(${(Math.random() - .5) * 1100}deg)`, opacity: 0 }],
+        { duration: 1500 + Math.random() * 700, easing: "cubic-bezier(.2,.6,.4,1)", fill: "forwards" }).onfinish = () => el.remove();
+    }
+  }
+  function gMotes(beam) {
+    const tick = () => {
+      if (!beam.isConnected) return;
+      const m = document.createElement("i"); m.className = "mote"; beam.appendChild(m);
+      const x0 = (Math.random() - .5) * 40, x1 = x0 * 2.6 + (Math.random() - .5) * 30, s = .5 + Math.random() * .9;
+      m.animate([{ transform: `translate(${x0}px,0) scale(${s})`, opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: .8, offset: .7 },
+        { transform: `translate(${x1}px,-${150 + Math.random() * 60}px) scale(${s * .6})`, opacity: 0 }], { duration: 1600 + Math.random() * 1400, easing: "cubic-bezier(.3,.5,.5,1)" }).onfinish = () => m.remove();
+      setTimeout(tick, 90 + Math.random() * 120);
+    };
+    tick();
+  }
+  function gWave(h, x, y, delay = 0, size = 9) {
+    const w = document.createElement("i"); w.className = "gf-wave"; h.appendChild(w);
+    w.animate([{ transform: `translate(${x}px,${y}px) scale(.2)`, opacity: 1 }, { transform: `translate(${x}px,${y}px) scale(${size})`, opacity: 0 }],
+      { duration: 750, delay, easing: "cubic-bezier(.1,.7,.3,1)", fill: "both" }).onfinish = () => w.remove();
+  }
+  function gSpark(h, x, y, n = 5, big = 12) {
+    for (let i = 0; i < n; i++) {
+      const sz = 6 + Math.random() * big, el = gPart(h, GSTAR(sz, i % 2 ? "#fff" : "#ffe08a"));
+      const a = Math.random() * Math.PI * 2, d = 14 + Math.random() * 26;
+      el.animate([{ transform: `translate(${x - sz / 2}px,${y - sz / 2}px) scale(.2) rotate(0)`, opacity: 1 },
+        { transform: `translate(${x - sz / 2 + Math.cos(a) * d}px,${y - sz / 2 + Math.sin(a) * d}px) scale(1) rotate(90deg)`, opacity: 0 }],
+        { duration: 420 + Math.random() * 200, easing: "cubic-bezier(.2,.7,.3,1)", fill: "forwards" }).onfinish = () => el.remove();
+    }
+  }
+  function gShake(el) {
+    el.animate([0, 1, 2, 3, 4, 5, 6].map((i) => ({ transform: i === 6 ? "none" : `translate(${(Math.random() - .5) * 10 * (1 - i / 6)}px,${(Math.random() - .5) * 8 * (1 - i / 6)}px)` })),
+      { duration: 340, easing: "linear" });
+  }
+  const COIN = `<svg viewBox="0 0 40 40" width="100%" height="100%"><defs><radialGradient id="gfcg" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#fff3b8"/><stop offset=".45" stop-color="#ffc94a"/><stop offset="1" stop-color="#d98a12"/></radialGradient></defs>` +
+    `<circle cx="20" cy="20" r="18.5" fill="url(#gfcg)" stroke="#a8620e" stroke-width="2"/><circle cx="20" cy="20" r="13.5" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.4"/>` +
+    `<text x="20" y="26.5" text-anchor="middle" font-size="17" font-weight="800" fill="#b06a10" font-family="-apple-system,system-ui">₽</text><path d="M9 14c2-4 6-6 10-6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".8"/></svg>`;
+  // Coins shoot out of the box, flip in the air and land in the amount, which counts up on every hit.
+  function gCoins(h, ox, oy, getT, total, n = 12) {
+    const hr = h.getBoundingClientRect();
+    let got = 0;
+    for (let i = 0; i < n; i++) {
+      const el = document.createElement("span"); el.className = "gf-coin"; el.innerHTML = `<b>${COIN}</b>`; h.appendChild(el);
+      const sz = 26 + Math.random() * 12; el.style.width = el.style.height = sz + "px"; el.firstChild.style.animationDuration = (.35 + Math.random() * .3) + "s";
+      const side = i % 2 ? 1 : -1, ax = ox + side * (40 + Math.random() * 110), ay = Math.max(24, oy - 20 - Math.random() * 60), delay = i * 28 + Math.random() * 25;
+      el.animate([{ transform: `translate(${ox - sz / 2}px,${oy - sz / 2}px) scale(.3)`, opacity: 0 }, { opacity: 1, offset: .15 }, { transform: `translate(${ax - sz / 2}px,${ay - sz / 2}px) scale(1)`, opacity: 1 }],
+        { duration: 420, delay, easing: "cubic-bezier(.2,.8,.35,1)", fill: "forwards" }).finished.then(() => {
+        const target = getT();
+        if (!target) { el.remove(); return; }
+        const num = target.querySelector("[data-c]"), tr = target.getBoundingClientRect(), tx = tr.left - hr.left + tr.width / 2 + (Math.random() - .5) * 40, ty = tr.top - hr.top + tr.height / 2;
+        el.animate([{ transform: `translate(${ax - sz / 2}px,${ay - sz / 2}px) scale(1)` }, { transform: `translate(${(ax * 2 + tx) / 3 - sz / 2}px,${ay - 12 - sz / 2}px) scale(.95)`, offset: .3 },
+          { transform: `translate(${tx - sz / 2}px,${ty - sz / 2}px) scale(.45)`, opacity: .9 }], { duration: 360 + Math.random() * 100, easing: "cubic-bezier(.5,0,.75,.4)", fill: "forwards" })
+          .finished.then(() => {
+            el.remove(); got++;
+            if (num) num.textContent = fmt(Math.round(total * got / n));
+            haptic("light");
+            target.animate([{ transform: "scale(1)" }, { transform: "scale(1.09)" }, { transform: "scale(1)" }], { duration: 180, easing: "ease-out" });
+            gSpark(h, tx, ty, 3, 8);
+            if (got === n) {
+              target.classList.add("gold");
+              const r2 = target.getBoundingClientRect(), cx = r2.left - hr.left + r2.width / 2, cy = r2.top - hr.top + r2.height / 2;
+              gSpark(h, cx, cy, 10, 16); gWave(h, cx, cy, 0, 4);
+              notify("success");
+            }
+          });
+      });
+    }
+  }
+  async function openPresent() {
+    const p = cur && cur.key === "present" ? cur.params : null, g = p && p.gift;
+    const el = cur && cur.el, h = el && el.querySelector(".hc.gf");
+    if (!g || !h || h.classList.contains("opened") || g.status !== "active" || g.mine) return;
+    h.classList.add("opened");
+    haptic("medium");
+    const q = (c) => h.querySelector(c), box = q(".gf-box"), lid = q(".gf-lid"), body = q(".gf-body"), pill = q(".acts .pill");
+    if (pill) pill.classList.add("dim");
+    const claim = post(`/api/gifts/${encodeURIComponent(g.code)}/claim`).then((r) => ({ r }), (e) => ({ e }));
+    // 1 · it fights back: squash, then a shake that grows, light leaking out
+    q(".gf-glow").animate([{ opacity: 0, transform: "scale(.5)" }, { opacity: .55, transform: "scale(.8)" }], { duration: 520, easing: "ease-in", fill: "forwards" });
+    await box.animate([{ transform: "none" }, { transform: "scale(1.06,.92) translateY(4px)", offset: .22 }, { transform: "rotate(-2deg) scale(1.02,.97)", offset: .4 },
+      { transform: "rotate(3deg)", offset: .55 }, { transform: "rotate(-4deg)", offset: .7 }, { transform: "rotate(5deg) scale(.98,1.04)", offset: .85 }, { transform: "scale(1.1,.86) translateY(6px)" }],
+      { duration: 560, easing: "ease-in-out" }).finished;
+    const res = await claim;
+    if (res.e) {
+      // The gift stays shut: back to the closed box with the error.
+      h.classList.remove("opened");
+      if (pill) pill.classList.remove("dim");
+      q(".gf-glow").getAnimations().forEach((a) => a.cancel());
+      showErr(res.e);
+      loadPresent(g.code);
+      return;
+    }
+    const ill = q(".gf-ill");
+    if (ill && ill._players) ill._players.forEach((a) => a.pause());
+    haptic("heavy");
+    // 2 · the lid with the bow is blown off
+    lid.animate([{ transform: "none" }, { transform: "translateY(-46px) rotate(-10deg) scale(1.04)", offset: .28 }, { transform: "translate(120px,-150px) rotate(42deg) scale(.8)", opacity: .9, offset: .8 },
+      { transform: "translate(150px,-190px) rotate(60deg) scale(.7)", opacity: 0 }], { duration: 900, easing: "cubic-bezier(.25,.8,.35,1)", fill: "forwards" });
+    body.animate([{ transform: "scale(1.1,.86)" }, { transform: "scale(.94,1.08)", offset: .35 }, { transform: "scale(1.03,.97)", offset: .65 }, { transform: "none" }], { duration: 620, easing: "ease-out" });
+    q(".gf-flash").animate([{ opacity: 0, transform: "scale(.3)" }, { opacity: 1, transform: "scale(1)", offset: .25 }, { opacity: 0, transform: "scale(1.6)" }], { duration: 520, easing: "ease-out" });
+    const beam = q(".gf-beam");
+    beam.animate([{ opacity: 0, transform: "scale(.08,.15)" }, { opacity: 1, transform: "scale(.35,1.12)", offset: .3 }, { opacity: 1, transform: "scale(1.12,1.04)", offset: .65 }, { opacity: .95, transform: "scale(1)" }],
+      { duration: 900, easing: EZ.out }).finished.then(() => { beam.style.opacity = 1; beam.classList.add("breathe"); });
+    gMotes(beam);
+    q(".gf-rays").animate([{ opacity: 0, scale: .4 }, { opacity: .5, scale: 1 }], { duration: 1100, easing: EZ.out, fill: "forwards" });
+    q(".gf-glow").animate([{ opacity: .55, transform: "scale(.8)" }, { opacity: 1, transform: "scale(1.15)" }, { opacity: .75, transform: "scale(1)" }], { duration: 900, easing: EZ.out, fill: "forwards" });
+    const r = box.getBoundingClientRect(), hr = h.getBoundingClientRect(), ox = r.left - hr.left + 158, oy = r.top - hr.top + 52;
+    gShake(h); gWave(h, ox, oy); gWave(h, ox, oy, 120, 6);
+    h.insertAdjacentHTML("afterbegin", '<div class="gf-warm"></div>');
+    q(".gf-warm").animate([{ opacity: 0 }, { opacity: 1, offset: .15 }, { opacity: .35 }], { duration: 1400, easing: "ease-out", fill: "forwards" });
+    const t0 = performance.now();
+    const trail = () => {
+      const k = (performance.now() - t0) / 620;
+      if (k > 1 || !h.isConnected) return;
+      gSpark(h, ox + (k < .3 ? 0 : (k - .3) / .7 * 125), oy + 6 - (k < .3 ? k / .3 * 46 : 46 + (k - .3) / .7 * 110), 2, 9);
+      setTimeout(trail, 45);
+    };
+    trail();
+    gBurst(h, ox - 8, oy - 8); gConfetti(h, ox, oy);
+    const amount = Number(res.r.amount_rub) || g.amount_rub;
+    gCoins(h, ox, oy, () => h.querySelector(".gf-amt"), amount);
+    // 3 · the amount takes the title's place and counts up
+    await gSleep(200);
+    p.opened = true; g.claimed_by_me = true; g.status = "claimed";
+    if (res.r.balance_rub != null) { me.balance_rub = res.r.balance_rub; store.set("seen_bal", Number(me.balance_rub) || 0); }
+    const txt = q(".gf-txt");
+    txt.innerHTML = `<div class="N gf-amt"><span data-c>0</span> ₽</div><div class="P gf-days">${gDaysLine(amount)} · уже на балансе</div>`;
+    txt.classList.add("gf-swap");
+    q(".acts").outerHTML = `<div class="acts gf-swap"><button type="button" class="pill" data-act="gfvpn"><span>${phones().length ? "Открыть VPN" : "Подключить VPN"}</span></button>` +
+      `<button type="button" class="rnd" aria-label="Сказать спасибо" data-act="gfthanks">${HEART}</button></div>`;
+    load(true).catch(() => {});
+  }
+
+  Object.assign(ACT, {
+    gftab(b) {
+      haptic();
+      const tab = b.dataset.v;
+      if (!cur || cur.key !== "friends" || cur.params.tab === tab) return;
+      cur.params.tab = tab;
+      rerender(false);
+      if (tab === "give") loadGifts();
+    },
+    gfamt(b) {
+      haptic();
+      const old = gs.amount;
+      gs.amount = Number(b.dataset.v); gs.custom = false;
+      cur.el.querySelectorAll(".hc.gf .chp button").forEach((c) => c.classList.toggle("on", c === b));
+      const own = cur.el.querySelector('.hc.gf [data-act="gfown"]');
+      if (own) own.textContent = "Своя";
+      gPaint(cur.el, old);
+      const sx = cur.el.querySelector(".tl .sx b");
+      if (sx) sx.textContent = rub(gs.amount);
+    },
+    gfown() { haptic(); amt.gift = true; amt.v = gs.custom ? String(gs.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount", { gift: true }); },
+    gfsend: () => sendGift(false),
+    gfcopy: () => sendGift(true),
+    gfitem: (b) => giftItem(b.dataset.code),
+    gfq(b) { haptic(); b.classList.toggle("open"); },
+    gfgive() { haptic(); go("friends", { tab: "give" }); },
+    gfbox() { if (cur && cur.key === "present") openPresent(); else if (cur) { const i = cur.el.querySelector(".gf-box"); if (i) { haptic(); gShake(i); } } },
+    gfopen: () => openPresent(),
+    gfresend() { const g = cur.params.gift; if (g) post(`/api/gifts/${encodeURIComponent(g.code)}/share`).then((r) => shareGift(r)).catch(showErr); },
+    async gfthanks(b) {
+      const g = cur.params.gift;
+      if (!g) return;
+      haptic("medium");
+      b.classList.add("dim");
+      try {
+        await post(`/api/gifts/${encodeURIComponent(g.code)}/thanks`);
+        g.thanked = true;
+        notify("success");
+        toast(`${g.from_name || "Друг"} получит ваше спасибо ❤️`);
+        b.animate([{ transform: "scale(1)" }, { transform: "scale(1.3)" }, { transform: "scale(0)", opacity: 0 }], { duration: 420, easing: "ease-in", fill: "forwards" }).onfinish = () => b.remove();
+      } catch (e) { b.classList.remove("dim"); showErr(e); }
+    },
+    gfvpn() { haptic(); stack = []; go("home", {}, "x"); if (phones().length) resume(); else startWizard(); },
+    gfhome() { home(); },
+  });
+
   let loginSeq = 0;
   // Waits for «Да, это я». Returns "approved" (already logged in), "declined", "expired" or "stopped".
   async function pollLogin(seq, id) {
@@ -2021,6 +2444,8 @@
     go("home", {}, "x");
     if (entry === "support") { openSupport(); return; }
     if (entry === "topup") { go("topup"); return; }
+    if (entry === "present") { const code = new URLSearchParams(location.search).get("code"); if (code) { go("present", { code }); return; } }
+    if (entry === "giftsend" && me.gifts_enabled) { go("friends", { tab: "give" }); return; }
     if (entry === "browser") { openBrowserSheet(); return; }
     if (entry === "promise") { const t = me.trust || {}; go(t.open || t.available ? "promise" : "topup"); return; }
     if (entry === "gift" && me.trial_available) { go("gift"); return; }

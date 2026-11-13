@@ -494,3 +494,54 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 @keyframes bsFade { from { opacity: 0; } }
 @keyframes bsFadeOut { to { opacity: 0; } }
 @keyframes bsUp { from { transform: translateY(40px); opacity: 0; } }
+
+/* ---------- «Подарить другу»: tabs, the Wallet gift, opening ---------- */
+.seg { display: flex; gap: 4px; margin: 0 12px 12px; padding: 4px; border-radius: 99px; background: var(--card); animation: up .4s var(--ease) both; }
+.seg button { flex: 1; height: 36px; border-radius: 99px; font-weight: 600; font-size: 15px; color: var(--hint); transition: background .25s, color .25s; }
+.seg button.on { background: #2c2f37; color: #fff; }
+.hc.gf .K { opacity: .7; }
+.hc.gf .N.gf-amt { font-size: 46px; margin-top: 2px; display: inline-block; }
+.hc.gf .P.gf-days { margin-top: 4px; font-size: 15px; opacity: .75; }
+.hc.gf .chp button { padding: 0 11px; font-size: 14px; }
+.hc.gf .gf-txt .H { margin-bottom: 2px; }
+.gf-ill { position: relative; height: 159px; margin: 16px -22px 14px; cursor: pointer; }
+.gf-box { position: absolute; left: 50%; top: 0; width: 315px; height: 159px; margin-left: -157.5px; }
+.gf-lot { position: absolute; inset: 0; }
+.gf-lid { transform-origin: 157px 60px; }
+.gf-body { transform-origin: 158px 140px; }
+.gf-glow { position: absolute; left: 158px; top: 56px; width: 240px; height: 240px; margin: -120px 0 0 -120px; border-radius: 50%; opacity: 0; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 226, 170, .85), rgba(255, 180, 90, .35) 35%, rgba(120, 140, 255, 0) 68%); }
+.gf-rays { position: absolute; left: 158px; top: 56px; width: 420px; height: 420px; margin: -210px 0 0 -210px; border-radius: 50%; opacity: 0; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 236, 200, .38) 0 7deg, transparent 7deg 20deg);
+  -webkit-mask: radial-gradient(circle, #000 12%, transparent 62%); mask: radial-gradient(circle, #000 12%, transparent 62%); }
+.gf.opened .gf-rays { animation: rot 16s linear infinite; }
+.gf-beam { position: absolute; left: 158px; top: -160px; width: 240px; height: 220px; margin-left: -120px; transform-origin: 50% 100%; opacity: 0; pointer-events: none; }
+.gf-beam i { position: absolute; display: block; }
+.gf-beam .wide { left: 20px; right: 20px; top: 0; bottom: 0; filter: blur(12px); clip-path: polygon(39% 100%, 61% 100%, 100% 0, 0 0);
+  background: linear-gradient(to top, rgba(255, 232, 190, .8), rgba(255, 214, 160, .28) 50%, rgba(255, 214, 160, 0) 92%); }
+.gf-beam .core { left: 50%; width: 58px; margin-left: -29px; top: 18px; bottom: 0; border-radius: 50% 50% 0 0; filter: blur(8px);
+  background: linear-gradient(to top, #fffaf0, rgba(255, 238, 204, .8) 30%, rgba(255, 222, 170, 0) 92%); }
+.gf-beam .sh { bottom: 0; left: 50%; width: var(--w); height: var(--h); margin-left: calc(var(--w) / -2); transform-origin: 50% 100%; transform: rotate(var(--r));
+  border-radius: 50% 50% 0 0; filter: blur(2.5px); opacity: .3; animation: gfsh var(--d) ease-in-out var(--dl) infinite;
+  background: linear-gradient(to top, rgba(255, 248, 230, .9), rgba(255, 236, 200, .35) 55%, rgba(255, 236, 200, 0)); }
+@keyframes gfsh { 0%, 100% { opacity: .18; } 50% { opacity: .9; } }
+.gf-beam .pool { bottom: -10px; left: 50%; width: 104px; height: 24px; margin-left: -52px; border-radius: 50%; filter: blur(1.5px);
+  background: radial-gradient(ellipse, #fffaf0 0, rgba(255, 226, 170, .6) 45%, rgba(255, 226, 170, 0) 72%); }
+.gf-beam .mote { bottom: 0; left: 50%; width: 3px; height: 3px; border-radius: 50%; background: #fff; box-shadow: 0 0 6px 1px rgba(255, 236, 190, .9); }
+.gf-beam.breathe { animation: gfbr 2.6s ease-in-out infinite; }
+@keyframes gfbr { 0%, 100% { opacity: .88; transform: scaleX(.97); } 50% { opacity: 1; transform: scaleX(1.03); } }
+.gf-flash { position: absolute; left: 158px; top: 52px; width: 180px; height: 180px; margin: -90px 0 0 -90px; border-radius: 50%; opacity: 0; pointer-events: none;
+  background: radial-gradient(circle, #fff 0, rgba(255, 255, 255, .6) 25%, rgba(255, 255, 255, 0) 60%); }
+.gf-wave { position: absolute; left: 0; top: 0; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; border: 3px solid rgba(255, 236, 200, .9);
+  box-shadow: 0 0 18px rgba(255, 220, 160, .8), inset 0 0 12px rgba(255, 220, 160, .6); pointer-events: none; z-index: 2; }
+.gf-warm { position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 30%, rgba(255, 200, 130, .55), rgba(255, 170, 90, 0) 70%); }
+.gf-p { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 3; line-height: 0; }
+.gf-coin { position: absolute; left: 0; top: 0; z-index: 5; pointer-events: none; filter: drop-shadow(0 4px 6px rgba(20, 20, 60, .35)); }
+.gf-coin b { display: block; width: 100%; height: 100%; animation: gfflip .5s linear infinite; }
+@keyframes gfflip { 0%, 100% { transform: scaleX(1); } 25%, 75% { transform: scaleX(.15); } 50% { transform: scaleX(-1); } }
+.gf-amt.gold { background: linear-gradient(100deg, #fff 0%, #fff 40%, #ffe39a 50%, #fff 60%, #fff 100%); background-size: 300% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent; animation: gfgold 1.1s ease-out forwards; }
+@keyframes gfgold { from { background-position: 100% 0; } to { background-position: 0 0; } }
+.gf-swap { animation: gfsw .45s var(--ease) both; }
+@keyframes gfsw { from { opacity: 0; transform: translateY(8px); } }
+.am-gift { width: 190px; height: 96px; margin: -30px 0 6px; }

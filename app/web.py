@@ -55,6 +55,7 @@ from app.sync import fetch_panel
 from app.notices import notice_text
 from app.texts import days_text, minutes_text, rub_text
 from app.balance import sync_user_billing
+from app import friend_gifts
 from app.block import blocked_notice
 from app.maintenance import current_text
 from app.pay_methods import public_pay_methods, stars_price
@@ -583,6 +584,9 @@ async def api_me(request: web.Request) -> web.Response:
             "topup_min": settings.balance_topup_min,
             "topup_max": settings.balance_topup_max,
             "topup_step": settings.balance_topup_step,
+            "gifts_enabled": bool(settings.gifts_enabled),
+            "gift_min": friend_gifts.limits()[0],
+            "gift_max": friend_gifts.limits()[1],
             "devices": devices,
             "trust": trust,
             "faq": faq_items(),
@@ -825,6 +829,142 @@ async def api_promo(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **result})
 
 
+
+
+# ---------- «Подарить другу» ----------
+async def _sync_after_gift(request: web.Request, telegram_id: int, source: str) -> int | None:
+    """Balance went up or down: turn devices on or off now, like a promo code does."""
+    try:
+        async with runtime.panel_cron_lock():
+            await sync_user_billing(request.app["rw"], telegram_id, request.app.get("bot"), source=source)
+        local = await db.get_user(telegram_id)
+        return int((local or {}).get("balance_rub") or 0) if local else None
+    except Exception:
+        logger.exception("Gift moved money, the billing loop catches up within minutes: %s", telegram_id)
+        return None
+
+
+async def api_gifts(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    sent = await friend_gifts.list_sent(telegram_id)
+    return web.json_response({
+        "ok": True,
+        "giftable_rub": await friend_gifts.giftable_rub(telegram_id),
+        "sent": friend_gifts.public_sent(sent),
+    })
+
+
+async def api_gift_create(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    body = await request.json()
+    try:
+        amount = int(body.get("amount"))
+    except (TypeError, ValueError):
+        return json_error("Укажите сумму подарка")
+    try:
+        gift = await friend_gifts.create_gift(telegram_id, amount)
+    except friend_gifts.GiftError as exc:
+        return json_error(str(exc))
+    balance = await _sync_after_gift(request, telegram_id, "gift")
+    local = await db.get_user(telegram_id)
+    name = friend_gifts.giver_name(local)
+    prepared = await friend_gifts.prepare_share(request.app.get("bot"), telegram_id, gift["code"], amount, name)
+    return web.json_response({
+        "ok": True,
+        "code": gift["code"],
+        "url": friend_gifts.gift_link(gift["code"]),
+        "amount_rub": amount,
+        "share_text": friend_gifts.share_text(name, amount),
+        "prepared_id": prepared,
+        "balance_rub": gift["balance_rub"] if balance is None else balance,
+    })
+
+
+async def api_gift_share(request: web.Request) -> web.Response:
+    """A fresh share card for a gift that is still waiting to be opened."""
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    gift = await friend_gifts.get_gift(request.match_info.get("code"))
+    if not gift or int(gift["from_telegram_id"]) != telegram_id:
+        return json_error("Подарок не найден", 404)
+    if gift["status"] != "active":
+        return json_error("Этот подарок уже не ждёт друга")
+    name = friend_gifts.giver_name({"first_name": gift.get("from_first_name")})
+    amount = int(gift["amount_rub"])
+    prepared = await friend_gifts.prepare_share(request.app.get("bot"), telegram_id, gift["code"], amount, name)
+    return web.json_response({"ok": True, "code": gift["code"], "url": friend_gifts.gift_link(gift["code"]),
+                              "share_text": friend_gifts.share_text(name, amount), "prepared_id": prepared})
+
+
+async def api_gift_view(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    gift = await friend_gifts.get_gift(request.match_info.get("code"))
+    if not gift:
+        return json_error("Подарок не найден", 404)
+    mine = int(gift["from_telegram_id"]) == telegram_id
+    claimed_by_me = gift.get("claimed_by") is not None and int(gift["claimed_by"]) == telegram_id
+    return web.json_response({
+        "ok": True,
+        "code": gift["code"],
+        "amount_rub": int(gift["amount_rub"]),
+        "from_name": friend_gifts.giver_name({"first_name": gift.get("from_first_name")}),
+        "status": gift["status"],
+        "mine": mine,
+        "claimed_by_me": claimed_by_me,
+        "thanked": bool(gift.get("thanked_at")) if claimed_by_me else False,
+        "url": friend_gifts.gift_link(gift["code"]) if mine else None,
+    })
+
+
+async def api_gift_claim(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        result = await friend_gifts.claim_gift(telegram_id, request.match_info.get("code"))
+    except friend_gifts.GiftError as exc:
+        return json_error(str(exc))
+    balance = await _sync_after_gift(request, telegram_id, "gift")
+    if balance is not None:
+        result["balance_rub"] = balance
+    local = await db.get_user(telegram_id)
+    await friend_gifts.notify_giver_claimed(request.app.get("bot"), result["from_telegram_id"],
+                                            friend_gifts.giver_name(local), result["amount_rub"])
+    return web.json_response({"ok": True, "amount_rub": result["amount_rub"], "balance_rub": result["balance_rub"],
+                              "from_name": result["from_name"]})
+
+
+async def api_gift_return(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        result = await friend_gifts.return_gift(telegram_id, request.match_info.get("code"))
+    except friend_gifts.GiftError as exc:
+        return json_error(str(exc))
+    balance = await _sync_after_gift(request, telegram_id, "gift")
+    if balance is not None:
+        result["balance_rub"] = balance
+    return web.json_response({"ok": True, **result})
+
+
+async def api_gift_thanks(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    gift = await friend_gifts.mark_thanked(telegram_id, request.match_info.get("code"))
+    if gift:
+        local = await db.get_user(telegram_id)
+        await friend_gifts.notify_giver_thanks(request.app.get("bot"), int(gift["from_telegram_id"]),
+                                               friend_gifts.giver_name(local))
+    return web.json_response({"ok": True})
 
 async def api_add_device(request: web.Request) -> web.Response:
     async with runtime.panel_cron_lock():
@@ -1403,6 +1543,13 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/story-share", api_story_share)
         app.router.add_post("/api/browser-link", api_browser_link)
         app.router.add_post("/api/referral-payout", api_referral_payout)
+        app.router.add_get("/api/gifts", api_gifts)
+        app.router.add_post("/api/gifts", api_gift_create)
+        app.router.add_get("/api/gifts/{code}", api_gift_view)
+        app.router.add_post("/api/gifts/{code}/claim", api_gift_claim)
+        app.router.add_post("/api/gifts/{code}/return", api_gift_return)
+        app.router.add_post("/api/gifts/{code}/share", api_gift_share)
+        app.router.add_post("/api/gifts/{code}/thanks", api_gift_thanks)
         app.router.add_static("/static", WEBAPP_DIR)
     else:
         app.router.add_get("/", health)

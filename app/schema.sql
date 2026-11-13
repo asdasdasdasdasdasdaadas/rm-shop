@@ -929,3 +929,20 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS users_balance_up ON users;
 CREATE TRIGGER users_balance_up AFTER UPDATE OF balance_rub ON users
     FOR EACH ROW EXECUTE FUNCTION notify_balance_up();
+
+-- «Подарить другу»: the giver pays from their balance (only money they topped up themselves), the friend opens
+-- the gift by its code and the amount lands on their balance. Until opened, the giver can take it back.
+CREATE TABLE IF NOT EXISTS friend_gifts (
+    id BIGSERIAL PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    from_telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    amount_rub INTEGER NOT NULL CHECK (amount_rub > 0),
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    claimed_by BIGINT,
+    claimed_at TIMESTAMPTZ,
+    returned_at TIMESTAMPTZ,
+    thanked_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS friend_gifts_from_idx ON friend_gifts (from_telegram_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS friend_gifts_claimed_idx ON friend_gifts (claimed_by) WHERE claimed_by IS NOT NULL;

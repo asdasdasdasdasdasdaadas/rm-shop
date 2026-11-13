@@ -11,7 +11,7 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from app.cabinet_login import start_challenge_id
 from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
 
-from app import db
+from app import db, friend_gifts
 # Customers (paid or have a device) pass the channel check even after leaving the channel.
 from app.access import channel_gate_passed as is_channel_member
 from app.config import get_settings
@@ -165,6 +165,10 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
         await open_from_start(message, login_id)
         return
     await _maybe_live_invite(row)
+    gift_code = friend_gifts.code_from_start(command.args)
+    if gift_code:
+        # A friend's gift link: show whose gift it is first, then the usual start.
+        await friend_gifts.send_gift_card(message, gift_code)
     in_channel = await is_channel_member(message.bot, message.from_user.id)
     if await db.claim_welcome_intro(message.from_user.id):
         ok = await send_welcome_intro(

@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     balance_topup_min: int = 50
     balance_topup_max: int = 100000
     balance_topup_step: int = 50
+    gifts_enabled: bool = True
+    gift_min_rub: int = 60
+    gift_max_rub: int = 20000
     referral_program_enabled: bool = False
     referral_reward_rub: int = 50
     referral_invitee_reward_rub: int = 30
