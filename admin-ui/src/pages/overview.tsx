@@ -128,8 +128,13 @@ export function OverviewPage({
   );
   return (
     <div className="space-y-6">
-      {s.journey_comparison && <JourneyFunnel data={s.journey_comparison} />}
-      {s.journey_comparison?.sources && <JourneySources data={s.journey_comparison} />}
+      {/* Once per page: on «Обзор», and in «Статистика» only on the conversion tab (not again under retention). */}
+      {s.journey_comparison && (!analyticsView || analyticsView === "conversion") && (
+        <>
+          <JourneyFunnel data={s.journey_comparison} />
+          {s.journey_comparison.sources && <JourneySources data={s.journey_comparison} />}
+        </>
+      )}
       {!analyticsOnly && (
         <>
           <div className="adm-hero grid gap-1 p-2 sm:grid-cols-2 xl:grid-cols-4">
