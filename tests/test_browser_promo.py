@@ -94,6 +94,26 @@ class BroadcastTest(unittest.TestCase):
             self.assertEqual(spec["media"], video)
             self.assertIn("только к своему", admin._check_broadcast({"template": "unused", "media": video})[1])
 
+    def test_the_login_clip_goes_along_by_itself(self):
+        with patch.object(cabinet_login, "get_settings", return_value=SITE):
+            spec, error = admin._check_broadcast({"template": "browser"})
+            self.assertIsNone(error)
+            self.assertEqual(spec["media"], {"id": "browser-login.mp4", "kind": "animation"})
+            # Scheduled and «остальным» broadcasts check the stored spec again: the clip must still pass.
+            again, error = admin._check_broadcast(spec)
+            self.assertIsNone(error)
+            self.assertEqual(again["media"], spec["media"])
+            spec, _ = admin._check_broadcast({"template": "browser", "media": "none"})
+            self.assertNotIn("media", spec)
+        self.assertNotIn("media", admin._check_broadcast({"template": "whitelist"})[0])
+
+    def test_the_clip_ships_with_the_code(self):
+        path = broadcast_media.path_of("browser-login.mp4")
+        self.assertIsNotNone(path)
+        self.assertEqual(path.read_bytes()[4:8], b"ftyp")
+        self.assertLess(path.stat().st_size, 2 * 1024 * 1024)
+        self.assertIsNone(broadcast_media.path_of("../assets/browser-login.mp4"))
+
     def test_needs_the_site(self):
         with patch.object(cabinet_login, "get_settings", return_value=SimpleNamespace(webapp_public_url="")), \
                 patch.object(runtime, "webapp_url", ""):

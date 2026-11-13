@@ -20,6 +20,8 @@ MAX_BYTES = 50 * 1024 * 1024  # Bot API upload limit
 KEEP_DAYS = 90
 STORED_RE = re.compile(r"^[0-9a-f]{32}\.(jpg|png|webp|gif|mp4|mov|webm)$")
 KIND_LABEL = {"photo": "фото", "animation": "GIF", "video": "видео"}
+# Files that ship with the code (app/assets): a funnel's own media, sent without an upload.
+BUILTIN = {"browser-login.mp4": ROOT / "app" / "assets" / "browser-login.mp4"}
 
 
 def _ext(data: bytes, filename: str) -> str:
@@ -74,6 +76,8 @@ def store(data: bytes, filename: str = "", as_gif: bool = False) -> dict:
 
 def path_of(media_id: str) -> Path | None:
     name = str(media_id or "")
+    if name in BUILTIN:
+        return BUILTIN[name] if BUILTIN[name].is_file() else None
     if not STORED_RE.match(name):
         return None
     path = MEDIA_DIR / name

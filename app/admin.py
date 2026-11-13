@@ -1894,6 +1894,8 @@ ANNOUNCE_TEMPLATES = {"gift3", "referral_news"}
 TEMPLATE_AUDIENCE = {"invite": "using", "unused": "unused", "browser": "no_browser"}
 # A photo, GIF or video can go with one's own text and with «кабинет в браузере» (a screen recording of the login).
 MEDIA_TEMPLATES = {"", "browser"}
+# What a template sends when the admin attaches nothing: «Кабинет в браузере» shows the QR login as a looping clip.
+TEMPLATE_MEDIA = {"browser": {"id": "browser-login.mp4", "kind": "animation"}}
 ANNOUNCE_DEFAULTS = {
     "gift3": (
         "🎁 <b>Дарим 3 дня VPN</b>\n\n"
@@ -2124,9 +2126,12 @@ def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
         if audience not in db.BROADCAST_SEGMENTS:
             return None, "Неизвестная аудитория"
     from app.broadcast_media import CAPTION_LIMIT, check as check_media
-    media, error = check_media(body.get("media"))
+    no_media = body.get("media") == "none"
+    media, error = check_media(None if no_media else body.get("media"))
     if error:
         return None, error
+    if not media and not no_media and template in TEMPLATE_MEDIA:
+        media = dict(TEMPLATE_MEDIA[template])
     if media and template not in MEDIA_TEMPLATES:
         return None, "Фото, GIF и видео можно приложить только к своему сообщению или к «Кабинет в браузере»"
     if len(text) > 3500:
@@ -2348,6 +2353,18 @@ async def api_broadcast(request: web.Request) -> web.Response:
     if status == 200:
         payload["audiences"] = audiences
     return web.json_response(payload, status=status)
+
+
+async def api_broadcast_builtin(request: web.Request) -> web.StreamResponse:
+    """A template's own clip, for the preview in the admin."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app.broadcast_media import BUILTIN
+    path = BUILTIN.get(request.match_info["name"])
+    if not path or not path.is_file():
+        raise web.HTTPNotFound()
+    return web.FileResponse(path)
 
 
 async def api_broadcast_media(request: web.Request) -> web.Response:
@@ -2956,6 +2973,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast/media", api_broadcast_media)
+    app.router.add_get("/admin/api/broadcast/builtin/{name}", api_broadcast_builtin)
     app.router.add_get("/admin/api/backups", api_backups)
     app.router.add_get("/admin/api/ton", api_ton)
     app.router.add_post("/admin/api/ton/scan", api_ton_scan)

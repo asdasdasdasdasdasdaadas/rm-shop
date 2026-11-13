@@ -62,6 +62,13 @@ const templates: [string, string][] = [
 const templateAudience: Record<string, string> = { invite: "using", unused: "unused", browser: "no_browser" };
 // A photo, GIF or video goes with one's own text or with «Кабинет в браузере» (a screen recording of the login).
 const withMedia = (t: string) => !t || t === "browser";
+// «Кабинет в браузере» ships its own looping clip (app/assets/browser-login.mp4); the admin may swap or drop it.
+const BUILTIN_CLIP = { url: "/admin/api/broadcast/builtin/browser-login.mp4", kind: "animation", video: true };
+const clipOptions: [string, string][] = [
+  ["builtin", "Встроенное: вход по QR, 5 секунд"],
+  ["own", "Своё фото, GIF или видео"],
+  ["none", "Без видео"],
+];
 // Announcements to everyone: editable text plus a fixed button.
 const announce: Record<string, string> = {
   gift3: "Забрать 3 дня бесплатно",
@@ -327,6 +334,7 @@ export function BroadcastPage() {
     [evening, setEvening] = useState(false),
     [sample, setSample] = useState(0),
     [media, setMedia] = useState<Media | null>(null),
+    [clip, setClip] = useState("builtin"),
     [when, setWhen] = useState(() => localInput(new Date(Date.now() + 3600_000)));
   const confirm = useConfirm(),
     navigate = useNavigate();
@@ -339,7 +347,8 @@ export function BroadcastPage() {
     count = data?.audiences?.[effectiveAudience] ?? 0,
     editable = !template || template in announce,
     body = editable ? text : data?.previews?.[template] || "",
-    attached = withMedia(template) ? media : null,
+    attached = withMedia(template) && (template !== "browser" || clip === "own") ? media : null,
+    shown = attached || (template === "browser" && clip === "builtin" ? BUILTIN_CLIP : null),
     tooLong = !!attached && text.length > CAPTION_MAX,
     ready = (!!body.trim() || !!attached) && !tooLong;
   const selectTemplate = (v: string) => {
@@ -361,7 +370,14 @@ export function BroadcastPage() {
           template in announce
             ? { template, text }
             : template
-              ? { template, ...(attached ? { media: { id: attached.id, kind: attached.kind } } : {}) }
+              ? {
+                  template,
+                  ...(attached
+                    ? { media: { id: attached.id, kind: attached.kind } }
+                    : template === "browser" && clip === "none"
+                      ? { media: "none" }
+                      : {}),
+                }
               : { text, audience, ...(attached ? { media: { id: attached.id, kind: attached.kind } } : {}) };
         const full = sample ? { ...payload, sample } : payload;
         await api(
@@ -371,6 +387,7 @@ export function BroadcastPage() {
         setSent(true);
         setText("");
         setTemplate("");
+        setClip("builtin");
         setMedia(null);
         setStep(0);
         setLater(false);
@@ -497,7 +514,12 @@ export function BroadcastPage() {
                           />
                         </Field>
                       )}
-                      {step === 1 && withMedia(template) && (
+                      {step === 1 && template === "browser" && (
+                        <Field label="Видео">
+                          <Choice value={clip} label="Видео в рассылке" options={clipOptions} onChange={(v) => { setClip(v); setSent(false); }} />
+                        </Field>
+                      )}
+                      {step === 1 && withMedia(template) && (template !== "browser" || clip === "own") && (
                         <Field label="Фото, GIF или видео">
                           <MediaPicker media={media} onChange={(m) => { setMedia(m); setSent(false); }} />
                         </Field>
@@ -517,10 +539,10 @@ export function BroadcastPage() {
                             {audienceLabel(effectiveAudience)}
                           </dd>
                         </div>
-                        {attached && (
+                        {shown && (
                           <div className="flex justify-between gap-3">
                             <dt className="text-muted-foreground">Вложение</dt>
-                            <dd>{kindLabel[attached.kind]}</dd>
+                            <dd>{shown === BUILTIN_CLIP ? "Встроенное видео: вход по QR" : kindLabel[shown.kind]}</dd>
                           </div>
                         )}
                         <div className="flex justify-between">
@@ -627,22 +649,22 @@ export function BroadcastPage() {
               >
                 <div className="rounded-xl bg-muted/50 p-4">
                   <div className="rounded-xl bg-background border overflow-hidden">
-                    {attached &&
-                      (attached.video ? (
+                    {shown &&
+                      (shown.video ? (
                         <video
-                          src={attached.url}
+                          src={shown.url}
                           className="w-full max-h-80 object-cover bg-black"
                           autoPlay
                           loop
                           muted
                           playsInline
-                          controls={attached.kind === "video"}
+                          controls={shown.kind === "video"}
                         />
                       ) : (
-                        <img src={attached.url} alt="" className="w-full max-h-80 object-cover" />
+                        <img src={shown.url} alt="" className="w-full max-h-80 object-cover" />
                       ))}
                     <div className="p-4 text-sm whitespace-pre-wrap break-words min-h-20">
-                      {body || (attached ? "" : "Здесь появится текст сообщения.")}
+                      {body || (shown ? "" : "Здесь появится текст сообщения.")}
                     </div>
                   </div>
                   {
