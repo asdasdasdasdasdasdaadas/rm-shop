@@ -907,3 +907,17 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS first_entry_via TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_start_payload TEXT;
 -- Early «баланс заканчивается» (three days ahead) for people who paid before; the one-day warning stays in trial_end_nudge_at.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_warn3_at TIMESTAMPTZ;
+
+-- Any balance increase (payment, referral bonus, promo, admin credit, refund) wakes the app at once:
+-- app/balance_watch.py listens and turns back on devices that were switched off for lack of money.
+CREATE OR REPLACE FUNCTION notify_balance_up() RETURNS trigger AS $$
+BEGIN
+    IF COALESCE(NEW.balance_rub, 0) > COALESCE(OLD.balance_rub, 0) THEN
+        PERFORM pg_notify('balance_up', NEW.telegram_id::text);
+    END IF;
+    RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS users_balance_up ON users;
+CREATE TRIGGER users_balance_up AFTER UPDATE OF balance_rub ON users
+    FOR EACH ROW EXECUTE FUNCTION notify_balance_up();

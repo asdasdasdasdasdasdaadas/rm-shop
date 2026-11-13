@@ -2143,7 +2143,7 @@ async def devices_due_for_billing() -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def devices_to_reenable(price: int, *, paused: bool = False) -> list[dict]:
+async def devices_to_reenable(price: int, *, paused: bool = False, telegram_id: int | None = None) -> list[dict]:
     """Devices switched off for lack of money whose owner can now pay for a day (or billing is paused).
 
     The daily charge skips DISABLED devices, and only the sync run at the moment of a payment turned them back on.
@@ -2162,10 +2162,12 @@ async def devices_to_reenable(price: int, *, paused: bool = False) -> list[dict]
           AND u.blocked_at IS NULL
           AND NOT u.trial_waiting_connection
           AND ($2 OR u.billing_paused_at IS NOT NULL OR COALESCE(u.balance_rub, 0) >= $1)
+          AND ($3::bigint IS NULL OR d.telegram_id = $3)
         ORDER BY d.id
         """,
         max(1, int(price)),
         bool(paused),
+        telegram_id,
     )
     return [dict(r) for r in rows]
 

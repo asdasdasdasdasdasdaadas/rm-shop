@@ -54,12 +54,12 @@ class ReenableTest(unittest.IsolatedAsyncioTestCase):
         pool = SimpleNamespace(fetch=AsyncMock(return_value=[]))
         with patch.object(db, "_pool_req", return_value=pool):
             await db.devices_to_reenable(6)
-        sql, price, paused = pool.fetch.await_args.args
+        sql, price, paused, uid = pool.fetch.await_args.args
         self.assertIn("= 'DISABLED'", sql)
         self.assertIn("balance_rub, 0) >= $1", sql)
         self.assertIn("INTERVAL '24 hours'", sql)
         self.assertIn("blocked_at IS NULL", sql)
-        self.assertEqual((price, paused), (6, False))
+        self.assertEqual((price, paused, uid), (6, False, None))
 
 
 if __name__ == "__main__":
