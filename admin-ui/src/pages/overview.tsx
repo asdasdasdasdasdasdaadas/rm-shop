@@ -128,8 +128,8 @@ export function OverviewPage({
   );
   return (
     <div className="space-y-6">
-      {/* Once per page: on «Обзор», and in «Статистика» only on the conversion tab (not again under retention). */}
-      {s.journey_comparison && (!analyticsView || analyticsView === "conversion") && (
+      {/* Only in «Статистика» → «Воронка»: not on «Обзор», not again under retention. */}
+      {s.journey_comparison && analyticsView === "conversion" && (
         <>
           <JourneyFunnel data={s.journey_comparison} />
           {s.journey_comparison.sources && <JourneySources data={s.journey_comparison} />}
