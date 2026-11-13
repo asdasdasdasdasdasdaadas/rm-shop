@@ -2143,6 +2143,33 @@ async def devices_due_for_billing() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+async def devices_to_reenable(price: int, *, paused: bool = False) -> list[dict]:
+    """Devices switched off for lack of money whose owner can now pay for a day (or billing is paused).
+
+    The daily charge skips DISABLED devices, and only the sync run at the moment of a payment turned them back on.
+    A credit without that sync (a referral bonus) or a panel error during it left the device off for good."""
+    rows = await _pool_req().fetch(
+        """
+        SELECT d.id, d.telegram_id, d.title, d.remnawave_id, d.remnawave_uuid,
+               (u.billing_paused_at IS NOT NULL) AS billing_paused
+        FROM devices d
+        JOIN users u ON u.telegram_id = d.telegram_id
+        WHERE d.remnawave_id IS NOT NULL
+          AND COALESCE(d.kind, '') <> 'router'
+          AND UPPER(COALESCE(d.panel_status, '')) = 'DISABLED'
+          -- A day paid less than 24 hours ago is turned back on for free by devices_needing_revive.
+          AND (d.last_billed_at IS NULL OR d.last_billed_at <= timezone('utc', now()) - INTERVAL '24 hours')
+          AND u.blocked_at IS NULL
+          AND NOT u.trial_waiting_connection
+          AND ($2 OR u.billing_paused_at IS NOT NULL OR COALESCE(u.balance_rub, 0) >= $1)
+        ORDER BY d.id
+        """,
+        max(1, int(price)),
+        bool(paused),
+    )
+    return [dict(r) for r in rows]
+
+
 async def devices_needing_revive(*, refresh_hours: int = 36) -> list[dict]:
     hours = max(6, int(refresh_hours))
     rows = await _pool_req().fetch(

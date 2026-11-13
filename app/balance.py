@@ -483,7 +483,14 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
         for item in await db.devices_to_retry_disable():
             if int(item["id"]) in seen:
                 continue
+            seen.add(int(item["id"]))
             pending.append(item)
+        # Switched off for lack of money, and the balance has been topped up since: charge and turn on again.
+        for item in await db.devices_to_reenable(price, paused=paused):
+            if int(item["id"]) in seen:
+                continue
+            seen.add(int(item["id"]))
+            pending.append(dict(item, reenable=True))
     chunk = max(20, min(200, settings.billing_bulk_chunk))
     extended = 0
     disabled = 0
@@ -495,7 +502,8 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
         for item in pending:
             groups[int(item["telegram_id"])].append(item)
         for rows in groups.values():
-            rows.sort(key=lambda x: int(x["id"]))
+            # Devices that are on now get the money first; switched-off ones are turned on with what is left.
+            rows.sort(key=lambda x: (bool(x.get("reenable")), int(x["id"])))
         sem = asyncio.Semaphore(max(1, settings.billing_concurrency))
 
         async def decide(tg_id: int, devices: list[dict]) -> tuple[list[dict], list[dict], bool]:
@@ -518,7 +526,8 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
                 extend_free.extend(ext)
             else:
                 extend_pay.extend(ext)
-            disable.extend(dis)
+            # An already disabled device the money does not cover stays off, without a second «баланс кончился».
+            disable.extend(item for item in dis if not item.get("reenable"))
         extended_free, free_mode = await _commit_extends(
             rw, extend_free, price=price, paused=True, source="cron", chunk=chunk
         )

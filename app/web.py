@@ -757,7 +757,7 @@ async def api_promo(request: web.Request) -> web.Response:
         if local:
             result['balance_rub'] = int(local.get('balance_rub') or 0)
     except Exception:
-        logger.exception("Promo credited, scheduled billing will retry activation for %s",telegram_id)
+        logger.exception("Promo credited, the billing loop turns devices back on within minutes: %s",telegram_id)
     return web.json_response({"ok": True, **result})
 
 
