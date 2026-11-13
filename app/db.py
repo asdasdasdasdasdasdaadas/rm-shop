@@ -3917,46 +3917,74 @@ async def mark_trial_end_nudge_sent(telegram_id: int) -> None:
     )
 
 
+# Who a broadcast goes to. Each is a condition on users u; {price} is the day price of one device.
+_LIVE_DEVICE = "d.telegram_id = u.telegram_id AND COALESCE(d.kind,'') <> 'router'"
+_ACTIVE_DEVICES = f"(SELECT COUNT(*) FROM devices d WHERE {_LIVE_DEVICE} AND d.last_billed_at > NOW() - INTERVAL '24 hours')"
+BROADCAST_SEGMENTS = {
+    "all": "TRUE",
+    "using": "EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)",
+    "unused": "NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)",
+    # Added a device but VPN never carried traffic: they need help to connect, not a sale.
+    "not_connected": f"""EXISTS (SELECT 1 FROM devices d WHERE {_LIVE_DEVICE})
+        AND u.first_online_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM devices d WHERE {_LIVE_DEVICE}
+            AND (d.last_online_at IS NOT NULL OR d.legacy_last_online_at IS NOT NULL
+                 OR COALESCE(d.lifetime_traffic_bytes,0) > 0 OR COALESCE(d.used_traffic_bytes,0) > 0))""",
+    # Used VPN, then it switched off because the money ran out.
+    "zero_off": f"""u.first_online_at IS NOT NULL
+        AND EXISTS (SELECT 1 FROM devices d WHERE {_LIVE_DEVICE})
+        AND {_ACCESS_EXHAUSTED}""",
+    # VPN is on and the balance covers less than 3 days for the devices that are on.
+    "low_balance": f"""NOT u.trial_waiting_connection AND u.billing_paused_at IS NULL
+        AND {_ACTIVE_DEVICES} > 0
+        AND COALESCE(u.balance_rub,0) < 3 * {{price}} * {_ACTIVE_DEVICES}
+        AND NOT EXISTS (SELECT 1 FROM app_flags WHERE key='billing_paused' AND value='1')""",
+}
+_REACHABLE = "u.blocked_at IS NULL AND u.quiet_notifications = FALSE"
+
+
+def _segment_sql(audience: str) -> str:
+    cond = BROADCAST_SEGMENTS.get(str(audience or "all").strip())
+    if cond is None:
+        raise ValueError("Неизвестная аудитория")
+    return cond.replace("{price}", "$1::int")
+
+
 async def broadcast_audience_counts() -> dict:
-    row = await _pool_req().fetchrow(
-        """
-        SELECT
-            COUNT(*) FILTER (WHERE blocked_at IS NULL AND quiet_notifications = FALSE)::int AS all_n,
-            COUNT(*) FILTER (
-                WHERE blocked_at IS NULL AND quiet_notifications = FALSE
-                  AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)
-            )::int AS using_n,
-            COUNT(*) FILTER (
-                WHERE blocked_at IS NULL AND quiet_notifications = FALSE
-                  AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)
-            )::int AS unused_n
-        FROM users
-        """
-    )
-    return {
-        "all": int((row and row["all_n"]) or 0),
-        "using": int((row and row["using_n"]) or 0),
-        "unused": int((row and row["unused_n"]) or 0),
-    }
+    price = max(1, get_settings().vpn_day_price_rub)
+    cols = ",\n".join(f"COUNT(*) FILTER (WHERE {_segment_sql(k)})::int AS {k}" for k in BROADCAST_SEGMENTS)
+    row = await _pool_req().fetchrow(f"SELECT {cols} FROM users u WHERE {_REACHABLE} AND $1::int > 0", price)
+    return {k: int((row and row[k]) or 0) for k in BROADCAST_SEGMENTS}
 
 
 async def list_broadcast_targets(audience: str = "all") -> list[dict]:
-    extra = ""
-    kind = str(audience or "all").strip()
-    if kind == "using":
-        extra = "AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)"
-    elif kind == "unused":
-        extra = "AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = users.telegram_id)"
+    price = max(1, get_settings().vpn_day_price_rub)
     rows = await _pool_req().fetch(
         f"""
-        SELECT telegram_id, first_name
-        FROM users
-        WHERE blocked_at IS NULL AND quiet_notifications = FALSE
-        {extra}
-        ORDER BY telegram_id
-        """
+        SELECT u.telegram_id, u.first_name
+        FROM users u
+        WHERE {_REACHABLE} AND $1::int > 0 AND ({_segment_sql(audience)})
+        ORDER BY u.telegram_id
+        """,
+        price,
     )
     return [dict(r) for r in rows]
+
+
+async def broadcast_run_recipients(run_id: int) -> set[int]:
+    """Everyone a broadcast was sent to (for «отправить остальным» after a test)."""
+    rows = await _pool_req().fetch(
+        "SELECT DISTINCT telegram_id FROM reminder_deliveries WHERE broadcast_id=$1 AND status='sent'", run_id)
+    return {int(r["telegram_id"]) for r in rows}
+
+
+async def broadcast_child_exists(run_id: int) -> bool:
+    return bool(await _pool_req().fetchval(
+        "SELECT EXISTS (SELECT 1 FROM broadcast_runs WHERE spec->>'parent' = $1::text)", str(run_id)))
+
+
+async def get_broadcast_run(run_id: int) -> dict | None:
+    return _as_dict(await _pool_req().fetchrow("SELECT * FROM broadcast_runs WHERE id=$1", run_id))
 
 
 async def list_broadcast_ids(audience: str = "all") -> list[int]:
@@ -5149,10 +5177,10 @@ async def complete_welcome_support(telegram_id: int) -> None:
     await _pool_req().execute('UPDATE users SET welcome_support_pending=FALSE WHERE telegram_id=$1',telegram_id)
 
 
-async def create_broadcast_run(title: str, body: str, template: str, scope: str) -> int:
+async def create_broadcast_run(title: str, body: str, template: str, scope: str, spec: dict | None = None) -> int:
     return int(await _pool_req().fetchval(
-        'INSERT INTO broadcast_runs(title,body,template,scope) VALUES ($1,$2,$3,$4) RETURNING id',
-        title, body, template, scope,
+        'INSERT INTO broadcast_runs(title,body,template,scope,spec) VALUES ($1,$2,$3,$4,$5::jsonb) RETURNING id',
+        title, body, template, scope, json.dumps(spec or {}, ensure_ascii=False),
     ))
 
 
@@ -5187,7 +5215,7 @@ async def admin_broadcast_results(page: int = 1) -> dict:
         COUNT(DISTINCT r.telegram_id) FILTER (WHERE r.connected_at IS NOT NULL)::int AS connected
         FROM (SELECT * FROM broadcast_runs ORDER BY id DESC LIMIT 20 OFFSET $1) b
         LEFT JOIN reminder_deliveries r ON r.broadcast_id=b.id
-        GROUP BY b.id,b.title,b.body,b.template,b.scope,b.created_at,b.finished_at,b.total,b.sent,b.failed,b.error,b.skipped
+        GROUP BY b.id,b.title,b.body,b.template,b.scope,b.created_at,b.finished_at,b.total,b.sent,b.failed,b.error,b.skipped,b.spec
         ORDER BY b.id DESC''', (page - 1) * 20)
     items = {r['id']: dict(r, payers=0, payments=0, rub=0, stars=0) for r in rows}
     if items:

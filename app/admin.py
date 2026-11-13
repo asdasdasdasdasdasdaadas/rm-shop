@@ -1747,6 +1747,9 @@ async def _broadcast_all(
         targets = [{"telegram_id": int(item), "first_name": None} for item in ids]
     else:
         targets = await db.list_broadcast_targets("all")
+    if ids is not None and (tpl in {"invite", "unused"} or tpl in ANNOUNCE_TEMPLATES):
+        keep = set(ids)  # a test share or «остальным» of a template broadcast
+        targets = [row for row in targets if int(row["telegram_id"]) in keep]
     media = job.get("media") if not tpl else None
     media_kw = {"media": media, "cache": {}} if media else {}
     job["total"] = len(targets)
@@ -1976,7 +1979,8 @@ async def _run_broadcast_job(
         if job.get("media"):
             from app.broadcast_media import KIND_LABEL
             stored = f"[{KIND_LABEL[job['media']['kind']]}] {text}".strip()
-        job["run_id"] = await db.create_broadcast_run(_broadcast_title(template or ""), stored, template or "custom", job.get("scope", "all"))
+        job["run_id"] = await db.create_broadcast_run(_broadcast_title(template or ""), stored, template or "custom",
+                                                     job.get("scope", "all"), job.get("spec"))
         await _broadcast_all(bot, text, job, ids, template)
         prefix = "Выбранным. " if job.get("scope") == "selected" else ""
         job["message"] = f"{prefix}Отправлено: {job.get('sent') or 0}, ошибок: {job.get('failed') or 0}"
@@ -2022,10 +2026,12 @@ def _start_broadcast_job(
     ids: list[int] | None = None,
     template: str | None = None,
     media: dict | None = None,
+    spec: dict | None = None,
 ) -> dict:
     job = _bc_job(app)
     job.update(_new_bc_job())
     job["media"] = media
+    job["spec"] = {k: v for k, v in (spec or {}).items() if k in {"audience", "sample", "parent", "template", "text", "media"}}
     job["running"] = True
     job["scope"] = "selected" if ids is not None else "all"
     job["template"] = str(template or "")
@@ -2057,7 +2063,16 @@ async def api_broadcast_results(request: web.Request) -> web.Response:
         page = max(1, int(request.query.get("page", "1")))
     except ValueError:
         return web.json_response({"ok": False, "error": "Некорректная страница"}, status=400)
-    return web.json_response({"ok": True, **await db.admin_broadcast_results(page)})
+    data = await db.admin_broadcast_results(page)
+    for item in data["items"]:
+        spec = item["spec"] = _run_spec(item)
+        if spec.get("sample") and item.get("finished_at"):
+            if await db.broadcast_child_exists(int(item["id"])):
+                item["rest_sent"] = True
+            else:
+                ids = await _broadcast_ids({**spec, "sample": None, "parent": int(item["id"])})
+                item["rest"] = len(ids or [])
+    return web.json_response({"ok": True, **data})
 
 
 def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
@@ -2078,7 +2093,7 @@ def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
         if not text and not body.get("media"):
             return None, "Пустой текст"
         audience = str(body.get("audience") or "all").strip() or "all"
-        if audience not in {"all", "using", "unused"}:
+        if audience not in db.BROADCAST_SEGMENTS:
             return None, "Неизвестная аудитория"
     from app.broadcast_media import CAPTION_LIMIT, check as check_media
     media, error = check_media(body.get("media"))
@@ -2093,7 +2108,56 @@ def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
     spec = {"template": template, "text": text, "audience": audience}
     if media:
         spec["media"] = media
+    try:
+        sample = int(body.get("sample") or 0)
+    except (TypeError, ValueError):
+        return None, "Неверная доля для теста"
+    if sample:
+        if not 1 <= sample <= 90:
+            return None, "Тест — от 1 до 90% аудитории"
+        spec["sample"] = sample
+    if body.get("parent"):
+        spec["parent"] = int(body["parent"])
     return spec, None
+
+
+def _run_spec(run: dict | None) -> dict:
+    raw = (run or {}).get("spec") or {}
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw or "{}")
+        except ValueError:
+            raw = {}
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+async def _rest_spec(run_id: int) -> tuple[dict | None, str | None]:
+    """The same broadcast for those of its audience the test did not reach."""
+    run = await db.get_broadcast_run(run_id)
+    spec = _run_spec(run)
+    if not run or not spec.get("sample"):
+        return None, "Это не тестовая рассылка"
+    if await db.broadcast_child_exists(run_id):
+        return None, "Остальным уже отправлено"
+    spec.pop("sample", None)
+    spec["parent"] = run_id
+    return spec, None
+
+
+async def _broadcast_ids(spec: dict) -> list[int] | None:
+    """Recipients for a test share or for «остальным»; None means the usual audience, untouched."""
+    if not spec.get("sample") and not spec.get("parent"):
+        return None
+    audience = spec["audience"]
+    if spec["template"] in ANNOUNCE_TEMPLATES or spec["template"] == "whitelist":
+        audience = "all"
+    ids = await db.list_broadcast_ids(audience)
+    if spec.get("parent"):
+        got = await db.broadcast_run_recipients(int(spec["parent"]))
+        return [i for i in ids if i not in got]
+    import random
+    n = max(1, round(len(ids) * int(spec["sample"]) / 100)) if ids else 0
+    return sorted(random.sample(ids, n))
 
 
 async def _launch_broadcast(app: web.Application, spec: dict) -> tuple[dict, int]:
@@ -2105,21 +2169,26 @@ async def _launch_broadcast(app: web.Application, spec: dict) -> tuple[dict, int
     if error:
         return {"ok": False, "error": error}, 400
     template, text, audience = spec["template"], spec["text"], spec["audience"]
+    picked = await _broadcast_ids(spec)
+    if picked is not None:
+        if not picked:
+            return {"ok": False, "error": "Нет получателей"}, 400
+        if template and template not in ANNOUNCE_TEMPLATES:
+            text = _broadcast_template_preview(template)
+        return {"ok": True, **_start_broadcast_job(app, text, picked, template or None, spec.get("media"), spec)}, 200
     if template in ANNOUNCE_TEMPLATES:
         if not await db.list_broadcast_ids("all"):
             return {"ok": False, "error": "Нет получателей"}, 400
-        return {"ok": True, **_start_broadcast_job(app, text, None, template)}, 200
+        return {"ok": True, **_start_broadcast_job(app, text, None, template, None, spec)}, 200
     if template:
         ids = await db.list_broadcast_ids(audience)
         if not ids:
             return {"ok": False, "error": "Нет получателей для этого шаблона"}, 400
-        return {"ok": True, **_start_broadcast_job(app, _broadcast_template_preview(template), ids, template)}, 200
+        return {"ok": True, **_start_broadcast_job(app, _broadcast_template_preview(template), ids, template, None, spec)}, 200
     ids = None if audience == "all" else await db.list_broadcast_ids(audience)
     if ids is not None and not ids:
         return {"ok": False, "error": "Нет получателей"}, 400
-    if spec.get("media"):
-        return {"ok": True, **_start_broadcast_job(app, text, ids, None, spec["media"])}, 200
-    return {"ok": True, **_start_broadcast_job(app, text, ids, None)}, 200
+    return {"ok": True, **_start_broadcast_job(app, text, ids, None, spec.get("media"), spec)}, 200
 
 
 SCHEDULE_KV = "scheduled_broadcasts"
@@ -2238,6 +2307,14 @@ async def api_broadcast(request: web.Request) -> web.Response:
         items.append(item)
         await _save_scheduled(items)
         return web.json_response({"ok": True, "scheduled": await _load_scheduled(), "planned": item})
+    if body.get("rest_of"):
+        try:
+            rest, error = await _rest_spec(int(body["rest_of"]))
+        except (TypeError, ValueError):
+            rest, error = None, "Рассылка не найдена"
+        if error:
+            return web.json_response({"ok": False, "error": error}, status=400)
+        body = rest
     payload, status = await _launch_broadcast(request.app, body)
     if status == 200:
         payload["audiences"] = audiences

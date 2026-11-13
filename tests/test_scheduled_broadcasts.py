@@ -48,7 +48,7 @@ class ScheduledBroadcastTest(unittest.IsolatedAsyncioTestCase):
             stored[0]['at'] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
             self.kv[admin.SCHEDULE_KV] = json.dumps(stored)
             await admin.run_due_broadcasts(self.app)
-            start.assert_called_once_with(self.app, 'Дарим', None, 'gift3')
+            start.assert_called_once_with(self.app, 'Дарим', None, 'gift3', None, {'template': 'gift3', 'text': 'Дарим', 'audience': 'all'})
             self.assertEqual(json.loads(self.kv[admin.SCHEDULE_KV]), [])
 
     async def test_waits_while_another_broadcast_runs(self):

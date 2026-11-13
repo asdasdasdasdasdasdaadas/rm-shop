@@ -29,7 +29,24 @@ const audiences: [string, string][] = [
   ["all", "Все доступные пользователи"],
   ["using", "Пользовались VPN"],
   ["unused", "Ещё не пользовались VPN"],
+  ["not_connected", "Добавили устройство, но не подключились"],
+  ["zero_off", "VPN отключился — закончились деньги"],
+  ["low_balance", "Баланса осталось меньше чем на 3 дня"],
 ];
+// What each segment is for: shown under the audience picker.
+const audienceHint: Record<string, string> = {
+  not_connected: "Им нужна помощь с подключением, а не скидка: короткая инструкция и кнопка в кабинет.",
+  zero_off: "Пользовались VPN, он выключился из-за нулевого баланса. Лучше всего работает напоминание пополнить с одной кнопкой.",
+  low_balance: "VPN работает, но скоро выключится. Предупредите заранее — так меньше людей теряют доступ.",
+};
+// Next 19:00 in Moscow (UTC+3, no daylight saving): people read messages in the evening.
+const nextEveningMsk = () => {
+  const now = new Date(),
+    at = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 16, 0));
+  if (at.getTime() < now.getTime() + 5 * 60_000) at.setUTCDate(at.getUTCDate() + 1);
+  return at;
+};
+const audienceLabel = (id: string) => audiences.find(([a]) => a === id)?.[1] || id;
 const templates: [string, string][] = [
   ["", "Своё сообщение"],
   ["gift3", "+3 дня всем с текстом"],
@@ -200,6 +217,87 @@ function Delivery({ data }: { data: Data }) {
     </div>
   );
 }
+const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "—");
+// Each broadcast measured by money: delivered → tapped → paid within 7 days of the tap.
+function Results() {
+  const res = useResource("broadcast-results", 30000),
+    confirm = useConfirm(),
+    items: Data[] = res.data?.items || [];
+  if (!items.length) return null;
+  return (
+    <Panel
+      title="Результаты рассылок"
+      description="Нажали — открыли кнопку из сообщения. Оплатили — пополнили в течение 7 дней после нажатия."
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-muted-foreground text-left">
+            <tr>
+              <th className="py-2 pr-3 font-normal">Рассылка</th>
+              <th className="py-2 pr-3 font-normal text-right">Доставлено</th>
+              <th className="py-2 pr-3 font-normal text-right">Нажали</th>
+              <th className="py-2 pr-3 font-normal text-right">Оплатили</th>
+              <th className="py-2 font-normal text-right">Выручка</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((r) => {
+              const spec = r.spec || {},
+                sent = Number(r.sent || 0);
+              return (
+                <tr key={r.id} className="border-t align-top">
+                  <td className="py-3 pr-3">
+                    <div className="font-medium">{r.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {whenLabel(r.created_at)}
+                      {spec.audience && spec.audience !== "all" ? ` · ${audienceLabel(spec.audience)}` : ""}
+                      {spec.sample ? ` · тест ${spec.sample}%` : ""}
+                      {spec.parent ? " · остальным после теста" : ""}
+                    </div>
+                    {spec.sample && r.rest > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-2"
+                        onClick={() =>
+                          confirm({
+                            title: `Отправить остальным ${r.rest}?`,
+                            description: `Тот же текст уйдёт тем из аудитории, кто не получил тест. Тест: нажали ${pct(Number(r.clicked || 0), sent)}, оплатили ${pct(Number(r.payers || 0), sent)}.`,
+                            label: "Отправить остальным",
+                            action: async () => {
+                              await api("broadcast", { rest_of: r.id });
+                              await res.reload();
+                              toast.success("Рассылка остальным запущена");
+                            },
+                          })
+                        }
+                      >
+                        <Send />
+                        Отправить остальным · {r.rest}
+                      </Button>
+                    )}
+                    {r.rest_sent && <div className="text-xs text-muted-foreground mt-1">Остальным отправлено</div>}
+                  </td>
+                  <td className="py-3 pr-3 text-right tabular-nums">{sent}</td>
+                  <td className="py-3 pr-3 text-right tabular-nums">
+                    {r.clicked || 0} <span className="text-muted-foreground">· {pct(Number(r.clicked || 0), sent)}</span>
+                  </td>
+                  <td className="py-3 pr-3 text-right tabular-nums">
+                    {r.payers || 0} <span className="text-muted-foreground">· {pct(Number(r.payers || 0), sent)}</span>
+                  </td>
+                  <td className="py-3 text-right tabular-nums">
+                    {Number(r.rub || 0).toLocaleString("ru-RU")} ₽
+                    {r.stars ? ` · ${r.stars} ⭐` : ""}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
 export function BroadcastPage() {
   const resource = useResource("broadcast", 5000),
     [step, setStep] = useState(0),
@@ -208,6 +306,8 @@ export function BroadcastPage() {
     [text, setText] = useState(""),
     [sent, setSent] = useState(false),
     [later, setLater] = useState(false),
+    [evening, setEvening] = useState(false),
+    [sample, setSample] = useState(0),
     [media, setMedia] = useState<Media | null>(null),
     [when, setWhen] = useState(() => localInput(new Date(Date.now() + 3600_000)));
   const confirm = useConfirm(),
@@ -236,12 +336,13 @@ export function BroadcastPage() {
     setTemplate(v);
     setSent(false);
   };
-  const whenDate = new Date(when),
-    whenValid = !later || (!Number.isNaN(whenDate.getTime()) && whenDate.getTime() > Date.now() + 60_000);
+  const whenDate = evening ? nextEveningMsk() : new Date(when),
+    whenValid = !later || (!Number.isNaN(whenDate.getTime()) && whenDate.getTime() > Date.now() + 60_000),
+    testN = sample ? Math.max(1, Math.round((count * sample) / 100)) : count;
   const send = () =>
     confirm({
       title: later ? "Запланировать рассылку?" : "Отправить рассылку?",
-      description: `Аудитория: ${audiences.find(([id]) => id === effectiveAudience)?.[1]}.\nПолучателей сейчас: ${count}. Фактическое число может измениться к началу отправки.\n${later ? `Отправка начнётся ${whenLabel(whenDate.toISOString())}. До этого рассылку можно отменить.` : "Сообщение отправится в Telegram. Отменить отправленное нельзя."}`,
+      description: `Аудитория: ${audienceLabel(effectiveAudience)}.\n${sample ? `Тест: ${sample}% — примерно ${testN} из ${count}. Остальным отправите из «Результатов», когда увидите конверсию.` : `Получателей сейчас: ${count}.`} Фактическое число может измениться к началу отправки.\n${later ? `Отправка начнётся ${whenLabel(whenDate.toISOString())}. До этого рассылку можно отменить.` : "Сообщение отправится в Telegram. Отменить отправленное нельзя."}`,
       label: later ? "Запланировать" : "Отправить рассылку",
       action: async () => {
         const payload =
@@ -250,9 +351,10 @@ export function BroadcastPage() {
             : template
               ? { template }
               : { text, audience, ...(attached ? { media: { id: attached.id, kind: attached.kind } } : {}) };
+        const full = sample ? { ...payload, sample } : payload;
         await api(
           "broadcast",
-          later ? { ...payload, scheduled_at: whenDate.toISOString() } : payload,
+          later ? { ...full, scheduled_at: whenDate.toISOString() } : full,
         );
         setSent(true);
         setText("");
@@ -260,6 +362,8 @@ export function BroadcastPage() {
         setMedia(null);
         setStep(0);
         setLater(false);
+        setEvening(false);
+        setSample(0);
         await resource.reload();
         toast.success(later ? "Рассылка запланирована" : "Рассылка запущена");
       },
@@ -333,6 +437,9 @@ export function BroadcastPage() {
                         доступных получателей. Заблокировавшие бота не
                         включаются в аудиторию.
                       </p>
+                      {!template && audienceHint[effectiveAudience] && (
+                        <p className="text-sm text-muted-foreground">{audienceHint[effectiveAudience]}</p>
+                      )}
                       {template && (
                         <p className="text-sm text-muted-foreground">
                           У готового сценария аудитория определяется
@@ -395,11 +502,7 @@ export function BroadcastPage() {
                         <div className="flex justify-between gap-3">
                           <dt className="text-muted-foreground">Аудитория</dt>
                           <dd>
-                            {
-                              audiences.find(
-                                ([id]) => id === effectiveAudience,
-                              )?.[1]
-                            }
+                            {audienceLabel(effectiveAudience)}
                           </dd>
                         </div>
                         {attached && (
@@ -415,18 +518,41 @@ export function BroadcastPage() {
                           </dd>
                         </div>
                       </dl>
+                      <Field
+                        label="Сначала тест"
+                        hint={
+                          sample
+                            ? `Уйдёт ~${testN} случайным получателям. Через день-два сравните в «Результатах» нажатия и оплаты и отправьте остальным одной кнопкой.`
+                            : "Тест на части аудитории помогает не тратить всю базу на слабый текст."
+                        }
+                      >
+                        <Choice
+                          label="Сначала тест"
+                          value={String(sample)}
+                          options={[
+                            ["0", "Без теста — всем сразу"],
+                            ["10", "Тест на 10%, потом остальным"],
+                            ["20", "Тест на 20%, потом остальным"],
+                          ]}
+                          onChange={(v) => setSample(Number(v) || 0)}
+                        />
+                      </Field>
                       <Field label="Когда отправить">
                         <Choice
                           label="Когда отправить"
-                          value={later ? "later" : "now"}
+                          value={!later ? "now" : evening ? "evening" : "later"}
                           options={[
                             ["now", "Сразу"],
+                            ["evening", `Вечером, ${whenLabel(nextEveningMsk().toISOString())} (19:00 МСК)`],
                             ["later", "Запланировать на дату и время"],
                           ]}
-                          onChange={(v) => setLater(v === "later")}
+                          onChange={(v) => {
+                            setLater(v !== "now");
+                            setEvening(v === "evening");
+                          }}
                         />
                       </Field>
-                      {later && (
+                      {later && !evening && (
                         <Field
                           label="Дата и время"
                           hint={
@@ -477,7 +603,7 @@ export function BroadcastPage() {
                         {later ? <Clock /> : <Send />}
                         {later
                           ? `Запланировать на ${whenValid ? whenLabel(whenDate.toISOString()) : "…"}`
-                          : `Отправить ${count} пользователям`}
+                          : `Отправить ${testN} пользователям`}
                       </Button>
                     )}
                   </div>
@@ -519,6 +645,7 @@ export function BroadcastPage() {
                 </div>
               </Panel>
             </div>
+            <Results />
             <Button variant="link" onClick={() => navigate("messages")}>
               Открыть журнал доставки
               <ArrowRight />

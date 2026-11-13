@@ -18,7 +18,7 @@ class WhitelistBroadcastTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status, 200)
         targets.assert_awaited_once_with('all')
         preview.assert_called_once_with('whitelist')
-        start.assert_called_once_with(request.app, 'Сохранённый текст', [1, 2], 'whitelist')
+        start.assert_called_once_with(request.app, 'Сохранённый текст', [1, 2], 'whitelist', None, {'template': 'whitelist', 'text': '', 'audience': 'all'})
 
     async def test_running_job_prevents_duplicate(self):
         request = SimpleNamespace(app={'broadcast_job': {'running': True}}, method='POST',

@@ -649,6 +649,8 @@ CREATE TABLE IF NOT EXISTS optional_message_slots (
 CREATE INDEX IF NOT EXISTS optional_message_slots_user_idx ON optional_message_slots(telegram_id, created_at);
 
 ALTER TABLE broadcast_runs ADD COLUMN IF NOT EXISTS skipped INTEGER NOT NULL DEFAULT 0;
+-- What was asked for: audience, test share (sample, %), parent run for «отправить остальным», media.
+ALTER TABLE broadcast_runs ADD COLUMN IF NOT EXISTS spec JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_exhausted_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS winback_last_sent_at TIMESTAMPTZ;
