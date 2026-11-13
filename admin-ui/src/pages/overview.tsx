@@ -16,6 +16,7 @@ import { ArrowRight, ArrowUpRight, RefreshCw, CircleCheck } from "lucide-react";
 import { messageKinds } from "./records";
 import { funnelRoute } from "@/lib/contracts.mjs";
 import { CountUp, Delta, DashboardWidgets } from "@/components/widgets";
+import { JourneyFunnel, JourneySources } from "@/components/journey";
 const main = [
   ["entered", "Запустили бота"],
   ["trial", "Забрали подарок"],
@@ -127,49 +128,8 @@ export function OverviewPage({
   );
   return (
     <div className="space-y-6">
-      {s.journey_comparison && (
-        <section className="rounded-xl border p-5 space-y-4">
-          <h2 className="font-semibold">Подарок → подключение → оплаты</h2>
-          <p className="text-sm text-muted-foreground">{s.journey_comparison.note}</p>
-          <div className="grid gap-4 md:grid-cols-2">
-            {s.journey_comparison.items.map((item: any) => (
-              <div key={item.period} className="rounded-lg border p-4 space-y-3">
-                <h3 className="font-medium">{item.period === "current" ? "Последние 30 дней" : "Предыдущие 30 дней"} · {item.users} пользователей</h3>
-                {item.transitions.map((row: any) => (
-                  <div key={row.label} className="text-sm">
-                    <p className="font-medium">{row.label}</p>
-                    <p>{row.converted} из {row.eligible} · {row.rate == null ? "Нет данных" : row.rate + "%"}</p>
-                    <p className="text-muted-foreground">Медиана: {row.median_hours == null ? "—" : row.median_hours + " ч"}</p>
-                  </div>
-                ))}
-                <p className="text-sm">Блокировки бота: {item.blocked} из {item.block_eligible} · {item.block_rate == null ? "—" : item.block_rate + "%"}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-      {s.journey_comparison?.sources && (
-        <section className="rounded-xl border p-5 space-y-4">
-          <h2 className="font-semibold">Результаты по источникам</h2>
-          <p className="text-sm text-muted-foreground">{s.journey_comparison.sources_note}</p>
-          <div className="grid gap-4 lg:grid-cols-3">
-            {s.journey_comparison.sources.map((source: any) => (
-              <div key={source.source} className="rounded-lg border p-4 space-y-4">
-                <h3 className="font-semibold">{source.label}</h3>
-                {source.items.map((item: any) => (
-                  <div key={item.period} className="space-y-2 text-sm">
-                    <p className="font-medium">{item.period === "current" ? "Последние 30 дней" : "Предыдущие 30 дней"} · {item.users} пользователей</p>
-                    {item.outcomes.map((metric: any) => (
-                      <p key={metric.key}>{metric.label}: {metric.users} из {metric.eligible} · {metric.rate == null ? "Нет данных" : metric.rate + "%"}</p>
-                    ))}
-                    <p className="text-muted-foreground">От первой к повторной оплате за 7 дней: {item.transitions[3].converted} из {item.transitions[3].eligible} · {item.transitions[3].rate == null ? "—" : item.transitions[3].rate + "%"}</p>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {s.journey_comparison && <JourneyFunnel data={s.journey_comparison} />}
+      {s.journey_comparison?.sources && <JourneySources data={s.journey_comparison} />}
       {!analyticsOnly && (
         <>
           <div className="adm-hero grid gap-1 p-2 sm:grid-cols-2 xl:grid-cols-4">
