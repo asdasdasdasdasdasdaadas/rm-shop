@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Путь нового клиента</title>
+<link rel="stylesheet" href="../../webapp/cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:hidden}
+.wrap{max-width:1180px;margin:0 auto;padding:26px 24px 60px;display:grid;grid-template-columns:360px 1fr;gap:44px;align-items:start}
+@media (max-width:900px){.wrap{grid-template-columns:1fr;gap:24px}.left{position:static!important}.phone{max-width:360px;margin:0 auto}}
+.left{position:sticky;top:18px}
+.top h1{font-size:26px;margin:0;font-weight:800;letter-spacing:-.3px}
+.top p{margin:8px 0 0;color:#9aa0ab;font-size:15px;line-height:1.5}
+.bar{display:flex;gap:8px;margin:16px 0 0;flex-wrap:wrap}
+.bar button{height:38px;padding:0 15px;border-radius:99px;background:#1c1e23;font-size:14px;font-weight:600;color:#dfe3ea}
+.bar button.on{background:#fff;color:#111}
+.prog{display:flex;gap:3px;margin:12px 0 0}.prog i{flex:1;height:4px;border-radius:9px;background:#24272e;position:relative;overflow:hidden}
+.prog i.done{background:#3e88f7}.prog i.on::after{content:"";position:absolute;inset:0;background:#3e88f7;transform-origin:left;animation:pg var(--d,10s) linear forwards}
+@keyframes pg{from{transform:scaleX(0)}}
+.cap{margin:12px 2px 0;min-height:44px;font-size:14.5px;color:#dfe3ea;line-height:1.45;display:flex;gap:10px;align-items:flex-start}
+.cap .dy{flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;color:#0a0b0d;background:#ffd25e;border-radius:99px;padding:3px 9px;margin-top:1px}
+.cap span.t{animation:fin .35s ease both}
+.chap{list-style:none;margin:20px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.chap li{display:grid;grid-template-columns:34px 1fr;gap:14px;padding:14px 16px;border-radius:18px;background:#121418;cursor:pointer;transition:background .35s,opacity .35s,transform .35s;opacity:.6}
+.chap li:hover{opacity:.9}
+.chap li .i{width:34px;height:34px;border-radius:99px;background:#22252c;display:flex;align-items:center;justify-content:center;font-size:17px;transition:background .3s}
+.chap li .w{font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#7f8794}
+.chap li b{font-size:16px;display:block;margin-top:1px}
+.chap li .d{font-size:13.5px;color:#9aa0ab;line-height:1.45;margin-top:4px;display:none}
+.chap li .pt{display:none;gap:5px;flex-wrap:wrap;margin-top:8px}
+.chap li .pt em{font-style:normal;font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:99px;background:rgba(94,168,255,.12);color:#8cc0ff}
+.chap li.done{opacity:.8}.chap li.done .i{background:#1d3a2a}
+.chap li.on{opacity:1;background:#18212e;transform:translateX(4px)}.chap li.on .i{background:#3e88f7}
+.chap li.on .d{display:block}.chap li.on .pt{display:flex}
+/* phone */
+.phone{width:100%;height:740px;border-radius:50px;border:10px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 70px rgba(0,0,0,.55);position:relative;overflow:hidden;background:#000;isolation:isolate}
+.island{position:absolute;top:9px;left:50%;transform:translateX(-50%);width:104px;height:30px;border-radius:99px;background:#000;z-index:90;transition:width .5s var(--ease),height .5s var(--ease)}
+.sbar{position:absolute;left:0;right:0;top:0;height:46px;z-index:80;display:flex;align-items:center;justify-content:space-between;padding:4px 26px 0 30px;font-size:15px;font-weight:600;color:#fff;pointer-events:none}
+.phone.light .sbar{filter:invert(1)}
+.sbar .r{display:flex;gap:6px;align-items:center}
+.sbar .vpn{font-size:11px;font-weight:700;border:1.5px solid #fff;border-radius:4px;padding:0 3px;line-height:14px;display:none}
+.sbar .vpn.on{display:inline-block;animation:pop .5s var(--ease) both}
+.bat{width:24px;height:12px;border:1.5px solid rgba(255,255,255,.6);border-radius:4px;position:relative}.bat::after{content:"";position:absolute;inset:1.5px;right:5px;background:#fff;border-radius:1.5px}
+.scene{position:absolute;inset:0;background:var(--bg)}
+.layer{position:absolute;inset:0;overflow:hidden}
+.homeind{position:absolute;bottom:7px;left:50%;transform:translateX(-50%);width:120px;height:5px;border-radius:9px;background:rgba(255,255,255,.8);z-index:85}
+.stage{position:absolute;inset:0}
+.phone .scr{position:absolute;inset:0;min-height:0;overflow:hidden;padding:12px 0 30px;z-index:1}
+.phone .scr.ghost{position:absolute;max-width:none;z-index:0}
+.phone .scr.ghost.leaveB{z-index:2}
+.frog{width:78px;height:78px}
+.pressed{transform:scale(.95)!important;transition:transform .12s}
+.finger{position:absolute;left:0;top:0;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.9);z-index:95;opacity:0;pointer-events:none;transition:transform .6s cubic-bezier(.3,.8,.3,1),opacity .3s;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.finger.on{opacity:1}.finger.press{background:rgba(255,255,255,.6)}
+.finger::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:2px solid #fff;opacity:0}
+.finger.press::after{animation:ring .45s ease-out}
+@keyframes ring{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(2.1)}}
+.rise{animation:rise .6s var(--ease) both}
+@keyframes rise{from{opacity:0;transform:translateY(40px) scale(.97)}}
+@keyframes fadein{from{opacity:0}}@keyframes fadeout{to{opacity:0}}
+@keyframes sheet{from{transform:translateY(100%)}}@keyframes sheetout{to{transform:translateY(100%)}}
+.chk{animation:pop .6s var(--ease) both}
+.conf{position:absolute;top:-12px;width:8px;height:12px;border-radius:2px;z-index:75;animation:fall 1.6s cubic-bezier(.2,.6,.4,1) forwards}
+@keyframes fall{to{transform:translateY(780px) rotate(540deg);opacity:.2}}
+.spin{width:64px;height:64px;border-radius:50%;border:5px solid rgba(255,255,255,.25);border-top-color:#fff;animation:sp 1s linear infinite}
+.spin.mini{width:20px;height:20px;border-width:2.5px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.dots{display:flex;gap:6px;justify-content:center;margin-top:14px}.dots i{width:7px;height:7px;border-radius:9px;background:rgba(255,255,255,.35);transition:width .3s}.dots i.on{background:#fff;width:18px}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:rgba(0,0,0,.22);border-radius:10px;padding:6px 10px;margin:12px auto 0;display:inline-block}
+.apb{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:7px 14px 7px 11px;border-radius:99px;background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:13.5px;font-weight:600;white-space:nowrap;animation:pop .6s .5s var(--ease) both}
+.big-btn{display:flex;align-items:center;justify-content:center;gap:8px;height:52px;border-radius:16px;background:var(--blue);color:#fff;font-size:16.5px;font-weight:600;width:100%;transition:transform .15s,background .3s}
+.big-btn.ok{background:var(--grn)}
+.later{display:block;text-align:center;color:#c4c9d3;font-size:15px;font-weight:600;margin-top:4px;width:100%;height:44px}
+.rnd2{width:52px;height:52px;border-radius:99px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;transition:transform .15s}
+.acts2{display:flex;gap:10px;margin-top:18px}.acts2 .pill{flex:1}
+.wait-key{display:flex;align-items:center;justify-content:center;gap:10px;font-weight:600}
+/* telegram */
+.chat{position:absolute;inset:0;background:#0e1621}
+.chat::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 20% 30%,rgba(60,120,90,.12),transparent 50%),radial-gradient(circle at 80% 70%,rgba(60,90,140,.14),transparent 50%)}
+.tgbar{position:absolute;left:0;right:0;top:46px;display:flex;align-items:center;gap:10px;padding:6px 14px 10px;border-bottom:1px solid rgba(255,255,255,.06);background:#17212b;z-index:3}
+.tgbar .bk{color:#5ea8ff;font-size:22px;margin-right:2px}
+.tgbar .av{width:38px;height:38px;border-radius:50%;overflow:hidden}.tgbar .av img{width:38px;height:38px}
+.tgbar b{font-size:15.5px;display:block}.tgbar span{font-size:13px;color:#7d8b99}
+.feed{position:absolute;left:0;right:0;top:104px;bottom:58px;padding:10px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+.feed > div{flex-shrink:0}
+.inp{position:absolute;left:0;right:0;bottom:0;height:58px;background:#17212b;display:flex;align-items:center;gap:10px;padding:0 12px 10px;z-index:3}
+.inp .bx{flex:1;height:36px;border-radius:99px;background:#0e1621;color:#6d7f8f;font-size:15px;display:flex;align-items:center;padding:0 14px}
+.inp .mn{height:36px;padding:0 12px;border-radius:99px;background:#3e88f7;font-size:14px;font-weight:600;display:flex;align-items:center}
+.day{text-align:center;margin:4px 0 10px}.day span{background:rgba(0,0,0,.35);color:#fff;font-size:12.5px;padding:3px 10px;border-radius:99px}
+.msg{animation:min .4s var(--ease) both;transform-origin:left bottom}
+.msg.me{display:flex;justify-content:flex-end}
+@keyframes min{from{opacity:0;transform:translateY(16px) scale(.96)}}
+.bub{background:#182533;border-radius:16px 16px 16px 5px;padding:9px 12px 7px;font-size:14.5px;line-height:1.38;max-width:92%;color:#fff;transition:opacity .25s;margin-bottom:6px}
+.bub.mine{background:#2b5278;border-radius:16px 16px 5px 16px}
+.bub .t{float:right;font-size:11.5px;color:#6d7f8f;margin:6px 0 0 10px}.bub b{font-weight:600}
+.bub .q{border-left:3px solid #5ea8ff;padding:2px 0 2px 9px;margin-top:6px;color:#c9d4de}
+.bub .q.g{border-color:#3ccf74}
+.bub small{display:block;color:#8a9aab;font-size:12.5px;margin-top:6px}
+.kb{display:grid;gap:4px;margin:-2px 0 12px;max-width:92%}.kb.two{grid-template-columns:1fr 1fr}
+.kb div{background:rgba(70,95,120,.35);border-radius:10px;padding:9px;text-align:center;font-size:14px;font-weight:600;color:#fff;transition:transform .12s}
+.kb div.g{background:#2f9e5c}
+.stk{width:120px;height:120px;margin:0 0 8px;animation:stk 1.2s var(--ease) both}
+@keyframes stk{0%{opacity:0;transform:scale(.3) rotate(-20deg)}50%{transform:scale(1.12) rotate(8deg)}70%{transform:scale(.95) rotate(-3deg)}100%{transform:none}}
+.typing{display:inline-flex;gap:4px;background:#182533;border-radius:16px;padding:12px 14px;margin-bottom:8px}
+.typing span{width:7px;height:7px;border-radius:50%;background:#7d8b99;animation:tp 1s infinite}.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
+@keyframes tp{30%{transform:translateY(-4px);opacity:1}0%,60%,100%{opacity:.4}}
+.webapp{position:absolute;left:0;right:0;bottom:0;top:46px;border-radius:14px 14px 0 0;background:var(--bg);z-index:20;animation:sheet .5s var(--ease) both;overflow:hidden;box-shadow:0 -10px 30px rgba(0,0,0,.4)}
+.webapp.out{animation:sheetout .4s both}
+.webapp .wh{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 12px;font-weight:600;font-size:15px}
+.webapp .wh span:first-child,.webapp .wh span:last-child{color:#5ea8ff;font-weight:500}
+.webapp .stage{top:44px}
+/* banner (push) */
+.push{position:absolute;left:10px;right:10px;top:50px;z-index:88;background:rgba(40,42,48,.92);backdrop-filter:blur(20px);border-radius:20px;padding:11px 12px;display:flex;gap:10px;align-items:flex-start;animation:pdown .5s var(--ease) both;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.push img{width:38px;height:38px;border-radius:10px}.push b{font-size:14.5px;display:flex;justify-content:space-between}.push b small{font-weight:400;color:#9aa0ab;font-size:12.5px}
+.push div{font-size:14px;line-height:1.35;color:#e8eaee;flex:1}
+.push.out{animation:pup .35s both}
+@keyframes pdown{from{transform:translateY(-130%)}}@keyframes pup{to{transform:translateY(-130%);opacity:0}}
+/* lock screen */
+.lock{position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 0%,#2a3f6b 0%,#141b2c 55%,#07090e 100%);z-index:30;animation:fadein .5s both}
+.lock .clock{text-align:center;margin-top:92px;font-size:76px;font-weight:300;letter-spacing:-2px;line-height:1}
+.lock .date{text-align:center;font-size:17px;font-weight:500;margin-top:62px;margin-top:-2px;opacity:.85}
+.lock .dt0{text-align:center;font-size:17px;font-weight:500;margin-top:96px;opacity:.85}
+.lock .push{position:absolute;top:auto;bottom:120px;animation:rise .55s var(--ease) both}
+/* app switch */
+.happ{position:absolute;inset:0;background:linear-gradient(180deg,#101522,#0a0d14);z-index:40;padding-top:56px;text-align:center}
+.zin{animation:zin .45s var(--ease) both}@keyframes zin{from{transform:scale(.6);opacity:0;border-radius:40px}}
+.zout{animation:zout .4s var(--ease) both}@keyframes zout{to{transform:scale(.6);opacity:0;border-radius:40px}}
+.happ .hh{display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:17px}.happ .hh img{width:28px;height:28px;border-radius:8px}
+.happ .prof{margin:18px 16px 0;background:#182032;border-radius:16px;padding:12px 14px;display:flex;gap:12px;align-items:center;text-align:left}
+.happ .prof .fl{font-size:26px}.happ .prof b{display:block;font-size:15px}.happ .prof span{font-size:12.5px;color:#8b95a7}
+.happ .prof.new{animation:rise .5s var(--ease) both;box-shadow:0 0 0 1.5px #3ccf74}
+.power{width:170px;height:170px;border-radius:50%;margin:52px auto 0;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%,#2a3550,#161d2e);box-shadow:0 0 0 10px rgba(255,255,255,.03),0 20px 40px rgba(0,0,0,.5);transition:background .5s,box-shadow .5s;position:relative}
+.power svg{width:64px;height:64px;transition:stroke .4s}
+.power.ing::before{content:"";position:absolute;inset:-12px;border-radius:50%;border:3px solid transparent;border-top-color:#5ea8ff;animation:sp 1s linear infinite}
+.power.on{background:radial-gradient(circle at 50% 35%,#3bd37f,#178a4a);box-shadow:0 0 0 10px rgba(60,207,116,.12),0 0 60px rgba(60,207,116,.45)}
+.happ .st2{margin-top:22px;font-size:20px;font-weight:700}.happ .st3{margin-top:4px;color:#8b95a7;font-size:14px;font-variant-numeric:tabular-nums}
+.ios-alert{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:60;display:flex;align-items:center;justify-content:center;animation:fadein .25s both}
+.ios-alert .box{width:270px;border-radius:14px;background:rgba(44,44,48,.96);text-align:center;overflow:hidden;animation:pop .35s var(--ease) both}
+.ios-alert .tx{padding:18px 16px 14px}.ios-alert b{font-size:16.5px;display:block}.ios-alert p{font-size:13px;margin:6px 0 0;line-height:1.35;color:#e5e5ea}
+.ios-alert .bt{display:grid;grid-template-columns:1fr 1fr;border-top:.5px solid rgba(255,255,255,.18)}
+.ios-alert .bt div{padding:12px;font-size:16.5px;color:#0a84ff;transition:background .15s}.ios-alert .bt div+div{border-left:.5px solid rgba(255,255,255,.18)}
+/* pay page */
+.paypage{position:absolute;inset:0;z-index:50;background:#f2f3f7;color:#111;padding-top:46px;animation:sheet .45s var(--ease) both}
+.paypage.out{animation:sheetout .4s both}
+.paypage .url{margin:4px 12px 0;height:34px;border-radius:10px;background:#e3e5ec;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13.5px;color:#444}
+.paypage .pbox{margin:16px 14px 0;background:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 18px rgba(0,0,0,.06)}
+.paypage .sum{font-size:13px;color:#777}.paypage .sum b{display:block;font-size:30px;color:#111;margin-top:2px}
+.paypage .fld{margin-top:12px;height:48px;border-radius:12px;border:1.5px solid #e1e3ea;display:flex;align-items:center;padding:0 14px;font-size:16px;letter-spacing:.5px;color:#111;font-variant-numeric:tabular-nums}
+.paypage .fld.on{border-color:#3e88f7}
+.paypage .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.paypage .pb{margin-top:16px;height:52px;border-radius:14px;background:#111;color:#fff;font-weight:600;font-size:16px;display:flex;align-items:center;justify-content:center;width:100%;transition:transform .15s}
+.paypage .sec{text-align:center;font-size:12px;color:#888;margin-top:12px}
+.caret::after{content:"|";animation:blink 1s steps(1) infinite;color:#3e88f7;margin-left:1px}@keyframes blink{50%{opacity:0}}
+/* sheet */
+.sheetwrap{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:20;animation:fadein .35s both}
+.sheetwrap.out{animation:fadeout .3s both}.sheetwrap.out .sheet{animation:sheetout .35s both}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:26px 26px 0 0;padding:10px 18px 22px;animation:sheet .55s var(--ease) both}
+.sheet .grab{width:38px;height:5px;border-radius:9px;background:#3a3d45;margin:0 auto 12px}
+.sheet .hd{display:flex;gap:12px;align-items:center}
+.sheet .hd .ic{width:46px;height:46px;border-radius:14px;background:linear-gradient(160deg,#5fd38d,#16804a);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.sheet h3{margin:0;font-size:19px;line-height:1.2}.sheet .hd span{font-size:13.5px;color:var(--hint)}
+.sheet .lbl{font-size:13px;color:var(--hint);margin:16px 0 8px;font-weight:600}
+.sheet .chp{justify-content:flex-start;margin:0}.sheet .chp button{background:#2a2d34;height:36px;padding:0 14px}.sheet .chp .on{background:#fff;color:#111}
+.mtl{margin-top:14px;background:#121317;border-radius:16px;padding:4px 14px}
+.mtl .r{display:flex;gap:12px;align-items:center;padding:9px 0;font-size:14px;animation:rise .45s var(--ease) both}
+.mtl .r:nth-child(2){animation-delay:.15s}.mtl .r:nth-child(3){animation-delay:.3s}
+.mtl .r + .r{border-top:1px solid var(--sep)}
+.mtl .r i{font-style:normal;width:28px;text-align:center;font-size:17px}.mtl .r small{display:block;color:var(--hint);font-size:12.5px;margin-top:1px}
+.fine{font-size:12px;color:var(--hint);text-align:center;margin-top:8px;line-height:1.4}.fine u{color:#8cc0ff;text-decoration:none}
+.sheet .big-btn{margin-top:14px}
+.toast2{position:absolute;left:12px;right:12px;bottom:28px;z-index:40;background:#2a2d34;border-radius:16px;padding:12px 14px;font-size:14.5px;font-weight:600;display:flex;gap:10px;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.45);animation:tin .45s var(--ease) both}
+.toast2.out{animation:tout .35s both}
+@keyframes tin{from{opacity:0;transform:translateY(30px)}}@keyframes tout{to{opacity:0;transform:translateY(30px)}}
+.endc{position:absolute;inset:0;z-index:70;background:radial-gradient(100% 70% at 50% 20%,#1f4d35,#0d1410 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;animation:fadein .6s both}
+.endc h2{margin:16px 0 6px;font-size:24px}.endc p{color:#b9c6bd;font-size:14.5px;line-height:1.5;margin:0}
+.endc .st4{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:22px;width:100%}
+.endc .st4 div{background:rgba(255,255,255,.07);border-radius:14px;padding:10px 6px;font-size:12px;color:#b9c6bd;animation:rise .5s var(--ease) both}
+.endc .st4 div:nth-child(2){animation-delay:.12s}.endc .st4 div:nth-child(3){animation-delay:.24s}
+.endc .st4 b{display:block;font-size:18px;color:#fff}
+.app-ic{width:92px;height:92px;border-radius:22px;box-shadow:0 10px 24px rgba(0,0,0,.3)}
+.ok-row{display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px;font-weight:600;font-size:14px;background:rgba(255,255,255,.18);border-radius:99px;padding:6px 12px;width:max-content;margin-left:auto;margin-right:auto;animation:pop .5s var(--ease) both}
+.thanks{animation:rise .5s var(--ease) both}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="left">
+    <div class="phone" id="ph">
+      <div class="island"></div>
+      <div class="sbar"><span id="clk">10:00</span><span class="r"><span class="vpn" id="vpn">VPN</span>
+        <svg width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="#fff"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="#fff"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="#fff"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="#fff"/></svg><span class="bat"></span></span></div>
+      <div class="scene" id="scene"></div>
+      <div class="homeind"></div>
+      <div class="finger" id="fg"></div>
+    </div>
+    <div class="prog" id="prog"></div>
+    <div class="cap" id="cap"><span class="dy" id="dy">День 1</span><span class="t" id="capt"></span></div>
+  </div>
+  <div class="right">
+    <div class="top">
+      <h1>Путь нового клиента</h1>
+      <p>Новый человек от первого /start до оплаты и автопополнения. Всё проигрывается само; главу можно открыть кликом. Тексты бота взяты из текущих настроек, экраны — из кабинета.</p>
+      <div class="bar"><button id="play">⏸ Пауза</button><button id="prev">← Назад</button><button id="next">Дальше →</button><button id="slow">Медленнее</button><button id="restart">↻ С начала</button></div>
+    </div>
+    <ol class="chap" id="chap"></ol>
+  </div>
+</div>
+
+<script>
+const CH = [
+  { e: "👋", w: "День 1 · бот", t: "Первое сообщение", d: "Стикер-лягушка, привет и подарок, коротко кто мы и сколько стоит. Сообщения приходят с паузами, как от человека. Зелёная «Забрать подарок» — первой строкой.", p: ["Ценность первым делом", "Цена честно и сразу", "Одна главная кнопка", "Ритм сообщений"] },
+  { e: "🎁", w: "День 1 · кабинет", t: "Подарок", d: "Мини-приложение открывается сразу на экране подарка. Три шага «как это работает», карта не нужна. Нажал — 18 ₽ на балансе и конфетти.", p: ["Без карты", "Ожидания заранее", "Награда сразу"] },
+  { e: "📱", w: "День 1 · кабинет", t: "Устройство", d: "Мастер в три шага с точками прогресса: устройство → приложение → ключ. Для iPhone сразу предложено приложение, остальные свёрнуты.", p: ["Мастер", "Индикатор прогресса", "Рекомендация по умолчанию"] },
+  { e: "🛡️", w: "День 1 · Happ", t: "Подключение", d: "Ключ сам добавляется в Happ. iOS спрашивает разрешение, затем один тап — VPN включён, в строке статуса появляется значок.", p: ["Deep link", "Один тап", "Системные паттерны"] },
+  { e: "✅", w: "День 1 · кабинет", t: "Первое впечатление", d: "Главная зелёная, лягушка улыбается. Короткий вопрос «Как работает VPN?» ловит проблемы, пока человек не ушёл.", p: ["Статус цветом", "Фидбек в один тап"] },
+  { e: "⏰", w: "День 3 · уведомление", t: "Подарок заканчивается", d: "За день до конца — пуш от бота днём, в 10–21 по Москве. Конкретно: сколько стоит продолжить и на сколько хватит.", p: ["Вовремя", "Конкретная цифра", "Тихие часы"] },
+  { e: "💳", w: "День 3 · кабинет", t: "Первая оплата", d: "Сумма по умолчанию 100 ₽, под ней — сколько дней. Защищённая страница, ожидание со статусом, праздник после оплаты.", p: ["Разумные умолчания", "Цена в днях", "Видимость статуса", "Peak-end"] },
+  { e: "🔁", w: "День 3 · кабинет", t: "Автопополнение", d: "Через секунду после успеха — шторка: сумма, когда спишем, с какой карты, что напомним заранее. «Не сейчас» такой же заметный.", p: ["Bottom sheet", "Явное согласие", "Таймлайн", "Без давления"] },
+  { e: "🤝", w: "52-й день · бот", t: "Спокойствие", d: "За день до списания бот предупреждает, после — присылает чек. Изменить или отключить — кнопкой прямо в сообщении.", p: ["Без сюрпризов", "Прозрачность", "Контроль рядом"] },
+];
+let SPEED = 1, token = 0, paused = false, cur = 0;
+const $ = (s, r = document) => r.querySelector(s);
+const ph = $("#ph"), scene = $("#scene"), fg = $("#fg");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * SPEED));
+async function w(ms) {
+  const t = token; await sleep(ms);
+  while (paused && t === token) await new Promise((r) => setTimeout(r, 120));
+  if (t !== token) throw "stop";
+}
+const CHECK = '<svg class="chk" width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m7.5 12.5 3 3 6-6.5"/></svg>';
+const FROG = (s = 78) => `<img class="frog" src="../../webapp/icons/frog.png" style="width:${s}px;height:${s}px" alt="">`;
+const HAPP = (s = 92) => `<img class="app-ic" src="../../webapp/icons/happ.png" style="width:${s}px;height:${s}px" alt="">`;
+const POWER = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 7.2a8 8 0 1 0 11.4 0"/></svg>';
+const now = () => document.getElementById("clk");
+
+// ---------- ui helpers ----------
+function say(t) { const c = $("#capt"); c.textContent = t; c.style.animation = "none"; c.offsetWidth; c.style.animation = ""; }
+function setDay(d, clock) { $("#dy").textContent = d; if (clock) now().textContent = clock; }
+function vpn(on) { $("#vpn").classList.toggle("on", on); }
+function q(k) { return ph.querySelector(`[data-k="${k}"]`); }
+async function tap(k) {
+  const t = typeof k === "string" ? q(k) : k;
+  if (!t) return;
+  const r = t.getBoundingClientRect(), p = ph.getBoundingClientRect();
+  fg.style.transform = `translate(${r.left - p.left + r.width / 2 - 29}px,${r.top - p.top + r.height / 2 - 29}px)`;
+  fg.classList.add("on");
+  await w(700);
+  fg.classList.add("press"); t.classList.add("pressed");
+  await w(240);
+  fg.classList.remove("press"); t.classList.remove("pressed");
+  await w(120);
+  fg.classList.remove("on");
+}
+function show(host, html, dir = "f") {
+  const old = [...host.children].find((c) => c.classList.contains("scr") && !c.classList.contains("ghost"));
+  const s = document.createElement("div");
+  s.className = "scr " + (dir === "f" ? "enter" : dir === "b" ? "enterB" : "fade");
+  s.innerHTML = html;
+  if (old) { old.classList.add("ghost", dir === "b" ? "leaveB" : "leave"); setTimeout(() => old.remove(), 450); }
+  host.appendChild(s);
+  return s;
+}
+function boom() {
+  const c = ["#ffd25e", "#5fb4ff", "#3ccf74", "#ff7a6b", "#ffffff", "#b58cff"];
+  for (let i = 0; i < 40; i++) {
+    const s = document.createElement("span");
+    s.className = "conf";
+    s.style.cssText = `left:${Math.random() * 100}%;background:${c[i % c.length]};animation-delay:${Math.random() * .35}s;animation-duration:${1.2 + Math.random() * .9}s`;
+    ph.appendChild(s); setTimeout(() => s.remove(), 2600);
+  }
+}
+function count(el, to, pre = "+", from = 0) {
+  const t0 = performance.now();
+  const tick = (n) => { const k = Math.min(1, (n - t0) / (900 * SPEED)); el.textContent = pre + Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))) + " ₽"; if (k < 1) requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+}
+function toast(html, ms = 1800) {
+  const t = document.createElement("div");
+  t.className = "toast2"; t.innerHTML = html; ph.appendChild(t);
+  setTimeout(() => { t.classList.add("out"); setTimeout(() => t.remove(), 350); }, ms * SPEED);
+}
+function clear() { ph.classList.remove("light"); scene.innerHTML = ""; ph.querySelectorAll(".conf,.toast2,.push").forEach((x) => x.remove()); fg.classList.remove("on"); }
+
+// ---------- telegram ----------
+function chat(history = "") {
+  scene.insertAdjacentHTML("beforeend", `<div class="layer chat"><div class="tgbar"><span class="bk">‹</span><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div>
+    <div class="feed">${history}</div><div class="inp"><span class="mn">☰ Меню</span><span class="bx">Сообщение</span></div></div>`);
+  const feed = scene.querySelector(".feed");
+  return (html, cls = "") => { feed.insertAdjacentHTML("beforeend", `<div class="msg ${cls}">${html}</div>`); return feed.lastElementChild; };
+}
+const bub = (html, t = "10:00") => `<div class="bub">${html}<span class="t">${t}</span><div style="clear:both"></div></div>`;
+async function typing(add, ms = 1100) { const x = add('<div class="typing"><span></span><span></span><span></span></div>'); await w(ms); x.remove(); }
+function webapp() {
+  scene.insertAdjacentHTML("beforeend", `<div class="webapp"><div class="wh"><span>Закрыть</span><span>Лягушка VPN</span><span>⋯</span></div><div class="stage"></div></div>`);
+  return scene.querySelector(".webapp .stage");
+}
+function cabinetOnly() { // the mini app already open, as at the end of the previous chapter
+  scene.insertAdjacentHTML("beforeend", `<div class="layer chat"></div><div class="webapp" style="animation:none"><div class="wh"><span>Закрыть</span><span>Лягушка VPN</span><span>⋯</span></div><div class="stage"></div></div>`);
+  return scene.querySelector(".webapp .stage");
+}
+async function closeWebapp() { const a = scene.querySelector(".webapp"); a.classList.add("out"); await w(420); a.remove(); }
+
+// ---------- cabinet screens ----------
+const devRow = (st = "Подключено · 6 ₽ в день", dot = "") => `<div class="st">Устройства</div><div class="cd"><div class="rw"><span class="e">📱</span><span class="tt"><b>iPhone</b><span><span class="dot ${dot}"></span>${st}</span></span><span class="v"><span class="cv">›</span></span></div><div class="rw blue"><span class="e">＋</span>Добавить устройство</div></div>`;
+const S = {
+  gift: () => `<section class="hc purple"><div class="ov"></div><div class="ill"><div style="font-size:84px">🎁</div></div><div class="H">Дарим 3 дня VPN</div>
+    <div class="P">Попробуйте бесплатно на одном устройстве. Карта не нужна</div><div class="acts"><button class="pill" data-k="gift"><span>Забрать подарок</span></button></div></section>
+    <div class="st">Как это работает</div><div class="cd">
+    <div class="tl" style="--i:0"><div class="n">1</div><div><div class="tx">Забираете подарок</div><div class="sx"><b>+18 ₽</b> на баланс сразу</div></div></div>
+    <div class="tl" style="--i:1"><div class="n">2</div><div><div class="tx">Добавляете устройство</div><div class="sx">iPhone, Android, Mac или Windows</div></div></div>
+    <div class="tl" style="--i:2"><div class="n">3</div><div><div class="tx">Платите 6 ₽ в день</div><div class="sx">только пока пользуетесь</div></div></div></div>`,
+  giftOk: () => `<section class="hc green"><div class="ov"></div><div class="rb">подарок</div><div class="ill"><div>${CHECK}</div></div><div class="N" data-k="sum">+0 ₽</div>
+    <div class="P">Подарок на балансе · 3 дня VPN</div></section><div class="note c" style="margin-top:16px">Сейчас поможем добавить устройство…</div>`,
+  wiz1: () => `<section class="hc teal"><div class="ov"></div><div class="ill"><div style="font-size:72px">📱</div></div><div class="H">Где включить VPN?</div><div class="P">Каждое устройство оплачивается отдельно</div>
+    <div class="dots"><i class="on"></i><i></i><i></i></div></section><div class="st">Устройство</div><div class="cd">
+    <div class="rw" data-k="ios"><span class="e">📱</span>iPhone / iPad<span class="v">Happ <span class="cv">›</span></span></div>
+    <div class="rw"><span class="e">🤖</span>Android<span class="v">Happ <span class="cv">›</span></span></div>
+    <div class="rw"><span class="e">💻</span>Mac<span class="v">Happ <span class="cv">›</span></span></div>
+    <div class="rw"><span class="e">🖥️</span>Windows<span class="v">Happ <span class="cv">›</span></span></div>
+    <div class="rw"><span class="e">📺</span>Телевизор<span class="v"><span class="cv">›</span></span></div></div>`,
+  wiz2: () => `<section class="hc teal"><div class="ov"></div><div class="ill"><div>${HAPP()}</div></div><div class="H">Установите Happ</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>
+    <div class="dots"><i class="on"></i><i class="on"></i><i></i></div>
+    <div class="acts2"><button class="pill" data-k="store"><span>Скачать</span></button><button class="rnd2" data-k="installed">✓</button></div></section>
+    <div class="st">Как это работает</div><div class="cd">
+    <div class="tl" style="--i:0"><div class="n">1</div><div><div class="tx">Установите Happ</div><div class="sx">займёт полминуты</div></div></div>
+    <div class="tl" style="--i:1"><div class="n">2</div><div><div class="tx">Вернитесь сюда и нажмите ✓</div><div class="sx"><b>создадим ключ</b> для этого устройства</div></div></div>
+    <div class="tl" style="--i:2"><div class="n">3</div><div><div class="tx">Подключите в один тап</div><div class="sx">6 ₽ в день, пока пользуетесь</div></div></div></div>`,
+  wiz3: () => `<section class="hc green"><div class="ov"></div><div class="rb">ключ</div><div class="ill"><div style="font-size:72px">🛡️</div></div><div class="H">Подключите VPN</div><div class="P">Ключ добавится в Happ сам</div>
+    <div class="mono">sub.frog-vpn.app/k/7Hq2…</div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>
+    <div class="acts2"><button class="pill" data-k="connect"><span>Добавить в Happ</span></button><button class="rnd2">⧉</button></div></section>
+    <div class="st">Дальше</div><div class="cd">
+    <div class="tl" style="--i:0"><div class="n">1</div><div><div class="tx">Подтвердите добавление в Happ</div><div class="sx">кнопка выше откроет приложение</div></div></div>
+    <div class="tl" style="--i:1"><div class="n">2</div><div><div class="tx">Включите VPN в приложении</div><div class="sx">разрешите VPN, если спросит</div></div></div>
+    <div class="tl" style="--i:2"><div class="n">3</div><div><div class="tx">Готово — VPN работает</div><div class="sx"><b>6 ₽ в день</b>, пока устройство добавлено</div></div></div></div>`,
+  homeNew: () => `<section class="hc green"><div class="ov"></div><div class="rb">VPN вкл</div><div class="ill"><div>${FROG()}</div></div><div class="N">18 ₽</div>
+    <div class="P">Хватит на 3 дня · до 16 ноября</div><div class="acts"><button class="pill"><span>＋ Пополнить</span></button></div></section>
+    ${devRow()}<div class="st">Как работает VPN?</div><div class="cd" data-k="survey"><div class="rw" data-k="fbok"><span class="e">✅</span>Всё работает</div><div class="rw"><span class="e">🆘</span>Нужна помощь</div><div class="rw"><span class="e">🤔</span>Не подошли условия</div></div>`,
+  low: () => `<section class="hc orange"><div class="ov"></div><div class="rb">мало</div><div class="ill"><div>${FROG()}</div></div><div class="N">6 ₽</div>
+    <div class="P">Осталось меньше суток — пополните заранее</div><div class="acts"><button class="pill" data-k="topup"><span>＋ Пополнить</span></button></div></section>${devRow()}`,
+  topup: () => `<section class="hc blue"><div class="ov"></div><div class="N" data-k="amt">100 ₽</div><div class="P" data-k="days">≈ 16 дней VPN</div>
+    <div class="chp"><button>50</button><button class="on" data-k="c100">100</button><button data-k="c300">300</button><button>500</button><button>Своя</button></div>
+    <div class="acts"><button class="pill" data-k="pay"><span data-k="payl">Оплатить 100 ₽</span></button></div></section>
+    <div class="st">Способ оплаты</div><div class="cd"><div class="rw"><span class="e">💳</span><span class="tt"><b>Банковская карта</b><span>Visa, Mastercard, Мир</span></span><span class="v">Изменить <span class="cv">›</span></span></div></div>
+    <div class="note c">Баланс 6 ₽ · без подписки, спишем только 6 ₽ в день</div>`,
+  wait: () => `<section class="hc slate"><div class="ov"></div><div class="ill"><div style="display:flex;justify-content:center"><div class="spin"></div></div></div>
+    <div class="H">Ждём оплату</div><div class="P">Открыли защищённую страницу оплаты · обычно до минуты</div></section>
+    <div class="cd" style="margin-top:14px"><div class="tl" style="--i:0"><div class="n ok">✓</div><div><div class="tx">Счёт создан</div><div class="sx">300 ₽ · карта</div></div></div>
+    <div class="tl" style="--i:1"><div class="n run">💳</div><div><div class="tx">Подтверждение в банке</div><div class="sx">обычно до минуты</div></div></div>
+    <div class="tl" style="--i:2"><div class="n">⚡</div><div><div class="tx">Зачислим на баланс</div><div class="sx">VPN продолжит работать</div></div></div></div>`,
+  paid: () => `<section class="hc green"><div class="ov"></div><div class="ill"><div>${CHECK}</div></div><div class="N" data-k="sum">+0 ₽</div>
+    <div class="P">Оплата прошла · хватит до 5 января</div></section>${devRow()}`,
+  home: () => `<section class="hc green"><div class="ov"></div><div class="rb">VPN вкл</div><div class="ill"><div>${FROG()}</div></div><div class="N">306 ₽</div>
+    <div class="P">Хватит на 51 день · до 5 января</div><div class="apb">🔁 3 января пополним 300 ₽</div>
+    <div class="acts"><button class="pill"><span>＋ Пополнить</span></button></div></section>${devRow()}
+    <div style="height:12px"></div><div class="cd"><div class="rw"><span class="e">🔁</span>Автопополнение<span class="v">Вкл <span class="cv">›</span></span></div><div class="rw"><span class="e">🎁</span>Пригласить друзей<span class="v">+50 ₽ <span class="cv">›</span></span></div></div>`,
+};
+
+// ---------- chapters ----------
+const WELCOME_HI = bub("👋 Здравствуйте, Анна!<br><br>Вам подарок — <b>3 дня VPN</b> для одного устройства. Попробуйте на своих любимых сайтах и решите, подходит ли вам сервис.");
+const WELCOME_HELLO = bub("🌍 <b>Лягушка VPN</b> — VPN для телефона, компьютера и телевизора. Для видео, общения и сайтов, к которым нужен доступ. С подключением поможем.<br><br>💸 <b>6 ₽ в день</b> за устройство · без подписки · пополнение от 50 ₽<br>🎁 Позовите друга: ему 50 ₽ сразу, вам 50 ₽, когда он подключит VPN");
+const WELCOME_TRY = bub(`🎁 Ваш подарок — 3 дня для одного устройства.<br><br>Хватит, чтобы попробовать VPN в привычных делах. Нажмите «Забрать подарок» ниже — начислим подарок и сразу поможем добавить устройство.<small>Продолжая, вы принимаете <u>оферту</u> и <u>политику конфиденциальности</u>.</small>`);
+const WELCOME_KB = `<div class="kb"><div class="g" data-k="giftbtn">🎁 Забрать подарок</div><div>Личный кабинет</div></div><div class="kb two" style="margin-top:-8px"><div>Пригласить</div><div>О сервисе</div></div>`;
+
+const CHAPTERS = [
+  async function first() {
+    setDay("День 1", "10:00"); vpn(false);
+    say("Анна нашла бота по ссылке и нажала «Запустить».");
+    const add = chat(`<div class="day"><span>Сегодня</span></div>`);
+    await w(900);
+    add('<div class="bub mine">/start<span class="t">10:00 ✓✓</span><div style="clear:both"></div></div>', "me");
+    await w(700);
+    say("Сначала — стикер. Бот живой и дружелюбный.");
+    add(`<img class="stk" src="../../webapp/icons/frog.png" alt="">`);
+    await w(1300); await typing(add);
+    say("Привет и подарок — в первой же строке.");
+    add(WELCOME_HI); await w(1900); await typing(add);
+    say("Кто мы и честная цена: 6 ₽ в день, без подписки.");
+    add(WELCOME_HELLO); await w(2400); await typing(add, 900);
+    say("Последнее сообщение — с главной зелёной кнопкой сверху.");
+    add(WELCOME_TRY + WELCOME_KB); await w(2000);
+    await tap("giftbtn");
+  },
+  async function gift() {
+    setDay("День 1", "10:01");
+    let st;
+    if (!scene.querySelector(".chat")) { chat(`<div class="day"><span>Сегодня</span></div>` + WELCOME_TRY + WELCOME_KB); }
+    say("Мини-приложение выезжает сразу на экране подарка.");
+    st = webapp(); show(st, S.gift(), "x");
+    await w(2600);
+    say("Нажимает «Забрать подарок» — без карты и регистрации.");
+    await tap("gift");
+    show(st, S.giftOk(), "x"); boom(); count(q("sum"), 18);
+    say("+18 ₽ на балансе — это 3 дня VPN.");
+    await w(2300);
+  },
+  async function device() {
+    setDay("День 1", "10:02");
+    const st = scene.querySelector(".webapp .stage") || cabinetOnly();
+    say("Шаг 1 из 3: где включить VPN. Рядом с каждым — рекомендуемое приложение.");
+    show(st, S.wiz1()); await w(2000);
+    await tap("ios");
+    say("Шаг 2: установить Happ. Если уже стоит — сразу ✓.");
+    show(st, S.wiz2()); await w(2300);
+    await tap("installed");
+    say("Создаём ключ для этого iPhone…");
+    q("installed").innerHTML = '<span class="spin mini"></span>'; await w(1000);
+    say("Шаг 3: ключ готов, осталось добавить его в Happ.");
+    show(st, S.wiz3()); await w(2300);
+    await tap("connect");
+  },
+  async function connect() {
+    setDay("День 1", "10:03");
+    if (!scene.querySelector(".webapp")) { cabinetOnly(); }
+    say("Открывается Happ, ключ уже внутри — ничего не копируем.");
+    scene.insertAdjacentHTML("beforeend", `<div class="happ zin"><div class="hh"><img src="../../webapp/icons/happ.png" alt="">Happ</div>
+      <div class="prof new"><span class="fl">🐸</span><div><b>Лягушка VPN</b><span>Нидерланды · добавлено только что</span></div></div>
+      <div class="power" data-k="power">${POWER}</div><div class="st2" data-k="hs">Не подключено</div><div class="st3" data-k="ht">Нажмите, чтобы подключиться</div></div>`);
+    await w(1800);
+    await tap("power");
+    say("iOS один раз спрашивает разрешение на VPN.");
+    scene.insertAdjacentHTML("beforeend", `<div class="ios-alert"><div class="box"><div class="tx"><b>«Happ» запрашивает разрешение на добавление конфигураций VPN</b><p>Вся сетевая активность на этом iPhone может фильтроваться или отслеживаться при использовании VPN.</p></div>
+      <div class="bt"><div data-k="allow">Разрешить</div><div>Запретить</div></div></div></div>`);
+    await w(1700); await tap("allow");
+    scene.querySelector(".ios-alert").remove();
+    const p = q("power");
+    p.classList.add("ing"); q("hs").textContent = "Подключаемся…"; q("ht").textContent = "";
+    await w(1400);
+    p.classList.remove("ing"); p.classList.add("on"); vpn(true);
+    q("hs").textContent = "Подключено";
+    say("Готово — VPN работает. В строке статуса появился значок VPN.");
+    let s = 0; const ht = q("ht"); const iv = setInterval(() => { if (!ht.isConnected) return clearInterval(iv); s++; ht.textContent = "00:00:" + String(s).padStart(2, "0"); }, 1000 * SPEED);
+    await w(2600);
+  },
+  async function firstImpression() {
+    setDay("День 1", "10:05"); vpn(true);
+    const happ = scene.querySelector(".happ");
+    if (happ) { happ.classList.remove("zin"); happ.classList.add("zout"); await w(380); happ.remove(); }
+    let st = scene.querySelector(".webapp .stage") || cabinetOnly();
+    say("Возвращается в Telegram — кабинет уже обновился: всё зелёное.");
+    show(st, S.homeNew(), "x"); await w(2600);
+    say("Короткий вопрос: всё работает? Один тап — и мы знаем, где помочь.");
+    await tap("fbok");
+    q("survey").outerHTML = `<div class="cd thanks"><div class="rw"><span class="e">💚</span><span class="tt"><b>Спасибо! Рады, что всё работает</b><span>Если что-то сломается — поддержка в боте</span></span></div></div>`;
+    await w(2300);
+  },
+  async function giftEnding() {
+    clear(); vpn(true);
+    setDay("День 3", "14:20");
+    say("Через два дня. Анна пользуется VPN, телефон заблокирован.");
+    scene.insertAdjacentHTML("beforeend", `<div class="lock"><div class="dt0">Воскресенье, 15 ноября</div><div class="clock">14:20</div></div>`);
+    await w(1800);
+    say("В 14:20 по Москве — пуш от бота: подарок заканчивается завтра.");
+    scene.querySelector(".lock").insertAdjacentHTML("beforeend", `<div class="push" data-k="push"><img src="../../webapp/icons/frog.png" alt=""><div><b>Лягушка VPN <small>сейчас</small></b>🎁 Подарок заканчивается завтра. Понравилось? Пополните от 50 ₽ — это 8 дней VPN.</div></div>`);
+    await w(2600);
+    await tap("push");
+    scene.querySelector(".lock").style.animation = "fadeout .35s both"; await w(350);
+    clear();
+    const add = chat(`<div class="day"><span>13 ноября</span></div>` + WELCOME_TRY + `<div class="day"><span>Сегодня</span></div>`);
+    add(bub("🎁 Подарок заканчивается завтра. Понравилось? Пополните от 50 ₽ — это 8 дней VPN.", "14:20") + `<div class="kb"><div data-k="topupbot">Пополнить баланс</div><div>Главное меню</div></div>`);
+    say("Сообщение с кнопкой «Пополнить баланс».");
+    await w(1800);
+    await tap("topupbot");
+  },
+  async function pay() {
+    setDay("День 3", "14:21"); vpn(true);
+    if (!scene.querySelector(".chat")) chat(`<div class="day"><span>Сегодня</span></div>` + bub("🎁 Подарок заканчивается завтра…", "14:20"));
+    const st = webapp();
+    say("Кабинет открывается сразу на пополнении. Первая оплата — 100 ₽ по умолчанию.");
+    show(st, S.topup(), "x"); await w(2300);
+    say("Выбирает 300 ₽ — под суммой сразу видно: ≈ 50 дней.");
+    await tap("c300");
+    q("c100").classList.remove("on"); q("c300").classList.add("on");
+    q("amt").textContent = "300 ₽"; q("days").textContent = "≈ 50 дней VPN"; q("payl").textContent = "Оплатить 300 ₽";
+    await w(1100); await tap("pay");
+    say("Защищённая страница оплаты.");
+    show(st, S.wait(), "x");
+    scene.insertAdjacentHTML("beforeend", `<div class="paypage"><div class="url">🔒 Защищённая оплата</div><div class="pbox"><div class="sum">Пополнение баланса Лягушка VPN<b>300 ₽</b></div>
+      <div class="fld on" data-k="card"><span class="caret"></span></div><div class="two"><div class="fld">12 / 28</div><div class="fld">•••</div></div>
+      <button class="pb" data-k="pb">Оплатить 300 ₽</button><div class="sec">Данные карты не передаются в Лягушку VPN</div></div></div>`);
+    ph.classList.add("light");
+    await w(900);
+    const card = q("card"), num = "4276 3800 1234 4242";
+    for (let i = 1; i <= num.length; i += 2) { card.innerHTML = num.slice(0, i) + '<span class="caret"></span>'; await w(55); }
+    card.textContent = num; card.classList.remove("on");
+    await w(500); await tap("pb");
+    q("pb").innerHTML = '<span class="spin mini" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></span>';
+    await w(1100);
+    const pp = scene.querySelector(".paypage"); ph.classList.remove("light"); pp.classList.add("out"); await w(400); pp.remove();
+    say("Возвращается в кабинет — там видно, на каком шаге платёж.");
+    await w(1800);
+    say("Оплата прошла!");
+    show(st, S.paid(), "x"); boom(); count(q("sum"), 300);
+    await w(1800);
+  },
+  async function autopay() {
+    setDay("День 3", "14:22"); vpn(true);
+    let st = scene.querySelector(".webapp .stage");
+    if (!st) { st = cabinetOnly(); show(st, S.paid(), "x"); q("sum").textContent = "+300 ₽"; await w(800); }
+    say("Пока радость свежая — шторка: пополнять автоматически?");
+    scene.insertAdjacentHTML("beforeend", `<div class="sheetwrap"><div class="sheet"><div class="grab"></div>
+      <div class="hd"><span class="ic">🔁</span><div><h3>Пополнять автоматически?</h3><span>VPN не выключится, следить не нужно</span></div></div>
+      <div class="lbl">Сумма пополнения</div><div class="chp"><button class="on">300 ₽</button><button>500 ₽</button><button>1 000 ₽</button></div>
+      <div class="mtl"><div class="r"><i>✓</i><div>Сегодня +300 ₽<small>хватит до 5 января</small></div></div>
+      <div class="r"><i>🔔</i><div>2 января напомним в боте<small>можно отменить</small></div></div>
+      <div class="r"><i>🔁</i><div>3 января спишем 300 ₽<small>с карты •• 4242, когда останется 2 дня</small></div></div></div>
+      <button class="big-btn" data-k="yes">Включить</button><button class="later">Не сейчас</button>
+      <div class="fine">Отключить можно в любой момент в кабинете или в боте · <u>Условия</u></div></div></div>`);
+    await w(3600);
+    say("Видит сумму, дату и карту — и включает.");
+    await tap("yes");
+    const b = q("yes"); b.innerHTML = '<span class="spin mini"></span>'; await w(900);
+    b.classList.add("ok"); b.innerHTML = "✓ Готово"; await w(800);
+    const sh = scene.querySelector(".sheetwrap"); sh.classList.add("out"); setTimeout(() => sh.remove(), 400);
+    await w(300);
+    say("На главной — плашка с датой следующего пополнения.");
+    show(st, S.home(), "x");
+    toast('<span style="font-size:20px">🔁</span>Автопополнение включено');
+    await w(3000);
+  },
+  async function calm() {
+    clear(); vpn(true);
+    setDay("52-й день", "12:00");
+    say("2 января. Бот предупреждает за день: никаких сюрпризов.");
+    const add = chat(`<div class="day"><span>15 ноября</span></div>` + bub("✅ <b>Баланс пополнен на 300 ₽</b><div class='q g'>Теперь 306 ₽ — хватит до 5 января.</div>", "14:22") + `<div class="day"><span>2 января</span></div>`);
+    await w(600);
+    add(bub("🔔 <b>Завтра пополним баланс</b><div class='q'>300 ₽ с карты •• 4242 — VPN осталось на 2 дня.</div>", "12:00") + `<div class="kb two"><div>Хорошо</div><div>Изменить</div></div>`);
+    await w(2600);
+    setDay("53-й день", "12:00");
+    say("3 января. Списали — сразу чек и до какой даты хватит.");
+    add(`<div class="day"><span>3 января</span></div>`);
+    add(bub("✅ <b>Автопополнение: +300 ₽</b><div class='q g'>Баланс 312 ₽ — хватит до 24 февраля.<br>Карта •• 4242 · чек на почте.</div>", "12:00") + `<div class="kb two"><div>Чек</div><div>Изменить</div></div>`);
+    await w(2800);
+    say("Анна больше не думает о балансе. VPN просто работает.");
+    scene.insertAdjacentHTML("beforeend", `<div class="endc"><div style="font-size:64px" class="chk">🐸</div><h2>Клиент с нами</h2><p>От /start до VPN — 3 минуты.<br>От подарка до оплаты — 2 дня.<br>Дальше — без перерывов.</p>
+      <div class="st4"><div><b>~3 мин</b>до VPN</div><div><b>7</b>тапов до VPN</div><div><b>0</b>перерывов</div></div></div>`);
+    await w(4200);
+  },
+];
+
+// ---------- player ----------
+const chapEl = $("#chap"), prog = $("#prog");
+CH.forEach((c, i) => {
+  chapEl.insertAdjacentHTML("beforeend", `<li data-i="${i}"><span class="i">${c.e}</span><div><span class="w">${c.w}</span><b>${c.t}</b><div class="d">${c.d}</div><div class="pt">${c.p.map((p) => `<em>${p}</em>`).join("")}</div></div></li>`);
+  prog.insertAdjacentHTML("beforeend", "<i></i>");
+});
+chapEl.onclick = (e) => { const li = e.target.closest("li"); if (li) play(+li.dataset.i); };
+const LEN = [14, 9, 14, 11, 8, 12, 17, 11, 12];
+function mark(i) {
+  [...chapEl.children].forEach((l, k) => { l.classList.toggle("on", k === i); l.classList.toggle("done", k < i); });
+  [...prog.children].forEach((b, k) => { b.className = k < i ? "done" : k === i ? "on" : ""; b.style.setProperty("--d", LEN[k] * SPEED + "s"); });
+}
+async function play(from = 0) {
+  const my = ++token; paused = false; $("#play").textContent = "⏸ Пауза";
+  clear(); vpn(from >= 4);
+  try {
+    for (let i = from; i < CHAPTERS.length; i++) {
+      cur = i; mark(i);
+      if (window.innerWidth > 900) [...chapEl.children][i].scrollIntoView({ block: "nearest", behavior: "smooth" });
+      await CHAPTERS[i]();
+      await w(500);
+    }
+    await w(1500);
+    if (my === token) play(0);
+  } catch (e) { if (e !== "stop") console.error(e); }
+}
+$("#play").onclick = () => {
+  paused = !paused; $("#play").textContent = paused ? "▶ Дальше" : "⏸ Пауза";
+  document.getAnimations().forEach((a) => (paused ? a.pause() : a.play()));
+};
+$("#prev").onclick = () => play(Math.max(0, cur - 1));
+$("#next").onclick = () => play(Math.min(CHAPTERS.length - 1, cur + 1));
+$("#restart").onclick = () => play(0);
+$("#slow").onclick = (e) => { SPEED = SPEED === 1 ? 1.7 : 1; e.target.classList.toggle("on", SPEED !== 1); play(cur); };
+play(0);
+</script>
+</body>
+</html>

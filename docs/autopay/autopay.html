@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Автопополнение — макет</title>
+<link rel="stylesheet" href="../../webapp/cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:auto}
+.top{padding:22px 28px 4px;max-width:1720px;margin:0 auto}
+.top h1{font-size:22px;margin:0;font-weight:800}.top p{margin:6px 0 0;color:#9aa0ab;font-size:14px;max-width:900px;line-height:1.45}
+.row{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;padding:18px 20px 40px}
+.col{width:min(360px,calc(100vw - 32px))}
+.cap{margin:14px 6px 0}.cap b{font-size:17px}.cap p{margin:4px 0 0;color:#9aa0ab;font-size:13.5px;line-height:1.45}
+.phone{width:100%;height:760px;border-radius:46px;border:9px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;background:var(--bg)}
+.scrl{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding:14px 0 30px}.scrl::-webkit-scrollbar{display:none}
+.scrl *{animation:none!important}
+.frog{width:78px;height:78px}
+/* switch */
+.sw2{width:51px;height:31px;border-radius:99px;background:#3a3d45;position:relative;flex-shrink:0;transition:background .25s}
+.sw2::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3);transition:transform .25s var(--ease)}
+.sw2.on{background:var(--grn)}.sw2.on::after{transform:translateX(20px)}
+/* small badge inside the bright card */
+.apb{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:7px 14px 7px 11px;border-radius:99px;background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:14px;font-weight:600}
+.big-btn{display:block;margin:12px 12px 0;padding:15px;border-radius:16px;background:var(--blue);color:#fff;font-size:16.5px;font-weight:600;text-align:center;width:calc(100% - 24px)}
+.offer{margin:14px 12px 0;background:var(--card);border-radius:22px;padding:18px 18px 16px}
+.offer .h{display:flex;align-items:center;gap:12px;font-size:17px;font-weight:600}
+.offer .h .ic{width:42px;height:42px;border-radius:12px;background:linear-gradient(160deg,#5fb4ff,#1d63d6);display:flex;align-items:center;justify-content:center;font-size:22px}
+.offer p{margin:10px 0 0;color:var(--hint);font-size:14.5px;line-height:1.42}
+.offer p b{color:#fff;font-weight:600}
+.offer .later{display:block;text-align:center;color:var(--hint);font-size:14.5px;margin-top:12px;width:100%}
+.offer .big-btn{margin:14px 0 0;width:100%}
+.rw.red{color:var(--red)}
+/* telegram chat */
+.tgbar{display:flex;align-items:center;gap:10px;padding:6px 14px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
+.tgbar .av{width:38px;height:38px;border-radius:50%;background:#28a464;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.tgbar .av img{width:38px;height:38px}
+.tgbar b{font-size:15.5px;display:block}.tgbar span{font-size:13px;color:#7d8b99}
+.chat{background:#0e1621;position:absolute;inset:0;padding-top:14px}
+.chat .feed{padding:14px 10px}
+.day{text-align:center;margin:4px 0 12px}.day span{background:rgba(0,0,0,.35);color:#fff;font-size:12.5px;padding:3px 10px;border-radius:99px}
+.bub{background:#182533;border-radius:16px 16px 16px 5px;padding:9px 12px 7px;font-size:15px;line-height:1.38;max-width:92%;color:#fff}
+.bub .t{float:right;font-size:11.5px;color:#6d7f8f;margin:6px 0 0 10px}
+.bub b{font-weight:600}
+.bub .q{border-left:3px solid #5ea8ff;padding:2px 0 2px 9px;margin-top:6px;color:#c9d4de}
+.kb{display:grid;gap:4px;margin:4px 0 14px;max-width:92%}
+.kb div{background:rgba(70,95,120,.35);border-radius:10px;padding:9px;text-align:center;font-size:14px;font-weight:600;color:#fff}
+.kb.two{grid-template-columns:1fr 1fr}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Автопополнение баланса — как это выглядит у клиента</h1>
+  <p>Не подписка, а «пополнить сами, когда баланс заканчивается». Тот же кабинет и те же цвета, добавлены переключатель, экран управления и сообщения в боте. Работает только если платёжный провайдер умеет сохранять карту или привязку СБП.</p>
+</div>
+<div class="row">
+
+<!-- 1. after payment -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc green"><div class="ov"></div>
+    <div class="ill"><div><svg width="76" height="76" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m7.5 12.5 3 3 6-6.5"/></svg></div></div>
+    <div class="N">+300 ₽</div>
+    <div class="P">Оплата прошла · хватит на 57 дней</div>
+  </section>
+  <div class="offer">
+    <div class="h"><span class="ic">🔁</span>Не следить за балансом?</div>
+    <p>Когда останется <b>2 дня</b>, сами пополним на <b>300 ₽</b> с карты <b>•• 4242</b>. VPN не выключится в самый неудобный момент.</p>
+    <button class="big-btn">Включить автопополнение</button>
+    <button class="later">Не сейчас</button>
+  </div>
+  <div class="note c">Отключить можно в любой момент — одной кнопкой в кабинете или в боте.</div>
+</div></div>
+<div class="cap"><b>1. Сразу после оплаты</b><p>Самый тёплый момент: человек только что заплатил. Предложение показываем один раз, «Не сейчас» его прячет.</p></div></div>
+
+<!-- 2. setup -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc blue"><div class="ov"></div>
+    <div class="H" style="font-size:19px;opacity:.9">🔁 Автопополнение</div>
+    <div class="N">300 ₽</div>
+    <div class="P">≈ 50 дней VPN за раз</div>
+    <div class="chp"><button>100</button><button class="on">300</button><button>500</button><button>1 000</button></div>
+    <div class="acts"><button type="button" class="pill"><span>Включить</span></button></div>
+  </section>
+  <div class="st">Условия</div>
+  <div class="cd">
+    <button class="rw"><span class="e">⏳</span><span class="tt"><b>Когда пополнять</b><span>VPN осталось на 2 дня</span></span><span class="v">2 дня <span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">💳</span><span class="tt"><b>Карта</b><span>Visa •• 4242</span></span><span class="v"><span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">🛡</span><span class="tt"><b>Лимит в месяц</b><span>Не спишем больше</span></span><span class="v">1 000 ₽ <span class="cv">›</span></span></button>
+  </div>
+  <div class="note">После каждого пополнения придёт сообщение в бот с суммой и кнопкой «Отключить».</div>
+</div></div>
+<div class="cap"><b>2. Настройка</b><p>Три выбора, всё уже заполнено: сумма кнопками как на пополнении, порог в днях, лимит в месяц.</p></div></div>
+
+<!-- 3. home -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc green"><div class="ov"></div>
+    <div class="rb">VPN вкл</div>
+    <div class="ill"><div><img class="frog" src="../../webapp/icons/frog.png" alt=""></div></div>
+    <div class="N">46 ₽</div>
+    <div class="P">Хватит на 7 дней · до 20 ноября</div>
+    <div class="apb">🔁 Пополним 300 ₽ около 18 ноября</div>
+    <div class="acts"><button type="button" class="pill"><span>Пополнить</span></button></div>
+  </section>
+  <div class="st">Устройства <span style="color:var(--hint);font-weight:500">· 1 из 10</span></div>
+  <div class="cd">
+    <button class="rw"><span class="e">📱</span><span class="tt"><b>iPhone</b><span><span class="dot"></span>Подключено · 6 ₽ в день</span></span><span class="v"><span class="cv">›</span></span></button>
+    <button class="rw blue"><span class="e">＋</span>Добавить устройство</button>
+  </div>
+  <div style="height:12px"></div>
+  <div class="cd">
+    <button class="rw"><span class="e">🔁</span>Автопополнение<span class="v">300 ₽ · вкл <span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">🎁</span>Пригласить друзей<span class="v"><span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">⚙️</span>Настройки<span class="v"><span class="cv">›</span></span></button>
+  </div>
+</div></div>
+<div class="cap"><b>3. Главная кабинета</b><p>Под балансом — когда и сколько спишем. Кнопка «Пополнить» остаётся: можно пополнить и вручную.</p></div></div>
+
+<!-- 4. manage -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc teal"><div class="ov"></div>
+    <div class="rb">включено</div>
+    <div class="ill"><div><span style="font-size:64px;line-height:1">🔁</span></div></div>
+    <div class="H">Автопополнение</div>
+    <div class="P">Следующее — 300 ₽ около 18 ноября</div>
+  </section>
+  <div class="cd" style="margin-top:14px">
+    <div class="rw"><span class="e">🔁</span>Пополнять автоматически<span class="v"><span class="sw2 on"></span></span></div>
+  </div>
+  <div class="st">Настройки</div>
+  <div class="cd">
+    <button class="rw"><span class="e">💰</span>Сумма<span class="v">300 ₽ <span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">⏳</span>Когда пополнять<span class="v">за 2 дня <span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">💳</span>Карта<span class="v">•• 4242 <span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">🛡</span>Лимит в месяц<span class="v">1 000 ₽ <span class="cv">›</span></span></button>
+  </div>
+  <div class="st">Последние пополнения</div>
+  <div class="cd">
+    <div class="rw"><span class="tt"><b>300 ₽ · автоматически</b><span>21 октября · Visa •• 4242</span></span><span class="v" style="color:var(--grn)">✓</span></div>
+    <div class="rw"><span class="tt"><b>300 ₽ · вручную</b><span>13 ноября · СБП</span></span><span class="v" style="color:var(--grn)">✓</span></div>
+  </div>
+  <div class="cd" style="margin-top:12px"><button class="rw red"><span class="e">✕</span>Отвязать карту</button></div>
+</div></div>
+<div class="cap"><b>4. Управление</b><p>Выключается одним переключателем, без «вы уверены?». Отдельно — отвязать карту совсем. История видна сразу.</p></div></div>
+
+<!-- 5. topup screen -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc cardpay"><div class="ov"></div>
+    <div class="ill"><div><span style="font-size:60px;line-height:1">💳</span></div></div>
+    <div class="N">300 ₽</div>
+    <div class="P">≈ 50 дней VPN</div>
+    <div class="chp"><button>100</button><button class="on">300</button><button>500</button><button>1 000</button><button>Своя</button></div>
+    <div class="acts"><button type="button" class="pill"><span>Оплатить 300 ₽</span></button></div>
+  </section>
+  <div class="st">Способ оплаты</div>
+  <div class="cd"><button class="rw"><span class="e">💳</span><span class="tt"><b>Банковская карта</b><span>Visa, Mastercard, МИР</span></span><span class="v">Изменить <span class="cv">›</span></span></button></div>
+  <div class="cd" style="margin-top:12px">
+    <div class="rw"><span class="tt"><b>Пополнять автоматически</b><span>300 ₽, когда останется 2 дня</span></span><span class="v"><span class="sw2 on"></span></span></div>
+  </div>
+  <div class="note c">Баланс 46 ₽ · карту запомним для автопополнения. Отключить — в кабинете или в боте.</div>
+</div></div>
+<div class="cap"><b>5. Экран пополнения</b><p>Переключатель прямо под оплатой. Вместо «разовая оплата, автоплатежей нет» — честно, что карта запомнится.</p></div></div>
+
+<!-- 6. bot -->
+<div class="col"><div class="phone"><div class="chat">
+  <div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div>
+  <div class="feed">
+    <div class="day"><span>18 ноября</span></div>
+    <div class="bub">🔁 <b>Пополнили 300 ₽ автоматически</b><div class="q">Visa •• 4242 · на балансе 312 ₽<br>Хватит на 52 дня, до 9 января</div><span class="t">10:02</span><div style="clear:both"></div></div>
+    <div class="kb two"><div>Настроить</div><div>Отключить</div></div>
+    <div class="day"><span>9 января</span></div>
+    <div class="bub">⚠️ <b>Не получилось пополнить 300 ₽</b><div class="q">Банк отклонил списание с •• 4242.<br>VPN работает ещё 2 дня — успеете оплатить иначе.</div><span class="t">10:01</span><div style="clear:both"></div></div>
+    <div class="kb"><div>Оплатить другим способом</div><div>🤝 Обещанный платёж</div><div>Сменить карту</div></div>
+  </div>
+</div></div>
+<div class="cap"><b>6. Сообщения в боте</b><p>После каждого автосписания — сумма, на сколько хватит и «Отключить». Если банк отказал — запас 2 дня и выходы: другой способ или обещанный платёж.</p></div></div>
+
+</div>
+</body>
+</html>
