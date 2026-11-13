@@ -32,12 +32,14 @@ const audiences: [string, string][] = [
   ["not_connected", "Добавили устройство, но не подключились"],
   ["zero_off", "VPN отключился — закончились деньги"],
   ["low_balance", "Баланса осталось меньше чем на 3 дня"],
+  ["no_browser", "Пользуются VPN, но ни разу не входили в браузере"],
 ];
 // What each segment is for: shown under the audience picker.
 const audienceHint: Record<string, string> = {
   not_connected: "Им нужна помощь с подключением, а не скидка: короткая инструкция и кнопка в кабинет.",
   zero_off: "Пользовались VPN, он выключился из-за нулевого баланса. Лучше всего работает напоминание пополнить с одной кнопкой.",
   low_balance: "VPN работает, но скоро выключится. Предупредите заранее — так меньше людей теряют доступ.",
+  no_browser: "VPN работал за последние 30 дней, а кабинет в браузере не открывали. Запасной вход пригодится, если Telegram не грузится.",
 };
 // Next 19:00 in Moscow (UTC+3, no daylight saving): people read messages in the evening.
 const nextEveningMsk = () => {
@@ -54,7 +56,12 @@ const templates: [string, string][] = [
   ["whitelist", "Белые списки включены"],
   ["invite", "Пригласить друзей"],
   ["unused", "Помощь с первым подключением"],
+  ["browser", "Кабинет в браузере"],
 ];
+// Stored templates with an audience of their own.
+const templateAudience: Record<string, string> = { invite: "using", unused: "unused", browser: "no_browser" };
+// A photo, GIF or video goes with one's own text or with «Кабинет в браузере» (a screen recording of the login).
+const withMedia = (t: string) => !t || t === "browser";
 // Announcements to everyone: editable text plus a fixed button.
 const announce: Record<string, string> = {
   gift3: "Забрать 3 дня бесплатно",
@@ -227,7 +234,7 @@ function Results() {
   return (
     <Panel
       title="Результаты рассылок"
-      description="Нажали — открыли кнопку из сообщения. Оплатили — пополнили в течение 7 дней после нажатия."
+      description="Нажали — открыли кнопку из сообщения. Оплатили — пополнили в течение 7 дней после нажатия. Вошли в браузере — открыли кабинет на сайте в течение 3 дней (для «Кабинет в браузере»)."
     >
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -237,6 +244,7 @@ function Results() {
               <th className="py-2 pr-3 font-normal text-right">Доставлено</th>
               <th className="py-2 pr-3 font-normal text-right">Нажали</th>
               <th className="py-2 pr-3 font-normal text-right">Оплатили</th>
+              <th className="py-2 pr-3 font-normal text-right">Вошли в браузере</th>
               <th className="py-2 font-normal text-right">Выручка</th>
             </tr>
           </thead>
@@ -285,6 +293,16 @@ function Results() {
                   <td className="py-3 pr-3 text-right tabular-nums">
                     {r.payers || 0} <span className="text-muted-foreground">· {pct(Number(r.payers || 0), sent)}</span>
                   </td>
+                  <td className="py-3 pr-3 text-right tabular-nums">
+                    {spec.template === "browser" ? (
+                      <>
+                        {r.browser_logins || 0}{" "}
+                        <span className="text-muted-foreground">· {pct(Number(r.browser_logins || 0), sent)}</span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="py-3 text-right tabular-nums">
                     {Number(r.rub || 0).toLocaleString("ru-RU")} ₽
                     {r.stars ? ` · ${r.stars} ⭐` : ""}
@@ -317,17 +335,11 @@ export function BroadcastPage() {
   useEffect(() => () => { if (media) URL.revokeObjectURL(media.url); }, [media]);
   const data = resource.data,
     effectiveAudience =
-      template === "invite"
-        ? "using"
-        : template === "unused"
-          ? "unused"
-          : template === "whitelist" || template in announce
-            ? "all"
-            : audience,
+      templateAudience[template] ?? (template === "whitelist" || template in announce ? "all" : audience),
     count = data?.audiences?.[effectiveAudience] ?? 0,
     editable = !template || template in announce,
     body = editable ? text : data?.previews?.[template] || "",
-    attached = !template ? media : null,
+    attached = withMedia(template) ? media : null,
     tooLong = !!attached && text.length > CAPTION_MAX,
     ready = (!!body.trim() || !!attached) && !tooLong;
   const selectTemplate = (v: string) => {
@@ -349,7 +361,7 @@ export function BroadcastPage() {
           template in announce
             ? { template, text }
             : template
-              ? { template }
+              ? { template, ...(attached ? { media: { id: attached.id, kind: attached.kind } } : {}) }
               : { text, audience, ...(attached ? { media: { id: attached.id, kind: attached.kind } } : {}) };
         const full = sample ? { ...payload, sample } : payload;
         await api(
@@ -485,7 +497,7 @@ export function BroadcastPage() {
                           />
                         </Field>
                       )}
-                      {step === 1 && !template && (
+                      {step === 1 && withMedia(template) && (
                         <Field label="Фото, GIF или видео">
                           <MediaPicker media={media} onChange={(m) => { setMedia(m); setSent(false); }} />
                         </Field>
@@ -639,7 +651,9 @@ export function BroadcastPage() {
                         ? announce[template]
                         : template === "invite"
                           ? "Поделиться реферальной ссылкой · Войти в кабинет"
-                          : "Войти в кабинет"}
+                          : template === "browser"
+                            ? "🌐 Открыть в браузере · Как войти"
+                            : "Войти в кабинет"}
                     </div>
                   }
                 </div>

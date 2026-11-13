@@ -4,7 +4,7 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
 from app import db
-from app.cabinet_login import approved_text, request_text
+from app.cabinet_login import approved_text, request_text, send_site_link
 from app.handlers.start import ack
 from app.keyboards import cabinet_login_keyboard, cabinet_session_keyboard
 from app.notices import notice_text
@@ -76,6 +76,18 @@ async def cabinet_login_no(callback: CallbackQuery) -> None:
     except Exception:
         pass
     await ack(callback)
+
+
+@router.callback_query(F.data == "brw:link")
+async def browser_link(callback: CallbackQuery) -> None:
+    """«💻 Пополнить с компьютера» under «мало баланса»: the cabinet's address, to open on a computer."""
+    sent = False
+    if callback.from_user:
+        try:
+            sent = await send_site_link(callback.bot, int(callback.from_user.id))
+        except Exception:
+            sent = False
+    await ack(callback, None if sent else "Кабинет в браузере сейчас недоступен")
 
 
 @router.callback_query(F.data.startswith("lk:x:"))

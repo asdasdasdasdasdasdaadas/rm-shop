@@ -425,3 +425,72 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .lspin { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, .3); border-top-color: #fff; animation: lspin .8s linear infinite; flex: none; }
 @keyframes lspin { to { transform: rotate(360deg); } }
 .lalt { display: block; margin: 18px auto 0; color: var(--link); font-size: 15px; font-weight: 600; background: none; border: 0; padding: 8px 12px; }
+
+/* ---------- «кабинет есть и в браузере»: card on home, «Как войти» sheet ---------- */
+/* The scene: QR on a laptop → the phone scans it → «Да, это я» → the cabinet opens. Base styles are the still
+   frame (laptop with the QR, phone with «Да, это я»), which shows on reduced motion and after a quiet repaint. */
+.scene { --d: 5.5s; position: relative; width: 200px; height: 118px; flex: none; }
+.scene * { box-sizing: border-box; }
+.scene .lap { position: absolute; left: 8px; top: 6px; width: 150px; height: 96px; }
+.scene .lap .sc { position: absolute; left: 0; top: 0; width: 150px; height: 92px; border-radius: 9px; background: #1b1d22; border: 3px solid #2f323a; overflow: hidden; }
+.scene .lap .base { position: absolute; left: -10px; right: -10px; bottom: -6px; height: 8px; border-radius: 0 0 8px 8px; background: #3a3d46; }
+.scene .lap .bar { height: 9px; background: #26282e; display: flex; gap: 3px; align-items: center; padding-left: 5px; }
+.scene .lap .bar i { width: 4px; height: 4px; border-radius: 50%; background: #ff5f57; }
+.scene .lap .bar i + i { background: #febc2e; } .scene .lap .bar i + i + i { background: #28c840; }
+.scene .l1, .scene .l2, .scene .l3 { position: absolute; left: 0; right: 0; top: 9px; bottom: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; }
+.scene .l1 { background: linear-gradient(170deg, #6aa8ff, #3e6ff0); animation: bsL1 var(--d) infinite; }
+.scene .qr { width: 44px; height: 44px; background: #fff; border-radius: 6px; padding: 4px; position: relative; }
+.scene .qr svg { width: 100%; height: 100%; display: block; }
+.scene .qr::after { content: ""; position: absolute; left: 3px; right: 3px; height: 2px; background: #3ccf74; box-shadow: 0 0 6px #3ccf74; top: 4px; opacity: 0; animation: bsScan var(--d) infinite; }
+.scene .t { font-size: 7px; font-weight: 700; color: #fff; opacity: .9; }
+.scene .l2 { background: linear-gradient(170deg, #4fd38a, #22a85c); opacity: 0; animation: bsL2 var(--d) infinite; }
+.scene .l2 .ok { width: 30px; height: 30px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; }
+.scene .l3 { background: #111215; align-items: stretch; justify-content: flex-start; padding: 6px; gap: 4px; opacity: 0; animation: bsL3 var(--d) infinite; }
+.scene .l3 .h { height: 30px; border-radius: 7px; background: linear-gradient(160deg, #4fd38a, #22a85c); display: flex; align-items: center; padding-left: 8px; font-size: 10px; font-weight: 800; color: #fff; }
+.scene .l3 .r { height: 12px; border-radius: 4px; background: #1f2228; }
+.scene .ph { position: absolute; right: 6px; top: 22px; width: 46px; height: 88px; border-radius: 10px; border: 3px solid #000; background: #0e1621; box-shadow: 0 0 0 1px #34373f, 0 8px 18px rgba(0, 0, 0, .5); overflow: hidden; animation: bsPh var(--d) infinite; }
+.scene .ph .msg { position: absolute; left: 4px; right: 4px; top: 12px; border-radius: 5px; background: #182533; padding: 4px; font-size: 5.5px; line-height: 1.35; color: #c9d4de; }
+.scene .ph .msg b { display: block; color: #fff; font-size: 6px; }
+.scene .ph .yes { position: absolute; left: 4px; right: 4px; top: 50px; height: 13px; border-radius: 4px; background: #2ea05a; font-size: 6px; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: center; animation: bsYes var(--d) infinite; }
+.scene .ph .no { position: absolute; left: 4px; right: 4px; top: 66px; height: 11px; border-radius: 4px; background: rgba(43, 82, 120, .85); font-size: 5.5px; color: #fff; display: flex; align-items: center; justify-content: center; }
+.scene .ph .cam { position: absolute; inset: 0; background: #000; opacity: 0; animation: bsCam var(--d) infinite; }
+.scene .ph .cam::before { content: ""; position: absolute; inset: 14px 6px 22px; border: 1.5px solid rgba(255, 255, 255, .6); border-radius: 6px; }
+.scene .tap { position: absolute; right: 16px; top: 70px; width: 16px; height: 16px; border-radius: 50%; background: rgba(255, 255, 255, .55); border: 1.5px solid #fff; opacity: 0; animation: bsTap var(--d) infinite; }
+@keyframes bsPh { 0%, 14% { transform: translateX(70px) rotate(8deg); opacity: 0; } 24%, 70% { transform: none; opacity: 1; } 82%, 100% { transform: translateX(70px) rotate(8deg); opacity: 0; } }
+@keyframes bsCam { 0%, 36% { opacity: 1; } 40%, 100% { opacity: 0; } }
+@keyframes bsScan { 0%, 22% { opacity: 0; top: 4px; } 24% { opacity: 1; top: 4px; } 36% { opacity: 1; top: 36px; } 38%, 100% { opacity: 0; } }
+@keyframes bsYes { 0%, 52% { transform: none; filter: none; } 54% { transform: scale(.9); filter: brightness(1.3); } 57%, 100% { transform: none; filter: none; } }
+@keyframes bsTap { 0%, 46% { opacity: 0; transform: scale(.6); } 50% { opacity: 1; transform: scale(1); } 56% { opacity: 1; transform: scale(.8); } 60%, 100% { opacity: 0; } }
+@keyframes bsL1 { 0%, 58% { opacity: 1; } 60%, 100% { opacity: 0; } }
+@keyframes bsL2 { 0%, 58% { opacity: 0; transform: scale(.9); } 61%, 72% { opacity: 1; transform: none; } 75%, 100% { opacity: 0; } }
+@keyframes bsL3 { 0%, 72% { opacity: 0; } 76%, 97% { opacity: 1; } 100% { opacity: 0; } }
+
+.bpc { margin: 12px 8px 0; border-radius: 22px; background: var(--card); padding: 12px 12px 12px 8px; display: flex; gap: 4px; align-items: center; position: relative; text-align: left; animation: rise .55s .1s var(--ease) both; }
+.bpc.okg { background: linear-gradient(120deg, #173023, var(--card) 70%); }
+.bpc .sw { width: 124px; height: 74px; flex: none; overflow: hidden; }
+.bpc .scene { transform: scale(.62); transform-origin: left top; }
+.bpc .tx { flex: 1; min-width: 0; padding-right: 22px; }
+.bpc .tx b { display: block; font-size: 15.5px; line-height: 1.25; }
+.bpc .tx > span { display: block; color: var(--hint); font-size: 13px; line-height: 1.35; margin-top: 3px; }
+.bpc .lnk { color: var(--link); font-weight: 600; font-size: 14px; margin: 6px 0 0; display: block; text-align: left; background: none; border: 0; padding: 2px 0; font-family: inherit; }
+.bpc .x { position: absolute; right: 6px; top: 6px; width: 30px; height: 30px; border-radius: 50%; color: #6b7280; font-size: 20px; line-height: 30px; text-align: center; background: none; border: 0; padding: 0; }
+.ok-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--grn); background: rgba(60, 207, 116, .12); border-radius: 99px; padding: 3px 9px; margin-bottom: 5px; }
+
+.bsheet { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-end; justify-content: center; animation: bsFade .25s both; }
+.bsheet > div { width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; background: var(--card); border-radius: 26px 26px 0 0; padding: 14px 16px calc(20px + var(--sb, 0px)); animation: bsUp .35s var(--ease) both; }
+.bsheet.out { animation: bsFadeOut .2s both; }
+.bsheet .grab { width: 38px; height: 5px; border-radius: 3px; background: #3a3d45; margin: 0 auto 12px; }
+.bsheet h3 { margin: 0; font-size: 19px; text-align: center; }
+.bsheet .sub { color: var(--hint); font-size: 13.5px; text-align: center; margin-top: 4px; }
+.bsheet .stagebox { height: 140px; display: flex; align-items: center; justify-content: center; }
+.bsheet .stagebox .scene { transform: scale(1.1); }
+.bsheet ol { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.bsheet li { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; line-height: 1.4; }
+.bsheet li i { flex: none; width: 24px; height: 24px; border-radius: 50%; background: #2b2e36; font-style: normal; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.bsheet .addr { margin-top: 14px; display: flex; align-items: center; gap: 10px; background: var(--bg); border-radius: 14px; padding: 10px 12px; }
+.bsheet .addr span { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bsheet .addr button { color: var(--link); font-weight: 700; font-size: 14px; background: none; border: 0; padding: 4px 0; font-family: inherit; }
+.bsheet .pill { width: 100%; margin-top: 12px; background: var(--blue); color: #fff; }
+@keyframes bsFade { from { opacity: 0; } }
+@keyframes bsFadeOut { to { opacity: 0; } }
+@keyframes bsUp { from { transform: translateY(40px); opacity: 0; } }

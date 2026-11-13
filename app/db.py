@@ -3935,6 +3935,10 @@ BROADCAST_SEGMENTS = {
         AND EXISTS (SELECT 1 FROM devices d WHERE {_LIVE_DEVICE})
         AND {_ACCESS_EXHAUSTED}""",
     # VPN is on and the balance covers less than 3 days for the devices that are on.
+    # VPN carried traffic in the last 30 days and the person has never logged in to the cabinet in a browser.
+    "no_browser": f"""EXISTS (SELECT 1 FROM devices d WHERE {_LIVE_DEVICE}
+            AND d.last_online_at > timezone('utc', now()) - INTERVAL '30 days')
+        AND NOT EXISTS (SELECT 1 FROM cabinet_tokens t WHERE t.telegram_id = u.telegram_id)""",
     "low_balance": f"""NOT u.trial_waiting_connection AND u.billing_paused_at IS NULL
         AND {_ACTIVE_DEVICES} > 0
         AND COALESCE(u.balance_rub,0) < 3 * {{price}} * {_ACTIVE_DEVICES}
@@ -4104,6 +4108,14 @@ async def get_cabinet_token_user(raw: str) -> int | None:
     if not row:
         return None
     return int(row["telegram_id"])
+
+
+async def has_cabinet_session(telegram_id: int) -> bool:
+    """Whether the person is logged in to the cabinet in some browser right now."""
+    return bool(await _pool_req().fetchval(
+        "SELECT EXISTS (SELECT 1 FROM cabinet_tokens WHERE telegram_id = $1 AND expires_at > timezone('utc', now()))",
+        int(telegram_id),
+    ))
 
 
 async def purge_expired_cabinet_tokens() -> None:
@@ -5255,7 +5267,7 @@ async def admin_broadcast_results(page: int = 1) -> dict:
         LEFT JOIN reminder_deliveries r ON r.broadcast_id=b.id
         GROUP BY b.id,b.title,b.body,b.template,b.scope,b.created_at,b.finished_at,b.total,b.sent,b.failed,b.error,b.skipped,b.spec
         ORDER BY b.id DESC''', (page - 1) * 20)
-    items = {r['id']: dict(r, payers=0, payments=0, rub=0, stars=0) for r in rows}
+    items = {r['id']: dict(r, payers=0, payments=0, rub=0, stars=0, browser_logins=0) for r in rows}
     if items:
         amounts = await pool.fetch(_BROADCAST_PAYMENTS_SQL + '''
             SELECT broadcast_id,currency,plan_code,COUNT(*)::int AS n,COALESCE(SUM(stars),0)::bigint AS stars
@@ -5272,6 +5284,15 @@ async def admin_broadcast_results(page: int = 1) -> dict:
                 item['stars'] += int(row['stars'])
         for row in payers:
             items[row['broadcast_id']]['payers'] = row['n']
+        # Logged in to the cabinet in a browser within 3 days after the broadcast (the «кабинет в браузере» goal).
+        browser = await pool.fetch('''SELECT r.broadcast_id, COUNT(DISTINCT r.telegram_id)::int AS n
+            FROM reminder_deliveries r JOIN broadcast_runs b ON b.id = r.broadcast_id
+            WHERE r.broadcast_id = ANY($1::bigint[]) AND r.status = 'sent'
+              AND EXISTS (SELECT 1 FROM cabinet_tokens t WHERE t.telegram_id = r.telegram_id
+                  AND t.created_at >= b.created_at AND t.created_at < b.created_at + INTERVAL '3 days')
+            GROUP BY r.broadcast_id''', list(items))
+        for row in browser:
+            items[row['broadcast_id']]['browser_logins'] = row['n']
     return {'items': [_jsonable(item) for item in items.values()], 'total': total, 'page': page, 'limit': 20}
 
 

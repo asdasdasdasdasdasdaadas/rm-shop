@@ -292,6 +292,81 @@
   const SCR = {};
 
   // ---------- home ----------
+  // ---------- «кабинет есть и в браузере» ----------
+  // A pretend QR for the little scene (the real one is on the login page): fixed corners, random-looking cells.
+  const sceneQR = (() => {
+    let r = "", x = 11;
+    const n = 21, e = n - 7, cell = () => { x = (x * 1103515245 + 12345) & 0x7fffffff; return (x >> 16) & 1; };
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const corner = (i < 7 && j < 7) || (i < 7 && j >= e) || (i >= e && j < 7);
+      const a = i >= e ? i - e : i, b = j >= e ? j - e : j;
+      if (corner ? a === 0 || a === 6 || b === 0 || b === 6 || (a > 1 && a < 5 && b > 1 && b < 5) : cell()) r += `<rect x="${j}" y="${i}" width="1" height="1"/>`;
+    }
+    return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" fill="#111">${r}</svg>`;
+  })();
+  const CHKS = (c, w) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="${c}" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const browserScene = () => `<div class="scene" aria-hidden="true"><div class="lap"><div class="sc"><div class="bar"><i></i><i></i><i></i></div>` +
+    `<div class="l1"><div class="qr">${sceneQR}</div><div class="t">Вход в кабинет</div></div><div class="l2"><div class="ok">${CHKS("#22a85c", 18)}</div></div>` +
+    `<div class="l3"><div class="h">${esc(rub(Math.max(0, Number(me && me.balance_rub) || 0)))}</div><div class="r"></div><div class="r"></div></div></div><div class="base"></div></div>` +
+    `<div class="ph"><div class="msg"><b>🔐 Вход</b>Chrome · Windows</div><div class="yes">Да, это я</div><div class="no">Это не я</div><div class="cam"></div></div><div class="tap"></div></div>`;
+  const siteHost = () => { try { return new URL(me.cabinet_site_url).host; } catch (e) { return ""; } };
+  const DAY = 86400000;
+  // Which card (if any): only in Telegram, only after VPN has worked once, until the first browser login.
+  function browserCard() {
+    if (!me || !inTelegram() || me.browser_login || !me.cabinet_site_url || !me.first_online_at || !phones().length) return "";
+    const since = parseDate(me.first_online_at);
+    const kind = alertState() === "low" ? "low" : since && Date.now() - since.getTime() < 3 * DAY ? "first" : "gen";
+    const at = Number(store.get("brw_at")) || 0, n = Number(store.get("brw_n")) || 0;
+    // «×» hides it for 2 weeks; after the second «×» only the low-balance hint comes back (a week later).
+    if (kind === "low" ? Date.now() - at < 7 * DAY : n >= 2 || Date.now() - at < 14 * DAY) return "";
+    const t = {
+      first: [`<div class="ok-badge">${CHKS("#3ccf74", 13)} VPN работает</div>`, "Сохраните запасной вход", "На случай, если Telegram не откроется"],
+      low: ["", "Пополнить можно и с компьютера", "Кабинет открывается в браузере — без ника и пароля"],
+      gen: ["", "Кабинет есть и в браузере", "Даже если Telegram не грузится"],
+    }[kind];
+    return `<div class="bpc${kind === "first" ? " okg" : ""}"><div class="sw">${browserScene()}</div>` +
+      `<div class="tx">${t[0]}<b>${t[1]}</b><span>${t[2]}</span><button type="button" class="lnk" data-act="browserHow">Как войти ›</button></div>` +
+      `<button type="button" class="x" data-act="browserHide" aria-label="Скрыть">×</button></div>`;
+  }
+  let sheetEl = null;
+  function closeSheet() {
+    const el = sheetEl;
+    if (!el) return;
+    sheetEl = null;
+    el.classList.add("out");
+    setTimeout(() => el.remove(), 200);
+    syncBack();
+  }
+  function openBrowserSheet() {
+    if (!me || !me.cabinet_site_url) return;
+    closeSheet();
+    haptic();
+    const host = siteHost() || me.cabinet_site_url;
+    const el = document.createElement("div");
+    el.className = "bsheet";
+    el.innerHTML = `<div role="dialog" aria-label="Кабинет в браузере"><div class="grab"></div><h3>Кабинет в браузере</h3>` +
+      `<div class="sub">Пополнять баланс и управлять устройствами — без Telegram</div><div class="stagebox">${browserScene()}</div>` +
+      `<ol><li><i>1</i><span>Откройте <b>${esc(host)}</b> на компьютере</span></li><li><i>2</i><span>Наведите камеру телефона на QR-код</span></li>` +
+      `<li><i>3</i><span>Нажмите <b>«Да, это я»</b> в боте — кабинет откроется сам</span></li></ol>` +
+      `<div class="addr"><span>🔗 ${esc(host)}</span><button type="button" data-b="copy">Скопировать</button></div>` +
+      `<button type="button" class="pill" data-b="send"><span>Прислать ссылку в чат</span></button></div>`;
+    el.addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-b]");
+      if (!b) { if (ev.target === el || ev.target.classList.contains("grab")) closeSheet(); return; }
+      if (b.dataset.b === "copy") copy(me.cabinet_site_url, "Адрес скопирован");
+      if (b.dataset.b === "send") {
+        if (b.disabled) return;
+        b.disabled = true;
+        haptic();
+        post("/api/browser-link").then(() => { notify("success"); toast("Ссылка в чате с ботом"); closeSheet(); })
+          .catch((e) => { b.disabled = false; showErr(e); });
+      }
+    });
+    document.body.appendChild(el);
+    sheetEl = el;
+    call(() => tg.BackButton.show());
+  }
+
   SCR.home = {
     live: true,
     h() {
@@ -330,6 +405,7 @@
       const survey = me.first_online_at && !me.has_paid_topup && !me.vpn_feedback;
       const giftLater = me.trial_available && !showOffer() ? [E("🎁") + "Попробовать бесплатно" + V(rub(me.trial_rub) + " " + CV), 'data-go="gift"'] : null;
       return hero +
+        browserCard() +
         (showInvitee ? NOTE(`Вы пришли по ссылке друга — после первого пополнения на баланс ещё ${rub(invitee)}.`, true) : "") +
         (devRows.length ? ST(`Устройства${cap ? ` <span style="color:var(--hint);font-weight:500">· ${devs.length} из ${cap}</span>` : ""}`) + cd(devRows) : "") +
         (survey ? ST("Как работает VPN?") + cd([[E("✅") + "Всё работает", 'data-act="vfb" data-v="ok"'], [E("🆘") + "Нужна помощь", 'data-act="vfb" data-v="help"'],
@@ -346,7 +422,7 @@
       store.set("shown_bal", Number(me.balance_rub) || 0);
       track("cabinet");
     },
-    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.vpn_feedback, me.has_paid_topup]),
+    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.vpn_feedback, me.has_paid_topup, me.browser_login]),
   };
 
   // ---------- gift for newcomers ----------
@@ -1318,6 +1394,7 @@
   }
   function go(key, params = {}, dir = "f") {
     if (!SCR[key]) return;
+    if (sheetEl) { sheetEl.remove(); sheetEl = null; }
     stopScreen();
     if (dir === "f" && cur && !SCR[cur.key].bare) stack.push({ key: cur.key, params: cur.params });
     if (dir === "x") stack = [];
@@ -1344,6 +1421,7 @@
   }
   function back() {
     haptic();
+    if (sheetEl) { closeSheet(); return; }
     if (cur && cur.key === "feedback") { go("home", {}, "x"); return; }
     const prev = stack.pop();
     if (!prev) { if (cur && cur.key !== "home") go("home", {}, "b"); return; }
@@ -1364,7 +1442,7 @@
     if (s.on && cur.key !== "home") s.on(el, cur.params);
   }
   function syncBack() {
-    const show = Boolean(cur && cur.key !== "home" && !SCR[cur.key].bare);
+    const show = Boolean(sheetEl || (cur && cur.key !== "home" && !SCR[cur.key].bare));
     call(() => (show ? tg.BackButton.show() : tg.BackButton.hide()));
     const wb = document.getElementById("webBack");
     if (wb) wb.hidden = !(show && !inTelegram());
@@ -1519,6 +1597,15 @@
 
   // ---------- actions ----------
   const ACT = {
+    browserHow: () => openBrowserSheet(),
+    browserHide(b) {
+      haptic();
+      store.set("brw_at", Date.now());
+      store.set("brw_n", (Number(store.get("brw_n")) || 0) + 1);
+      const c = b.closest(".bpc");
+      if (c) { c.style.transition = "opacity .25s"; c.style.opacity = "0"; setTimeout(() => c.remove(), 250); }
+      toast("Спрятали — напомним позже");
+    },
     back,
     home,
     refresh(b) {
@@ -1934,6 +2021,7 @@
     go("home", {}, "x");
     if (entry === "support") { openSupport(); return; }
     if (entry === "topup") { go("topup"); return; }
+    if (entry === "browser") { openBrowserSheet(); return; }
     if (entry === "promise") { const t = me.trust || {}; go(t.open || t.available ? "promise" : "topup"); return; }
     if (entry === "gift" && me.trial_available) { go("gift"); return; }
     if (entry === "connect" || entry === "gift") { if (phones().length) resume(); else startWizard(); return; }

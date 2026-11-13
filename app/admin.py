@@ -1738,19 +1738,18 @@ async def _broadcast_all(
     template: str | None = None,
 ) -> None:
     tpl = str(template or "").strip()
-    if tpl in {"invite", "unused"}:
-        audience = "using" if tpl == "invite" else "unused"
-        targets = await db.list_broadcast_targets(audience)
+    if tpl in TEMPLATE_AUDIENCE:
+        targets = await db.list_broadcast_targets(TEMPLATE_AUDIENCE[tpl])
     elif tpl in ANNOUNCE_TEMPLATES:
         targets = await db.list_broadcast_targets("all")
     elif ids is not None:
         targets = [{"telegram_id": int(item), "first_name": None} for item in ids]
     else:
         targets = await db.list_broadcast_targets("all")
-    if ids is not None and (tpl in {"invite", "unused"} or tpl in ANNOUNCE_TEMPLATES):
+    if ids is not None and (tpl in TEMPLATE_AUDIENCE or tpl in ANNOUNCE_TEMPLATES):
         keep = set(ids)  # a test share or «остальным» of a template broadcast
         targets = [row for row in targets if int(row["telegram_id"]) in keep]
-    media = job.get("media") if not tpl else None
+    media = job.get("media") if tpl in MEDIA_TEMPLATES else None
     media_kw = {"media": media, "cache": {}} if media else {}
     job["total"] = len(targets)
     if job.get("run_id"):
@@ -1891,6 +1890,10 @@ async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup, medi
 
 # Admin announcements to everyone: own buttons, no daily/weekly cap of optional messages.
 ANNOUNCE_TEMPLATES = {"gift3", "referral_news"}
+# Stored templates that always go to their own segment.
+TEMPLATE_AUDIENCE = {"invite": "using", "unused": "unused", "browser": "no_browser"}
+# A photo, GIF or video can go with one's own text and with «кабинет в браузере» (a screen recording of the login).
+MEDIA_TEMPLATES = {"", "browser"}
 ANNOUNCE_DEFAULTS = {
     "gift3": (
         "🎁 <b>Дарим 3 дня VPN</b>\n\n"
@@ -1925,7 +1928,24 @@ def _broadcast_title(template: str) -> str:
         return "Рассылка: пользуются VPN"
     if template == "unused":
         return "Рассылка: не подключались"
+    if template == "browser":
+        return "Рассылка: кабинет в браузере"
     return "Рассылка"
+
+
+def _browser_keyboard():
+    """«🌐 Открыть в браузере» (the site, to open on a computer) and «Как войти» (the steps in the cabinet)."""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    from app.cabinet_login import site_url
+    from app.keyboards import mini_app_screen
+    rows = []
+    url = site_url()
+    if url:
+        rows.append([InlineKeyboardButton(text="🌐 Открыть в браузере", url=url)])
+    app = mini_app_screen("browser")
+    if app:
+        rows.append([InlineKeyboardButton(text="Как войти", web_app=app)])
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else cabinet_keyboard()
 
 
 def _referral_reward_label() -> str:
@@ -1963,6 +1983,8 @@ def _broadcast_payload(
         return body, cabinet_keyboard()
     if template == "whitelist":
         return text, cabinet_keyboard()
+    if template == "browser":
+        return notice_text("broadcast_browser"), _browser_keyboard()
     return text, None
 
 
@@ -2052,6 +2074,8 @@ def _broadcast_template_preview(template: str) -> str:
         return notice_text("broadcast_whitelist")
     if template == "unused":
         return notice_text("broadcast_unused", name="друг")
+    if template == "browser":
+        return notice_text("broadcast_browser")
     return ""
 
 
@@ -2078,8 +2102,12 @@ async def api_broadcast_results(request: web.Request) -> web.Response:
 def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
     """Normalise a broadcast request without sending; returns (spec, error)."""
     template = str(body.get("template") or "").strip()
-    if template not in {"", "invite", "unused", "whitelist", *ANNOUNCE_TEMPLATES}:
+    if template not in {"", "whitelist", *TEMPLATE_AUDIENCE, *ANNOUNCE_TEMPLATES}:
         return None, "Неизвестный шаблон"
+    if template == "browser":
+        from app.cabinet_login import site_url
+        if not site_url():
+            return None, "Кабинет не открывается в браузере: нужен адрес https в WEBAPP_PUBLIC_URL"
     if template in {"invite", "referral_news"} and not get_settings().referral_program_enabled:
         return None, "Реферальная программа приостановлена"
     text = str(body.get("text") or "").strip()
@@ -2088,7 +2116,7 @@ def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
         text = text or ANNOUNCE_DEFAULTS[template]
     elif template:
         text = ""  # stored templates are rendered at send time
-        audience = "using" if template == "invite" else "unused" if template == "unused" else "all"
+        audience = TEMPLATE_AUDIENCE.get(template, "all")
     else:
         if not text and not body.get("media"):
             return None, "Пустой текст"
@@ -2099,8 +2127,8 @@ def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
     media, error = check_media(body.get("media"))
     if error:
         return None, error
-    if media and template:
-        return None, "Фото, GIF и видео можно приложить только к своему сообщению"
+    if media and template not in MEDIA_TEMPLATES:
+        return None, "Фото, GIF и видео можно приложить только к своему сообщению или к «Кабинет в браузере»"
     if len(text) > 3500:
         return None, "Текст слишком длинный"
     if media and len(text) > CAPTION_LIMIT - 60:
@@ -2184,7 +2212,7 @@ async def _launch_broadcast(app: web.Application, spec: dict) -> tuple[dict, int
         ids = await db.list_broadcast_ids(audience)
         if not ids:
             return {"ok": False, "error": "Нет получателей для этого шаблона"}, 400
-        return {"ok": True, **_start_broadcast_job(app, _broadcast_template_preview(template), ids, template, None, spec)}, 200
+        return {"ok": True, **_start_broadcast_job(app, _broadcast_template_preview(template), ids, template, spec.get("media"), spec)}, 200
     ids = None if audience == "all" else await db.list_broadcast_ids(audience)
     if ids is not None and not ids:
         return {"ok": False, "error": "Нет получателей"}, 400
@@ -2274,6 +2302,7 @@ async def api_broadcast(request: web.Request) -> web.Response:
                 "whitelist": _broadcast_template_preview("whitelist"),
                 "gift3": _broadcast_template_preview("gift3"),
                 "referral_news": _broadcast_template_preview("referral_news"),
+                "browser": _broadcast_template_preview("browser"),
             }
         extra["scheduled"] = await _load_scheduled()
         return web.json_response({"ok": True, **job, **extra})

@@ -22,7 +22,7 @@ from app.partners import mount_partners
 from app.billing import fulfill_pay_order
 from app.config import ROOT, get_settings
 from app.faq import faq_items
-from app.cabinet_login import START_PREFIX, device_label, request_text as login_request_text
+from app.cabinet_login import START_PREFIX, device_label, request_text as login_request_text, send_site_link, site_url
 from app.keyboards import (
     cabinet_login_keyboard,
     invite_copy_text,
@@ -561,6 +561,9 @@ async def api_me(request: web.Request) -> web.Response:
                 else (str(local.get("first_online_at")) if local and local.get("first_online_at") else None)
             ),
             "story_reward_enabled": False,
+            # «Кабинет есть и в браузере»: shown in Telegram until the person logs in on a computer once.
+            "browser_login": await db.has_cabinet_session(telegram_id),
+            "cabinet_site_url": site_url(),
             "legal": {
                 "offer": settings.legal_offer_url,
                 "privacy": settings.legal_privacy_url,
@@ -672,6 +675,23 @@ async def _api_trial_locked(request: web.Request) -> web.Response:
     except RemnawaveError as exc:
         return json_error(str(exc), 502)
     return web.json_response({"ok": True, "balance_rub": after, "trial_waiting_connection": not bool(local.get("first_online_at"))})
+
+
+async def api_browser_link(request: web.Request) -> web.Response:
+    """«Прислать ссылку в чат»: the bot sends the cabinet's address to open later on a computer."""
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    if _cabinet_login_limited(f"bl:{telegram_id}", 3):
+        return json_error("Ссылка уже в чате с ботом", 429)
+    try:
+        sent = await send_site_link(request.app["bot"], telegram_id)
+    except Exception:
+        logging.getLogger(__name__).warning("Browser link send failed", exc_info=True)
+        sent = False
+    if not sent:
+        return json_error("Не получилось отправить ссылку — напишите боту /start и попробуйте ещё раз")
+    return web.json_response({"ok": True})
 
 
 async def api_story_share(request: web.Request) -> web.Response:
@@ -1381,6 +1401,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/api/tickets/files/{att_id}", api_ticket_file)
         app.router.add_post("/api/cabinet-leave", api_cabinet_leave)
         app.router.add_post("/api/story-share", api_story_share)
+        app.router.add_post("/api/browser-link", api_browser_link)
         app.router.add_post("/api/referral-payout", api_referral_payout)
         app.router.add_static("/static", WEBAPP_DIR)
     else:

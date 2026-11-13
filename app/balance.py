@@ -56,6 +56,17 @@ def _billed_recently(last_billed_at, last_billed_on=None) -> bool:
     return datetime.now(timezone.utc) < dt + BILL_PERIOD
 
 
+async def _offer_browser(tg_id: int) -> bool:
+    """Mention the browser cabinet only to someone who has never logged in there, and only if it is served."""
+    from app.cabinet_login import site_url
+    if not site_url():
+        return False
+    try:
+        return not await db.has_cabinet_session(tg_id)
+    except Exception:
+        return False
+
+
 async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int]) -> None:
     if not bot or tg_id in warned:
         return
@@ -67,9 +78,12 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
         body = notice_text("low_balance", price=rub_text(price))
         from app.trust import promise_available
         promise = await promise_available(tg_id)
+        browser = await _offer_browser(tg_id)
+        if browser:
+            body = f"{body}\n\n{notice_text('low_balance_browser')}"
         try:
             await send_reminder(bot, tg_id, body, kind="low_balance", title="Мало баланса",
-                                reply_markup=balance_keyboard(promise=promise), preserve=True)
+                                reply_markup=balance_keyboard(promise=promise, browser=browser), preserve=True)
             await db.log_bot_message(
                 kind="low_balance",
                 source="auto",

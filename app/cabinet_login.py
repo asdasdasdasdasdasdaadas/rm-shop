@@ -4,6 +4,8 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta, timezone
 
+from app import runtime
+from app.config import get_settings
 from app.notices import notice_text
 
 MSK = timezone(timedelta(hours=3))
@@ -60,3 +62,30 @@ def request_text(device: str | None, at: datetime | None = None) -> str:
 
 def approved_text(device: str | None) -> str:
     return notice_text("cabinet_login_ok", device=device or "браузер")
+
+
+def site_url() -> str:
+    """The cabinet's public address, or "" when it is not served over HTTPS."""
+    base = (get_settings().webapp_public_url or runtime.webapp_url or "").strip().rstrip("/")
+    return base if base.startswith("https://") else ""
+
+
+def site_keyboard(url: str):
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🌐 Открыть кабинет", url=url)]])
+
+
+async def send_site_link(bot, telegram_id: int) -> bool:
+    """«Прислать ссылку в чат»: the plain cabinet address (no token), to open later on a computer."""
+    from aiogram.types import LinkPreviewOptions
+
+    url = site_url()
+    if not url:
+        return False
+    await bot.send_message(
+        int(telegram_id),
+        notice_text("browser_link", url=url),
+        reply_markup=site_keyboard(url),
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
+    )
+    return True
