@@ -76,6 +76,26 @@ def _is_router_device(item: dict | None) -> bool:
     ).strip().lower() == "router"
 
 
+_TRANSLIT = dict(zip(
+    "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
+    ["a", "b", "v", "g", "d", "e", "e", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u", "f",
+     "kh", "ts", "ch", "sh", "sch", "", "y", "", "e", "yu", "ya"],
+))
+
+
+def device_panel_username(telegram_id: int, nick: str | None, first_name: str | None, n: int = 1) -> str:
+    """Panel name of a device: Telegram nick (or the first name in Latin), Telegram ID and the device number.
+
+    ivan_petrov_123456789, then ivan_petrov_123456789_2 for the second device; tg_123456789 without a name.
+    Remnawave takes 3–36 characters of [A-Za-z0-9_-], so a long name is cut, never the ID."""
+    raw = str(nick or "").strip().lstrip("@")
+    if not raw:
+        raw = "".join(_TRANSLIT.get(ch, ch) for ch in str(first_name or "").strip().lower())
+    name = re.sub(r"[^A-Za-z0-9_-]+", "_", raw).strip("_-") or "tg"
+    tail = f"_{int(telegram_id)}" + (f"_{int(n)}" if int(n) > 1 else "")
+    return name[: max(1, 36 - len(tail))].rstrip("_-") + tail
+
+
 def device_connected(item: dict) -> bool:
     """Whether VPN ever went through this device's key: the panel saw it online or counted traffic."""
     if item.get("last_online_at") or item.get("legacy_last_online_at"):
@@ -805,8 +825,14 @@ async def _api_add_device_locked(request: web.Request) -> web.Response:
     rw: RemnawaveClient = request.app["rw"]
     user = None
     last_error: RemnawaveError | None = None
-    for _ in range(6):
-        username = f"t{telegram_id}x{secrets.token_hex(4)}"[:36]
+    nick = str((local or {}).get("username") or "").strip().lstrip("@")
+    # Number after the user's current devices; a name still held in the panel by a deleted device steps it on.
+    number = len(await db.list_devices(telegram_id)) + 1
+    note = " · ".join(x for x in [f"tg:{telegram_id}:device", f"@{nick}" if nick else "", title] if x)[:200]
+    for attempt in range(6):
+        username = device_panel_username(telegram_id, nick, (local or {}).get("first_name"), number + attempt)
+        if attempt == 5:
+            username = f"tg_{int(telegram_id)}_{secrets.token_hex(4)}"
         try:
             user = await rw.create_user(
                 telegram_id=None,
@@ -814,7 +840,7 @@ async def _api_add_device_locked(request: web.Request) -> web.Response:
                 tag="DEVICE",
                 username=username,
                 hwid_limit=settings.remnawave_hwid_limit,
-                description=f"tg:{telegram_id}:device",
+                description=note,
             )
             break
         except RemnawaveError as exc:
