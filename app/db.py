@@ -5545,13 +5545,33 @@ def is_marketing_message(kind: str) -> bool:
         kind.startswith('nudge_') and kind not in {'nudge_payment', 'nudge_trial_end'})
 
 
-async def reserve_optional_message(telegram_id: int, kind: str) -> int | None:
-    """One/day, three/week across automatic, manual and campaign senders."""
+async def reserve_optional_message(telegram_id: int, kind: str, *, manual: bool = False) -> int | None:
+    """One/day, three/week across automatic, manual and campaign senders.
+
+    manual=True is a broadcast the admin sends by hand: it goes ahead of automatic reminders. Only another
+    broadcast in the last 24 hours holds it back (no weekly cap); the automatic ones wait 24 hours after it.
+    Open tickets, «нужна помощь», a marketing pause and a checkout in progress still hold it back.
+    """
     async with _pool_req().acquire() as conn:
         async with conn.transaction():
             user = await conn.fetchrow('SELECT * FROM users WHERE telegram_id=$1 FOR UPDATE', telegram_id)
             if not user or user['quiet_notifications'] or user['blocked_at'] or user['bot_blocked_at'] or not user['bot_started_at'] or user['vpn_feedback'] == 'help' or (user['vpn_feedback'] == 'terms' and kind != 'nudge_terms_offer'):
                 return None
+            if manual:
+                allowed = await conn.fetchval('''SELECT
+                    NOT EXISTS (SELECT 1 FROM users WHERE telegram_id=$1 AND marketing_pause_until > NOW())
+                    AND NOT EXISTS (SELECT 1 FROM tickets WHERE telegram_id=$1 AND status <> 'closed')
+                    AND NOT EXISTS (SELECT 1 FROM users WHERE telegram_id=$1
+                        AND checkout_started_at > NOW()-INTERVAL '20 minutes')
+                    AND NOT EXISTS (SELECT 1 FROM optional_message_slots WHERE telegram_id=$1
+                        AND sent_at IS NULL AND created_at > NOW()-INTERVAL '10 minutes')
+                    AND NOT EXISTS (SELECT 1 FROM optional_message_slots WHERE telegram_id=$1
+                        AND kind='broadcast' AND sent_at > NOW()-INTERVAL '24 hours')
+                    AND NOT EXISTS (SELECT 1 FROM message_log WHERE telegram_id=$1 AND status='sent'
+                        AND kind='broadcast' AND created_at > NOW()-INTERVAL '24 hours')''', telegram_id)
+                if not allowed:
+                    return None
+                return await conn.fetchval('INSERT INTO optional_message_slots (telegram_id,kind) VALUES ($1,$2) RETURNING id', telegram_id, kind)
             allowed = await conn.fetchval('''SELECT
                 NOT EXISTS (SELECT 1 FROM users WHERE telegram_id=$1 AND marketing_pause_until > NOW())
                 AND

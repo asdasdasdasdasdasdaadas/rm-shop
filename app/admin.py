@@ -1766,7 +1766,7 @@ async def _broadcast_all(
         announce = tpl in ANNOUNCE_TEMPLATES
         slot = None
         if not announce:
-            slot = await db.reserve_optional_message(telegram_id, "broadcast")
+            slot = await db.reserve_optional_message(telegram_id, "broadcast", manual=True)
             if slot is None:
                 job["skipped"] = int(job.get("skipped") or 0) + 1
                 continue
@@ -1809,11 +1809,11 @@ async def _broadcast_all(
                 logger.exception("Broadcast tracking setup failed")
         try:
             if gift_id:
-                message = await _send_gift(bot, telegram_id, gift_id, body, markup)
+                message = await _flood_retry(lambda: _send_gift(bot, telegram_id, gift_id, body, markup))
             elif announce:
-                message = await bot.send_message(telegram_id, body, reply_markup=markup)
+                message = await _flood_retry(lambda: bot.send_message(telegram_id, body, reply_markup=markup))
             else:
-                message = await _deliver_broadcast(bot, telegram_id, body, markup, **media_kw)
+                message = await _flood_retry(lambda: _deliver_broadcast(bot, telegram_id, body, markup, **media_kw))
         except Exception as exc:
             job["failed"] = int(job.get("failed") or 0) + 1
             status = "failed"
@@ -1840,16 +1840,35 @@ async def _broadcast_all(
                 await db.update_broadcast_run(job["run_id"], job)
         except Exception:
             logger.exception("Broadcast progress persistence failed")
-        await asyncio.sleep(0.035)
+        await asyncio.sleep(BROADCAST_PAUSE)
+
+
+# About 20 messages a second: under Telegram's 30/s, so «Too Many Requests» stays rare.
+BROADCAST_PAUSE = 0.05
+FLOOD_RETRIES = 3
+
+
+async def _flood_retry(send):
+    """Telegram's «Too Many Requests, retry after N»: wait N seconds and send again, so the person still gets it."""
+    from aiogram.exceptions import TelegramRetryAfter
+    for attempt in range(FLOOD_RETRIES + 1):
+        try:
+            return await send()
+        except TelegramRetryAfter as exc:
+            if attempt == FLOOD_RETRIES:
+                raise
+            wait = min(float(getattr(exc, "retry_after", 1) or 1), 60.0) + 0.5
+            logger.warning("Рассылка: лимит Telegram, жду %.1f с", wait)
+            await asyncio.sleep(wait)
 
 
 async def _send_gift(bot: Bot, telegram_id: int, gift_id: int, body: str, markup):
     """Gift as a widget with «Забрать» inside; the button under it stays for apps without widgets."""
-    from aiogram.exceptions import TelegramForbiddenError
+    from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
     from app.widgets import send_gift_widget
     try:
         return await send_gift_widget(bot, telegram_id, gift_id, caption=body, reply_markup=markup)
-    except TelegramForbiddenError:
+    except (TelegramForbiddenError, TelegramRetryAfter):
         raise
     except Exception:
         logger.warning("Gift widget was not sent to %s, sending text", telegram_id, exc_info=True)
