@@ -39,9 +39,9 @@ DEFAULT_VPN_APPS: list[dict[str, Any]] = [
         "deep_link": "incy://import/{url}",
         "platforms": ["ios", "macos", "appletv"],
         "stores": {
-            "ios": "https://apps.apple.com/search?term=Incy",
-            "macos": "https://apps.apple.com/search?term=Incy",
-            "appletv": "https://apps.apple.com/search?term=Incy",
+            "ios": "https://apps.apple.com/app/id6756943388",
+            "macos": "https://apps.apple.com/app/id6756943388",
+            "appletv": "https://apps.apple.com/app/id6756943388",
         },
     },
     {

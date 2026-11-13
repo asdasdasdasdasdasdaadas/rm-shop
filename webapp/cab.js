@@ -215,7 +215,7 @@
   ];
   const DEFAULT_APPS = [
     { id: "incy", name: "Incy", icon: "/icons/incy.png", deep_link: "incy://import/{url}", platforms: ["ios", "macos", "appletv"],
-      stores: { ios: "https://apps.apple.com/search?term=Incy", macos: "https://apps.apple.com/search?term=Incy", appletv: "https://apps.apple.com/search?term=Incy" } },
+      stores: { ios: "https://apps.apple.com/app/id6756943388", macos: "https://apps.apple.com/app/id6756943388", appletv: "https://apps.apple.com/app/id6756943388" } },
     { id: "happ", name: "Happ", icon: "/icons/happ.png", deep_link: "happ://add/{url}", platforms: ["ios", "macos", "appletv", "android", "androidtv", "windows"],
       stores: { ios: "https://apps.apple.com/app/id6504287215", macos: "https://apps.apple.com/app/id6504287215", appletv: "https://apps.apple.com/app/id6504287215",
         android: "https://play.google.com/store/apps/details?id=com.happproxy", androidtv: "https://play.google.com/store/apps/details?id=com.happproxy",
