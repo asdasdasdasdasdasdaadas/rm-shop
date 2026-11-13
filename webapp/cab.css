@@ -360,15 +360,7 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .ar .ak svg path { stroke: #3fc6b4; }
 @media (prefers-reduced-motion: reduce) { .ar, .ava, .ava > *, .als { transition: none; } }
 
-/* device names: sheet, duplicate-name card, toast with «Отменить» */
-.nudge { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #2a2412, #1c1e23 70%); border: 1px solid rgba(240, 180, 60, .25);
-  border-radius: 22px; padding: 12px 12px 12px 14px; margin: 14px 12px -6px; animation: up .5s .15s var(--ease) both; }
-.nudge .ne { font-size: 26px; }
-.nudge .nt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 15px; }
-.nudge .nt b { overflow-wrap: anywhere; }
-.nudge .nt span { color: var(--hint); font-size: 13.5px; }
-.nudge .nb { background: #f0b43c; color: #1a1406; font-weight: 700; border-radius: 99px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
-.nudge .nx { color: var(--hint); font-size: 15px; padding: 6px; cursor: pointer; }
+/* device names: sheet, toast with «Отменить» */
 .nsw { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-end; justify-content: center; animation: nfade .25s both; }
 .nsw.out { animation: nfade .3s reverse both; }
 .nsh { width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; background: #1c1e23; border-radius: 24px 24px 0 0;

@@ -324,7 +324,6 @@
       const cap = Number(me.max_devices) || 0;
       const devRows = devs.map((d) => [E(devIcon(d)) + TT(esc(d.title || "Устройство"),
         devLine(d)) + V(CV), `data-act="device" data-id="${d.id}"`]);
-      const dupes = dupeGroup();
       if (devs.length && !(cap > 0 && devs.length >= cap)) devRows.push([E("＋") + "Добавить устройство", 'data-act="wizard"', "blue"]);
       const invitee = Number(me.referral_invitee_reward_rub) || 0;
       const showInvitee = me.referral_program_enabled && me.referred && !me.has_paid_topup && invitee > 0;
@@ -332,7 +331,6 @@
       const giftLater = me.trial_available && !showOffer() ? [E("🎁") + "Попробовать бесплатно" + V(rub(me.trial_rub) + " " + CV), 'data-go="gift"'] : null;
       return hero +
         (showInvitee ? NOTE(`Вы пришли по ссылке друга — после первого пополнения на баланс ещё ${rub(invitee)}.`, true) : "") +
-        (dupes ? dupeCard(dupes) : "") +
         (devRows.length ? ST(`Устройства${cap ? ` <span style="color:var(--hint);font-weight:500">· ${devs.length} из ${cap}</span>` : ""}`) + cd(devRows) : "") +
         (survey ? ST("Как работает VPN?") + cd([[E("✅") + "Всё работает", 'data-act="vfb" data-v="ok"'], [E("🆘") + "Нужна помощь", 'data-act="vfb" data-v="help"'],
           [E("🤔") + "Не подошли условия", 'data-act="vfb" data-v="terms"']]) : "") +
@@ -832,21 +830,6 @@
   const NAME_TIPS = ["Мой телефон", "Телефон мамы", "Рабочий", "Планшет сына", "Телевизор"];
   const NAME_MAX = 32;
   const devIcon = (d) => (d && d.icon) || PLAT_EMO[(d && d.platform) || ""] || "📱";
-  const nameKey = (t) => String(t || "").trim().toLowerCase();
-  function dupeGroup() {
-    const by = {};
-    phones().forEach((d) => { (by[nameKey(d.title)] = by[nameKey(d.title)] || []).push(d); });
-    const g = Object.values(by).find((x) => x.length > 1);
-    if (!g) return null;
-    const key = g.map((d) => d.id).join(",") + ":" + nameKey(g[0].title);
-    return store.get("dupe_off") === key ? null : g;
-  }
-  function dupeCard(g) {
-    const n = g.length, word = n === 2 ? "Два" : n === 3 ? "Три" : n === 4 ? "Четыре" : String(n);
-    return `<div class="nudge"><span class="ne">🤔</span><span class="nt"><b>${word} «${esc(g[0].title || "Устройство")}»</b>` +
-      `<span>Подпишите, чтобы не путать</span></span><button type="button" class="nb" data-act="dupes">Подписать</button>` +
-      `<button type="button" class="nx" data-act="dupesx" aria-label="Скрыть">✕</button></div>`;
-  }
   function seenLine(d) {
     const on = parseDate(d.online_at);
     if (!d.active) return "неактивно";
@@ -931,7 +914,6 @@
         }
         notify("success");
         close();
-        if (multi) store.set("dupe_off", "");
         await load(true).catch(() => {});
         renamedFlash(devs.map((d) => d.id));
         toastAct(multi ? "Теперь не перепутаете" : "Название сохранено", "Отменить", async () => {
@@ -1637,13 +1619,6 @@
     devapp() { const d = deviceById(cur.params.id); if (d) { haptic(); appSheet(d); } },
     devcopy() { const d = deviceById(cur.params.id); if (d) copy(d.subscription_url, "Ключ скопирован"); },
     rename() { const d = deviceById(cur.params.id); if (d) { haptic(); nameSheet([d]); } },
-    dupes() { const g = dupeGroup(); if (g) { haptic(); nameSheet(g); } },
-    dupesx() {
-      const g = dupeGroup();
-      if (!g) return;
-      store.set("dupe_off", g.map((d) => d.id).join(",") + ":" + nameKey(g[0].title));
-      rerender();
-    },
     async reissue() {
       const d = deviceById(cur.params.id);
       if (!d || !(await confirmAsk("Старый ключ перестанет работать. Выпустить новый?"))) return;
