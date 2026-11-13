@@ -283,8 +283,6 @@
 
   // ---------- wizard and pay state ----------
   const wiz = { platform: "ios", client: "", url: "", deviceId: null, title: "", fromOffer: false, has: false };
-  // Ask «Уже есть приложение?» only while we do not know which app they use on this platform.
-  const appStep = () => (appsFor(wiz.platform).length > 1 && !store.get("app_" + wiz.platform) ? "wizq" : "wiz2");
   const pay = { amount: 0, custom: false, method: "", url: "", base: 0, kind: "" };
   const support = { files: [], context: null, poll: 0, draft: "" };
 
@@ -731,19 +729,6 @@
         ST("Устройство") + cd(PLATFORMS.map((p) => [E(PLAT_EMO[p.id]) + p.title + V(esc((appsFor(p.id)[0] || {}).name || "") + " " + CV), `data-act="plat" data-v="${p.id}"`]));
     },
     on() { track("wizard_1"); },
-  };
-  SCR.wizq = {
-    h() {
-      const list = appsFor(wiz.platform), rec = list[0];
-      const others = list.slice(1, 4).map((a) => esc(a.name)).join(", ");
-      return hc("teal", { ill: "📲", h: "Приложение для VPN", p: "Через него будет работать подключение", x: '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>' }) +
-        ST("У вас уже есть приложение для VPN?") +
-        `<div class="q2"><button type="button" data-act="hasno" style="--i:0">${appIcon(rec, 44)}<span class="qt"><b>Нет, поставлю</b><span>Рекомендуем ${esc(rec.name)} — бесплатно, за минуту</span></span>${CV}</button>` +
-        `<button type="button" data-act="hasyes" style="--i:1"><span class="qe">✅</span><span class="qt"><b>Да, уже есть</b><span>${others} и другие</span></span>${CV}</button></div>` +
-        `<div style="height:14px"></div>` +
-        cd([[E(PLAT_EMO[wiz.platform] || "📱") + esc(platTitle(wiz.platform)) + V("Другое устройство " + CV), 'data-act="replat"']]);
-    },
-    on() { track("wizard_2"); },
   };
   SCR.wizhave = {
     h() {
@@ -1419,7 +1404,7 @@
     haptic();
     Object.assign(wiz, { url: "", deviceId: null, title: "", fromOffer: Boolean(fromOffer) });
     const p = detectPlatform();
-    if (p) { wiz.platform = p; wiz.client = prefApp(p); wiz.has = wiz.client === "other"; go(appStep()); }
+    if (p) { wiz.platform = p; wiz.client = prefApp(p); wiz.has = wiz.client === "other"; go("wiz2"); }
     else go("wiz1");
   }
   function resume() {
@@ -1591,13 +1576,7 @@
       ill.replaceWith(fresh);
     },
     reopen: () => pay.url && tg.openLink(pay.url),
-    plat(b) { haptic(); wiz.platform = b.dataset.v; wiz.client = prefApp(wiz.platform); wiz.has = wiz.client === "other"; go(appStep()); },
-    hasno() {
-      haptic();
-      wiz.has = false;
-      wiz.client = (appsFor(wiz.platform)[0] || {}).id || "";
-      go("wiz2");
-    },
+    plat(b) { haptic(); wiz.platform = b.dataset.v; wiz.client = prefApp(wiz.platform); wiz.has = wiz.client === "other"; go("wiz2"); },
     hasyes() { haptic(); go("wizhave"); },
     haveapp(b) {
       notify("success");

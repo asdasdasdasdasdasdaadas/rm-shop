@@ -404,15 +404,7 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 @keyframes npop { 40% { transform: scale(1.12); } }
 @keyframes nflash { 0%, 60% { background: rgba(62, 136, 247, .18); } }
 
-/* own VPN app: «Уже есть приложение?», the app grid, the app sheet on the device screen */
-.q2 { display: flex; flex-direction: column; gap: 10px; margin: 0 12px; }
-.q2 button { display: flex; align-items: center; gap: 14px; padding: 16px 16px 16px 14px; border-radius: 22px; background: var(--card); text-align: left;
-  transition: transform .15s, background .25s; animation: up .5s calc(.15s + var(--i) * .06s) var(--ease) both; }
-.q2 button:active { transform: scale(.97); background: #1a2433; }
-.q2 .qe { font-size: 34px; width: 44px; text-align: center; }
-.q2 .qt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.q2 .qt b { font-size: 17px; font-weight: 600; }
-.q2 .qt span { font-size: 13.5px; color: var(--hint); }
+/* own VPN app: the app grid, the app sheet on the device screen */
 .agrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 12px 0; }
 .agrid button { display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 16px 6px 14px; border-radius: 22px; background: var(--card);
   font-size: 14px; transition: transform .15s, background .2s; animation: up .45s calc(.1s + var(--i) * .05s) var(--ease) both; }
