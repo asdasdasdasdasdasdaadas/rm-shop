@@ -315,7 +315,7 @@
       }
       const cap = Number(me.max_devices) || 0;
       const devRows = devs.map((d) => [E(PLAT_EMO[d.platform] || "📱") + TT(esc(d.title || "Устройство"),
-        d.active ? `<span class="dot"></span>Подключено · ${dayPrice()} ₽ в день` : '<span class="dot off"></span>Неактивно') + V(CV), `data-act="device" data-id="${d.id}"`]);
+        devLine(d)) + V(CV), `data-act="device" data-id="${d.id}"`]);
       if (devs.length && !(cap > 0 && devs.length >= cap)) devRows.push([E("＋") + "Добавить устройство", 'data-act="wizard"', "blue"]);
       const invitee = Number(me.referral_invitee_reward_rub) || 0;
       const showInvitee = me.referral_program_enabled && me.referred && !me.has_paid_topup && invitee > 0;
@@ -781,6 +781,10 @@
   };
 
   // ---------- device ----------
+  // «Подключено» only after traffic went through the key: a key nobody used yet is not a working VPN.
+  const devLine = (d) => !d.active ? '<span class="dot off"></span>Неактивно'
+    : d.connected === false ? '<span class="dot wait"></span>Ещё не подключали'
+    : `<span class="dot"></span>Подключено · ${dayPrice()} ₽ в день`;
   const deviceById = (id) => ((me && me.devices) || []).find((d) => String(d.id) === String(id));
   SCR.device = {
     live: true,
@@ -788,12 +792,14 @@
       const d = deviceById(p.id);
       if (!d) return hc("slate", { ill: "📱", h: "Устройство удалено", pill: "На главную", pa: 'data-act="home"' });
       const a = appById(appsFor(d.platform)[0] ? appsFor(d.platform)[0].id : "happ");
-      return hc("teal", { rb: d.active ? "онлайн" : "пауза", ill: PLAT_EMO[d.platform] || "📱", h: esc(d.title || "Устройство"),
-        p: d.active ? `Активно · ${dayPrice()} ₽ в день` : "Неактивно — пополните баланс",
+      const fresh = d.active && d.connected === false;
+      return hc("teal", { rb: !d.active ? "пауза" : fresh ? "ждёт" : "онлайн", ill: PLAT_EMO[d.platform] || "📱", h: esc(d.title || "Устройство"),
+        p: !d.active ? "Неактивно — пополните баланс" : fresh ? `Ключ готов — добавьте его в ${esc((a && a.name) || "приложение")} и включите VPN`
+          : `Активно · ${dayPrice()} ₽ в день`,
         pill: `Открыть в ${esc((a && a.name) || "приложении")}`, pa: `data-act="devopen"`, r: "copy", rl: "Скопировать ключ", ra: 'data-act="devcopy"' }) +
         ST("Устройство") +
         cd([`${E("🔑")}${TT("Ключ подписки", `<span style="font-family:ui-monospace,Menlo,monospace">${esc((d.subscription_url || "").replace(/^https?:\/\//, "").slice(0, 34))}…</span>`)}`,
-          [E("💡") + TT("Перестал работать VPN?", "Выпустим новый ключ, старый отключится") + V(CV), 'data-act="reissue"'],
+          fresh ? null : [E("💡") + TT("Перестал работать VPN?", "Выпустим новый ключ, старый отключится") + V(CV), 'data-act="reissue"'],
           [E("🆘") + "Помощь с подключением" + V(CV), 'data-act="helpdevice"']]) +
         `<div style="height:12px"></div>` +
         cd([[E("🗑️") + "Удалить устройство", 'data-act="delete"', "red"]]) +

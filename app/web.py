@@ -76,6 +76,13 @@ def _is_router_device(item: dict | None) -> bool:
     ).strip().lower() == "router"
 
 
+def device_connected(item: dict) -> bool:
+    """Whether VPN ever went through this device's key: the panel saw it online or counted traffic."""
+    if item.get("last_online_at") or item.get("legacy_last_online_at"):
+        return True
+    return any(int(item.get(key) or 0) > 0 for key in ("lifetime_traffic_bytes", "used_traffic_bytes"))
+
+
 def _device_as_panel(item: dict) -> dict:
     expire = parse_dt(item.get("expire_at"))
     if expire is None:
@@ -418,6 +425,8 @@ async def api_me(request: web.Request) -> web.Response:
                 "subscription_url": panel_dev.get("subscriptionUrl") or "",
                 "days": days_remaining(panel_dev),
                 "active": is_subscription_active(panel_dev),
+                # «Подключено» only once traffic went through this key; a fresh key is «ещё не подключали».
+                "connected": device_connected(item),
                 "expire_at": expire.isoformat() if expire else None,
                 "platform": item.get("platform") or "",
                 "kind": "router" if _is_router_device(item) else "",

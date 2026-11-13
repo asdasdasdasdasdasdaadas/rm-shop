@@ -148,6 +148,7 @@ a { color: var(--link); text-decoration: none; }
 .neg { color: #fff; }
 .dot { width: 8px; height: 8px; border-radius: 9px; background: var(--grn); display: inline-block; margin-right: 6px; animation: bl 2s infinite; }
 .dot.off { background: #6c7380; animation: none; }
+.dot.wait { background: #f0b43c; animation: none; }
 @keyframes bl { 50% { box-shadow: 0 0 0 5px rgba(60, 207, 116, .18); } }
 .rd { width: 22px; height: 22px; border-radius: 99px; border: 2px solid #3a3d45; display: flex; align-items: center; justify-content: center; transition: all .25s; flex-shrink: 0; }
 .rd svg { opacity: 0; transform: scale(.3); transition: all .25s var(--ease); }
