@@ -314,8 +314,9 @@
           pill: "Пополнить", pi: "plus", pa: 'data-go="topup"', r: "ref", rl: "Обновить", ra: 'data-act="refresh"' });
       }
       const cap = Number(me.max_devices) || 0;
-      const devRows = devs.map((d) => [E(PLAT_EMO[d.platform] || "📱") + TT(esc(d.title || "Устройство"),
+      const devRows = devs.map((d) => [E(devIcon(d)) + TT(esc(d.title || "Устройство"),
         devLine(d)) + V(CV), `data-act="device" data-id="${d.id}"`]);
+      const dupes = dupeGroup();
       if (devs.length && !(cap > 0 && devs.length >= cap)) devRows.push([E("＋") + "Добавить устройство", 'data-act="wizard"', "blue"]);
       const invitee = Number(me.referral_invitee_reward_rub) || 0;
       const showInvitee = me.referral_program_enabled && me.referred && !me.has_paid_topup && invitee > 0;
@@ -323,6 +324,7 @@
       const giftLater = me.trial_available && !showOffer() ? [E("🎁") + "Попробовать бесплатно" + V(rub(me.trial_rub) + " " + CV), 'data-go="gift"'] : null;
       return hero +
         (showInvitee ? NOTE(`Вы пришли по ссылке друга — после первого пополнения на баланс ещё ${rub(invitee)}.`, true) : "") +
+        (dupes ? dupeCard(dupes) : "") +
         (devRows.length ? ST(`Устройства${cap ? ` <span style="color:var(--hint);font-weight:500">· ${devs.length} из ${cap}</span>` : ""}`) + cd(devRows) : "") +
         (survey ? ST("Как работает VPN?") + cd([[E("✅") + "Всё работает", 'data-act="vfb" data-v="ok"'], [E("🆘") + "Нужна помощь", 'data-act="vfb" data-v="help"'],
           [E("🤔") + "Не подошли условия", 'data-act="vfb" data-v="terms"']]) : "") +
@@ -785,6 +787,132 @@
   const devLine = (d) => !d.active ? '<span class="dot off"></span>Неактивно'
     : d.connected === false ? '<span class="dot wait"></span>Ещё не подключали'
     : `<span class="dot"></span>Подключено · ${dayPrice()} ₽ в день`;
+  // ---------- device names ----------
+  // The customer's own name and icon for a device, so «Телефон мамы» is not just another «Мой iPhone».
+  const ICONS = ["📱", "💻", "🖥️", "📺", "🎮", "💼", "🏠", "⭐", "🧒", "👵"];
+  const NAME_TIPS = ["Мой телефон", "Телефон мамы", "Рабочий", "Планшет сына", "Телевизор"];
+  const NAME_MAX = 32;
+  const devIcon = (d) => (d && d.icon) || PLAT_EMO[(d && d.platform) || ""] || "📱";
+  const nameKey = (t) => String(t || "").trim().toLowerCase();
+  function dupeGroup() {
+    const by = {};
+    phones().forEach((d) => { (by[nameKey(d.title)] = by[nameKey(d.title)] || []).push(d); });
+    const g = Object.values(by).find((x) => x.length > 1);
+    if (!g) return null;
+    const key = g.map((d) => d.id).join(",") + ":" + nameKey(g[0].title);
+    return store.get("dupe_off") === key ? null : g;
+  }
+  function dupeCard(g) {
+    const n = g.length, word = n === 2 ? "Два" : n === 3 ? "Три" : n === 4 ? "Четыре" : String(n);
+    return `<div class="nudge"><span class="ne">🤔</span><span class="nt"><b>${word} «${esc(g[0].title || "Устройство")}»</b>` +
+      `<span>Подпишите, чтобы не путать</span></span><button type="button" class="nb" data-act="dupes">Подписать</button>` +
+      `<button type="button" class="nx" data-act="dupesx" aria-label="Скрыть">✕</button></div>`;
+  }
+  function seenLine(d) {
+    const on = parseDate(d.online_at);
+    if (!d.active) return "неактивно";
+    if (!on) return "ещё не подключали";
+    if (Date.now() - on.getTime() < 15 * 60000) return '<b class="ok">● онлайн</b>';
+    return `был ${dayLabel(on).toLowerCase()} в ${timeHM(on)}`;
+  }
+  // One sheet for one device (icon + name) or for a group with the same name (a field each).
+  function nameSheet(devs) {
+    if (document.querySelector(".nsw")) return;
+    const multi = devs.length > 1;
+    const icon = { v: devIcon(devs[0]), was: devIcon(devs[0]) };
+    const field = (d) => `<label class="nfld"><span class="nem">${multi ? devIcon(d) : icon.v}</span>` +
+      `<input maxlength="${NAME_MAX}" autocomplete="off" enterkeyhint="${multi ? "next" : "done"}" data-id="${d.id}" value="${esc(d.title || "")}">` +
+      `<button type="button" class="nx" aria-label="Стереть">✕</button></label>`;
+    const body = multi
+      ? devs.map((d) => { const c = parseDate(d.created_at); return `<div class="npair"><div class="nh"><span>${c ? "Добавлен " + dateLong(c) : "Устройство"}</span><span>${seenLine(d)}</span></div>${field(d)}</div>`; }).join("")
+      : field(devs[0]) + `<div class="nlim"><span>Видно только вам</span><span class="nc"></span></div>` +
+        `<div class="nemo">${ICONS.map((e) => `<button type="button" class="${e === icon.v ? "on" : ""}" data-e="${e}">${e}</button>`).join("")}</div>`;
+    const w = document.createElement("div");
+    w.className = "nsw";
+    w.innerHTML = `<div class="nsh" role="dialog" aria-label="Название устройства"><div class="grab"></div>` +
+      `<h3>${multi ? "Подпишите устройства" : "Название устройства"}</h3>` +
+      `<div class="nsub">${multi ? "Так проще понять, какое удалить и за что списание" : "Чтобы не путать устройства между собой"}</div>${body}` +
+      `<div class="nchips">${NAME_TIPS.map((t) => `<button type="button">${t}</button>`).join("")}</div>` +
+      `<button type="button" class="bbtn nsave dim">Сохранить</button><button type="button" class="ncancel">Отмена</button></div>`;
+    document.body.appendChild(w);
+    const inputs = [...w.querySelectorAll("input")], save = w.querySelector(".nsave"), cnt = w.querySelector(".nc");
+    let active = inputs[0], busy = false;
+    const changed = () => inputs.some((i) => i.value.trim() !== String((deviceById(i.dataset.id) || {}).title || "").trim()) || icon.v !== icon.was;
+    const sync = () => {
+      const ok = inputs.every((i) => i.value.trim()) && changed();
+      save.classList.toggle("dim", !ok);
+      if (cnt) cnt.textContent = `${active.value.length}/${NAME_MAX}`;
+    };
+    const close = () => { w.classList.add("out"); setTimeout(() => w.remove(), 320); };
+    inputs.forEach((i, k) => {
+      i.addEventListener("focus", () => { active = i; sync(); });
+      i.addEventListener("input", sync);
+      i.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        if (inputs[k + 1]) inputs[k + 1].focus(); else if (!save.classList.contains("dim")) save.click(); else i.blur();
+      });
+    });
+    w.querySelectorAll(".nx").forEach((x, k) => { x.onclick = () => { inputs[k].value = ""; inputs[k].focus(); sync(); }; });
+    w.querySelectorAll(".nchips button").forEach((b) => {
+      b.onclick = () => {
+        haptic();
+        active.value = b.textContent;
+        w.querySelectorAll(".nchips button").forEach((x) => x.classList.toggle("on", x === b));
+        active.parentElement.classList.remove("npop"); void active.offsetWidth; active.parentElement.classList.add("npop");
+        const next = inputs[inputs.indexOf(active) + 1];
+        if (next) active = next;
+        sync();
+      };
+    });
+    w.querySelectorAll(".nemo button").forEach((b) => {
+      b.onclick = () => {
+        haptic();
+        icon.v = b.dataset.e;
+        w.querySelectorAll(".nemo button").forEach((x) => x.classList.toggle("on", x === b));
+        const em = w.querySelector(".nem"); em.textContent = icon.v; em.classList.remove("npop"); void em.offsetWidth; em.classList.add("npop");
+        sync();
+      };
+    });
+    w.querySelector(".ncancel").onclick = close;
+    w.addEventListener("click", (e) => { if (e.target === w) close(); });
+    save.onclick = async () => {
+      if (busy || save.classList.contains("dim")) return;
+      busy = true;
+      save.classList.add("dim");
+      const before = devs.map((d) => ({ id: d.id, title: d.title, icon: d.icon || "" }));
+      try {
+        for (const i of inputs) {
+          const d = deviceById(i.dataset.id);
+          const title = i.value.trim();
+          const iconSet = !multi && icon.v !== icon.was;
+          if (d && (title !== String(d.title || "").trim() || iconSet)) {
+            await api(`/api/devices/${d.id}`, { method: "PATCH", body: JSON.stringify(iconSet ? { title, icon: icon.v } : { title }) });
+          }
+        }
+        notify("success");
+        close();
+        if (multi) store.set("dupe_off", "");
+        await load(true).catch(() => {});
+        renamedFlash(devs.map((d) => d.id));
+        toastAct(multi ? "Теперь не перепутаете" : "Название сохранено", "Отменить", async () => {
+          for (const b of before) await api(`/api/devices/${b.id}`, { method: "PATCH", body: JSON.stringify({ title: b.title || "Устройство", icon: b.icon }) }).catch(() => {});
+          await load(true).catch(() => {});
+        });
+      } catch (e) {
+        busy = false;
+        save.classList.remove("dim");
+        showErr(e);
+      }
+    };
+    sync();
+    if (!multi) { inputs[0].focus({ preventScroll: true }); inputs[0].select(); } // in the tap itself, so iOS opens the keyboard
+  }
+  function renamedFlash(ids) {
+    if (!cur) return;
+    if (cur.key === "device") { const h = cur.el.querySelector(".hc .H"), i = cur.el.querySelector(".hc .ill"); [h, i].forEach((x) => x && x.classList.add("npop")); }
+    ids.forEach((id) => { const r = cur.el.querySelector(`[data-act="device"][data-id="${id}"]`); if (r) r.classList.add("nflash"); });
+  }
   const deviceById = (id) => ((me && me.devices) || []).find((d) => String(d.id) === String(id));
   SCR.device = {
     live: true,
@@ -793,12 +921,13 @@
       if (!d) return hc("slate", { ill: "📱", h: "Устройство удалено", pill: "На главную", pa: 'data-act="home"' });
       const a = appById(appsFor(d.platform)[0] ? appsFor(d.platform)[0].id : "happ");
       const fresh = d.active && d.connected === false;
-      return hc("teal", { rb: !d.active ? "пауза" : fresh ? "ждёт" : "онлайн", ill: PLAT_EMO[d.platform] || "📱", h: esc(d.title || "Устройство"),
+      return hc("teal", { rb: !d.active ? "пауза" : fresh ? "ждёт" : "онлайн", ill: devIcon(d), h: esc(d.title || "Устройство"),
         p: !d.active ? "Неактивно — пополните баланс" : fresh ? `Ключ готов — добавьте его в ${esc((a && a.name) || "приложение")} и включите VPN`
           : `Активно · ${dayPrice()} ₽ в день`,
         pill: `Открыть в ${esc((a && a.name) || "приложении")}`, pa: `data-act="devopen"`, r: "copy", rl: "Скопировать ключ", ra: 'data-act="devcopy"' }) +
         ST("Устройство") +
-        cd([`${E("🔑")}${TT("Ключ подписки", `<span style="font-family:ui-monospace,Menlo,monospace">${esc((d.subscription_url || "").replace(/^https?:\/\//, "").slice(0, 34))}…</span>`)}`,
+        cd([[E("✏️") + TT("Название", esc(d.title || "Устройство")) + V(CV), 'data-act="rename"'],
+          `${E("🔑")}${TT("Ключ подписки", `<span style="font-family:ui-monospace,Menlo,monospace">${esc((d.subscription_url || "").replace(/^https?:\/\//, "").slice(0, 34))}…</span>`)}`,
           fresh ? null : [E("💡") + TT("Перестал работать VPN?", "Выпустим новый ключ, старый отключится") + V(CV), 'data-act="reissue"'],
           [E("🆘") + "Помощь с подключением" + V(CV), 'data-act="helpdevice"']]) +
         `<div style="height:12px"></div>` +
@@ -1149,9 +1278,19 @@
   function toast(m) {
     const e = document.getElementById("toast");
     e.textContent = m;
+    e.classList.remove("act");
     e.classList.add("on");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => e.classList.remove("on"), 2200);
+  }
+  // A toast with one button («Отменить»): stays a little longer and takes taps.
+  function toastAct(m, label, fn) {
+    const e = document.getElementById("toast");
+    e.innerHTML = `${esc(m)}<button type="button" class="ta">${esc(label)}</button>`;
+    e.classList.add("on", "act");
+    e.querySelector(".ta").onclick = () => { e.classList.remove("on", "act"); clearTimeout(toastTimer); haptic(); fn(); };
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => e.classList.remove("on", "act"), 4500);
   }
   function boom() {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -1410,6 +1549,14 @@
       if (d) openClient((appsFor(d.platform)[0] || {}).id, d.subscription_url);
     },
     devcopy() { const d = deviceById(cur.params.id); if (d) copy(d.subscription_url, "Ключ скопирован"); },
+    rename() { const d = deviceById(cur.params.id); if (d) { haptic(); nameSheet([d]); } },
+    dupes() { const g = dupeGroup(); if (g) { haptic(); nameSheet(g); } },
+    dupesx() {
+      const g = dupeGroup();
+      if (!g) return;
+      store.set("dupe_off", g.map((d) => d.id).join(",") + ":" + nameKey(g[0].title));
+      rerender();
+    },
     async reissue() {
       const d = deviceById(cur.params.id);
       if (!d || !(await confirmAsk("Старый ключ перестанет работать. Выпустить новый?"))) return;

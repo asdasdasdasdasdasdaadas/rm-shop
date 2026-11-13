@@ -736,6 +736,8 @@ CREATE TABLE IF NOT EXISTS funnel_step_sends (
 -- Gift credit stays intact until the first confirmed VPN connection.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_waiting_connection BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS legacy_last_online_at TIMESTAMPTZ;
+-- The customer's own label for a device in the cabinet: an emoji from DEVICE_ICONS (app/web.py), empty = by platform.
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS icon TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS legacy_first_online_at TIMESTAMPTZ;
 -- Remove unverifiable legacy online values once; panel sync restores real connection dates.
 DO $$ BEGIN

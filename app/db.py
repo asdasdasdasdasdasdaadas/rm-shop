@@ -1974,6 +1974,22 @@ async def get_device(telegram_id: int, device_id: int) -> dict | None:
     return _as_dict(row)
 
 
+async def rename_device(telegram_id: int, device_id: int, title: str, icon: str | None = None) -> dict | None:
+    """The customer's name (and icon) for a device; None when the device is not theirs."""
+    row = await _pool_req().fetchrow(
+        """
+        UPDATE devices SET title = $3, icon = COALESCE($4, icon)
+        WHERE id = $1 AND telegram_id = $2
+        RETURNING id, title, icon
+        """,
+        device_id,
+        telegram_id,
+        title,
+        icon,
+    )
+    return _as_dict(row)
+
+
 async def delete_device(telegram_id: int, device_id: int) -> dict | None:
     async with _pool_req().acquire() as conn:
         async with conn.transaction():

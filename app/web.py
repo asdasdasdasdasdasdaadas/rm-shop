@@ -447,6 +447,9 @@ async def api_me(request: web.Request) -> web.Response:
                 "active": is_subscription_active(panel_dev),
                 # «Подключено» only once traffic went through this key; a fresh key is «ещё не подключали».
                 "connected": device_connected(item),
+                "icon": item.get("icon") or "",
+                "created_at": item["created_at"].isoformat() if item.get("created_at") else None,
+                "online_at": item["last_online_at"].isoformat() if item.get("last_online_at") else None,
                 "expire_at": expire.isoformat() if expire else None,
                 "platform": item.get("platform") or "",
                 "kind": "router" if _is_router_device(item) else "",
@@ -967,6 +970,41 @@ async def api_delete_device(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "exit_feedback_token": removed.get("exit_feedback_token")})
 
 
+DEVICE_ICONS = ("📱", "💻", "🖥️", "📺", "🎮", "💼", "🏠", "⭐", "🧒", "👵")
+DEVICE_TITLE_MAX = 32
+
+
+def clean_device_title(raw) -> str:
+    """A device name as the customer typed it: no control characters, single spaces, at most 32 characters."""
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u200b-\u200f\u2028-\u202e\u2066-\u2069]", "", str(raw or ""))
+    return re.sub(r"\s+", " ", text).strip()[:DEVICE_TITLE_MAX].strip()
+
+
+async def api_rename_device(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        device_id = int(request.match_info["device_id"])
+        body = await request.json()
+    except (KeyError, TypeError, ValueError):
+        return json_error("Устройство не найдено", 404)
+    if not isinstance(body, dict):
+        return json_error("Введите название")
+    title = clean_device_title(body.get("title"))
+    if not title:
+        return json_error("Введите название")
+    icon = body.get("icon")
+    if icon is not None:
+        icon = str(icon)
+        if icon and icon not in DEVICE_ICONS:
+            return json_error("Такой иконки нет")
+    row = await db.rename_device(telegram_id, device_id, title, icon)
+    if not row:
+        return json_error("Устройство не найдено", 404)
+    return web.json_response({"ok": True, "title": row["title"], "icon": row.get("icon") or ""})
+
+
 async def api_vpn_feedback(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tg(request)
     if denied:
@@ -1302,6 +1340,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/devices/{device_id}/check", api_check_connection)
         app.router.add_post("/api/devices/{device_id}/reissue", api_reissue_device)
         app.router.add_delete("/api/devices/{device_id}", api_delete_device)
+        app.router.add_patch("/api/devices/{device_id}", api_rename_device)
         app.router.add_post("/api/exit-feedback", api_exit_feedback)
         app.router.add_post("/api/vpn-feedback", api_vpn_feedback)
         app.router.add_post("/api/subscription/reissue", api_reissue_subscription)

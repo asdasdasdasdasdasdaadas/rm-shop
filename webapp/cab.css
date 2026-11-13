@@ -359,3 +359,47 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .ar .ak { margin-left: auto; display: flex; }
 .ar .ak svg path { stroke: #3fc6b4; }
 @media (prefers-reduced-motion: reduce) { .ar, .ava, .ava > *, .als { transition: none; } }
+
+/* device names: sheet, duplicate-name card, toast with «Отменить» */
+.nudge { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, #2a2412, #1c1e23 70%); border: 1px solid rgba(240, 180, 60, .25);
+  border-radius: 22px; padding: 12px 12px 12px 14px; margin: 14px 12px -6px; animation: up .5s .15s var(--ease) both; }
+.nudge .ne { font-size: 26px; }
+.nudge .nt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 15px; }
+.nudge .nt b { overflow-wrap: anywhere; }
+.nudge .nt span { color: var(--hint); font-size: 13.5px; }
+.nudge .nb { background: #f0b43c; color: #1a1406; font-weight: 700; border-radius: 99px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+.nudge .nx { color: var(--hint); font-size: 15px; padding: 6px; cursor: pointer; }
+.nsw { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-end; justify-content: center; animation: nfade .25s both; }
+.nsw.out { animation: nfade .3s reverse both; }
+.nsh { width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; background: #1c1e23; border-radius: 24px 24px 0 0;
+  padding: 8px 16px calc(var(--sb) + 16px); animation: nup .38s var(--ease) both; }
+.nsw.out .nsh { animation: nup .3s reverse both; }
+.nsh .grab { width: 38px; height: 5px; border-radius: 3px; background: #3a3d45; margin: 0 auto 14px; }
+.nsh h3 { font-size: 20px; font-weight: 800; margin: 0 0 4px; }
+.nsub { color: var(--hint); font-size: 14px; margin-bottom: 14px; }
+.nfld { display: flex; align-items: center; gap: 10px; background: #26292f; border-radius: 14px; padding: 0 8px 0 12px; border: 1.5px solid transparent; transition: border-color .2s; }
+.nfld:focus-within { border-color: var(--blue); }
+.nfld .nem { font-size: 24px; }
+.nfld input { flex: 1; min-width: 0; height: 50px; background: none; border: 0; outline: 0; color: #fff; font-size: 17px; }
+.nfld .nx { color: var(--hint); font-size: 14px; width: 28px; height: 28px; border-radius: 50%; background: #34373e; cursor: pointer; }
+.nlim { display: flex; justify-content: space-between; color: var(--hint); font-size: 12.5px; margin: 6px 4px 12px; }
+.nemo { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; scrollbar-width: none; }
+.nemo button { flex: none; width: 44px; height: 44px; border-radius: 12px; background: #26292f; font-size: 22px; cursor: pointer; border: 1.5px solid transparent; transition: transform .15s; }
+.nemo button.on { border-color: var(--blue); background: rgba(62, 136, 247, .15); }
+.nemo button:active, .nchips button:active { transform: scale(.92); }
+.nchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 16px; }
+.nchips button { background: #26292f; border-radius: 99px; padding: 7px 12px; font-size: 14px; color: #dfe2e8; cursor: pointer; transition: transform .15s, background .2s; }
+.nchips button.on { background: rgba(62, 136, 247, .2); color: #fff; }
+.npair { margin-bottom: 12px; }
+.npair .nh { display: flex; justify-content: space-between; gap: 8px; color: var(--hint); font-size: 12.5px; margin: 0 4px 6px; }
+.npair .nh .ok { color: var(--grn); font-weight: 600; }
+.nsave.dim { opacity: .4; pointer-events: none; }
+.ncancel { display: block; width: 100%; text-align: center; color: var(--link); margin-top: 12px; font-size: 16px; padding: 4px; cursor: pointer; }
+.npop { animation: npop .45s var(--ease); }
+.nflash { animation: nflash 1.2s ease; }
+.toast.act { pointer-events: auto; display: flex; align-items: center; gap: 14px; }
+.toast .ta { color: var(--link); font-weight: 700; font-size: 15px; cursor: pointer; }
+@keyframes nfade { from { opacity: 0; } }
+@keyframes nup { from { transform: translateY(100%); } }
+@keyframes npop { 40% { transform: scale(1.12); } }
+@keyframes nflash { 0%, 60% { background: rgba(62, 136, 247, .18); } }
