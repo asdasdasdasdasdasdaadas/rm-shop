@@ -545,3 +545,6 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .gf-swap { animation: gfsw .45s var(--ease) both; }
 @keyframes gfsw { from { opacity: 0; transform: translateY(8px); } }
 .am-gift { width: 190px; height: 96px; margin: -30px 0 6px; }
+.tabc.tsw { animation: tabin .22s ease both; }
+.tabc.tsw .hc, .tabc.tsw .st, .tabc.tsw .cd, .tabc.tsw .note, .tabc.tsw .tl, .tabc.tsw .ill { animation: none; }
+@keyframes tabin { from { opacity: 0; } }

@@ -1099,10 +1099,13 @@
     h(p) {
       const seg = me.gifts_enabled ? `<div class="seg">${[["invite", "Пригласить"], ["give", "Подарить"]].map(([v, t]) =>
         `<button type="button" data-act="gftab" data-v="${v}" class="${(p.tab || "invite") === v ? "on" : ""}">${t}</button>`).join("")}</div>` : "";
-      if (me.gifts_enabled && p.tab === "give") return seg + giveTab();
-      return seg + this.invite();
+      return seg + `<div class="tabc">${me.gifts_enabled && p.tab === "give" ? giveTab() : this.invite()}</div>`;
     },
-    on(el, p) { if (p.tab === "give") { mountGift(el); if (!gs.data) loadGifts(); } },
+    on(el, p) {
+      if (p.tab === "give") mountGift(el);
+      // Load the gifts up front, so «Подарить» opens complete and does not redraw a moment later.
+      if (me.gifts_enabled && !gs.data) loadGifts();
+    },
     invite() {
       const on = Boolean(me.referral_program_enabled);
       const reward = Number(me.referral_reward_rub) || 50;
@@ -2009,12 +2012,7 @@
     const can = d ? Number(d.giftable_rub) || 0 : null;
     const note = can == null ? "" : NOTE(can >= gs.amount ? `Баланс ${rub(me.balance_rub)} · подарить можно до ${rub(can)}`
       : can > 0 ? `Подарить можно до ${rub(can)} — это деньги, которые вы внесли сами` : "Подарить можно только свои деньги — сначала пополните баланс", true);
-    const faq = ST("Частые вопросы") + cd([
-      ["Что получит друг?", `Сумму на баланс: ${rub(gs.amount)} — это ${gDaysLine(gs.amount)} на одном устройстве. Карта не нужна.`],
-      ["А если друг не откроет?", "Пока подарок не открыт, его можно вернуть себе на баланс: нажмите на него в списке «Ваши подарки»."],
-      ["Какие деньги можно подарить?", "Только те, что вы внесли сами. Бонусы, пробный период и промокоды подарить нельзя."],
-    ].map(([q, a]) => `<button type="button" class="rw q" data-act="gfq"><span class="qh"><b>${q}</b><span class="cv" style="margin-left:auto">›</span></span><span class="ans">${a}</span></button>`));
-    return hero + note + how + list + faq;
+    return hero + `<div class="gf-rest">${note + how + list}</div>`;
   }
   function gPaint(el, old) {
     const n = el.querySelector(".gf-amt");
@@ -2024,7 +2022,13 @@
   }
   async function loadGifts() {
     try { gs.data = await api("/api/gifts"); } catch (_e) { gs.data = null; }
-    if (cur && cur.key === "friends" && cur.params.tab === "give") rerender(true);
+    // Only the note and the list below the widget change: the gift keeps playing.
+    const rest = cur && cur.key === "friends" && cur.params.tab === "give" && cur.el.querySelector(".gf-rest");
+    if (!rest) return;
+    const t = document.createElement("div");
+    t.innerHTML = giveTab();
+    const fresh = t.querySelector(".gf-rest");
+    if (fresh && fresh.innerHTML !== rest.innerHTML) { fresh.classList.add("still"); rest.replaceWith(fresh); }
   }
   async function shareGift(res, copyOnly) {
     const text = res.share_text || "Подарок на VPN";
@@ -2300,8 +2304,16 @@
       const tab = b.dataset.v;
       if (!cur || cur.key !== "friends" || cur.params.tab === tab) return;
       cur.params.tab = tab;
-      rerender(false);
-      if (tab === "give") loadGifts();
+      // The tabs stay put; only the content below them fades over, without replaying the screen's entrance.
+      cur.el.querySelectorAll(".seg button").forEach((x) => x.classList.toggle("on", x.dataset.v === tab));
+      const box = cur.el.querySelector(".tabc");
+      const fresh = document.createElement("div");
+      fresh.className = "tabc tsw";
+      fresh.innerHTML = tab === "give" ? giveTab() : SCR.friends.invite();
+      box.replaceWith(fresh);
+      sparkle(fresh);
+      if (tab === "give") { mountGift(fresh); loadGifts(); }
+      cur.sig = SCR.friends.sig(cur.params);
     },
     gfamt(b) {
       haptic();
@@ -2318,7 +2330,6 @@
     gfsend: () => sendGift(false),
     gfcopy: () => sendGift(true),
     gfitem: (b) => giftItem(b.dataset.code),
-    gfq(b) { haptic(); b.classList.toggle("open"); },
     gfgive() { haptic(); go("friends", { tab: "give" }); },
     gfbox() { if (cur && cur.key === "present") openPresent(); else if (cur) { const i = cur.el.querySelector(".gf-box"); if (i) { haptic(); gShake(i); } } },
     gfopen: () => openPresent(),
