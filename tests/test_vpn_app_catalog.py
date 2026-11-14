@@ -20,6 +20,12 @@ class CatalogTest(unittest.TestCase):
         self.assertEqual(a["platforms"], ["ios", "macos", "appletv"])
         self.assertTrue(all("id6683309629" in url for url in a["stores"].values()))
 
+    def test_icons_are_local_and_fill_in_for_saved_lists(self):
+        self.assertEqual(self.apps["karing"]["icon"], "/icons/karing.png")
+        self.assertEqual(self.apps["rabbithole"]["icon"], "/icons/rabbithole.png")
+        saved = [{"id": "rabbithole", "name": "RabbitHole", "icon": "", "platforms": ["ios"]}]  # a list saved in the admin
+        self.assertEqual(validate_vpn_apps(saved)[0]["icon"], "/icons/rabbithole.png")
+
     def test_happ_stays_recommended_first(self):
         self.assertEqual([a["id"] for a in validate_vpn_apps(DEFAULT_VPN_APPS)][:2], ["incy", "happ"])
 

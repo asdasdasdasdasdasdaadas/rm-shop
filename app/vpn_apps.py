@@ -7,7 +7,7 @@ from app.config import shop_overlay
 
 PLATFORMS = ("ios", "macos", "appletv", "android", "androidtv", "windows")
 _ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,23}$")
-KNOWN_ICONS = {"incy", "happ", "v2rayng", "v2rayn"}
+KNOWN_ICONS = {"incy", "happ", "v2rayng", "v2rayn", "karing", "rabbithole"}
 
 
 def default_icon_for(app_id: str) -> str:
@@ -64,7 +64,7 @@ DEFAULT_VPN_APPS: list[dict[str, Any]] = [
         "id": "rabbithole",
         "name": "RabbitHole",
         "mark": "RH",
-        "icon": "",
+        "icon": "/icons/rabbithole.png",
         # rabbit-hole-1.gitbook.io/rabbit-hole-docs/for-devs/deep-links-and-user-flow: the URL goes after the prefix as is.
         "deep_link": "rabbithole://add/{url}",
         "platforms": ["ios", "macos", "appletv"],
@@ -78,7 +78,7 @@ DEFAULT_VPN_APPS: list[dict[str, Any]] = [
         "id": "karing",
         "name": "Karing",
         "mark": "KA",
-        "icon": "",
+        "icon": "/icons/karing.png",
         # Karing's own scheme takes the subscription URL percent-encoded (karing.app/en/provider-faq).
         "deep_link": "karing://install-config?url={enc}",
         "platforms": ["ios", "macos", "appletv", "android", "androidtv", "windows"],
