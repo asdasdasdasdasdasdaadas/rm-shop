@@ -241,6 +241,21 @@
     return ok(saved) || ok(store.get("app_" + p)) || (list[0] || {}).id || "";
   }
   const devApp = (d) => appById(prefApp(d.platform, d.client));
+  // The app already set up on this platform: from a device of the same kind that has connected (newest first);
+  // an old device with no app saved counts as the one chosen here before. Then a new device skips
+  // «install the app» and goes straight to the key; «На этом устройстве нет …» brings the download back.
+  function usedApp(p) {
+    const list = appsFor(p);
+    const d = phones().filter((x) => x.platform === p && (x.connected || x.online_at)).sort((a, b) => b.id - a.id)[0];
+    if (!d) return "";
+    const id = list.some((a) => a.id === d.client) ? d.client : prefApp(p);
+    return id && id !== "other" ? id : "";
+  }
+  function pickApp(p) {
+    const used = usedApp(p);
+    wiz.client = used || prefApp(p);
+    wiz.has = Boolean(used) || wiz.client === "other";
+  }
   const platTitle = (id) => (PLATFORMS.find((p) => p.id === id) || { title: "Устройство" }).title;
   // Where the download link really leads: Karing on Windows ships from GitHub.
   const storeName = (p, a) => {
@@ -860,7 +875,8 @@
           tl([["1", "Нажмите «Создать ключ»", "<b>отдельный ключ</b> для этого устройства"],
             ["2", other ? "Скопируйте ключ и вставьте в приложение" : `Подтвердите добавление в ${esc(own.name)}`, other ? "обычно «+» → «Импорт из буфера»" : "кнопка откроет приложение"],
             ["3", "Включите VPN", `${dayPrice()} ₽ в день, пока пользуетесь`]]) +
-          cd([[E("🔄") + "Выбрать другое приложение" + V(CV), 'data-act="hasyes"']]);
+          cd([[E("🔄") + "Выбрать другое приложение" + V(CV), 'data-act="hasyes"'],
+            ...(other ? [] : [[E("⬇️") + `На этом устройстве нет ${esc(own.name)}` + V("Скачать " + CV), 'data-act="hasnot"']])]);
       }
       if (!list.some((a) => a.id === wiz.client)) wiz.client = prefApp(wiz.platform);
       const a = appById(wiz.client);
@@ -1292,13 +1308,14 @@
         (me.notification_settings_available ? ST("Уведомления") + cd([["Режим тишины" + `<span class="tg ${quiet ? "" : "off"}"></span>`, 'data-act="quiet"']]) +
           NOTE("Без приглашений, акций и напоминаний. Сообщения о деньгах, доступе и ответы поддержки останутся.") : "") +
         ST("Ещё") +
-        cd([me.promo_enabled ? [E("🎟️") + "Промокод" + V(CV), 'data-go="promo"'] : null,
+        cd([me.cabinet_site_url && inTelegram() ? [E("💻") + "Кабинет в браузере" + V(esc(siteHost()) + " " + CV), 'data-act="browserHow"'] : null,
+          me.promo_enabled ? [E("🎟️") + "Промокод" + V(CV), 'data-go="promo"'] : null,
           [E("💡") + "Частые вопросы" + V(CV), 'data-go="faq"'],
           [E("🧾") + "История" + V(CV), 'data-go="history"'],
           me.legal && me.legal.offer ? [E("📄") + "Пользовательское соглашение" + V(CV), `data-act="link" data-v="${esc(me.legal.offer)}"`] : null,
           me.legal && me.legal.privacy ? [E("🔒") + "Политика конфиденциальности" + V(CV), `data-act="link" data-v="${esc(me.legal.privacy)}"`] : null]);
     },
-    sig: () => JSON.stringify([me.user, me.quiet_notifications, me.notification_settings_available, me.promo_enabled]),
+    sig: () => JSON.stringify([me.user, me.quiet_notifications, me.notification_settings_available, me.promo_enabled, me.cabinet_site_url]),
   };
 
   // ---------- promo ----------
@@ -1548,7 +1565,7 @@
     haptic();
     Object.assign(wiz, { url: "", deviceId: null, title: "", fromOffer: Boolean(fromOffer) });
     const p = detectPlatform();
-    if (p) { wiz.platform = p; wiz.client = prefApp(p); wiz.has = wiz.client === "other"; go("wiz2"); }
+    if (p) { wiz.platform = p; pickApp(p); go("wiz2"); }
     else go("wiz1");
   }
   function resume() {
@@ -1736,7 +1753,9 @@
       ill.replaceWith(fresh);
     },
     reopen: () => pay.url && tg.openLink(pay.url),
-    plat(b) { haptic(); wiz.platform = b.dataset.v; wiz.client = prefApp(wiz.platform); wiz.has = wiz.client === "other"; go("wiz2"); },
+    plat(b) { haptic(); wiz.platform = b.dataset.v; pickApp(wiz.platform); go("wiz2"); },
+    // «X уже стоит» was a guess from another device: show the download screen for this one.
+    hasnot() { haptic(); wiz.has = false; rerender(false); },
     hasyes() { haptic(); go("wizhave"); },
     haveapp(b) {
       notify("success");

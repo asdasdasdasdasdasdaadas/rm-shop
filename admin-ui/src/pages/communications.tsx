@@ -37,19 +37,33 @@ const audiences: [string, string][] = [
 ];
 // What each segment is for: shown under the audience picker.
 const audienceHint: Record<string, string> = {
-  not_connected: "Им нужна помощь с подключением, а не скидка: короткая инструкция и кнопка в кабинет.",
-  zero_off: "Пользовались VPN, он выключился из-за нулевого баланса. Лучше всего работает напоминание пополнить с одной кнопкой.",
-  low_balance: "VPN работает, но скоро выключится. Предупредите заранее — так меньше людей теряют доступ.",
-  no_browser: "VPN работал за последние 30 дней, а кабинет в браузере не открывали. Запасной вход пригодится, если Telegram не грузится.",
+  not_connected:
+    "Им нужна помощь с подключением, а не скидка: короткая инструкция и кнопка в кабинет.",
+  zero_off:
+    "Пользовались VPN, он выключился из-за нулевого баланса. Лучше всего работает напоминание пополнить с одной кнопкой.",
+  low_balance:
+    "VPN работает, но скоро выключится. Предупредите заранее — так меньше людей теряют доступ.",
+  no_browser:
+    "VPN работал за последние 30 дней, а кабинет в браузере не открывали. Запасной вход пригодится, если Telegram не грузится.",
 };
 // Next 19:00 in Moscow (UTC+3, no daylight saving): people read messages in the evening.
 const nextEveningMsk = () => {
   const now = new Date(),
-    at = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 16, 0));
-  if (at.getTime() < now.getTime() + 5 * 60_000) at.setUTCDate(at.getUTCDate() + 1);
+    at = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        16,
+        0,
+      ),
+    );
+  if (at.getTime() < now.getTime() + 5 * 60_000)
+    at.setUTCDate(at.getUTCDate() + 1);
   return at;
 };
-const audienceLabel = (id: string) => audiences.find(([a]) => a === id)?.[1] || id;
+const audienceLabel = (id: string) =>
+  audiences.find(([a]) => a === id)?.[1] || id;
 const templates: [string, string][] = [
   ["", "Своё сообщение"],
   ["gift3", "+3 дня всем с текстом"],
@@ -59,12 +73,29 @@ const templates: [string, string][] = [
   ["unused", "Помощь с первым подключением"],
   ["browser", "Кабинет в браузере"],
 ];
+const templateIcon: Record<string, string> = {
+  "": "✏️",
+  gift3: "🎁",
+  referral_news: "👥",
+  whitelist: "📋",
+  invite: "🤝",
+  unused: "🛟",
+  browser: "💻",
+};
 // Stored templates with an audience of their own.
-const templateAudience: Record<string, string> = { invite: "using", unused: "unused", browser: "no_browser" };
+const templateAudience: Record<string, string> = {
+  invite: "using",
+  unused: "unused",
+  browser: "no_browser",
+};
 // A photo, GIF or video goes with one's own text or with «Кабинет в браузере» (a screen recording of the login).
 const withMedia = (t: string) => !t || t === "browser";
 // «Кабинет в браузере» ships its own looping clip (app/assets/browser-login.mp4); the admin may swap or drop it.
-const BUILTIN_CLIP = { url: "/admin/api/broadcast/builtin/browser-login.mp4", kind: "animation", video: true };
+const BUILTIN_CLIP = {
+  url: "/admin/api/broadcast/builtin/browser-login.mp4",
+  kind: "animation",
+  video: true,
+};
 const clipOptions: [string, string][] = [
   ["builtin", "Встроенное: вход по QR, 5 секунд"],
   ["own", "Своё фото, GIF или видео"],
@@ -77,8 +108,18 @@ const announce: Record<string, string> = {
 };
 // Telegram caption limit is 1024; the bot adds a short «Откройте личный кабинет 👇» line.
 const CAPTION_MAX = 964;
-const kindLabel: Record<string, string> = { photo: "Фото", animation: "GIF", video: "Видео" };
-type Media = { id: string; kind: string; name: string; url: string; video: boolean };
+const kindLabel: Record<string, string> = {
+  photo: "Фото",
+  animation: "GIF",
+  video: "Видео",
+};
+type Media = {
+  id: string;
+  kind: string;
+  name: string;
+  url: string;
+  video: boolean;
+};
 function MediaPicker({
   media,
   onChange,
@@ -133,7 +174,11 @@ function MediaPicker({
           </Button>
         </div>
       ) : (
-        <Button variant="outline" disabled={busy} onClick={() => input.current?.click()}>
+        <Button
+          variant="outline"
+          disabled={busy}
+          onClick={() => input.current?.click()}
+        >
           {busy ? <Loader2 className="animate-spin" /> : <ImagePlus />}
           {busy ? "Загружаем…" : "Прикрепить фото, GIF или видео"}
         </Button>
@@ -146,12 +191,17 @@ function MediaPicker({
             ["video", "Видео со звуком и плеером"],
             ["animation", "Как GIF: без звука, крутится по кругу"],
           ]}
-          onChange={(v) => file.current && v !== media.kind && upload(file.current, v === "animation")}
+          onChange={(v) =>
+            file.current &&
+            v !== media.kind &&
+            upload(file.current, v === "animation")
+          }
           disabled={busy}
         />
       )}
       <p className="text-xs text-muted-foreground">
-        JPG, PNG, WEBP — фото до 10 МБ; GIF, MP4, MOV, WEBM — до 50 МБ. Текст станет подписью.
+        JPG, PNG, WEBP — фото до 10 МБ; GIF, MP4, MOV, WEBM — до 50 МБ. Текст
+        станет подписью.
       </p>
     </div>
   );
@@ -167,14 +217,23 @@ const whenLabel = (iso: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
-function Scheduled({ items, reload }: { items: Data[]; reload: () => Promise<unknown> }) {
+function Scheduled({
+  items,
+  reload,
+}: {
+  items: Data[];
+  reload: () => Promise<unknown>;
+}) {
   const confirm = useConfirm();
   if (!items?.length) return null;
   return (
     <div className="rounded-lg border p-4 space-y-3">
       <p className="font-medium text-sm">Запланированные рассылки</p>
       {items.map((item) => (
-        <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
+        <div
+          key={item.id}
+          className="flex items-center justify-between gap-3 text-sm"
+        >
           <span className="flex items-center gap-2 min-w-0">
             <Clock className="size-4 shrink-0 text-muted-foreground" />
             <span className="truncate">
@@ -219,20 +278,24 @@ function Delivery({ data }: { data: Data }) {
       <Progress
         value={
           data.total
-            ? ((Number(data.sent || 0) + Number(data.failed || 0) + Number(data.skipped || 0)) /
+            ? ((Number(data.sent || 0) +
+                Number(data.failed || 0) +
+                Number(data.skipped || 0)) /
                 data.total) *
               100
             : 0
         }
       />
       <p className="text-xs text-muted-foreground">
-        Доставлено: {data.sent || 0} · ошибок: {data.failed || 0} · пропущено: {data.skipped || 0}
+        Доставлено: {data.sent || 0} · ошибок: {data.failed || 0} · пропущено:{" "}
+        {data.skipped || 0}
         {data.message ? " · " + data.message : ""}
       </p>
     </div>
   );
 }
-const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "—");
+const pct = (a: number, b: number) =>
+  b ? `${Math.round((a / b) * 100)}%` : "—";
 // Each broadcast measured by money: delivered → tapped → paid within 7 days of the tap.
 function Results() {
   const res = useResource("broadcast-results", 30000),
@@ -252,7 +315,9 @@ function Results() {
               <th className="py-2 pr-3 font-normal text-right">Доставлено</th>
               <th className="py-2 pr-3 font-normal text-right">Нажали</th>
               <th className="py-2 pr-3 font-normal text-right">Оплатили</th>
-              <th className="py-2 pr-3 font-normal text-right">Вошли в браузере</th>
+              <th className="py-2 pr-3 font-normal text-right">
+                Вошли в браузере
+              </th>
               <th className="py-2 font-normal text-right">Выручка</th>
             </tr>
           </thead>
@@ -266,7 +331,9 @@ function Results() {
                     <div className="font-medium">{r.title}</div>
                     <div className="text-xs text-muted-foreground">
                       {whenLabel(r.created_at)}
-                      {spec.audience && spec.audience !== "all" ? ` · ${audienceLabel(spec.audience)}` : ""}
+                      {spec.audience && spec.audience !== "all"
+                        ? ` · ${audienceLabel(spec.audience)}`
+                        : ""}
                       {spec.sample ? ` · тест ${spec.sample}%` : ""}
                       {spec.parent ? " · остальным после теста" : ""}
                     </div>
@@ -292,12 +359,18 @@ function Results() {
                         Отправить остальным · {r.rest}
                       </Button>
                     )}
-                    {r.rest_sent && <div className="text-xs text-muted-foreground mt-1">Остальным отправлено</div>}
+                    {r.rest_sent && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Остальным отправлено
+                      </div>
+                    )}
                     {r.ab && (
                       <details className="mt-2">
                         <summary className="cursor-pointer text-xs text-primary">
-                          A/B{spec.holdout ? ` · контроль ${spec.holdout}%` : ""}
-                          {spec.variant_b ? " · вариант B" : ""} — результаты по группам
+                          A/B
+                          {spec.holdout ? ` · контроль ${spec.holdout}%` : ""}
+                          {spec.variant_b ? " · вариант B" : ""} — результаты по
+                          группам
                         </summary>
                         <div className="mt-2 min-w-[640px]">
                           {spec.variant_b && (
@@ -313,16 +386,24 @@ function Results() {
                   </td>
                   <td className="py-3 pr-3 text-right tabular-nums">{sent}</td>
                   <td className="py-3 pr-3 text-right tabular-nums">
-                    {r.clicked || 0} <span className="text-muted-foreground">· {pct(Number(r.clicked || 0), sent)}</span>
+                    {r.clicked || 0}{" "}
+                    <span className="text-muted-foreground">
+                      · {pct(Number(r.clicked || 0), sent)}
+                    </span>
                   </td>
                   <td className="py-3 pr-3 text-right tabular-nums">
-                    {r.payers || 0} <span className="text-muted-foreground">· {pct(Number(r.payers || 0), sent)}</span>
+                    {r.payers || 0}{" "}
+                    <span className="text-muted-foreground">
+                      · {pct(Number(r.payers || 0), sent)}
+                    </span>
                   </td>
                   <td className="py-3 pr-3 text-right tabular-nums">
                     {spec.template === "browser" ? (
                       <>
                         {r.browser_logins || 0}{" "}
-                        <span className="text-muted-foreground">· {pct(Number(r.browser_logins || 0), sent)}</span>
+                        <span className="text-muted-foreground">
+                          · {pct(Number(r.browser_logins || 0), sent)}
+                        </span>
                       </>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -355,20 +436,33 @@ export function BroadcastPage() {
     [variantB, setVariantB] = useState(""),
     [media, setMedia] = useState<Media | null>(null),
     [clip, setClip] = useState("builtin"),
-    [when, setWhen] = useState(() => localInput(new Date(Date.now() + 3600_000)));
+    [when, setWhen] = useState(() =>
+      localInput(new Date(Date.now() + 3600_000)),
+    );
   const confirm = useConfirm(),
     navigate = useNavigate();
   useDirty(!sent && (!!text.trim() || !!template || !!media));
   // The preview keeps a local copy of the file; free it when the attachment changes or the page closes.
-  useEffect(() => () => { if (media) URL.revokeObjectURL(media.url); }, [media]);
+  useEffect(
+    () => () => {
+      if (media) URL.revokeObjectURL(media.url);
+    },
+    [media],
+  );
   const data = resource.data,
     effectiveAudience =
-      templateAudience[template] ?? (template === "whitelist" || template in announce ? "all" : audience),
+      templateAudience[template] ??
+      (template === "whitelist" || template in announce ? "all" : audience),
     count = data?.audiences?.[effectiveAudience] ?? 0,
     editable = !template || template in announce,
     body = editable ? text : data?.previews?.[template] || "",
-    attached = withMedia(template) && (template !== "browser" || clip === "own") ? media : null,
-    shown = attached || (template === "browser" && clip === "builtin" ? BUILTIN_CLIP : null),
+    attached =
+      withMedia(template) && (template !== "browser" || clip === "own")
+        ? media
+        : null,
+    shown =
+      attached ||
+      (template === "browser" && clip === "builtin" ? BUILTIN_CLIP : null),
     tooLong = !!attached && text.length > CAPTION_MAX,
     ready = (!!body.trim() || !!attached) && !tooLong;
   const selectTemplate = (v: string) => {
@@ -378,7 +472,10 @@ export function BroadcastPage() {
     setSent(false);
   };
   const whenDate = evening ? nextEveningMsk() : new Date(when),
-    whenValid = !later || (!Number.isNaN(whenDate.getTime()) && whenDate.getTime() > Date.now() + 60_000),
+    whenValid =
+      !later ||
+      (!Number.isNaN(whenDate.getTime()) &&
+        whenDate.getTime() > Date.now() + 60_000),
     testN = sample ? Math.max(1, Math.round((count * sample) / 100)) : count;
   const send = () =>
     confirm({
@@ -398,12 +495,25 @@ export function BroadcastPage() {
                       ? { media: "none" }
                       : {}),
                 }
-              : { text, audience, ...(attached ? { media: { id: attached.id, kind: attached.kind } } : {}) };
-        const ab = template in announce ? {} : {
-          ...(holdout ? { holdout } : {}),
-          ...(!template && variantB.trim() ? { variant_b: variantB } : {}),
-        };
-        const full = sample ? { ...payload, ...ab, sample } : { ...payload, ...ab };
+              : {
+                  text,
+                  audience,
+                  ...(attached
+                    ? { media: { id: attached.id, kind: attached.kind } }
+                    : {}),
+                };
+        const ab =
+          template in announce
+            ? {}
+            : {
+                ...(holdout ? { holdout } : {}),
+                ...(!template && variantB.trim()
+                  ? { variant_b: variantB }
+                  : {}),
+              };
+        const full = sample
+          ? { ...payload, ...ab, sample }
+          : { ...payload, ...ab };
         await api(
           "broadcast",
           later ? { ...full, scheduled_at: whenDate.toISOString() } : full,
@@ -471,12 +581,51 @@ export function BroadcastPage() {
                   {step === 0 && (
                     <>
                       <Field label="Сценарий">
-                        <Choice
-                          value={template}
-                          label="Сценарий рассылки"
-                          options={templates}
-                          onChange={selectTemplate}
-                        />
+                        <div
+                          role="radiogroup"
+                          aria-label="Сценарий рассылки"
+                          className="grid gap-2 sm:grid-cols-2"
+                        >
+                          {templates.map(([id, title]) => {
+                            const on = template === id;
+                            return (
+                              <button
+                                key={id || "own"}
+                                type="button"
+                                role="radio"
+                                aria-checked={on}
+                                onClick={() => selectTemplate(id)}
+                                // Inline: the admin theme restyles buttons and would hide the selected state.
+                                style={
+                                  on
+                                    ? {
+                                        boxShadow: "inset 0 0 0 2px var(--primary)",
+                                        background:
+                                          "color-mix(in srgb, var(--primary) 14%, transparent)",
+                                      }
+                                    : undefined
+                                }
+                                className="flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              >
+                                <span className="text-xl leading-none">
+                                  {templateIcon[id] || "✉️"}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-medium">
+                                    {title}
+                                  </span>
+                                  <span className="block text-xs text-muted-foreground">
+                                    {templateAudience[id]
+                                      ? `Кому: ${audienceLabel(templateAudience[id]).replace(/^./, (c) => c.toLowerCase())}`
+                                      : id
+                                        ? "Всем, с готовыми кнопками"
+                                        : "Свой текст, фото или видео"}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </Field>
                       <Field label="Получатели">
                         <Choice
@@ -493,7 +642,9 @@ export function BroadcastPage() {
                         включаются в аудиторию.
                       </p>
                       {!template && audienceHint[effectiveAudience] && (
-                        <p className="text-sm text-muted-foreground">{audienceHint[effectiveAudience]}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {audienceHint[effectiveAudience]}
+                        </p>
                       )}
                       {template && (
                         <p className="text-sm text-muted-foreground">
@@ -542,14 +693,30 @@ export function BroadcastPage() {
                       )}
                       {step === 1 && template === "browser" && (
                         <Field label="Видео">
-                          <Choice value={clip} label="Видео в рассылке" options={clipOptions} onChange={(v) => { setClip(v); setSent(false); }} />
+                          <Choice
+                            value={clip}
+                            label="Видео в рассылке"
+                            options={clipOptions}
+                            onChange={(v) => {
+                              setClip(v);
+                              setSent(false);
+                            }}
+                          />
                         </Field>
                       )}
-                      {step === 1 && withMedia(template) && (template !== "browser" || clip === "own") && (
-                        <Field label="Фото, GIF или видео">
-                          <MediaPicker media={media} onChange={(m) => { setMedia(m); setSent(false); }} />
-                        </Field>
-                      )}
+                      {step === 1 &&
+                        withMedia(template) &&
+                        (template !== "browser" || clip === "own") && (
+                          <Field label="Фото, GIF или видео">
+                            <MediaPicker
+                              media={media}
+                              onChange={(m) => {
+                                setMedia(m);
+                                setSent(false);
+                              }}
+                            />
+                          </Field>
+                        )}
                     </>
                   )}
                   {step === 2 && (
@@ -561,14 +728,16 @@ export function BroadcastPage() {
                         </div>
                         <div className="flex justify-between gap-3">
                           <dt className="text-muted-foreground">Аудитория</dt>
-                          <dd>
-                            {audienceLabel(effectiveAudience)}
-                          </dd>
+                          <dd>{audienceLabel(effectiveAudience)}</dd>
                         </div>
                         {shown && (
                           <div className="flex justify-between gap-3">
                             <dt className="text-muted-foreground">Вложение</dt>
-                            <dd>{shown === BUILTIN_CLIP ? "Встроенное видео: вход по QR" : kindLabel[shown.kind]}</dd>
+                            <dd>
+                              {shown === BUILTIN_CLIP
+                                ? "Встроенное видео: вход по QR"
+                                : kindLabel[shown.kind]}
+                            </dd>
                           </div>
                         )}
                         <div className="flex justify-between">
@@ -637,7 +806,10 @@ export function BroadcastPage() {
                           value={!later ? "now" : evening ? "evening" : "later"}
                           options={[
                             ["now", "Сразу"],
-                            ["evening", `Вечером, ${whenLabel(nextEveningMsk().toISOString())} (19:00 МСК)`],
+                            [
+                              "evening",
+                              `Вечером, ${whenLabel(nextEveningMsk().toISOString())} (19:00 МСК)`,
+                            ],
                             ["later", "Запланировать на дату и время"],
                           ]}
                           onChange={(v) => {
@@ -691,7 +863,12 @@ export function BroadcastPage() {
                       </Button>
                     ) : (
                       <Button
-                        disabled={(data.running && !later) || !count || !ready || !whenValid}
+                        disabled={
+                          (data.running && !later) ||
+                          !count ||
+                          !ready ||
+                          !whenValid
+                        }
                         onClick={send}
                       >
                         {later ? <Clock /> : <Send />}
@@ -721,7 +898,11 @@ export function BroadcastPage() {
                           controls={shown.kind === "video"}
                         />
                       ) : (
-                        <img src={shown.url} alt="" className="w-full max-h-80 object-cover" />
+                        <img
+                          src={shown.url}
+                          alt=""
+                          className="w-full max-h-80 object-cover"
+                        />
                       ))}
                     <div className="p-4 text-sm whitespace-pre-wrap break-words min-h-20">
                       {body || (shown ? "" : "Здесь появится текст сообщения.")}
