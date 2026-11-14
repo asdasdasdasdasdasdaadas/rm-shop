@@ -1,5 +1,6 @@
 import unittest
 
+from app import admin  # imported early: on Python 3.9 it needs an event loop that async tests close
 from app import experiments as ex
 
 
@@ -111,7 +112,6 @@ if __name__ == "__main__":
 
 class BroadcastAB(unittest.TestCase):
     def test_check_keeps_and_refuses(self):
-        from app import admin
         spec, err = admin._check_broadcast({"text": "A", "variant_b": "B", "holdout": "20"})
         self.assertIsNone(err)
         self.assertEqual((spec["holdout"], spec["variant_b"]), (20, "B"))

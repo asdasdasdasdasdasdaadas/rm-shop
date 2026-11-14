@@ -121,7 +121,8 @@ CONDITIONS = (
 )
 from app.recovery_funnel import CONDITIONS as RECOVERY_CONDITIONS
 from app.referral_followup import CONDITION as REFERRAL_FOLLOWUP_CONDITION
-CONDITIONS = CONDITIONS + RECOVERY_CONDITIONS + (REFERRAL_FOLLOWUP_CONDITION,)
+from app.extra_journeys import CONDITIONS as EXTRA_CONDITIONS, CYCLE as EXTRA_CYCLE, KINDS as EXTRA_KINDS
+CONDITIONS = CONDITIONS + RECOVERY_CONDITIONS + (REFERRAL_FOLLOWUP_CONDITION,) + EXTRA_CONDITIONS
 CONDITION_IDS = {row["id"]: row for row in CONDITIONS}
 SPECIAL_ONCE = {"unpaid_invoice", "balance_low"}
 # Removed features: boards saved earlier may still name them, so they are dropped on load.
@@ -296,6 +297,7 @@ def render_text(text: str, telegram_id: int, first_name: str | None, *, gift_day
         "when": when,
         "gift_days": gift_label(gift_days),
         "min_topup": f"{max(1, int(settings.balance_topup_min or 50))} ₽",
+        "month": rub_text(max(1, int(settings.vpn_day_price_rub)) * 30),
     })
     try:
         return str(text or "").format_map(values)
@@ -436,7 +438,8 @@ async def default_graph() -> dict:
     ])
     from app.recovery_funnel import upgrade
     from app.referral_followup import upgrade as upgrade_referrals
-    return validate(upgrade_referrals(upgrade({"branches": branches})))
+    from app.extra_journeys import upgrade as upgrade_extra
+    return validate(upgrade_extra(upgrade_referrals(upgrade({"branches": branches}))))
 
 
 async def _ensure_tables() -> None:
@@ -503,7 +506,7 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int], *, 
     if spec.get("special"):
         return []
     price = max(1, int(get_settings().vpn_day_price_rub)) * 3
-    where = spec["where"].replace("{price}", str(price))
+    where = spec["where"].replace("{price}", str(price)).replace("{day}", str(max(1, int(get_settings().vpn_day_price_rub))))
     if step["condition"] == "unpaid":
         where = where.replace("COALESCE(u.balance_rub,0) <= 0", _ACCESS_EXHAUSTED.replace("{price}", str(max(1, int(get_settings().vpn_day_price_rub)))))
     from app.recovery_funnel import SEEN
@@ -537,7 +540,7 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int], *, 
                 WHERE p.telegram_id = u.telegram_id AND p.step_id = $5
             )"""
     cycle_clause = ""
-    if step['condition'] in {'recover_idle', 'recover_online', 'recover_late', 'recover_topup'}:
+    if step['condition'] in {'recover_idle', 'recover_online', 'recover_late', 'recover_topup', *EXTRA_CYCLE}:
         cycle_anchor = SEEN if step['condition'] in {'recover_idle', 'recover_late'} else anchor
         cycle_clause = f" AND s.sent_at >= {cycle_anchor}"
         time_sql = time_sql.replace("p.step_id = $5", f"p.step_id = $5 AND p.sent_at >= {cycle_anchor}")
@@ -591,7 +594,8 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
     if not await _gate(step["condition"]):
         return 0, touched
     from app.recovery_funnel import KINDS
-    kind = "nudge_setup_assist" if is_setup_assist(step, prev_id) else KINDS.get(step["condition"], "nudge_board")
+    kind = "nudge_setup_assist" if is_setup_assist(step, prev_id) else (
+        KINDS.get(step["condition"]) or EXTRA_KINDS.get(step["condition"], "nudge_board"))
     from app import funnel_gifts
     wants_gift = any((b if isinstance(b, str) else b.get("action")) == GIFT_ACTION for b in step["buttons"])
     wants_promise = any((b if isinstance(b, str) else b.get("action")) == "promise" for b in step["buttons"])
