@@ -946,3 +946,21 @@ CREATE TABLE IF NOT EXISTS friend_gifts (
 );
 CREATE INDEX IF NOT EXISTS friend_gifts_from_idx ON friend_gifts (from_telegram_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS friend_gifts_claimed_idx ON friend_gifts (claimed_by) WHERE claimed_by IS NOT NULL;
+-- Admins gift any amount to anyone; their gifts are not paid from their balance.
+ALTER TABLE friend_gifts ADD COLUMN IF NOT EXISTS from_admin BOOLEAN NOT NULL DEFAULT FALSE;
+-- A giveaway: `count` equal gifts behind one link, first come, one each; claims say who took one.
+ALTER TABLE friend_gifts ADD COLUMN IF NOT EXISTS count INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE friend_gifts ADD COLUMN IF NOT EXISTS claimed_count INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS friend_gift_claims (
+    gift_id BIGINT NOT NULL REFERENCES friend_gifts(id) ON DELETE CASCADE,
+    telegram_id BIGINT NOT NULL,
+    amount_rub INTEGER NOT NULL,
+    claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    thanked_at TIMESTAMPTZ,
+    PRIMARY KEY (gift_id, telegram_id)
+);
+-- Single gifts opened before claims existed.
+INSERT INTO friend_gift_claims (gift_id, telegram_id, amount_rub, claimed_at, thanked_at)
+    SELECT id, claimed_by, amount_rub, COALESCE(claimed_at, NOW()), thanked_at FROM friend_gifts
+    WHERE claimed_by IS NOT NULL ON CONFLICT DO NOTHING;
+UPDATE friend_gifts SET claimed_count=1 WHERE claimed_by IS NOT NULL AND claimed_count=0;

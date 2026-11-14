@@ -533,9 +533,9 @@
   const GRAM = (w) => `<svg width="${w}" height="${w}" viewBox="0 0 100 100"><path fill="#30A1F5" d="${GP}"/><path fill="#fff" d="${SPK}"/></svg>`;
   const AM_ICON = { ton: () => GRAM(42), stars: () => STARBIG(52), sbp: () => `<img src="/icons/sbp.svg" width="30" height="35" alt="">`, card: () => CARDBIG(40), crypto: () => "🪙" };
   const AM_TONE = { ton: "", stars: "gold", sbp: "green", card: "green", crypto: "" };
-  const amt = { v: "", d: "", mode: "rub", rolling: false, gift: false };
+  const amt = { v: "", d: "", mode: "rub", rolling: false, gift: false, cnt: 1 };
   // The same screen types a gift for a friend («Своя» in «Подарить»): its own limits, one device's day price, no payment method.
-  const amOk = (n) => (amt.gift ? gOk(n) : amountOk(n));
+  const amOk = (n) => (amt.gift ? gOk(n) && n * amt.cnt <= gLim()[1] : amountOk(n));
   const amMin = () => (amt.gift ? gLim()[0] : Number(me.topup_min) || 1);
   const amMax = () => (amt.gift ? gLim()[1] : Number(me.topup_max) || 100000);
   const amN = () => Number(amt.v) || 0;
@@ -551,10 +551,11 @@
       const id = (m && m.id) || "ton";
       const gift = amt.gift;
       return `<div class="am ${gift ? "" : AM_TONE[id] || ""}" id="am">` +
-        (gift ? NOTE(`Подарок другу · от ${rub(gLim()[0])} до ${rub(gLim()[1])}`, true) : m ? amRow(m) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
+        (gift ? NOTE(`Подарок другу · нажмите на подарок, чтобы раздать несколько`, true) : m ? amRow(m) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
         `<div class="am-stage zero" id="amStage"><svg width="0" height="0" style="position:absolute"><filter id="amGoo"><feGaussianBlur stdDeviation="3.5"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 22 -9"/></filter></svg><div class="am-glow"></div>` +
-          (gift ? `<div class="am-gift"></div>` : "") +
-          `<div class="am-w" id="amW">${gift ? "" : `<button type="button" class="am-ico in" id="amIco" data-act="amtico" aria-label="Сменить способ оплаты"><span class="am-ic">${(AM_ICON[id] || AM_ICON.ton)()}</span></button>`}` +
+          `<div class="am-w" id="amW">${gift
+            ? `<button type="button" class="am-ico am-gico in" id="amIco" data-act="amtico" aria-label="Ещё один подарок"><span class="am-ic"><span class="am-gift"></span></span><b class="am-cnt${amt.cnt > 1 ? " on" : ""}">×${amt.cnt}</b></button>`
+            : `<button type="button" class="am-ico in" id="amIco" data-act="amtico" aria-label="Сменить способ оплаты"><span class="am-ic">${(AM_ICON[id] || AM_ICON.ton)()}</span></button>`}` +
           `<div class="am-num" id="amNum"><span>0</span></div><div class="am-caret"></div><div class="am-unit" id="amUnit">₽</div></div>` +
           `<button type="button" class="am-sub" id="amSub" data-act="amtsw"><span id="amSubT"></span><span class="sw">⇅</span></button>` +
           `<div class="am-hint">Наберите сумму</div></div>` +
@@ -566,7 +567,7 @@
     },
     on(el) {
       amt.rolling = false;
-      if (amt.gift) mountAmGift(el);
+      if (amt.gift) { mountAmGift(el); amGiftHold(el); }
       amSetNum(el, amBig(), null);
       amSide(el);
       // The keypad slides up with a ring, like tapping the amount in Telegram.
@@ -634,17 +635,22 @@
     el.querySelector("#amStage").classList.toggle("zero", !n);
     const sub = el.querySelector("#amSub");
     sub.classList.toggle("bad", Boolean(n) && !ok);
+    const many = amt.gift && amt.cnt > 1;
     el.querySelector("#amSubT").textContent = !n ? "" : n < min ? `Минимум ${rub(min)}` : n > max ? `Максимум ${rub(max)}`
+      : many && n * amt.cnt > max ? `Всего не больше ${rub(max)}`
+      : many ? `${rub(n)} × ${amt.cnt} = ${rub(n * amt.cnt)}`
       : amt.mode === "rub" ? `≈ ${days(amDays())} VPN` : rub(n);
     const u = el.querySelector("#amUnit");
     u.textContent = amt.mode === "rub" ? "₽" : pl(amDays(), "день", "дня", "дней");
     u.classList.toggle("days", amt.mode !== "rub");
-    el.querySelector(".am-hint").textContent = amt.gift ? (amt.mode === "rub" ? "Сколько подарить?" : "Сколько дней подарить?")
+    el.querySelector(".am-hint").textContent = many ? `${amt.cnt} ${pl(amt.cnt, "подарок", "подарка", "подарков")} по ${amt.mode === "rub" ? rub(n) : days(amDays())} · удерживайте, чтобы сбросить`
+      : amt.gift ? (amt.mode === "rub" ? "Сколько подарить?" : "Сколько дней подарить?")
       : amt.mode === "rub" ? "Наберите сумму" : "Наберите количество дней";
     const p = el.querySelector("#amPay");
     const can = amt.gift || curMethod();
     p.classList.toggle("off", !ok || !can);
-    p.querySelector("span").textContent = !can ? "Оплата недоступна" : ok ? `${amt.gift ? "Подарить" : "Оплатить"} ${rub(n)}` : "Введите сумму";
+    p.querySelector("span").textContent = !can ? "Оплата недоступна" : !ok ? "Введите сумму"
+      : many ? `Подарить ${amt.cnt} × ${rub(n)}` : `${amt.gift ? "Подарить" : "Оплатить"} ${rub(n)}`;
   }
   function amtShake() {
     const w = cur.el.querySelector("#amW");
@@ -1679,17 +1685,17 @@
       cur.el.querySelector("#amtI").hidden = true;
       paintAmount(cur.el, old);
     },
-    amtc() { haptic(); amt.gift = false; amt.v = pay.custom && amountOk(pay.amount) ? String(pay.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount"); },
+    amtc() { haptic(); amt.gift = false; amt.cnt = 1; amt.v = pay.custom && amountOk(pay.amount) ? String(pay.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount"); },
     amtk(b) { amtPress(b.dataset.v); },
     amtq(b) { amtQuick(b); },
     amtsw(b) { amSwap(b); },
-    amtico() { amCycle(); },
+    amtico() { if (amt.gift) amGiftAdd(); else amCycle(); },
     amtpay(b) {
       const n = Number(amt.v) || 0;
       if (amt.gift) {
         if (!gOk(n)) return amtShake();
         haptic();
-        gs.amount = n; gs.custom = true;
+        gs.amount = n; gs.custom = true; gs.count = amt.cnt;
         back();
         return;
       }
@@ -1950,7 +1956,8 @@
   // =====================================================================
   // The gift is Wallet's own animation (icons/wallet_gift*.json, see icons/PAYMENT-ASSETS.md), split into box and lid
   // so the lid can fly off. Particles, the beam and coins are ours.
-  const gs = { amount: 0, custom: false, data: null, busy: false };
+  const gs = { amount: 0, custom: false, count: 1, data: null, busy: false };
+  const gTotal = () => gs.amount * (gs.count || 1);
   const gLim = () => [Math.max(1, Number(me.gift_min) || 60), Math.max(1, Number(me.gift_max) || 20000)];
   const gOk = (n) => { const [lo, hi] = gLim(); return Number.isFinite(n) && n >= lo && n <= hi; };
   const gDays = (n) => Math.floor((Number(n) || 0) / dayPrice());
@@ -1979,6 +1986,46 @@
       ill._players = A;
     }).catch(() => { ill.querySelector(".gf-body").innerHTML = '<div style="font-size:96px;line-height:159px">🎁</div>'; });
   }
+  // Tapping the gift next to the amount adds one more gift (a giveaway for a group); holding it resets to one.
+  function amGiftAdd() {
+    if (!cur || cur.key !== "amount") return;
+    const el = cur.el, ico = el.querySelector("#amIco"), badge = el.querySelector(".am-cnt");
+    if (amt.cnt >= 100) { amBoom(); notify("error"); return; }
+    amt.cnt++;
+    haptic("medium");
+    badge.textContent = `×${amt.cnt}`;
+    badge.classList.add("on");
+    badge.classList.remove("pop"); void badge.offsetWidth; badge.classList.add("pop");
+    const ic = ico.querySelector(".am-ic");
+    ic.classList.remove("hop"); void ic.offsetWidth; ic.classList.add("hop");
+    const r = ico.getBoundingClientRect();
+    amRing(r.left + r.width / 2, r.top + r.height / 2);
+    const plus = document.createElement("i");
+    plus.className = "am-plus"; plus.textContent = "+1";
+    ico.appendChild(plus);
+    setTimeout(() => plus.remove(), 700);
+    amSide(el);
+    if (amN() && !amOk(amN())) amtShake();
+  }
+  function amGiftHold(el) {
+    const ico = el.querySelector("#amIco");
+    let t = 0, held = false;
+    const stop = () => clearTimeout(t);
+    ico.addEventListener("pointerdown", () => {
+      held = false;
+      t = setTimeout(() => {
+        if (amt.cnt === 1) return;
+        held = true;
+        amt.cnt = 1;
+        notify("warning");
+        const b = el.querySelector(".am-cnt"); b.textContent = "×1"; b.classList.remove("on");
+        amSide(el);
+      }, 550);
+    });
+    ["pointerup", "pointerleave", "pointercancel"].forEach((e) => ico.addEventListener(e, stop));
+    // The click that ends a long press must not add a gift right back.
+    ico.addEventListener("click", (e) => { if (held) { held = false; e.stopImmediatePropagation(); } }, true);
+  }
   function mountAmGift(el) {
     const box = el && el.querySelector(".am-gift:not([data-on])");
     if (!box) return;
@@ -1991,34 +2038,50 @@
   function giveTab() {
     const presets = gPresets(), [lo] = gLim();
     if (!gOk(gs.amount)) { gs.amount = presets[0] || lo; gs.custom = false; }
-    const own = gs.custom && !presets.includes(gs.amount);
+    const own = gs.custom && (gs.count > 1 || !presets.includes(gs.amount));
+    const many = gs.count > 1;
     const chips = presets.map((v) => `<button type="button" data-act="gfamt" data-v="${v}" class="${!own && v === gs.amount ? "on" : ""}">${rub(v)}</button>`).join("") +
-      `<button type="button" data-act="gfown" class="${own ? "on" : ""}">${own ? rub(gs.amount) + " ✎" : "Своя"}</button>`;
-    const hero = `<section class="hc indigo gf"><div class="ov"></div>${gScene()}<div class="K">Подарок другу</div><div class="N gf-amt">${rub(gs.amount)}</div>` +
-      `<div class="P gf-days">${gDaysLine(gs.amount)}</div><div class="chp">${chips}</div>` +
-      `<div class="acts"><button type="button" class="pill" data-act="gfsend">${IC.share}<span>Подарить</span></button>` +
+      `<button type="button" data-act="gfown" class="${own ? "on" : ""}">${own ? gOwnLabel() : "Своя"}</button>`;
+    const hero = `<section class="hc indigo gf"><div class="ov"></div>${gScene()}<div class="K">${gKicker()}</div><div class="N gf-amt">${gAmtText()}</div>` +
+      `<div class="P gf-days">${gSubText()}</div><div class="chp">${chips}</div>` +
+      `<div class="acts"><button type="button" class="pill" data-act="gfsend">${IC.share}<span>${many ? "Подарить в группу" : "Подарить"}</span></button>` +
       `<button type="button" class="rnd" aria-label="Скопировать ссылку" data-act="gfcopy">${IC.copy}</button></div></section>`;
-    const how = ST("Как это работает") + tl([["1", "Выберите сумму", `Спишем с баланса — <b>${rub(gs.amount)}</b>`],
-      ["2", "Отправьте подарок другу", "Карточка с кнопкой придёт от вас"], [GIFT_IC, "Друг открывает подарок", "Деньги сразу на его балансе"]]);
+    const how = ST("Как это работает") + tl(many
+      ? [["1", "Выберите сумму и количество", `Спишем с баланса — <b>${rub(gTotal())}</b>`], ["2", "Отправьте ссылку в группу", "Одна карточка на всех"],
+        [GIFT_IC, "Каждый забирает по одному", "Кто первый — того и подарок"]]
+      : [["1", "Выберите сумму", `Спишем с баланса — <b>${rub(gs.amount)}</b>`], ["2", "Отправьте подарок другу", "Карточка с кнопкой придёт от вас"],
+        [GIFT_IC, "Друг открывает подарок", "Деньги сразу на его балансе"]]);
     const d = gs.data;
     const sent = d && Array.isArray(d.sent) ? d.sent : [];
     const ST_TXT = { active: "ждёт друга", claimed: "открыт", returned: "вернулся к вам" };
     const list = sent.length ? ST("Ваши подарки") + cd(sent.map((g) => {
       const when = parseDate(g.claimed_at || g.created_at);
-      const sub = [g.status === "claimed" && g.friend_name ? esc(g.friend_name) : ST_TXT[g.status] || "", when ? dayLabel(when) : ""].filter(Boolean).join(" · ");
-      return [E(g.status === "claimed" ? "✅" : g.status === "returned" ? "↩️" : "🎁") + TT(rub(g.amount_rub), sub) + (g.status === "active" ? V(CV) : ""),
+      const n = Number(g.count) || 1, got = Number(g.claimed_count) || 0;
+      const state = n > 1 ? (g.status === "claimed" ? "все разобрали" : g.status === "returned" ? `забрали ${got} из ${n}, остаток вернулся` : `забрали ${got} из ${n}`)
+        : g.status === "claimed" && g.friend_name ? esc(g.friend_name) : ST_TXT[g.status] || "";
+      const sub = [state, when ? dayLabel(when) : ""].filter(Boolean).join(" · ");
+      return [E(g.status === "claimed" ? "✅" : g.status === "returned" ? "↩️" : "🎁") + TT(n > 1 ? `${rub(g.amount_rub)} × ${n}` : rub(g.amount_rub), sub) + (g.status === "active" ? V(CV) : ""),
         g.status === "active" ? `data-act="gfitem" data-code="${esc(g.code)}"` : ""];
     }).map((r) => (r[1] ? r : r[0]))) : "";
     const can = d ? Number(d.giftable_rub) || 0 : null;
-    const note = can == null ? "" : NOTE(can >= gs.amount ? `Баланс ${rub(me.balance_rub)} · подарить можно до ${rub(can)}`
+    const note = me.gift_admin ? NOTE("Вы администратор: дарите любую сумму кому угодно, с баланса ничего не спишется", true)
+      : can == null ? "" : NOTE(can >= gTotal() ? `Баланс ${rub(me.balance_rub)} · подарить можно до ${rub(can)}`
       : can > 0 ? `Подарить можно до ${rub(can)} — это деньги, которые вы внесли сами` : "Подарить можно только свои деньги — сначала пополните баланс", true);
     return hero + `<div class="gf-rest">${note + how + list}</div>`;
   }
+  const gKicker = () => (gs.count > 1 ? "Подарки в группу" : "Подарок другу");
+  const gAmtText = () => (gs.count > 1 ? `${rub(gs.amount)} × ${gs.count}` : rub(gs.amount));
+  const gSubText = () => (gs.count > 1 ? `${rub(gTotal())} всего · каждому ≈ ${days(gDays(gs.amount))}` : gDaysLine(gs.amount));
+  const gOwnLabel = () => (gs.count > 1 ? `×${gs.count} ✎` : rub(gs.amount) + " ✎");
   function gPaint(el, old) {
     const n = el.querySelector(".gf-amt");
-    if (n && Number.isFinite(old) && old !== gs.amount) countTo(n, old, gs.amount, " ₽"); else if (n) n.textContent = rub(gs.amount);
+    if (n && gs.count === 1 && Number.isFinite(old) && old !== gs.amount) countTo(n, old, gs.amount, " ₽"); else if (n) n.textContent = gAmtText();
     const p = el.querySelector(".gf-days");
-    if (p) p.textContent = gDaysLine(gs.amount);
+    if (p) p.textContent = gSubText();
+    const k = el.querySelector(".hc.gf .K");
+    if (k) k.textContent = gKicker();
+    const pill = el.querySelector('.hc.gf [data-act="gfsend"] span');
+    if (pill) pill.textContent = gs.count > 1 ? "Подарить в группу" : "Подарить";
   }
   async function loadGifts() {
     try { gs.data = await api("/api/gifts"); } catch (_e) { gs.data = null; }
@@ -2041,8 +2104,8 @@
   }
   async function sendGift(copyOnly) {
     if (gs.busy) return;
-    const n = gs.amount;
-    if (!gOk(n)) return;
+    const per = gs.amount, cnt = gs.count || 1, n = per * cnt, what = cnt > 1 ? `${cnt} ${pl(cnt, "подарок", "подарка", "подарков")} по ${rub(per)}` : rub(per);
+    if (!gOk(per)) return;
     haptic();
     if (!gs.data) await loadGifts();
     const can = gs.data ? Number(gs.data.giftable_rub) || 0 : 0;
@@ -2054,11 +2117,14 @@
       return;
     }
     const left = (Number(me.balance_rub) || 0) - n, perDay = dayPrice() * Math.max(1, phones().length);
-    const warn = phones().length && left < perDay ? `\n\nНа балансе останется ${rub(left)} — VPN может встать на паузу.` : "";
-    if (!(await confirmAsk(`Подарить ${rub(n)} с баланса?\n\nДруг получит ссылку. Пока он её не откроет, подарок можно вернуть.${warn}`))) return;
+    const warn = !me.gift_admin && phones().length && left < perDay ? `\n\nНа балансе останется ${rub(left)} — VPN может встать на паузу.` : "";
+    const later = cnt > 1 ? "Каждый в группе заберёт по одному. Что не заберут, можно вернуть." : "Друг получит ссылку. Пока он её не откроет, подарок можно вернуть.";
+    const ask = me.gift_admin ? `Подарить ${what}?\n\nПодарок от администратора — с вашего баланса ничего не спишется. ${later}`
+      : `Подарить ${what}${cnt > 1 ? ` — ${rub(n)}` : ""} с баланса?\n\n${later}${warn}`;
+    if (!(await confirmAsk(ask))) return;
     gs.busy = true;
     try {
-      const res = await post("/api/gifts", { amount: n });
+      const res = await post("/api/gifts", { amount: per, count: cnt });
       me.balance_rub = res.balance_rub;
       notify("success");
       shareGift(res, copyOnly);
@@ -2077,18 +2143,24 @@
       else if (id === "back") returnGift(g);
     };
     if (typeof tg.showPopup === "function" && inTelegram()) {
-      call(() => tg.showPopup({ title: `Подарок ${rub(g.amount_rub)}`, message: "Друг ещё не открыл его.",
-        buttons: [{ id: "send", type: "default", text: "Отправить ещё раз" }, { id: "back", type: "destructive", text: "Вернуть на баланс" }, { id: "x", type: "cancel" }] }, pick));
-    } else if (await confirmAsk(`Подарок ${rub(g.amount_rub)} ещё не открыли. Вернуть его на баланс?`)) returnGift(g, true);
+      const n = Number(g.count) || 1, left = n - (Number(g.claimed_count) || 0);
+      call(() => tg.showPopup({ title: n > 1 ? `${rub(g.amount_rub)} × ${n}` : `Подарок ${rub(g.amount_rub)}`,
+        message: n > 1 ? `Осталось ${left} из ${n}.` : "Друг ещё не открыл его.",
+        buttons: [{ id: "send", type: "default", text: "Отправить ещё раз" },
+          { id: "back", type: "destructive", text: me.gift_admin ? "Отменить подарок" : n > 1 ? "Вернуть оставшиеся" : "Вернуть на баланс" }, { id: "x", type: "cancel" }] }, pick));
+    } else if (await confirmAsk(`Подарок ${rub(g.amount_rub)} ещё не открыли. ${me.gift_admin ? "Отменить его" : "Вернуть его на баланс"}?`)) returnGift(g, true);
     else pick("copy");
   }
   async function returnGift(g, asked) {
-    if (!asked && !(await confirmAsk(`Вернуть ${rub(g.amount_rub)} на баланс? Ссылка у друга перестанет работать.`))) return;
+    const n = Number(g.count) || 1, left = n - (Number(g.claimed_count) || 0), sum = rub(g.amount_rub * left);
+    const q = me.gift_admin ? (n > 1 ? `Отменить оставшиеся ${left} из ${n}?` : `Отменить подарок ${rub(g.amount_rub)}?`)
+      : n > 1 ? `Вернуть оставшиеся ${left} × ${rub(g.amount_rub)} = ${sum} на баланс?` : `Вернуть ${sum} на баланс?`;
+    if (!asked && !(await confirmAsk(`${q} Ссылка перестанет работать.`))) return;
     try {
       const r = await post(`/api/gifts/${encodeURIComponent(g.code)}/return`);
       me.balance_rub = r.balance_rub;
       notify("success");
-      toast(`${rub(r.amount_rub)} снова на балансе`);
+      toast(r.amount_rub ? `${rub(r.amount_rub)} снова на балансе` : "Подарок отменён");
       loadGifts();
       load(true).catch(() => {});
     } catch (e) { showErr(e); }
@@ -2103,24 +2175,31 @@
           : hc("indigo", { cls: "shim", ill: "🎁", h: "Подарок", p: "Открываю…" }) + `<div class="cd" style="height:150px"></div>`;
       }
       const name = esc(g.from_name || "друга");
-      let txt, acts;
+      const n = Number(g.count) || 1, many = n > 1;
+      const leftBar = (k) => `<div class="gf-left"><div class="gf-bar"><i style="width:${Math.round((k / n) * 100)}%"></i></div><span>Осталось <b data-left>${k}</b> из ${n}</span></div>`;
+      let txt, acts, bar = "";
       if (g.mine) {
-        txt = `<div class="H">Это ваш подарок</div><div class="P">${rub(g.amount_rub)} ждут друга — отправьте ему ссылку</div>`;
+        txt = many ? `<div class="H">Это ваши подарки</div><div class="P">${rub(g.amount_rub)} × ${n} — отправьте ссылку в группу</div>`
+          : `<div class="H">Это ваш подарок</div><div class="P">${rub(g.amount_rub)} ждут друга — отправьте ему ссылку</div>`;
+        if (many && g.status === "active") bar = leftBar(Number(g.left) || 0);
         acts = `<button type="button" class="pill" data-act="gfresend">${IC.share}<span>Отправить другу</span></button>`;
       } else if (g.claimed_by_me || p.opened) {
         txt = `<div class="N gf-amt">${rub(g.amount_rub)}</div><div class="P gf-days">${gDaysLine(g.amount_rub)} · уже на балансе</div>`;
         acts = `<button type="button" class="pill" data-act="gfvpn"><span>${phones().length ? "Открыть VPN" : "Подключить VPN"}</span></button>` +
           (g.thanked ? "" : `<button type="button" class="rnd" aria-label="Сказать спасибо" data-act="gfthanks">${HEART}</button>`);
       } else if (g.status === "active") {
-        txt = `<div class="K">${name} дарит вам</div><div class="H">Подарок на VPN</div>`;
-        acts = `<button type="button" class="pill" data-act="gfopen"><span>Открыть подарок</span></button>`;
+        txt = `<div class="K">${name} ${many ? "раздаёт подарки" : "дарит вам"}</div><div class="H">Подарок на VPN</div>`;
+        acts = `<button type="button" class="pill" data-act="gfopen"><span>${many ? "Забрать подарок" : "Открыть подарок"}</span></button>`;
+        if (many) bar = leftBar(Number(g.left) || 0);
       } else {
-        txt = `<div class="H">${g.status === "claimed" ? "Подарок уже открыли" : "Подарок отменён"}</div><div class="P">${g.status === "claimed" ? "Каждый подарок открывается один раз" : "Подарок вернулся к тому, кто его отправил"}</div>`;
+        txt = g.status === "claimed" ? (many ? `<div class="H">Подарки разобрали</div><div class="P">Все ${n} ${pl(n, "подарок", "подарка", "подарков")} уже забрали — вы не успели</div>`
+          : `<div class="H">Подарок уже открыли</div><div class="P">Каждый подарок открывается один раз</div>`)
+          : `<div class="H">Подарок отменён</div><div class="P">Подарок вернулся к тому, кто его отправил</div>`;
         acts = `<button type="button" class="pill" data-act="gfhome"><span>На главную</span></button>`;
       }
-      const hero = `<section class="hc indigo gf${g.claimed_by_me || p.opened ? " opened" : ""}"><div class="ov"></div>${gScene()}<div class="gf-txt">${txt}</div><div class="acts">${acts}</div></section>`;
+      const hero = `<section class="hc indigo gf${g.claimed_by_me || p.opened ? " opened" : ""}"><div class="ov"></div>${gScene()}<div class="gf-txt">${txt}</div>${bar}<div class="acts">${acts}</div></section>`;
       if (g.mine || (g.status !== "active" && !g.claimed_by_me)) return hero;
-      return hero + ST("Как это работает") + tl([["1", "Откройте подарок", "Он ничего вам не стоит — подарок уже оплачен"],
+      return hero + ST("Как это работает") + tl([["1", many ? "Заберите подарок" : "Откройте подарок", "Он ничего вам не стоит — подарок уже оплачен"],
         ["2", "Подключите VPN в один тап", "Кабинет подскажет, что установить"],
         [GIFT_IC, `Пользуйтесь ${days(gDays(g.amount_rub))}`, `<b>${rub(g.amount_rub)}</b> лягут на ваш баланс`]]);
     },
@@ -2289,6 +2368,12 @@
     // 3 · the amount takes the title's place and counts up
     await gSleep(200);
     p.opened = true; g.claimed_by_me = true; g.status = "claimed";
+    const lf = h.querySelector("[data-left]");
+    if (lf && res.r.left != null) {
+      lf.textContent = res.r.left;
+      const bi = h.querySelector(".gf-bar i");
+      if (bi) bi.style.width = `${Math.round((res.r.left / (Number(g.count) || 1)) * 100)}%`;
+    }
     if (res.r.balance_rub != null) { me.balance_rub = res.r.balance_rub; store.set("seen_bal", Number(me.balance_rub) || 0); }
     const txt = q(".gf-txt");
     txt.innerHTML = `<div class="N gf-amt"><span data-c>0</span> ₽</div><div class="P gf-days">${gDaysLine(amount)} · уже на балансе</div>`;
@@ -2318,7 +2403,7 @@
     gfamt(b) {
       haptic();
       const old = gs.amount;
-      gs.amount = Number(b.dataset.v); gs.custom = false;
+      gs.amount = Number(b.dataset.v); gs.custom = false; gs.count = 1;
       cur.el.querySelectorAll(".hc.gf .chp button").forEach((c) => c.classList.toggle("on", c === b));
       const own = cur.el.querySelector('.hc.gf [data-act="gfown"]');
       if (own) own.textContent = "Своя";
@@ -2326,7 +2411,7 @@
       const sx = cur.el.querySelector(".tl .sx b");
       if (sx) sx.textContent = rub(gs.amount);
     },
-    gfown() { haptic(); amt.gift = true; amt.v = gs.custom ? String(gs.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount", { gift: true }); },
+    gfown() { haptic(); amt.gift = true; amt.cnt = gs.count || 1; amt.v = gs.custom ? String(gs.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount", { gift: true }); },
     gfsend: () => sendGift(false),
     gfcopy: () => sendGift(true),
     gfitem: (b) => giftItem(b.dataset.code),

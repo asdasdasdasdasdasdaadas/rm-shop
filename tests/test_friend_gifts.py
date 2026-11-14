@@ -11,7 +11,7 @@ from app import db, friend_gifts, web
 from app.config import Settings
 
 SETTINGS = Settings.model_construct(gifts_enabled=True, gift_min_rub=60, gift_max_rub=20000,
-                                    vpn_day_price_rub=6, bot_username="frog_bot")
+                                    vpn_day_price_rub=6, bot_username="frog_bot", admin_ids="9")
 
 
 class GiftLinkTest(unittest.TestCase):
@@ -37,6 +37,53 @@ class GiftLinkTest(unittest.TestCase):
         self.assertEqual(friend_gifts.days_text(24), "4 дня")
 
 
+class GiftShareCardTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        for target, name, value in ((friend_gifts, "get_settings", SETTINGS),):
+            p = patch.object(target, name, return_value=value)
+            p.start()
+            self.addCleanup(p.stop)
+
+    def _base(self, url):
+        p = patch("app.keyboards.mini_app_url", return_value=url)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_link_goes_through_our_page_when_there_is_one(self):
+        self._base("https://cab.example.org/app")
+        self.assertEqual(friend_gifts.share_link("Abcd1234"), "https://cab.example.org/g/Abcd1234")
+        self.assertEqual(friend_gifts.card_image(), "https://cab.example.org/icons/gift-card.jpg")
+        self._base("")
+        self.assertEqual(friend_gifts.share_link("Abcd1234"), "https://t.me/frog_bot?start=present_Abcd1234")
+        self.assertEqual(friend_gifts.card_image(), "")
+
+    def test_landing_has_card_tags_and_escapes_the_name(self):
+        self._base("https://cab.example.org")
+        page = friend_gifts.landing_html({"from_first_name": '<b>"Ив"</b>', "amount_rub": 300, "count": 1}, "Abcd1234")
+        self.assertIn('property="og:image" content="https://cab.example.org/icons/gift-card.jpg"', page)
+        self.assertIn("дарит вам 300 ₽", page)
+        self.assertNotIn("<b>", page)
+        self.assertIn("https://t.me/frog_bot?start=present_Abcd1234", page)
+        group = friend_gifts.landing_html({"from_first_name": "Ив", "amount_rub": 300, "count": 15}, "Abcd1234")
+        self.assertIn("раздаёт 15 подарков по 300 ₽", group)
+
+    async def test_prepared_message_is_a_photo_card(self):
+        self._base("https://cab.example.org")
+        bot = SimpleNamespace(save_prepared_inline_message=AsyncMock(return_value=SimpleNamespace(id="P1")))
+        self.assertEqual(await friend_gifts.prepare_share(bot, 5, "Abcd1234", 300, "Ив"), "P1")
+        result = bot.save_prepared_inline_message.await_args.kwargs.get("result") or bot.save_prepared_inline_message.await_args.args[1]
+        self.assertEqual(result.type, "photo")
+        self.assertEqual(result.photo_url, "https://cab.example.org/icons/gift-card.jpg")
+        self.assertIn("300 ₽", result.caption)
+
+    async def test_landing_route(self):
+        self._base("https://cab.example.org")
+        gift = {"from_first_name": "Ив", "amount_rub": 300, "count": 1}
+        with patch.object(friend_gifts, "get_gift", AsyncMock(return_value=gift)):
+            resp = await web.gift_landing(SimpleNamespace(match_info={"code": "Abcd1234"}))
+        self.assertIn("og:title", resp.text)
+
+
 class GiftLimitsTest(unittest.IsolatedAsyncioTestCase):
     async def test_amount_outside_limits_is_refused_before_any_sql(self):
         with patch.object(friend_gifts, "get_settings", return_value=SETTINGS), \
@@ -53,13 +100,38 @@ class GiftLimitsTest(unittest.IsolatedAsyncioTestCase):
             await friend_gifts.create_gift(1, 180)
 
 
+class GiveawayCountTest(unittest.IsolatedAsyncioTestCase):
+    async def test_count_and_total_limits(self):
+        with patch.object(friend_gifts, "get_settings", return_value=SETTINGS), \
+             patch.object(friend_gifts.db, "_pool_req") as pool:
+            for amount, count, msg in ((300, 0, "от 1 до 100"), (300, 101, "от 1 до 100"), (300, 70, "Всего можно")):
+                with self.subTest(count=count), self.assertRaisesRegex(friend_gifts.GiftError, msg):
+                    await friend_gifts.create_gift(1, amount, count)
+            pool.assert_not_called()
+
+    def test_share_text_for_a_group(self):
+        with patch.object(friend_gifts, "get_settings", return_value=SETTINGS):
+            self.assertIn("15 подарков по 300 ₽", friend_gifts.share_text("Иван", 300, 15))
+            self.assertIn("дарит вам 180 ₽", friend_gifts.share_text("Иван", 180))
+
+
+class AdminGiftTest(unittest.TestCase):
+    def test_admin_has_no_limits(self):
+        with patch.object(friend_gifts, "get_settings", return_value=SETTINGS):
+            self.assertEqual(friend_gifts.limits(9), (1, friend_gifts.ADMIN_MAX_RUB))
+            self.assertEqual(friend_gifts.limits(1), (60, 20000))
+            self.assertTrue(friend_gifts.is_admin(9))
+            self.assertFalse(friend_gifts.is_admin(1))
+
+
 class GiftEndpointTest(unittest.IsolatedAsyncioTestCase):
     def req(self, body=None, code=None):
         return SimpleNamespace(app={"rw": AsyncMock(), "bot": AsyncMock()}, match_info={"code": code},
                                json=AsyncMock(return_value=body or {}))
 
     async def test_claim_credits_then_tells_the_giver(self):
-        claim = AsyncMock(return_value={"amount_rub": 180, "balance_rub": 180, "from_telegram_id": 7, "from_name": "Иван"})
+        claim = AsyncMock(return_value={"amount_rub": 180, "balance_rub": 180, "from_telegram_id": 7, "from_name": "Иван",
+                                        "gift_id": 1, "count": 1, "claimed_count": 1, "last": True})
         with patch.object(web, "_require_tg", AsyncMock(return_value=(5, None))), \
              patch.object(web.friend_gifts, "claim_gift", claim), \
              patch.object(web, "_sync_after_gift", AsyncMock(return_value=186)), \
@@ -71,6 +143,21 @@ class GiftEndpointTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((body["amount_rub"], body["balance_rub"]), (180, 186))
         claim.assert_awaited_once_with(5, "Abc_def-1234")
         self.assertEqual(told.call_args.args[1:], (7, "Оля", 180))
+
+    async def test_giveaway_tells_the_giver_only_when_all_are_taken(self):
+        res = {"amount_rub": 300, "balance_rub": 300, "from_telegram_id": 7, "from_name": "Иван", "gift_id": 3, "count": 15}
+        claim = AsyncMock(side_effect=[{**res, "claimed_count": 14, "last": False}, {**res, "claimed_count": 15, "last": True}])
+        with patch.object(web, "_require_tg", AsyncMock(return_value=(5, None))), \
+             patch.object(web.friend_gifts, "claim_gift", claim), \
+             patch.object(web, "_sync_after_gift", AsyncMock(return_value=None)), \
+             patch.object(web.friend_gifts, "notify_giver_claimed", AsyncMock()) as one, \
+             patch.object(web.friend_gifts, "notify_giveaway_done", AsyncMock()) as done:
+            first = json.loads((await web.api_gift_claim(self.req(code="Abc_def-1234"))).body)
+            done.assert_not_awaited()
+            await web.api_gift_claim(self.req(code="Abc_def-1234"))
+        self.assertEqual(first["left"], 1)
+        one.assert_not_awaited()
+        self.assertEqual(done.call_args.args[1:], (7, 3, 15, 300))
 
     async def test_claim_refusal_is_a_plain_error(self):
         with patch.object(web, "_require_tg", AsyncMock(return_value=(5, None))), \
@@ -126,7 +213,7 @@ class GiftPostgresTest(unittest.IsolatedAsyncioTestCase):
         p.start()
         self.addCleanup(p.stop)
         await self.pool.execute("""INSERT INTO users (telegram_id, first_name, balance_rub, bot_started_at) VALUES
-            (1, 'Иван', 300, NOW()), (2, 'Оля', -10, NOW()), (3, 'Нет', 0, NULL)""")
+            (1, 'Иван', 300, NOW()), (2, 'Оля', -10, NOW()), (3, 'Нет', 0, NULL), (9, 'Админ', 0, NOW())""")
         # Иван paid 250 ₽ himself; the other 50 ₽ came from a bonus and cannot be gifted.
         await self.pool.execute("""INSERT INTO billing_events (telegram_id, kind, source, amount)
             VALUES (1, 'topup', 'pay', 250), (1, 'referral', 'cron', 50)""")
@@ -172,3 +259,46 @@ class GiftPostgresTest(unittest.IsolatedAsyncioTestCase):
             await friend_gifts.claim_gift(2, gift["code"])
         with self.assertRaisesRegex(friend_gifts.GiftError, "не найден"):
             await friend_gifts.return_gift(2, gift["code"])
+
+    async def test_giveaway_one_each_until_gone_then_rest_returns(self):
+        await self.pool.execute("""INSERT INTO users (telegram_id, first_name, balance_rub, bot_started_at)
+            SELECT g, 'Друг' || g, 0, NOW() FROM generate_series(10, 14) g""")
+        with self.assertRaisesRegex(friend_gifts.GiftError, "до 250"):
+            await friend_gifts.create_gift(1, 60, 5)
+        pack = await friend_gifts.create_gift(1, 60, 4)
+        self.assertEqual(await self.bal(1), 60)
+        self.assertEqual(await friend_gifts.giftable_rub(1), 10)
+        first = await friend_gifts.claim_gift(10, pack["code"])
+        self.assertEqual((first["claimed_count"], first["last"]), (1, False))
+        with self.assertRaisesRegex(friend_gifts.GiftError, "уже забрали"):
+            await friend_gifts.claim_gift(10, pack["code"])
+        await friend_gifts.claim_gift(11, pack["code"])
+        back = await friend_gifts.return_gift(1, pack["code"])
+        self.assertEqual((back["amount_rub"], back["left"]), (120, 2))
+        self.assertEqual(await self.bal(1), 180)
+        self.assertEqual(await friend_gifts.giftable_rub(1), 130)
+        with self.assertRaisesRegex(friend_gifts.GiftError, "отменён"):
+            await friend_gifts.claim_gift(12, pack["code"])
+
+    async def test_giveaway_last_gift_closes_it(self):
+        await self.pool.execute("""INSERT INTO users (telegram_id, first_name, balance_rub, bot_started_at)
+            SELECT g, 'Друг' || g, 0, NOW() FROM generate_series(10, 12) g""")
+        pack = await friend_gifts.create_gift(1, 60, 2)
+        await friend_gifts.claim_gift(10, pack["code"])
+        last = await friend_gifts.claim_gift(11, pack["code"])
+        self.assertTrue(last["last"])
+        self.assertEqual(await friend_gifts.claimer_names(last["gift_id"]), ["Друг10", "Друг11"])
+        with self.assertRaisesRegex(friend_gifts.GiftError, "разобрали"):
+            await friend_gifts.claim_gift(12, pack["code"])
+        self.assertIsNotNone(await friend_gifts.mark_thanked(10, pack["code"]))
+        self.assertIsNotNone(await friend_gifts.mark_thanked(11, pack["code"]))
+
+    async def test_admin_gifts_any_amount_without_paying(self):
+        gift = await friend_gifts.create_gift(9, 50000)
+        self.assertEqual(await self.bal(9), 0)
+        await friend_gifts.claim_gift(2, gift["code"])
+        self.assertEqual(await self.bal(2), 49990)
+        other = await friend_gifts.create_gift(9, 1)
+        self.assertEqual((await friend_gifts.return_gift(9, other["code"]))["amount_rub"], 0)
+        self.assertEqual(await self.bal(9), 0)
+        self.assertEqual(await friend_gifts.giftable_rub(1), 250)

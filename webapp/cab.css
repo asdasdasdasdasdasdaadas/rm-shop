@@ -548,3 +548,20 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .tabc.tsw { animation: tabin .22s ease both; }
 .tabc.tsw .hc, .tabc.tsw .st, .tabc.tsw .cd, .tabc.tsw .note, .tabc.tsw .tl, .tabc.tsw .ill { animation: none; }
 @keyframes tabin { from { opacity: 0; } }
+/* gift icon next to the own amount: tap = one more gift */
+.am-gico { width: 62px; height: 62px; margin-right: 14px; overflow: visible; }
+.am-gico .am-gift { display: block; width: 260px; height: 131px; margin: -34px -99px; pointer-events: none; }
+.am-gico .am-ic.hop { animation: gfhop .45s cubic-bezier(.3, 1.5, .5, 1); }
+@keyframes gfhop { 0% { transform: scale(1); } 30% { transform: scale(.82) rotate(-8deg); } 65% { transform: scale(1.14) rotate(5deg); } 100% { transform: none; } }
+.am-cnt { position: absolute; right: -12px; top: -12px; min-width: 30px; height: 24px; padding: 0 7px; border-radius: 99px; background: #fff; color: #1d2340;
+  font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0, 0, 0, .35);
+  opacity: 0; transform: scale(.4); transition: opacity .2s, transform .25s cubic-bezier(.3, 1.5, .5, 1); pointer-events: none; }
+.am-cnt.on { opacity: 1; transform: none; }
+.am-cnt.pop { animation: gfpop .35s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes gfpop { 40% { transform: scale(1.35); } }
+.am-plus { position: absolute; left: 50%; top: -4px; font-style: normal; font-weight: 800; font-size: 16px; color: #ffd27a; pointer-events: none;
+  animation: gfplus .7s ease-out forwards; }
+@keyframes gfplus { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -34px); } }
+.gf-left { margin-top: 12px; display: flex; flex-direction: column; align-items: center; gap: 7px; font-size: 14px; opacity: .9; }
+.gf-bar { width: 180px; height: 8px; border-radius: 9px; background: rgba(255, 255, 255, .22); overflow: hidden; }
+.gf-bar i { display: block; height: 100%; background: #fff; border-radius: 9px; transition: width .6s var(--ease); }
