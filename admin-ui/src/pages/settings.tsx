@@ -19,7 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Save, Trash2, ChevronDown, GripVertical } from "lucide-react";
 type Setting = {
   key: string;
   label: string;
@@ -299,46 +299,46 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
             >
               <div className="grid gap-6 sm:grid-cols-2">
                 {group.fields.map((f) => (
-                    <Field key={f.key} label={f.label} hint={f.hint}>
-                      {f.type === "switch" ? (
-                        <div className="flex gap-3 items-center">
-                          <Switch
-                            aria-label={f.label}
-                            checked={!!values[f.key]}
-                            onCheckedChange={(v) => update(f.key, v)}
-                          />
-                          <span className="text-sm text-muted-foreground">
-                            {values[f.key] ? "Включено" : "Выключено"}
-                          </span>
-                        </div>
-                      ) : (
-                        <Input
+                  <Field key={f.key} label={f.label} hint={f.hint}>
+                    {f.type === "switch" ? (
+                      <div className="flex gap-3 items-center">
+                        <Switch
                           aria-label={f.label}
-                          type={f.type || "text"}
-                          min={f.min}
-                          max={f.max}
-                          step={f.type === "number" ? "1" : undefined}
-                          required={
-                            f.type === "number" ||
-                            f.type === "url" ||
-                            f.key === "brand_name" ||
-                            f.key === "support_username"
-                          }
-                          value={values[f.key] ?? ""}
-                          onChange={(e) =>
-                            update(
-                              f.key,
-                              f.type === "number"
-                                ? e.target.value === ""
-                                  ? ""
-                                  : Number(e.target.value)
-                                : e.target.value,
-                            )
-                          }
+                          checked={!!values[f.key]}
+                          onCheckedChange={(v) => update(f.key, v)}
                         />
-                      )}
-                    </Field>
-                  ))}
+                        <span className="text-sm text-muted-foreground">
+                          {values[f.key] ? "Включено" : "Выключено"}
+                        </span>
+                      </div>
+                    ) : (
+                      <Input
+                        aria-label={f.label}
+                        type={f.type || "text"}
+                        min={f.min}
+                        max={f.max}
+                        step={f.type === "number" ? "1" : undefined}
+                        required={
+                          f.type === "number" ||
+                          f.type === "url" ||
+                          f.key === "brand_name" ||
+                          f.key === "support_username"
+                        }
+                        value={values[f.key] ?? ""}
+                        onChange={(e) =>
+                          update(
+                            f.key,
+                            f.type === "number"
+                              ? e.target.value === ""
+                                ? ""
+                                : Number(e.target.value)
+                              : e.target.value,
+                          )
+                        }
+                      />
+                    )}
+                  </Field>
+                ))}
               </div>
               <button type="submit" className="sr-only">
                 Сохранить настройки
@@ -518,6 +518,30 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
     </div>
   );
 }
+const PLATFORM_NAMES: [string, string][] = [
+  ["ios", "iOS"],
+  ["macos", "macOS"],
+  ["appletv", "Apple TV"],
+  ["android", "Android"],
+  ["androidtv", "Android TV"],
+  ["windows", "Windows"],
+];
+function AppIcon({ item }: { item: Data }) {
+  const [broken, setBroken] = useState(false);
+  const label = (item.mark || item.name || item.title || "?").slice(0, 2);
+  return item.icon && !broken ? (
+    <img
+      src={item.icon}
+      alt=""
+      className="size-9 shrink-0 rounded-[10px] border object-cover"
+      onError={() => setBroken(true)}
+    />
+  ) : (
+    <span className="grid size-9 shrink-0 place-items-center rounded-[10px] border bg-muted text-xs font-semibold text-muted-foreground">
+      {label}
+    </span>
+  );
+}
 function ListEditor({
   kind,
   list,
@@ -527,141 +551,287 @@ function ListEditor({
   list: Data[];
   onChange: (v: Data[]) => void;
 }) {
+  // Rows carry a stable key so an open form and focus follow the item while the list is reordered.
+  const keys = useRef<number[]>([]),
+    seq = useRef(0);
+  while (keys.current.length < list.length) keys.current.push(++seq.current);
+  keys.current.length = list.length;
+  const [open, setOpen] = useState<number | null>(null),
+    [dragging, setDragging] = useState<number | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const set = (index: number, key: string, value: any) =>
     onChange(
       list.map((item, i) => (i === index ? { ...item, [key]: value } : item)),
     );
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= list.length || from === to) return;
+    const next = [...list],
+      k = [...keys.current];
+    next.splice(to, 0, ...next.splice(from, 1));
+    k.splice(to, 0, ...k.splice(from, 1));
+    keys.current = k;
+    onChange(next);
+  };
+  const focusHandle = (key: number) =>
+    requestAnimationFrame(() =>
+      listRef.current
+        ?.querySelector<HTMLElement>(`[data-handle="${key}"]`)
+        ?.focus(),
+    );
+  // Set when a press turned into a drag, so the click that ends it does not open the row.
+  const dragged = useRef(false);
+  const startDrag = (e: React.PointerEvent, index: number) => {
+    if (e.button !== 0) return;
+    const onHandle = !!(e.target as HTMLElement).closest("[data-handle]");
+    // Touch drags only by the handle: elsewhere a finger scrolls the page.
+    if (!onHandle && e.pointerType !== "mouse") return;
+    if ((e.target as HTMLElement).closest("[data-nodrag]")) return;
+    if (onHandle) e.preventDefault();
+    const key = keys.current[index],
+      startY = e.clientY;
+    let at = index,
+      active = false;
+    dragged.current = false;
+    const onMove = (ev: PointerEvent) => {
+      if (!active) {
+        if (Math.abs(ev.clientY - startY) < 4) return;
+        active = true;
+        dragged.current = true;
+        setDragging(key);
+        document.body.style.userSelect = "none";
+      }
+      // The new place is how many other rows have their middle above the pointer.
+      const others = Array.from(
+        listRef.current?.querySelectorAll<HTMLElement>("[data-row]") || [],
+      ).filter((r) => r.dataset.row !== String(key));
+      const target = others.filter((r) => {
+        const b = r.getBoundingClientRect();
+        return b.top + b.height / 2 < ev.clientY;
+      }).length;
+      if (target !== at) {
+        moveRef.current(at, target);
+        at = target;
+      }
+    };
+    const onUp = () => {
+      setDragging(null);
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  };
+  // The drag handler outlives renders; it always calls the latest move().
+  const moveRef = useRef(move);
+  moveRef.current = move;
+  const name = (item: Data) =>
+    item.title ||
+    item.name ||
+    (kind === "apps" ? "Новое приложение" : "Способ оплаты");
+  const subtitle = (item: Data) =>
+    kind === "apps"
+      ? PLATFORM_NAMES.filter(([p]) => (item.platforms || []).includes(p))
+          .map(([, l]) => l)
+          .join(", ") || "Нет платформ"
+      : item.available === false
+        ? item.hint || "Не настроен на сервере"
+        : item.enabled
+          ? "Доступен клиентам"
+          : "Скрыт";
   return (
-    <div className="space-y-5">
-      {list.map((item, i) => (
-        <div key={i} className="border rounded-lg p-4 space-y-4">
-          <div className="flex justify-between gap-3 items-center">
-            <h3 className="font-medium">
-              {item.title || item.name || "Новое приложение"}
-            </h3>
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Переместить выше"
-                disabled={i === 0}
-                onClick={() => {
-                  const next = [...list];
-                  [next[i - 1], next[i]] = [next[i], next[i - 1]];
-                  onChange(next);
-                }}
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        {kind === "apps"
+          ? "Порядок такой же, как в кабинете: на каждой платформе первым предлагается верхнее подходящее приложение. Перетащите строку, чтобы поменять порядок."
+          : "Порядок такой же, как у клиента при оплате. Перетащите строку, чтобы поменять порядок."}
+      </p>
+      <div ref={listRef} className="divide-y rounded-lg border">
+        {list.map((item, i) => {
+          const key = keys.current[i],
+            isOpen = open === key,
+            isDragged = dragging === key;
+          return (
+            <div
+              key={key}
+              data-row={key}
+              className={
+                "bg-background transition-shadow first:rounded-t-lg last:rounded-b-lg " +
+                (isDragged
+                  ? "relative z-10 shadow-lg ring-2 ring-primary/40"
+                  : "")
+              }
+            >
+              <div
+                className="flex cursor-grab items-center gap-2 p-2 pr-3 active:cursor-grabbing sm:gap-3"
+                onPointerDown={(e) => startDrag(e, i)}
               >
-                <ArrowUp />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Переместить ниже"
-                disabled={i === list.length - 1}
-                onClick={() => {
-                  const next = [...list];
-                  [next[i + 1], next[i]] = [next[i], next[i + 1]];
-                  onChange(next);
-                }}
-              >
-                <ArrowDown />
-              </Button>
-              {kind === "apps" && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Удалить приложение"
-                  onClick={() => onChange(list.filter((_, j) => i !== j))}
+                <button
+                  type="button"
+                  data-handle={key}
+                  aria-label={`Переместить «${name(item)}». Стрелки вверх и вниз меняют место`}
+                  title="Перетащите, чтобы поменять порядок"
+                  className="grid h-9 w-7 shrink-0 cursor-grab touch-none place-items-center rounded-md text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+                  onKeyDown={(e) => {
+                    const to =
+                      e.key === "ArrowUp"
+                        ? i - 1
+                        : e.key === "ArrowDown"
+                          ? i + 1
+                          : null;
+                    if (to === null) return;
+                    e.preventDefault();
+                    move(i, to);
+                    focusHandle(key);
+                  }}
                 >
-                  <Trash2 />
-                </Button>
+                  <GripVertical className="size-4" />
+                </button>
+                <span className="w-5 shrink-0 text-center text-sm tabular-nums text-muted-foreground">
+                  {i + 1}
+                </span>
+                {kind === "apps" && <AppIcon item={item} />}
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 text-left"
+                  aria-expanded={isOpen}
+                  onClick={() => {
+                    if (dragged.current) dragged.current = false;
+                    else setOpen(isOpen ? null : key);
+                  }}
+                >
+                  <div className="truncate font-medium">{name(item)}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {subtitle(item)}
+                  </div>
+                </button>
+                <div
+                  data-nodrag
+                  className="flex shrink-0 cursor-default items-center"
+                >
+                  {kind === "payments" && (
+                    <Switch
+                      className="mr-2"
+                      aria-label={`Включить ${item.title}`}
+                      checked={!!item.enabled}
+                      onCheckedChange={(v) => set(i, "enabled", v)}
+                    />
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={isOpen ? "Свернуть" : "Изменить"}
+                    onClick={() => setOpen(isOpen ? null : key)}
+                  >
+                    <ChevronDown
+                      className={
+                        "transition-transform " + (isOpen ? "rotate-180" : "")
+                      }
+                    />
+                  </Button>
+                </div>
+              </div>
+              {isOpen && (
+                <div className="space-y-4 border-t bg-muted/20 p-4">
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {(kind === "payments"
+                      ? [
+                          ["title", "Название"],
+                          ["note", "Подсказка"],
+                        ]
+                      : [
+                          ["id", "Идентификатор"],
+                          ["name", "Название"],
+                          ["mark", "Короткая метка"],
+                          ["icon", "URL иконки"],
+                          ["deep_link", "Ссылка импорта подписки"],
+                          [
+                            "guide",
+                            "Ссылка «Как установить» (статья или видео)",
+                          ],
+                        ]
+                    ).map(([key, label]) => (
+                      <Field key={key} label={label}>
+                        <Input
+                          aria-label={`${label} ${i + 1}`}
+                          value={item[key] || ""}
+                          onChange={(e) => set(i, key, e.target.value)}
+                        />
+                      </Field>
+                    ))}
+                  </div>
+                  {kind === "apps" && (
+                    <div className="space-y-3">
+                      {[
+                        ["ios", "iOS"],
+                        ["macos", "macOS"],
+                        ["appletv", "Apple TV"],
+                        ["android", "Android"],
+                        ["androidtv", "Android TV"],
+                        ["windows", "Windows"],
+                      ].map(([p, label]) => (
+                        <div key={p} className="flex items-center gap-3">
+                          <Checkbox
+                            aria-label={`${label} ${i + 1}`}
+                            checked={(item.platforms || []).includes(p)}
+                            onCheckedChange={(v) =>
+                              set(
+                                i,
+                                "platforms",
+                                v
+                                  ? [...(item.platforms || []), p]
+                                  : (item.platforms || []).filter(
+                                      (x: string) => x !== p,
+                                    ),
+                              )
+                            }
+                          />
+                          <span className="w-24 text-sm">{label}</span>
+                          <Input
+                            aria-label={`Ссылка установки ${label} ${i + 1}`}
+                            placeholder="Ссылка на установку"
+                            value={item.stores?.[p] || ""}
+                            onChange={(e) =>
+                              set(i, "stores", {
+                                ...item.stores,
+                                [p]: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {kind === "apps" && (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        className="text-destructive"
+                        onClick={() => {
+                          keys.current = keys.current.filter((_, j) => j !== i);
+                          setOpen(null);
+                          onChange(list.filter((_, j) => i !== j));
+                        }}
+                      >
+                        <Trash2 />
+                        Удалить приложение
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            {(kind === "payments"
-              ? [
-                  ["title", "Название"],
-                  ["note", "Подсказка"],
-                ]
-              : [
-                  ["id", "Идентификатор"],
-                  ["name", "Название"],
-                  ["mark", "Короткая метка"],
-                  ["icon", "URL иконки"],
-                  ["deep_link", "Ссылка импорта подписки"],
-                  ["guide", "Ссылка «Как установить» (статья или видео)"],
-                ]
-            ).map(([key, label]) => (
-              <Field key={key} label={label}>
-                <Input
-                  aria-label={`${label} ${i + 1}`}
-                  value={item[key] || ""}
-                  onChange={(e) => set(i, key, e.target.value)}
-                />
-              </Field>
-            ))}
-          </div>
-          {kind === "payments" ? (
-            <div className="flex items-center gap-3">
-              <Switch
-                aria-label={`Включить ${item.title}`}
-                checked={!!item.enabled}
-                onCheckedChange={(v) => set(i, "enabled", v)}
-              />
-              <span className="text-sm">
-                {item.available === false
-                  ? item.hint || "Не настроен на сервере"
-                  : item.enabled
-                    ? "Доступен клиентам"
-                    : "Скрыт"}
-              </span>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {[
-                ["ios", "iOS"],
-                ["macos", "macOS"],
-                ["appletv", "Apple TV"],
-                ["android", "Android"],
-                ["androidtv", "Android TV"],
-                ["windows", "Windows"],
-              ].map(([p, label]) => (
-                <div key={p} className="flex items-center gap-3">
-                  <Checkbox
-                    aria-label={`${label} ${i + 1}`}
-                    checked={(item.platforms || []).includes(p)}
-                    onCheckedChange={(v) =>
-                      set(
-                        i,
-                        "platforms",
-                        v
-                          ? [...(item.platforms || []), p]
-                          : (item.platforms || []).filter(
-                              (x: string) => x !== p,
-                            ),
-                      )
-                    }
-                  />
-                  <span className="w-24 text-sm">{label}</span>
-                  <Input
-                    aria-label={`Ссылка установки ${label} ${i + 1}`}
-                    placeholder="Ссылка на установку"
-                    value={item.stores?.[p] || ""}
-                    onChange={(e) =>
-                      set(i, "stores", { ...item.stores, [p]: e.target.value })
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+          );
+        })}
+      </div>
       {kind === "apps" && (
         <Button
           variant="outline"
-          onClick={() =>
+          onClick={() => {
+            keys.current = [...keys.current, ++seq.current];
+            setOpen(seq.current);
             onChange([
               ...list,
               {
@@ -674,8 +844,8 @@ function ListEditor({
                 platforms: ["ios"],
                 stores: {},
               },
-            ])
-          }
+            ]);
+          }}
         >
           <Plus />
           Добавить приложение
