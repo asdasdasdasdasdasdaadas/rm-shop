@@ -1997,6 +1997,43 @@ def _broadcast_template_preview(template: str) -> str:
     return ""
 
 
+async def api_experiments(request: web.Request) -> web.Response:
+    """A/B tests of the automatic messages: list with results, or start one (POST)."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import experiments, funnel_board
+    graph = await funnel_board.load()
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            body = None
+        if not isinstance(body, dict):
+            return web.json_response({"ok": False, "error": "Некорректный запрос"}, status=400)
+        steps = {s["id"]: s for s in experiments.testable_steps(graph)}
+        try:
+            exp_id = await experiments.create(experiments.check(body, steps))
+        except ValueError as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=400)
+        return web.json_response({"ok": True, "id": exp_id})
+    return web.json_response({"ok": True, **await experiments.overview(graph)})
+
+
+async def api_experiment_stop(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import experiments
+    try:
+        exp_id = int(request.match_info["exp_id"])
+    except (KeyError, ValueError):
+        return web.json_response({"ok": False, "error": "Тест не найден"}, status=404)
+    if not await experiments.stop(exp_id):
+        return web.json_response({"ok": False, "error": "Тест уже остановлен или не найден"}, status=404)
+    return web.json_response({"ok": True})
+
+
 async def api_broadcast_results(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2882,6 +2919,9 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/maintenance/photo", api_maintenance_photo)
     app.router.add_delete("/admin/api/maintenance/photo", api_maintenance_photo)
     app.router.add_get("/admin/api/broadcast-results", api_broadcast_results)
+    app.router.add_get("/admin/api/experiments", api_experiments)
+    app.router.add_post("/admin/api/experiments", api_experiments)
+    app.router.add_post("/admin/api/experiments/{exp_id}/stop", api_experiment_stop)
     app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast/media", api_broadcast_media)

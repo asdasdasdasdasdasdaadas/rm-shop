@@ -21,8 +21,8 @@ ACTION = "claim_gift"
 router = Router()
 
 
-def gift_label() -> str:
-    return days_text(GIFT_DAYS)
+def gift_label(days: int | None = None) -> str:
+    return days_text(days or GIFT_DAYS)
 
 
 async def can_issue(telegram_id: int) -> bool:
@@ -34,7 +34,8 @@ async def can_issue(telegram_id: int) -> bool:
     )
 
 
-async def issue(telegram_id: int, step_id: str) -> int | None:
+async def issue(telegram_id: int, step_id: str, *, days: int | None = None) -> int | None:
+    """days: another number of gift days for an A/B test (app/experiments.py); None is the usual GIFT_DAYS."""
     async with db._pool_req().acquire() as conn:
         async with conn.transaction():
             await conn.execute("SELECT 1 FROM users WHERE telegram_id=$1 FOR UPDATE", int(telegram_id))
@@ -48,7 +49,7 @@ async def issue(telegram_id: int, step_id: str) -> int | None:
             return await conn.fetchval(
                 """INSERT INTO funnel_gifts (telegram_id, step_id, days, expires_at)
                    VALUES ($1, $2, $3, NOW() + ($4::int * INTERVAL '1 day')) RETURNING id""",
-                int(telegram_id), str(step_id)[:40], GIFT_DAYS, VALID_DAYS,
+                int(telegram_id), str(step_id)[:40], int(days or GIFT_DAYS), VALID_DAYS,
             )
 
 

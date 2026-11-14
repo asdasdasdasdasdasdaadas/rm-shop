@@ -172,7 +172,7 @@ def validate_buttons(buttons):
 
 
 def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gift_id: int | None = None,
-           promise: bool = False):
+           promise: bool = False, gift_days: int | None = None):
     from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
     from aiogram.types import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
@@ -265,13 +265,15 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
         elif action_id == GIFT_ACTION:
             # Without an issued gift (preview, cooldown) the button would promise nothing: leave it out.
             if gift_id:
+                if gift_days and isinstance(item, str):
+                    label = f"🎁 Забрать {gift_label(gift_days)}"
                 rows.append([press(label, item, callback_data=f"fgift:{int(gift_id)}", style="success")])
     if not rows:
         return None
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def render_text(text: str, telegram_id: int, first_name: str | None) -> str:
+def render_text(text: str, telegram_id: int, first_name: str | None, *, gift_days: int | None = None) -> str:
     from app.config import get_settings
     from app.texts import rub_text
 
@@ -292,7 +294,7 @@ def render_text(text: str, telegram_id: int, first_name: str | None) -> str:
         "price": rub_text(settings.vpn_day_price_rub),
         "reward": "50 ₽",
         "when": when,
-        "gift_days": gift_label(),
+        "gift_days": gift_label(gift_days),
         "min_topup": f"{max(1, int(settings.balance_topup_min or 50))} ₽",
     })
     try:
@@ -593,6 +595,12 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
     from app import funnel_gifts
     wants_gift = any((b if isinstance(b, str) else b.get("action")) == GIFT_ACTION for b in step["buttons"])
     wants_promise = any((b if isinstance(b, str) else b.get("action")) == "promise" for b in step["buttons"])
+    from app import experiments
+    try:
+        exp = (await experiments.running()).get(step["id"])
+    except Exception:
+        logger.exception("Тесты сообщений не прочитались")
+        exp = None
     async for row in _candidates(step, prev_id, skip, touched):
         uid = int(row["telegram_id"])
         if wants_gift and not await funnel_gifts.can_issue(uid):
@@ -606,14 +614,29 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
         if slot is None:
             touched.append(uid)
             continue
+        arm = "a"
+        if exp:
+            try:
+                arm = await experiments.assign(exp, uid)
+            except Exception:
+                logger.exception("Не удалось распределить в тест %s", uid)
+        if arm == "control":
+            # The control group gets nothing; the journey goes on as if the step was sent.
+            await db.finish_optional_message(slot, False)
+            await db._pool_req().execute(
+                """INSERT INTO funnel_step_sends (telegram_id, step_id) VALUES ($1, $2)
+                   ON CONFLICT (telegram_id,step_id) DO UPDATE SET sent_at=NOW()""", uid, step["id"])
+            touched.append(uid)
+            continue
+        text, gift_days = experiments.variant(step, exp, arm)
         delivered = False
         gift_id = None
         try:
             if wants_gift:
-                gift_id = await funnel_gifts.issue(uid, step["id"])
+                gift_id = await funnel_gifts.issue(uid, step["id"], days=gift_days)
                 if gift_id is None:
                     continue
-            body = render_text(step['text'], uid, row.get('first_name'))
+            body = render_text(text, uid, row.get('first_name'), gift_days=gift_days)
             promise = False
             if wants_promise:
                 from app.trust import promise_available
@@ -630,7 +653,7 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                 bot, kind=kind, telegram_id=uid, first_name=row.get("first_name"),
                 title=CONDITION_IDS[step["condition"]]["label"],
                 body=body,
-                reply_markup=markup(buttons, uid, gift_id=gift_id, promise=promise), preserve=True,
+                reply_markup=markup(buttons, uid, gift_id=gift_id, promise=promise, gift_days=gift_days), preserve=True,
                 extra={"step_id": step["id"], **({"gift_id": gift_id} if gift_id else {})},
             )
         except Exception:
@@ -642,6 +665,8 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
         touched.append(uid)
         if not delivered:
             continue
+        if exp:
+            await experiments.mark_delivered(exp, uid)
         await db._pool_req().execute(
             """INSERT INTO funnel_step_sends (telegram_id, step_id)
                VALUES ($1, $2) ON CONFLICT (telegram_id,step_id) DO UPDATE SET sent_at=NOW()""",

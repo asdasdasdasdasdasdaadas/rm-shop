@@ -54,6 +54,7 @@ import {
   Megaphone,
   Handshake,
   Send,
+  FlaskConical,
   MessagesSquare,
   Settings,
   DatabaseBackup,
@@ -98,7 +99,8 @@ const users = section(() => import("@/pages/users")),
   records = section(() => import("@/pages/records")),
   settingsPage = section(() => import("@/pages/settings")),
   marketing = section(() => import("@/pages/marketing")),
-  communications = section(() => import("@/pages/communications"));
+  communications = section(() => import("@/pages/communications")),
+  experiments = section(() => import("@/pages/experiments"));
 const UsersPage = users.page("UsersPage"),
   FinancePage = finance.page("FinancePage"),
   StatisticsPage = statistics.page("StatisticsPage"),
@@ -108,10 +110,11 @@ const UsersPage = users.page("UsersPage"),
   SettingsPage = settingsPage.page("SettingsPage"),
   AdsPage = marketing.page("AdsPage"),
   ReferralsPage = marketing.page("ReferralsPage"),
-  BroadcastPage = communications.page("BroadcastPage");
+  BroadcastPage = communications.page("BroadcastPage"),
+  ExperimentsPage = experiments.page("ExperimentsPage");
 const PRELOAD: Record<string, () => Promise<unknown>> = {
   statistics: statistics.get, users: users.get, finance: finance.get, settings: settingsPage.get,
-  ads: marketing.get, referrals: marketing.get, broadcast: communications.get,
+  ads: marketing.get, referrals: marketing.get, broadcast: communications.get, experiments: experiments.get,
   tickets: records.get, orders: records.get, billing: records.get, messages: records.get, ton: records.get, backups: records.get,
 };
 import "./theme.css";
@@ -119,7 +122,7 @@ import "./theme.css";
 const TILE: Record<string, string> = {
   statistics: "#3e88f7", overview: "#5856d6", users: "#2fb46a", tickets: "#ff9500",
   finance: "#22975a", orders: "#34aadc", ton: "#30a1f5", billing: "#8e8e93",
-  referrals: "#ff2d55", ads: "#af52de", broadcast: "#007aff",
+  referrals: "#ff2d55", ads: "#af52de", broadcast: "#007aff", experiments: "#32ade6",
   messages: "#ff9f0a", settings: "#636366", backups: "#a2845e",
 };
 const sections = [
@@ -199,6 +202,13 @@ const sections = [
     description: "Подготовьте сообщение для нужной аудитории",
     group: "Коммуникации",
     icon: Send,
+  },
+  {
+    id: "experiments",
+    label: "A/B-тесты",
+    description: "Тесты автоматических сообщений: какой текст и подарок приносят больше оплат",
+    group: "Коммуникации",
+    icon: FlaskConical,
   },
   {
     id: "messages",
@@ -578,6 +588,9 @@ function Workspace({
       break;
     case "broadcast":
       page = <BroadcastPage />;
+      break;
+    case "experiments":
+      page = <ExperimentsPage />;
       break;
     case "backups":
       page = <BackupsPage />;

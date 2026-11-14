@@ -966,3 +966,27 @@ INSERT INTO friend_gift_claims (gift_id, telegram_id, amount_rub, claimed_at, th
     SELECT id, claimed_by, amount_rub, COALESCE(claimed_at, NOW()), thanked_at FROM friend_gifts
     WHERE claimed_by IS NOT NULL ON CONFLICT DO NOTHING;
 UPDATE friend_gifts SET claimed_count=1 WHERE claimed_by IS NOT NULL AND claimed_count=0;
+
+-- A/B tests of the bot's automatic messages (app/experiments.py): one running test per step.
+CREATE TABLE IF NOT EXISTS funnel_experiments (
+    id BIGSERIAL PRIMARY KEY,
+    step_id TEXT NOT NULL,
+    holdout_pct INTEGER NOT NULL DEFAULT 0 CHECK (holdout_pct BETWEEN 0 AND 50),
+    b_pct INTEGER NOT NULL DEFAULT 0 CHECK (b_pct BETWEEN 0 AND 100),
+    b_text TEXT,
+    b_gift_days INTEGER CHECK (b_gift_days IS NULL OR b_gift_days BETWEEN 1 AND 14),
+    note TEXT,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    stopped_at TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS funnel_experiments_running_idx ON funnel_experiments(step_id) WHERE stopped_at IS NULL;
+-- Who was due the step while the test ran and which arm they got. Control is never sent the step.
+CREATE TABLE IF NOT EXISTS funnel_experiment_users (
+    experiment_id BIGINT NOT NULL REFERENCES funnel_experiments(id) ON DELETE CASCADE,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    arm TEXT NOT NULL CHECK (arm IN ('a','b','control')),
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    delivered_at TIMESTAMPTZ,
+    PRIMARY KEY (experiment_id, telegram_id)
+);
+CREATE INDEX IF NOT EXISTS funnel_experiment_users_user_idx ON funnel_experiment_users(telegram_id);
