@@ -9,7 +9,7 @@ from app import db
 from app.config import SHOP_KEYS, get_settings, set_shop_overlay, shop_overlay
 from app.notices import NOTICE_FIELDS, public_notices, validate_notices
 from app.pay_methods import admin_pay_methods, validate_pay_methods
-from app.vpn_apps import public_vpn_apps, validate_vpn_apps
+from app.vpn_apps import default_ids, public_vpn_apps, validate_vpn_apps
 
 KV_KEY = "shop_settings"
 
@@ -132,6 +132,7 @@ def validate_shop(body: dict) -> dict:
         raise ValueError("Стикер приветствия: слишком длинный id")
     out["welcome_sticker_file_id"] = sticker
     out["vpn_apps"] = validate_vpn_apps(body.get("vpn_apps"))
+    out["vpn_apps_seen"] = default_ids()  # an app removed now is not added back later
     out["pay_methods"] = validate_pay_methods(body["pay_methods"]) if "pay_methods" in body else admin_pay_methods()
     out["notices"] = validate_notices(body.get("notices"))
     out["faq_items"] = validate_faq(body.get("faq_items"))

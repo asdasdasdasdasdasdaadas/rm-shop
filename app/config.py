@@ -319,6 +319,7 @@ SHOP_KEYS = frozenset(
         "vpn_report_cooldown_sec",
         "admin_live_chat_id",
         "vpn_apps",
+        "vpn_apps_seen",
         "pay_methods",
         "notices",
         "faq_items",
@@ -354,6 +355,7 @@ def get_settings() -> Settings:
     update["balance_enabled"] = True
     update["router_enabled"] = False
     update.pop("vpn_apps", None)
+    update.pop("vpn_apps_seen", None)
     update.pop("pay_methods", None)
     update.pop("notices", None)
     update.pop("faq_items", None)

@@ -32,3 +32,26 @@ class CatalogTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OldSavedList(unittest.TestCase):
+    """A list saved in the admin before Karing and RabbitHole existed still shows them; a removed app stays removed."""
+
+    def _public(self, overlay):
+        from unittest.mock import patch
+        from app import vpn_apps
+        with patch.object(vpn_apps, "shop_overlay", lambda: overlay):
+            return [a["id"] for a in vpn_apps.public_vpn_apps()]
+
+    def test_old_list_gets_new_apps(self):
+        old = [{"id": "happ", "name": "Happ", "platforms": ["ios"]}, {"id": "incy", "name": "Incy", "platforms": ["ios"]}]
+        ids = self._public({"vpn_apps": old})
+        self.assertEqual(ids[:2], ["happ", "incy"])
+        self.assertIn("karing", ids)
+        self.assertIn("rabbithole", ids)
+        self.assertNotIn("v2rayng", ids)  # was there when the list was saved, so the admin removed it
+
+    def test_removed_after_save_stays_removed(self):
+        from app.vpn_apps import default_ids
+        saved = [{"id": "happ", "name": "Happ", "platforms": ["ios"]}]
+        self.assertEqual(self._public({"vpn_apps": saved, "vpn_apps_seen": default_ids()}), ["happ"])
