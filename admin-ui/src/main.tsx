@@ -51,7 +51,6 @@ import {
   Megaphone,
   Handshake,
   Send,
-  GitBranch,
   MessagesSquare,
   Settings,
   DatabaseBackup,
@@ -71,13 +70,12 @@ import { RecordsPage, BackupsPage, TonPage } from "@/pages/records";
 import { SettingsPage } from "@/pages/settings";
 import { AdsPage, ReferralsPage } from "@/pages/marketing";
 import { BroadcastPage } from "@/pages/communications";
-import { FunnelPage } from "@/pages/funnel";
 import "./theme.css";
 // Telegram-settings style: every section gets its own coloured tile.
 const TILE: Record<string, string> = {
   statistics: "#3e88f7", overview: "#5856d6", users: "#2fb46a", tickets: "#ff9500",
   finance: "#22975a", orders: "#34aadc", ton: "#30a1f5", billing: "#8e8e93",
-  referrals: "#ff2d55", ads: "#af52de", funnel: "#5ac8fa", broadcast: "#007aff",
+  referrals: "#ff2d55", ads: "#af52de", broadcast: "#007aff",
   messages: "#ff9f0a", settings: "#636366", backups: "#a2845e",
 };
 const sections = [
@@ -150,13 +148,6 @@ const sections = [
     description: "Рекламные ссылки и конверсия привлечённых клиентов",
     group: "Привлечение и возврат",
     icon: Megaphone,
-  },
-  {
-    id: "funnel",
-    label: "Воронка",
-    description: "Сценарии общения: кому, когда и что отправляет бот",
-    group: "Коммуникации",
-    icon: GitBranch,
   },
   {
     id: "broadcast",
@@ -518,9 +509,6 @@ function Workspace({
       break;
     case "referrals":
       page = <ReferralsPage />;
-      break;
-    case "funnel":
-      page = <FunnelPage />;
       break;
     case "broadcast":
       page = <BroadcastPage />;

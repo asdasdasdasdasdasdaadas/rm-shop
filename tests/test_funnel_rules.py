@@ -141,26 +141,6 @@ class PaidEmptyTest(unittest.TestCase):
         self.assertIn("{exhausted}", idle["where"])
         self.assertIn("NOT (", idle["where"])
 
-    def test_saved_board_gets_new_branch_and_faster_steps_once(self):
-        from app import recovery_funnel as rf
-        old = {"branches": [b for b in rf.branches() if b["id"] != "paid-empty"]}
-        for b in old["branches"]:
-            if b["id"] == "online":
-                b["steps"] = [st for st in b["steps"] if st["id"] != rf.ONLINE_MID_ID]
-            if b["id"] == "nodevice":
-                b["steps"][0]["wait_hours"] = 24
-        new = funnel_board.validate(rf.add_paid_empty(old))
-        self.assertEqual(new["branches"][0]["id"], "paid-empty")
-        online = next(b for b in new["branches"] if b["id"] == "online")
-        self.assertEqual(online["steps"][1]["id"], rf.ONLINE_MID_ID)
-        self.assertEqual(next(b for b in new["branches"] if b["id"] == "nodevice")["steps"][0]["wait_hours"], 2)
-        self.assertEqual(funnel_board.validate(rf.add_paid_empty(new)), new)
-        # An admin-tuned delay stays.
-        old["branches"][[b["id"] for b in old["branches"]].index("nodevice")]["steps"][0]["wait_hours"] = 6
-        tuned = rf.add_paid_empty(old)
-        self.assertEqual(next(b for b in tuned["branches"] if b["id"] == "nodevice")["steps"][0]["wait_hours"], 6)
-
-
 class PromiseButtonTest(unittest.TestCase):
     def setUp(self):
         from app import keyboards

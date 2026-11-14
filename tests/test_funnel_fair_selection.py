@@ -23,16 +23,3 @@ class FairSelectionTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first[-1]['telegram_id'],20)
         self.assertEqual(second[0]['telegram_id'],21)
 
-    def test_refresh_preserves_custom_settings(self):
-        from app.recovery_funnel import refresh_saved_graph
-        graph={'branches':[{'id':'custom','steps':[{'id':'keep','condition':'recover_gift','enabled':False,'wait_hours':17,'text':'Своя фраза','buttons':[{'action':'gift','text':'Личный кабинет','emoji':'123'},{'action':'topup','text':'Моя кнопка'}]}]}]}
-        updated=refresh_saved_graph(graph)
-        step=updated['branches'][0]['steps'][0]
-        self.assertEqual(step['buttons'][0]['text'],'Забрать подарок')
-        self.assertEqual(step['buttons'][0]['emoji'],'123')
-        self.assertEqual(step['buttons'][1]['text'],'Моя кнопка')
-        self.assertEqual(step['wait_hours'],17)
-        self.assertFalse(step['enabled'])
-        self.assertEqual(step['text'],'Своя фраза')
-        self.assertEqual(refresh_saved_graph(updated),updated)
-        self.assertEqual(graph['branches'][0]['steps'][0]['buttons'][0]['text'],'Личный кабинет')

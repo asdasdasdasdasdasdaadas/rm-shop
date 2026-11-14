@@ -92,13 +92,6 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
         trial_available=trial_available,
         has_access=access,
     )
-    from app.funnel_board import menu_content
-    custom = await menu_content(from_user.first_name if from_user else None,
-                                int((local or {}).get("balance_rub") or 0), from_user.id if from_user else 0)
-    if custom:
-        text, kb = custom
-        from app.keyboards import legal_text
-        text += "\n\n" + legal_text()
     if isinstance(target, CallbackQuery):
         await ack(target)
         try:

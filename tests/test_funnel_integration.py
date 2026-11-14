@@ -229,13 +229,9 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
             await self.credit()
             self.assertEqual(await self.balance(),118)
 
-    async def test_marketing_prefilter_and_delivery_stats(self):
+    async def test_marketing_prefilter(self):
         await self.pool.execute("INSERT INTO tickets (telegram_id,status) VALUES (1,'pending')")
         self.assertIn(1,await db.marketing_suppressed_ids())
-        await db.log_bot_message(kind='nudge_info',source='auto',telegram_id=1,title='Test',body='Test',status='sent')
-        stats=await db.funnel_message_stats()
-        self.assertEqual(stats['nudge_info']['sent'],1)
-        self.assertIsNotNone(stats['nudge_info']['last_sent'])
 
     async def test_pending_gift_starts_billing_only_after_confirmed_connection(self):
         self.assertEqual(await db.claim_trial_balance(1,18),18)
@@ -326,19 +322,6 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
             await self.pool.execute("DELETE FROM message_log")
             await self.pool.execute('UPDATE users SET quiet_notifications=TRUE WHERE telegram_id=1')
             self.assertEqual(await funnel_board._due(second,first['id'],10,[]),[])
-
-    async def test_recovery_migration_keeps_backup_and_later_edits(self):
-        from app import funnel_board
-        from app.recovery_funnel import migrate, VERSION
-        await funnel_board._ensure_tables()
-        graph=funnel_board.validate({'branches':[{'id':'custom','title':'Моя ветка','steps':[funnel_board._step('custom-step','info',24,'Мой текст',['cabinet'])]}]})
-        await self.pool.execute('INSERT INTO funnel_graphs(id,graph) VALUES (1,$1::jsonb)',json.dumps(graph))
-        updated=await migrate(self.pool,graph)
-        self.assertEqual(len(updated['branches']),7)
-        self.assertEqual(json.loads(await self.pool.fetchval('SELECT value FROM app_flags WHERE key=$1',VERSION+'_backup')),graph)
-        updated['branches'][0]['steps'][0]['text']='Изменено администратором'
-        await self.pool.execute('UPDATE funnel_graphs SET graph=$1::jsonb WHERE id=1',json.dumps(updated))
-        self.assertEqual(await migrate(self.pool,graph),updated)
 
     async def test_recovery_attribution_latest_click_without_double_revenue(self):
         a=await db.create_reminder_delivery(1,'nudge_recover_gift','A','A')

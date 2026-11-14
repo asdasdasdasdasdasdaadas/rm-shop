@@ -1,14 +1,9 @@
-"""Short, mutually exclusive recovery journeys; no sending at migration time."""
+"""Short, mutually exclusive recovery journeys built into the bot's automatic messages."""
 from __future__ import annotations
 import copy
-import json
 
-VERSION = 'recovery_journeys_v1'
-LABEL_VERSION = 'funnel_action_labels_v2'
 ACTION_LABELS = {'gift': 'Забрать подарок', 'connect': 'Подключить VPN', 'topup': 'Пополнить баланс'}
 OWNED_BRANCHES = {'nodevice','online','unpaid','quality','gift','idle-setup','idle-topup','idle-return','late','terms-offer'}
-OFFERS_VERSION = 'funnel_offers_v3'
-PAID_EMPTY_VERSION = 'funnel_paid_empty_v1'
 GIFT = 'claim_gift'
 CONNECT = {'action': 'connect', 'text': 'Подключить VPN'}
 PAID = """(COALESCE(u.has_paid_topup,FALSE)
@@ -55,14 +50,6 @@ CONDITIONS = (
 )
 KINDS = {c['id']: 'nudge_' + c['id'] for c in CONDITIONS}
 
-# Third messages used to be polite goodbyes; now each one gives a reason to act.
-OLD_THIRD = {
- 'gift': 'Подарок остаётся у вас 🎁 Когда понадобится VPN, начните с кабинета.',
- 'nodevice': 'VPN можно настроить, когда он понадобится. Если нужна помощь — напишите нам 👇',
- 'online': 'Не будем отвлекать. Инструкция и помощь останутся в кабинете 👇',
- 'unpaid': 'Если VPN снова понадобится, вернуться можно в любой момент. Кабинет и поддержка под рукой.',
- 'idle-return': 'Не будем отвлекать 👋 Если VPN снова понадобится, кабинет и поддержка под рукой.',
-}
 GIFT_BRANCHES = {'unpaid', 'idle-return'}
 NEW_THIRD = {
  'gift': '🎁 Подарок всё ещё ваш: бесплатный VPN на старте, без оплаты и привязки карты. '
@@ -165,26 +152,6 @@ def paid_branches():
     ]}]
 
 
-def add_paid_empty(graph):
-    """The paid-customer branch, faster setup help and the half-day connection step for saved boards.
-    Only defaults are touched: a step whose timing the admin changed keeps it."""
-    result = copy.deepcopy(graph)
-    used = {b['id'] for b in result['branches']} | {s['id'] for b in result['branches'] for s in b['steps']}
-    for branch in result['branches']:
-        ids = [s['id'] for s in branch['steps']]
-        for step in branch['steps']:
-            if step['id'] == 'recovery-recover-setup-1' and int(step.get('wait_hours') or 0) == 24:
-                step['wait_hours'] = 2
-        if 'recovery-recover-online-1' in ids and ONLINE_MID_ID not in used:
-            branch['steps'].insert(ids.index('recovery-recover-online-1') + 1, online_mid_step())
-            used.add(ONLINE_MID_ID)
-    for branch in paid_branches():
-        if branch['id'] in used or any(s['id'] in used for s in branch['steps']) or len(result['branches']) >= 32:
-            continue
-        result['branches'].insert(0, branch)
-    return result
-
-
 def third_buttons(bid, buttons):
     first = {'action':buttons[0],'text':ACTION_LABELS.get(buttons[0], 'Личный кабинет')}
     if bid in GIFT_BRANCHES:
@@ -208,123 +175,4 @@ def upgrade(graph):
     result=copy.deepcopy(graph)
     preserved=[b for b in result['branches'] if b['id'] not in OWNED_BRANCHES]
     result['branches']=branches()+preserved
-    return result
-
-async def migrate(pool, graph):
-    graph = await _migrate_journeys(pool, graph)
-    graph = await _migrate_offers(pool, graph)
-    return await _migrate_once(pool, graph, PAID_EMPTY_VERSION, add_paid_empty)
-
-
-async def _migrate_once(pool, graph, version, change):
-    from app.funnel_board import validate
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute('SELECT pg_advisory_xact_lock(73619429)')
-            if await conn.fetchval('SELECT value FROM app_flags WHERE key=$1', version):
-                return graph
-            row = await conn.fetchrow('SELECT graph FROM funnel_graphs WHERE id=1 FOR UPDATE')
-            raw = row['graph'] if row else graph
-            if isinstance(raw, str):
-                raw = json.loads(raw)
-            updated = validate(change(raw))
-            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-                               version + '_backup', json.dumps(raw, ensure_ascii=False))
-            await conn.execute('UPDATE funnel_graphs SET graph=$1::jsonb,updated_at=NOW() WHERE id=1',
-                               json.dumps(updated, ensure_ascii=False))
-            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2)', version, '1')
-            return updated
-
-
-def refresh_offers(graph):
-    """Offers instead of goodbyes, a faster gift reminder and the new branches.
-    Only steps still holding the old default text or timing are touched; admin edits stay."""
-    from app.funnel_board import _step
-    result = copy.deepcopy(graph)
-    fresh = {b['id']: b for b in branches()}
-    for branch in result['branches']:
-        bid = branch['id']
-        if bid not in OLD_THIRD:
-            continue
-        for step in branch['steps']:
-            if step['id'] == 'recovery-recover-gift-1' and int(step.get('wait_hours') or 0) == 24:
-                step['wait_hours'] = 1
-            if step['text'].strip() in {OLD_THIRD[bid], OLD_THIRD[bid] + '\n\nОткройте личный кабинет 👇'}:
-                new = next((s for s in fresh[bid]['steps'] if s['id'] == step['id']), None)
-                if new:
-                    step['text'], step['buttons'] = new['text'], new['buttons']
-    used = {b['id'] for b in result['branches']} | {s['id'] for b in result['branches'] for s in b['steps']}
-    for branch in extra_branches():
-        if branch['id'] in used or any(s['id'] in used for s in branch['steps']):
-            continue
-        if len(result['branches']) >= 32:
-            break
-        result['branches'].append(branch)
-    return result
-
-
-async def _migrate_offers(pool, graph):
-    from app.funnel_board import validate
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute('SELECT pg_advisory_xact_lock(73619429)')
-            if await conn.fetchval('SELECT value FROM app_flags WHERE key=$1', OFFERS_VERSION):
-                return graph
-            row = await conn.fetchrow('SELECT graph FROM funnel_graphs WHERE id=1 FOR UPDATE')
-            raw = row['graph'] if row else graph
-            if isinstance(raw, str):
-                raw = json.loads(raw)
-            updated = validate(refresh_offers(raw))
-            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-                               OFFERS_VERSION + '_backup', json.dumps(raw, ensure_ascii=False))
-            await conn.execute('UPDATE funnel_graphs SET graph=$1::jsonb,updated_at=NOW() WHERE id=1',
-                               json.dumps(updated, ensure_ascii=False))
-            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2)', OFFERS_VERSION, '1')
-            return updated
-
-
-async def _migrate_journeys(pool, graph):
-    """One atomic replacement, with an exact backup of the administrator's old map."""
-    from app.funnel_board import validate
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute('SELECT pg_advisory_xact_lock(73619429)')
-            migrated = await conn.fetchval('SELECT value FROM app_flags WHERE key=$1',VERSION)
-            # Lock and reread so a concurrent administrator save is not overwritten by a stale map.
-            row=await conn.fetchrow('SELECT graph FROM funnel_graphs WHERE id=1 FOR UPDATE')
-            raw=row['graph'] if row else graph
-            if isinstance(raw,str): raw=json.loads(raw)
-            if migrated:
-                labels_done = await conn.fetchval('SELECT value FROM app_flags WHERE key=$1', LABEL_VERSION)
-                if labels_done:
-                    return validate(raw)
-                updated = refresh_saved_graph(raw)
-                await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-                                   LABEL_VERSION+'_backup', json.dumps(raw, ensure_ascii=False))
-                await conn.execute('UPDATE funnel_graphs SET graph=$1::jsonb,updated_at=NOW() WHERE id=1',
-                                   json.dumps(updated, ensure_ascii=False))
-                await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2)', LABEL_VERSION, '1')
-                return validate(updated)
-            updated=validate(upgrade(raw))
-            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-                VERSION+'_backup',json.dumps(raw,ensure_ascii=False))
-            await conn.execute('UPDATE funnel_graphs SET graph=$1::jsonb,updated_at=NOW() WHERE id=1',json.dumps(updated,ensure_ascii=False))
-            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2)',VERSION,'1')
-            return updated
-
-
-def refresh_saved_graph(graph):
-    """Update known defaults only; preserve custom copy, timing and delivery IDs."""
-    from app.notices import (DEFAULT_NOTICES, BALANCE_PREVIOUS_DEFAULTS,
-                            PREVIOUS_NOTICE_DEFAULTS, ENGAGEMENT_PREVIOUS_DEFAULTS)
-    result = copy.deepcopy(graph)
-    old_balance = {d.get('balance_ending_nudge') for d in
-                   (BALANCE_PREVIOUS_DEFAULTS, PREVIOUS_NOTICE_DEFAULTS, ENGAGEMENT_PREVIOUS_DEFAULTS)}
-    for branch in result['branches']:
-        for step in branch['steps']:
-            for button in step.get('buttons', []):
-                if isinstance(button, dict) and button.get('text') == 'Личный кабинет' and button.get('action') in ACTION_LABELS:
-                    button['text'] = ACTION_LABELS[button['action']]
-            if step.get('condition') == 'balance_low' and step.get('text') in old_balance:
-                step['text'] = DEFAULT_NOTICES['balance_ending_nudge']
     return result

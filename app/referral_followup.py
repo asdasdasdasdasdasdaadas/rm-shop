@@ -1,11 +1,9 @@
 """One invitation follow-up after recorded interest, never inferred sharing."""
 import copy
-import json
 import logging
 
 logger = logging.getLogger(__name__)
 
-VERSION = 'referral_followup_v1'
 CONDITION = {
     'id': 'invite_no_registration',
     'label': 'Приглашение без регистрации',
@@ -57,29 +55,3 @@ def upgrade(graph):
             [{'action': 'share', 'text': 'Отправить приглашение'}, 'copy', 'menu'])],
     })
     return result
-
-
-async def migrate(pool, graph):
-    from app.recovery_funnel import migrate as migrate_recovery
-    from app.funnel_board import validate
-    graph = await migrate_recovery(pool, graph)
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute('SELECT pg_advisory_xact_lock(73619429)')
-            row = await conn.fetchrow('SELECT graph FROM funnel_graphs WHERE id=1 FOR UPDATE')
-            raw = row['graph'] if row else graph
-            if isinstance(raw, str):
-                raw = json.loads(raw)
-            if await conn.fetchval('SELECT value FROM app_flags WHERE key=$1', VERSION):
-                return validate(raw)
-            updated = validate(upgrade(raw))
-            if not any(s['condition'] == CONDITION['id'] for b in updated['branches'] for s in b['steps']):
-                # Keep all existing journeys running; retry after an admin frees a slot.
-                logger.warning('Referral follow-up migration deferred: funnel has 32 branches')
-                return updated
-            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-                               VERSION+'_backup', json.dumps(raw, ensure_ascii=False))
-            await conn.execute('UPDATE funnel_graphs SET graph=$1::jsonb,updated_at=NOW() WHERE id=1',
-                               json.dumps(updated, ensure_ascii=False))
-            await conn.execute('INSERT INTO app_flags(key,value) VALUES ($1,$2)', VERSION, '1')
-            return updated

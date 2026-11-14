@@ -179,10 +179,6 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
             story_offer=False,
         )
     if in_channel:
-        from app.funnel_board import menu_content
-        custom = await menu_content((local or {}).get("first_name"), int((local or {}).get("balance_rub") or 0), telegram_id)
-        if custom:
-            kb = custom[1]
         if trial_on:
             # The hottest moment of the funnel: put the gift one tap away, above the menu.
             gift = onboarding_keyboard(gift=True).inline_keyboard[0][0]

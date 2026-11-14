@@ -5687,15 +5687,6 @@ async def finish_optional_message(slot: int, sent: bool) -> None:
         await _pool_req().execute('DELETE FROM optional_message_slots WHERE id=$1 AND sent_at IS NULL',slot)
 
 
-async def funnel_message_stats() -> dict:
-    rows = await _pool_req().fetch('''SELECT kind,
-        COUNT(*) FILTER (WHERE status='sent' AND created_at > NOW()-INTERVAL '7 days') AS sent,
-        COUNT(*) FILTER (WHERE status='failed' AND created_at > NOW()-INTERVAL '7 days') AS failed,
-        MAX(created_at) FILTER (WHERE status='sent') AS last_sent
-        FROM message_log WHERE source <> 'test' GROUP BY kind''')
-    return {row['kind']: _jsonable(dict(row)) for row in rows}
-
-
 async def terms_feedback_ids() -> list[int]:
     rows = await _pool_req().fetch("SELECT telegram_id FROM users WHERE vpn_feedback='terms'")
     return [int(row['telegram_id']) for row in rows]

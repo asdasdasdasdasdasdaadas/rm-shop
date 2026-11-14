@@ -113,7 +113,6 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                     brand_name='VPN', referral_invitee_reward_rub=0, referral_program_enabled=False,
                     balance_enabled=False, trial_enabled=False, trial_days=0)))
                 stack.enter_context(patch.object(welcome.logger, 'warning'))
-                stack.enter_context(patch('app.funnel_board.menu_content', AsyncMock(return_value=None)))
                 stack.enter_context(patch.object(welcome, 'trial_is_available', return_value=False))
                 stack.enter_context(patch.object(welcome, 'notice_text', return_value='Hello'))
                 stack.enter_context(patch.object(welcome, 'legal_text', return_value='Legal links'))

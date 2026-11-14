@@ -382,69 +382,6 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
             },
           ],
         };
-      if (key === "funnel-board") {
-        const sample = {
-          branches: [
-            {
-              id: "start",
-              title: "Первый запуск",
-              steps: [
-                {
-                  id: "start-1",
-                  condition: "no_device",
-                  wait_hours: 24,
-                  wait_from: "anchor",
-                  text: "Добавьте устройство",
-                  buttons: ["gift"],
-                  enabled: true,
-                },
-              ],
-            },
-          ],
-        };
-        for (let i=1;i<14;i++) sample.branches.push({id:'branch-'+i,title:i===1?'Повторная оплата':'Сценарий '+i,steps:[{...sample.branches[0].steps[0],id:'step-'+i,text:'Сообщение другой ветки',enabled:i%2===0}]});
-        data = {
-          ok: true,
-          graph: method === "POST" && !payload.reset ? payload.graph : sample,
-          admins:[123],
-          default_menu:{text:"Привет, {name}! {balance}",buttons:["cabinet"]},
-          conditions: [
-            {
-              id: "no_device",
-              label: "Нет устройства",
-              hint: "Бот запущен, устройства нет",
-            },
-          ],
-          actions: [
-            { id:"cabinet",label:"Личный кабинет",button:"Личный кабинет" },
-            { id: "gift", label: "Экран подарка", button: "Забрать подарок" },
-            { id: "help", label: "Нужна помощь с подключением", button: "Нужна помощь" },
-          ],
-        };
-      }
-      if (key === "funnel-emojis") data={ok:true,title:"Звёзды",items:[{id:"123",emoji:"⭐",thumbnail:false}]};
-      if (key === "funnel-test")
-        data =
-          method === "POST"
-            ? { ok: true, sent: 1, total: 1 }
-            : {
-                admins: [123],
-                scenarios: [
-                  {
-                    id: "start",
-                    title: "Первое подключение",
-                    steps: ["welcome"],
-                  },
-                ],
-                messages: [
-                  {
-                    id: "welcome",
-                    title: "Приветствие",
-                    condition: "Первый запуск",
-                    body: "Здравствуйте",
-                  },
-                ],
-              };
       if (key === "broadcast-results")
         data = {
           items: [
@@ -802,99 +739,12 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
   });
   await nav("Обзор");
   await page.getByRole("button", { name: "Перейти без сохранения" }).click();
-  await nav("Воронка");
-  await page.getByRole("heading", { name: "Воронка", exact: true }).waitFor();
-  await page.getByLabel('Найти ветку',{exact:true}).fill('Повторная');
-  await page.getByRole('button',{name:/Повторная оплата/}).click();
-  await page.getByRole('heading',{name:'Повторная оплата',exact:true}).waitFor();
-  assert.equal(await page.getByRole('button',{name:'Тест ветки на админе',exact:true}).isDisabled(),true);
-  await page.getByLabel('Найти ветку',{exact:true}).fill('');
-  await page.getByRole('button',{name:/Первый запуск/}).click();
-
-  await page.getByRole("button", { name: /Нет устройства/ }).click();
-  const savesBeforeInvalid=posts.filter(p=>p.key==='funnel-board').length;
-  const testsBeforeInvalid=posts.filter(p=>p.key==='funnel-test').length;
-  await page.getByLabel('Текст сообщения',{exact:true}).fill('   ');
-  assert.equal(await page.getByLabel('Текст сообщения',{exact:true}).getAttribute('aria-invalid'),'true');
-  await page.getByRole('button',{name:'Закрыть редактор шага',exact:true}).click();
-  await page.getByRole('button',{name:'Сохранить воронку',exact:true}).click();
-  await page.getByRole('dialog').waitFor();
-  assert.equal(posts.filter(p=>p.key==='funnel-board').length,savesBeforeInvalid);
-  await page.getByRole('button',{name:'Закрыть редактор шага',exact:true}).click();
-  await page.getByRole('button',{name:'Тест ветки на админе',exact:true}).click();
-  await page.getByRole('dialog').waitFor();
-  assert.equal(posts.filter(p=>p.key==='funnel-test').length,testsBeforeInvalid);
-  await page.getByLabel('Пауза в часах',{exact:true}).fill('');
-  assert.equal(await page.getByLabel('Пауза в часах',{exact:true}).inputValue(),'');
-  assert.equal(await page.getByLabel('Пауза в часах',{exact:true}).getAttribute('aria-invalid'),'true');
-  await page.getByLabel('Пауза в часах',{exact:true}).fill('0');
-  assert.equal(await page.getByLabel('Пауза в часах',{exact:true}).getAttribute('aria-invalid'),'false');
-  await page.getByLabel("Текст сообщения", { exact: true }).fill("Новый текст шага");
-  await page.getByRole("button",{name:"Добавить кнопку",exact:true}).click();
-  await page.getByLabel("Действие кнопки 2",{exact:true}).selectOption("help");
-  await page.getByRole("button",{name:"Закрыть редактор шага",exact:true}).click();
-  await page.getByRole("button", { name: "Сохранить воронку", exact: true }).click();
-  await page.getByText("Воронка сохранена", { exact: true }).waitFor();
-  await page.screenshot({path:path.join(screenshots,"funnel-board.png"),fullPage:true});
-  assert.equal(await page.getByRole("region", {name:"Доска воронки",exact:true}).count(),1);
-  const saved = posts.find((item) => item.key === "funnel-board").payload.graph;
-  assert.equal(saved.branches[0].steps[0].text, "Новый текст шага");
-  assert.deepEqual(saved.branches[0].steps[0].buttons, ["gift", {action:"help",text:"Нужна помощь"}]);
-  await page.getByRole("button", {name:/Нет устройства/}).click();
-  await page.getByRole("button", {name:"Добавить кнопку",exact:true}).click();
-  await page.getByLabel("Название кнопки 3",{exact:true}).fill("Наш сайт");
-  await page.getByLabel("Действие кнопки 3",{exact:true}).selectOption("url");
-  await page.getByLabel("Ссылка кнопки 3",{exact:true}).fill("example.org");
-  assert.equal(await page.getByLabel("Ссылка кнопки 3",{exact:true}).getAttribute('aria-invalid'),'true');
-  await page.getByLabel("Ссылка кнопки 3",{exact:true}).fill("https://example.org/news");
-  await page.getByText("Анимированные эмодзи Telegram",{exact:true}).click();
-  await page.getByLabel("Набор эмодзи",{exact:true}).fill("https://t.me/addemoji/Stars");
-  await page.getByRole("button",{name:"Загрузить набор",exact:true}).click();
-  await page.getByRole("button",{name:"Вставить ⭐ 123",exact:true}).click();
-  assert.match(await page.getByLabel("Текст сообщения",{exact:true}).inputValue(),/<tg-emoji emoji-id="123">⭐<\/tg-emoji>/);
-  await page.getByText("Эмодзи на кнопке 3",{exact:true}).click();
-  await page.getByLabel("Набор эмодзи кнопки 3",{exact:true}).fill("https://t.me/addemoji/Stars");
-  await page.getByRole("button",{name:"Загрузить набор кнопки 3",exact:true}).click();
-  await page.getByRole("button",{name:"Поставить ⭐ 123 на кнопку 3",exact:true}).click();
-  await page.getByText("Эмодзи выбран",{exact:true}).waitFor();
-
-  await page.getByRole("button",{name:"Закрыть редактор шага",exact:true}).click();
-  await page.getByRole("button", {name:"Тест ветки на админе",exact:true}).click();
-  await page.getByText("Тест: отправлено 1 сообщений админу",{exact:true}).waitFor();
-  const draftTest=posts.filter(p=>p.key==='funnel-test').at(-1).payload;
-  assert.equal(draftTest.telegram_id,'123');
-  assert.equal(draftTest.graph.branches[0].steps[0].buttons[2].url,'https://example.org/news');
-  await page.getByRole("button", {name:"Главное меню бота",exact:true}).click();
-  // The menu text lives in the bot's code; the admin panel edits only its buttons.
-  await page.getByText("Кнопки меню *",{exact:true}).waitFor();
-  await Promise.all([page.waitForResponse(r=>r.url().endsWith("/funnel-board")&&r.request().method()==="POST"),page.getByRole("button", {name:"Сохранить воронку",exact:true}).click()]);
-  const menuSave=posts.filter(p=>p.key==='funnel-board').at(-1).payload.graph;
-  // An untouched menu is saved without main_menu (the bot keeps its default); its test sends the default buttons.
-  await page.getByRole("button",{name:"Тест меню на админе",exact:true}).click();
-  await page.getByText("Тест: отправлено 1 сообщений админу",{exact:true}).first().waitFor();
-  const menuTest=posts.filter(p=>p.key==='funnel-test').at(-1).payload;
-  assert.equal(menuTest.scenario,'main-menu');
-  assert.ok(menuTest.graph.main_menu.buttons.length>0,'Main menu test carries its buttons');
-  assert.equal(menuSave.branches[0].steps[0].buttons[2].text,'Наш сайт');
-  assert.equal(menuSave.branches[0].steps[0].buttons[2].emoji,'123');
-
-  await page.getByRole('button',{name:'Автоматические сообщения',exact:true}).click();
-  await page.setViewportSize({width:390,height:844});
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile funnel overflow');
-  await page.screenshot({path:path.join(screenshots,'funnel-mobile.png'),fullPage:true});
-  await page.getByRole('button',{name:/Редактировать шаг 1/}).click();
-  await page.getByLabel('Текст сообщения',{exact:true}).waitFor();
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile editor overflow');
-  await page.screenshot({path:path.join(screenshots,'funnel-editor-mobile.png')});
-  await page.getByRole('button',{name:'Закрыть редактор шага',exact:true}).click();
-  await page.setViewportSize({width:1440,height:1080});
   for (const label of [
     "Платежи",
     "Операции по балансу",
     "Поддержка",
     "Реферальная программа",
     "Источники трафика",
-    "Воронка",
     "Журнал доставки",
     "Резервные копии",
     "Настройки",

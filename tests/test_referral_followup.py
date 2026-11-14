@@ -49,28 +49,6 @@ class ReferralFollowupTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(updated['branches']),32)
         self.assertEqual(referral_followup.upgrade(updated),updated)
 
-    async def test_full_graph_defers_migration_without_marking_it_complete(self):
-        from app import recovery_funnel
-        graph={'branches':[{'id':f'b{i}', 'title':f'Branch {i}', 'steps':[
-            funnel_board._step(f's{i}', 'invite', 48, 'Текст', ['menu'])]} for i in range(32)]}
-        conn=MagicMock()
-        conn.execute=AsyncMock()
-        conn.fetchrow=AsyncMock(return_value={'graph':graph})
-        conn.fetchval=AsyncMock(return_value=None)
-        conn.transaction.return_value.__aenter__=AsyncMock()
-        conn.transaction.return_value.__aexit__=AsyncMock(return_value=False)
-        pool=MagicMock()
-        pool.acquire.return_value.__aenter__=AsyncMock(return_value=conn)
-        pool.acquire.return_value.__aexit__=AsyncMock(return_value=False)
-        with patch.object(recovery_funnel,'migrate',AsyncMock(return_value=graph)):
-            self.assertEqual(await referral_followup.migrate(pool,graph),graph)
-            self.assertEqual(conn.execute.await_count,1)  # lock only, no graph or flag writes
-            graph['branches'].pop()
-            result=await referral_followup.migrate(pool,graph)
-        self.assertEqual(len(result['branches']),32)
-        self.assertTrue(any('UPDATE funnel_graphs' in call.args[0] for call in conn.execute.call_args_list))
-        self.assertTrue(any(call.args[1:]==(referral_followup.VERSION,'1') for call in conn.execute.call_args_list))
-
     @unittest.skipUnless(os.environ.get('PGLITE_MODULE'),'PostgreSQL integration')
     async def test_real_selection_stops_after_registration_and_delivery(self):
         pool=SimpleNamespace(fetch=AsyncMock(return_value=[]))

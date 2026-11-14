@@ -1,4 +1,4 @@
-"""Editable board that replaces the automatic marketing funnel."""
+"""The bot's automatic messages: built-in journeys of steps, each sent once when its condition holds."""
 from __future__ import annotations
 
 import json
@@ -134,14 +134,6 @@ class _Safe(dict):
         return "{" + key + "}"
 
 
-def conditions_public() -> list[dict]:
-    return [{"id": row["id"], "label": row["label"], "hint": row["hint"]} for row in CONDITIONS if row["id"] not in RETIRED_CONDITIONS]
-
-
-def actions_public() -> list[dict]:
-    return [{"id": row["id"], "label": row["label"], "button": row["button"]} for row in ACTIONS]
-
-
 def _button(action_id: str) -> dict:
     return next(row for row in ACTIONS if row["id"] == action_id)
 
@@ -177,54 +169,6 @@ def validate_buttons(buttons):
             button["url"] = url
         clean.append(button)
     return clean
-
-
-def default_menu():
-    from app.keyboards import main_menu_text
-    # The text is read-only in the admin panel and only shown there as a sample.
-    return {"text": main_menu_text("Анна", 180),
-            "buttons": ["cabinet", {"action": "channel", "text": "Новостной канал"}, "invite", "about"]}
-
-
-def validate_menu(menu):
-    if not isinstance(menu, dict):
-        raise ValueError("Некорректное главное меню")
-    buttons = validate_buttons(menu.get("buttons"))
-    if not buttons:
-        raise ValueError("Добавьте хотя бы одну кнопку меню")
-    return {"buttons": buttons}
-
-
-async def menu_content(first_name, balance_rub, telegram_id):
-    try:
-        graph = await load()
-    except Exception:
-        logger.exception("Не удалось загрузить главное меню, используем стандартное")
-        return None
-    menu = graph.get("main_menu")
-    if not menu:
-        return None
-    from app.keyboards import main_menu_text
-    return main_menu_text(first_name, balance_rub), main_menu_markup(menu["buttons"], telegram_id)
-
-
-def main_menu_markup(button_ids, telegram_id):
-    keyboard = markup(button_ids, telegram_id)
-    if not keyboard:
-        return keyboard
-    rows = []
-    pair = []
-    for row in keyboard.inline_keyboard:
-        for button in row:
-            if button.callback_data == "check_sub":
-                continue
-            if button.callback_data in {"share", "about_service"}:
-                pair.append(button)
-            else:
-                rows.append([button])
-    if pair:
-        rows.append(pair)
-    return keyboard.model_copy(update={"inline_keyboard": rows})
 
 
 def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gift_id: int | None = None,
@@ -417,10 +361,7 @@ def validate(graph) -> dict:
                 "enabled": bool(step.get("enabled", True)),
             })
         clean.append({"id": bid, "title": title, "steps": steps})
-    result = {"branches": clean}
-    if "main_menu" in graph:
-        result["main_menu"] = validate_menu(graph["main_menu"])
-    return result
+    return {"branches": clean}
 
 
 def _step(sid, condition, hours, text, buttons, wait_from="anchor", enabled=True):
@@ -496,40 +437,9 @@ async def default_graph() -> dict:
     return validate(upgrade_referrals(upgrade({"branches": branches})))
 
 
-def preview(graph: dict, telegram_id: int) -> tuple[list[dict], list[tuple]]:
-    rows = []
-    scenarios = []
-    for branch in graph.get("branches") or []:
-        ids = []
-        for step in branch.get("steps") or []:
-            if not step.get("enabled", True):
-                continue
-            ids.append(step["id"])
-            spec = CONDITION_IDS.get(step["condition"], {})
-            rows.append({
-                "id": step["id"],
-                "title": branch.get("title") or "Шаг",
-                "condition": spec.get("label") or step["condition"],
-                "body": render_text(step.get("text") or "", telegram_id, "Администратор").replace("{code}", "TEST-ONLY").replace("{devices}", "1").replace("{amount}", "30"),
-                "kind": "nudge_board",
-                "markup": markup(step.get("buttons") or [], telegram_id),
-            })
-        if ids:
-            scenarios.append((branch["id"], branch.get("title") or "Ветка", ids))
-    return rows, scenarios
-
-
 async def _ensure_tables() -> None:
     from app.db import _pool_req
-    pool = _pool_req()
-    await pool.execute("""
-        CREATE TABLE IF NOT EXISTS funnel_graphs (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            graph JSONB NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-    """)
-    await pool.execute("""
+    await _pool_req().execute("""
         CREATE TABLE IF NOT EXISTS funnel_step_sends (
             telegram_id BIGINT NOT NULL,
             step_id TEXT NOT NULL,
@@ -537,12 +447,6 @@ async def _ensure_tables() -> None:
             PRIMARY KEY (telegram_id, step_id)
         )
     """)
-
-
-def _parse(raw) -> dict:
-    if isinstance(raw, str):
-        raw = json.loads(raw)
-    return validate(without_retired_branches(raw))
 
 
 def _kept_button(button) -> bool:
@@ -567,65 +471,9 @@ def without_retired_branches(graph):
 
 
 async def load() -> dict:
-    from app.db import _pool_req
+    """The journeys built into the code. The admin-panel editor is gone, so an old saved copy is not read."""
     await _ensure_tables()
-    pool = _pool_req()
-    row = await pool.fetchrow("SELECT graph FROM funnel_graphs WHERE id = 1")
-    if row:
-        from app.referral_followup import migrate
-        return without_retired_branches(await migrate(pool, _parse(row["graph"])))
-    graph = await default_graph()
-    inserted = await pool.fetchrow(
-        "INSERT INTO funnel_graphs (id, graph) VALUES (1, $1::jsonb) ON CONFLICT DO NOTHING RETURNING id",
-        json.dumps(graph, ensure_ascii=False),
-    )
-    if inserted:
-        try:
-            await _backfill()
-        except Exception:
-            logger.exception("Старые шаги воронки не отмечены")
-        from app.referral_followup import migrate
-        return without_retired_branches(await migrate(pool, graph))
-    row = await pool.fetchrow("SELECT graph FROM funnel_graphs WHERE id = 1")
-    from app.referral_followup import migrate
-    return without_retired_branches(await migrate(pool, _parse(row["graph"])))
-
-
-async def save(graph: dict) -> None:
-    from app.db import _pool_req
-    clean = validate(graph)
-    await _ensure_tables()
-    await _pool_req().execute(
-        """INSERT INTO funnel_graphs (id, graph) VALUES (1, $1::jsonb)
-           ON CONFLICT (id) DO UPDATE SET graph = EXCLUDED.graph, updated_at = NOW()""",
-        json.dumps(clean, ensure_ascii=False),
-    )
-
-
-async def _backfill() -> None:
-    from app.db import _pool_req
-    pairs = [
-        ("nodevice_nudge_step >= 1", "nodevice-1"),
-        ("nodevice_nudge_step >= 2", "nodevice-2"),
-        ("unpaid_nudge_step >= 1", "unpaid-1"),
-        ("unpaid_nudge_step >= 2", "unpaid-2"),
-        ("trial_nudge_sent_at IS NOT NULL", "trial-1"),
-        ("invite_nudge_sent_at IS NOT NULL", "invite-1"),
-        ("info_nudge_sent_at IS NOT NULL", "info-1"),
-        ("device_nudge_at IS NOT NULL", "device-1"),
-        ("first_online_nudge_at IS NOT NULL", "quality-1"),
-    ]
-    for days in (7, 10, 15, 20, 45):
-        for segment in ("setup", "topup", "return"):
-            pairs.append((f"idle_nudge_step >= {int(days)}", f"idle-{segment}-{days}"))
-    pool = _pool_req()
-    for where, step_id in pairs:
-        await pool.execute(
-            f"""INSERT INTO funnel_step_sends (telegram_id, step_id)
-                SELECT telegram_id, $1 FROM users WHERE {where}
-                ON CONFLICT DO NOTHING""",
-            step_id,
-        )
+    return without_retired_branches(await default_graph())
 
 
 async def _gate(condition: str) -> bool:

@@ -21,9 +21,7 @@ class EditorTest(unittest.IsolatedAsyncioTestCase):
     def test_custom_buttons_roundtrip_and_unsafe_urls(self):
         buttons=[{'action':'topup','text':'Продлить VPN'}, {'action':'url','text':'Новости','url':'https://example.org/news'}]
         value=graph(buttons)
-        value['main_menu']={'text':'Привет, {name}! Баланс {balance}', 'buttons':buttons}
-        expected={**value, 'main_menu':{'buttons':buttons}}  # menu text is fixed in code, saved text is dropped
-        self.assertEqual(board.validate(value),expected)
+        self.assertEqual(board.validate(value),value)
         with patch('app.config.get_settings',return_value=self.settings()):
             kb=board.markup(buttons,123)
         self.assertEqual(kb.inline_keyboard[0][0].text,'Продлить VPN')
@@ -44,61 +42,6 @@ class EditorTest(unittest.IsolatedAsyncioTestCase):
         with patch('app.config.get_settings',return_value=self.settings()):
             icon=board.markup(emoji,123)
         self.assertEqual(icon.inline_keyboard[0][0].icon_custom_emoji_id,'5368324170671202286')
-        from app.funnel_test import test_keyboard
-        tested=test_keyboard(icon)
-        self.assertEqual(tested.inline_keyboard[0][0].icon_custom_emoji_id,'5368324170671202286')
-        self.assertEqual(tested.inline_keyboard[0][0].callback_data,'funnel_test:click')
-
-    async def test_draft_branch_test_no_save_or_account_effects(self):
-        bot=SimpleNamespace(send_message=AsyncMock())
-        request=SimpleNamespace(method='POST',json=AsyncMock(return_value={'telegram_id':123,'scenario':'start','graph':graph()}),app={'bot':bot})
-        with patch.object(admin,'_need_auth',return_value=None),patch.object(admin,'get_settings',return_value=SimpleNamespace(admin_id_set={123})),patch('app.config.get_settings',return_value=self.settings()),patch.object(board,'save',AsyncMock()) as save:
-            response=await admin.api_funnel_test(request)
-        self.assertEqual(json.loads(response.body)['sent'],1)
-        save.assert_not_awaited()
-        args=bot.send_message.call_args
-        self.assertEqual(args.args[0],123)
-        self.assertIn('<tg-emoji emoji-id="123">⭐</tg-emoji>',args.args[1])
-        self.assertNotIn('{name}',args.args[1])
-        for row in args.kwargs['reply_markup'].inline_keyboard:
-            for button in row:
-                self.assertEqual(button.callback_data,'funnel_test:click')
-                self.assertIsNone(button.url)
-                self.assertIsNone(button.web_app)
-
-    async def test_main_menu_preview_preserves_two_column_row(self):
-        value=graph()
-        value['main_menu']={'text':'Menu', 'buttons':['cabinet',{'action':'channel','text':'Channel'},'invite','about']}
-        bot=SimpleNamespace(send_message=AsyncMock())
-        request=SimpleNamespace(method='POST',json=AsyncMock(return_value={'telegram_id':123,'scenario':'main-menu','graph':value}),app={'bot':bot})
-        with patch.object(admin,'_need_auth',return_value=None),patch.object(admin,'get_settings',return_value=SimpleNamespace(admin_id_set={123})),patch('app.config.get_settings',return_value=self.settings()):
-            response=await admin.api_funnel_test(request)
-        self.assertEqual(json.loads(response.body)['sent'],1)
-        # The news channel button shows whenever a channel URL is set, even with mandatory subscription off.
-        keyboard=bot.send_message.call_args.kwargs['reply_markup'].inline_keyboard
-        self.assertEqual([len(row) for row in keyboard],[1,1,2])
-        self.assertEqual(keyboard[1][0].text,'Channel')
-
-    async def test_menu_content_and_preserve(self):
-        value=graph();value['main_menu']={'text':'Привет, {name}! {balance}', 'buttons':[{'action':'about','text':'Кто мы'}]}
-        with patch.object(board,'load',AsyncMock(return_value=value)),patch('app.config.get_settings',return_value=self.settings()):
-            text,kb=await board.menu_content('<Имя>',200,123)
-        self.assertIn('&lt;Имя&gt;',text)
-        self.assertIn('200',text)
-        self.assertEqual(kb.inline_keyboard[0][0].callback_data,'about_service')
-        message=SimpleNamespace(answer=AsyncMock())
-        await answer_funnel(message,text,reply_markup=kb,preserve=True)
-        self.assertEqual(message.answer.call_args.args[0],text)
-        self.assertEqual(message.answer.call_args.kwargs['reply_markup'],kb)
-        self.assertNotIn('preserve',message.answer.call_args.kwargs)
-
-    async def test_emoji_set_only_custom(self):
-        bot=SimpleNamespace(get_sticker_set=AsyncMock(return_value=SimpleNamespace(sticker_type='custom_emoji',title='Stars',stickers=[SimpleNamespace(custom_emoji_id='123',emoji='⭐',thumbnail=None)])))
-        request=SimpleNamespace(query={'set':'https://t.me/addemoji/Stars'},app={'bot':bot})
-        with patch.object(admin,'_need_auth',return_value=None):
-            response=await admin.api_funnel_emojis(request)
-        self.assertEqual(json.loads(response.body)['items'][0]['id'],'123')
-        bot.get_sticker_set.assert_awaited_once_with(name='Stars')
 
     async def test_real_delivery_keeps_configured_buttons_and_emoji(self):
         from app import db, nudge
