@@ -220,6 +220,12 @@
       stores: { ios: "https://apps.apple.com/app/id6504287215", macos: "https://apps.apple.com/app/id6504287215", appletv: "https://apps.apple.com/app/id6504287215",
         android: "https://play.google.com/store/apps/details?id=com.happproxy", androidtv: "https://play.google.com/store/apps/details?id=com.happproxy",
         windows: "https://github.com/Happ-proxy/happ-desktop/releases" } },
+    { id: "rabbithole", name: "RabbitHole", mark: "RH", icon: "", deep_link: "rabbithole://add/{url}", platforms: ["ios", "macos", "appletv"],
+      stores: { ios: "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629", macos: "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629",
+        appletv: "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629" } },
+    { id: "karing", name: "Karing", mark: "KA", icon: "", deep_link: "karing://install-config?url={enc}", platforms: ["ios", "macos", "appletv", "android", "androidtv", "windows"],
+      stores: { ios: "https://apps.apple.com/app/id6472431552", appletv: "https://apps.apple.com/app/id6472431552", macos: "https://github.com/KaringX/karing/releases/latest",
+        android: "https://github.com/KaringX/karing/releases/latest", androidtv: "https://github.com/KaringX/karing/releases/latest", windows: "https://github.com/KaringX/karing/releases/latest" } },
     { id: "v2rayng", name: "v2rayNG", icon: "/icons/v2rayng.png", deep_link: "v2rayng://install-sub?url={enc}", platforms: ["android", "androidtv"],
       stores: { android: "https://play.google.com/store/apps/details?id=com.v2ray.ang", androidtv: "https://play.google.com/store/apps/details?id=com.v2ray.ang" } },
     { id: "v2rayn", name: "v2rayN", icon: "/icons/v2rayn.png", deep_link: "", platforms: ["windows"], stores: { windows: "https://github.com/2dust/v2rayN/releases" } },
@@ -236,7 +242,14 @@
   }
   const devApp = (d) => appById(prefApp(d.platform, d.client));
   const platTitle = (id) => (PLATFORMS.find((p) => p.id === id) || { title: "Устройство" }).title;
-  const storeName = (p) => (["ios", "macos", "appletv"].includes(p) ? "App Store" : ["android", "androidtv"].includes(p) ? "Google Play" : "интернете");
+  // Where the download link really leads: Karing on Android ships from GitHub, not Google Play.
+  const storeName = (p, a) => {
+    const url = String((((a || {}).stores) || {})[p] || "");
+    if (url.includes("apps.apple.com")) return "App Store";
+    if (url.includes("play.google.com")) return "Google Play";
+    if (url.includes("github.com")) return "GitHub";
+    return ["ios", "macos", "appletv"].includes(p) ? "App Store" : ["android", "androidtv"].includes(p) ? "Google Play" : "интернете";
+  };
   function detectPlatform() {
     const ua = navigator.userAgent || "";
     if (/Android/i.test(ua)) return "android";
@@ -851,7 +864,7 @@
           pill: "Написать в поддержку", pa: 'data-act="support"' });
       }
       const dl = (a.stores || {})[wiz.platform];
-      return hc("teal", { ill: appIcon(a, 92), h: `Установите ${esc(a.name)}`, p: `Бесплатно в ${storeName(wiz.platform)}. Уже стоит — жмите ✓`,
+      return hc("teal", { ill: appIcon(a, 92), h: `Установите ${esc(a.name)}`, p: `Бесплатно в ${storeName(wiz.platform, a)}. Уже стоит — жмите ✓`,
         x: '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>',
         pill: dl ? "Скачать" : "Готово, установлено", pa: dl ? 'data-act="store"' : 'data-act="create"', r: "chk", rl: "Приложение установлено", ra: 'data-act="create" id="wizOk"' }) +
         guideRow(a) + appMore(list, a) +

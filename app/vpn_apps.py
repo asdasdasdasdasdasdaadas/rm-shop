@@ -65,12 +65,31 @@ DEFAULT_VPN_APPS: list[dict[str, Any]] = [
         "name": "RabbitHole",
         "mark": "RH",
         "icon": "",
+        # rabbit-hole-1.gitbook.io/rabbit-hole-docs/for-devs/deep-links-and-user-flow: the URL goes after the prefix as is.
         "deep_link": "rabbithole://add/{url}",
         "platforms": ["ios", "macos", "appletv"],
         "stores": {
-            "ios": "https://apps.apple.com/app/id6683309629",
-            "macos": "https://apps.apple.com/app/id6683309629",
-            "appletv": "https://apps.apple.com/app/id6683309629",
+            "ios": "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629",
+            "macos": "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629",
+            "appletv": "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629",
+        },
+    },
+    {
+        "id": "karing",
+        "name": "Karing",
+        "mark": "KA",
+        "icon": "",
+        # Karing's own scheme takes the subscription URL percent-encoded (karing.app/en/provider-faq).
+        "deep_link": "karing://install-config?url={enc}",
+        "platforms": ["ios", "macos", "appletv", "android", "androidtv", "windows"],
+        # Official sources are only the App Store and GitHub releases; Karing is not on Google Play.
+        "stores": {
+            "ios": "https://apps.apple.com/app/id6472431552",
+            "appletv": "https://apps.apple.com/app/id6472431552",
+            "macos": "https://github.com/KaringX/karing/releases/latest",
+            "android": "https://github.com/KaringX/karing/releases/latest",
+            "androidtv": "https://github.com/KaringX/karing/releases/latest",
+            "windows": "https://github.com/KaringX/karing/releases/latest",
         },
     },
     {
