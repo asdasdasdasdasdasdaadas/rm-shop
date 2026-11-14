@@ -82,11 +82,12 @@ DEFAULT_VPN_APPS: list[dict[str, Any]] = [
         # Karing's own scheme takes the subscription URL percent-encoded (karing.app/en/provider-faq).
         "deep_link": "karing://install-config?url={enc}",
         "platforms": ["ios", "macos", "appletv", "android", "androidtv", "windows"],
-        # Official sources are only the App Store and GitHub releases; Karing is not on Google Play.
+        # karing.pro/faq/karing-download: one App Store listing for iPhone, Mac and Apple TV; Android and
+        # Windows only from GitHub releases. Not on Google Play (checked 2026-11-15).
         "stores": {
             "ios": "https://apps.apple.com/app/id6472431552",
             "appletv": "https://apps.apple.com/app/id6472431552",
-            "macos": "https://github.com/KaringX/karing/releases/latest",
+            "macos": "https://apps.apple.com/app/id6472431552",
             "android": "https://github.com/KaringX/karing/releases/latest",
             "androidtv": "https://github.com/KaringX/karing/releases/latest",
             "windows": "https://github.com/KaringX/karing/releases/latest",

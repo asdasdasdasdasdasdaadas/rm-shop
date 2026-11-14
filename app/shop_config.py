@@ -250,7 +250,12 @@ async def load_shop_overlay() -> None:
         seen = data.get("vpn_apps_seen")
         if isinstance(seen, list):
             data["vpn_apps_seen"] = [x for x in seen if x not in ("karing", "rabbithole")]
-            await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
+        # Karing on Mac comes from the App Store now, not GitHub.
+        for app in data.get("vpn_apps") or []:
+            stores = app.get("stores") if isinstance(app, dict) and app.get("id") == "karing" else None
+            if isinstance(stores, dict) and "github.com/KaringX" in str(stores.get("macos") or ""):
+                stores["macos"] = "https://apps.apple.com/app/id6472431552"
+        await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
         await db.set_kv("vpn_apps_restored_v1", "1")
     set_shop_overlay(data)
     await db.migrate_legacy_promo_codes()

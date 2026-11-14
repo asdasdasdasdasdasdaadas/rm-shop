@@ -224,7 +224,7 @@
       stores: { ios: "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629", macos: "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629",
         appletv: "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629" } },
     { id: "karing", name: "Karing", mark: "KA", icon: "/icons/karing.png", deep_link: "karing://install-config?url={enc}", platforms: ["ios", "macos", "appletv", "android", "androidtv", "windows"],
-      stores: { ios: "https://apps.apple.com/app/id6472431552", appletv: "https://apps.apple.com/app/id6472431552", macos: "https://github.com/KaringX/karing/releases/latest",
+      stores: { ios: "https://apps.apple.com/app/id6472431552", appletv: "https://apps.apple.com/app/id6472431552", macos: "https://apps.apple.com/app/id6472431552",
         android: "https://github.com/KaringX/karing/releases/latest", androidtv: "https://github.com/KaringX/karing/releases/latest", windows: "https://github.com/KaringX/karing/releases/latest" } },
     { id: "v2rayng", name: "v2rayNG", icon: "/icons/v2rayng.png", deep_link: "v2rayng://install-sub?url={enc}", platforms: ["android", "androidtv"],
       stores: { android: "https://play.google.com/store/apps/details?id=com.v2ray.ang", androidtv: "https://play.google.com/store/apps/details?id=com.v2ray.ang" } },
