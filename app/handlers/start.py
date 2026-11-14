@@ -167,7 +167,8 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
     await _maybe_live_invite(row)
     gift_code = friend_gifts.code_from_start(command.args)
     if gift_code:
-        # A friend's gift link: show whose gift it is first, then the usual start.
+        # A gift link: the gift card is the answer. Newcomers still get the welcome and the channel step,
+        # but nobody gets the profile on top of the card.
         await friend_gifts.send_gift_card(message, gift_code)
     in_channel = await is_channel_member(message.bot, message.from_user.id)
     if await db.claim_welcome_intro(message.from_user.id):
@@ -182,6 +183,8 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
             welcome_text(), reply_markup=channel_keyboard(), link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
         await db.mark_legal_notice(message.from_user.id)
+        return
+    if gift_code:
         return
     await show_profile(message, rw)
 

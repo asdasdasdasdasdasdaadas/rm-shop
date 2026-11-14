@@ -48,6 +48,13 @@ class OnboardingTest(unittest.IsolatedAsyncioTestCase):
         self.profile.assert_awaited_once()
         self.db.accept_legal_after_notice.assert_not_awaited()
 
+    async def test_gift_link_answers_with_the_card_only(self):
+        self.db.claim_welcome_intro.return_value = False
+        with patch.object(start.friend_gifts, 'send_gift_card', new_callable=AsyncMock) as card:
+            await start.cmd_start(self.event, None, SimpleNamespace(args='present_Abcd1234'))
+        card.assert_awaited_once_with(self.event, 'Abcd1234')
+        self.profile.assert_not_awaited()
+
     def callback(self):
         cb = AsyncMock(spec=CallbackQuery)
         cb.from_user = self.event.from_user
