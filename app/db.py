@@ -1866,7 +1866,20 @@ async def spend_balance_rub(telegram_id: int, amount: int) -> bool:
     return row is not None
 
 
-async def take_device_charges(telegram_id: int, price: int, count: int, *, balances: list[int] | None = None) -> int:
+_MARK_PAID_DAY = """
+    UPDATE devices d
+    SET last_billed_on = (timezone('utc', now()))::date, last_billed_at = timezone('utc', now())
+    FROM (SELECT id, last_billed_at, last_billed_on FROM devices WHERE id = ANY($1::bigint[]) FOR UPDATE) old
+    WHERE d.id = old.id
+    RETURNING d.id, old.last_billed_at AS prev_at, old.last_billed_on AS prev_on
+"""
+
+
+async def take_device_charges(telegram_id: int, price: int, count: int, *, balances: list[int] | None = None,
+                              device_ids: list[int] | None = None, previous: dict | None = None) -> int:
+    """Take a day's price for up to `count` devices. With `device_ids`, the devices paid for (the first ones)
+    are marked billed in the same transaction: a restart between the charge and the panel can't charge twice.
+    `previous` gets each marked device's old billing time, to put back if the panel refuses."""
     n = max(0, int(count))
     unit = max(0, int(price))
     if n < 1:
@@ -1895,9 +1908,35 @@ async def take_device_charges(telegram_id: int, price: int, count: int, *, balan
                 telegram_id,
                 paid * unit,
             )
+            if device_ids:
+                for marked in await conn.fetch(_MARK_PAID_DAY, [int(x) for x in device_ids[:paid]]):
+                    if previous is not None:
+                        previous[int(marked["id"])] = (marked["prev_at"], marked["prev_on"])
             if balances is not None:
                 balances.extend(int(row["bal"]) - unit * (i + 1) for i in range(paid))
             return paid
+
+
+async def charge_device_day(telegram_id: int, device_id: int, price: int) -> tuple | None:
+    """Take a day's price for one device and mark it billed in one transaction.
+    Returns the device's old billing time (to put back if the panel refuses), or None without enough money."""
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            spent = await conn.fetchval(
+                """UPDATE users SET balance_rub = balance_rub - $2
+                   WHERE telegram_id = $1 AND COALESCE(balance_rub, 0) >= $2 RETURNING telegram_id""",
+                telegram_id, int(price))
+            if not spent:
+                return None
+            marked = await conn.fetchrow(_MARK_PAID_DAY, [int(device_id)])
+            return (marked["prev_at"], marked["prev_on"]) if marked else (None, None)
+
+
+async def restore_device_billed(device_id: int, previous: tuple | None) -> None:
+    """The panel did not extend a device that was charged: its day counts as unpaid again."""
+    prev_at, prev_on = previous or (None, None)
+    await _pool_req().execute(
+        "UPDATE devices SET last_billed_at = $2, last_billed_on = $3 WHERE id = $1", int(device_id), prev_at, prev_on)
 
 
 async def spend_balance_day(telegram_id: int) -> bool:
@@ -2800,8 +2839,11 @@ def _pay_soon_sql(select: str) -> str:
 
 
 def _pay_soon_person(row, price: int) -> dict:
-    item = _jsonable(dict(row))
-    devices = int(item.get("devices") or 0)
+    row = dict(row)
+    # «devices» here is a count; _jsonable treats that key as a device list, so take the number first.
+    devices = int(row.get("devices") or 0)
+    item = _jsonable(row)
+    item["devices"] = devices
     balance = int(item.get("balance_rub") or 0)
     item["days_left"] = round(balance / (price * devices), 1) if devices else None
     reasons = []

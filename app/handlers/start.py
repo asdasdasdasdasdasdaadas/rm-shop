@@ -72,7 +72,6 @@ def _parse_ad(payload: str | None) -> str | None:
 async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> None:
     message = target.message if isinstance(target, CallbackQuery) else target
     from_user = target.from_user
-    settings = get_settings()
     panel = None
     local = None
     if from_user:
@@ -399,6 +398,3 @@ async def ton_pay_button(callback: CallbackQuery) -> None:
     await ack(callback)
 
 
-@router.callback_query(F.data == "funnel_test:click")
-async def funnel_test_click(callback: CallbackQuery) -> None:
-    await ack(callback, "Тестовая кнопка. Действия с аккаунтом не выполняются.", alert=True)

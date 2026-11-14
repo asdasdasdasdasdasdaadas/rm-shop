@@ -37,12 +37,10 @@ from app.keyboards import (
     cabinet_keyboard,
     payment_nudge_keyboard,
     onboarding_keyboard,
-    help_connect_keyboard,
     legal_keyboard,
     share_keyboard,
     with_referral_share,
     story_nudge_keyboard,
-    trial_nudge_keyboard,
 )
 from app.maintenance import clear_photo, has_photo, photo_path, save_photo
 from app.notices import notice_text
@@ -58,7 +56,7 @@ from app.remnawave import (
     panel_used_traffic_bytes,
     panel_user_agent,
 )
-from app.texts import rub_text, subscription_reissued_text
+from app.texts import rub_text
 from app.tg_err import fail_extra, telegram_fail_reason
 
 logger = logging.getLogger("rm-shop.admin")

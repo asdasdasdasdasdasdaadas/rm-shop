@@ -19,7 +19,8 @@ class TopupActivationTest(unittest.IsolatedAsyncioTestCase):
         lock = asyncio.Lock()
         credit = AsyncMock(return_value=dict(payment_key='order:test',telegram_id=123,router_days=0,amount=100,first_payment=False,referral_enabled=True,invitee_bonus=0))
         refund = AsyncMock()
-        spend = AsyncMock(return_value=True)
+        spend = AsyncMock(return_value=(None, None))
+        restore = AsyncMock()
         with ExitStack() as stack:
             for module in (billing, balance):
                 stack.enter_context(patch.object(module, 'get_settings', return_value=settings))
@@ -31,22 +32,25 @@ class TopupActivationTest(unittest.IsolatedAsyncioTestCase):
                 stack.enter_context(patch.object(db, name, AsyncMock(return_value=value)))
             stack.enter_context(patch.object(db, 'credit_payment_once', credit))
             stack.enter_context(patch.object(db, 'add_balance_rub', refund))
-            stack.enter_context(patch.object(db, 'spend_balance_rub', spend))
+            stack.enter_context(patch.object(db, 'charge_device_day', spend))
+            stack.enter_context(patch.object(db, 'restore_device_billed', restore))
             stack.enter_context(patch.object(live, 'paid'))
             stack.enter_context(patch.object(referrals, 'maybe_reward_referrer', AsyncMock()))
             stack.enter_context(patch.object(referrals, 'maybe_reward_invitee', AsyncMock()))
             async def debit(*args):
                 self.assertTrue(lock.locked())
                 credit.assert_awaited_once_with(123, 'topup', 'order:test', 100, 0, 0)
-                return True
+                return (None, None)
             spend.side_effect = debit
             await billing.grant_plan(123, 'topup', rw, payment_key='order:test')
+        self.restore = restore
         return rw, credit, spend, refund
 
     async def test_disabled_device_activated_before_payment_returns(self):
         rw, credit, spend, refund = await self.scenario()
         rw.extend_panel_user.assert_awaited_once()
-        spend.assert_awaited_once_with(123, 6)
+        spend.assert_awaited_once_with(123, 9, 6)
+        self.restore.assert_not_awaited()
 
     async def test_already_paid_day_is_not_charged_again(self):
         rw, credit, spend, refund = await self.scenario(already_paid=True)
@@ -66,4 +70,6 @@ class TopupActivationTest(unittest.IsolatedAsyncioTestCase):
         rw, credit, spend, refund = await self.scenario(panel_error=RemnawaveError('panel unavailable'))
         credit.assert_awaited_once()
         refund.assert_awaited_once_with(123, 6)
-        spend.assert_awaited_once_with(123, 6)
+        spend.assert_awaited_once_with(123, 9, 6)
+        # The day counts as unpaid again, so the next run tries once more.
+        self.restore.assert_awaited_once_with(9, (None, None))

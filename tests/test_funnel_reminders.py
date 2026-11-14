@@ -91,9 +91,11 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
         with patch.object(db, 'nudge_delivery_allowed', AsyncMock(return_value=True)), \
              patch.object(nudge, 'get_settings', return_value=settings), \
              patch.object(db, 'flag_on', AsyncMock(return_value=False)), \
-             patch.object(db, 'list_due_trial_end_nudges', AsyncMock(return_value=[{'telegram_id':1,'balance_rub':6,'device_count':2}])), \
+             patch.object(db, 'rearm_balance_warnings', AsyncMock()), \
+             patch.object(db, 'list_due_trial_end_nudges', AsyncMock(return_value=[{'telegram_id':1,'balance_rub':6,'device_count':2,'paid':True}])), \
              patch.object(db, 'claim_balance_ending_notice', AsyncMock(return_value=True)), \
              patch.object(nudge, 'notice_text', return_value='message') as text, \
+             patch('app.trust.promise_available', AsyncMock(return_value=False)), \
              patch.object(nudge, '_deliver', AsyncMock(return_value=True)) as deliver:
             self.assertEqual(await nudge.send_due_trial_end_nudges(SimpleNamespace()), (1,[1]))
             text.assert_called_once_with('balance_ending_nudge')

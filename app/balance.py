@@ -152,7 +152,8 @@ async def _bill_due_device(
                 note="Панель не продлила устройство при паузе",
             )
             return "error"
-    if await db.spend_balance_rub(tg_id, price):
+    previous = await db.charge_device_day(tg_id, device_id, price)
+    if previous is not None:
         try:
             await rw.extend_panel_user(panel_id, PANEL_LEASE_DAYS)
             await db.mark_devices_billed([device_id], status="ACTIVE", expire_at=_lease_until())
@@ -168,6 +169,7 @@ async def _bill_due_device(
             return "extended"
         except RemnawaveError:
             await db.add_balance_rub(tg_id, price)
+            await db.restore_device_billed(device_id, previous)
             logger.exception("Не удалось продлить устройство %s", item["id"])
             await db.log_billing_event(
                 tg_id,
@@ -238,10 +240,13 @@ async def _decide_user_devices(devices: list[dict], price: int, paused: bool) ->
     if paused:
         return list(devices), []
     balances: list[int] = []
-    paid = await db.take_device_charges(int(devices[0]["telegram_id"]), price, len(devices), balances=balances)
+    previous: dict = {}
+    paid = await db.take_device_charges(int(devices[0]["telegram_id"]), price, len(devices), balances=balances,
+                                        device_ids=[int(item["id"]) for item in devices], previous=previous)
     devices = [dict(item) for item in devices]
     for item, after in zip(devices[:paid], balances):
         item["charge_balance_after"] = after
+        item["prev_billed"] = previous.get(int(item["id"]))
     return devices[:paid], devices[paid:]
 
 
@@ -272,6 +277,7 @@ async def _extend_already_charged(
     except RemnawaveError:
         if not paused:
             await db.add_balance_rub(tg_id, price)
+            await db.restore_device_billed(device_id, item.get("prev_billed"))
         logger.exception("Не удалось продлить устройство %s", device_id)
         await db.log_billing_event(
             tg_id,

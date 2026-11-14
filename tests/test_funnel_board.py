@@ -58,8 +58,11 @@ class RecoveryNavigationTest(unittest.TestCase):
                     buttons=markup(step['buttons'],1).inline_keyboard
                     self.assertEqual(buttons[0][0].text, ACTION_LABELS.get(shown[0]['action'], 'Личный кабинет'))
                     self.assertEqual(buttons[0][0].style,'success')
-                    self.assertEqual(buttons[1][0].callback_data,'profile')
-                    self.assertIsNone(buttons[1][0].style)
+                    # only the action button is green; «Меню» opens the profile wherever a step has it
+                    for row in buttons[1:]:
+                        self.assertIsNone(row[0].style)
+                    if 'menu' in shown:
+                        self.assertIn('profile', [row[0].callback_data for row in buttons[1:]])
             self.assertIn('screen=gift',markup(graph['branches'][0]['steps'][0]['buttons'],1).inline_keyboard[0][0].web_app.url)
 
 class FunnelOffersTest(unittest.TestCase):

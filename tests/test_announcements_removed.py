@@ -17,7 +17,7 @@ class AnnouncementsRemovedTest(unittest.TestCase):
             self.assertNotIn('/api/announcements', source)
             self.assertNotIn('app.announcements', source)
         self.assertNotIn('latest_update_announcement', (ROOT / 'app/web.py').read_text())
-        for filename in ('webapp/app.js', 'webapp/index.html'):
+        for filename in ('webapp/cab.js', 'webapp/index.html'):
             source = (ROOT / filename).read_text()
             self.assertNotIn('updateNotice', source)
             self.assertNotIn('view-article', source)

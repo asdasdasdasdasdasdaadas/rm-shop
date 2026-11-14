@@ -160,7 +160,7 @@ async def maybe_reward_menu(bot: Bot | None, telegram_id: int) -> int:
         try:
             await send_funnel_message(
                 bot, result["referrer_id"],
-                f"👋 {name} пришёл по вашей ссылке. Как только он подключит VPN, вам начислим <b>{amount}</b>.",
+                f"👋 {name} — по вашей ссылке. Как только VPN будет подключён, вам начислим <b>{amount}</b>.",
                 reply_markup=with_referral_share(result["referrer_id"], cabinet_keyboard()))
         except Exception:
             pass
@@ -179,7 +179,7 @@ async def reward_connected_friends(bot: Bot | None) -> int:
         name = escape(item.get("friend_name") or "Друг")
         try:
             await _send_reward(bot, item["referrer_id"],
-                               f"🎁 {name} подключил VPN по вашей ссылке. Вам начислено <b>{item['amount']} ₽</b>!",
+                               f"🎁 {name} — VPN подключён по вашей ссылке. Вам начислено <b>{item['amount']} ₽</b>!",
                                amount=int(item["amount"]), friend={"n": raw_name, "k": "connect"})
         except Exception:
             pass

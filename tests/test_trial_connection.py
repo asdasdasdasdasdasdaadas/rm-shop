@@ -48,7 +48,8 @@ class TrialConnectionTest(unittest.IsolatedAsyncioTestCase):
              patch.object(db,'get_user',AsyncMock(return_value={'trial_waiting_connection':True})), \
              patch.object(db,'spend_balance_rub',AsyncMock()) as spend, \
              patch.object(db,'add_balance_rub',AsyncMock()) as refund, \
-             patch.object(db,'add_device',AsyncMock()), \
+             patch.object(db,'list_devices',AsyncMock(return_value=[])), \
+             patch.object(db,'add_device',AsyncMock(return_value={'id':1})), \
              patch.object(db,'save_device_subscription',AsyncMock()), \
              patch.object(db,'mark_first_device_thanks_pending',AsyncMock()):
             response=await web._api_add_device_locked(request)

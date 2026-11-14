@@ -82,7 +82,7 @@ class ReferralRuleTest(unittest.IsolatedAsyncioTestCase):
         reward.assert_awaited_once()
         self.assertEqual(reward.await_args.args[1], 20)  # the money card goes to the friend only
         self.assertEqual(plain.await_args.args[1], 10)
-        self.assertIn("Как только он подключит VPN, вам начислим <b>50 ₽</b>", plain.await_args.args[2])
+        self.assertIn("Как только VPN будет подключён, вам начислим <b>50 ₽</b>", plain.await_args.args[2])
 
     async def test_connect_pays_inviter(self):
         rows = [{"referrer_id": 10, "invitee_id": 20, "amount": 50, "friend_name": "Оля"}]
@@ -94,7 +94,7 @@ class ReferralRuleTest(unittest.IsolatedAsyncioTestCase):
         claim.assert_awaited_once_with(50)
         args, kwargs = reward.await_args
         self.assertEqual(args[1], 10)
-        self.assertIn("подключил VPN по вашей ссылке", args[2])
+        self.assertIn("VPN подключён по вашей ссылке", args[2])
         self.assertEqual(kwargs["friend"], {"n": "Оля", "k": "connect"})
 
     async def test_paused_program_pays_nobody(self):

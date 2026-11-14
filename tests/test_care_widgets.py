@@ -102,7 +102,7 @@ class NewKeyTest(unittest.IsolatedAsyncioTestCase):
 
 
 class ReferralRewardTest(unittest.IsolatedAsyncioTestCase):
-    async def test_inviter_sees_the_friend_and_the_friend_gets_a_credit_card(self):
+    async def test_friend_gets_a_credit_card_and_the_inviter_hears_the_bonus_waits_for_connect(self):
         result = {'referrer_id': 10, 'invitee_id': 20, 'amount': 50, 'friend_name': 'Аня'}
         friends, credit = AsyncMock(), AsyncMock()
         with patch.object(referrals, 'get_settings', return_value=settings()), \
@@ -114,10 +114,12 @@ class ReferralRewardTest(unittest.IsolatedAsyncioTestCase):
                 patch.object(more, 'send_admin_credit_widget', credit), \
                 patch.object(referrals, 'send_funnel_message', AsyncMock()) as text:
             self.assertEqual(await referrals.maybe_reward_menu(SimpleNamespace(), 20), 50)
-        self.assertEqual(friends.await_args.args[1], 10)
-        self.assertEqual(friends.await_args.kwargs['reward'], {'a': 50, 'n': 'Аня', 'k': 'menu'})
         self.assertEqual((credit.await_args.args[1], credit.await_args.args[2], credit.await_args.kwargs['source']), (20, 50, 'ref'))
-        text.assert_not_awaited()
+        # the inviter is paid only once the friend connects VPN, so no «+50 ₽» card yet — just a note
+        friends.assert_not_awaited()
+        self.assertEqual(text.await_args.args[1], 10)
+        self.assertIn('Аня', text.await_args.args[2])
+        self.assertIn('подключ', text.await_args.args[2])
 
     async def test_credit_card_says_by_invitation(self):
         self.assertIn("ref:'по приглашению'", more.RECEIPT_HTML)

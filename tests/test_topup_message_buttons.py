@@ -19,9 +19,9 @@ class TopupMessageButtonsTest(unittest.IsolatedAsyncioTestCase):
         self.stack.enter_context(patch.object(db, "claim_low_balance_notice", AsyncMock(return_value=True)))
         self.bot = SimpleNamespace(send_message=AsyncMock())
 
-    def assert_topup(self, markup):
+    def assert_topup(self, markup, label='Личный кабинет'):
         button = markup.inline_keyboard[0][0]
-        self.assertEqual(button.text, 'Личный кабинет')
+        self.assertEqual(button.text, label)
         self.assertIsNone(button.url)
         self.assertIsNone(button.callback_data)
         self.assertEqual(parse_qs(urlsplit(button.web_app.url).query), {'theme':['green'], 'screen':['topup']})
@@ -29,8 +29,12 @@ class TopupMessageButtonsTest(unittest.IsolatedAsyncioTestCase):
     async def test_empty_balance_notification_has_own_topup_button(self):
         self.stack.enter_context(patch.object(db, 'claim_low_balance_notice', AsyncMock(return_value=True)))
         self.stack.enter_context(patch.object(balance, 'send_cabinet_link_to', AsyncMock()))
+        self.bot.send_photo = AsyncMock()
+        # the live widget is skipped here; the message falls back to the banner photo, or to text without one
+        self.stack.enter_context(patch('app.widgets.send_balance_widget', AsyncMock(side_effect=RuntimeError)))
         await balance._notify_empty(self.bot,1,6,set())
-        self.assert_topup(self.bot.send_message.call_args.kwargs['reply_markup'])
+        sent = self.bot.send_photo if self.bot.send_photo.await_count else self.bot.send_message
+        self.assert_topup(sent.call_args.kwargs['reply_markup'], 'Пополнить баланс')
 
     async def test_admin_resends_preserve_topup_action(self):
         self.stack.enter_context(patch.object(admin, 'get_settings'))
