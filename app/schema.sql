@@ -508,6 +508,8 @@ ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
 ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS method TEXT;
 ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS fail_notice_at TIMESTAMPTZ;
 ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS checked_at TIMESTAMPTZ;
+-- What the invoice asked for, in kopecks: a paid notice for less is not credited.
+ALTER TABLE pay_orders ADD COLUMN IF NOT EXISTS amount_kop BIGINT;
 CREATE TABLE IF NOT EXISTS reminder_deliveries (
     token TEXT PRIMARY KEY,
     telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,

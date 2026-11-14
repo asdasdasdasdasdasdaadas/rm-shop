@@ -156,6 +156,49 @@ class WebhookTest(unittest.IsolatedAsyncioTestCase):
             fulfill.assert_not_awaited()
 
 
+class ShortPaymentTest(unittest.IsolatedAsyncioTestCase):
+    ORDER = {'order_id': 'o1', 'payment_id': 'cis:u1', 'status': 'created', 'telegram_id': 5, 'amount_kop': 30000}
+
+    def test_amount_rules(self):
+        order = self.ORDER
+        self.assertIsNone(cispay.amount_problem(order, {'amount': 30000, 'currency': 'RUB'}))
+        self.assertIsNone(cispay.amount_problem(order, {'amount': 30100, 'currency': 'RUB'}))
+        self.assertIn('299.00', cispay.amount_problem(order, {'amount': 29900, 'currency': 'RUB'}))
+        # Orders from before the amount was stored, and transactions without a ruble amount, go through.
+        self.assertIsNone(cispay.amount_problem(dict(order, amount_kop=None), {'amount': 1, 'currency': 'RUB'}))
+        self.assertIsNone(cispay.amount_problem(order, {'currency': 'RUB'}))
+        self.assertIsNone(cispay.amount_problem(order, {'amount': 350, 'currency': 'USD'}))
+
+    async def test_webhook_sets_a_short_payment_aside_and_tells_admins(self):
+        body, sig = signed({'id': 'u1', 'order_id': 'o1', 'status': 'PAID', 'amount': 100, 'currency': 'RUB'})
+        async def read():
+            return body
+        bot = AsyncMock()
+        req = SimpleNamespace(read=read, headers={'X-Signature': sig}, app={'rw': object(), 'bot': bot})
+        from app import billing
+        with patch.object(webapp, 'get_settings', return_value=settings()), \
+                patch.object(billing, 'get_settings', return_value=SimpleNamespace(admin_id_set={9})), \
+                patch.object(webapp.db, 'get_pay_order', AsyncMock(return_value=self.ORDER)), \
+                patch.object(billing.db, 'mark_order_mismatch', AsyncMock()) as mark, \
+                patch.object(webapp, 'fulfill_pay_order', AsyncMock()) as fulfill:
+            resp = await webapp.cispay_webhook(req)
+        self.assertEqual(resp.status, 200)
+        fulfill.assert_not_awaited()
+        mark.assert_awaited_once_with('o1')
+        self.assertEqual(bot.send_message.await_args.args[0], 9)
+        self.assertIn('1.00 ₽ вместо 300.00 ₽', bot.send_message.await_args.args[1])
+
+    async def test_reconcile_skips_a_short_payment(self):
+        from app import billing
+        rp = SimpleNamespace(get_payment=AsyncMock(return_value={'status': 'paid', 'amount': 100, 'currency': 'RUB'}))
+        with patch.object(billing.db, 'unpaid_cispay_orders', AsyncMock(return_value=[self.ORDER])), \
+                patch.object(billing.db, 'mark_order_mismatch', AsyncMock()) as mark, \
+                patch.object(billing, 'fulfill_pay_order', AsyncMock()) as fulfill:
+            self.assertEqual(await billing.reconcile_cispay_orders(rp, object(), None), 0)
+        fulfill.assert_not_awaited()
+        mark.assert_awaited_once_with('o1')
+
+
 class FailedPaymentTest(unittest.IsolatedAsyncioTestCase):
     ORDER = {'order_id': 'o1', 'payment_id': 'cis:u1', 'status': 'created', 'telegram_id': 5,
              'plan_code': 'b300', 'method': 'card'}

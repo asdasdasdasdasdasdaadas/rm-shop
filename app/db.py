@@ -2298,12 +2298,13 @@ async def save_pay_order(
     payment_id: str,
     pay_url: str,
     method: str | None = None,
+    amount_kop: int | None = None,
 ) -> None:
     # CISPay orders (ids «cis:…»); the table keeps its old name, older rows are the previous provider's. method — sbp / card / crypto.
     await _pool_req().execute(
         """
-        INSERT INTO pay_orders (order_id, telegram_id, plan_code, payment_id, pay_url, status, method)
-        VALUES ($1, $2, $3, $4, $5, 'created', $6)
+        INSERT INTO pay_orders (order_id, telegram_id, plan_code, payment_id, pay_url, status, method, amount_kop)
+        VALUES ($1, $2, $3, $4, $5, 'created', $6, $7)
         """,
         order_id,
         telegram_id,
@@ -2311,6 +2312,7 @@ async def save_pay_order(
         payment_id,
         pay_url,
         method,
+        amount_kop,
     )
     await track_checkout(telegram_id, payment_id, pay_url)
 
@@ -2374,7 +2376,7 @@ async def unpaid_cispay_orders(hours: int, limit: int) -> list[dict]:
     """CISPay invoices not credited yet, from the last `hours`: the ones checked longest ago come first."""
     rows = await _pool_req().fetch(
         """UPDATE pay_orders SET checked_at = NOW() WHERE order_id IN (
-               SELECT order_id FROM pay_orders WHERE payment_id LIKE 'cis:%' AND status NOT IN ('granted', 'expired')
+               SELECT order_id FROM pay_orders WHERE payment_id LIKE 'cis:%' AND status NOT IN ('granted', 'expired', 'mismatch')
                  AND created_at >= NOW() - make_interval(hours => $1)
                ORDER BY checked_at NULLS FIRST, created_at DESC LIMIT $2)
            RETURNING *""",
@@ -2385,6 +2387,11 @@ async def unpaid_cispay_orders(hours: int, limit: int) -> list[dict]:
 async def mark_order_expired(order_id: str) -> None:
     """The invoice can no longer be paid: stop asking the provider about it."""
     await _pool_req().execute("UPDATE pay_orders SET status = 'expired' WHERE order_id = $1 AND status <> 'granted'", order_id)
+
+
+async def mark_order_mismatch(order_id: str) -> None:
+    """Paid, but not the invoiced amount: never credit it automatically, an admin sorts it out."""
+    await _pool_req().execute("UPDATE pay_orders SET status = 'mismatch' WHERE order_id = $1 AND status <> 'granted'", order_id)
 
 
 async def claim_order_fail_notice(order_id: str) -> bool:

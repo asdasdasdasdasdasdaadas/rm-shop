@@ -14,6 +14,7 @@ from aiogram.types import FSInputFile, Message, InlineKeyboardMarkup, InlineKeyb
 from app import db
 from app.config import get_settings
 from app.ticket_files import (
+    MAX_BYTES,
     MAX_FILES,
     inspect,
     public_attachment,
@@ -331,7 +332,16 @@ async def parse_ticket_request(request: web.Request) -> tuple[str, str, list[dic
             name = field.name or ""
             if name in {"file", "files"}:
                 filename = field.filename or "file"
-                data = await field.read()
+                # Streamed parts are not capped by the app's body limit: stop reading a file past the per-file limit.
+                data = bytearray()
+                while chunk := await field.read_chunk():
+                    data.extend(chunk)
+                    if len(data) > MAX_BYTES:
+                        raise web.HTTPRequestEntityTooLarge(
+                            max_size=MAX_BYTES, actual_size=len(data), content_type="application/json",
+                            text=json.dumps({"ok": False, "error": f"Файл больше {MAX_BYTES // 1024 // 1024} МБ"},
+                                            ensure_ascii=False))
+                data = bytes(data)
                 if data:
                     files.append(
                         {

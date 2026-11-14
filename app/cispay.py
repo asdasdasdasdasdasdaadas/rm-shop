@@ -35,6 +35,28 @@ def payment_is_paid(payment: dict | None) -> bool:
     return status in {"paid", "succeeded"}
 
 
+def amount_problem(order: dict, payment: dict | None) -> str | None:
+    """Why a paid CISPay transaction must not credit this order, or None when it may.
+
+    CISPay reports `amount` in kopecks with `currency` RUB, as we asked. Orders made before the
+    amount was stored, and transactions that carry no RUB amount, are taken as they are."""
+    expected = (order or {}).get("amount_kop")
+    payment = payment or {}
+    if not expected or payment.get("amount") is None:
+        return None
+    currency = str(payment.get("currency") or "RUB").upper()
+    if currency != "RUB":
+        logger.warning("CISPay order %s paid in %s, amount not compared", order.get("order_id"), currency)
+        return None
+    try:
+        paid = int(payment["amount"])
+    except (TypeError, ValueError):
+        return f"непонятная сумма {payment.get('amount')!r}"
+    if paid < int(expected):
+        return f"оплачено {paid / 100:.2f} ₽ вместо {int(expected) / 100:.2f} ₽"
+    return None
+
+
 def resolve_payment_method(choice: str | None = None) -> str:
     """Our method id from the cabinet or a bot button; an empty choice means SBP."""
     raw = str(choice or "").strip().lower()

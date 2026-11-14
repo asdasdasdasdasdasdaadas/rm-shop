@@ -174,6 +174,25 @@ RECONCILE_HOURS = 72
 RECONCILE_BATCH = 40
 
 
+async def refuse_short_payment(order: dict, payment: dict | None, bot: Bot | None) -> bool:
+    """True when the paid amount is not the invoiced one: the order is set aside and admins are told."""
+    from app.cispay import amount_problem
+    problem = amount_problem(order, payment)
+    if not problem:
+        return False
+    logger.error("CISPay order %s not credited: %s", order.get("order_id"), problem)
+    await db.mark_order_mismatch(order["order_id"])
+    if bot is not None:
+        text = (f"⚠️ Оплата не зачислена: {problem}.\nСчёт {order.get('order_id')}, "
+                f"пользователь {order.get('telegram_id')}. Проверьте в кассе и зачислите вручную, если всё в порядке.")
+        for admin_id in sorted(get_settings().admin_id_set):
+            try:
+                await bot.send_message(admin_id, text)
+            except Exception:
+                logger.warning("Админ %s не получил сообщение о сумме оплаты", admin_id, exc_info=True)
+    return True
+
+
 async def reconcile_cispay_orders(rp, rw: RemnawaveClient, bot: Bot | None) -> int:
     """Ask CISPay about unpaid invoices of the last days and credit the paid ones.
 
@@ -192,6 +211,8 @@ async def reconcile_cispay_orders(rp, rw: RemnawaveClient, bot: Bot | None) -> i
         if not payment_is_paid(payment):
             if payment.get("status") == "expired":
                 await db.mark_order_expired(order["order_id"])
+            continue
+        if await refuse_short_payment(order, payment, bot):
             continue
         logger.warning("CISPay order %s is paid but was not credited: crediting now", order["order_id"])
         try:

@@ -34,7 +34,7 @@ from app.referrals import (
     trial_is_available,
 )
 from app.reports import ReportCooldown, submit_vpn_report
-from app.cispay import CISPayClient, CISPayError, payment_is_paid, resolve_payment_method
+from app.cispay import CISPayClient, CISPayError, kopecks, payment_is_paid, resolve_payment_method
 from app.notices import notice_text
 from app.texts import minutes_text, rub_text
 
@@ -224,7 +224,8 @@ async def _create_plan_invoice(
             )
             return
         await db.save_pay_order(
-            order_id, callback.from_user.id, code, payment_id, pay_url, pay_method
+            order_id, callback.from_user.id, code, payment_id, pay_url, pay_method,
+            amount_kop=kopecks(plan["rub_str"]),
         )
         await edit_funnel(callback.message,
             f"<b>{plan['title']}</b> — {plan['rub_str']} рублей\n\n"
@@ -292,6 +293,10 @@ async def check_payment(callback: CallbackQuery, rw: RemnawaveClient, rp: CISPay
         return
     if order["status"] == "granted":
         await ack(callback, "Этот платёж уже обработан", alert=True)
+        return
+    from app.billing import refuse_short_payment
+    if order["status"] == "mismatch" or await refuse_short_payment(order, payment, callback.bot):
+        await ack(callback, "Сумма оплаты не совпала со счётом. Напишите в поддержку — разберёмся вручную.", alert=True)
         return
     await ack(callback)
     try:

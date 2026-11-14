@@ -50,7 +50,7 @@ from app.remnawave import (
     panel_lease_until,
     username_taken,
 )
-from app.cispay import CISPayClient, CISPayError, resolve_payment_method
+from app.cispay import CISPayClient, CISPayError, kopecks, resolve_payment_method
 from app.sync import fetch_panel
 from app.notices import notice_text
 from app.texts import days_text, minutes_text, rub_text
@@ -774,7 +774,8 @@ async def api_invoice(request: web.Request) -> web.Response:
         payment_id = str(data.get("payment_id") or "")
         if not pay_url or not payment_id:
             return json_error("Не удалось получить ссылку на оплату", 502)
-        await db.save_pay_order(order_id, telegram_id, code, payment_id, pay_url, pay_method)
+        await db.save_pay_order(order_id, telegram_id, code, payment_id, pay_url, pay_method,
+                                amount_kop=kopecks(plan["rub_str"]))
         return web.json_response({"ok": True, "pay_url": pay_url, "order_id": order_id})
     if pay_method == "stars":
         try:
@@ -1511,6 +1512,9 @@ async def cispay_webhook(request: web.Request) -> web.Response:
     if status == "FAILED":
         await _notify_payment_failed(request.app["bot"], order, event)
         return web.Response(text="OK")
+    from app.billing import refuse_short_payment
+    if await refuse_short_payment(order, event, request.app["bot"]):
+        return web.Response(text="OK")
     try:
         await fulfill_pay_order(order["order_id"], request.app["rw"], bot=request.app["bot"])
     except RemnawaveError as exc:
@@ -1519,9 +1523,36 @@ async def cispay_webhook(request: web.Request) -> web.Response:
     return web.Response(text="OK")
 
 
+# Request bodies: small by default, so anyone on the internet cannot make the bot hold a big body in memory.
+# Support messages carry up to 5 files of 8 MB; the signed-in admin uploads broadcast media and backups.
+BODY_LIMIT = 1024 * 1024
+BODY_LIMIT_TICKETS = 48 * 1024 * 1024
+BODY_LIMIT_ADMIN = 80 * 1024 * 1024
+_TICKET_UPLOAD = re.compile(r"^/api/tickets(?:/\d+/action)?$")
+
+
+def _body_limit(request: web.Request) -> int:
+    from app.admin import _authed
+    if request.path.startswith("/admin/api/") and _authed(request):
+        return BODY_LIMIT_ADMIN
+    if request.method == "POST" and _TICKET_UPLOAD.match(request.path):
+        return BODY_LIMIT_TICKETS
+    return BODY_LIMIT
+
+
+@web.middleware
+async def body_limit_middleware(request: web.Request, handler):
+    limit = _body_limit(request)
+    if request.content_length is not None and request.content_length > limit:
+        return json_error("Слишком большой запрос", 413)
+    if limit != request.client_max_size:
+        request = request.clone(client_max_size=limit)
+    return await handler(request)
+
+
 def build_web_app() -> web.Application:
     settings = get_settings()
-    app = web.Application(client_max_size=80 * 1024 * 1024)
+    app = web.Application(client_max_size=BODY_LIMIT_ADMIN, middlewares=[body_limit_middleware])
     app.router.add_get("/health", health)
     app.router.add_post("/webhooks/cispay", cispay_webhook)
     if settings.webapp_enabled:

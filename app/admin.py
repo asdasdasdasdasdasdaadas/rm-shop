@@ -77,9 +77,24 @@ def _secret() -> bytes:
 
 
 def _make_token() -> str:
-    ts = str(int(time.time()))
+    # Never before the last «Выйти»: a sign-in in the same second as it must still work.
+    ts = str(max(int(time.time()), _sessions_from))
     sig = hmac.new(_secret(), ts.encode("utf-8"), hashlib.sha256).hexdigest()
     return f"{ts}.{sig}"
+
+
+# «Выйти» ends every admin session: cookies issued before this moment stop working.
+# Kept in app_flags so a restart does not bring old sessions back.
+SESSIONS_FROM_KEY = "admin_sessions_from"
+_sessions_from = 0
+
+
+async def _load_sessions_from(_app: web.Application | None = None) -> None:
+    global _sessions_from
+    try:
+        _sessions_from = int(await db.get_kv(SESSIONS_FROM_KEY) or 0)
+    except Exception:
+        logger.exception("Не удалось прочитать время отзыва сессий админки")
 
 
 def _token_ok(value: str | None) -> bool:
@@ -91,10 +106,48 @@ def _token_ok(value: str | None) -> bool:
     if not hmac.compare_digest(expected, sig):
         return False
     try:
-        age = time.time() - int(ts)
+        issued = int(ts)
     except ValueError:
         return False
-    return 0 <= age <= COOKIE_TTL
+    return -5 <= time.time() - issued <= COOKIE_TTL and issued >= _sessions_from
+
+
+# Password guessing: an address gets LOGIN_TRIES wrong passwords per LOGIN_WINDOW, then waits.
+LOGIN_TRIES = 5
+LOGIN_WINDOW = 15 * 60
+_login_fails: dict[str, list[float]] = {}
+
+
+def _login_ip(request: web.Request) -> str:
+    """The caller's address. Behind our own proxy (Caddy/nginx on the same host) it is the last
+    X-Forwarded-For hop, the one the proxy added; earlier hops come from the client and can be forged."""
+    import ipaddress
+    remote = request.remote or ""
+    try:
+        local = ipaddress.ip_address(remote).is_private or ipaddress.ip_address(remote).is_loopback
+    except ValueError:
+        local = False
+    hops = [h.strip() for h in (request.headers.get("X-Forwarded-For") or "").split(",") if h.strip()]
+    return hops[-1] if local and hops else remote or "?"
+
+
+def _login_wait(ip: str, now: float) -> int:
+    """Seconds this address must wait before trying again; 0 when it may try."""
+    fails = [t for t in _login_fails.get(ip, []) if now - t < LOGIN_WINDOW]
+    if fails:
+        _login_fails[ip] = fails
+    else:
+        _login_fails.pop(ip, None)
+    if len(fails) < LOGIN_TRIES:
+        return 0
+    return max(1, int(fails[0] + LOGIN_WINDOW - now))
+
+
+def _login_failed(ip: str, now: float) -> None:
+    if len(_login_fails) > 10000:  # many addresses at once: forget the oldest rather than grow without end
+        for key in sorted(_login_fails, key=lambda k: _login_fails[k][-1])[:5000]:
+            _login_fails.pop(key, None)
+    _login_fails.setdefault(ip, []).append(now)
 
 
 def _authed(request: web.Request) -> bool:
@@ -123,12 +176,26 @@ async def api_login(request: web.Request) -> web.Response:
     settings = get_settings()
     if not settings.admin_password:
         return web.json_response({"ok": False, "error": "Задайте ADMIN_PASSWORD в .env"}, status=503)
-    body = await request.json()
-    password = str(body.get("password") or "")
-    given = password.encode("utf-8")
-    expected = settings.admin_password.encode("utf-8")
-    if len(given) != len(expected) or not hmac.compare_digest(given, expected):
+    ip = _login_ip(request)
+    wait = _login_wait(ip, time.time())
+    if wait:
+        return web.json_response(
+            {"ok": False, "error": f"Слишком много попыток. Попробуйте через {max(1, round(wait / 60))} мин."},
+            status=429, headers={"Retry-After": str(wait)},
+        )
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "Некорректный запрос"}, status=400)
+    password = str((body or {}).get("password") or "") if isinstance(body, dict) else ""
+    given = hashlib.sha256(password.encode("utf-8")).digest()
+    expected = hashlib.sha256(settings.admin_password.encode("utf-8")).digest()
+    if not hmac.compare_digest(given, expected):
+        _login_failed(ip, time.time())
+        logger.warning("Админка: неверный пароль с %s", ip)
+        await asyncio.sleep(1)
         return web.json_response({"ok": False, "error": "Неверный пароль"}, status=403)
+    _login_fails.pop(ip, None)
     resp = web.json_response({"ok": True, "brand": settings.brand_name})
     resp.set_cookie(
         COOKIE,
@@ -142,7 +209,12 @@ async def api_login(request: web.Request) -> web.Response:
     return resp
 
 
-async def api_logout(_request: web.Request) -> web.Response:
+async def api_logout(request: web.Request) -> web.Response:
+    global _sessions_from
+    if _authed(request):
+        # Every device signed in with the password is signed out, a stolen cookie included.
+        _sessions_from = int(time.time()) + 1
+        await db.set_kv(SESSIONS_FROM_KEY, str(_sessions_from))
     resp = web.json_response({"ok": True})
     resp.del_cookie(COOKIE, path="/")
     return resp
@@ -2741,6 +2813,7 @@ async def api_replace_subscriptions(request: web.Request) -> web.Response:
 
 
 def mount_admin(app: web.Application) -> None:
+    app.on_startup.append(_load_sessions_from)
     app.on_startup.append(_start_broadcast_scheduler)
     app.on_cleanup.append(_stop_broadcast_scheduler)
     app.router.add_get("/admin", admin_redirect)

@@ -81,6 +81,7 @@ const statuses: Record<string, [string, string][]> = {
     ["pending", "Ожидает оплаты"],
     ["created", "Создан"],
     ["expired", "Истёк"],
+    ["mismatch", "Сумма не совпала"],
   ],
   tickets: [
     ["", "Все обращения"],
