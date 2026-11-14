@@ -32,7 +32,7 @@ function stepName(step: Data | null | undefined, fallback: string) {
   return step ? `${step.branch} · шаг ${step.n}` : fallback;
 }
 
-function Results({ item, windowDays }: { item: Data; windowDays: number }) {
+export function Results({ item, windowDays }: { item: Data; windowDays: number }) {
   const arms: Data[] = item.arms || [];
   return (
     <div className="space-y-3">

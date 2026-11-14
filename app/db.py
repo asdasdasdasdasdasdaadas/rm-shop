@@ -4076,9 +4076,11 @@ async def list_broadcast_targets(audience: str = "all") -> list[dict]:
 
 
 async def broadcast_run_recipients(run_id: int) -> set[int]:
-    """Everyone a broadcast was sent to (for «отправить остальным» after a test)."""
+    """Everyone a broadcast was sent to (for «отправить остальным» after a test),
+    and its A/B control group: they were picked to get nothing, «остальным» must not write to them either."""
     rows = await _pool_req().fetch(
-        "SELECT DISTINCT telegram_id FROM reminder_deliveries WHERE broadcast_id=$1 AND status='sent'", run_id)
+        """SELECT telegram_id FROM reminder_deliveries WHERE broadcast_id=$1 AND status='sent'
+           UNION SELECT telegram_id FROM broadcast_arms WHERE run_id=$1""", run_id)
     return {int(r["telegram_id"]) for r in rows}
 
 

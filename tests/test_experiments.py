@@ -107,3 +107,24 @@ class Steps(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BroadcastAB(unittest.TestCase):
+    def test_check_keeps_and_refuses(self):
+        from app import admin
+        spec, err = admin._check_broadcast({"text": "A", "variant_b": "B", "holdout": "20"})
+        self.assertIsNone(err)
+        self.assertEqual((spec["holdout"], spec["variant_b"]), (20, "B"))
+        again, err = admin._check_broadcast(spec)  # a scheduled broadcast is checked again at launch
+        self.assertEqual((again["holdout"], again["variant_b"]), (20, "B"))
+        for body, needle in [
+            ({"text": "A", "holdout": 70}, "от 1 до 50"),
+            ({"text": "A", "variant_b": "A"}, "совпадает"),
+        ]:
+            self.assertIn(needle, admin._check_broadcast(body)[1])
+
+    def test_broadcast_arms(self):
+        arms = [ex.broadcast_arm(5, uid, 20, True) for uid in range(10000)]
+        self.assertAlmostEqual(arms.count("control") / 10000, 0.2, delta=0.02)
+        self.assertAlmostEqual(arms.count("b") / 10000, 0.4, delta=0.02)
+        self.assertNotIn("b", {ex.broadcast_arm(5, uid, 20, False) for uid in range(2000)})

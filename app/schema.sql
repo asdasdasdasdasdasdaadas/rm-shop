@@ -990,3 +990,12 @@ CREATE TABLE IF NOT EXISTS funnel_experiment_users (
     PRIMARY KEY (experiment_id, telegram_id)
 );
 CREATE INDEX IF NOT EXISTS funnel_experiment_users_user_idx ON funnel_experiment_users(telegram_id);
+-- A/B test of a manual broadcast: who got A, B or nothing (control). See app/experiments.py.
+CREATE TABLE IF NOT EXISTS broadcast_arms (
+    run_id BIGINT NOT NULL REFERENCES broadcast_runs(id) ON DELETE CASCADE,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    arm TEXT NOT NULL CHECK (arm IN ('a','b','control')),
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    delivered_at TIMESTAMPTZ,
+    PRIMARY KEY (run_id, telegram_id)
+);

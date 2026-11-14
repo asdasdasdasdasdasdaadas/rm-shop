@@ -25,6 +25,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Results as ArmResults } from "@/pages/experiments";
 const audiences: [string, string][] = [
   ["all", "Все доступные пользователи"],
   ["using", "Пользовались VPN"],
@@ -292,6 +293,23 @@ function Results() {
                       </Button>
                     )}
                     {r.rest_sent && <div className="text-xs text-muted-foreground mt-1">Остальным отправлено</div>}
+                    {r.ab && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs text-primary">
+                          A/B{spec.holdout ? ` · контроль ${spec.holdout}%` : ""}
+                          {spec.variant_b ? " · вариант B" : ""} — результаты по группам
+                        </summary>
+                        <div className="mt-2 min-w-[640px]">
+                          {spec.variant_b && (
+                            <div className="mb-2 rounded-md border bg-muted/40 p-2 text-xs whitespace-pre-wrap">
+                              <span className="text-muted-foreground">B: </span>
+                              {spec.variant_b}
+                            </div>
+                          )}
+                          <ArmResults item={r.ab} windowDays={7} />
+                        </div>
+                      </details>
+                    )}
                   </td>
                   <td className="py-3 pr-3 text-right tabular-nums">{sent}</td>
                   <td className="py-3 pr-3 text-right tabular-nums">
@@ -333,6 +351,8 @@ export function BroadcastPage() {
     [later, setLater] = useState(false),
     [evening, setEvening] = useState(false),
     [sample, setSample] = useState(0),
+    [holdout, setHoldout] = useState(0),
+    [variantB, setVariantB] = useState(""),
     [media, setMedia] = useState<Media | null>(null),
     [clip, setClip] = useState("builtin"),
     [when, setWhen] = useState(() => localInput(new Date(Date.now() + 3600_000)));
@@ -379,7 +399,11 @@ export function BroadcastPage() {
                       : {}),
                 }
               : { text, audience, ...(attached ? { media: { id: attached.id, kind: attached.kind } } : {}) };
-        const full = sample ? { ...payload, sample } : payload;
+        const ab = template in announce ? {} : {
+          ...(holdout ? { holdout } : {}),
+          ...(!template && variantB.trim() ? { variant_b: variantB } : {}),
+        };
+        const full = sample ? { ...payload, ...ab, sample } : { ...payload, ...ab };
         await api(
           "broadcast",
           later ? { ...full, scheduled_at: whenDate.toISOString() } : full,
@@ -393,6 +417,8 @@ export function BroadcastPage() {
         setLater(false);
         setEvening(false);
         setSample(0);
+        setHoldout(0);
+        setVariantB("");
         await resource.reload();
         toast.success(later ? "Рассылка запланирована" : "Рассылка запущена");
       },
@@ -571,6 +597,40 @@ export function BroadcastPage() {
                           onChange={(v) => setSample(Number(v) || 0)}
                         />
                       </Field>
+                      {!(template in announce) && (
+                        <Field
+                          label="Контрольная группа"
+                          hint={
+                            holdout
+                              ? `${holdout}% аудитории не получат сообщение. В «Результатах» будет видно, сколько оплат принесла сама рассылка, а не те, кто заплатил бы и так.`
+                              : "Без неё видно только тех, кто нажал кнопку, а они могли заплатить и без рассылки."
+                          }
+                        >
+                          <Choice
+                            label="Контрольная группа"
+                            value={String(holdout)}
+                            options={[
+                              ["0", "Без контрольной группы"],
+                              ["10", "10% не получат сообщение"],
+                              ["20", "20% не получат сообщение"],
+                            ]}
+                            onChange={(v) => setHoldout(Number(v) || 0)}
+                          />
+                        </Field>
+                      )}
+                      {!template && (
+                        <Field
+                          label="Вариант B (необязательно)"
+                          hint="Половина получателей увидит этот текст вместо основного. Пусто — у всех один текст."
+                        >
+                          <Textarea
+                            rows={4}
+                            value={variantB}
+                            onChange={(e) => setVariantB(e.target.value)}
+                            aria-label="Текст варианта B"
+                          />
+                        </Field>
+                      )}
                       <Field label="Когда отправить">
                         <Choice
                           label="Когда отправить"

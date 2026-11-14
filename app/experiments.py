@@ -26,7 +26,7 @@ ARM_LABELS = {"a": "A · как сейчас", "b": "B · новый вариа�
 
 def bucket(experiment_id: int, telegram_id: int, salt: str = "") -> float:
     """A stable number from 0 to 100 for this person in this test."""
-    digest = hashlib.sha256(f"{int(experiment_id)}:{int(telegram_id)}:{salt}".encode()).digest()
+    digest = hashlib.sha256(f"{experiment_id}:{int(telegram_id)}:{salt}".encode()).digest()
     return int.from_bytes(digest[:8], "big") % 10000 / 100
 
 
@@ -234,28 +234,30 @@ async def results(experiment_ids: list[int]) -> dict[int, dict]:
     out: dict[int, dict] = {int(i): {} for i in experiment_ids}
     for row in rows:
         out[int(row["experiment_id"])][row["arm"]] = dict(row)
-    summary = {}
-    for exp_id, arms in out.items():
-        items = []
-        for arm in ARMS:
-            data = arms.get(arm) or {"users": 0, "matured": 0, "delivered": 0, "clicked": 0, "connected": 0,
-                                     "payers": 0, "first_payers": 0, "payments": 0, "rub": 0, "gift_rub": 0}
-            data = {k: int(v) for k, v in data.items() if k not in {"experiment_id", "arm"}}
-            n = data["users"]
-            data.update(arm=arm, label=ARM_LABELS[arm],
-                        conversion=round(data["payers"] / n * 100, 1) if n else 0.0,
-                        rub_per_user=round(data["rub"] / n, 1) if n else 0.0)
-            items.append(data)
-        by = {i["arm"]: i for i in items}
-        comparisons = []
-        if by["control"]["users"]:
-            for arm in ("a", "b"):
-                if by[arm]["users"]:
-                    comparisons.append({"arm": arm, **compare(by[arm], by["control"], "control")})
-        if by["a"]["users"] and by["b"]["users"]:
-            comparisons.append({"arm": "b", **compare(by["b"], by["a"], "a")})
-        summary[exp_id] = {"arms": [i for i in items if i["users"] or i["arm"] != "b"], "comparisons": comparisons}
-    return summary
+    return {exp_id: summarize(arms) for exp_id, arms in out.items()}
+
+
+def summarize(arms: dict[str, dict]) -> dict:
+    """Arms as rows with conversion and ₽ per person, and the comparisons that can be made."""
+    items = []
+    for arm in ARMS:
+        data = arms.get(arm) or {"users": 0, "matured": 0, "delivered": 0, "clicked": 0, "connected": 0,
+                                 "payers": 0, "first_payers": 0, "payments": 0, "rub": 0, "gift_rub": 0}
+        data = {k: int(v) for k, v in data.items() if k not in {"experiment_id", "arm"}}
+        n = data["users"]
+        data.update(arm=arm, label=ARM_LABELS[arm],
+                    conversion=round(data["payers"] / n * 100, 1) if n else 0.0,
+                    rub_per_user=round(data["rub"] / n, 1) if n else 0.0)
+        items.append(data)
+    by = {i["arm"]: i for i in items}
+    comparisons = []
+    if by["control"]["users"]:
+        for arm in ("a", "b"):
+            if by[arm]["users"]:
+                comparisons.append({"arm": arm, **compare(by[arm], by["control"], "control")})
+    if by["a"]["users"] and by["b"]["users"]:
+        comparisons.append({"arm": "b", **compare(by["b"], by["a"], "a")})
+    return {"arms": [i for i in items if i["users"] or i["arm"] != "b"], "comparisons": comparisons}
 
 
 async def overview(graph: dict) -> dict:
@@ -270,3 +272,62 @@ async def overview(graph: dict) -> dict:
         item.update(step=step, running=row["stopped_at"] is None, **found.get(int(row["id"]), {}))
         items.append(item)
     return {"steps": steps, "items": items, "window_days": WINDOW_DAYS, "max_holdout": MAX_HOLDOUT}
+
+
+# ---------- manual broadcasts ----------
+
+def broadcast_arm(run_id: int, telegram_id: int, holdout: int, with_b: bool) -> str:
+    """Half of those who are not in control get B, when there is a B."""
+    return arm_for({"id": f"bc{int(run_id)}", "holdout_pct": holdout, "b_pct": 50 if with_b else 0}, telegram_id)
+
+
+async def assign_broadcast(run_id: int, telegram_id: int, arm: str) -> None:
+    await db._pool_req().execute(
+        """INSERT INTO broadcast_arms (run_id, telegram_id, arm) VALUES ($1, $2, $3)
+           ON CONFLICT (run_id, telegram_id) DO NOTHING""", int(run_id), int(telegram_id), arm)
+
+
+async def broadcast_delivered(run_id: int, telegram_id: int) -> None:
+    await db._pool_req().execute(
+        "UPDATE broadcast_arms SET delivered_at=COALESCE(delivered_at, NOW()) WHERE run_id=$1 AND telegram_id=$2",
+        int(run_id), int(telegram_id))
+
+
+BROADCAST_RESULTS_SQL = f"""
+WITH per_user AS (
+    SELECT m.run_id, m.arm, m.telegram_id, m.delivered_at,
+        COALESCE(SUM(p.amount), 0) AS rub,
+        COUNT(p.payment_key) AS payments,
+        BOOL_OR(p.first_payment) AS first_paid,
+        (SELECT u.first_online_at >= m.assigned_at AND u.first_online_at < m.assigned_at + INTERVAL '{WINDOW_DAYS} days'
+           FROM users u WHERE u.telegram_id = m.telegram_id) AS connected,
+        EXISTS (SELECT 1 FROM reminder_deliveries r WHERE r.telegram_id = m.telegram_id AND r.broadcast_id = m.run_id
+            AND r.clicked_at IS NOT NULL) AS clicked
+    FROM broadcast_arms m
+    LEFT JOIN payment_receipts p ON p.telegram_id = m.telegram_id
+        AND p.created_at >= m.assigned_at AND p.created_at < m.assigned_at + INTERVAL '{WINDOW_DAYS} days'
+    WHERE m.run_id = ANY($1::bigint[])
+    GROUP BY m.run_id, m.arm, m.telegram_id, m.delivered_at, m.assigned_at
+)
+SELECT run_id, arm, COUNT(*)::int AS users, 0 AS matured,
+    COUNT(delivered_at)::int AS delivered,
+    COUNT(*) FILTER (WHERE clicked)::int AS clicked,
+    COUNT(*) FILTER (WHERE connected)::int AS connected,
+    COUNT(*) FILTER (WHERE payments > 0)::int AS payers,
+    COUNT(*) FILTER (WHERE first_paid)::int AS first_payers,
+    COALESCE(SUM(payments), 0)::int AS payments,
+    COALESCE(SUM(rub), 0)::bigint AS rub,
+    0::bigint AS gift_rub
+FROM per_user GROUP BY run_id, arm
+"""
+
+
+async def broadcast_results(run_ids: list[int]) -> dict[int, dict]:
+    if not run_ids:
+        return {}
+    rows = await db._pool_req().fetch(BROADCAST_RESULTS_SQL, [int(i) for i in run_ids])
+    found: dict[int, dict] = {}
+    for row in rows:
+        data = dict(row)
+        found.setdefault(int(data.pop("run_id")), {})[row["arm"]] = data
+    return {run_id: summarize(arms) for run_id, arms in found.items()}

@@ -1667,6 +1667,10 @@ async def _broadcast_all(
         targets = [row for row in targets if int(row["telegram_id"]) in keep]
     media = job.get("media") if tpl in MEDIA_TEMPLATES else None
     media_kw = {"media": media, "cache": {}} if media else {}
+    spec = job.get("spec") or {}
+    holdout = int(spec.get("holdout") or 0)
+    variant_b = str(spec.get("variant_b") or "") if not tpl else ""
+    ab = bool(holdout or variant_b)
     job["total"] = len(targets)
     if job.get("run_id"):
         await db.update_broadcast_run(job["run_id"], job)
@@ -1688,6 +1692,16 @@ async def _broadcast_all(
             if slot is None:
                 job["skipped"] = int(job.get("skipped") or 0) + 1
                 continue
+        arm = None
+        if not announce and ab and job.get("run_id"):
+            from app import experiments
+            arm = experiments.broadcast_arm(job["run_id"], telegram_id, holdout, bool(variant_b))
+            await experiments.assign_broadcast(job["run_id"], telegram_id, arm)
+            if arm == "control":
+                # Control: nothing is sent, the daily slot is given back.
+                job["control"] = int(job.get("control") or 0) + 1
+                await db.finish_optional_message(slot, False)
+                continue
         gift_id = None
         if tpl == "gift3":
             from app import funnel_gifts
@@ -1701,8 +1715,11 @@ async def _broadcast_all(
         elif announce:
             body, markup = text, _announce_keyboard(tpl)
         else:
-            body, markup = _broadcast_payload(tpl, text, telegram_id, row.get("first_name"), settings)
+            body, markup = _broadcast_payload(tpl, variant_b if arm == "b" else text, telegram_id,
+                                              row.get("first_name"), settings)
         extra = {"template": tpl or "custom", "broadcast_id": job.get("run_id")}
+        if arm:
+            extra["arm"] = arm
         if gift_id:
             extra["gift_id"] = gift_id
         if media:
@@ -1747,6 +1764,12 @@ async def _broadcast_all(
         else:
             job["sent"] = int(job.get("sent") or 0) + 1
             status = "sent"
+            if arm:
+                try:
+                    from app import experiments
+                    await experiments.broadcast_delivered(job["run_id"], telegram_id)
+                except Exception:
+                    logger.exception("Broadcast arm delivery was not saved")
             if token:
                 await finish_tracked_delivery(token, status, getattr(message, "message_id", None))
         if slot is not None:
@@ -1971,7 +1994,7 @@ def _start_broadcast_job(
     job = _bc_job(app)
     job.update(_new_bc_job())
     job["media"] = media
-    job["spec"] = {k: v for k, v in (spec or {}).items() if k in {"audience", "sample", "parent", "template", "text", "media"}}
+    job["spec"] = {k: v for k, v in (spec or {}).items() if k in {"audience", "sample", "parent", "template", "text", "media", "holdout", "variant_b"}}
     job["running"] = True
     job["scope"] = "selected" if ids is not None else "all"
     job["template"] = str(template or "")
@@ -2043,7 +2066,12 @@ async def api_broadcast_results(request: web.Request) -> web.Response:
     except ValueError:
         return web.json_response({"ok": False, "error": "Некорректная страница"}, status=400)
     data = await db.admin_broadcast_results(page)
+    from app import experiments
+    ab = await experiments.broadcast_results([int(i["id"]) for i in data["items"]
+                                              if (_run_spec(i).get("holdout") or _run_spec(i).get("variant_b"))])
     for item in data["items"]:
+        if int(item["id"]) in ab:
+            item["ab"] = ab[int(item["id"])]
         spec = item["spec"] = _run_spec(item)
         if spec.get("sample") and item.get("finished_at"):
             if await db.broadcast_child_exists(int(item["id"])):
@@ -2104,6 +2132,23 @@ def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
         spec["sample"] = sample
     if body.get("parent"):
         spec["parent"] = int(body["parent"])
+    # A/B: a control group that gets nothing, and/or a second text for half of the rest (own text only).
+    raw = body.get("holdout")
+    if raw not in (None, "", 0, "0"):
+        if isinstance(raw, bool) or not str(raw).isdigit() or not 1 <= int(raw) <= 50:
+            return None, "Контрольная группа — от 1 до 50%"
+        if template in ANNOUNCE_TEMPLATES:
+            return None, "У объявлений нет контрольной группы: их получают все"
+        spec["holdout"] = int(raw)
+    variant = str(body.get("variant_b") or "").strip()
+    if variant:
+        if template:
+            return None, "Вариант B — только для своего текста"
+        if variant == text:
+            return None, "Вариант B совпадает с основным текстом"
+        if len(variant) > 3500 or (media and len(variant) > CAPTION_LIMIT - 60):
+            return None, "Вариант B слишком длинный"
+        spec["variant_b"] = variant
     return spec, None
 
 
