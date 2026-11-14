@@ -250,13 +250,23 @@ async def load_shop_overlay() -> None:
         seen = data.get("vpn_apps_seen")
         if isinstance(seen, list):
             data["vpn_apps_seen"] = [x for x in seen if x not in ("karing", "rabbithole")]
-        # Karing on Mac comes from the App Store now, not GitHub.
-        for app in data.get("vpn_apps") or []:
-            stores = app.get("stores") if isinstance(app, dict) and app.get("id") == "karing" else None
-            if isinstance(stores, dict) and "github.com/KaringX" in str(stores.get("macos") or ""):
-                stores["macos"] = "https://apps.apple.com/app/id6472431552"
         await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
         await db.set_kv("vpn_apps_restored_v1", "1")
+    # Karing in a saved list: Mac from the App Store, not GitHub; not offered on Android at all.
+    if not await db.get_kv("karing_stores_v2"):
+        for app in data.get("vpn_apps") or []:
+            if not (isinstance(app, dict) and app.get("id") == "karing"):
+                continue
+            stores = app.get("stores") if isinstance(app.get("stores"), dict) else {}
+            if "github.com/KaringX" in str(stores.get("macos") or ""):
+                stores["macos"] = "https://apps.apple.com/app/id6472431552"
+            for p in ("android", "androidtv"):
+                stores.pop(p, None)
+            if isinstance(app.get("platforms"), list):
+                kept = [p for p in app["platforms"] if p not in ("android", "androidtv")]
+                app["platforms"] = kept or ["ios"]
+        await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
+        await db.set_kv("karing_stores_v2", "1")
     set_shop_overlay(data)
     await db.migrate_legacy_promo_codes()
 

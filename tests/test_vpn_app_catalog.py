@@ -8,10 +8,10 @@ class CatalogTest(unittest.TestCase):
     def setUp(self):
         self.apps = {a["id"]: a for a in validate_vpn_apps(DEFAULT_VPN_APPS)}
 
-    def test_karing_everywhere_with_encoded_import(self):
+    def test_karing_without_android_with_encoded_import(self):
         a = self.apps["karing"]
         self.assertEqual(a["deep_link"], "karing://install-config?url={enc}")
-        self.assertEqual(set(a["platforms"]), {"ios", "macos", "appletv", "android", "androidtv", "windows"})
+        self.assertEqual(set(a["platforms"]), {"ios", "macos", "appletv", "windows"})
         self.assertNotIn("play.google.com", " ".join(a["stores"].values()))  # Karing is not on Google Play
         self.assertIn("apps.apple.com", a["stores"]["macos"])  # Mac App Store, same listing as iPhone
 
@@ -67,8 +67,9 @@ class RestoreOnce(unittest.IsolatedAsyncioTestCase):
         from app import shop_config, vpn_apps
         kv = {"shop_settings": json.dumps({"max_devices": 5, "balance_topup_max": 100000,
               "vpn_apps": [{"id": "rabbithole", "name": "RabbitHole", "platforms": ["ios", "macos"]},
-                           {"id": "karing", "name": "Karing", "platforms": ["macos"],
-                            "stores": {"macos": "https://github.com/KaringX/karing/releases/latest"}},
+                           {"id": "karing", "name": "Karing", "platforms": ["macos", "android"],
+                            "stores": {"macos": "https://github.com/KaringX/karing/releases/latest",
+                                       "android": "https://github.com/KaringX/karing/releases/latest"}},
                            {"id": "incy", "name": "Incy", "platforms": ["ios", "macos"]}],
               "vpn_apps_seen": vpn_apps.default_ids()}),
               "router_offer_hidden_v1": "1", "device_limit_5_v1": "1"}
@@ -83,7 +84,9 @@ class RestoreOnce(unittest.IsolatedAsyncioTestCase):
             await shop_config.load_shop_overlay()
             ids = [a["id"] for a in vpn_apps.public_vpn_apps()]
             self.assertEqual(ids, ["rabbithole", "karing", "incy"])
-            self.assertIn("apps.apple.com", vpn_apps.public_vpn_apps()[1]["stores"]["macos"])
+            karing = vpn_apps.public_vpn_apps()[1]
+            self.assertIn("apps.apple.com", karing["stores"]["macos"])
+            self.assertEqual((karing["platforms"], set(karing["stores"])), (["macos"], {"macos"}))
             # Removed again in the admin after that: stays removed on the next start.
             data = json.loads(kv["shop_settings"])
             data["vpn_apps_seen"] = vpn_apps.default_ids()
