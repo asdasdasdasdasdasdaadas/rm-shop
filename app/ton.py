@@ -645,14 +645,55 @@ async def sync_bot_commands(bot) -> None:
 
 
 async def send_pay_widget(bot, telegram_id: int, *, nano: int, rub: int):
+    from aiogram.exceptions import TelegramBadRequest
+
     from app.widgets import SendWidget, _json, ton_pay_html
     if not allowed(telegram_id):
         raise ValueError(f"Оплата в {NAME} выключена")
-    return await bot(SendWidget(
-        chat_id=telegram_id, html=ton_pay_html(), chat_data=_json(_state(nano, rub)),
-        caption=f"Перевод {ton_text(nano)} {UNIT} → ≈ {rub} ₽ на баланс. Курс фиксируется в момент оплаты.",
-        allow_queries=True,
-    ))
+    try:
+        return await bot(SendWidget(
+            chat_id=telegram_id, html=ton_pay_html(), chat_data=_json(_state(nano, rub)),
+            caption=f"Перевод {ton_text(nano)} {UNIT} → ≈ {rub} ₽ на баланс. Курс фиксируется в момент оплаты.",
+            allow_queries=True,
+        ))
+    except TelegramBadRequest as exc:
+        # Widgets are still rolling out: where Telegram refuses one, pay by a plain wallet link instead.
+        if "WIDGET" not in (exc.message or "").upper():
+            raise
+        logger.info("Виджет TON недоступен (%s), отправляю ссылку на кошелёк", exc.message)
+        return await send_pay_link(bot, telegram_id, nano=nano)
+
+
+def wallet_link(order: dict) -> str:
+    """Tonkeeper's universal transfer link: opens any TON wallet app with the address, amount and comment filled in."""
+    from urllib.parse import quote
+    return (f"https://app.tonkeeper.com/transfer/{get_settings().ton_wallet}"
+            f"?amount={int(order['nano'])}&text={quote(order['order_id'])}")
+
+
+async def send_pay_link(bot, telegram_id: int, *, nano: int):
+    """The same payment without a widget: an order, the transfer details to copy, and a button to the wallet."""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    from app.texts import days_text
+    order = await create_order(telegram_id, nano, chat_id=None, message_id=None)
+    rub = int(order["rub"])
+    days = days_for(rub)
+    lines = [
+        f"<b>Перевод {ton_text(int(order['nano']))} {UNIT} → {rub} ₽ на баланс</b>"
+        + (f" (≈ {days_text(days)} VPN)" if days >= 1 else ""),
+        "",
+        f"Адрес: <code>{get_settings().ton_wallet}</code>",
+        f"Сумма: <code>{ton_text(int(order['nano'])).replace(',', '.')}</code> {UNIT}",
+        f"Комментарий: <code>{order['order_id']}</code> — обязательно, по нему зачислим",
+        "",
+        f"Курс держим {QUOTE_SECONDS // 60} минут. Деньги придут на баланс сами, как только перевод появится в сети.",
+    ]
+    return await bot.send_message(
+        telegram_id, "\n".join(lines), parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=f"Оплатить {ton_text(int(order['nano']))} {UNIT}", url=wallet_link(order)),
+        ]]),
+    )
 
 
 async def admin_list(limit: int = 100) -> dict:

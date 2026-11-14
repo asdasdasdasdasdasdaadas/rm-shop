@@ -126,6 +126,29 @@ class AmountChatTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn(WALLET, sent.html)
         self.assertIn("2,5 Gram", sent.caption)
 
+    async def test_refused_widget_falls_back_to_a_wallet_link(self):
+        from aiogram.exceptions import TelegramBadRequest
+        bot = AsyncMock()
+        bot.side_effect = TelegramBadRequest(method=SimpleNamespace(), message="Bad Request: INPUT_MEDIA_WIDGET_NOT_ALLOWED")
+        order = {"order_id": "VPN-ABCDEF", "nano": 1_000_000, "rub": 1}
+        with patch.object(ton, "create_order", AsyncMock(return_value=order)) as create:
+            await ton.send_pay_widget(bot, 7, nano=1_000_000, rub=1)
+        create.assert_awaited_once_with(7, 1_000_000, chat_id=None, message_id=None)
+        text = bot.send_message.await_args.args[1]
+        self.assertIn(WALLET, text)
+        self.assertIn("<code>0.001</code>", text)
+        self.assertIn("VPN-ABCDEF", text)
+        url = bot.send_message.await_args.kwargs["reply_markup"].inline_keyboard[0][0].url
+        self.assertEqual(url, f"https://app.tonkeeper.com/transfer/{WALLET}?amount=1000000&text=VPN-ABCDEF")
+
+    async def test_other_widget_errors_are_not_hidden(self):
+        from aiogram.exceptions import TelegramBadRequest
+        bot = AsyncMock()
+        bot.side_effect = TelegramBadRequest(method=SimpleNamespace(), message="Bad Request: chat not found")
+        with self.assertRaises(TelegramBadRequest):
+            await ton.send_pay_widget(bot, 7, nano=1_000_000, rub=1)
+        bot.send_message.assert_not_awaited()
+
     async def test_cabinet_amount_sends_the_card_without_a_question(self):
         bot = AsyncMock()
         with patch.object(ton, "rub_per_ton", AsyncMock(return_value=Decimal("101"))), \
