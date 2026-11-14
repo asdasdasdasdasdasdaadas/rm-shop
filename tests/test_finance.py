@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import subprocess
 import unittest
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timedelta, timezone
 from types import SimpleNamespace
 from app.finance import PAYMENTS_SQL, DUE_SQL, payment_report
 
@@ -20,6 +20,24 @@ class FinanceReportTest(unittest.TestCase):
         self.assertEqual(report['totals']['repeat'],1)
         self.assertEqual(report['estimated'],1)
         self.assertFalse(report['items'][0]['estimated'])
+
+class FinancePreviousPeriodTest(unittest.IsolatedAsyncioTestCase):
+    async def test_cards_compare_with_the_same_stretch_before(self):
+        from unittest.mock import AsyncMock, patch
+        from app import db, finance
+        now=datetime(2026,10,28,9,tzinfo=timezone.utc)  # 12:00 in Moscow
+        current=[dict(id='r1',telegram_id=1,plan_code='p',at=datetime(2026,10,28,8,tzinfo=timezone.utc),currency='RUB',amount=300,payment_number=2)]
+        before=[dict(id='r0',telegram_id=1,plan_code='p',at=datetime(2026,10,21,8,tzinfo=timezone.utc),currency='RUB',amount=100,payment_number=1)]
+        pool=SimpleNamespace(fetch=AsyncMock(side_effect=[current,before,[]]))
+        settings=SimpleNamespace(topup_rub_for_code=lambda code:0,vpn_day_price_rub=6)
+        with patch.object(db,'_utc_now',return_value=now),patch.object(db,'_pool_req',return_value=pool),patch.object(finance,'get_settings',return_value=settings):
+            report=await finance.overview(7)
+        self.assertEqual(report['totals']['rub'],300)
+        self.assertEqual(report['previous']['totals']['rub'],100)
+        self.assertEqual(report['previous']['series'][0]['day'],'2026-10-15')
+        _,start,end=pool.fetch.call_args_list[1].args
+        self.assertEqual(end,now-timedelta(days=7))
+        self.assertEqual(start.astimezone(timezone.utc).isoformat(),'2026-10-14T21:00:00+00:00')
 
 @unittest.skipUnless(os.environ.get('PGLITE_MODULE'),'Set PGLITE_MODULE for PostgreSQL integration')
 class FinanceSQLTest(unittest.TestCase):

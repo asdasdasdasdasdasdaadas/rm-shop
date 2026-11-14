@@ -19,10 +19,15 @@ const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-r
 
 /** Animates from the previous value to the new one with an ease-out curve. */
 export function useCountUp(value: number, ms = 900) {
-  const [shown, setShown] = useState(reduced() ? value : 0);
+  // A background tab freezes animation frames; the number must still be right when someone looks.
+  const still = () => reduced() || document.hidden;
+  const [shown, setShown] = useState(still() ? value : 0);
   const from = useRef(0);
   useEffect(() => {
-    if (reduced()) return setShown(value);
+    if (still()) {
+      from.current = value;
+      return setShown(value);
+    }
     const start = performance.now(), a = from.current;
     let raf = 0;
     const tick = (t: number) => {
@@ -43,13 +48,14 @@ export function CountUp({ value, format = (n) => Math.round(n).toLocaleString("r
 }
 
 /** Up/down change versus the previous period. */
-export function Delta({ now, prev, suffix = "к прошлым суткам" }: { now: number; prev: number; suffix?: string }) {
-  if (!prev && !now) return null;
-  const pct = prev ? Math.round(((now - prev) / prev) * 100) : 100;
-  const up = pct >= 0;
+export function Delta({ now, prev, suffix = "к прошлым суткам", invert = false }: { now: number; prev: number; suffix?: string; invert?: boolean }) {
+  // No base to compare with (0 before) — a «+100%» there would be made up, so show nothing.
+  if (!(prev > 0)) return null;
+  const pct = Math.round(((now - prev) / prev) * 100);
+  const tone = pct === 0 ? "flat" : (pct > 0) !== invert ? "up" : "down";
   return (
-    <span className={"adm-delta " + (up ? "up" : "down")} title={suffix}>
-      {up ? "↑" : "↓"} {Math.abs(pct)}%
+    <span className={"adm-delta " + tone} title={`${suffix}: было ${prev.toLocaleString("ru-RU")}`}>
+      {pct === 0 ? "→" : pct > 0 ? "↑" : "↓"} {Math.abs(pct)}%
     </span>
   );
 }
@@ -100,17 +106,17 @@ function ChartTip({ active, payload, label, unit }: any) {
   );
 }
 
-function RevenueWidget({ series }: { series: Data[] }) {
+function RevenueWidget({ series, previous }: { series: Data[]; previous?: Data }) {
   const navigate = useNavigate();
   const total = series.reduce((a, r) => a + Number(r.rub || 0), 0);
   const pays = series.reduce((a, r) => a + Number(r.payments || 0), 0);
-  const last7 = series.slice(-7).reduce((a, r) => a + Number(r.rub || 0), 0);
-  const prev7 = series.slice(-14, -7).reduce((a, r) => a + Number(r.rub || 0), 0);
+  // Same stretch of time right before, cut at the same hour (server side), so the numbers are comparable.
+  const before = Number(previous?.totals?.rub ?? 0);
   return (
     <Widget title="Выручка за 30 дней" icon={<BadgeRussianRuble />} tone="#22975a" action="Финансы" onAction={() => navigate("finance")} className="adm-span2">
       <div className="adm-big">
         <CountUp value={total} format={(n) => money(Math.round(n))} />
-        <Delta now={last7} prev={prev7} suffix="последние 7 дней к предыдущим" />
+        <Delta now={total} prev={before} suffix="к предыдущим 30 дням" />
       </div>
       <p className="adm-sub">{pays.toLocaleString("ru-RU")} пополнений · средний чек {money(pays ? Math.round(total / pays) : 0)}</p>
       <div className="adm-chart">
@@ -165,7 +171,7 @@ function OnlineWidget({ online, users }: { online: Data; users: Data }) {
           <small>от всех</small>
         </Ring>
         <dl>
-          <div><dt>Сутки</dt><dd><CountUp value={day} /> <Delta now={day} prev={Number(online.day_prev || 0)} /></dd></div>
+          <div><dt>Сутки</dt><dd><CountUp value={day} /></dd></div>
           <div><dt>Неделя</dt><dd><CountUp value={Number(online.week || 0)} /></dd></div>
           <div><dt>Месяц</dt><dd><CountUp value={Number(online.month || 0)} /></dd></div>
         </dl>
@@ -195,9 +201,11 @@ function ConversionWidget({ funnel }: { funnel: Data }) {
   );
 }
 
-function QueueWidget({ s }: { s: Data }) {
+function QueueWidget({ s, badges }: { s: Data; badges?: Data | null }) {
   const navigate = useNavigate();
   const items = [
+    // Paid less than the invoice: nothing was credited, the person is waiting for an answer.
+    { n: Number(badges?.mismatch_orders || 0), label: "Оплат с несовпавшей суммой", icon: <Wallet />, tone: "#ff9500", go: "orders?status=mismatch" },
     { n: Number(s.tickets_open || 0), label: "Открытых обращений", icon: <LifeBuoy />, tone: "#ff9500", go: "tickets" },
     { n: Number(s.users?.payouts_pending || 0), label: "Заявок на выплату", icon: <Wallet />, tone: "#ff2d55", go: "referrals" },
     { n: Number(s.billing_today?.errors || 0), label: "Ошибок списания сегодня", icon: <TriangleAlert />, tone: "#ef4444", go: "billing" },
@@ -222,7 +230,7 @@ function QueueWidget({ s }: { s: Data }) {
         <div className="adm-calm">
           <span>🐸</span>
           <b>Всё спокойно</b>
-          <small>Нет обращений, выплат и ошибок</small>
+          <small>Нет обращений, выплат, ошибок и спорных оплат</small>
         </div>
       )}
     </Widget>
@@ -319,13 +327,14 @@ export function Avatar({ row, size = 36 }: { row: Data; size?: number }) {
 /** The widget board shown on top of the overview page. */
 export function DashboardWidgets({ s }: { s: Data }) {
   const stats = useResource("statistics?days=30");
+  const badges = useResource("badges", 60000).data;
   const series: Data[] = stats.data?.series || [];
   return (
     <div className="adm-board">
-      <QueueWidget s={s} />
+      <QueueWidget s={s} badges={badges} />
       <OnlineWidget online={s.online || {}} users={s.users || {}} />
       <ConversionWidget funnel={s.funnel || {}} />
-      {series.length > 0 ? <RevenueWidget series={series} /> : <div className="adm-widget adm-span2 adm-skel" />}
+      {series.length > 0 ? <RevenueWidget series={series} previous={stats.data?.previous} /> : <div className="adm-widget adm-span2 adm-skel" />}
       {series.length > 0 ? <SignupsWidget series={series} users={s.users || {}} /> : <div className="adm-widget adm-skel" />}
       <PaySoonWidget pay={s.pay_soon || {}} />
       <PaymentsWidget />

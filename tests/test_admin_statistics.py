@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime, date, timezone
+from datetime import timedelta, datetime, date, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from app import db
@@ -40,12 +40,16 @@ class PaySoonStatisticsTest(unittest.IsolatedAsyncioTestCase):
 
 class AdminStatisticsTest(unittest.IsolatedAsyncioTestCase):
     async def test_moscow_days_zero_fill_and_separate_currencies(self):
-        pool = SimpleNamespace(fetch=AsyncMock(return_value=[
+        pool = SimpleNamespace(fetch=AsyncMock(side_effect=[[
             {'day': date(2026, 9, 27), 'kind': 'payments', 'code': 'topup_100', 'value': 2},
             {'day': date(2026, 9, 27), 'kind': 'payments', 'code': 'topup_250', 'value': 1},
             {'day': date(2026, 9, 27), 'kind': 'stars', 'code': '', 'value': 70},
             {'day': date(2026, 9, 21), 'kind': 'registered', 'code': '', 'value': 3},
-        ]), fetchrow=AsyncMock(return_value={'traffic_bytes': 100, 'devices_total': 2}))
+            {'day': date(2026, 9, 15), 'kind': 'registered', 'code': '', 'value': 4},
+        ], [
+            {'kind': 'registered', 'code': '', 'value': 4},
+            {'kind': 'payments', 'code': 'topup_100', 'value': 1},
+        ]]), fetchrow=AsyncMock(return_value={'traffic_bytes': 100, 'devices_total': 2}))
         settings = SimpleNamespace(topup_rub_for_code=lambda c: {'topup_100': 100, 'topup_250': 250}[c])
         with patch.object(db, '_pool_req', return_value=pool), patch.object(db, 'get_settings', return_value=settings), patch.object(db, '_utc_now', return_value=datetime(2026, 9, 26, 22, tzinfo=timezone.utc)):
             result = await db.admin_statistics(7)
@@ -57,8 +61,17 @@ class AdminStatisticsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['totals']['payments'], 3)
         self.assertEqual(result['totals']['stars'], 70)
         self.assertEqual(result['totals']['registered'], 3)
-        sql, start, end = pool.fetch.call_args.args
-        self.assertEqual(start.astimezone(timezone.utc).isoformat(), '2026-09-20T21:00:00+00:00')
+        sql, start, end = pool.fetch.call_args_list[0].args
+        # one query covers both periods: the week before starts on 14.09 Moscow time
+        self.assertEqual(start.astimezone(timezone.utc).isoformat(), '2026-09-13T21:00:00+00:00')
+        self.assertEqual(result['from'], '2026-09-21T00:00:00+03:00')
+        self.assertEqual(result['previous']['series'][1]['registered'], 4)
+        self.assertEqual(result['series'][0]['registered'], 3)
+        # previous totals stop at the same moment of the day, a week earlier
+        _, prev_start, prev_end = pool.fetch.call_args_list[1].args
+        self.assertEqual(prev_end, end - timedelta(days=7))
+        self.assertEqual(result['previous']['totals']['registered'], 4)
+        self.assertEqual(result['previous']['totals']['rub'], 100)
         self.assertIn("status = 'granted'", sql)
         self.assertIn('COALESCE(paid_at, created_at)', sql)
         self.assertIn('at >= $1 AND at < $2', sql)

@@ -47,33 +47,8 @@ export const billKinds: Data = {
   device_delete: "Удаление устройства",
   error: "Ошибка",
 };
-export const messageKinds: Data = {
-  nudge_setup_assist: "Помощь после настройки устройства",
-  nudge_recover_gift: "Подарок → подключение",
-  nudge_recover_setup: "Подарок есть → устройство",
-  nudge_recover_online: "Устройство → первый онлайн",
-  nudge_recover_quality: "Пробует VPN → обратная связь",
-  nudge_recover_payment: "Доступ закончился → первая оплата",
-  nudge_recover_idle: "Неделя без VPN → возвращение",
-  device_reissued: "Перевыпуск ссылки поддержкой",
-  broadcast: "Рассылка",
-  admin_dm: "Сообщение администратора",
-  nudge_trial: "Пробный доступ",
-  nudge_invite: "Приглашение друзей",
-  nudge_info: "Информация о сервисе",
-  nudge_idle: "Возврат пользователя",
-  nudge_device: "Подключение устройства",
-  nudge_legal: "Документы",
-  nudge_first_online: "После подключения",
-  nudge_trial_end: "Мало баланса",
-  nudge_payment: "Неоплаченный счёт",
-  welcome_intro: "Приветствие",
-  first_device_thanks: "Первое устройство",
-  cabinet_link: "Вход в кабинет",
-  low_balance: "Баланс закончился",
-  maintenance_hit: "Обращение при техработах",
-  maintenance_out: "Ответ при техработах",
-};
+import { messageKinds } from "@/lib/message-kinds";
+export { messageKinds };
 const statuses: Record<string, [string, string][]> = {
   orders: [
     ["", "Все статусы"],

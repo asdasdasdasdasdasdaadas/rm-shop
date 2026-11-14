@@ -296,6 +296,13 @@ async def api_stats(request: web.Request) -> web.Response:
     )
 
 
+async def api_badges(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    return web.json_response({"ok": True, **await db.admin_badges()})
+
+
 def _query_extra(request: web.Request, *keys: str) -> dict:
     out: dict[str, str] = {}
     for key in keys:
@@ -2823,6 +2830,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/logout", api_logout)
     app.router.add_get("/admin/api/session", api_session)
     app.router.add_get("/admin/api/stats", api_stats)
+    app.router.add_get("/admin/api/badges", api_badges)
     app.router.add_get("/admin/api/statistics/winback", api_winback_statistics)
     app.router.add_get("/admin/api/statistics", api_statistics)
     app.router.add_get("/admin/api/users", api_users)

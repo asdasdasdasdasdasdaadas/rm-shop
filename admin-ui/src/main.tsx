@@ -1,8 +1,11 @@
 import React, {
   Component,
+  Suspense,
+  lazy,
   useEffect,
   useRef,
   useState,
+  type ComponentType,
   type ReactNode,
 } from "react";
 import { createRoot } from "react-dom/client";
@@ -62,14 +65,55 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
-import { UsersPage } from "@/pages/users";
-import { FinancePage } from "@/pages/finance";
-import { StatisticsPage } from "@/pages/statistics";
 import { OverviewPage } from "@/pages/overview";
-import { RecordsPage, BackupsPage, TonPage } from "@/pages/records";
-import { SettingsPage } from "@/pages/settings";
-import { AdsPage, ReferralsPage } from "@/pages/marketing";
-import { BroadcastPage } from "@/pages/communications";
+// Every other section is its own file, fetched when first opened (or when its menu item is hovered).
+const RELOADED = "admin-chunk-reload";
+function section<T extends Record<string, unknown>>(load: () => Promise<T>) {
+  let pending: Promise<T> | null = null;
+  const get = () =>
+    (pending ||= load().then(
+      (m) => {
+        try { sessionStorage.removeItem(RELOADED); } catch {}
+        return m;
+      },
+      (e) => {
+        pending = null;
+        // After a deploy the old page asks for pieces that are gone: reload once to get the new ones.
+        try {
+          if (!sessionStorage.getItem(RELOADED)) {
+            sessionStorage.setItem(RELOADED, "1");
+            location.reload();
+          }
+        } catch {}
+        throw e;
+      },
+    ));
+  const page = <K extends keyof T>(name: K) =>
+    lazy(() => get().then((m) => ({ default: m[name] as unknown as ComponentType<any> })));
+  return { get, page };
+}
+const users = section(() => import("@/pages/users")),
+  finance = section(() => import("@/pages/finance")),
+  statistics = section(() => import("@/pages/statistics")),
+  records = section(() => import("@/pages/records")),
+  settingsPage = section(() => import("@/pages/settings")),
+  marketing = section(() => import("@/pages/marketing")),
+  communications = section(() => import("@/pages/communications"));
+const UsersPage = users.page("UsersPage"),
+  FinancePage = finance.page("FinancePage"),
+  StatisticsPage = statistics.page("StatisticsPage"),
+  RecordsPage = records.page("RecordsPage"),
+  BackupsPage = records.page("BackupsPage"),
+  TonPage = records.page("TonPage"),
+  SettingsPage = settingsPage.page("SettingsPage"),
+  AdsPage = marketing.page("AdsPage"),
+  ReferralsPage = marketing.page("ReferralsPage"),
+  BroadcastPage = communications.page("BroadcastPage");
+const PRELOAD: Record<string, () => Promise<unknown>> = {
+  statistics: statistics.get, users: users.get, finance: finance.get, settings: settingsPage.get,
+  ads: marketing.get, referrals: marketing.get, broadcast: communications.get,
+  tickets: records.get, orders: records.get, billing: records.get, messages: records.get, ton: records.get, backups: records.get,
+};
 import "./theme.css";
 // Telegram-settings style: every section gets its own coloured tile.
 const TILE: Record<string, string> = {
@@ -416,12 +460,28 @@ function Workspace({
       window.removeEventListener("keydown", key);
     };
   }, []);
-  // Live counters on the menu: open tickets and pending payouts.
-  const live = useResource("stats", 120000).data;
+  // Live counters on the menu from a cheap endpoint (the full «stats» is heavy): open tickets, payouts,
+  // payments that came short and were not credited, billing errors today.
+  const live = useResource("badges", 60000).data;
   const badge: Record<string, number> = {
     tickets: Number(live?.tickets_open || 0),
-    referrals: Number(live?.users?.payouts_pending || 0),
+    referrals: Number(live?.payouts_pending || 0),
+    orders: Number(live?.mismatch_orders || 0),
+    billing: Number(live?.billing_errors || 0),
   };
+  const badgeHint: Record<string, string> = {
+    tickets: "открытых обращений",
+    referrals: "заявок на выплату",
+    orders: "оплат с несовпавшей суммой за 30 дней",
+    billing: "ошибок списания сегодня",
+  };
+  const waiting = Object.values(badge).reduce((a, n) => a + n, 0);
+  useEffect(() => {
+    document.title = (waiting ? `(${waiting}) ` : "") + `${current.label} · ${brand}`;
+  }, [waiting, current.label, brand]);
+  const [search, setSearch] = useState("");
+  const person = search.trim().replace(/^@/, "");
+  const personLike = /^\d{3,}$/.test(person) || (/^[a-zA-Z][\w]{3,}$/.test(person) && search.trim().startsWith("@"));
   const nav = (
     <div className="flex min-h-full flex-col">
       <div className="flex items-center gap-3 px-3 py-5">
@@ -447,14 +507,20 @@ function Workspace({
                     className="w-full justify-start h-10 px-2 text-[13px] gap-3 rounded-[12px]"
                     aria-current={s.id === current.id ? "page" : undefined}
                     onClick={() => navigate(s.id)}
+                    onPointerEnter={() => void PRELOAD[s.id]?.().catch(() => {})}
+                    onFocus={() => void PRELOAD[s.id]?.().catch(() => {})}
                   >
                     <span className="adm-tile" style={{ background: TILE[s.id] || "#6b7280" }}>
                       <s.icon />
                     </span>
                     <span className="truncate">{s.label}</span>
                     {badge[s.id] > 0 && (
-                      <span className="adm-badge" aria-hidden="true">
+                      <span
+                        className={"adm-badge" + (s.id === "orders" || s.id === "billing" ? " adm-badge-warn" : "")}
+                        title={`${badge[s.id]} ${badgeHint[s.id]}`}
+                      >
                         {badge[s.id]}
+                        <span className="sr-only"> {badgeHint[s.id]}</span>
                       </span>
                     )}
                   </Button>
@@ -560,7 +626,7 @@ function Workspace({
                 aria-label="Поиск по админке"
               >
                 <Search />
-                <span className="hidden md:inline">Поиск раздела</span>
+                <span className="hidden md:inline">Поиск</span>
                 <kbd className="text-xs text-muted-foreground hidden md:inline ml-5">
                   ⌘ K
                 </kbd>
@@ -588,7 +654,9 @@ function Workspace({
               </p>
             </div>
             <ErrorBoundary key={route}>
-              <div key={route}>{page}</div>
+              <Suspense fallback={<Loading />}>
+                <div key={route}>{page}</div>
+              </Suspense>
             </ErrorBoundary>
           </main>
         </div>
@@ -604,13 +672,34 @@ function Workspace({
       </Sheet>
       <CommandDialog
         open={command}
-        onOpenChange={setCommand}
-        title="Поиск раздела"
-        description="Введите название раздела или задачи"
+        onOpenChange={(open) => {
+          setCommand(open);
+          if (!open) setSearch("");
+        }}
+        title="Поиск"
+        description="Раздел админки или клиент по ID и @username"
       >
-        <CommandInput placeholder="Клиент, оплата, акция, настройки…" />
+        <CommandInput placeholder="Раздел, Telegram ID или @username…" value={search} onValueChange={setSearch} />
         <CommandList>
-          <CommandEmpty>Раздел не найден</CommandEmpty>
+          <CommandEmpty>
+            {search.trim() ? (
+              <button type="button" className="text-primary underline-offset-4 hover:underline" onClick={() => navigate("users?q=" + encodeURIComponent(search.trim()))}>
+                Искать «{search.trim()}» среди клиентов
+              </button>
+            ) : "Раздел не найден"}
+          </CommandEmpty>
+          {personLike && (
+            <CommandGroup heading="Клиент">
+              <CommandItem value={"client " + search} onSelect={() => navigate("users?q=" + encodeURIComponent(person))}>
+                <Users className="size-4" />
+                Открыть клиента {search.trim()}
+              </CommandItem>
+              <CommandItem value={"payments " + search} onSelect={() => navigate("orders?q=" + encodeURIComponent(person))}>
+                <CreditCard className="size-4" />
+                Платежи клиента {search.trim()}
+              </CommandItem>
+            </CommandGroup>
+          )}
           {groups.map((group) => (
             <CommandGroup key={group} heading={group}>
               {sections

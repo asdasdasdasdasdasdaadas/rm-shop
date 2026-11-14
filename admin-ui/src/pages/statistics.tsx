@@ -1,6 +1,6 @@
-import React, { useState } from "react";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { CountUp, Spark } from "@/components/widgets";
+import React, { useMemo, useState, type ReactNode } from "react";
+import { Area, Bar, BarChart, Cell, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts";
+import { CountUp, Delta, Spark } from "@/components/widgets";
 import {
   ChartContainer,
   ChartTooltip,
@@ -18,10 +18,10 @@ import {
   Pager,
   useNavigate,
 } from "@/components/workspace";
-import { date, money, useResource, who, type Data } from "@/lib/api";
+import { change, compact, date, money, useHashParam, useResource, who, type Data } from "@/lib/api";
 import { OverviewPage } from "./overview";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Download, RefreshCw, UserPlus, PlugZap, BadgeRussianRuble, Receipt, Star, Smartphone } from "lucide-react";
+import { Download, RefreshCw, UserPlus, PlugZap, BadgeRussianRuble, Receipt, Star, Smartphone, GitCompareArrows, Waves, CalendarDays } from "lucide-react";
 
 const metrics: Record<string, string> = {
   registered: "Регистрации",
@@ -46,30 +46,62 @@ const STAT_ICON: Record<string, React.ReactNode> = {
   rub: <BadgeRussianRuble />,
   payments: <Receipt />,
 };
+/** Trailing 7-day average, so weekly swings do not hide the trend. */
+function smooth(rows: Data[], keys: string[], prefix = "") {
+  return rows.map((row, i) => {
+    const out: Data = { ...row };
+    for (const key of keys) {
+      const window = rows.slice(Math.max(0, i - 6), i + 1);
+      out[prefix + key] = window.reduce((a, r) => a + Number(r[prefix + key] || 0), 0) / window.length;
+    }
+    return out;
+  });
+}
+/** Animate charts only for someone watching: hidden tabs freeze frames, and some people turn motion off. */
+const motion = () => !document.hidden && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+const dm = (v: unknown) => `${String(v).slice(8)}.${String(v).slice(5, 7)}`;
 export function HistoryChart({
   title,
   description,
   rows,
   keys,
+  compare,
+  smoothed = false,
+  money: isMoney = false,
+  action,
 }: {
   title: string;
   description: string;
   rows: Data[];
   keys: string[];
+  /** Previous period, day by day, laid over the current one as a dashed line. */
+  compare?: Data[];
+  smoothed?: boolean;
+  money?: boolean;
+  action?: ReactNode;
 }) {
   const colors = ["#2fbf6f", "#3e88f7", "#af52de"];
+  let data: Data[] = rows.map((row, i) => {
+    const point: Data = { ...row };
+    if (compare) for (const key of keys) {
+      point["prev_" + key] = compare[i]?.[key] ?? null;
+      point["prev_day_" + key] = compare[i]?.day;
+    }
+    return point;
+  });
+  if (smoothed) data = smooth(smooth(data, keys), compare ? keys : [], "prev_");
+  const config = Object.fromEntries(
+    keys.flatMap((key, i) => [
+      [key, { label: metrics[key] || key, color: colors[i] }],
+      ["prev_" + key, { label: `${metrics[key] || key} · прошлый период`, color: colors[i] }],
+    ]),
+  );
+  const fmt = (v: unknown) =>
+    isMoney ? money(Math.round(Number(v || 0))) : Number(v || 0).toLocaleString("ru-RU", { maximumFractionDigits: smoothed ? 1 : 0 });
   return (
-    <Panel title={title} description={description}>
-      <ChartContainer
-        className="h-64 w-full min-w-0 aspect-auto"
-        config={Object.fromEntries(
-          keys.map((key, i) => [
-            key,
-            { label: metrics[key], color: colors[i] },
-          ]),
-        )}
-      >
-        <AreaChart accessibilityLayer data={rows} margin={{ left: 0, right: 8, top: 8 }}>
+    <Panel title={title} description={description} action={action}>
+      <ChartContainer className="h-64 w-full min-w-0 aspect-auto" config={config}>
+        <ComposedChart accessibilityLayer data={data} margin={{ left: 4, right: 8, top: 8 }}>
           <defs>
             {keys.map((key) => (
               <linearGradient key={key} id={"hg-" + key} x1="0" y1="0" x2="0" y2="1">
@@ -79,64 +111,110 @@ export function HistoryChart({
             ))}
           </defs>
           <CartesianGrid vertical={false} strokeDasharray="3 6" />
-          <XAxis
-            dataKey="day"
-            tickLine={false}
-            axisLine={false}
-            minTickGap={36}
-            tickFormatter={(v) =>
-              `${String(v).slice(8)}.${String(v).slice(5, 7)}`
-            }
-          />
-          <YAxis
-            width={48}
-            tickLine={false}
-            axisLine={false}
-            allowDecimals={false}
-            tickFormatter={(v) =>
-              Intl.NumberFormat("ru", { notation: "compact" }).format(v)
-            }
-          />
+          <XAxis dataKey="day" tickLine={false} axisLine={false} minTickGap={36} tickFormatter={dm} />
+          <YAxis width={64} tickLine={false} axisLine={false} allowDecimals={false} tickFormatter={compact} />
           <ChartTooltip
             content={
               <ChartTooltipContent
                 labelFormatter={(v) => String(v).split("-").reverse().join(".")}
+                formatter={(value, name, item) => {
+                  const key = String(name), prev = key.startsWith("prev_");
+                  const base = prev ? key.slice(5) : key;
+                  return (
+                    <div className="flex w-full items-center justify-between gap-4">
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: `var(--color-${base})`, opacity: prev ? 0.45 : 1 }} />
+                        {prev ? `Было ${dm(item?.payload?.["prev_day_" + base])}` : metrics[base] || base}
+                      </span>
+                      <b className="font-mono tabular-nums">{fmt(value)}</b>
+                    </div>
+                  );
+                }}
               />
             }
           />
-          <ChartLegend
-            content={
-              <ChartLegendContent className="flex-wrap gap-x-4 gap-y-1" />
-            }
-          />
+          <ChartLegend content={<ChartLegendContent className="flex-wrap gap-x-4 gap-y-1" />} />
           {keys.map((key) => (
-            <Area
-              key={key}
-              type="monotone"
-              dataKey={key}
-              stroke={`var(--color-${key})`}
-              strokeWidth={2.5}
-              fill={`url(#hg-${key})`}
-              dot={false}
-              activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--card)" }}
-              animationDuration={1100}
-            />
+            <Area key={key} type="monotone" dataKey={key} stroke={`var(--color-${key})`} strokeWidth={2.5}
+              fill={`url(#hg-${key})`} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--card)" }} animationDuration={600} isAnimationActive={motion()} />
           ))}
-        </AreaChart>
+          {compare && keys.map((key) => (
+            <Line key={"prev_" + key} type="monotone" dataKey={"prev_" + key} stroke={`var(--color-${key})`} strokeOpacity={0.45}
+              strokeWidth={1.75} strokeDasharray="5 5" dot={false} activeDot={{ r: 3 }} animationDuration={500} isAnimationActive={motion()} legendType="plainline" />
+          ))}
+        </ComposedChart>
       </ChartContainer>
       {!rows.some((row) => keys.some((key) => row[key] > 0)) && (
-        <p className="mt-3 text-sm text-muted-foreground">
-          За этот период событий нет.
-        </p>
+        <p className="mt-3 text-sm text-muted-foreground">За этот период событий нет.</p>
+      )}
+    </Panel>
+  );
+}
+const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const WEEKDAYS_FULL = ["понедельник", "вторник", "среду", "четверг", "пятницу", "субботу", "воскресенье"];
+/** Average per weekday: when people come and pay, to time broadcasts and ads. Today is left out — it is not over. */
+function WeekdayPattern({ rows, metric, days, isMoney }: { rows: Data[]; metric: string; days: number; isMoney: boolean }) {
+  const data = useMemo(() => {
+    const sums = Array(7).fill(0), counts = Array(7).fill(0);
+    rows.slice(0, -1).forEach((row) => {
+      const wd = (new Date(row.day + "T12:00:00Z").getUTCDay() + 6) % 7;
+      sums[wd] += Number(row[metric] || 0);
+      counts[wd] += 1;
+    });
+    return WEEKDAYS.map((name, i) => ({ name, value: counts[i] ? sums[i] / counts[i] : 0, days: counts[i] }));
+  }, [rows, metric]);
+  const total = data.reduce((a, d) => a + d.value, 0);
+  const best = data.reduce((b, d, i) => (d.value > data[b].value ? i : b), 0);
+  const worst = data.reduce((b, d, i) => (d.value < data[b].value ? i : b), 0);
+  const fmt = (v: number) => (isMoney ? money(Math.round(v)) : v.toLocaleString("ru-RU", { maximumFractionDigits: 1 }));
+  const lift = data[worst].value ? Math.round((data[best].value / data[worst].value - 1) * 100) : null;
+  return (
+    <Panel
+      title={`По дням недели · ${metrics[metric] || metric}`}
+      description="Среднее за один день недели в выбранном периоде, без сегодняшнего неполного дня. Помогает выбрать день для рассылки и рекламы."
+    >
+      {days < 14 ? (
+        <p className="text-sm text-muted-foreground">Выберите период от 30 дней: за неделю у каждого дня всего одно значение.</p>
+      ) : !total ? (
+        <p className="text-sm text-muted-foreground">За этот период событий нет.</p>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px] items-center">
+          <ChartContainer className="h-48 w-full min-w-0 aspect-auto" config={{ value: { label: "В среднем за день", color: "#3e88f7" } }}>
+            <BarChart data={data} margin={{ left: 4, right: 8, top: 8 }}>
+              <CartesianGrid vertical={false} strokeDasharray="3 6" />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} />
+              <YAxis width={64} tickLine={false} axisLine={false} tickFormatter={compact} />
+              <ChartTooltip cursor={{ fill: "var(--secondary)" }} content={<ChartTooltipContent hideIndicator formatter={(v, _n, item) => (
+                <div className="flex w-full justify-between gap-4"><span className="text-muted-foreground">В среднем · {item?.payload?.days} дн.</span><b className="tabular-nums">{fmt(Number(v))}</b></div>
+              )} />} />
+              <Bar dataKey="value" radius={[8, 8, 4, 4]} animationDuration={500} isAnimationActive={motion()}>
+                {data.map((d, i) => (
+                  <Cell key={d.name} fill={i === best ? "#2fbf6f" : i === worst ? "#ff9500" : "#3e88f7"} fillOpacity={i === best || i === worst ? 1 : 0.55} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+          <div className="space-y-3 text-sm">
+            <div className="adm-mini !p-3"><span className="adm-tile" style={{ background: "#2fbf6f" }}><CalendarDays /></span>
+              <div><p>Лучший день</p><b>{WEEKDAYS[best]} · {fmt(data[best].value)}</b></div></div>
+            <div className="adm-mini !p-3"><span className="adm-tile" style={{ background: "#ff9500" }}><CalendarDays /></span>
+              <div><p>Слабый день</p><b>{WEEKDAYS[worst]} · {fmt(data[worst].value)}</b></div></div>
+            {lift != null && lift > 0 && (
+              <p className="text-muted-foreground">В {WEEKDAYS_FULL[best]} в среднем на {lift}% больше, чем в {WEEKDAYS_FULL[worst]}.</p>
+            )}
+          </div>
+        </div>
       )}
     </Panel>
   );
 }
 export function StatisticsPage() {
   const navigate = useNavigate();
-  const [days, setDays] = useState("30");
-  const [tab, setTab] = useState("dynamics");
-  const [chart, setChart] = useState("acquisition");
+  const [days, setDays] = useHashParam("days", "30");
+  const [tab, setTab] = useHashParam("tab", "dynamics");
+  const [chart, setChart] = useHashParam("chart", "acquisition");
+  const [compareOn, setCompareOn] = useHashParam("compare", "1");
+  const [smoothOn, setSmoothOn] = useHashParam("smooth", "0");
   const [tablePage, setTablePage] = useState(1);
   const charts: Record<
     string,
@@ -145,8 +223,8 @@ export function StatisticsPage() {
     acquisition: {
       title: "Привлечение и подключение",
       description:
-        "Регистрации, первые запуски бота и первые подключения в день события. Конверсия одной группы клиентов — во вкладке «Воронка».",
-      keys: ["registered", "started", "connected"],
+        "Регистрации и первые подключения в день события. Конверсия одной группы клиентов — во вкладке «Воронка».",
+      keys: ["registered", "connected"],
     },
     revenue: {
       title: "Оплаты в рублях",
@@ -170,7 +248,12 @@ export function StatisticsPage() {
     snapshot = useResource("stats");
   const [details, setDetails] = useState(false);
   const rows: Data[] = history.data?.series || [],
-    totals = history.data?.totals || {};
+    totals = history.data?.totals || {},
+    previous: Data = history.data?.previous || {},
+    prevTotals: Data = previous.totals || {};
+  const periodWord = { "7": "7 дней", "30": "30 дней", "90": "90 дней", "365": "год" }[days] || `${days} дней`;
+  const avgNow = totals.payments ? totals.rub / totals.payments : 0,
+    avgPrev = prevTotals.payments ? prevTotals.rub / prevTotals.payments : 0;
   const exportCsv = () => {
     const keys = Object.keys(metrics);
     const csv = [
@@ -206,7 +289,8 @@ export function StatisticsPage() {
               Даты по Москве · сегодняшний день ещё не завершён.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-36">
             <Choice
               label="Период статистики"
               value={days}
@@ -221,6 +305,7 @@ export function StatisticsPage() {
                 ["365", "Год"],
               ]}
             />
+            </div>
             <Button
               variant="outline"
               disabled={!history.data || history.loading}
@@ -284,27 +369,48 @@ export function StatisticsPage() {
                     <CountUp value={Number(totals[key] || 0)} format={(n) => (key === "rub" ? money(Math.round(n)) : number(Math.round(n)))} />
                   </b>
                   <Spark values={rows.map((r) => Number(r[key] || 0))} color={STAT_TONE[key]} />
-                  <small>За выбранный период · показать график</small>
+                  <small className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <Delta now={Number(totals[key] || 0)} prev={Number(prevTotals[key] || 0)} suffix={`к предыдущим ${periodWord}`} />
+                    {prevTotals[key] != null
+                      ? <span>было {key === "rub" ? money(prevTotals[key]) : number(prevTotals[key])}</span>
+                      : <span>за выбранный период</span>}
+                  </small>
                 </button>
               ))}
             </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
             <div
-              className="adm-seg"
-              role="group"
-              aria-label="Показатель графика"
-            >
-              {Object.entries(charts).map(([key, value]) => (
-                <Button
-                  key={key}
-                  variant={chart === key ? "secondary" : "outline"}
-                  aria-pressed={chart === key}
-                  onClick={() => setChart(key)}
-                >
-                  {value.title}
-                </Button>
-              ))}
+                className="adm-seg"
+                role="group"
+                aria-label="Показатель графика"
+              >
+                {Object.entries(charts).map(([key, value]) => (
+                  <Button
+                    key={key}
+                    variant={chart === key ? "secondary" : "outline"}
+                    aria-pressed={chart === key}
+                    onClick={() => setChart(key)}
+                  >
+                    {value.title}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Вид графика">
+                <button type="button" className="adm-toggle" aria-pressed={compareOn === "1"}
+                  onClick={() => setCompareOn(compareOn === "1" ? "0" : "1")} disabled={!previous.series}
+                  title="Пунктир — те же дни предыдущего периода">
+                  <GitCompareArrows />Прошлый период
+                </button>
+                <button type="button" className="adm-toggle" aria-pressed={smoothOn === "1"}
+                  onClick={() => setSmoothOn(smoothOn === "1" ? "0" : "1")}
+                  title="Скользящее среднее: сглаживает разницу будней и выходных">
+                  <Waves />Среднее за 7 дней
+                </button>
+              </div>
             </div>
-            <HistoryChart {...charts[chart]} rows={rows} />
+            <HistoryChart {...(charts[chart] || charts.acquisition)} rows={rows} money={chart === "revenue"}
+              compare={compareOn === "1" ? previous.series : undefined} smoothed={smoothOn === "1"} />
+            <WeekdayPattern rows={rows} metric={(charts[chart] || charts.acquisition).keys[0]} days={Number(days)} isMoney={chart === "revenue"} />
             <Panel
               title="Плашка «Пригласить друга»"
               description="Нажатия в кабинете за выбранный период. Сбор начинается после обновления. Нажатие «Отправить» не подтверждает отправку сообщения, «Скопировать» — успешное копирование."
@@ -357,18 +463,19 @@ export function StatisticsPage() {
               {[
                 [
                   "Средний рублёвый платёж",
-                  totals.payments ? money(totals.rub / totals.payments) : "—",
+                  totals.payments ? money(avgNow) : "—",
+                  <Delta key="d" now={avgNow} prev={avgPrev} suffix={`к предыдущим ${periodWord}`} />,
                 ],
-                ["Оплачено Stars", number(totals.stars) + " Stars"],
-                ["Добавлено устройств", number(totals.devices)],
-              ].map(([label, value], i) => (
-                <div key={label} className="adm-mini">
+                ["Оплачено Stars", number(totals.stars) + " Stars", <Delta key="d" now={Number(totals.stars || 0)} prev={Number(prevTotals.stars || 0)} suffix={`к предыдущим ${periodWord}`} />],
+                ["Добавлено устройств", number(totals.devices), <Delta key="d" now={Number(totals.devices || 0)} prev={Number(prevTotals.devices || 0)} suffix={`к предыдущим ${periodWord}`} />],
+              ].map(([label, value, delta], i) => (
+                <div key={String(label)} className="adm-mini">
                   <span className="adm-tile" style={{ background: ["#22975a", "#f5a70f", "#5856d6"][i] }}>
                     {[<Receipt key="r" />, <Star key="s" />, <Smartphone key="d" />][i]}
                   </span>
                   <div>
                     <p>{label}</p>
-                    <b>{value}</b>
+                    <b>{value}</b> {delta}
                   </div>
                 </div>
               ))}

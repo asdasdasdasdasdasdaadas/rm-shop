@@ -70,6 +70,10 @@ async def overview(days=30,page=1,horizon=3,due_page=1):
     settings=get_settings();pool=db._pool_req()
     report=payment_report(await pool.fetch(PAYMENTS_SQL,start,now),start_day,days,settings)
     items=report.pop('items');report['history']={'items':items[(page-1)*30:page*30],'total':len(items),'page':page}
+    # The same stretch right before, cut at the same hour as now, so the cards compare like with like.
+    prev_day=start_day-timedelta(days=days)
+    prev=payment_report(await pool.fetch(PAYMENTS_SQL,start-timedelta(days=days),now-timedelta(days=days)),prev_day,days,settings)
+    report['previous']={'totals':prev['totals'],'series':prev['series']}
     price=max(1,int(settings.vpn_day_price_rub))
     rows=await pool.fetch(DUE_SQL,price,horizon)
     due=[]

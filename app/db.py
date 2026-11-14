@@ -2746,45 +2746,73 @@ async def log_bot_message(
             logging.getLogger("rm-shop.db").debug("Не удалось отметить блок бота %s", telegram_id, exc_info=True)
 
 
+_STATISTICS_EVENTS = """
+    WITH events AS (
+        SELECT created_at AS at, 'registered' AS kind, '' AS code, 1::bigint AS value FROM users
+        UNION ALL SELECT bot_started_at, 'started', '', 1 FROM users
+        UNION ALL SELECT first_online_at, 'connected', '', 1 FROM users
+        UNION ALL SELECT created_at, 'referred', '', 1 FROM users WHERE referred_by IS NOT NULL
+        UNION ALL SELECT created_at, 'devices', '', 1 FROM devices
+        UNION ALL SELECT created_at, 'promo', '', 1 FROM promo_uses
+        UNION ALL SELECT COALESCE(paid_at, created_at), 'payments', plan_code, 1
+            FROM pay_orders WHERE status = 'granted'
+        UNION ALL SELECT created_at, 'stars', '', stars FROM payments
+        UNION ALL SELECT created_at, 'star_payments', '', 1 FROM payments
+    )
+"""
+_STATISTICS_KEYS = ('registered', 'started', 'connected', 'referred', 'devices', 'promo', 'payments', 'stars',
+                    'star_payments', 'rub')
+
+
+def _add_statistics_row(point: dict, row, settings) -> None:
+    point[row['kind']] += int(row['value'])
+    if row['kind'] == 'payments':
+        point['rub'] += settings.topup_rub_for_code(row['code']) * int(row['value'])
+
+
 async def admin_statistics(days: int = 30) -> dict:
-    """Calendar-day event history in Moscow; no synthetic online history."""
+    """Calendar-day event history in Moscow; no synthetic online history.
+
+    «previous» is the same stretch of time right before the period: its totals stop at the same
+    moment of the day as now, so a half-finished today is compared with an equally short day."""
     if days not in (7, 30, 90, 365):
         raise ValueError("Unsupported statistics period")
     from zoneinfo import ZoneInfo
-    today = _utc_now().astimezone(ZoneInfo("Europe/Moscow")).date()
+    moscow = ZoneInfo("Europe/Moscow")
+    today = _utc_now().astimezone(moscow).date()
     start_day = today - timedelta(days=days - 1)
-    start = datetime.combine(start_day, datetime.min.time(), ZoneInfo("Europe/Moscow"))
+    prev_day = start_day - timedelta(days=days)
+    start = datetime.combine(start_day, datetime.min.time(), moscow)
+    prev_start = datetime.combine(prev_day, datetime.min.time(), moscow)
     end = _utc_now()
-    rows = await _pool_req().fetch(
-        """
-        WITH events AS (
-            SELECT created_at AS at, 'registered' AS kind, '' AS code, 1::bigint AS value FROM users
-            UNION ALL SELECT bot_started_at, 'started', '', 1 FROM users
-            UNION ALL SELECT first_online_at, 'connected', '', 1 FROM users
-            UNION ALL SELECT created_at, 'referred', '', 1 FROM users WHERE referred_by IS NOT NULL
-            UNION ALL SELECT created_at, 'devices', '', 1 FROM devices
-            UNION ALL SELECT created_at, 'promo', '', 1 FROM promo_uses
-            UNION ALL SELECT COALESCE(paid_at, created_at), 'payments', plan_code, 1
-                FROM pay_orders WHERE status = 'granted'
-            UNION ALL SELECT created_at, 'stars', '', stars FROM payments
-            UNION ALL SELECT created_at, 'star_payments', '', 1 FROM payments
-        )
+    pool = _pool_req()
+    rows = await pool.fetch(
+        _STATISTICS_EVENTS + """
         SELECT (at AT TIME ZONE 'Europe/Moscow')::date AS day, kind, code, SUM(value)::bigint AS value
         FROM events WHERE at >= $1 AND at < $2
         GROUP BY 1, 2, 3 ORDER BY 1
-        """, start, end,
+        """, prev_start, end,
     )
-    keys = ('registered', 'started', 'connected', 'referred', 'devices', 'promo', 'payments', 'stars', 'star_payments', 'rub')
+    prev_rows = await pool.fetch(
+        _STATISTICS_EVENTS + """
+        SELECT kind, code, SUM(value)::bigint AS value
+        FROM events WHERE at >= $1 AND at < $2
+        GROUP BY 1, 2
+        """, prev_start, end - timedelta(days=days),
+    )
+    keys = _STATISTICS_KEYS
     series = {(start_day + timedelta(days=i)).isoformat(): dict.fromkeys(keys, 0) for i in range(days)}
+    previous = {(prev_day + timedelta(days=i)).isoformat(): dict.fromkeys(keys, 0) for i in range(days)}
     settings = get_settings()
     for row in rows:
-        point = series.get(row['day'].isoformat())
-        if point is None:
-            continue
-        point[row['kind']] += int(row['value'])
-        if row['kind'] == 'payments':
-            point['rub'] += settings.topup_rub_for_code(row['code']) * int(row['value'])
-    snapshot = await _pool_req().fetchrow(f'''
+        day = row['day'].isoformat()
+        point = series.get(day) or previous.get(day)
+        if point is not None:
+            _add_statistics_row(point, row, settings)
+    previous_totals = dict.fromkeys(keys, 0)
+    for row in prev_rows:
+        _add_statistics_row(previous_totals, row, settings)
+    snapshot = await pool.fetchrow(f'''
         SELECT COALESCE(SUM({_ADMIN_TRAFFIC_SQL}), 0)::bigint AS traffic_bytes,
             (SELECT COUNT(*) FROM devices)::int AS devices_total FROM users u
     ''')
@@ -2793,6 +2821,11 @@ async def admin_statistics(days: int = 30) -> dict:
         'days': days, 'from': start.isoformat(), 'to': end.isoformat(),
         'series': [dict(day=day, **point) for day, point in series.items()],
         'totals': {key: sum(point[key] for point in series.values()) for key in keys},
+        'previous': {
+            'from': prev_start.isoformat(), 'to': (end - timedelta(days=days)).isoformat(),
+            'series': [dict(day=day, **point) for day, point in previous.items()],
+            'totals': previous_totals,
+        },
     }
 
 
@@ -2919,6 +2952,24 @@ FROM first_payments
 async def admin_paying_users() -> dict:
     row = await _pool_req().fetchrow(_PAYING_USERS_SQL, _utc_now())
     return dict(row) if row else {'total': 0, 'new_today': 0}
+
+
+async def admin_badges() -> dict:
+    """The few counters the admin menu shows, in one cheap query (the full admin_stats is heavy)."""
+    row = await _pool_req().fetchrow(
+        """
+        SELECT
+            (SELECT COUNT(*)::int FROM tickets WHERE status = 'open') AS tickets_open,
+            (SELECT COUNT(*)::int FROM referral_payouts WHERE status = 'pending') AS payouts_pending,
+            (SELECT COUNT(*)::int FROM pay_orders
+              WHERE status = 'mismatch' AND created_at >= NOW() - INTERVAL '30 days') AS mismatch_orders,
+            (SELECT COUNT(*)::int FROM billing_events
+              WHERE kind = 'error'
+                AND created_at >= ((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::date)
+                    AT TIME ZONE 'Europe/Moscow') AS billing_errors
+        """
+    )
+    return {key: int(value or 0) for key, value in dict(row or {}).items()}
 
 
 async def admin_stats() -> dict:

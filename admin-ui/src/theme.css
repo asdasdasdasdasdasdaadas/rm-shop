@@ -152,6 +152,7 @@ tbody tr { border-color: var(--border); transition: background-color .15s; }
 .adm-delta { display: inline-flex; align-items: center; font-size: 12px; font-weight: 700; letter-spacing: 0; padding: 3px 8px; border-radius: 99px; vertical-align: middle; }
 .adm-delta.up { color: #1d7a45; background: #2fbf6f26; } .adm-delta.down { color: #b42318; background: #ef444424; }
 :root[data-theme="dark"] .adm-delta.up { color: #6ee7a0; } :root[data-theme="dark"] .adm-delta.down { color: #fca5a5; }
+.adm-delta.flat { color: var(--muted-foreground); background: var(--secondary); }
 .adm-hero .adm-delta.up, .adm-hero .adm-delta.down { color: #fff; background: #ffffff2e; }
 .adm-tip { background: var(--card); border-radius: 12px; padding: 8px 12px; box-shadow: 0 8px 24px #0000004d; border: 1px solid var(--border); }
 .adm-tip small { display: block; font-size: 11px; color: var(--muted-foreground); }
@@ -190,6 +191,7 @@ tbody tr { border-color: var(--border); transition: background-color .15s; }
 .adm-skel-rows { display: grid; gap: 10px; }
 .adm-skel-rows i { display: block; height: 40px; border-radius: 12px; background: linear-gradient(100deg, var(--secondary) 40%, var(--card) 50%, var(--secondary) 60%) 0 0 / 300% 100%; animation: admShim 1.4s linear infinite; }
 .adm-badge { margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 99px; display: inline-grid; place-items: center; background: #ff3b30; color: #fff; font-size: 12px; font-weight: 700; animation: admPop .5s cubic-bezier(.3, 1.4, .4, 1) both; }
+.adm-badge-warn { background: #ff9500; }
 /* the whole page glides in on navigation */
 #workspace-main > div:first-child h1 { animation: admIn .45s cubic-bezier(.2,.8,.2,1) both; }
 #workspace-main > div:first-child p { animation: admIn .45s .05s cubic-bezier(.2,.8,.2,1) both; }
@@ -327,3 +329,11 @@ nav[aria-label="Разделы админки"] button:hover .adm-tile { transfo
 .adm-composer-hint { font-size: 11px; color: var(--muted-foreground); text-align: right; margin-top: 6px; }
 :root:not([data-theme="dark"]) .adm-inbox-rate { color: #9a5a00; }
 :root:not([data-theme="dark"]) .adm-inbox-st.open { background: #c25e00; color: #fff; }
+
+/* On/off chip: a pressed one is filled with the accent and shows a check-like dot. */
+.adm-toggle { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 99px; font-size: 13px; font-weight: 600; color: var(--muted-foreground); background: var(--card); box-shadow: var(--card-shadow), inset 0 0 0 1px var(--border); transition: background .2s, color .2s, box-shadow .2s; }
+.adm-toggle svg { width: 16px; height: 16px; }
+.adm-toggle:hover:not(:disabled) { color: var(--foreground); }
+.adm-toggle[aria-pressed="true"] { color: var(--primary); background: color-mix(in srgb, var(--primary) 14%, var(--card)); box-shadow: var(--card-shadow), inset 0 0 0 1.5px color-mix(in srgb, var(--primary) 60%, transparent); }
+.adm-toggle:disabled { opacity: .45; cursor: not-allowed; }
+.adm-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

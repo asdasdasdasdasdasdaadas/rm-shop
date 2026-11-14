@@ -13,9 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowUpRight, RefreshCw, CircleCheck } from "lucide-react";
-import { messageKinds } from "./records";
+import { messageKinds } from "@/lib/message-kinds";
 import { funnelRoute } from "@/lib/contracts.mjs";
-import { CountUp, Delta, DashboardWidgets } from "@/components/widgets";
+import { CountUp, DashboardWidgets } from "@/components/widgets";
 import { JourneyFunnel, JourneySources } from "@/components/journey";
 const main = [
   ["entered", "Запустили бота"],
@@ -59,7 +59,8 @@ export function OverviewPage({
   analyticsView?: "conversion" | "retention";
   statsResource?: ReturnType<typeof useResource>;
 }) {
-  const fetched = useResource(statsResource ? null : "stats");
+  // The overview stays open on a second screen: refresh it every 5 minutes (not while the tab is hidden).
+  const fetched = useResource(statsResource ? null : "stats", 300000);
   const resource = statsResource || fetched,
     navigate = useNavigate();
   const [period, setPeriod] = useState("30d");
@@ -183,7 +184,6 @@ export function OverviewPage({
                   ) : (
                     value
                   )}
-                  {path === "users?online=1d" && <Delta now={Number(s.online?.day || 0)} prev={Number(s.online?.day_prev || 0)} />}
                   {path === "users?paid=yes" && s.paying_users && (
                     <span
                       className="ml-3 inline-flex align-middle rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold tracking-normal text-white"
@@ -212,10 +212,18 @@ export function OverviewPage({
               <TabsTrigger value="retention">Возврат клиентов</TabsTrigger>
               <TabsTrigger value="system">Состояние системы</TabsTrigger>
             </TabsList>
-            <Button variant="ghost" onClick={() => void resource.reload()}>
-              <RefreshCw />
-              Обновить
-            </Button>
+            <div className="flex items-center gap-2">
+              {resource.updatedAt > 0 && (
+                <span className="text-xs text-muted-foreground" title="Обзор обновляется сам каждые 5 минут">
+                  Обновлено в{" "}
+                  {new Date(resource.updatedAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
+              <Button variant="ghost" disabled={resource.loading} onClick={() => void resource.reload()}>
+                <RefreshCw className={resource.loading ? "animate-spin" : undefined} />
+                Обновить
+              </Button>
+            </div>
           </div>
         )}
         <Content value="conversion" className="space-y-5">
