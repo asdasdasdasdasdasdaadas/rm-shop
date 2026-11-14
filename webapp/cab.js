@@ -265,7 +265,12 @@
     const tpl = (a && a.deep_link) || "";
     if (!tpl) { tg.openLink(url); return; }
     const deep = tpl.split("{enc}").join(encodeURIComponent(url)).split("{url}").join(url);
-    tg.openLink(new URL("open.html", location.href).href + "?to=" + encodeURIComponent(deep));
+    // The bridge page shows the app, a download button if it is not installed, the key to copy and the way back.
+    const stores = (a && a.stores) || {};
+    const q = new URLSearchParams({ to: deep, n: (a && a.name) || "", i: (a && a.icon) || "",
+      s: stores[detectPlatform()] || Object.values(stores)[0] || "", k: url,
+      b: String((me && me.bot_start_url) || "").split("?")[0] });
+    tg.openLink(new URL("open.html", location.href).href + "?" + q.toString());
   }
   function appIcon(a, size) {
     if (a && a.icon) return `<img src="${esc(a.icon)}" width="${size}" height="${size}" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * .24)}px" alt="">`;

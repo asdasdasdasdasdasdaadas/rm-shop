@@ -2,57 +2,179 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Открыть приложение</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#111215">
+  <title>Открываем приложение</title>
   <style>
-    html, body {
-      margin: 0;
-      min-height: 100%;
-      background: #0d1611;
-      color: #f1f6f2;
-      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    main { padding: 32px 20px; max-width: 420px; margin: 0 auto; }
-    p { line-height: 1.45; color: #9db3a4; }
-    a {
-      display: inline-block;
-      margin-top: 12px;
-      color: #0d1611;
-      background: #5fd68b;
-      text-decoration: none;
-      font-weight: 700;
-      border-radius: 12px;
-      padding: 12px 16px;
-    }
-    a.hidden { display: none; }
+    :root { --bg: #111215; --card: #1c1e23; --sep: rgba(255,255,255,.07); --hint: #9aa0ab; --grn: #3ccf74; --blue: #3e88f7; --ease: cubic-bezier(.2,.8,.2,1); }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: #fff; }
+    body { font-family: -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+    main { min-height: 100vh; min-height: 100dvh; max-width: 440px; margin: 0 auto; display: flex; flex-direction: column;
+      padding: calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 24px); }
+    .hero { position: relative; overflow: hidden; border-radius: 28px; padding: 34px 22px 26px; text-align: center;
+      background: linear-gradient(165deg, #0f5f66 0%, #178f8f 55%, #3fc6b4 100%); transition: background .5s; animation: up .5s var(--ease) both; }
+    .hero.warn { background: linear-gradient(170deg, #1f2a3d 0%, #354764 55%, #5c7397 100%); }
+    .hero.ok { background: linear-gradient(160deg, #5fd38d 0%, #28a464 58%, #16804a 100%); }
+    .hero::before { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 70% at 50% 0%, rgba(255,255,255,.18), transparent 60%); pointer-events: none; }
+    .icw { position: relative; width: 96px; height: 96px; margin: 0 auto; }
+    .ic { position: relative; z-index: 1; width: 96px; height: 96px; border-radius: 23px; box-shadow: 0 12px 28px rgba(0,0,0,.3); background: rgba(255,255,255,.18);
+      display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 34px; overflow: hidden; animation: pop .6s var(--ease) both; }
+    .ic img { width: 100%; height: 100%; display: block; }
+    .ring { position: absolute; inset: -6px; border-radius: 30px; border: 2px solid rgba(255,255,255,.55); animation: ring 1.6s ease-out infinite; }
+    .ring + .ring { animation-delay: .8s; }
+    .hero.warn .ring, .hero.ok .ring { display: none; }
+    .badge { position: absolute; z-index: 2; right: -8px; bottom: -8px; width: 34px; height: 34px; border-radius: 99px; display: none; align-items: center; justify-content: center;
+      font-size: 17px; font-weight: 800; border: 3px solid #2b3a55; background: #ffb340; color: #3a2400; animation: pop .45s var(--ease) both; }
+    .hero.warn .badge { display: flex; }
+    .hero.ok .badge { display: flex; background: #fff; color: #16804a; border-color: #28a464; }
+    h1 { font-size: 26px; line-height: 1.15; margin: 22px 0 8px; letter-spacing: -.3px; }
+    .p { color: rgba(255,255,255,.85); font-size: 15.5px; line-height: 1.42; margin: 0 auto; max-width: 320px; }
+    .dots { display: inline-flex; gap: 5px; margin-left: 4px; vertical-align: middle; }
+    .dots i { width: 6px; height: 6px; border-radius: 9px; background: #fff; animation: dot 1.2s infinite; }
+    .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
+    .acts { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .btn { display: flex; align-items: center; justify-content: center; gap: 10px; height: 56px; border-radius: 18px; border: 0; width: 100%;
+      font: 600 17px/1 inherit; font-family: inherit; text-decoration: none; cursor: pointer; transition: transform .12s, background .3s; animation: up .5s var(--ease) both; }
+    .btn:active { transform: scale(.97); }
+    .btn.pri { background: #fff; color: #111; }
+    .btn.sec { background: var(--card); color: #fff; animation-delay: .06s; }
+    .btn img { width: 26px; height: 26px; border-radius: 7px; }
+    .card { background: var(--card); border-radius: 22px; margin-top: 12px; padding: 4px 16px; animation: up .5s .12s var(--ease) both; }
+    .row { display: flex; align-items: center; gap: 12px; min-height: 58px; width: 100%; background: none; border: 0; color: #fff; font: inherit; font-size: 16px;
+      text-align: left; padding: 8px 0; cursor: pointer; text-decoration: none; }
+    .row + .row { border-top: 1px solid var(--sep); }
+    .row .e { width: 28px; text-align: center; font-size: 21px; flex-shrink: 0; }
+    .row .tt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+    .row .tt span { color: var(--hint); font-size: 13.5px; margin-top: 2px; line-height: 1.3; }
+    .row .cv { color: #5b606b; font-size: 22px; }
+    .row.done .e { animation: pop .4s var(--ease) both; }
+    .note { color: var(--hint); font-size: 13.5px; text-align: center; margin: 16px 12px 0; line-height: 1.45; animation: up .5s .18s var(--ease) both; }
+    .steps { counter-reset: s; list-style: none; margin: 0; padding: 6px 0; }
+    .steps li { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; font-size: 15px; line-height: 1.38; }
+    .steps li::before { counter-increment: s; content: counter(s); width: 26px; height: 26px; border-radius: 99px; background: #121317; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--hint); }
+    .steps li span { color: var(--hint); }
+    [hidden] { display: none !important; }
+    @keyframes up { from { opacity: 0; transform: translateY(14px); } }
+    @keyframes pop { 0% { opacity: 0; transform: scale(.6); } 60% { transform: scale(1.06); } 100% { transform: none; } }
+    @keyframes ring { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.45); } }
+    @keyframes dot { 0%, 60%, 100% { opacity: .35; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+    @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
   </style>
 </head>
 <body>
-  <main>
-    <p id="msg">Открываем приложение…</p>
-    <a id="manual" class="hidden" href="#">Открыть вручную</a>
-  </main>
-  <script>
-    (function () {
-      var msg = document.getElementById("msg");
-      var a = document.getElementById("manual");
-      var to = "";
-      try {
-        to = new URLSearchParams(window.location.search).get("to") || "";
-      } catch (_e) {}
-      var scheme = (to.split(":")[0] || "").toLowerCase();
-      var blocked = { javascript:1, data:1, file:1, about:1, blob:1, mailto:1, http:1, https:1, vbscript:1 };
-      if (!to || !/^[a-z][a-z0-9+.-]{0,31}$/.test(scheme) || blocked[scheme] || to.indexOf("://") < 0) {
-        msg.textContent = "Не удалось открыть приложение.";
-        return;
-      }
-      a.href = to;
-      a.classList.remove("hidden");
-      window.location.href = to;
-      setTimeout(function () {
-        msg.textContent = "Если приложение не открылось, нажмите кнопку ниже. Проверьте, что VPN-приложение установлено.";
-      }, 700);
-    })();
-  </script>
+<main>
+  <section class="hero" id="hero">
+    <div class="icw"><span class="ring"></span><span class="ring"></span><div class="ic" id="ic"></div><span class="badge" id="badge">!</span></div>
+    <h1 id="h">Открываем<span class="dots"><i></i><i></i><i></i></span></h1>
+    <p class="p" id="p">Ключ добавится в приложение сам</p>
+  </section>
+
+  <!-- The app did not open: most likely it is not installed yet. -->
+  <div id="fail" hidden>
+    <div class="acts">
+      <a class="btn pri" id="store" hidden></a>
+      <button class="btn sec" id="again" type="button"></button>
+    </div>
+    <div class="card">
+      <button class="row" id="copy" type="button" hidden><span class="e" id="copyE">🔑</span>
+        <span class="tt"><b id="copyT">Скопировать ключ</b><span id="copyS">Если приложение не берёт ключ само — вставьте его вручную</span></span></button>
+      <a class="row" id="back" hidden><span class="e">↩︎</span><span class="tt"><b>Вернуться в Telegram</b><span>Кабинет остался открыт</span></span><span class="cv">›</span></a>
+    </div>
+    <div class="card" id="how" hidden><ol class="steps">
+      <li><div>Установите <b class="nm"></b> <span>— кнопка выше</span></div></li>
+      <li><div>Вернитесь на эту страницу <span>и нажмите «Открыть ещё раз»</span></div></li>
+      <li><div>Разрешите VPN-подключение, <span>если телефон спросит</span></div></li>
+    </ol></div>
+  </div>
+
+  <!-- The app opened and the person came back here. -->
+  <div id="done" hidden>
+    <div class="acts"><a class="btn pri" id="back2">Вернуться в Telegram</a></div>
+    <p class="note">Не получилось? <a href="#" id="retry2" style="color:#5ea8ff;text-decoration:none">Открыть ещё раз</a></p>
+  </div>
+
+  <p class="note" id="bad" hidden>Ссылка устарела. Вернитесь в кабинет и нажмите «Подключить» ещё раз.</p>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var q = {};
+  try { q = Object.fromEntries(new URLSearchParams(location.search)); } catch (_e) {}
+  var to = String(q.to || "");
+  var scheme = (to.split(":")[0] || "").toLowerCase();
+  var blocked = { javascript: 1, data: 1, file: 1, about: 1, blob: 1, mailto: 1, http: 1, https: 1, vbscript: 1 };
+  var name = String(q.n || "").slice(0, 40) || "приложение";
+  var web = function (u) { return /^https:\/\//.test(u || "") ? u : ""; };
+  var icon = /^(\/icons\/|\/static\/icons\/)[\w.-]+$/.test(q.i || "") ? q.i : web(q.i);
+  var store = web(q.s), key = web(q.k), back = /^https:\/\/t\.me\//.test(q.b || "") ? q.b : "";
+  var where = /apps\.apple\.com/.test(store) ? "App Store" : /play\.google\.com/.test(store) ? "Google Play" : /github\.com/.test(store) ? "GitHub" : "";
+
+  var hero = $("hero"), h = $("h"), p = $("p");
+  var ic = $("ic");
+  if (icon) { var img = new Image(); img.alt = ""; img.src = icon; img.onerror = function () { ic.textContent = name.slice(0, 2).toUpperCase(); }; ic.appendChild(img); }
+  else ic.textContent = name === "приложение" ? "📲" : name.slice(0, 2).toUpperCase();
+  Array.prototype.forEach.call(document.querySelectorAll(".nm"), function (el) { el.textContent = name; });
+
+  if (!to || !/^[a-z][a-z0-9+.-]{0,31}$/.test(scheme) || blocked[scheme] || to.indexOf("://") < 0) {
+    hero.classList.add("warn"); h.textContent = "Не удалось открыть"; p.textContent = "В ссылке нет приложения для подключения.";
+    $("bad").hidden = false; return;
+  }
+  h.firstChild.textContent = "Открываем " + (name === "приложение" ? "приложение" : name);
+
+  var left = false, failed = false;
+  function open() { left = false; window.location.href = to; }
+
+  function showFail() {
+    if (left || failed) return;
+    failed = true;
+    hero.classList.add("warn");
+    h.textContent = name === "приложение" ? "Приложение не открылось" : name + " не открылся";
+    p.textContent = store ? "Скорее всего, оно ещё не установлено. Скачайте и вернитесь сюда — ключ добавится сам." : "Проверьте, что приложение установлено, и попробуйте ещё раз.";
+    if (store) {
+      var s = $("store"); s.href = store; s.hidden = false;
+      s.innerHTML = (icon ? '<img alt="" src="' + icon.replace(/"/g, "") + '">' : "") + "<span></span>";
+      s.lastChild.textContent = "Скачать " + (name === "приложение" ? "приложение" : name) + (where ? " · " + where : "");
+      $("how").hidden = false;
+    }
+    $("again").textContent = "Открыть ещё раз";
+    if (!store) $("again").className = "btn pri";
+    if (key && navigator.clipboard) $("copy").hidden = false;
+    if (back) { $("back").href = back; $("back").hidden = false; }
+    $("fail").hidden = false;
+  }
+
+  function showDone() {
+    hero.classList.remove("warn"); hero.classList.add("ok");
+    $("badge").textContent = "✓";
+    h.textContent = "Ключ в " + name;
+    p.textContent = "Включите VPN в приложении и возвращайтесь в Telegram.";
+    $("fail").hidden = true;
+    if (back) { $("back2").href = back; $("done").hidden = false; }
+  }
+
+  // The app opened if the page went to the background; when the person comes back, say it worked.
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) { left = true; return; }
+    // Back from the App Store after a failed open: keep the download screen, the key is not in the app yet.
+    if (left && !failed) showDone();
+  });
+  window.addEventListener("pagehide", function () { left = true; });
+
+  $("again").onclick = function () { failed = false; hero.classList.remove("warn"); h.textContent = "Открываем " + name; p.textContent = "Ключ добавится в приложение сам"; $("fail").hidden = true; open(); setTimeout(showFail, 1600); };
+  $("retry2").onclick = function (e) { e.preventDefault(); open(); };
+  $("copy").onclick = function () {
+    navigator.clipboard.writeText(key).then(function () {
+      $("copy").classList.add("done"); $("copyE").textContent = "✅"; $("copyT").textContent = "Ключ скопирован";
+      $("copyS").textContent = "В " + name + " нажмите «+» и выберите «Из буфера обмена»";
+    }, function () { $("copyS").textContent = "Не удалось скопировать — скопируйте ключ в кабинете"; });
+  };
+
+  open();
+  setTimeout(showFail, 1600);
+})();
+</script>
 </body>
 </html>
