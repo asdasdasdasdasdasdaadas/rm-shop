@@ -365,6 +365,7 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
           >
             <ListEditor
               kind="apps"
+              defaults={resource.data.vpn_app_defaults || []}
               list={values.vpn_apps || []}
               onChange={(v) => update("vpn_apps", v)}
             />
@@ -545,12 +546,15 @@ function AppIcon({ item }: { item: Data }) {
 function ListEditor({
   kind,
   list,
+  defaults = [],
   onChange,
 }: {
   kind: "payments" | "apps";
   list: Data[];
+  defaults?: Data[];
   onChange: (v: Data[]) => void;
 }) {
+  const missing = defaults.filter((d) => !list.some((a) => a.id === d.id));
   // Rows carry a stable key so an open form and focus follow the item while the list is reordered.
   const keys = useRef<number[]>([]),
     seq = useRef(0);
@@ -826,6 +830,29 @@ function ListEditor({
           );
         })}
       </div>
+      {kind === "apps" && missing.length > 0 && (
+        <div className="space-y-2 rounded-lg border border-dashed p-3">
+          <div className="text-sm text-muted-foreground">
+            Встроенные приложения, которых нет в списке:
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {missing.map((d) => (
+              <Button
+                key={d.id}
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  keys.current = [...keys.current, ++seq.current];
+                  onChange([...list, { ...d }]);
+                }}
+              >
+                <img src={d.icon} alt="" className="size-4 rounded" />
+                Добавить {d.name}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
       {kind === "apps" && (
         <Button
           variant="outline"

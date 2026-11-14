@@ -55,3 +55,34 @@ class OldSavedList(unittest.TestCase):
         from app.vpn_apps import default_ids
         saved = [{"id": "happ", "name": "Happ", "platforms": ["ios"]}]
         self.assertEqual(self._public({"vpn_apps": saved, "vpn_apps_seen": default_ids()}), ["happ"])
+
+
+class RestoreOnce(unittest.IsolatedAsyncioTestCase):
+    """A save from a stale admin tab marked Karing and RabbitHole as removed: they come back once at start."""
+
+    async def test_restored_once(self):
+        import json
+        from unittest.mock import AsyncMock, patch
+        from app import shop_config, vpn_apps
+        kv = {"shop_settings": json.dumps({"max_devices": 5, "balance_topup_max": 100000,
+              "vpn_apps": [{"id": "rabbithole", "name": "RabbitHole", "platforms": ["ios", "macos"]},
+                           {"id": "incy", "name": "Incy", "platforms": ["ios", "macos"]}],
+              "vpn_apps_seen": vpn_apps.default_ids()}),
+              "router_offer_hidden_v1": "1", "device_limit_5_v1": "1"}
+
+        async def get_kv(k):
+            return kv.get(k, "")
+
+        async def set_kv(k, v):
+            kv[k] = v
+        with patch.object(shop_config.db, "get_kv", get_kv), patch.object(shop_config.db, "set_kv", set_kv), \
+                patch.object(shop_config.db, "migrate_legacy_promo_codes", AsyncMock()):
+            await shop_config.load_shop_overlay()
+            ids = [a["id"] for a in vpn_apps.public_vpn_apps()]
+            self.assertEqual(ids, ["rabbithole", "incy", "karing"])
+            # Removed again in the admin after that: stays removed on the next start.
+            data = json.loads(kv["shop_settings"])
+            data["vpn_apps_seen"] = vpn_apps.default_ids()
+            kv["shop_settings"] = json.dumps(data)
+            await shop_config.load_shop_overlay()
+            self.assertNotIn("karing", [a["id"] for a in vpn_apps.public_vpn_apps()])

@@ -9,7 +9,7 @@ from app import db
 from app.config import SHOP_KEYS, get_settings, set_shop_overlay, shop_overlay
 from app.notices import NOTICE_FIELDS, public_notices, validate_notices
 from app.pay_methods import admin_pay_methods, validate_pay_methods
-from app.vpn_apps import default_ids, public_vpn_apps, validate_vpn_apps
+from app.vpn_apps import DEFAULT_VPN_APPS, default_ids, public_vpn_apps, validate_vpn_apps
 
 KV_KEY = "shop_settings"
 
@@ -159,6 +159,7 @@ def snapshot() -> dict:
             if field["key"] not in _board_notice_keys()
         ],
         "faq_defaults": default_faq_items(),
+        "vpn_app_defaults": [dict(x) for x in DEFAULT_VPN_APPS],
         "values": {
             "brand_name": s.brand_name,
             "support_username": s.support_username,
@@ -243,6 +244,14 @@ async def load_shop_overlay() -> None:
     if max_n != 100000:
         data["balance_topup_max"] = 100000
         await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
+    # A save from an admin tab opened before Karing and RabbitHole existed marked them as removed. Bring them
+    # back once; removing one in the admin after this sticks.
+    if not await db.get_kv("vpn_apps_restored_v1"):
+        seen = data.get("vpn_apps_seen")
+        if isinstance(seen, list):
+            data["vpn_apps_seen"] = [x for x in seen if x not in ("karing", "rabbithole")]
+            await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
+        await db.set_kv("vpn_apps_restored_v1", "1")
     set_shop_overlay(data)
     await db.migrate_legacy_promo_codes()
 
