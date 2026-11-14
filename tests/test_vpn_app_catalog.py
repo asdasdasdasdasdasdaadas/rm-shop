@@ -35,43 +35,41 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class OldSavedList(unittest.TestCase):
-    """A list saved in the admin before Karing and RabbitHole existed still shows them; a removed app stays removed."""
+class SavedList(unittest.TestCase):
+    """Built-in apps are always in the list, whatever an old admin tab saved; the admin hides them instead."""
 
-    def _public(self, overlay):
+    def _ids(self, overlay, admin=False):
         from unittest.mock import patch
         from app import vpn_apps
         with patch.object(vpn_apps, "shop_overlay", lambda: overlay):
-            return [a["id"] for a in vpn_apps.public_vpn_apps()]
+            return [a["id"] for a in (vpn_apps.admin_vpn_apps() if admin else vpn_apps.public_vpn_apps())]
 
-    def test_old_list_gets_new_apps(self):
-        old = [{"id": "happ", "name": "Happ", "platforms": ["ios"]}, {"id": "incy", "name": "Incy", "platforms": ["ios"]}]
-        ids = self._public({"vpn_apps": old})
-        self.assertEqual(ids[:2], ["happ", "incy"])
-        self.assertIn("karing", ids)
-        self.assertIn("rabbithole", ids)
-        self.assertNotIn("v2rayng", ids)  # was there when the list was saved, so the admin removed it
+    def test_saved_without_karing_still_has_it(self):
+        old = [{"id": "rabbithole", "name": "RabbitHole", "platforms": ["ios", "macos"]},
+               {"id": "incy", "name": "Incy", "platforms": ["ios"]}]
+        ids = self._ids({"vpn_apps": old})
+        self.assertEqual(ids[:2], ["rabbithole", "incy"])
+        self.assertEqual(set(ids), {"rabbithole", "incy", "happ", "karing", "v2rayng", "v2rayn"})
 
-    def test_removed_after_save_stays_removed(self):
-        from app.vpn_apps import default_ids
-        saved = [{"id": "happ", "name": "Happ", "platforms": ["ios"]}]
-        self.assertEqual(self._public({"vpn_apps": saved, "vpn_apps_seen": default_ids()}), ["happ"])
+    def test_hidden_only_leaves_the_cabinet(self):
+        saved = [{"id": "karing", "name": "Karing", "platforms": ["macos"], "hidden": True},
+                 {"id": "own", "name": "Своё", "platforms": ["ios"]}]
+        self.assertNotIn("karing", self._ids({"vpn_apps": saved}))
+        self.assertIn("own", self._ids({"vpn_apps": saved}))
+        self.assertEqual(self._ids({"vpn_apps": saved}, admin=True)[:2], ["karing", "own"])
 
 
-class RestoreOnce(unittest.IsolatedAsyncioTestCase):
-    """A save from a stale admin tab marked Karing and RabbitHole as removed: they come back once at start."""
+class KaringStoresOnce(unittest.IsolatedAsyncioTestCase):
+    """A saved Karing gets the Mac App Store link and loses Android once at start."""
 
-    async def test_restored_once(self):
+    async def test_fixed_once(self):
         import json
         from unittest.mock import AsyncMock, patch
         from app import shop_config, vpn_apps
         kv = {"shop_settings": json.dumps({"max_devices": 5, "balance_topup_max": 100000,
-              "vpn_apps": [{"id": "rabbithole", "name": "RabbitHole", "platforms": ["ios", "macos"]},
-                           {"id": "karing", "name": "Karing", "platforms": ["macos", "android"],
+              "vpn_apps": [{"id": "karing", "name": "Karing", "platforms": ["macos", "android"],
                             "stores": {"macos": "https://github.com/KaringX/karing/releases/latest",
-                                       "android": "https://github.com/KaringX/karing/releases/latest"}},
-                           {"id": "incy", "name": "Incy", "platforms": ["ios", "macos"]}],
-              "vpn_apps_seen": vpn_apps.default_ids()}),
+                                       "android": "https://github.com/KaringX/karing/releases/latest"}}]}),
               "router_offer_hidden_v1": "1", "device_limit_5_v1": "1"}
 
         async def get_kv(k):
@@ -82,15 +80,6 @@ class RestoreOnce(unittest.IsolatedAsyncioTestCase):
         with patch.object(shop_config.db, "get_kv", get_kv), patch.object(shop_config.db, "set_kv", set_kv), \
                 patch.object(shop_config.db, "migrate_legacy_promo_codes", AsyncMock()):
             await shop_config.load_shop_overlay()
-            ids = [a["id"] for a in vpn_apps.public_vpn_apps()]
-            self.assertEqual(ids, ["rabbithole", "karing", "incy"])
-            karing = vpn_apps.public_vpn_apps()[1]
-            self.assertIn("apps.apple.com", karing["stores"]["macos"])
-            self.assertEqual((karing["platforms"], set(karing["stores"])), (["macos"], {"macos"}))
-            # Removed again in the admin after that: stays removed on the next start.
-            data = json.loads(kv["shop_settings"])
-            data["vpn_apps_seen"] = vpn_apps.default_ids()
-            data["vpn_apps"] = [a for a in data["vpn_apps"] if a["id"] != "karing"]
-            kv["shop_settings"] = json.dumps(data)
-            await shop_config.load_shop_overlay()
-            self.assertNotIn("karing", [a["id"] for a in vpn_apps.public_vpn_apps()])
+            karing = vpn_apps.public_vpn_apps()[0]
+            self.assertEqual(karing["id"], "karing")
+            self.assertEqual((karing["platforms"], karing["stores"]["macos"]), (["macos"], "https://apps.apple.com/app/id6472431552"))

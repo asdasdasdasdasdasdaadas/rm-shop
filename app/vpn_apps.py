@@ -200,35 +200,31 @@ def validate_vpn_apps(raw: Any) -> list[dict[str, Any]]:
                 "platforms": platforms,
                 "stores": stores,
                 "guide": _clean_guide(item.get("guide"), app_id),
+                **({"hidden": True} if item.get("hidden") is True else {}),
             }
         )
     return out
-
-
-# Built-in apps that existed before the admin remembered which ones it had seen. A list saved back then
-# gets the later built-in apps (Karing, RabbitHole, ...) added; an app the admin removed stays removed.
-_FIRST_DEFAULTS = ("incy", "happ", "v2rayng", "v2rayn")
 
 
 def default_ids() -> list[str]:
     return [x["id"] for x in DEFAULT_VPN_APPS]
 
 
-def with_new_defaults(apps: list[dict[str, Any]], seen: Any) -> list[dict[str, Any]]:
-    """Add the built-in apps that appeared after the list was saved in the admin."""
-    known = set(seen) if isinstance(seen, list) and seen else set(_FIRST_DEFAULTS)
+def admin_vpn_apps() -> list[dict[str, Any]]:
+    """The list as the admin sees it: the saved order, and every built-in app is always there.
+
+    A built-in app is never dropped by a save (a tab opened before it existed sends a list without it);
+    the admin hides it with «hidden» instead. Own apps the admin added can be deleted.
+    """
+    raw = shop_overlay().get("vpn_apps")
+    try:
+        apps = validate_vpn_apps(raw) if raw else [dict(x) for x in DEFAULT_VPN_APPS]
+    except ValueError:
+        apps = [dict(x) for x in DEFAULT_VPN_APPS]
     have = {a["id"] for a in apps}
-    extra = [dict(x) for x in DEFAULT_VPN_APPS if x["id"] not in have and x["id"] not in known]
-    return (apps + extra)[:20]
+    return apps + [dict(x) for x in DEFAULT_VPN_APPS if x["id"] not in have]
 
 
 def public_vpn_apps() -> list[dict[str, Any]]:
-    overlay = shop_overlay()
-    raw = overlay.get("vpn_apps")
-    if not raw:
-        return [dict(x) for x in DEFAULT_VPN_APPS]
-    try:
-        apps = validate_vpn_apps(raw)
-    except ValueError:
-        return [dict(x) for x in DEFAULT_VPN_APPS]
-    return with_new_defaults(apps, overlay.get("vpn_apps_seen"))
+    """What the cabinet offers: the admin's list without the hidden apps."""
+    return [a for a in admin_vpn_apps() if not a.get("hidden")]

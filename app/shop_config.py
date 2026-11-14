@@ -9,7 +9,7 @@ from app import db
 from app.config import SHOP_KEYS, get_settings, set_shop_overlay, shop_overlay
 from app.notices import NOTICE_FIELDS, public_notices, validate_notices
 from app.pay_methods import admin_pay_methods, validate_pay_methods
-from app.vpn_apps import DEFAULT_VPN_APPS, default_ids, public_vpn_apps, validate_vpn_apps
+from app.vpn_apps import DEFAULT_VPN_APPS, admin_vpn_apps, validate_vpn_apps
 
 KV_KEY = "shop_settings"
 
@@ -132,7 +132,6 @@ def validate_shop(body: dict) -> dict:
         raise ValueError("Стикер приветствия: слишком длинный id")
     out["welcome_sticker_file_id"] = sticker
     out["vpn_apps"] = validate_vpn_apps(body.get("vpn_apps"))
-    out["vpn_apps_seen"] = default_ids()  # an app removed now is not added back later
     out["pay_methods"] = validate_pay_methods(body["pay_methods"]) if "pay_methods" in body else admin_pay_methods()
     out["notices"] = validate_notices(body.get("notices"))
     out["faq_items"] = validate_faq(body.get("faq_items"))
@@ -202,7 +201,7 @@ def snapshot() -> dict:
             "vpn_report_cooldown_sec": s.vpn_report_cooldown_sec,
             "admin_live_chat_id": s.admin_live_chat_id,
             "welcome_sticker_file_id": s.welcome_sticker_file_id,
-            "vpn_apps": public_vpn_apps(),
+            "vpn_apps": admin_vpn_apps(),
             "pay_methods": admin_pay_methods(),
             "notices": public_notices(),
             "faq_items": shop_overlay().get("faq_items"),
@@ -244,14 +243,6 @@ async def load_shop_overlay() -> None:
     if max_n != 100000:
         data["balance_topup_max"] = 100000
         await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
-    # A save from an admin tab opened before Karing and RabbitHole existed marked them as removed. Bring them
-    # back once; removing one in the admin after this sticks.
-    if not await db.get_kv("vpn_apps_restored_v1"):
-        seen = data.get("vpn_apps_seen")
-        if isinstance(seen, list):
-            data["vpn_apps_seen"] = [x for x in seen if x not in ("karing", "rabbithole")]
-        await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
-        await db.set_kv("vpn_apps_restored_v1", "1")
     # Karing in a saved list: Mac from the App Store, not GitHub; not offered on Android at all.
     if not await db.get_kv("karing_stores_v2"):
         for app in data.get("vpn_apps") or []:

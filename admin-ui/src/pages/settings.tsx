@@ -554,7 +554,8 @@ function ListEditor({
   defaults?: Data[];
   onChange: (v: Data[]) => void;
 }) {
-  const missing = defaults.filter((d) => !list.some((a) => a.id === d.id));
+  // Built-in apps stay in the list for good: the admin hides one instead of deleting it.
+  const builtIn = (item: Data) => defaults.some((d) => d.id === item.id);
   // Rows carry a stable key so an open form and focus follow the item while the list is reordered.
   const keys = useRef<number[]>([]),
     seq = useRef(0);
@@ -637,9 +638,11 @@ function ListEditor({
     (kind === "apps" ? "Новое приложение" : "Способ оплаты");
   const subtitle = (item: Data) =>
     kind === "apps"
-      ? PLATFORM_NAMES.filter(([p]) => (item.platforms || []).includes(p))
-          .map(([, l]) => l)
-          .join(", ") || "Нет платформ"
+      ? item.hidden
+        ? "Скрыто в кабинете"
+        : PLATFORM_NAMES.filter(([p]) => (item.platforms || []).includes(p))
+            .map(([, l]) => l)
+            .join(", ") || "Нет платформ"
       : item.available === false
         ? item.hint || "Не настроен на сервере"
         : item.enabled
@@ -649,7 +652,7 @@ function ListEditor({
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         {kind === "apps"
-          ? "Порядок такой же, как в кабинете: на каждой платформе первым предлагается верхнее подходящее приложение. Перетащите строку, чтобы поменять порядок."
+          ? "Порядок такой же, как в кабинете: на каждой платформе первым предлагается верхнее подходящее приложение. Перетащите строку, чтобы поменять порядок. Переключатель скрывает приложение в кабинете."
           : "Порядок такой же, как у клиента при оплате. Перетащите строку, чтобы поменять порядок."}
       </p>
       <div ref={listRef} className="divide-y rounded-lg border">
@@ -721,6 +724,15 @@ function ListEditor({
                       aria-label={`Включить ${item.title}`}
                       checked={!!item.enabled}
                       onCheckedChange={(v) => set(i, "enabled", v)}
+                    />
+                  )}
+                  {kind === "apps" && builtIn(item) && (
+                    <Switch
+                      className="mr-2"
+                      aria-label={`Показывать ${item.name} в кабинете`}
+                      title="Показывать в кабинете"
+                      checked={!item.hidden}
+                      onCheckedChange={(v) => set(i, "hidden", !v)}
                     />
                   )}
                   <Button
@@ -808,7 +820,7 @@ function ListEditor({
                       ))}
                     </div>
                   )}
-                  {kind === "apps" && (
+                  {kind === "apps" && !builtIn(item) && (
                     <div className="flex justify-end">
                       <Button
                         variant="outline"
@@ -830,29 +842,6 @@ function ListEditor({
           );
         })}
       </div>
-      {kind === "apps" && missing.length > 0 && (
-        <div className="space-y-2 rounded-lg border border-dashed p-3">
-          <div className="text-sm text-muted-foreground">
-            Встроенные приложения, которых нет в списке:
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {missing.map((d) => (
-              <Button
-                key={d.id}
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  keys.current = [...keys.current, ++seq.current];
-                  onChange([...list, { ...d }]);
-                }}
-              >
-                <img src={d.icon} alt="" className="size-4 rounded" />
-                Добавить {d.name}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
       {kind === "apps" && (
         <Button
           variant="outline"
