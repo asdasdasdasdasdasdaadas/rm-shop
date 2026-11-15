@@ -276,10 +276,6 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .am-stage:not(.zero) .am-hint { opacity: 0; }
 .am-w.shake { animation: amShake .4s; }
 @keyframes amShake { 20%, 60% { transform: translateX(-9px) scale(.86); } 40%, 80% { transform: translateX(9px) scale(.86); } }
-.am-ring { position: fixed; z-index: 30; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; pointer-events: none;
-  box-shadow: inset 0 0 0 1.5px rgba(var(--glow), .55);
-  animation: amRing .45s cubic-bezier(.2, .8, .3, 1) forwards; }
-@keyframes amRing { 0% { transform: scale(.6); opacity: 0; } 20% { opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }
 .am-bottom { padding: 0 12px; }
 .am-quick { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; }
 .am-quick button { padding: 8px 14px; border-radius: 99px; background: var(--card); font-weight: 600; font-size: 14px; transition: transform .1s; }

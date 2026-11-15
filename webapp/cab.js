@@ -751,22 +751,13 @@
       if (amt.gift) { mountAmGift(el); amGiftHold(el); }
       amSetNum(el, amBig(), null);
       amSide(el);
-      // The keypad slides up with a ring, like tapping the amount in Telegram.
+      // The keypad slides up, like tapping the amount in Telegram.
       timers.push(setTimeout(() => {
         if (!cur || cur.el !== el) return;
-        const r = el.querySelector("#amW").getBoundingClientRect();
-        amRing(r.left + r.width / 2, r.top + r.height / 2);
         el.querySelector("#am").classList.add("open");
       }, 380));
     },
   };
-  function amRing(x, y) {
-    const r = document.createElement("div");
-    r.className = "am-ring";
-    r.style.left = `${x}px`; r.style.top = `${y}px`;
-    cur.el.querySelector("#am").appendChild(r);
-    setTimeout(() => r.remove(), 650);
-  }
   // Typing motion, taken frame by frame from the reference: a new digit grows out of the caret in gray and turns white,
   // a lone "0" melts into a blob and re-forms as the digit, and the whole row glides to its new centre (FLIP).
   function amSetNum(el, s, prev) {
@@ -884,8 +875,6 @@
   function amtQuick(b) {
     if (amt.rolling) return;
     haptic();
-    const r = b.getBoundingClientRect();
-    amRing(r.left + r.width / 2, r.top + r.height / 2);
     amt.v = String(Math.min(amMax(), amN() + Number(b.dataset.v)));
     amt.mode = "rub";
     cur.el.querySelector("#am").classList.add("open");
@@ -894,8 +883,6 @@
   function amSwap(b) {
     if (!amN() || amt.rolling) return;
     haptic("medium");
-    const r = b.getBoundingClientRect();
-    amRing(r.left + r.width / 2, r.top + r.height / 2);
     amt.mode = amt.mode === "rub" ? "days" : "rub";
     if (amt.mode === "days") { const d = amt.gift ? gDays(amN()) : daysFor(amN()); amt.d = d ? String(d) : ""; if (amt.gift) amt.v = d ? String(d * amPerDay()) : ""; }
     amRoll();
@@ -917,8 +904,6 @@
     nw.className = "am-ic come";
     nw.innerHTML = (AM_ICON[next.id] || AM_ICON.ton)();
     ico.appendChild(nw);
-    const r = ico.getBoundingClientRect();
-    amRing(r.left + r.width / 2, r.top + r.height / 2);
     Object.values(AM_TONE).forEach((t) => t && am.classList.remove(t));
     if (AM_TONE[next.id]) am.classList.add(AM_TONE[next.id]);
     const row = am.querySelector(".cd");
@@ -2216,8 +2201,6 @@
     badge.classList.remove("pop"); void badge.offsetWidth; badge.classList.add("pop");
     const ic = ico.querySelector(".am-ic");
     ic.classList.remove("hop"); void ic.offsetWidth; ic.classList.add("hop");
-    const r = ico.getBoundingClientRect();
-    amRing(r.left + r.width / 2, r.top + r.height / 2);
     const plus = document.createElement("i");
     plus.className = "am-plus"; plus.textContent = "+1";
     ico.appendChild(plus);
