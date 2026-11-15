@@ -12,6 +12,8 @@ class BroadcastTrackingTest(unittest.IsolatedAsyncioTestCase):
             p.start(); self.addCleanup(p.stop)
         p = patch.object(db, "notification_allowed", AsyncMock(return_value=True))
         p.start(); self.addCleanup(p.stop)
+        p = patch.object(db, "got_broadcast_recently", AsyncMock(return_value=False))
+        p.start(); self.addCleanup(p.stop)
 
     async def test_custom_broadcast_adds_tracked_button_and_records_delivery(self):
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text='Кабинет', web_app=WebAppInfo(url='https://example.com/'))]])

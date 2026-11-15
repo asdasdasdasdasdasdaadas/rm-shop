@@ -289,6 +289,7 @@ function Delivery({ data }: { data: Data }) {
       <p className="text-xs text-muted-foreground">
         Доставлено: {data.sent || 0} · ошибок: {data.failed || 0} · пропущено:{" "}
         {data.skipped || 0}
+        {data.skipped_week ? ` (из них ${data.skipped_week} уже получили рассылку за неделю)` : ""}
         {data.message ? " · " + data.message : ""}
       </p>
     </div>
@@ -480,7 +481,7 @@ export function BroadcastPage() {
   const send = () =>
     confirm({
       title: later ? "Запланировать рассылку?" : "Отправить рассылку?",
-      description: `Аудитория: ${audienceLabel(effectiveAudience)}.\n${sample ? `Тест: ${sample}% — примерно ${testN} из ${count}. Остальным отправите из «Результатов», когда увидите конверсию.` : `Получателей сейчас: ${count}.`} Фактическое число может измениться к началу отправки.\n${later ? `Отправка начнётся ${whenLabel(whenDate.toISOString())}. До этого рассылку можно отменить.` : "Сообщение отправится в Telegram. Отменить отправленное нельзя."}`,
+      description: `Аудитория: ${audienceLabel(effectiveAudience)}.\n${sample ? `Тест: ${sample}% — примерно ${testN} из ${count}. Остальным отправите из «Результатов», когда увидите конверсию.` : `Получателей сейчас: ${count}.`} Фактическое число может измениться к началу отправки. Кто уже получил рассылку за последние 7 дней, будет пропущен.\n${later ? `Отправка начнётся ${whenLabel(whenDate.toISOString())}. До этого рассылку можно отменить.` : "Сообщение отправится в Telegram. Отменить отправленное нельзя."}`,
       label: later ? "Запланировать" : "Отправить рассылку",
       action: async () => {
         const payload =

@@ -11,6 +11,7 @@ class AnnounceBroadcastTest(unittest.IsolatedAsyncioTestCase):
         for name, mock in [
             ('list_broadcast_targets', AsyncMock(return_value=targets)),
             ('notification_allowed', AsyncMock(return_value=True)),
+            ('got_broadcast_recently', AsyncMock(return_value=False)),
             ('reserve_optional_message', AsyncMock(return_value=None)),
             ('finish_optional_message', AsyncMock()),
             ('update_broadcast_run', AsyncMock()),

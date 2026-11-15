@@ -3032,7 +3032,9 @@ async def admin_stats() -> dict:
             COUNT(*)::int AS users_total,
             COUNT(*) FILTER (WHERE accepted_legal_at IS NOT NULL)::int AS legal_ok,
             COUNT(*) FILTER (WHERE trial_used)::int AS trial_used,
-            COUNT(*) FILTER (WHERE expire_at IS NOT NULL AND expire_at > NOW())::int AS active,
+            -- Billing is by balance, so expire_at means nothing: active = a device was online in the last day.
+            COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=users.telegram_id
+                AND d.last_online_at > NOW() - INTERVAL '1 day'))::int AS active,
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day')::int AS new_1d,
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::int AS new_7d,
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::int AS new_30d,
@@ -5454,6 +5456,18 @@ async def has_funded_access(telegram_id: int) -> bool:
     return bool(await _pool_req().fetchval(
         f"SELECT NOT {condition} FROM users u WHERE u.telegram_id=$1",
         telegram_id, max(1, get_settings().vpn_day_price_rub)))
+
+
+BROADCAST_GAP_DAYS = 7
+
+
+async def got_broadcast_recently(telegram_id: int, run_id: int | None = None) -> bool:
+    """A broadcast already reached this person in the last week (another run than this one)."""
+    return bool(await _pool_req().fetchval(
+        """SELECT EXISTS (SELECT 1 FROM message_log WHERE telegram_id=$1 AND kind='broadcast' AND status='sent'
+             AND created_at > NOW() - ($2::int * INTERVAL '1 day')
+             AND (extra->>'broadcast_id') IS DISTINCT FROM $3::text)""",
+        int(telegram_id), BROADCAST_GAP_DAYS, str(run_id) if run_id else None))
 
 
 async def save_vpn_feedback(telegram_id: int, value: str) -> None:

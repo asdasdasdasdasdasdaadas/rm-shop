@@ -74,6 +74,7 @@ class DeliveryTest(unittest.IsolatedAsyncioTestCase):
     async def test_broadcast_passes_media_and_logs_its_kind(self):
         job = {"running": True, "media": {"id": "x.gif", "kind": "animation"}}
         with patch.object(db, "notification_allowed", AsyncMock(return_value=True)), \
+                patch.object(db, "got_broadcast_recently", AsyncMock(return_value=False)), \
                 patch.object(db, "reserve_optional_message", AsyncMock(return_value=1)), \
                 patch.object(db, "finish_optional_message", AsyncMock()), \
                 patch.object(db, "log_bot_message", AsyncMock()) as log, \

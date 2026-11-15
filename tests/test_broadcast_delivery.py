@@ -46,6 +46,7 @@ class BroadcastTest(unittest.IsolatedAsyncioTestCase):
         job = {"running": True}
         with patch.object(db, "list_broadcast_targets", AsyncMock(return_value=[{"telegram_id": 1, "first_name": "Ann"}])), \
                 patch.object(db, "notification_allowed", AsyncMock(return_value=True)), \
+                patch.object(db, "got_broadcast_recently", AsyncMock(return_value=False)), \
                 patch.object(db, "reserve_optional_message", reserve), \
                 patch.object(db, "finish_optional_message", AsyncMock()) as finish, \
                 patch.object(db, "log_bot_message", AsyncMock()), \

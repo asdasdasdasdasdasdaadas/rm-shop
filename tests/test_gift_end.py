@@ -64,9 +64,37 @@ class GiftEndTest(unittest.IsolatedAsyncioTestCase):
             graph = await funnel_board.default_graph()
         steps = {s['id']: s for b in graph['branches'] for s in b['steps']}
         for sid in ('recovery-recover-idle-1', 'recovery-recover-idle-2', 'recovery-recover-late-1',
-                    'recovery-recover-late-2', 'recovery-recover-payment-1', 'recovery-recover-payment-2'):
+                    'recovery-recover-late-2', 'recovery-recover-payment-1', 'recovery-recover-payment-2',
+                    'recovery-recover-online-2', 'recovery-recover-online-3', 'recovery-recover-gift-2',
+                    'recovery-recover-gift-3', 'info-1'):
             self.assertFalse(steps[sid]['enabled'], sid)
-        self.assertTrue(steps['recovery-recover-payment-3']['enabled'])
+        for sid in ('recovery-recover-online-1', 'recovery-recover-online-mid', 'recovery-recover-gift-1'):
+            self.assertTrue(steps[sid]['enabled'], sid)
+        gift = steps['recovery-recover-payment-3']
+        self.assertEqual((gift['enabled'], gift['wait_hours'], gift['wait_from']), (True, 24, 'anchor'))
+
+    async def test_gift_after_access_ended_counts_from_the_end(self):
+        await funnel_board._ensure_tables()
+        await self.pool.execute("UPDATE users SET first_online_at=NOW()-INTERVAL '5 days', balance_rub=0 WHERE telegram_id=1")
+        await self.pool.execute("""INSERT INTO devices (telegram_id, title, last_online_at, last_billed_at)
+            VALUES (1, 'P', NOW()-INTERVAL '1 hour', NOW()-INTERVAL '30 hours')""")
+        step = funnel_board._step('recovery-recover-payment-3', 'recover_payment', 24, 'Дарим', ['claim_gift'])
+        self.assertEqual(await funnel_board._due(step, None, 10, []), [])  # access ended 6 hours ago
+        await self.pool.execute("UPDATE devices SET last_billed_at=NOW()-INTERVAL '49 hours'")
+        self.assertEqual([r['telegram_id'] for r in await funnel_board._due(step, None, 10, [])], [1])
+
+    async def test_one_broadcast_a_week(self):
+        self.assertFalse(await db.got_broadcast_recently(1, 5))
+        await self.pool.execute("""INSERT INTO message_log (kind, telegram_id, status, extra)
+            VALUES ('broadcast', 1, 'sent', '{"broadcast_id": 5}')""")
+        self.assertFalse(await db.got_broadcast_recently(1, 5))  # the same run
+        self.assertTrue(await db.got_broadcast_recently(1, 6))
+        self.assertTrue(await db.got_broadcast_recently(1, None))
+        await self.pool.execute("UPDATE message_log SET created_at=NOW()-INTERVAL '8 days'")
+        self.assertFalse(await db.got_broadcast_recently(1, 6))
+        await self.pool.execute("""INSERT INTO message_log (kind, telegram_id, status, extra)
+            VALUES ('broadcast', 1, 'failed', '{"broadcast_id": 7}')""")
+        self.assertFalse(await db.got_broadcast_recently(1, 6))
 
 
 if __name__ == '__main__':

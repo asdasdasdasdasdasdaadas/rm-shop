@@ -13,6 +13,8 @@ class ReferralTermsTest(unittest.IsolatedAsyncioTestCase):
             p.start(); self.addCleanup(p.stop)
         p = patch.object(db, "notification_allowed", AsyncMock(return_value=True))
         p.start(); self.addCleanup(p.stop)
+        p = patch.object(db, "got_broadcast_recently", AsyncMock(return_value=False))
+        p.start(); self.addCleanup(p.stop)
 
     def settings(self, active=True, **kwargs):
         return Settings.model_construct(balance_enabled=True,referral_program_enabled=active,bot_username='vpn_bot',**kwargs)

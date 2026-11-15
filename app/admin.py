@@ -1796,6 +1796,11 @@ async def _broadcast_all(
         if not await db.notification_allowed(telegram_id, "broadcast"):
             job["skipped"] = int(job.get("skipped") or 0) + 1
             continue
+        if await db.got_broadcast_recently(telegram_id, job.get("run_id")):
+            # At most one broadcast a week per person, announcements and gifts included.
+            job["skipped"] = int(job.get("skipped") or 0) + 1
+            job["skipped_week"] = int(job.get("skipped_week") or 0) + 1
+            continue
         announce = tpl in ANNOUNCE_TEMPLATES
         slot = None
         if not announce:

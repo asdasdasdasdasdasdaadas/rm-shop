@@ -404,7 +404,6 @@ async def default_graph() -> dict:
     pay_on = await _flag("payment_nudge", True)
     trial_on = await _flag("trial_nudge", True)
     invite_on = await _flag("invite_nudge", True)
-    info_on = await _flag("info_nudge", True)
     branches = [
         {"id": "invoice", "title": "Неоплаченный счёт", "steps": [
             _step("pay-1", "unpaid_invoice", 0, tx("payment_nudge"), ["resume_pay", "menu"], enabled=pay_on),
@@ -435,7 +434,8 @@ async def default_graph() -> dict:
             {**invite_second, "enabled": invite_on},
         ]},
         {"id": "cabinet", "title": "Как устроен кабинет", "steps": [
-            _step("info-1", "info", 96, tx("info_nudge"), ["cabinet", "menu"], enabled=info_on),
+            # «Как устроен кабинет» brought no clicks or payments in the 90-day statistics: kept for history, off.
+            _step("info-1", "info", 96, tx("info_nudge"), ["cabinet", "menu"], enabled=False),
         ]},
         {"id": "gift", "title": "Подарок не забран", "steps": [
             _step("trial-1", "trial", 24, gift_text, ["gift", "help"], enabled=trial_on),

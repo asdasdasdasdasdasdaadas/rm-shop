@@ -31,9 +31,9 @@ CONDITIONS = (
  {'id':'recover_quality','label':'Первая оплата: пока действует доступ','anchor':'u.first_online_at',
   'where':f"u.first_online_at IS NOT NULL AND NOT {PAID} AND NOT {IDLE} AND NOT {{exhausted}} AND u.vpn_feedback_at IS NULL",
   'hint':'Доступ действует, оплаты ещё не было. Спрашиваем о качестве, не требуем оплатить.'},
- {'id':'recover_payment','label':'Первая оплата: доступ закончился','anchor':'u.first_online_at',
+ {'id':'recover_payment','label':'Первая оплата: доступ закончился','anchor':f"COALESCE({EMPTY_AT},u.first_online_at)",
   'where':f"u.first_online_at IS NOT NULL AND NOT {PAID} AND NOT {IDLE} AND {{exhausted}}",
-  'hint':'Пользовался VPN, доступ закончился, первой оплаты не было. Помощь и отказ от условий исключают отправку.'},
+  'hint':'Пользовался VPN, доступ закончился, первой оплаты не было. Срок считается от конца доступа. Помощь и отказ от условий исключают отправку.'},
  {'id':'recover_topup','label':'Платил раньше: деньги кончились','anchor':EMPTY_AT,
   'where':f"{PAID} AND {DEVICE} AND {{exhausted}}",
   'hint':'Уже платил, устройство есть, баланс кончился и VPN выключен. Отсчёт — от момента, когда доступ закончился. '
@@ -54,7 +54,11 @@ GIFT_BRANCHES = {'unpaid', 'idle-return'}
 # Steps the 90-day statistics showed to bring nothing (no clicks, connections or payments): kept on the board
 # for their history, switched off. «Доступ закончился» keeps only its gift step.
 QUIET_STEPS = {'recovery-recover-idle-1', 'recovery-recover-idle-2', 'recovery-recover-late-1',
-               'recovery-recover-late-2', 'recovery-recover-payment-1', 'recovery-recover-payment-2'}
+               'recovery-recover-late-2', 'recovery-recover-payment-1', 'recovery-recover-payment-2',
+               # Almost every connection came from the first-hour nudge; 48 and 72 hours later gave nothing.
+               'recovery-recover-online-2', 'recovery-recover-online-3',
+               # The unclaimed-gift reminders 2 and 3: 124 sends, one click, no connection.
+               'recovery-recover-gift-2', 'recovery-recover-gift-3'}
 
 NEW_THIRD = {
  'gift': '🎁 Подарок всё ещё ваш: бесплатный VPN на старте, без оплаты и привязки карты. '
@@ -122,6 +126,9 @@ def branches():
     for branch in result:
         if branch['id'] == 'online':
             branch['steps'].insert(1, online_mid_step())
+        if branch['id'] == 'unpaid':
+            # Steps 1–2 are off: the gift comes a day after the free access ran out.
+            branch['steps'][2].update(wait_hours=24, wait_from='anchor')
     result = result + extra_branches() + paid_branches()
     for branch in result:
         for step in branch['steps']:
