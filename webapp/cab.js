@@ -496,7 +496,7 @@
     '<linearGradient id="fbGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1b8"/><stop offset="1" stop-color="#f5a623"/></linearGradient>';
   // The gift is Wallet's Lottie (the same as «Подарить другу»), recoloured gold in CSS; box and lid are two players.
   const FBGIFT = () => '<div class="fbrays"></div><div class="fblot fb-body"></div><div class="fblot fb-lid"></div>';
-  // Recolour Wallet's blue gift: the blue box turns gold, the orange ribbon turns red. Colours are rewritten once per file.
+  // Recolour Wallet's blue gift: the blue box turns white, the orange ribbon turns gold. Colours are rewritten once per file.
   const fbData = {};
   function fbHue(r, g, b) {
     const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
@@ -513,8 +513,8 @@
   function fbTint(rgb) {
     const [h, sat, l] = fbHue(rgb[0], rgb[1], rgb[2]);
     if (sat < 0.12) return rgb;
-    if (h >= 190 && h <= 300) return fbRgb(44, Math.min(1, sat + 0.2), Math.min(0.9, l + 0.1)); // box → gold
-    if (h >= 5 && h <= 45) return fbRgb(352, Math.min(1, sat + 0.1), l * 0.95); // ribbon → red
+    if (h >= 190 && h <= 300) return fbRgb(45, 0.08, Math.min(0.97, 0.86 + l * 0.14)); // box → white
+    if (h >= 5 && h <= 45) return fbRgb(42, Math.min(1, sat + 0.1), Math.min(0.9, l)); // ribbon → gold
     return rgb;
   }
   function fbWalk(o) {
