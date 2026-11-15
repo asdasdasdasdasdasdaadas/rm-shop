@@ -668,3 +668,29 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .fbgift > svg { position: absolute; left: -32px; top: -8px; width: 138px !important; height: 70px !important; }
 .fbemo { font-size: 54px; line-height: 121px; text-align: center; }
 .fbgift .fbemo { line-height: 58px; font-size: 40px; }
+
+/* v2: the big gift on a deep purple card, rays behind it once the bonus is on */
+.hc.fbon { background: radial-gradient(120% 70% at 50% 0%, #7b4fd6 0%, rgba(123, 79, 214, 0) 60%), linear-gradient(170deg, #2b1663 0%, #4a2a96 55%, #6d43c4 100%); }
+.hc.fbon .fbx { width: 100%; height: 168px; margin: -14px 0 0; }
+.ill > .fbx { width: 100%; }
+.hc.fbon .ill { margin-bottom: 4px; }
+.hc.fbon .fblot { left: 50%; top: 10px; width: 315px; height: 159px; margin-left: -157.5px; }
+.hc.fbon .fb-lid { transform-origin: 157px 62px; }
+.hc.fbon .fb-body { transform-origin: 158px 145px; }
+.hc.fbon .fbx.open .fb-lid { transform: translate(-16px, -46px) rotate(-16deg); }
+.hc.fbon .fbhalo { inset: auto; left: 50%; top: 84px; width: 300px; height: 300px; margin: -150px 0 0 -150px;
+  background: radial-gradient(circle, rgba(255, 214, 110, .55), rgba(255, 214, 110, 0) 62%); }
+.fbrays { position: absolute; left: 50%; top: 84px; width: 460px; height: 460px; margin: -230px 0 0 -230px; border-radius: 50%; opacity: 0; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 226, 140, .22) 0 7deg, transparent 7deg 22deg);
+  -webkit-mask: radial-gradient(circle, #000 18%, transparent 62%); mask: radial-gradient(circle, #000 18%, transparent 62%); transition: opacity .8s; }
+.fbx.open .fbrays { opacity: 1; animation: fbspin 18s linear infinite; }
+.hc.fbon .fbtag { top: 18px; font-size: 16px; padding: 6px 13px; }
+.hc.fbon .fbx.open .fbtag { transform: translate(-50%, -18px) scale(1); }
+.fbneed { position: relative; isolation: isolate; }
+.fbneed::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--p, 0%); z-index: -1; border-radius: inherit;
+  background: linear-gradient(90deg, rgba(255, 214, 110, .25), rgba(255, 214, 110, .5)); transition: width .7s var(--ease); }
+.hc.fbon .chp button.g::after, .hc.fbon .chp .on.g::after { box-shadow: 0 0 0 2px #4a2a96, 0 0 10px rgba(255, 210, 100, .8); }
+.hc.fbon .pill { color: #2b1663; }
+.hc.fbon .fbx.open .fb-lid { transform: translate(-78px, -26px) rotate(-26deg); }
+.hc.fbon .fbtag { top: 46px; }
+.hc.fbon .fbx.open .fbtag { transform: translate(-50%, -26px) scale(1); }

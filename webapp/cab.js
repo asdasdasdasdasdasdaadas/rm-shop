@@ -493,8 +493,7 @@
     '<linearGradient id="fbBox" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#e3e9f2"/></linearGradient>' +
     '<linearGradient id="fbGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1b8"/><stop offset="1" stop-color="#f5a623"/></linearGradient>';
   // The gift is Wallet's Lottie (the same as «Подарить другу»), recoloured gold in CSS; box and lid are two players.
-  const FBGIFT = () => `<svg class="gb" viewBox="0 0 132 132" width="132" height="132"><defs>${FB_RIB}</defs><circle class="rg0" cx="66" cy="66" r="60"/>` +
-    `<circle class="rg" cx="66" cy="66" r="60" stroke-dasharray="377" stroke-dashoffset="377"/></svg><div class="fblot fb-body"></div><div class="fblot fb-lid"></div>`;
+  const FBGIFT = () => '<div class="fbrays"></div><div class="fblot fb-body"></div><div class="fblot fb-lid"></div>';
   // Recolour Wallet's blue gift: the blue box turns gold, the orange ribbon turns red. Colours are rewritten once per file.
   const fbData = {};
   function fbHue(r, g, b) {
@@ -595,8 +594,8 @@
     const f = FB(), h = el && el.querySelector(".hc.fbon");
     if (!f || !h) return;
     const need = Number(f.min_rub), ok = fbOk(pay.amount), n = amountOk(pay.amount) ? pay.amount : 0;
-    const ring = h.querySelector(".rg");
-    if (ring) ring.style.strokeDashoffset = String(377 * (1 - Math.min(1, n / need)));
+    const nb = h.querySelector(".fbneed");
+    if (nb) nb.style.setProperty("--p", `${Math.round(Math.min(1, n / need) * 100)}%`);
     const nt = h.querySelector("#fbNeedT");
     if (nt && need > n) nt.textContent = `Ещё ${rub(need - n)} — и +${days(Number(f.days))} в подарок`;
     h.classList.toggle("fb-ok", ok);
