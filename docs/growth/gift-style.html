@@ -1,0 +1,165 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Оформление подарка</title><link rel="stylesheet" href="../../webapp/cab.css">
+<style>
+body { background: #08090b; padding: 20px 12px 60px; }
+h1 { color: #fff; font-size: 24px; margin: 10px 8px 4px; } p.s { color: #9aa0ab; margin: 0 8px 18px; font-size: 14.5px; max-width: 800px; line-height: 1.45; }
+.wall { display: flex; flex-wrap: wrap; gap: 22px; } .wall > div { width: 375px; }
+.lab { color: #fff; font-weight: 700; font-size: 17px; margin: 0 6px 2px; } .sub { color: #9aa0ab; font-size: 13.5px; margin: 0 6px 10px; min-height: 36px; line-height: 1.4; }
+.ph { background: var(--bg); border-radius: 34px; padding: 12px 0 22px; box-shadow: 0 0 0 1px rgba(255,255,255,.07); overflow: hidden; }
+.ph .hc, .ph .cd, .ph .st, .ph .tl, .ph .seg, .ph .note { animation: none; }
+/* themed hero */
+.hc.gs { position: relative; overflow: hidden; isolation: isolate; transition: box-shadow .4s; }
+.hc.gs .bgs { position: absolute; inset: 0; z-index: -2; }
+.hc.gs .bgs i { position: absolute; inset: 0; opacity: 0; transition: opacity .55s ease; }
+.hc.gs .bgs i.on { opacity: 1; }
+.th1 { background: radial-gradient(120% 75% at 50% 0%, #8a5cf0 0%, rgba(138,92,240,0) 62%), linear-gradient(170deg, #2b1663, #4a2a96 55%, #6d43c4); }
+.th2 { background: radial-gradient(120% 75% at 50% 0%, #27a36b 0%, rgba(39,163,107,0) 62%), linear-gradient(170deg, #062a1d, #0f5138 55%, #17704c); }
+.th3 { background: radial-gradient(120% 75% at 50% 0%, #4a4030 0%, rgba(74,64,48,0) 62%), linear-gradient(170deg, #08080c, #14141c 55%, #262230); }
+.th4 { background: radial-gradient(120% 75% at 50% 0%, #ffb38a 0%, rgba(255,179,138,0) 62%), linear-gradient(170deg, #7a1f5c, #e2477a 55%, #ff8a5b); }
+.hc.gs .rays { position: absolute; left: 50%; top: 92px; width: 520px; height: 520px; margin: -260px 0 0 -260px; z-index: -1; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, var(--ray, rgba(255,226,140,.16)) 0 7deg, transparent 7deg 20deg);
+  -webkit-mask: radial-gradient(circle, #000 12%, transparent 58%); mask: radial-gradient(circle, #000 12%, transparent 58%); animation: fbspin 26s linear infinite; transition: background .5s; }
+.hc.gs .conf { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.hc.gs .conf i { position: absolute; top: -12px; width: 6px; height: 10px; border-radius: 2px; animation: cfall linear infinite; transition: background .5s; }
+@keyframes cfall { to { transform: translate3d(var(--dx, 10px), 520px, 0) rotate(540deg); } }
+.hc.gs .gbox { position: relative; height: 150px; margin: -8px 0 4px; }
+.hc.gs .gbox > div { position: absolute; left: 50%; top: -24px; width: 330px; height: 196px; margin-left: -165px; transition: opacity .25s, transform .45s cubic-bezier(.3, 1.6, .5, 1); }
+.hc.gs .gbox > div.out { opacity: 0; transform: scale(.6) rotate(-8deg); }
+.hc.gs .K { opacity: .75; } .hc.gs .N { font-size: 46px; } .hc.gs .P { opacity: .8; }
+.hc.gs .chp button { padding: 0 11px; font-size: 14px; }
+.hc.gs.light .pill { color: #7a1f5c; }
+/* style tiles */
+.sty { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 12px; }
+.sty button { position: relative; height: 104px; border-radius: 20px; overflow: hidden; isolation: isolate; color: #fff; font-weight: 700; font-size: 11px; letter-spacing: -.1px; padding-left: 3px; padding-right: 3px; text-shadow: 0 1px 4px rgba(0,0,0,.4);
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; transition: transform .15s, box-shadow .25s; }
+.sty button:active { transform: scale(.95); }
+.sty button .bg { position: absolute; inset: 0; z-index: -2; }
+.sty button .mg { position: absolute; left: 50%; top: -6px; width: 130px; height: 80px; margin-left: -65px; z-index: -1; }
+.sty button.on { box-shadow: 0 0 0 2.5px var(--bg), 0 0 0 5px #fff; }
+.sty button .ck { position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%; background: #fff; color: #111; font-size: 11px; display: grid; place-items: center;
+  transform: scale(0); transition: transform .3s cubic-bezier(.3, 1.6, .5, 1); }
+.sty button.on .ck { transform: scale(1); }
+/* preview: how the friend sees it */
+.pv { margin: 0 12px; border-radius: 22px; background: #0e1621; padding: 12px; }
+.pv .who { color: #8fa3b8; font-size: 12.5px; margin: 0 2px 8px; }
+.post { border-radius: 16px; overflow: hidden; background: #182533; }
+.art2 { position: relative; aspect-ratio: 1200 / 630; overflow: hidden; isolation: isolate; color: #fff; }
+.art2 .bgl { position: absolute; inset: 0; z-index: -2; transition: opacity .5s; }
+.art2 .rays { position: absolute; left: 50%; top: 42%; width: 560px; height: 560px; margin: -280px 0 0 -280px; z-index: -1; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, var(--ray, rgba(255,226,140,.16)) 0 7deg, transparent 7deg 20deg); -webkit-mask: radial-gradient(circle, #000 12%, transparent 58%); mask: radial-gradient(circle, #000 12%, transparent 58%); animation: fbspin 26s linear infinite; }
+.art2 .logo { position: absolute; left: 10px; top: 8px; display: flex; align-items: center; gap: 5px; font-weight: 800; font-size: 10.5px; z-index: 3; }
+.art2 .logo img { width: 17px; height: 17px; border-radius: 50%; }
+.art2 .g1 { position: absolute; left: 50%; top: -20px; width: 270px; height: 158px; margin-left: -135px; z-index: 1; }
+.art2 .gl, .art2 .gr { position: absolute; top: 18px; width: 160px; height: 98px; z-index: 0; }
+.art2 .gl { left: -14px; transform: rotate(-12deg); } .art2 .gr { right: -14px; transform: rotate(12deg); }
+.art2 .cnt { position: absolute; right: 54px; top: 18px; z-index: 3; font-weight: 900; font-size: 15px; padding: 3px 9px; border-radius: 11px; transform: rotate(8deg);
+  background: linear-gradient(180deg, #ffe08a, #f7b733); color: #4a2f00; box-shadow: 0 6px 16px rgba(0,0,0,.3); }
+.art2 .ttl { position: absolute; left: 0; right: 0; bottom: 24px; text-align: center; font-weight: 900; font-size: 19px; letter-spacing: -.4px; z-index: 2; text-shadow: 0 2px 12px rgba(0,0,0,.35); }
+.art2 .sbt { position: absolute; left: 0; right: 0; bottom: 9px; text-align: center; font-size: 10.5px; opacity: .85; z-index: 2; }
+.post .tx { padding: 9px 11px; color: #e9eef3; font-size: 13.5px; line-height: 1.45; } .post .tx b { color: #fff; }
+.kb span { display: block; margin-top: 4px; background: #2f8f57; color: #fff; border-radius: 10px; padding: 8px 6px; text-align: center; font-size: 13px; font-weight: 600; }
+.cntrow { display: flex; gap: 8px; padding: 0 12px; }
+.cntrow button { flex: 1; height: 44px; border-radius: 14px; background: var(--card); color: #fff; font-weight: 700; font-size: 15px; }
+.cntrow button.on { background: #fff; color: #111; }
+.gtag { display: inline-block; margin-left: 6px; font-size: 12px; font-weight: 700; color: var(--hint); }
+</style></head><body>
+
+<h1>Оформление подарка</h1>
+<p class="s">Во вкладке «Подарить» появляется выбор оформления: <b>Фиолетовый</b>, <b>Праздничный</b>, <b>Золотой</b> или <b>Закатный</b>. Цвета подарка и фона в карточке кабинета меняются сразу, с плавным переходом. Ниже показано, какую карточку получит друг или чат. Это же оформление уходит в Telegram и показывается другу, когда он открывает подарок. Первый экран интерактивный: нажимайте на плитки.</p>
+
+<div class="wall">
+  <div><div class="lab">Подарок другу</div><div class="sub">Плитки под карточкой — живые мини-подарки в своих цветах. Выбранная обведена белым.</div>
+    <div class="ph" data-phone="1" data-theme="t1" data-mode="one"></div></div>
+  <div><div class="lab">Выбран «Праздничный»</div><div class="sub">Красный подарок на изумрудном фоне, конфетти. Превью для друга тоже стало зелёным.</div>
+    <div class="ph" data-theme="t2" data-mode="one"></div></div>
+  <div><div class="lab">Подарки в группу</div><div class="sub">Режим на 30–50 человек: сумма × количество, а в превью три подарка и «×30».</div>
+    <div class="ph" data-theme="t3" data-mode="many"></div></div>
+  <div><div class="lab">Друг открывает подарок</div><div class="sub">Экран открытия в том же оформлении, которое выбрал даритель.</div>
+    <div class="ph" data-theme="t4" data-mode="open"></div></div>
+</div>
+
+<script src="../../webapp/icons/lottie-light.min.js?v=5.12.2"></script>
+<script>
+const T = {
+  t1: { name: "Фиолетовый", bg: "th1", ray: "rgba(255,226,140,.18)", conf: ["#ffd76a", "#fff", "#c9b2ff"], box: [45, 0.08, (l) => Math.min(0.97, 0.86 + l * 0.14)], rib: [42, null] },
+  t2: { name: "Праздничный", bg: "th2", ray: "rgba(255,226,140,.16)", conf: ["#ffd76a", "#ff5a5a", "#fff"], box: [356, 0.72, (l) => Math.min(0.62, 0.3 + l * 0.45)], rib: [44, null] },
+  t3: { name: "Золотой", bg: "th3", ray: "rgba(255,215,106,.14)", conf: ["#ffd76a", "#f7b733", "#fff3c4"], box: [43, 0.85, (l) => Math.min(0.72, 0.38 + l * 0.42)], rib: [230, 0.12, (l) => Math.max(0.1, l * 0.35)] },
+  t4: { name: "Закатный", bg: "th4", ray: "rgba(255,255,255,.2)", conf: ["#fff", "#7ff0c8", "#ffe08a"], box: [160, 0.55, (l) => Math.min(0.82, 0.5 + l * 0.35)], rib: [40, 0.06, (l) => Math.min(0.98, 0.8 + l * 0.2)] },
+};
+function hue(r, g, b) { const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn; if (!d) return [0, 0, l];
+  const s = d / (1 - Math.abs(2 * l - 1)); let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [(h * 60 + 360) % 360, s, l]; }
+function rgb(h, s, l) { const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x]; return [r + m, g + m, b + m]; }
+const tintBy = (p) => (c) => { const [h, s, l] = hue(c[0], c[1], c[2]); if (s < 0.12) return c;
+  if (h >= 190 && h <= 300) return rgb(p.box[0], p.box[1], p.box[2](l));
+  if (h >= 5 && h <= 45) return p.rib[1] == null ? rgb(p.rib[0], Math.min(1, s + 0.1), Math.min(0.9, l)) : rgb(p.rib[0], p.rib[1], p.rib[2](l)); return c; };
+function walkBy(o, t) { if (Array.isArray(o)) { o.forEach((x) => walkBy(x, t)); return; } if (!o || typeof o !== "object") return;
+  if ((o.ty === "fl" || o.ty === "st") && o.c) { const k = o.c.k;
+    if (Array.isArray(k) && typeof k[0] === "number") { const r = t(k); k[0] = r[0]; k[1] = r[1]; k[2] = r[2]; }
+    else if (Array.isArray(k)) k.forEach((f) => ["s", "e"].forEach((n) => { if (Array.isArray(f[n])) { const r = t(f[n]); f[n][0] = r[0]; f[n][1] = r[1]; f[n][2] = r[2]; } })); }
+  if ((o.ty === "gf" || o.ty === "gs") && o.g && o.g.k) { const n = Number(o.g.p) || 0, fix = (a) => { for (let i = 0; i < n; i++) { const r = t(a.slice(i * 4 + 1, i * 4 + 4)); a.splice(i * 4 + 1, 3, ...r); } };
+    const k = o.g.k.k; if (Array.isArray(k) && typeof k[0] === "number") fix(k); else if (Array.isArray(k)) k.forEach((f) => ["s", "e"].forEach((m) => Array.isArray(f[m]) && fix(f[m]))); }
+  Object.values(o).forEach((x) => walkBy(x, t)); }
+const raw = fetch("../../webapp/icons/wallet_gift.json").then((r) => r.json());
+const byT = {};
+const giftFor = (t) => (byT[t] = byT[t] || raw.then((d) => { const c = JSON.parse(JSON.stringify(d)); walkBy(c, tintBy(T[t])); return c; }));
+const play = (box, t, speed = 1) => giftFor(t).then((d) => { box.innerHTML = ""; const a = lottie.loadAnimation({ container: box, renderer: "svg", loop: true, autoplay: true, animationData: JSON.parse(JSON.stringify(d)) }); a.setSpeed(speed); return a; });
+
+const card = (t, many) => `<div class="art2"><i class="bgl ${T[t].bg}"></i><div class="rays" style="--ray:${T[t].ray}"></div>
+  <div class="logo"><img src="../../webapp/icons/frog.png" alt="">Лягушка VPN</div>${many ? '<div class="gl lt"></div><div class="gr lt"></div>' : ""}<div class="g1 lt"></div>${many ? '<div class="cnt">×30</div>' : ""}
+  <div class="ttl">${many ? "Подарки для всех в чате" : "Вам подарок на VPN"}</div><div class="sbt">${many ? "Кто первый — того и подарок" : "Нажмите, чтобы забрать — деньги сразу на баланс"}</div></div>`;
+
+function phone(ph) {
+  const t = ph.dataset.theme, mode = ph.dataset.mode, many = mode === "many";
+  const bgs = Object.keys(T).map((k) => `<i class="${T[k].bg}${k === t ? " on" : ""}" data-k="${k}"></i>`).join("");
+  if (mode === "open") {
+    ph.innerHTML = `<section class="hc gs"><div class="bgs">${bgs}</div><div class="rays" style="--ray:${T[t].ray}"></div><div class="conf"></div>
+      <div class="gbox"><div class="lt"></div></div><div class="K">Подарок от Ани</div><div class="N gold-n">300 ₽</div><div class="P">≈ 50 дней VPN — сразу на баланс</div>
+      <div class="acts"><button class="pill"><span>🎁 Забрать подарок</span></button></div></section>
+      <div class="note c">Оформление выбрал даритель — «${T[t].name}»</div>`;
+  } else {
+    ph.innerHTML = `<div class="seg"><button>Пригласить</button><button class="on">Подарить</button></div>
+      <section class="hc gs"><div class="bgs">${bgs}</div><div class="rays" style="--ray:${T[t].ray}"></div><div class="conf"></div>
+        <div class="gbox"><div class="lt"></div></div>
+        <div class="K">${many ? "Подарки в группу" : "Подарок другу"}</div><div class="N">${many ? "50 ₽ × 30" : "300 ₽"}</div>
+        <div class="P">${many ? "1 500 ₽ всего · каждому ≈ 8 дней" : "≈ 50 дней VPN"}</div>
+        <div class="chp">${(many ? ["50 ₽", "100 ₽", "300 ₽"] : ["180 ₽", "300 ₽", "540 ₽"]).map((v, i) => `<button class="${i === (many ? 0 : 1) ? "on" : ""}">${v}</button>`).join("")}<button>Своя</button></div>
+        <div class="acts"><button class="pill"><span>${many ? "Подарить в группу" : "Подарить"}</span></button><button class="rnd">⧉</button></div></section>
+      ${many ? `<div class="st">Сколько подарков</div><div class="cntrow">${[10, 30, 50].map((n) => `<button class="${n === 30 ? "on" : ""}">${n}</button>`).join("")}</div>` : ""}
+      <div class="st">Оформление <span class="gtag" data-name>${T[t].name}</span></div>
+      <div class="sty">${Object.keys(T).map((k) => `<button type="button" data-t="${k}" class="${k === t ? "on" : ""}"><i class="bg ${T[k].bg}"></i><div class="mg lt" data-k="${k}"></div><span class="ck">✓</span>${T[k].name}</button>`).join("")}</div>
+      <div class="st">Так увидит ${many ? "чат" : "друг"}</div>
+      <div class="pv"><div class="who">${many ? "👥 Чат «Дача 2025»" : "💬 Личный чат с Петей"}</div><div class="post">${card(t, many)}
+        <div class="tx">🎁 <b>${many ? "Аня раздаёт 30 подарков по 50 ₽ на VPN" : "Аня дарит вам 300 ₽ на VPN"}</b> — ${many ? "это ≈ 8 дней каждому. Кто первый — того и подарок!" : "это ≈ 50 дней. Откройте подарок, пока он не остыл!"}</div></div>
+        <div class="kb"><span>${many ? "🎁 Забрать подарок" : "🎁 Открыть подарок"}</span></div></div>`;
+    ph.querySelectorAll(".sty .mg").forEach((b) => play(b, b.dataset.k, 0.85));
+  }
+  confetti(ph.querySelector(".conf"), t);
+  play(ph.querySelector(".gbox .lt"), t);
+  ph.querySelectorAll(".art2 .lt").forEach((b) => play(b, t, b.classList.contains("g1") ? 1 : 0.8));
+  if (ph.dataset.phone) ph.querySelectorAll(".sty button").forEach((b) => b.addEventListener("click", () => pick(ph, b.dataset.t)));
+}
+function confetti(c, t) {
+  c.innerHTML = "";
+  for (let i = 0; i < 20; i++) { const f = document.createElement("i");
+    f.style.cssText = `left:${Math.random() * 100}%;background:${T[t].conf[i % 3]};opacity:${0.45 + Math.random() * 0.5};--dx:${(Math.random() * 30 - 15).toFixed(0)}px;animation-duration:${(4 + Math.random() * 5).toFixed(1)}s;animation-delay:-${(Math.random() * 8).toFixed(1)}s`;
+    c.appendChild(f); }
+}
+function pick(ph, t) {
+  if (ph.dataset.theme === t) return;
+  ph.dataset.theme = t;
+  ph.querySelectorAll(".sty button").forEach((b) => b.classList.toggle("on", b.dataset.t === t));
+  ph.querySelector("[data-name]").textContent = T[t].name;
+  ph.querySelectorAll(".hc.gs .bgs i").forEach((i) => i.classList.toggle("on", i.dataset.k === t));
+  ph.querySelector(".hc.gs .rays").style.setProperty("--ray", T[t].ray);
+  confetti(ph.querySelector(".hc.gs .conf"), t);
+  const g = ph.querySelector(".gbox .lt");
+  g.classList.add("out");
+  setTimeout(() => play(g, t).then(() => { g.classList.remove("out"); }), 220);
+  const many = ph.dataset.mode === "many", post = ph.querySelector(".post .art2");
+  const tmp = document.createElement("div"); tmp.innerHTML = card(t, many); post.replaceWith(tmp.firstElementChild);
+  ph.querySelectorAll(".art2 .lt").forEach((b) => play(b, t, b.classList.contains("g1") ? 1 : 0.8));
+}
+document.querySelectorAll(".ph").forEach(phone);
+</script>
+</body></html>
