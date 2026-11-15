@@ -11,11 +11,10 @@ from aiogram.types import LinkPreviewOptions, Message
 
 from app import db
 from app.config import get_settings
-from app.keyboards import with_referral_share
-from app.keyboards import channel_keyboard, legal_text, onboarding_keyboard, profile_keyboard
+from app.keyboards import channel_keyboard, legal_text, onboarding_keyboard
 from app.notices import notice_text
 from app.referrals import trial_is_available
-from app.texts import days_text, rub_text
+from app.texts import days_text
 from app.tg_err import fail_extra
 
 logger = logging.getLogger("rm-shop.welcome")
@@ -113,86 +112,68 @@ async def send_welcome_intro(
     *,
     in_channel: bool,
 ) -> bool:
+    """First launch: a sticker, then one message with the gift, the price and the button to take it."""
     bot = message.bot
     user = message.from_user
     if not bot or not user:
         return False
-    settings = get_settings()
-    name = (user.first_name or "").strip() or "привет"
-    brand = settings.brand_name
-    chat_id = message.chat.id
-    local = await db.get_user(user.id)
-    hello = notice_text("welcome_intro_hello", name=name, brand=brand)
-    if getattr(settings, "welcome_tariff_enabled", True):
-        from app.keyboards import tariff_block
-        hello += "\n\n" + tariff_block()
-    referral_bonus = (settings.referral_program_enabled and local and local.get("referred_by")
-                      and not local.get("referral_menu_bonus_at"))
-    if referral_bonus:
-        hello += "\n\nВы пришли по ссылке друга — откройте меню бота, и мы сразу начислим вам 50 ₽."
-    trial_on = trial_is_available(local)
-    days = days_text(settings.trial_days)
-    hi = (
-        notice_text("welcome_intro_hi", name=name, days=days)
-        if trial_on
-        else notice_text("welcome_intro_hi_plain", name=name)
-    )
-    parts = [hi, hello]
     try:
-        await send_welcome_sticker(bot, chat_id)
-        await _pause(bot, chat_id)
-        # The intro is a plain story: the cabinet and the gift come with the next message.
-        await answer_funnel(message, hi, preserve=True)
-        await _pause(bot, chat_id)
-        await answer_funnel(message, hello, reply_markup=with_referral_share(user.id) if referral_bonus else None,
-                            preserve=True)
-        await _pause(bot, chat_id)
-        # Straight to the gift and the cabinet: no «Будем на связи» step in between.
+        await send_welcome_sticker(bot, message.chat.id)
+        await _pause(bot, message.chat.id, 0.8)
         await db.complete_welcome_support(user.id)
-        await send_welcome_continuation(message, user.id, in_channel=in_channel)
-        await _log(user.id, user.first_name, "\n\n".join(parts), ok=True)
+        text = await send_welcome_continuation(message, user.id, in_channel=in_channel, first_name=user.first_name)
+        await _log(user.id, user.first_name, text or "", ok=True)
         return True
     except Exception as exc:
         logger.warning("Приветствие первого запуска не ушло %s", user.id, exc_info=True)
-        await _log(user.id, user.first_name, "\n\n".join(parts), ok=False, exc=exc)
+        await _log(user.id, user.first_name, "", ok=False, exc=exc)
         return False
 
 
-async def send_welcome_continuation(message: Message, telegram_id: int, *, in_channel: bool) -> None:
-    settings=get_settings()
+async def send_welcome_continuation(message: Message, telegram_id: int, *, in_channel: bool,
+                                    first_name: str | None = None) -> str:
+    """The one welcome message: hello and the gift (or «уже на балансе»), price, legal, and two buttons —
+    take the gift and connect, or ask for help. Without the required channel, the channel step instead."""
+    settings = get_settings()
     in_channel = in_channel or not settings.required_channel_enabled
     granted = None
     if in_channel and trial_is_available(await db.get_user(telegram_id)):
         from app import auto_gift
         granted = await auto_gift.grant_if_auto(telegram_id)
-    local=await db.get_user(telegram_id)
-    trial_on=trial_is_available(local)
-    days=days_text(settings.trial_days)
+    local = await db.get_user(telegram_id) or {}
+    trial_on = trial_is_available(local)
+    days = days_text(settings.trial_days)
+    name = (first_name or local.get("first_name") or "").strip() or "привет"
     if granted is not None:
         from app import auto_gift
-        try_body = auto_gift.granted_text()
+        parts = [notice_text("welcome_intro_hi_plain", name=name), auto_gift.granted_text()]
     elif trial_on:
-        try_body = notice_text("welcome_intro_try", days=days)
+        parts = [notice_text("welcome_intro_hi", name=name, days=days)]
     else:
-        try_body = notice_text("welcome_intro_try_no_trial")
+        parts = [notice_text("welcome_intro_hi_plain", name=name), notice_text("welcome_intro_try_no_trial")]
+    if getattr(settings, "welcome_tariff_enabled", True):
+        from app.keyboards import tariff_block
+        parts.append(tariff_block(referral=False))
+    referral_bonus = bool(settings.referral_program_enabled and local.get("referred_by")
+                          and not local.get("referral_menu_bonus_at"))
+    if referral_bonus:
+        parts.append("Вы пришли по ссылке друга — откройте главное меню, и мы сразу начислим вам 50 ₽.")
     if not in_channel:
-        last = notice_text("welcome_intro_channel")
+        parts.append(notice_text("welcome_intro_channel"))
         kb = channel_keyboard()
     else:
-        last = try_body
-        kb = profile_keyboard(
-            trial_available=trial_on,
-            has_access=bool(local and local.get("balance_rub")),
-            story_offer=False,
-        )
-    if in_channel:
-        if trial_on or granted is not None:
-            # The hottest moment of the funnel: put the gift (or, with it already credited, the connection)
-            # one tap away, above the menu.
-            gift = onboarding_keyboard(gift=granted is None).inline_keyboard[0][0]
-            gift = gift.model_copy(update={"style": "success"})
-            kb = (kb.model_copy(update={"inline_keyboard": [[gift], *kb.inline_keyboard]}) if kb
-                  else onboarding_keyboard(gift=granted is None))
-    last += "\n\n" + legal_text()
-    await answer_funnel(message, last, reply_markup=kb, preserve=in_channel, link_preview_options=LinkPreviewOptions(is_disabled=True))
+        kb = onboarding_keyboard(gift=trial_on and granted is None)
+        first = kb.inline_keyboard[0][0].model_copy(update={
+            "text": "🎁 Забрать подарок и подключиться" if trial_on and granted is None else "Подключить VPN",
+            "style": "success"})
+        rows = [[first], *kb.inline_keyboard[1:]]
+        if referral_bonus:
+            from aiogram.types import InlineKeyboardButton
+            rows.append([InlineKeyboardButton(text="Главное меню", callback_data="profile")])
+        kb = kb.model_copy(update={"inline_keyboard": rows})
+    parts.append(legal_text())
+    text = "\n\n".join(p for p in parts if p)
+    await answer_funnel(message, text, reply_markup=kb, preserve=in_channel,
+                        link_preview_options=LinkPreviewOptions(is_disabled=True))
     await db.mark_legal_notice(telegram_id)
+    return text

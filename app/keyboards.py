@@ -37,13 +37,13 @@ def welcome_text() -> str:
     return notice_text("welcome", brand=get_settings().brand_name) + "\n\n" + legal_text()
 
 
-def tariff_block() -> str:
+def tariff_block(*, referral: bool = True) -> str:
     """Short price and terms block for the first /start message. Switched off in the admin panel settings."""
     settings = get_settings()
     price = max(1, int(getattr(settings, 'vpn_day_price_rub', 6) or 6))
     minimum = max(1, int(getattr(settings, 'balance_topup_min', 50) or 50))
     lines = [f'💸 <b>{price} ₽ в день</b> за устройство · без подписки · пополнение от {minimum} ₽']
-    if getattr(settings, 'referral_program_enabled', False):
+    if referral and getattr(settings, 'referral_program_enabled', False):
         from app.referral_terms import REFERRAL_BONUS_RUB as bonus
         lines.append(f'🎁 Позовите друга: ему {bonus} ₽ сразу, вам {bonus} ₽, когда он подключит VPN')
     return '\n'.join(lines)

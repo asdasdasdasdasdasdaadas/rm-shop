@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 """Onboarding transitions without Telegram, panel or database connections."""
 from contextlib import ExitStack
 from types import SimpleNamespace
@@ -111,25 +111,27 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                 db.complete_welcome_support = AsyncMock()
                 stack.enter_context(patch.object(welcome, 'get_settings', return_value=SimpleNamespace(
                     brand_name='VPN', referral_invitee_reward_rub=0, referral_program_enabled=False,
-                    balance_enabled=False, trial_enabled=False, trial_days=0)))
+                    balance_enabled=False, trial_enabled=False, trial_days=0, required_channel_enabled=False,
+                    welcome_tariff_enabled=False)))
                 stack.enter_context(patch.object(welcome.logger, 'warning'))
                 stack.enter_context(patch.object(welcome, 'trial_is_available', return_value=False))
                 stack.enter_context(patch.object(welcome, 'notice_text', return_value='Hello'))
                 stack.enter_context(patch.object(welcome, 'legal_text', return_value='Legal links'))
-                keyboard = stack.enter_context(patch.object(welcome, 'profile_keyboard', return_value=InlineKeyboardMarkup(inline_keyboard=[])))
+                keyboard = stack.enter_context(patch.object(welcome, 'onboarding_keyboard', return_value=InlineKeyboardMarkup(
+                    inline_keyboard=[[InlineKeyboardButton(text='Подключить VPN', callback_data='help:connect')]])))
                 for name in ('send_welcome_sticker', '_pause', '_log'):
                     stack.enter_context(patch.object(welcome, name, new_callable=AsyncMock))
                 message = AsyncMock()
                 message.from_user = SimpleNamespace(id=123, first_name='Test')
                 message.chat = SimpleNamespace(id=123)
                 if failed:
-                    message.answer.side_effect = [None, None, RuntimeError('delivery failed')]
+                    message.answer.side_effect = [RuntimeError('delivery failed')]
                 result = await welcome.send_welcome_intro(message, in_channel=True)
                 self.assertEqual(result, not failed)
                 if failed:
                     db.mark_legal_notice.assert_not_awaited()
                 else:
-                    # No «Будем на связи» step: the cabinet message follows the intro right away.
+                    # One welcome message: hello, the offer and the legal note together.
                     db.mark_legal_notice.assert_awaited_once_with(123)
                     keyboard.assert_called_once()
                     self.assertIn('Legal links', message.answer.call_args.args[0])

@@ -20,8 +20,7 @@ DEFAULT_NOTICES = {'paid_setup_nudge': '📱 Баланс пополнен — �
             'Подпишитесь на наш канал, затем нажмите «Проверить подписку».',
  'welcome_intro_hi': '👋 Здравствуйте, {name}!\n'
                      '\n'
-                     'Вам подарок — {days} VPN для одного устройства. Попробуйте на своих любимых '
-                     'сайтах и решите, подходит ли вам сервис.',
+                     '🎁 Дарим {days} VPN — для телефона, компьютера и телевизора. С подключением поможем.',
  'welcome_intro_hi_plain': '👋 Здравствуйте, {name}!',
  'welcome_intro_hello': '🌍 <b>{brand}</b> — VPN для телефона, компьютера и телевизора. Для видео, '
                         'общения и сайтов, к которым нужен доступ. С подключением поможем.',
@@ -228,7 +227,7 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {'key': 'unpaid_2', 'title': 'Без первой оплаты: повтор', 'hint': ''},
 
     {"key": "welcome", "title": "Приветствие: нет подписки на канал", "hint": "{brand}"},
-    {"key": "welcome_intro_hi", "title": "Первый запуск: привет", "hint": "{name} {days}"},
+    {"key": "welcome_intro_hi", "title": "Первый запуск: приветствие с подарком", "hint": "{name} {days}. Цена, оферта и кнопка «Забрать подарок» добавляются сами."},
     {"key": "welcome_intro_hi_plain", "title": "Первый запуск: привет без триала", "hint": "{name}"},
     {"key": "welcome_intro_hello", "title": "Первый запуск: кто мы", "hint": "{brand}"},
     {"key": "welcome_intro_try", "title": "Первый запуск: попробуй", "hint": "{days}"},
@@ -301,6 +300,8 @@ class _SafeMap(dict):
 ARCHIVED_NOTICE_KEYS = {
     'referral_payout_submitted', 'referral_payout_paid', 'referral_payout_rejected',
     'welcome_intro_legal', 'legal', 'referral_referrer_balance', 'referral_referrer_paid',
+    # The first launch is one message now: the separate «кто мы» and «попробуй» texts are gone.
+    'welcome_intro_hello', 'welcome_intro_try',
     'first_device_thanks', 'first_online_nudge', 'profile_balance', 'device_nudge_2', 'device_nudge_3',
     'legal_nudge_1', 'legal_nudge_2', 'legal_nudge_3', 'referral_invitee_balance',
     *(f'idle_nudge_{day}' for day in (7,10,15,20)),
