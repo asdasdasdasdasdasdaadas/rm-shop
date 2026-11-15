@@ -435,15 +435,12 @@
       if (devs.length && !(cap > 0 && devs.length >= cap)) devRows.push([E("＋") + "Добавить устройство", 'data-act="wizard"', "blue"]);
       const invitee = Number(me.referral_invitee_reward_rub) || 0;
       const showInvitee = me.referral_program_enabled && me.referred && !me.has_paid_topup && invitee > 0;
-      const survey = me.first_online_at && !me.has_paid_topup && !me.vpn_feedback;
       const giftLater = me.trial_available && !showOffer() ? [E("🎁") + "Попробовать бесплатно" + V(rub(me.trial_rub) + " " + CV), 'data-go="gift"'] : null;
       return hero +
         fbCard() +
         browserCard() +
         (showInvitee ? NOTE(`Вы пришли по ссылке друга — после первого пополнения на баланс ещё ${rub(invitee)}.`, true) : "") +
         (devRows.length ? ST(`Устройства${cap ? ` <span style="color:var(--hint);font-weight:500">· ${devs.length} из ${cap}</span>` : ""}`) + cd(devRows) : "") +
-        (survey ? ST("Как работает VPN?") + cd([[E("✅") + "Всё работает", 'data-act="vfb" data-v="ok"'], [E("🆘") + "Нужна помощь", 'data-act="vfb" data-v="help"'],
-          [E("🤔") + "Не подошли условия", 'data-act="vfb" data-v="terms"']]) : "") +
         `<div style="height:12px"></div>` +
         cd([
           giftLater,
@@ -457,7 +454,7 @@
       store.set("shown_bal", Number(me.balance_rub) || 0);
       track("cabinet");
     },
-    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.vpn_feedback, me.has_paid_topup, me.browser_login, me.first_bonus]),
+    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.has_paid_topup, me.browser_login, me.first_bonus]),
   };
 
   // ---------- gift for newcomers ----------
@@ -1836,17 +1833,6 @@
     helpdevice: () => openSupport(connectContext(deviceById(cur.params.id))),
     device: (b) => { haptic(); go("device", { id: b.dataset.id }); },
     link: (b) => tg.openLink(b.dataset.v),
-    async vfb(b) {
-      const value = b.dataset.v;
-      try {
-        const res = await post("/api/vpn-feedback", { value });
-        me.vpn_feedback = value;
-        if (value === "help") openSupport();
-        else if (value === "terms") { toast("Напишите, что не подошло — учтём"); openSupport(); }
-        else if (res.access_active === false) go("topup");
-        else { toast("Отлично! Пользуйтесь на здоровье 💚"); rerender(); }
-      } catch (e) { showErr(e); }
-    },
     async gift(b) {
       if (me.trial_notice && me.trial_notice.kind === "start_bot") { tg.openTelegramLink(me.bot_start_url); return; }
       haptic();
