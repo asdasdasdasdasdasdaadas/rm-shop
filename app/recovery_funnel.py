@@ -162,8 +162,8 @@ def paid_branches():
     from app.funnel_board import _step
     topup = {'action': 'topup', 'text': 'Пополнить баланс'}
     return [{'id': 'paid-empty', 'title': 'Платил, деньги кончились → пополнение', 'steps': [
-        _step('recovery-recover-topup-1', 'recover_topup', 24, PAID_EMPTY_TEXTS[0], [topup, 'promise', 'menu']),
-        _step('recovery-recover-topup-2', 'recover_topup', 48, PAID_EMPTY_TEXTS[1], [topup, 'promise', 'help'], 'previous'),
+        _step('recovery-recover-topup-1', 'recover_topup', 24, PAID_EMPTY_TEXTS[0], ['topup_quick', 'promise', 'menu']),
+        _step('recovery-recover-topup-2', 'recover_topup', 48, PAID_EMPTY_TEXTS[1], ['topup_quick', 'promise', 'help'], 'previous'),
         _step('recovery-recover-topup-3', 'recover_topup', 96, PAID_EMPTY_TEXTS[2],
               [topup, 'feedback_help', 'feedback_terms', 'feedback_later'], 'previous'),
     ]}]

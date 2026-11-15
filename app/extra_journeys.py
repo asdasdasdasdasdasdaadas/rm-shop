@@ -90,7 +90,7 @@ def branches():
             _step("checkout-again-1", "checkout_again", 24, CHECKOUT_TEXT, [TOPUP, "help", "menu"]),
         ]},
         {"id": "gift-ending", "title": "Подарок заканчивается → первая оплата", "steps": [
-            _step("gift-ending-1", "gift_ending_soon", 0, GIFT_ENDING_TEXT, [TOPUP, "menu"]),
+            _step("gift-ending-1", "gift_ending_soon", 0, GIFT_ENDING_TEXT, ["topup_quick", "menu"]),
         ]},
         {"id": "upsell-device", "title": "Допродажа: второе устройство", "steps": [
             _step("upsell-device-1", "upsell_device", 72, UPSELL_DEVICE_TEXT,

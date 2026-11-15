@@ -47,6 +47,7 @@ ACTIONS = (
     {"id": "gift", "label": "Экран подарка", "button": "Забрать подарок и подключиться"},
     {"id": "connect", "label": "Подключение", "button": "Подключить VPN"},
     {"id": "topup", "label": "Пополнение баланса", "button": "Пополнить баланс"},
+    {"id": "topup_quick", "label": "Пополнение: две кнопки с готовой суммой (минимум и месяц)", "button": "Пополнить"},
     {"id": "help", "label": "Нужна помощь с подключением", "button": "Нужна помощь"},
     {"id": "welcome", "label": "Продолжить знакомство", "button": "Я помогу"},
     {"id": "channel", "label": "Подписка на канал", "button": "Подписаться на канал"},
@@ -192,7 +193,7 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
     def press(label: str, item, **kwargs):
         return InlineKeyboardButton(text=label, icon_custom_emoji_id=emoji_id(item), **kwargs)
 
-    def screen(label: str, name: str | None, item):
+    def screen(label: str, name: str | None, item, **params):
         url = mini_app_url()
         if not url:
             return press(label, item, callback_data="help:connect")
@@ -200,6 +201,7 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
         query = dict(parse_qsl(parts.query))
         if name:
             query["screen"] = name
+        query.update({k: str(v) for k, v in params.items()})
         return press(
             label, item, style="success" if name in {None, "gift", "connect", "topup"} else None,
             web_app=WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query)))),
@@ -223,6 +225,9 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
             rows.append([screen(label, "connect", item)])
         elif action_id == "topup":
             rows.append([screen(label, "topup", item)])
+        elif action_id == "topup_quick":
+            # Two ready amounts side by side; the cabinet opens on the top-up with it chosen (card, SBP, Stars).
+            rows.append([screen(f"Пополнить {amount} ₽", "topup", item, amount=amount) for amount in quick_amounts()])
         elif action_id == "help":
             rows.append([press(label, item, callback_data="help:connect")])
         elif action_id == "welcome":
@@ -274,6 +279,17 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
     if not rows:
         return None
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def quick_amounts() -> list[int]:
+    """The minimum top-up and about a month for one device, rounded up to the top-up step: 50 and 200 ₽ at 6 ₽/day."""
+    from app.config import get_settings
+    s = get_settings()
+    low = max(1, int(s.balance_topup_min or 50))
+    step = max(1, int(s.balance_topup_step or 50))
+    month = -(-max(1, int(s.vpn_day_price_rub or 1)) * 30 // step) * step
+    month = min(max(month, low), int(s.balance_topup_max or month))
+    return [low] if month <= low else [low, month]
 
 
 def render_text(text: str, telegram_id: int, first_name: str | None, *, gift_days: int | None = None) -> str:
@@ -409,7 +425,7 @@ async def default_graph() -> dict:
             _step("pay-1", "unpaid_invoice", 0, tx("payment_nudge"), ["resume_pay", "menu"], enabled=pay_on),
         ]},
         {"id": "balance", "title": "Баланс заканчивается", "steps": [
-            _step("balance-1", "balance_low", 0, tx("balance_ending_nudge"), ["topup", "menu"]),
+            _step("balance-1", "balance_low", 0, tx("balance_ending_nudge"), ["topup_quick", "menu"]),
         ]},
         {"id": "nodevice", "title": "Нет устройства", "steps": [
             _step("nodevice-1", "no_device", 24, tx("nodevice_1"), ["gift", "help"]),

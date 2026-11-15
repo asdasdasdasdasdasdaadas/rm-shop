@@ -2576,7 +2576,12 @@
     stack = [];
     go("home", {}, "x");
     if (entry === "support") { openSupport(); return; }
-    if (entry === "topup") { go("topup"); return; }
+    if (entry === "topup") {
+      // «Пополнить 50 ₽» in a bot message opens the top-up with that amount already chosen.
+      const a = Number(new URLSearchParams(location.search).get("amount"));
+      if (amountOk(a)) { pay.amount = a; pay.custom = false; }
+      go("topup"); return;
+    }
     if (entry === "present") { const code = new URLSearchParams(location.search).get("code"); if (code) { go("present", { code }); return; } }
     if (entry === "giftsend" && me.gifts_enabled) { go("friends", { tab: "give" }); return; }
     if (entry === "browser") { openBrowserSheet(); return; }
