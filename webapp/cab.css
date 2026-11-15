@@ -694,3 +694,17 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .hc.fbon .fbx.open .fb-lid { transform: translate(-78px, -26px) rotate(-26deg); }
 .hc.fbon .fbtag { top: 46px; }
 .hc.fbon .fbx.open .fbtag { transform: translate(-50%, -26px) scale(1); }
+
+/* own amount: the first-payment bonus under the number */
+.am-fb { position: relative; margin-top: 10px; display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px 7px 10px; border-radius: 99px;
+  background: rgba(255, 215, 106, .12); box-shadow: inset 0 0 0 1px rgba(255, 215, 106, .28); color: #ffd76a; font-size: 14px; font-weight: 600;
+  transition: background .35s, color .35s, box-shadow .35s, transform .2s; }
+.am-fb i { font-style: normal; font-size: 16px; }
+.am-fb:active { transform: scale(.97); }
+.am-fb.hit { background: linear-gradient(180deg, #ffe08a, #f7b733); color: #4a2f00; box-shadow: 0 6px 20px rgba(247, 183, 51, .35); font-weight: 800; }
+.am-fb.hit::after { content: ""; position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .55), transparent 70%); background-size: 250% 100%; animation: amfbsh 2.6s ease-in-out infinite; }
+@keyframes amfbsh { 0% { background-position: 150% 0; } 50%, 100% { background-position: -100% 0; } }
+.am-fb.pop { animation: amfbpop .6s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes amfbpop { 0% { transform: scale(.8); } 60% { transform: scale(1.08); } 100% { transform: none; } }
+.am-stage.zero .am-fb { opacity: .9; }

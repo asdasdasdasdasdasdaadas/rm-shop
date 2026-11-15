@@ -735,6 +735,7 @@
             : `<button type="button" class="am-ico in" id="amIco" data-act="amtico" aria-label="Сменить способ оплаты"><span class="am-ic">${(AM_ICON[id] || AM_ICON.ton)()}</span></button>`}` +
           `<div class="am-num" id="amNum"><span>0</span></div><div class="am-caret"></div><div class="am-unit" id="amUnit">₽</div></div>` +
           `<button type="button" class="am-sub" id="amSub" data-act="amtsw"><span id="amSubT"></span><span class="sw">⇅</span></button>` +
+          (!gift && FB() ? '<button type="button" class="am-fb" id="amFb" data-act="amtfb"><i>🎁</i><span></span></button>' : "") +
           `<div class="am-hint">Наберите сумму</div></div>` +
         `<div class="am-bottom"><div class="am-quick">${[100, 500, 1000].map((q) => `<button type="button" data-act="amtq" data-v="${q}">+${fmt(q)}</button>`).join("")}</div>` +
           `<button type="button" class="am-pay off" id="amPay" data-act="amtpay"><span>Введите сумму</span></button>` +
@@ -823,11 +824,20 @@
     el.querySelector(".am-hint").textContent = many ? `${amt.cnt} ${pl(amt.cnt, "подарок", "подарка", "подарков")} по ${amt.mode === "rub" ? rub(n) : days(amDays())} · удерживайте, чтобы сбросить`
       : amt.gift ? (amt.mode === "rub" ? "Сколько подарить?" : "Сколько дней подарить?")
       : amt.mode === "rub" ? "Наберите сумму" : "Наберите количество дней";
+    // «+35% к первому пополнению»: what the typed amount brings, or how much is missing (a tap types the threshold).
+    const fbEl = el.querySelector("#amFb"), f = FB(), hit = Boolean(fbEl && f && !amt.gift && fbOk(n));
+    if (fbEl && f) {
+      const need = Number(f.min_rub), was = fbEl.classList.contains("hit");
+      fbEl.classList.toggle("hit", hit);
+      fbEl.querySelector("span").textContent = hit ? `+${rub(fbRub(n))} бонусом к пополнению`
+        : n && n < need ? `Ещё ${rub(need - n)} — и +${fbPct()}% к сумме` : `+${fbPct()}% к первому пополнению от ${rub(need)}`;
+      if (hit && !was) { fbEl.classList.remove("pop"); void fbEl.offsetWidth; fbEl.classList.add("pop"); fbBurst(fbEl); }
+    }
     const p = el.querySelector("#amPay");
     const can = amt.gift || curMethod();
     p.classList.toggle("off", !ok || !can);
     p.querySelector("span").textContent = !can ? "Оплата недоступна" : !ok ? "Введите сумму"
-      : many ? `Подарить ${amt.cnt} × ${rub(n)}` : `${amt.gift ? "Подарить" : "Оплатить"} ${rub(n)}`;
+      : many ? `Подарить ${amt.cnt} × ${rub(n)}` : `${amt.gift ? "Подарить" : "Оплатить"} ${rub(n)}${hit ? ` · +${rub(fbRub(n))}` : ""}`;
   }
   function amtShake() {
     const w = cur.el.querySelector("#amW");
@@ -1885,6 +1895,15 @@
     amtc() { haptic(); amt.gift = false; amt.cnt = 1; amt.v = pay.custom && amountOk(pay.amount) ? String(pay.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount"); },
     amtk(b) { amtPress(b.dataset.v); },
     amtq(b) { amtQuick(b); },
+    amtfb() {
+      const f = FB();
+      if (!f || amt.rolling || fbOk(amN())) return;
+      haptic();
+      amt.v = String(Math.max(Number(f.min_rub), amN()));
+      amt.mode = "rub";
+      cur.el.querySelector("#am").classList.add("open");
+      amRoll();
+    },
     amtsw(b) { amSwap(b); },
     amtico() { if (amt.gift) amGiftAdd(); else amCycle(); },
     amtpay(b) {

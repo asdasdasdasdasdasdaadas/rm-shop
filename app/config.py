@@ -89,10 +89,10 @@ class Settings(BaseSettings):
     widgets_enabled: bool = True
     trust_days: int = 3
     trust_fee_rub: int = 12
-    # «+10% к первому пополнению»: the first top-up from first_bonus_min_rub before the gift runs out.
+    # «+35% к первому пополнению»: the first top-up from first_bonus_min_rub before the gift runs out.
     first_bonus_enabled: bool = True
     first_bonus_min_rub: int = 200
-    first_bonus_percent: int = 10
+    first_bonus_percent: int = 35
     balance_charge_interval: int = 600
     billing_concurrency: int = 12
     billing_bulk_chunk: int = 80
