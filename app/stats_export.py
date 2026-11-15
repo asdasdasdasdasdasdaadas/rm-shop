@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import date, datetime, timezone
 
 from aiohttp import web
@@ -44,11 +45,94 @@ KEYS = {
     "current": "Текущий период", "previous": "Прошлый период", "1d": "Сутки", "7d": "7 дней", "30d": "30 дней",
     "90d": "90 дней", "all": "Всё время", "series": "По дням", "totals": "Итого", "window_days": "Окно, дней",
     "sources_note": "Про источники", "id": "ID", "value": "Значение", "share_rate": "Доля, %",
+    # Summary and jobs
+    "promo_uses": "Использований промокодов", "stars_payments": "Оплат звёздами", "vpn_reports": "Жалоб на VPN",
+    "tickets_open": "Открытых обращений", "broadcast_users": "Получатели рассылок",
+    "broadcast_using": "Пользуются VPN", "broadcast_unused": "Не пользуются VPN", "checkout_feedback": "Ответы после брошенной оплаты",
+    "bot_blocked": "Заблокировали бота", "bot_blocked_idle": "Заблокировали, не пользовались",
+    "payouts_pending": "Выплат ожидает", "paying_users": "Платящие клиенты", "new_today": "Новых сегодня",
+    "granted": "Оплачено", "plans": "Пополнения по суммам", "billing_today": "Списания сегодня", "charges": "Списаний",
+    "errors": "Ошибок", "credited": "Начислено", "week": "Неделя", "week_prev": "Прошлая неделя",
+    "month": "Месяц", "month_prev": "Прошлый месяц", "day_prev": "Прошлые сутки", "pay_soon": "Скоро платить",
+    "day_price_rub": "Цена дня, ₽", "day_price": "Цена дня, ₽", "low_balance": "Мало баланса", "trust": "Обещанный платёж",
+    "people": "Люди", "trust_open": "Обещанный платёж открыт", "trust_amount": "Обещанный платёж, ₽",
+    "due_at": "Срок", "days_left": "Дней осталось", "reason": "Причина", "reasons": "Причины",
+    "exit_feedback": "Отзывы при удалении устройства", "answered": "Ответили", "key": "Ключ", "topups": "Пополнения",
+    "last_paid_at": "Последняя оплата", "jobs": "Фоновые задачи", "billing": "Списания", "panel_sync": "Синхронизация с панелью",
+    "extended": "Продлено", "disabled": "Отключено", "revived": "Включено снова", "extend_mode": "Режим продления",
+    "disable_mode": "Режим отключения", "revive_mode": "Режим включения", "paused": "На паузе",
+    "maintenance": "Техработы", "seconds": "Секунд", "at": "Когда", "mode": "Режим", "pages": "Страниц",
+    "seen": "Просмотрено", "applied": "Применено", "partial": "Частично", "browser_logins": "Входы через браузер",
+    "snapshot": "Сейчас", "traffic_bytes": "Трафик, байт", "devices_total": "Устройств всего",
+    "registered": "Зарегистрировались", "started": "Запустили бота", "promo": "Промокоды",
+    "star_payments": "Оплат звёздами", "invitation_card": "Карточка приглашения", "share_users": "Поделились, людей",
+    "copy_users": "Скопировали, людей",
+    # Finance and forecast
+    "estimated": "Оценка", "first": "Первые оплаты", "repeat": "Повторные оплаты", "payers": "Плательщиков",
+    "average_rub": "Средний платёж, ₽", "history": "Платежи", "page": "Страница", "limit": "На странице",
+    "plan_code": "Сумма пополнения", "currency": "Валюта", "payment_number": "Номер оплаты клиента",
+    "due": "Скоро продление", "horizon": "Горизонт, дней", "router_expire_at": "Роутер до",
+    "balance_low": "Мало баланса", "router_due": "Продление роутера", "balance_days": "Хватит на дней",
+    "renewals": "Продлений", "sample_intervals": "Интервалов в выборке", "repeat_amounts": "Повторных сумм",
+    "average_repeat_rub": "Средний повторный платёж, ₽", "periods": "Периоды", "clients": "Клиентов",
+    "covered": "С историей", "expected_payments": "Ожидаемых платежей",
+    # Funnel
+    "entered": "Пришли", "from_ref": "По приглашению", "from_ad": "По рекламе", "organic": "Сами",
+    "legal": "Приняли условия", "trial": "Взяли подарок", "device": "Добавили устройство", "checkout": "Открыли оплату",
+    "repeat_paid": "Оплатили повторно", "paid_stars": "Оплатили звёздами",
+    "device_no_online": "Устройство без онлайна", "checkout_drop": "Бросили оплату", "no_legal": "Не приняли условия",
+    "no_gift": "Не взяли подарок", "gift_no_online": "Подарок есть, онлайна нет", "online_no_paid": "Пользуются, не платили",
+    "paid_no_repeat": "Платили один раз", "paid_empty": "Платили, баланс пуст",
+    "progress_paid_empty": "Сдвинулись: платили, баланс пуст", "progress_no_gift": "Сдвинулись: без подарка",
+    "progress_gift_no_online": "Сдвинулись: подарок без онлайна", "progress_device_no_online": "Сдвинулись: устройство без онлайна",
+    "progress_checkout_drop": "Сдвинулись: брошенная оплата", "progress_online_no_paid": "Сдвинулись: пользуются, не платили",
+    "progress_paid_no_repeat": "Сдвинулись: платили один раз", "unpaid_help": "Не платили: нужна помощь",
+    "unpaid_terms": "Не платили: не подошли условия", "unpaid_ok": "Не платили: всё работает",
+    "unpaid_no_feedback": "Не платили: без ответа", "trial_transition": "Переход: подарок",
+    "device_transition": "Переход: устройство", "connected_transition": "Переход: подключили VPN",
+    "checkout_transition": "Переход: открыли оплату", "paid_transition": "Переход: оплатили",
+    "repeat_paid_transition": "Переход: оплатили повторно", "inv_entered": "Приглашённые: пришли",
+    "inv_legal": "Приглашённые: приняли условия", "inv_trial": "Приглашённые: взяли подарок",
+    "inv_device": "Приглашённые: добавили устройство", "inv_connected": "Приглашённые: подключили VPN",
+    "inv_checkout": "Приглашённые: открыли оплату", "inv_paid": "Приглашённые: оплатили",
+    "gift_claimed": "Забрали подарок", "median_minutes": "Медиана, минут", "stages": "Этапы", "cabinet": "Кабинет",
+    "channel_passed": "Подписались на канал", "wizard_1": "Мастер: шаг 1", "wizard_2": "Мастер: шаг 2",
+    "wizard_3": "Мастер: шаг 3", "wizard_4": "Мастер: шаг 4", "welcome_continue": "Продолжили знакомство",
+    "gift_view": "Открыли подарок", "started_at": "Начало", "ends": "Конец", "online_mature": "Онлайн: в выборке",
+    "online_success": "Онлайн: перешли", "paid_mature": "Оплата: в выборке", "paid_success": "Оплата: перешли",
+    "online_pending": "Онлайн: ждём", "online_rate": "Онлайн, %", "paid_pending": "Оплата: ждём", "paid_rate": "Оплата, %",
+    "block_eligible": "В выборке блокировок",
+    # Referrals, win-back, A/B, ads, promos, stories
+    "invitee_id": "Друг (ID)", "invitee_username": "Друг (username)", "invitee_name": "Друг (имя)",
+    "invitee_at": "Друг пришёл", "referrer_id": "Пригласил (ID)", "referrer_username": "Пригласил (username)",
+    "referrer_name": "Пригласил (имя)", "activated": "Активировали", "activated_at": "Активировал",
+    "mature": "Срок вышел", "observing": "Наблюдаем", "expired": "Истекло", "gift_rub": "Подарок, ₽",
+    "debt_rub": "Долг, ₽", "debt_repaid_rub": "Долг погашен, ₽", "unknown_debt": "Долг неизвестен",
+    "paid_credit_rub": "Оплачено после, ₽", "promo_id": "Промокод (ID)", "sent_at": "Отправлено",
+    "retry_at": "Повтор", "attempts": "Попыток", "expires_at": "Истекает", "max_holdout": "Макс. контрольная группа, %",
+    "steps": "Шаги", "branch": "Ветка", "n": "№", "condition": "Условие", "wait_hours": "Пауза, ч", "text": "Текст",
+    "gift": "Подарок", "step_id": "Шаг", "holdout_pct": "Контрольная группа, %", "b_pct": "Вариант B, %",
+    "b_text": "Текст B", "b_gift_days": "Подарок B, дней", "stopped_at": "Остановлен", "running": "Идёт",
+    "step": "Шаг", "arms": "Группы", "matured": "Срок вышел", "delivered": "Доставлено", "first_payers": "Первых плательщиков",
+    "arm": "Группа", "conversion": "Конверсия, %", "rub_per_user": "₽ на человека", "comparisons": "Сравнения",
+    "against": "Против", "payers_pp": "Разница плательщиков, п.п.", "rub_per_100": "₽ на 100 человек",
+    "p_value": "p-value", "sure": "Надёжно", "verdict": "Вывод", "tracked": "Отслеживается", "state": "Состояние",
+    "slug": "Метка", "url": "Ссылка", "partner": "Партнёр", "archived": "В архиве", "links": "Ссылок",
+    "revoked": "Отозван", "recipient_telegram_id": "Кому (ID)", "max_uses": "Макс. использований",
+    "used_count": "Использовано", "remaining": "Осталось", "enabled": "Включён", "shared": "Поделились",
+    "rewarded": "Награждены", "story_pending_at": "Сторис на проверке", "story_rewarded_at": "Сторис награждена",
 }
 
+# The users funnel counts people: «paid_rub» there is «paid in rubles», not an amount.
+FUNNEL_KEYS = {"paid_rub": "Оплатили рублями", "paid": "Оплатили"}
 
-def _label(key: str) -> str:
+
+def _label(key: str, extra: dict | None = None) -> str:
     key = str(key)
+    if extra and key in extra:
+        return extra[key]
+    if re.fullmatch(r"b\d+", key):
+        return f"Пополнение {key[1:]} ₽"
     if key in KEYS or key.lower() in KEYS:
         return KEYS.get(key) or KEYS[key.lower()]
     if not key.isascii():
@@ -72,7 +156,7 @@ def _scalar(v) -> bool:
     return not isinstance(v, (dict, list))
 
 
-def _table(title: str, items: list[dict], kinds: dict | None = None) -> list[list]:
+def _table(title: str, items: list[dict], kinds: dict | None = None, keys: dict | None = None) -> list[list]:
     cols: list[str] = []
     for item in items:
         for k, v in item.items():
@@ -80,7 +164,7 @@ def _table(title: str, items: list[dict], kinds: dict | None = None) -> list[lis
                 cols.append(k)
     if not cols:
         return []
-    rows = [[(title, "title")], [(_label(c), "head") for c in cols]]
+    rows = [[(title, "title")], [(_label(c, keys), "head") for c in cols]]
     for item in items:
         row = []
         for c in cols:
@@ -93,17 +177,17 @@ def _table(title: str, items: list[dict], kinds: dict | None = None) -> list[lis
     return rows
 
 
-def layout(data, title: str = "", kinds: dict | None = None) -> list[list]:
+def layout(data, title: str = "", kinds: dict | None = None, keys: dict | None = None) -> list[list]:
     """JSON → rows: scalars as «показатель — значение», lists of objects as tables, nested objects recursively."""
     out: list[list] = []
     if isinstance(data, list):
         if data and all(isinstance(x, dict) for x in data):
-            out += _table(title or "Список", data, kinds)
+            out += _table(title or "Список", data, kinds, keys)
             for i, item in enumerate(data):
                 for k, v in item.items():
                     if isinstance(v, (dict, list)) and v and not (isinstance(v, list) and all(_scalar(x) for x in v)):
                         name = item.get("label") or item.get("title") or item.get("name") or item.get("id") or i + 1
-                        out += layout(v, f"{title} · {name} · {_label(k)}".strip(" ·"), kinds)
+                        out += layout(v, f"{title} · {name} · {_label(k, keys)}".strip(" ·"), kinds, keys)
         elif data:
             out += [[(title, "title")], *[[_value(x)] for x in data], []]
         return out
@@ -115,12 +199,12 @@ def layout(data, title: str = "", kinds: dict | None = None) -> list[list]:
             out.append([(title, "title")])
         out.append([("Показатель", "head"), ("Значение", "head")])
         for k, v in flat:
-            out.append([_label(k), _value(", ".join(map(str, v)) if isinstance(v, list) else v)])
+            out.append([_label(k, keys), _value(", ".join(map(str, v)) if isinstance(v, list) else v)])
         out.append([])
     for k, v in data.items():
         if k == "ok" or k in dict(flat):
             continue
-        out += layout(v, f"{title} · {_label(k)}" if title else _label(k), kinds)
+        out += layout(v, f"{title} · {_label(k, keys)}" if title else _label(k, keys), kinds, keys)
     return out
 
 
@@ -130,6 +214,37 @@ async def _call(request: web.Request, handler, path: str, query: dict | None = N
     data = json.loads(resp.body if isinstance(resp.body, (bytes, bytearray)) else resp.text)
     if isinstance(data, dict) and data.get("ok") is False:
         raise RuntimeError(data.get("error") or f"HTTP {resp.status}")
+    return data
+
+
+def _dig(data: dict, path: tuple[str, ...]):
+    for part in path:
+        data = data.get(part) if isinstance(data, dict) else None
+    return data
+
+
+async def _call_all(request: web.Request, handler, path: str, query: dict | None, lists: list[tuple[tuple[str, ...], str]],
+                    size: dict | None = None) -> dict:
+    """A paged screen in full: every page of each listed list (data path, page parameter) is fetched and joined."""
+    query = {**(query or {}), **(size or {})}
+    data = await _call(request, handler, path, query)
+    for where, param in lists:
+        box = _dig(data, where[:-1]) if len(where) > 1 else data
+        items = _dig(data, where)
+        if not isinstance(box, dict) or not isinstance(items, list) or not items:
+            continue
+        total = int(box.get("total") or 0)
+        page, per = 1, len(items)
+        while len(items) < total and page < 300:
+            page += 1
+            more = _dig(await _call(request, handler, path, {**query, param: str(page)}), where) or []
+            if not more:
+                break
+            items.extend(more)
+            if len(more) < per:
+                break
+        box.pop("page", None)
+        box.pop("limit", None)
     return data
 
 
@@ -278,7 +393,7 @@ async def funnel_sheet(days: int, stats: dict) -> list[list]:
     for key, title in (("funnel", "Воронка пользователей"), ("onboarding_steps", "Шаги онбординга"),
                        ("cohort_outcomes", "Когорты"), ("journey_comparison", "Сравнение путей")):
         if stats.get(key):
-            out += layout(stats.pop(key), title)
+            out += layout(stats.pop(key), title, keys=FUNNEL_KEYS if key == "funnel" else None)
     return out
 
 
@@ -315,7 +430,8 @@ async def build(request: web.Request, days: int, labels: dict | None = None) -> 
     funnel_rows = await _safe(funnel_sheet(days, stats))
     await section("Сводка", overview)
     await section("Статистика", lambda: _layout_call(request, admin.api_statistics, "/admin/api/statistics", q, kinds))
-    await section("Финансы", lambda: _layout_call(request, admin.api_finance, "/admin/api/finance", q, kinds))
+    await section("Финансы", lambda: _layout_all(request, admin.api_finance, "/admin/api/finance", q, kinds,
+                                                 [(("history", "items"), "page"), (("due", "items"), "due_page")]))
     await section("Прогноз выручки", lambda: _layout_call(request, admin.api_revenue_forecast, "/admin/api/revenue-forecast", None, kinds))
     await section("Воронка", lambda: _const(funnel_rows))
     await section("Сообщения", lambda: messages_sheet(days, kinds))
@@ -325,9 +441,12 @@ async def build(request: web.Request, days: int, labels: dict | None = None) -> 
         return rows + (layout(reminders, "Напоминания: результаты", kinds) if reminders else [])
     await section("Кнопки и клики", buttons)
     await section("Подарки", lambda: gifts_sheet(days, kinds))
-    await section("Рефералы", lambda: _layout_call(request, admin.api_referrals, "/admin/api/referrals", None, kinds))
-    await section("Возврат клиентов", lambda: _layout_call(request, admin.api_winback_statistics, "/admin/api/statistics/winback", q, kinds))
-    await section("Рассылки и тесты", lambda: _layout_call(request, admin.api_broadcast_results, "/admin/api/broadcast-results", None, kinds))
+    await section("Рефералы", lambda: _layout_all(request, admin.api_referrals, "/admin/api/referrals", None, kinds,
+                                                  [(("items",), "page")], {"limit": "100"}))
+    await section("Возврат клиентов", lambda: _layout_all(request, admin.api_winback_statistics, "/admin/api/statistics/winback",
+                                                          q, kinds, [(("items",), "page")]))
+    await section("Рассылки и тесты", lambda: _layout_all(request, admin.api_broadcast_results, "/admin/api/broadcast-results",
+                                                          None, kinds, [(("items",), "page")]))
     await section("A-B тесты", lambda: _layout_call(request, admin.api_experiments, "/admin/api/experiments", None, kinds))
     await section("Реклама", lambda: _layout_call(request, admin.api_ad_links, "/admin/api/ads", None, kinds))
     await section("Партнёры", lambda: _layout_call(request, admin.api_partners, "/admin/api/partners", None, kinds))
@@ -353,6 +472,10 @@ async def _safe(coro):
 
 async def _const(rows):
     return rows
+
+
+async def _layout_all(request, handler, path, query, kinds, lists, size=None):
+    return layout(await _call_all(request, handler, path, query, lists, size), "", kinds)
 
 
 async def _layout_call(request, handler, path, query, kinds):

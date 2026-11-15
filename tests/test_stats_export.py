@@ -62,3 +62,22 @@ class ExportRequest(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("attachment", resp.headers["Content-Disposition"])
                 bad = await client.post("/admin/api/export.xlsx", json={"days": 5})
                 self.assertEqual(bad.status, 400)
+
+
+class WholeLists(unittest.IsolatedAsyncioTestCase):
+    async def test_every_page_is_joined(self):
+        from unittest.mock import patch
+
+        async def fake_call(request, handler, path, query=None):
+            page = int((query or {}).get("page", 1))
+            items = [{"n": i} for i in range((page - 1) * 30, min(page * 30, 70))]
+            return {"ok": True, "history": {"items": items, "total": 70, "page": page}}
+
+        with patch.object(stats_export, "_call", fake_call):
+            data = await stats_export._call_all(None, None, "/x", {}, [(("history", "items"), "page")])
+        self.assertEqual([x["n"] for x in data["history"]["items"]], list(range(70)))
+        self.assertNotIn("page", data["history"])
+
+    def test_funnel_counts_people_not_rubles(self):
+        rows = stats_export.layout({"paid_rub": 14}, keys=stats_export.FUNNEL_KEYS)
+        self.assertIn(["Оплатили рублями", 14], [[c[0] if isinstance(c, tuple) else c for c in r] for r in rows])
