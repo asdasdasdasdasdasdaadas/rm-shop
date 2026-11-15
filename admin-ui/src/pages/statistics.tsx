@@ -20,6 +20,8 @@ import {
 } from "@/components/workspace";
 import { change, compact, date, money, useHashParam, useResource, who, type Data } from "@/lib/api";
 import { OverviewPage } from "./overview";
+import { billKinds, messageKinds } from "./records";
+import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Download, RefreshCw, UserPlus, PlugZap, BadgeRussianRuble, Receipt, Star, Smartphone, GitCompareArrows, Waves, CalendarDays } from "lucide-react";
 
@@ -271,6 +273,44 @@ export function StatisticsPage() {
     a.click();
     URL.revokeObjectURL(url);
   };
+  const [exporting, setExporting] = useState(false);
+  const exportXlsx = async () => {
+    setExporting(true);
+    try {
+      const response = await fetch("/admin/api/export.xlsx", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          days: Number(days),
+          labels: { messages: messageKinds, billing: billKinds },
+        }),
+      });
+      if (!response.ok) {
+        let error = `HTTP ${response.status}`;
+        try {
+          error = (await response.json()).error || error;
+        } catch {
+          /* not JSON */
+        }
+        throw new Error(error);
+      }
+      const name =
+        /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "")?.[1] ||
+        `statistics-${days}days.xlsx`;
+      const url = URL.createObjectURL(await response.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Файл готов");
+    } catch (e) {
+      toast.error("Выгрузка не собралась: " + (e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
   const s = snapshot.data || {};
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-6">
@@ -313,6 +353,15 @@ export function StatisticsPage() {
             >
               <Download />
               CSV
+            </Button>
+            <Button
+              variant="outline"
+              disabled={exporting}
+              onClick={exportXlsx}
+              title="Все разделы статистики, финансы, воронка, сообщения, кнопки и подарки — по листам одного файла"
+            >
+              <Download />
+              {exporting ? "Собираю…" : "Всё в Excel"}
             </Button>
             <Button
               variant="outline"

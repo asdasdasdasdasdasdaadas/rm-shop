@@ -1453,6 +1453,33 @@ async def api_purge_deleted_accounts(request: web.Request) -> web.Response:
                               "switched_off": switched_off, "skipped": skipped, **summary})
 
 
+async def api_export_xlsx(request: web.Request) -> web.Response:
+    """All statistics in one Excel file; the panel sends its labels so the file reads like the screens."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import stats_export
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        days = int(body.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+    if days not in stats_export.PERIODS:
+        return web.json_response({"ok": False, "error": "Период: 7, 30, 90, 365 дней или всё время"}, status=400)
+    labels = body.get("labels") if isinstance(body.get("labels"), dict) else {}
+    data = await stats_export.build(request, days, labels)
+    from datetime import datetime as _dt
+    name = f"statistics-{_dt.now().strftime('%Y-%m-%d')}-{days or 'all'}d.xlsx"
+    return web.Response(body=data, headers={
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": f'attachment; filename="{name}"',
+        "Cache-Control": "no-store",
+    })
+
+
 async def api_block_user(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2994,6 +3021,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/logout", api_logout)
     app.router.add_get("/admin/api/session", api_session)
     app.router.add_get("/admin/api/stats", api_stats)
+    app.router.add_post("/admin/api/export.xlsx", api_export_xlsx)
     app.router.add_get("/admin/api/badges", api_badges)
     app.router.add_get("/admin/api/statistics/winback", api_winback_statistics)
     app.router.add_get("/admin/api/statistics", api_statistics)
