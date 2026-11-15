@@ -558,11 +558,10 @@
     // The countdown means something only once the gift is running (after the first connection).
     if (!f || !me.first_online_at || !(Number(f.hours_left) > 0)) return "";
     fbDeadline();
-    return `<button type="button" class="fbc" data-act="fbgo"><span class="fbglow"></span><span class="fbin">` +
-      `<span class="fbtop"><span class="fbgift"></span><span class="fbtx"><b>+${fbPct()}% к пополнению</b>` +
-      `<span>за первое пополнение от ${rub(f.min_rub)} до конца подарка</span></span></span>` +
-      `<span class="fbk">Подарок закончится через</span>${fbUnits()}` +
-      `<span class="pill fbp"><span>Пополнить ${rub(f.min_rub)}</span><i class="fbb on">+${rub(fbRub(f.min_rub))}</i></span></span></button>`;
+    const need = Number(f.min_rub);
+    return `<button type="button" class="fbban" data-act="fbgo"><span class="fbrays2"></span><span class="fbgift"></span>` +
+      `<span class="fbpc">+${fbPct()}%</span><span class="fbsub">к первому пополнению от ${rub(need)}</span>` +
+      `${fbUnits()}<span class="pill fbbp"><span>Пополнить ${rub(need)} → ${rub(need + fbRub(need))}</span></span></button>`;
   }
   // One clock for every countdown on the page: re-renders replace the markup, the clock keeps going.
   function fbTick() {
@@ -733,9 +732,9 @@
           `<div class="am-w" id="amW">${gift
             ? `<button type="button" class="am-ico am-gico in" id="amIco" data-act="amtico" aria-label="Ещё один подарок"><span class="am-ic"><span class="am-gift"></span></span><b class="am-cnt${amt.cnt > 1 ? " on" : ""}">×${amt.cnt}</b></button>`
             : `<button type="button" class="am-ico in" id="amIco" data-act="amtico" aria-label="Сменить способ оплаты"><span class="am-ic">${(AM_ICON[id] || AM_ICON.ton)()}</span></button>`}` +
-          `<div class="am-num" id="amNum"><span>0</span></div><div class="am-caret"></div><div class="am-unit" id="amUnit">₽</div></div>` +
+          `<div class="am-num" id="amNum"><span>0</span></div><div class="am-caret"></div><div class="am-unit" id="amUnit">₽</div>` +
+          (!gift && FB() ? `<div class="am-fbs" id="amFbs">+${fbPct()}%</div>` : "") + `</div>` +
           `<button type="button" class="am-sub" id="amSub" data-act="amtsw"><span id="amSubT"></span><span class="sw">⇅</span></button>` +
-          (!gift && FB() ? '<button type="button" class="am-fb" id="amFb" data-act="amtfb"><i>🎁</i><span></span></button>' : "") +
           `<div class="am-hint">Наберите сумму</div></div>` +
         `<div class="am-bottom"><div class="am-quick">${[100, 500, 1000].map((q) => `<button type="button" data-act="amtq" data-v="${q}">+${fmt(q)}</button>`).join("")}</div>` +
           `<button type="button" class="am-pay off" id="amPay" data-act="amtpay"><span>Введите сумму</span></button>` +
@@ -824,20 +823,24 @@
     el.querySelector(".am-hint").textContent = many ? `${amt.cnt} ${pl(amt.cnt, "подарок", "подарка", "подарков")} по ${amt.mode === "rub" ? rub(n) : days(amDays())} · удерживайте, чтобы сбросить`
       : amt.gift ? (amt.mode === "rub" ? "Сколько подарить?" : "Сколько дней подарить?")
       : amt.mode === "rub" ? "Наберите сумму" : "Наберите количество дней";
-    // «+35% к первому пополнению»: what the typed amount brings, or how much is missing (a tap types the threshold).
-    const fbEl = el.querySelector("#amFb"), f = FB(), hit = Boolean(fbEl && f && !amt.gift && fbOk(n));
-    if (fbEl && f) {
-      const need = Number(f.min_rub), was = fbEl.classList.contains("hit");
+    // «+35% к первому пополнению»: a sticker on the number lights up from the threshold,
+    // and the line under it says what lands on the balance (or how much is missing).
+    const fbEl = el.querySelector("#amFbs"), f = FB(), hit = Boolean(fbEl && f && !amt.gift && fbOk(n));
+    if (fbEl && f && amt.mode === "rub" && n && !many) {
+      const need = Number(f.min_rub), st = el.querySelector("#amSubT");
+      if (hit) st.innerHTML = `На баланс придёт <b class="am-gold">${rub(n + fbRub(n))}</b> · ≈ ${days(daysFor(n + fbRub(n)))}`;
+      else if (n < need && n >= min) st.innerHTML = `≈ ${days(amDays())} VPN · ещё ${rub(need - n)} до <b class="am-gold">+${fbPct()}%</b>`;
+    }
+    if (fbEl) {
+      const was = fbEl.classList.contains("hit");
       fbEl.classList.toggle("hit", hit);
-      fbEl.querySelector("span").textContent = hit ? `+${rub(fbRub(n))} бонусом к пополнению`
-        : n && n < need ? `Ещё ${rub(need - n)} — и +${fbPct()}% к сумме` : `+${fbPct()}% к первому пополнению от ${rub(need)}`;
-      if (hit && !was) { fbEl.classList.remove("pop"); void fbEl.offsetWidth; fbEl.classList.add("pop"); fbBurst(fbEl); }
+      if (hit && !was) { fbEl.classList.remove("pop"); void fbEl.offsetWidth; fbEl.classList.add("pop"); fbBurst(fbEl); notify("success"); }
     }
     const p = el.querySelector("#amPay");
     const can = amt.gift || curMethod();
     p.classList.toggle("off", !ok || !can);
     p.querySelector("span").textContent = !can ? "Оплата недоступна" : !ok ? "Введите сумму"
-      : many ? `Подарить ${amt.cnt} × ${rub(n)}` : `${amt.gift ? "Подарить" : "Оплатить"} ${rub(n)}${hit ? ` · +${rub(fbRub(n))}` : ""}`;
+      : many ? `Подарить ${amt.cnt} × ${rub(n)}` : `${amt.gift ? "Подарить" : "Оплатить"} ${rub(n)}`;
   }
   function amtShake() {
     const w = cur.el.querySelector("#amW");
@@ -1895,15 +1898,7 @@
     amtc() { haptic(); amt.gift = false; amt.cnt = 1; amt.v = pay.custom && amountOk(pay.amount) ? String(pay.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount"); },
     amtk(b) { amtPress(b.dataset.v); },
     amtq(b) { amtQuick(b); },
-    amtfb() {
-      const f = FB();
-      if (!f || amt.rolling || fbOk(amN())) return;
-      haptic();
-      amt.v = String(Math.max(Number(f.min_rub), amN()));
-      amt.mode = "rub";
-      cur.el.querySelector("#am").classList.add("open");
-      amRoll();
-    },
+
     amtsw(b) { amSwap(b); },
     amtico() { if (amt.gift) amGiftAdd(); else amCycle(); },
     amtpay(b) {

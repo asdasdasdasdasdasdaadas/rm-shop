@@ -708,3 +708,36 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .am-fb.pop { animation: amfbpop .6s cubic-bezier(.3, 1.6, .5, 1); }
 @keyframes amfbpop { 0% { transform: scale(.8); } 60% { transform: scale(1.08); } 100% { transform: none; } }
 .am-stage.zero .am-fb { opacity: .9; }
+
+/* v3 keypad: a gold «+35%» sticker on the amount */
+.am-fbs { position: absolute; right: -30px; top: -30px; z-index: 4; padding: 5px 10px; border-radius: 12px; font-weight: 900; font-size: 16px; letter-spacing: -.2px;
+  color: #ffd76a; box-shadow: inset 0 0 0 1.5px rgba(255, 215, 106, .55); background: rgba(255, 215, 106, .08); transform: rotate(10deg); opacity: .55;
+  transition: opacity .3s, background .3s, color .3s, box-shadow .3s; overflow: hidden; pointer-events: none; }
+.am-fbs.hit { opacity: 1; color: #4a2f00; background: linear-gradient(180deg, #ffe08a, #f7b733); box-shadow: 0 8px 20px rgba(247, 183, 51, .4); animation: amfbsF 2.6s ease-in-out infinite; }
+.am-fbs.hit::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .6), transparent 70%); background-size: 250% 100%;
+  animation: amfbsh 2.6s ease-in-out infinite; }
+.am-fbs.pop { animation: amfbsPop .65s cubic-bezier(.3, 1.7, .5, 1), amfbsF 2.6s .65s ease-in-out infinite; }
+@keyframes amfbsPop { 0% { transform: rotate(-12deg) scale(.5); } 60% { transform: rotate(14deg) scale(1.25); } 100% { transform: rotate(10deg); } }
+@keyframes amfbsF { 50% { transform: rotate(4deg) translateY(-4px); } }
+.am-stage.zero .am-fbs { opacity: .35; }
+.am-gold { color: #ffd76a; font-weight: 800; }
+
+/* v3 home: purple banner, big +35%, the white gift on the right, a small live timer */
+.fbban { display: block; position: relative; overflow: hidden; isolation: isolate; width: calc(100% - 24px); margin: 12px 12px 0; padding: 18px 18px 18px; border-radius: 26px; text-align: left;
+  background: radial-gradient(90% 90% at 100% 0%, #7b4fd6 0%, rgba(123, 79, 214, 0) 60%), linear-gradient(160deg, #2b1663, #4a2a96 60%, #6d43c4);
+  animation: up .5s .12s var(--ease) both; transition: transform .15s; }
+.fbban:active { transform: scale(.98); }
+.fbrays2 { position: absolute; z-index: -1; right: -130px; top: -150px; width: 380px; height: 380px; border-radius: 50%; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 226, 140, .16) 0 7deg, transparent 7deg 22deg);
+  -webkit-mask: radial-gradient(circle, #000 15%, transparent 60%); mask: radial-gradient(circle, #000 15%, transparent 60%); animation: fbspin 22s linear infinite; }
+.fbban .fbgift { position: absolute; z-index: -1; right: -96px; top: 4px; width: 250px; height: 170px; animation: none; filter: none; }
+.fbban .fbgift > svg { left: -85px !important; top: -20px !important; width: 420px !important; height: 212px !important; }
+.fbpc { display: block; font-size: 48px; font-weight: 900; letter-spacing: -1.5px; line-height: 1; color: #ffd76a; text-shadow: 0 4px 18px rgba(247, 183, 51, .35);
+  background: linear-gradient(90deg, #fff3c4, #ffd76a 40%, #fff3c4 60%, #f7b733); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  animation: fbtext 3.5s linear infinite; }
+.fbsub { display: block; font-size: 14px; color: #d9cff5; margin-top: 5px; max-width: 175px; line-height: 1.35; }
+.fbban .fbcd { gap: 5px; margin-top: 14px; width: max-content; }
+.fbban .fbcd .u { flex: none; display: flex; align-items: baseline; gap: 2px; padding: 5px 8px; border-radius: 10px; background: rgba(0, 0, 0, .22); box-shadow: none; }
+.fbban .fbcd .v { height: 20px; line-height: 20px; font-size: 16px; }
+.fbban .fbcd .l { font-size: 11px; color: #cfc3f2; margin: 0; }
+.fbbp { margin-top: 14px; height: 46px; width: 100%; color: #2b1663; font-size: 16px; }
