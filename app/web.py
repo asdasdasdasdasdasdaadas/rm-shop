@@ -55,7 +55,7 @@ from app.sync import fetch_panel
 from app.notices import notice_text
 from app.texts import days_text, minutes_text, rub_text
 from app.balance import sync_user_billing
-from app import friend_gifts
+from app import first_bonus, friend_gifts
 from app.block import blocked_notice
 from app.maintenance import current_text
 from app.pay_methods import public_pay_methods, stars_price
@@ -548,6 +548,8 @@ async def api_me(request: web.Request) -> web.Response:
             "referred": bool((local or {}).get("referred_by")),
             **ref_view,
             "has_paid_topup": bool((local or {}).get("has_paid_topup")),
+            "first_bonus": first_bonus.offer(local, balance_rub=balance_rub, hours_left=hours_left,
+                                             devices=len(billable_raw)),
             "first_online_at": (
                 local.get("first_online_at").isoformat()
                 if local and local.get("first_online_at") and hasattr(local.get("first_online_at"), "isoformat")

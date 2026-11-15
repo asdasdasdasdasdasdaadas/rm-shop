@@ -197,6 +197,25 @@ const groups: {
         type: "number",
         min: 0,
       },
+      {
+        key: "first_bonus_enabled",
+        label: "Бонус за первую оплату",
+        type: "switch",
+        hint: "Первое пополнение до конца подарка от суммы ниже — плюс дни VPN на баланс. Кабинет показывает отсчёт и открывающийся подарок.",
+      },
+      {
+        key: "first_bonus_min_rub",
+        label: "Бонус: пополнение от, ₽",
+        type: "number",
+        min: 1,
+      },
+      {
+        key: "first_bonus_days",
+        label: "Бонус: сколько дней дарим",
+        type: "number",
+        min: 1,
+        max: 30,
+      },
     ],
   },
   {

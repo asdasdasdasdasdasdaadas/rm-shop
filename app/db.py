@@ -5649,11 +5649,17 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
                     return None
             else:
                 raise ValueError('Unknown payment provider')
+            first_bonus = 0
+            if not router_days:
+                from app.first_bonus import bonus_for_payment
+                billed = await conn.fetchval("""SELECT COUNT(*) FROM devices WHERE telegram_id=$1
+                    AND COALESCE(kind,'') <> 'router'""", telegram_id)
+                first_bonus = bonus_for_payment(dict(local), amount, int(billed or 0))
             receipt = await conn.fetchrow('''INSERT INTO payment_receipts
-                (payment_key,telegram_id,plan_code,amount,router_days,first_payment,referral_enabled,invitee_bonus,notice_status)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending') RETURNING *''',
+                (payment_key,telegram_id,plan_code,amount,router_days,first_payment,referral_enabled,invitee_bonus,notice_status,first_bonus_rub)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9) RETURNING *''',
                 payment_key,telegram_id,plan_code,amount,router_days,not local['has_paid_topup'],
-                settings.referral_program_enabled, max(0, settings.referral_invitee_reward_rub))
+                settings.referral_program_enabled, max(0, settings.referral_invitee_reward_rub), first_bonus)
             if router_days:
                 await conn.execute('''UPDATE users SET router_expire_at=
                     GREATEST(COALESCE(router_expire_at,NOW()),NOW())+($2::int * INTERVAL '1 day')
@@ -5668,6 +5674,11 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
                   THEN NULL ELSE trial_end_nudge_at END WHERE telegram_id=$1''', telegram_id,max(1,settings.vpn_day_price_rub))
             await conn.execute('''INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
                 VALUES ($1,$2,'pay',$3,$4,$5)''',telegram_id,'router' if router_days else 'topup',amount,after,plan_code)
+            if first_bonus:
+                after = await conn.fetchval('''UPDATE users SET balance_rub=COALESCE(balance_rub,0)+$2
+                    WHERE telegram_id=$1 RETURNING balance_rub''', telegram_id, first_bonus)
+                await conn.execute('''INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
+                    VALUES ($1,'first_bonus','pay',$2,$3,'Бонус за первую оплату')''', telegram_id, first_bonus, after)
             if provider == 'order':
                 await conn.execute("UPDATE pay_orders SET status='granted',paid_at=NOW() WHERE order_id=$1", provider_id)
             elif provider == 'ton':

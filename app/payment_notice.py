@@ -5,7 +5,7 @@ from app import db
 from app.funnel_ui import send_funnel_message
 from app.keyboards import onboarding_keyboard, cabinet_keyboard
 from app.notices import notice_text
-from app.texts import rub_text
+from app.texts import days_text, rub_text
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,9 @@ async def deliver_payment_notice(bot, receipt):
         else:
             devices = await db.list_devices(uid)
             body = notice_text('topup_ok',amount=rub_text(receipt['amount']))
+            if int(receipt.get('first_bonus_rub') or 0) > 0:
+                from app.config import get_settings
+                body += f"\n🎁 Бонус за первую оплату: +{days_text(get_settings().first_bonus_days)} VPN."
             body += '\nБаланс: ' + rub_text(int(local.get('balance_rub') or 0)) + '.'
             if used_vpn(local, devices):
                 body += '\n\nVPN уже настроен, больше ничего делать не нужно. Если не подключается — напишите в поддержку.'

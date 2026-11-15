@@ -438,6 +438,7 @@
       const survey = me.first_online_at && !me.has_paid_topup && !me.vpn_feedback;
       const giftLater = me.trial_available && !showOffer() ? [E("🎁") + "Попробовать бесплатно" + V(rub(me.trial_rub) + " " + CV), 'data-go="gift"'] : null;
       return hero +
+        fbCard() +
         browserCard() +
         (showInvitee ? NOTE(`Вы пришли по ссылке друга — после первого пополнения на баланс ещё ${rub(invitee)}.`, true) : "") +
         (devRows.length ? ST(`Устройства${cap ? ` <span style="color:var(--hint);font-weight:500">· ${devs.length} из ${cap}</span>` : ""}`) + cd(devRows) : "") +
@@ -456,7 +457,7 @@
       store.set("shown_bal", Number(me.balance_rub) || 0);
       track("cabinet");
     },
-    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.vpn_feedback, me.has_paid_topup, me.browser_login]),
+    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.vpn_feedback, me.has_paid_topup, me.browser_login, me.first_bonus]),
   };
 
   // ---------- gift for newcomers ----------
@@ -475,6 +476,139 @@
     },
     on() { track("gift_view"); },
   };
+
+  // ---------- «+3 дня за первую оплату» ----------
+  // The first top-up from first_bonus.min_rub before the gift runs out adds days on top (credited by the server).
+  const FB = () => (me && me.first_bonus && Number(me.first_bonus.min_rub) > 0 ? me.first_bonus : null);
+  const fbOk = (n) => { const f = FB(); return Boolean(f && amountOk(n) && n >= Number(f.min_rub)); };
+  let fbEnd = 0;
+  function fbDeadline() {
+    const f = FB();
+    if (!f) return 0;
+    const e = Date.now() + (Number(f.hours_left) || 0) * 3600e3;
+    if (!fbEnd || Math.abs(e - fbEnd) > 3600e3) fbEnd = e; // hours_left is whole hours: keep the clock steady
+    return fbEnd;
+  }
+  const FB_RIB = '<linearGradient id="fbRib" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd76a"/><stop offset="1" stop-color="#e8961a"/></linearGradient>' +
+    '<linearGradient id="fbBox" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#e3e9f2"/></linearGradient>' +
+    '<linearGradient id="fbGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1b8"/><stop offset="1" stop-color="#f5a623"/></linearGradient>';
+  // The gift is Wallet's Lottie (the same as «Подарить другу»), recoloured gold in CSS; box and lid are two players.
+  const FBGIFT = () => `<svg class="gb" viewBox="0 0 132 132" width="132" height="132"><defs>${FB_RIB}</defs><circle class="rg0" cx="66" cy="66" r="60"/>` +
+    `<circle class="rg" cx="66" cy="66" r="60" stroke-dasharray="377" stroke-dashoffset="377"/></svg><div class="fblot fb-body"></div><div class="fblot fb-lid"></div>`;
+  // Recolour Wallet's blue gift: the blue box turns gold, the orange ribbon turns red. Colours are rewritten once per file.
+  const fbData = {};
+  function fbHue(r, g, b) {
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    if (!d) return [0, 0, l];
+    const sat = d / (1 - Math.abs(2 * l - 1));
+    let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [(h * 60 + 360) % 360, sat, l];
+  }
+  function fbRgb(h, sat, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * sat, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+    const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+    return [r + m, g + m, b + m];
+  }
+  function fbTint(rgb) {
+    const [h, sat, l] = fbHue(rgb[0], rgb[1], rgb[2]);
+    if (sat < 0.12) return rgb;
+    if (h >= 190 && h <= 300) return fbRgb(44, Math.min(1, sat + 0.2), Math.min(0.9, l + 0.1)); // box → gold
+    if (h >= 5 && h <= 45) return fbRgb(352, Math.min(1, sat + 0.1), l * 0.95); // ribbon → red
+    return rgb;
+  }
+  function fbWalk(o) {
+    if (Array.isArray(o)) { o.forEach(fbWalk); return; }
+    if (!o || typeof o !== "object") return;
+    if ((o.ty === "fl" || o.ty === "st") && o.c) {
+      const k = o.c.k;
+      if (Array.isArray(k) && typeof k[0] === "number") { const t = fbTint(k); k[0] = t[0]; k[1] = t[1]; k[2] = t[2]; }
+      else if (Array.isArray(k)) k.forEach((f) => ["s", "e"].forEach((n) => { if (Array.isArray(f[n])) { const t = fbTint(f[n]); f[n][0] = t[0]; f[n][1] = t[1]; f[n][2] = t[2]; } }));
+    }
+    if ((o.ty === "gf" || o.ty === "gs") && o.g && o.g.k) {
+      const n = Number(o.g.p) || 0, fix = (arr) => { for (let i = 0; i < n; i++) { const t = fbTint(arr.slice(i * 4 + 1, i * 4 + 4)); arr.splice(i * 4 + 1, 3, ...t); } };
+      const k = o.g.k.k;
+      if (Array.isArray(k) && typeof k[0] === "number") fix(k);
+      else if (Array.isArray(k)) k.forEach((f) => ["s", "e"].forEach((m) => Array.isArray(f[m]) && fix(f[m])));
+    }
+    Object.values(o).forEach(fbWalk);
+  }
+  const fbGold = (file) => fbData[file] || (fbData[file] = fetch(`/icons/${file}`).then((r) => r.json()).then((d) => { fbWalk(d); return d; }));
+  function fbMount(root) {
+    const hosts = [...root.querySelectorAll(".fbx:not([data-on]), .fbgift:not([data-on])")];
+    if (!hosts.length) return;
+    hosts.forEach((h) => h.setAttribute("data-on", ""));
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    lottieLib().then((L) => hosts.forEach((h) => {
+      if (!h.isConnected) return;
+      const files = h.classList.contains("fbx") ? [["wallet_gift_body.json", ".fb-body"], ["wallet_gift_lid.json", ".fb-lid"]] : [["wallet_gift.json", null]];
+      Promise.all(files.map(([f]) => fbGold(f))).then((datas) => {
+        if (!h.isConnected) return;
+        const A = datas.map((data, i) => L.loadAnimation({ container: files[i][1] ? h.querySelector(files[i][1]) : h, renderer: "svg", loop: true, autoplay: false,
+          animationData: JSON.parse(JSON.stringify(data)), rendererSettings: { preserveAspectRatio: "xMidYMid meet" } }));
+        let ready = 0;
+        A.forEach((a) => a.addEventListener("DOMLoaded", () => { if (++ready === A.length) A.forEach((b) => (still ? b.goToAndStop(40, true) : b.goToAndPlay(0, true))); }));
+      });
+    })).catch(() => hosts.forEach((h) => { const b = h.querySelector(".fb-body") || h; b.innerHTML = '<div class="fbemo">🎁</div>'; }));
+  }
+  new MutationObserver(() => fbMount(document)).observe(document.getElementById("root"), { childList: true, subtree: true });
+  const fbUnits = () => `<div class="fbcd">${["д", "ч", "мин", "сек"].map((l) => `<div class="u"><div class="v"><span>0</span></div><div class="l">${l}</div></div>`).join("")}</div>`;
+  function fbCard() {
+    const f = FB();
+    // The countdown means something only once the gift is running (after the first connection).
+    if (!f || !me.first_online_at || !(Number(f.hours_left) > 0)) return "";
+    fbDeadline();
+    return `<button type="button" class="fbc" data-act="fbgo"><span class="fbglow"></span><span class="fbin">` +
+      `<span class="fbtop"><span class="fbgift"></span><span class="fbtx"><b>+${days(Number(f.days))} в подарок</b>` +
+      `<span>за первое пополнение от ${rub(f.min_rub)} до конца подарка</span></span></span>` +
+      `<span class="fbk">Подарок закончится через</span>${fbUnits()}` +
+      `<span class="pill fbp"><span>Пополнить ${rub(f.min_rub)}</span><i class="fbb on">+${days(Number(f.days))}</i></span></span></button>`;
+  }
+  // One clock for every countdown on the page: re-renders replace the markup, the clock keeps going.
+  function fbTick() {
+    const boxes = document.querySelectorAll(".fbcd");
+    if (!boxes.length || !fbEnd) return;
+    const left = Math.max(0, Math.floor((fbEnd - Date.now()) / 1000));
+    const parts = [Math.floor(left / 86400), Math.floor(left % 86400 / 3600), Math.floor(left % 3600 / 60), left % 60].map((n, i) => (i ? String(n).padStart(2, "0") : String(n)));
+    boxes.forEach((b) => b.querySelectorAll(".v").forEach((v, i) => {
+      const was = v.dataset.v;
+      if (was === parts[i]) return;
+      v.dataset.v = parts[i];
+      v.innerHTML = `<span class="${was ? "roll" : ""}">${parts[i]}</span>`;
+    }));
+  }
+  setInterval(fbTick, 1000);
+  function fbBurst(host) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const C = ["#ffe08a", "#f7b733", "#fff", "#ffd76a"];
+    for (let i = 0; i < 18; i++) {
+      const a = (Math.PI * 2 * i) / 18 + Math.random() * 0.3, r = 62 + Math.random() * 44;
+      const sp = document.createElement("span");
+      sp.className = "fbsp";
+      sp.style.cssText = `--x:${Math.cos(a) * r}px;--y:${Math.sin(a) * r - 10}px;--s:${0.8 + Math.random() * 1.3};--r:${Math.random() * 200}deg;animation-delay:${Math.random() * 0.08}s`;
+      sp.innerHTML = `<svg viewBox="0 0 20 20" width="10" height="10"><path d="M10 0c.9 5.6 4.4 9.1 10 10-5.6.9-9.1 4.4-10 10-.9-5.6-4.4-9.1-10-10C5.6 9.1 9.1 5.6 10 0z" fill="${C[i % C.length]}"/></svg>`;
+      host.appendChild(sp);
+      setTimeout(() => sp.remove(), 1100);
+    }
+  }
+  // Top-up screen: the ring fills towards the threshold, the gift opens on it, the button gets the badge.
+  function fbPaint(el, first) {
+    const f = FB(), h = el && el.querySelector(".hc.fbon");
+    if (!f || !h) return;
+    const need = Number(f.min_rub), ok = fbOk(pay.amount), n = amountOk(pay.amount) ? pay.amount : 0;
+    const ring = h.querySelector(".rg");
+    if (ring) ring.style.strokeDashoffset = String(377 * (1 - Math.min(1, n / need)));
+    const nt = h.querySelector("#fbNeedT");
+    if (nt && need > n) nt.textContent = `Ещё ${rub(need - n)} — и +${days(Number(f.days))} в подарок`;
+    h.classList.toggle("fb-ok", ok);
+    const b = h.querySelector("#payB");
+    if (b && !b.querySelector(".fbb")) b.insertAdjacentHTML("beforeend", `<i class="fbb">+${days(Number(f.days))}</i>`);
+    const box = h.querySelector(".fbx");
+    if (ok && !box.classList.contains("open")) {
+      T(() => { box.classList.remove("idle"); box.classList.add("open"); fbBurst(box); if (!first) notify("success"); }, first ? 450 : 520);
+    } else if (!ok && box.classList.contains("open")) {
+      box.classList.remove("open"); box.classList.add("idle");
+    }
+  }
 
   // ---------- top up ----------
   function amountOk(n) {
@@ -536,20 +670,26 @@
   SCR.topup = {
     h() {
       // The first payment starts small: «от 50 ₽» in the bot should not open on 500 ₽.
-      const firstPay = !me.has_paid_topup, start = firstPay ? 100 : 500;
+      const firstPay = !me.has_paid_topup, fb = FB(), start = fb ? Number(fb.min_rub) : firstPay ? 100 : 500;
       if (!amountOk(pay.amount)) pay.amount = amountOk(start) ? start : Number(me.topup_min) || 100;
-      const chips = [...new Set(firstPay ? [Number(me.topup_min) || 50, 100, 300, 500] : [100, 300, 500, 1000])].filter(amountOk);
+      const chips = [...new Set(fb ? [Number(me.topup_min) || 50, 100, Number(fb.min_rub), 500] : firstPay ? [Number(me.topup_min) || 50, 100, 300, 500] : [100, 300, 500, 1000])]
+        .filter(amountOk).sort((a, b) => a - b);
       const m = curMethod();
       const inChips = chips.includes(pay.amount) && !pay.custom;
       const L = look(m);
-      return hc(L.c, { ill: L.ill(72), n: `<span id="amtN">${rub(pay.amount)}</span>`, p: `<span id="amtP">${amountLine()}</span>`,
-        x: `<div class="chp">${chips.map((v) => `<button type="button" data-act="amt" data-v="${v}" class="${inChips && v === pay.amount ? "on" : ""}">${fmt(v)}</button>`).join("")}` +
+      const fbx = fb ? `<div class="fbx idle"><div class="fbhalo"></div>${FBGIFT()}<div class="fbtag">+${days(Number(fb.days))}</div></div>` : "";
+      const need = fb ? `<button type="button" class="fbneed" data-act="fbneed"><i>+</i><span id="fbNeedT"></span></button>` : "";
+      return hc(L.c, { cls: fb ? "fbon" : "", ill: fb ? fbx : L.ill(72), n: `<span id="amtN">${rub(pay.amount)}</span>`,
+        p: `<span id="amtP">${amountLine()}</span>` + (fb ? `<span class="fb3">🎁 +${days(Number(fb.days))}</span>` : ""),
+        x: need + `<div class="chp">${chips.map((v) => `<button type="button" data-act="amt" data-v="${v}" class="${inChips && v === pay.amount ? "on" : ""}${fb && v >= Number(fb.min_rub) ? " g" : ""}">${fmt(v)}</button>`).join("")}` +
           `<button type="button" data-act="amtc" class="${inChips ? "" : "on"}">${inChips ? "Своя" : fmt(pay.amount) + " ✎"}</button></div>`,
         pill: m ? `Оплатить ${rub(pay.amount)}` : "Оплата недоступна", pd: !m || !amountOk(pay.amount), pa: 'data-act="pay" id="payB"' }) +
         (m ? ST("Способ оплаты") + cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), esc(methodSub(m))) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
           payMethods().length > 1 ? 'data-go="method"' : ""]]) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
+        (fb ? NOTE(`🎁 +${days(Number(fb.days))} к первому пополнению от ${rub(fb.min_rub)} — пока не закончился подарок`, true) : "") +
         NOTE(`Баланс ${rub(me.balance_rub)} · разовая оплата, автоплатежей нет`, true);
     },
+    on(el) { fbPaint(el, true); },
   };
   function paintAmount(el, old) {
     const n = el.querySelector("#amtN");
@@ -560,6 +700,7 @@
     const ok = amountOk(pay.amount) && curMethod();
     b.classList.toggle("dim", !ok);
     b.querySelector("span").textContent = curMethod() ? `Оплатить ${amountOk(pay.amount) ? rub(pay.amount) : ""}`.trim() : "Оплата недоступна";
+    fbPaint(el);
   }
 
   // ---------- own amount: big number, own keypad, live hints ----------
@@ -826,7 +967,13 @@
     if (g) g.style.fill = "#27a865";
     const N = h.querySelector(".N");
     N.innerHTML = "<span></span>";
-    countTo(N.firstChild, 0, delta, " ₽", "+");
+    const bonus = pay.fbDays && delta > pay.amount ? delta - pay.amount : 0;
+    countTo(N.firstChild, 0, bonus ? pay.amount : delta, " ₽", "+");
+    if (bonus) {
+      h.querySelector(".P").insertAdjacentHTML("afterend", `<div class="fbdone"><span>🎁 Бонус за первую оплату</span><b>+${days(pay.fbDays)}</b></div>`);
+      T(() => { const d = h.querySelector(".fbdone"); if (d) { d.classList.add("in"); fbBurst(d); } }, 900);
+      pay.fbDays = 0;
+    }
     h.querySelector(".P").textContent = "Баланс: " + rub(me.balance_rub);
     const p = h.querySelector(".pill");
     p.classList.remove("dim");
@@ -1168,7 +1315,7 @@
   const BILL = { charge: "VPN", pause: "Пауза тарификации", disable: "Отключение", revive: "Включение", trial: "Подарок", admin_balance: "Баланс",
     admin_grant: "Начисление", trust: "Обещанный платёж", trust_collect: "Возврат обещанного", device_delete: "Удаление устройства", referral: "Бонус за друга",
     referral_payout: "Реферальная награда", referral_revoke: "Возврат за друга", story: "Награда за историю", topup: "Пополнение", router: "Роутер", promo: "Промокод",
-    gift_sent: "Подарок другу", gift_received: "Подарок от друга", gift_return: "Подарок вернулся" };
+    first_bonus: "Бонус за первую оплату", gift_sent: "Подарок другу", gift_received: "Подарок от друга", gift_return: "Подарок вернулся" };
   SCR.history = {
     h(p) {
       const data = p.data;
@@ -1608,6 +1755,7 @@
     haptic();
     btn.classList.add("dim");
     try {
+      pay.fbDays = fbOk(pay.amount) ? Number(FB().days) : 0;
       const inv = await post("/api/invoice", { plan: "b" + pay.amount, method: m.id });
       pay.base = Number(me.balance_rub) || 0;
       if (inv.pay_url) {
@@ -1711,13 +1859,24 @@
         setTimeout(() => { stack = []; if (d) go("device", { id: d.id }, "f"); else startWizard(true); stack = [{ key: "home", params: {} }]; syncBack(); }, 700);
       } catch (e) { showErr(e); b.classList.remove("dim"); }
     },
+    fbgo() {
+      haptic();
+      const f = FB();
+      if (f && amountOk(Number(f.min_rub))) { pay.amount = Number(f.min_rub); pay.custom = false; }
+      go("topup");
+    },
+    fbneed() {
+      const f = FB(), b = f && cur.el.querySelector(`.chp [data-v="${Number(f.min_rub)}"]`);
+      if (b) ACT.amt(b);
+    },
     amt(b) {
       haptic();
       const old = pay.amount;
       pay.amount = Number(b.dataset.v);
       pay.custom = false;
       cur.el.querySelectorAll(".chp button").forEach((c) => c.classList.toggle("on", c === b));
-      cur.el.querySelector("#amtI").hidden = true;
+      const amtI = cur.el.querySelector("#amtI");
+      if (amtI) amtI.hidden = true;
       paintAmount(cur.el, old);
     },
     amtc() { haptic(); amt.gift = false; amt.cnt = 1; amt.v = pay.custom && amountOk(pay.amount) ? String(pay.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount"); },

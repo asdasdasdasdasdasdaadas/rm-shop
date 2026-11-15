@@ -565,3 +565,106 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .gf-left { margin-top: 12px; display: flex; flex-direction: column; align-items: center; gap: 7px; font-size: 14px; opacity: .9; }
 .gf-bar { width: 180px; height: 8px; border-radius: 9px; background: rgba(255, 255, 255, .22); overflow: hidden; }
 .gf-bar i { display: block; height: 100%; background: #fff; border-radius: 9px; transition: width .6s var(--ease); }
+
+/* ---------- «+3 дня за первую оплату» ---------- */
+:root { --g1: #ffe08a; --g2: #f7b733; --g3: #e08a12; }
+.fbb { font-style: normal; display: inline-flex; align-items: center; height: 24px; border-radius: 99px; background: linear-gradient(180deg, var(--g1), var(--g2)); color: #4a2f00;
+  font-size: 13px; font-weight: 800; max-width: 0; padding: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: max-width .5s var(--ease), padding .5s var(--ease), opacity .3s; flex-shrink: 0; }
+.fbb.on, .fb-ok .fbb { max-width: 110px; padding: 0 9px; opacity: 1; }
+.pill { position: relative; overflow: hidden; }
+.fb-ok #payB::after, .fbp::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 214, 110, .6), transparent 70%);
+  transform: translateX(-120%); animation: fbshine 2.8s .5s ease-in-out infinite; pointer-events: none; }
+@keyframes fbshine { 0% { transform: translateX(-120%); } 45%, 100% { transform: translateX(120%); } }
+
+/* home card: dark card with a running gold border, a bobbing gift and a live countdown */
+.fbc { display: block; position: relative; margin: 12px 12px 0; border-radius: 26px; padding: 1.5px; overflow: hidden; width: calc(100% - 24px); text-align: left;
+  animation: up .5s .12s var(--ease) both; transition: transform .15s; isolation: isolate; }
+.fbc:active { transform: scale(.98); }
+.fbc::before { content: ""; position: absolute; inset: -60%; z-index: -2; background: conic-gradient(from 0deg, transparent 0 55%, #ffd76a 70%, #fff3c4 75%, #f7b733 80%, transparent 92%);
+  animation: fbspin 4.5s linear infinite; }
+@keyframes fbspin { to { transform: rotate(360deg); } }
+.fbin { display: block; position: relative; border-radius: 24.5px; padding: 16px 16px 16px; background: radial-gradient(120% 90% at 0% 0%, #3b2c0b 0%, #1f1a10 45%, #1c1e23 100%); overflow: hidden; }
+.fbglow { position: absolute; z-index: 1; width: 180px; height: 180px; left: -50px; top: -60px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 210, 100, .35), transparent 65%);
+  animation: fbbreathe 3s ease-in-out infinite; pointer-events: none; }
+@keyframes fbbreathe { 50% { transform: scale(1.18); opacity: .6; } }
+.fbtop { display: flex; align-items: center; gap: 12px; position: relative; z-index: 2; }
+.fbgift { width: 58px; height: 58px; flex-shrink: 0; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .45)); animation: fbbob 2.6s ease-in-out infinite; }
+.fbgift svg { display: block; }
+@keyframes fbbob { 50% { transform: translateY(-5px) rotate(-5deg); } }
+.fbtx b { display: block; font-size: 19px; font-weight: 800; letter-spacing: -.2px; background: linear-gradient(90deg, #fff3c4, #ffd76a 40%, #fff3c4 60%, #f7b733); background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent; animation: fbtext 3.5s linear infinite; }
+@keyframes fbtext { to { background-position: -200% 0; } }
+.fbtx span { display: block; font-size: 13.5px; color: #cfc4a4; margin-top: 2px; line-height: 1.35; }
+.fbk { display: block; position: relative; z-index: 2; font-size: 12.5px; font-weight: 600; color: #a99d7d; margin: 14px 0 6px; letter-spacing: .02em; text-transform: uppercase; }
+.fbcd { display: flex; gap: 6px; position: relative; z-index: 2; }
+.fbcd .u { flex: 1; padding: 7px 4px 5px; border-radius: 14px; background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px rgba(255, 215, 106, .16); text-align: center; }
+.fbcd .v { height: 30px; overflow: hidden; font-size: 25px; font-weight: 800; line-height: 30px; font-variant-numeric: tabular-nums; color: #fff; }
+.fbcd .v span { display: block; }
+.fbcd .v span.roll { animation: fbroll .45s var(--ease); }
+@keyframes fbroll { from { transform: translateY(-100%); opacity: 0; } }
+.fbcd .l { font-size: 11px; color: #a99d7d; font-weight: 600; margin-top: 1px; }
+.fbp { position: relative; z-index: 2; margin-top: 14px; height: 48px; width: 100%; background: linear-gradient(180deg, #fff3c4, #ffd76a 55%, #f7b733); color: #3d2700; font-size: 16.5px;
+  box-shadow: 0 8px 22px rgba(247, 183, 51, .3); }
+.fbp .fbb { background: rgba(61, 39, 0, .12); color: #3d2700; }
+
+/* top-up: the gift in a ring above the amount */
+.fbx { position: relative; width: 132px; height: 132px; margin: -6px auto 2px; }
+.ill > .fbx { filter: none; animation: none; }
+.fbx .gb { position: absolute; inset: 0; overflow: visible; filter: drop-shadow(0 14px 20px rgba(0, 0, 0, .28)); }
+.fbx .rg0 { fill: none; stroke: rgba(255, 255, 255, .22); stroke-width: 6; }
+.fbx .rg { fill: none; stroke: url(#fbGold); stroke-width: 6; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 66px 66px;
+  transition: stroke-dashoffset .7s var(--ease); filter: drop-shadow(0 0 4px rgba(255, 210, 100, .8)); }
+.fbx .bx { transform-origin: 66px 104px; }
+.fbx.idle .bx { animation: fbwig 3.2s 1.2s ease-in-out infinite; }
+@keyframes fbwig { 0%, 70%, 100% { transform: none; } 74% { transform: rotate(-6deg) translateY(-2px); } 78% { transform: rotate(5deg) translateY(-3px); } 82% { transform: rotate(-3deg); } 86% { transform: none; } }
+.fbx .ld { transform-origin: 40px 52px; transition: transform .7s cubic-bezier(.3, 1.6, .5, 1); }
+.fbx.open .ld { transform: translate(-8px, -28px) rotate(-26deg); }
+.fbx.open .bx { animation: fbjump .6s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes fbjump { 40% { transform: scale(1.08, .92); } 70% { transform: translateY(-6px) scale(.97, 1.04); } }
+.fbhalo { position: absolute; inset: -16px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 228, 140, .8), rgba(255, 228, 140, 0) 64%); opacity: 0; transform: scale(.6);
+  transition: opacity .6s, transform .8s var(--ease); }
+.fbx.open .fbhalo { opacity: 1; transform: none; animation: fbbreathe 2.4s 1s ease-in-out infinite; }
+.fbtag { position: absolute; left: 50%; top: 36px; z-index: 2; transform: translate(-50%, 20px) scale(.3); opacity: 0; background: linear-gradient(180deg, var(--g1), var(--g2)); color: #4a2f00;
+  font-weight: 800; font-size: 15px; padding: 5px 11px; border-radius: 99px; box-shadow: 0 6px 18px rgba(160, 100, 0, .45); white-space: nowrap;
+  transition: transform .7s cubic-bezier(.3, 1.5, .5, 1) .15s, opacity .3s .15s; }
+.fbx.open .fbtag { opacity: 1; transform: translate(-50%, -24px) scale(1); }
+.fbsp { position: absolute; left: 50%; top: 45%; width: 10px; height: 10px; line-height: 0; pointer-events: none; z-index: 3; animation: fbburst .95s cubic-bezier(.15, .7, .3, 1) forwards; }
+@keyframes fbburst { 0% { transform: translate(-50%, -50%) scale(.2); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(var(--s)) rotate(var(--r)); opacity: 0; } }
+.hc.fbon .P { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.fb3 { display: inline-flex; align-items: center; height: 26px; border-radius: 99px; background: linear-gradient(180deg, var(--g1), var(--g2)); color: #4a2f00; font-weight: 800; font-size: 14px;
+  opacity: 0; max-width: 0; padding: 0; overflow: hidden; white-space: nowrap; transition: max-width .55s var(--ease), padding .55s var(--ease), opacity .3s; }
+.fb-ok .fb3 { opacity: 1; max-width: 130px; padding: 0 10px; }
+.fbneed { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; padding: 7px 14px 7px 8px; border-radius: 99px; background: rgba(0, 0, 0, .2); font-size: 14px; font-weight: 600;
+  max-height: 44px; overflow: hidden; transition: opacity .35s, transform .35s var(--ease), max-height .45s var(--ease), margin .45s, padding .45s; }
+.fbneed i { font-style: normal; width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(180deg, var(--g1), var(--g2)); color: #4a2f00; display: inline-flex;
+  align-items: center; justify-content: center; font-size: 14px; font-weight: 900; animation: fbpulse 1.8s ease-in-out infinite; }
+@keyframes fbpulse { 50% { box-shadow: 0 0 0 6px rgba(255, 215, 106, .18); } }
+.fbneed:active { transform: scale(.97); }
+.fb-ok .fbneed { opacity: 0; transform: translateY(-6px) scale(.95); max-height: 0; margin-top: 0; padding-top: 0; padding-bottom: 0; pointer-events: none; }
+.chp button.g { position: relative; }
+.chp button.g::after { content: ""; position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(180deg, var(--g1), var(--g2));
+  box-shadow: 0 0 0 2px rgba(22, 128, 74, .9); }
+.chp .on.g::after { box-shadow: 0 0 0 2px rgba(22, 128, 74, .9), 0 0 10px rgba(255, 210, 100, .9); }
+
+/* paid: the bonus lands as its own gold row */
+.fbdone { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding: 11px 14px; border-radius: 16px;
+  background: linear-gradient(100deg, rgba(255, 224, 138, .97), rgba(247, 183, 51, .97)); color: #4a2f00; font-size: 15px; font-weight: 600; text-align: left;
+  opacity: 0; transform: translateY(-26px) scale(.85); }
+.fbdone b { font-weight: 800; white-space: nowrap; }
+.fbdone.in { opacity: 1; transform: none; transition: opacity .3s, transform .7s cubic-bezier(.3, 1.6, .5, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .fbc::before, .fbglow, .fbgift, .fbtx b, .fbx .bx, .fbhalo, .fbneed i, .fbp::after, .fb-ok #payB::after { animation: none !important; }
+}
+
+/* the Wallet gift (Lottie): box and lid as two layers inside the ring */
+.fblot { position: absolute; left: -54px; top: 10px; width: 240px; height: 121px; pointer-events: none; }
+.fb-lid { transform-origin: 120px 46px; transition: transform .75s cubic-bezier(.3, 1.6, .5, 1), opacity .5s; }
+.fbx.open .fb-lid { transform: translate(-10px, -30px) rotate(-22deg); }
+.fb-body { transform-origin: 120px 108px; }
+.fbx.idle .fb-body, .fbx.idle .fb-lid { animation: fbwig 3.2s 1.2s ease-in-out infinite; }
+.fbx.open .fb-body { animation: fbjump .6s cubic-bezier(.3, 1.6, .5, 1); }
+.fbgift { position: relative; width: 74px; height: 58px; }
+.fbgift > svg { position: absolute; left: -32px; top: -8px; width: 138px !important; height: 70px !important; }
+.fbemo { font-size: 54px; line-height: 121px; text-align: center; }
+.fbgift .fbemo { line-height: 58px; font-size: 40px; }
