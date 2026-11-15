@@ -25,13 +25,16 @@ def gift_label(days: int | None = None) -> str:
     return days_text(days or GIFT_DAYS)
 
 
+# A funnel gift counts, claimed or not. A broadcast gift («+3 дня всем») counts only once it is claimed:
+# an untouched one says nothing about the person, and it must not shut the funnel's own offers for two weeks.
+_RECENT = ("SELECT EXISTS (SELECT 1 FROM funnel_gifts WHERE telegram_id=$1 "
+           "AND created_at > NOW() - ($2::int * INTERVAL '1 day') "
+           "AND (step_id NOT LIKE 'broadcast:%' OR claimed_at IS NOT NULL))")
+
+
 async def can_issue(telegram_id: int) -> bool:
-    """At most one gift per user per cooldown, claimed or not."""
-    return not await db._pool_req().fetchval(
-        "SELECT EXISTS (SELECT 1 FROM funnel_gifts WHERE telegram_id=$1 "
-        "AND created_at > NOW() - ($2::int * INTERVAL '1 day'))",
-        int(telegram_id), COOLDOWN_DAYS,
-    )
+    """At most one gift per user per cooldown."""
+    return not await db._pool_req().fetchval(_RECENT, int(telegram_id), COOLDOWN_DAYS)
 
 
 async def issue(telegram_id: int, step_id: str, *, days: int | None = None) -> int | None:
@@ -39,11 +42,7 @@ async def issue(telegram_id: int, step_id: str, *, days: int | None = None) -> i
     async with db._pool_req().acquire() as conn:
         async with conn.transaction():
             await conn.execute("SELECT 1 FROM users WHERE telegram_id=$1 FOR UPDATE", int(telegram_id))
-            recent = await conn.fetchval(
-                "SELECT EXISTS (SELECT 1 FROM funnel_gifts WHERE telegram_id=$1 "
-                "AND created_at > NOW() - ($2::int * INTERVAL '1 day'))",
-                int(telegram_id), COOLDOWN_DAYS,
-            )
+            recent = await conn.fetchval(_RECENT, int(telegram_id), COOLDOWN_DAYS)
             if recent:
                 return None
             return await conn.fetchval(

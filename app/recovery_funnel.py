@@ -44,6 +44,12 @@ CONDITIONS = (
  {'id':'recover_late','label':'Возврат: не пользовался 30+ дней','anchor':SEEN,
   'where':f"u.first_online_at IS NOT NULL AND {SEEN} <= NOW() - INTERVAL '30 days'",
   'hint':'Был онлайн, потом пропал на месяц и дольше. Пауза считается от последнего появления. После возвращения цепочка начнётся заново при следующем уходе.'},
+ {'id':'recover_why','label':'Подарок закончился → почему не продолжили','anchor':f"COALESCE({EMPTY_AT},u.first_online_at)",
+  'max_hours':24*60,
+  'where':f"u.first_online_at IS NOT NULL AND NOT {PAID} AND {{exhausted}} "
+          "AND NOT EXISTS (SELECT 1 FROM gift_end_feedback g WHERE g.telegram_id=u.telegram_id)",
+  'hint':'Пользовался VPN, бесплатный доступ закончился, оплаты не было. Один вопрос с вариантами ответа, '
+         'в том числе тем, кто давно не заходит (до 60 дней после конца доступа).'},
  {'id':'terms_offer','label':'Ответил «Не подошли условия»','anchor':'u.vpn_feedback_at',
   'where':"u.vpn_feedback='terms'",
   'hint':'Единственное сообщение, которое получают люди с ответом «Не подошли условия». После него человек снова попадает в обычную воронку.'},
@@ -51,6 +57,16 @@ CONDITIONS = (
 KINDS = {c['id']: 'nudge_' + c['id'] for c in CONDITIONS}
 
 GIFT_BRANCHES = {'unpaid', 'idle-return'}
+# Steps the 90-day statistics showed to bring nothing (no clicks, connections or payments): kept on the board
+# for their history, switched off. «Доступ закончился» 1–2 gave way to the «почему не продолжили» question.
+QUIET_STEPS = {'recovery-recover-idle-1', 'recovery-recover-idle-2', 'recovery-recover-late-1',
+               'recovery-recover-late-2', 'recovery-recover-payment-1', 'recovery-recover-payment-2'}
+WHY_ID = 'recovery-recover-why-1'
+WHY_TEXT = ('Бесплатные дни закончились, и VPN на паузе.\n\n'
+            '<b>Что помешало продолжить?</b> Ответьте одной кнопкой — это займёт секунду и поможет нам '
+            'стать лучше 👇')
+WHY_BUTTONS = ['why_price', 'why_broken', 'why_payment', 'why_later',
+               {'action': 'topup', 'text': 'Пополнить баланс'}]
 NEW_THIRD = {
  'gift': '🎁 Подарок всё ещё ваш: бесплатный VPN на старте, без оплаты и привязки карты. '
          'Заберите его в один клик — с подключением поможем.',
@@ -117,7 +133,15 @@ def branches():
     for branch in result:
         if branch['id'] == 'online':
             branch['steps'].insert(1, online_mid_step())
-    return result + extra_branches() + paid_branches()
+        if branch['id'] == 'unpaid':
+            # The question comes first; the gift (step 3) follows it three days later.
+            branch['steps'].insert(0, _step(WHY_ID, 'recover_why', 3, WHY_TEXT, WHY_BUTTONS))
+    result = result + extra_branches() + paid_branches()
+    for branch in result:
+        for step in branch['steps']:
+            if step['id'] in QUIET_STEPS:
+                step['enabled'] = False
+    return result
 
 
 ONLINE_MID_ID = 'recovery-recover-online-mid'

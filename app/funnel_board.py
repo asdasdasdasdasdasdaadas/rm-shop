@@ -54,6 +54,10 @@ ACTIONS = (
     {"id": "feedback_help", "label": "Помощь с VPN", "button": "Нужна помощь"},
     {"id": "feedback_terms", "label": "Не подошли условия", "button": "Не подошли условия"},
     {"id": "feedback_later", "label": "Пока не нужен", "button": "Пока не нужен"},
+    {"id": "why_price", "label": "Почему не продолжили: дорого", "button": "💸 Дорого"},
+    {"id": "why_broken", "label": "Почему не продолжили: работал плохо", "button": "🐢 VPN работал плохо"},
+    {"id": "why_payment", "label": "Почему не продолжили: неудобно оплатить", "button": "💳 Неудобно оплатить"},
+    {"id": "why_later", "label": "Почему не продолжили: пока не нужен", "button": "🕊 Пока не нужен"},
     {"id": "share", "label": "Поделиться ссылкой", "button": "Поделиться ссылкой"},
     {"id": "copy", "label": "Скопировать приглашение", "button": "Скопировать текст"},
     {"id": "resume_pay", "label": "Продолжить оплату счёта", "button": "Продолжить оплату"},
@@ -241,6 +245,8 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
             rows.append([press(label, item, callback_data="vpn_feedback:terms")])
         elif action_id == "feedback_later":
             rows.append([press(label, item, callback_data="vpn_feedback:later")])
+        elif action_id in {"why_price", "why_broken", "why_payment", "why_later"}:
+            rows.append([press(label, item, callback_data=f"giftwhy:{action_id[4:]}")])
         elif action_id == "share":
             button = referral_share_button(int(telegram_id))
             rows.append([button.model_copy(update={
@@ -481,10 +487,46 @@ def without_retired_branches(graph):
     return graph
 
 
+_unburned = False
+
+
+async def _unburn_gift_steps(graph) -> None:
+    """Once: gift steps used to be marked as sent without a message when a recent gift (often the «+3 дня всем»
+    broadcast) blocked the offer, so those people never got it. Forget such marks: no message logged for the step,
+    and not an A/B control group (that one is skipped on purpose)."""
+    global _unburned
+    if _unburned:
+        return
+    from app.db import _pool_req, get_kv, set_kv
+    if await get_kv("funnel_gift_unburn_v1"):
+        _unburned = True
+        return
+    ids = [s["id"] for b in graph["branches"] for s in b["steps"]
+           if any((x if isinstance(x, str) else x.get("action")) == GIFT_ACTION for x in s["buttons"])]
+    if ids:
+        result = await _pool_req().execute(
+            """DELETE FROM funnel_step_sends s
+               WHERE s.step_id = ANY($1::text[])
+                 AND NOT EXISTS (SELECT 1 FROM message_log m WHERE m.telegram_id = s.telegram_id
+                     AND m.status = 'sent' AND m.extra->>'step_id' = s.step_id)
+                 AND NOT EXISTS (SELECT 1 FROM funnel_experiment_users eu
+                     JOIN funnel_experiments e ON e.id = eu.experiment_id
+                     WHERE eu.telegram_id = s.telegram_id AND e.step_id = s.step_id AND eu.arm = 'control')""",
+            ids)
+        logger.info("Воронка: вернули шаги с подарком, отмеченные без сообщения: %s", result)
+    await set_kv("funnel_gift_unburn_v1", "1")
+    _unburned = True
+
+
 async def load() -> dict:
     """The journeys built into the code. The admin-panel editor is gone, so an old saved copy is not read."""
     await _ensure_tables()
-    return without_retired_branches(await default_graph())
+    graph = without_retired_branches(await default_graph())
+    try:
+        await _unburn_gift_steps(graph)
+    except Exception:
+        logger.exception("Воронка: не удалось вернуть шаги с подарком")
+    return graph
 
 
 async def _gate(condition: str) -> bool:
@@ -615,10 +657,8 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
     async for row in _candidates(step, prev_id, skip, touched):
         uid = int(row["telegram_id"])
         if wants_gift and not await funnel_gifts.can_issue(uid):
-            # A gift went out recently: do not promise another one, and do not retry this step.
-            await db._pool_req().execute(
-                """INSERT INTO funnel_step_sends (telegram_id, step_id) VALUES ($1, $2)
-                   ON CONFLICT (telegram_id,step_id) DO UPDATE SET sent_at=NOW()""", uid, step["id"])
+            # A gift went out recently: do not promise another one now. The step waits for the cooldown to end
+            # (and is dropped by its own conditions if the person comes back meanwhile), it is not marked as sent.
             touched.append(uid)
             continue
         slot = await (db.reserve_setup_assistance(uid) if kind == "nudge_setup_assist" else db.reserve_optional_message(uid, kind))

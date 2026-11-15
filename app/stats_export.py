@@ -48,7 +48,7 @@ KEYS = {
     # Summary and jobs
     "promo_uses": "Использований промокодов", "stars_payments": "Оплат звёздами", "vpn_reports": "Жалоб на VPN",
     "tickets_open": "Открытых обращений", "broadcast_users": "Получатели рассылок",
-    "broadcast_using": "Пользуются VPN", "broadcast_unused": "Не пользуются VPN", "checkout_feedback": "Ответы после брошенной оплаты",
+    "broadcast_using": "Пользуются VPN", "broadcast_unused": "Не пользуются VPN", "checkout_feedback": "Ответы после брошенной оплаты", "gift_end_feedback": "Почему не продолжили после подарка",
     "bot_blocked": "Заблокировали бота", "bot_blocked_idle": "Заблокировали, не пользовались",
     "payouts_pending": "Выплат ожидает", "paying_users": "Платящие клиенты", "new_today": "Новых сегодня",
     "granted": "Оплачено", "plans": "Пополнения по суммам", "billing_today": "Списания сегодня", "charges": "Списаний",
@@ -355,6 +355,11 @@ async def buttons_sheet(days: int, kinds: dict) -> list[list]:
                            WHEN 'payment' THEN 'Нет удобного способа' ELSE 'Позже' END AS "Ответ",
                COUNT(*)::int AS "Людей"
         FROM checkout_feedback WHERE created_at >= {since} GROUP BY 1 ORDER BY 2 DESC"""))
+    out += _table("Подарок закончился: почему не продолжили", await _rows(f"""
+        SELECT CASE reason WHEN 'price' THEN 'Дорого' WHEN 'broken' THEN 'VPN работал плохо'
+                           WHEN 'payment' THEN 'Неудобно оплатить' ELSE 'Пока не нужен' END AS "Ответ",
+               COUNT(*)::int AS "Людей"
+        FROM gift_end_feedback WHERE created_at >= {since} GROUP BY 1 ORDER BY 2 DESC"""))
     out += _table("Шаги знакомства (кабинет и бот)", await _rows(f"""
         SELECT stage AS "Этап", COUNT(*)::int AS "Людей"
         FROM onboarding_events WHERE created_at >= {since} GROUP BY 1 ORDER BY 2 DESC"""))

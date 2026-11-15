@@ -296,7 +296,7 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await eligible(),['recover_quality'])
             await self.pool.execute("UPDATE devices SET last_billed_at=NOW()-INTERVAL '2 days'")
             await self.pool.execute('UPDATE users SET balance_rub=0 WHERE telegram_id=1')
-            self.assertEqual(await eligible(),['recover_payment'])
+            self.assertEqual(await eligible(),['recover_payment','recover_why'])
             await self.credit()
             self.assertEqual(await eligible(),[])
             await self.pool.execute("UPDATE users SET first_online_at=NOW()-INTERVAL '8 days',bot_started_at=NOW()-INTERVAL '9 days' WHERE telegram_id=1")
