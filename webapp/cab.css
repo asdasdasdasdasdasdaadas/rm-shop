@@ -741,3 +741,7 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .fbban .fbcd .v { height: 20px; line-height: 20px; font-size: 16px; }
 .fbban .fbcd .l { font-size: 11px; color: #cfc3f2; margin: 0; }
 .fbbp { margin-top: 14px; height: 46px; width: 100%; color: #2b1663; font-size: 16px; }
+
+/* top-up hero: the keypad's «+35%» sticker sits on the big amount */
+.fbnw { position: relative; display: inline-block; }
+.fbnw .am-fbs { right: -46px; top: -18px; font-style: normal; line-height: 1.2; }

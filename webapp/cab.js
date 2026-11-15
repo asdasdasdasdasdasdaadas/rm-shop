@@ -600,10 +600,14 @@
     const nt = h.querySelector("#fbNeedT");
     if (nt && need > n) nt.textContent = `Ещё ${rub(need - n)} — и +${fbPct()}% к пополнению`;
     h.classList.toggle("fb-ok", ok);
-    const b = h.querySelector("#payB");
-    if (b && !b.querySelector(".fbb")) b.insertAdjacentHTML("beforeend", '<i class="fbb"></i>');
-    const plus = `+${rub(fbRub(ok ? n : need))}`;
-    h.querySelectorAll(".fbb, .fb3 b").forEach((x) => { x.textContent = plus; });
+    // Same language as the own-amount keypad: a «+35%» sticker on the number, and the line says what lands on the balance.
+    const st = h.querySelector("#amtFbs"), was = st && st.classList.contains("hit");
+    if (st) {
+      st.classList.toggle("hit", ok);
+      if (ok && !was && !first) { st.classList.remove("pop"); void st.offsetWidth; st.classList.add("pop"); }
+    }
+    const pl = h.querySelector("#amtP");
+    if (pl && ok) pl.innerHTML = `На баланс придёт <b class="am-gold">${rub(n + fbRub(n))}</b> · ≈ ${days(daysFor(n + fbRub(n)))}`;
     const box = h.querySelector(".fbx");
     if (ok && !box.classList.contains("open")) {
       T(() => { box.classList.remove("idle"); box.classList.add("open"); fbBurst(box); if (!first) notify("success"); }, first ? 450 : 520);
@@ -679,10 +683,10 @@
       const m = curMethod();
       const inChips = chips.includes(pay.amount) && !pay.custom;
       const L = look(m);
-      const fbx = fb ? `<div class="fbx idle"><div class="fbhalo"></div>${FBGIFT()}<div class="fbtag">+${fbPct()}%</div></div>` : "";
+      const fbx = fb ? `<div class="fbx idle"><div class="fbhalo"></div>${FBGIFT()}</div>` : "";
       const need = fb ? `<button type="button" class="fbneed" data-act="fbneed"><i>+</i><span id="fbNeedT"></span></button>` : "";
-      return hc(L.c, { cls: fb ? "fbon" : "", ill: fb ? fbx : L.ill(72), n: `<span id="amtN">${rub(pay.amount)}</span>`,
-        p: `<span id="amtP">${amountLine()}</span>` + (fb ? `<span class="fb3">🎁&nbsp;<b>+${rub(fbRub(pay.amount))}</b></span>` : ""),
+      return hc(L.c, { cls: fb ? "fbon" : "", ill: fb ? fbx : L.ill(72), n: fb ? `<span class="fbnw"><span id="amtN">${rub(pay.amount)}</span><i class="am-fbs" id="amtFbs">+${fbPct()}%</i></span>` : `<span id="amtN">${rub(pay.amount)}</span>`,
+        p: `<span id="amtP">${amountLine()}</span>`,
         x: need + `<div class="chp">${chips.map((v) => `<button type="button" data-act="amt" data-v="${v}" class="${inChips && v === pay.amount ? "on" : ""}${fb && v >= Number(fb.min_rub) ? " g" : ""}">${fmt(v)}</button>`).join("")}` +
           `<button type="button" data-act="amtc" class="${inChips ? "" : "on"}">${inChips ? "Своя" : fmt(pay.amount) + " ✎"}</button></div>`,
         pill: m ? `Оплатить ${rub(pay.amount)}` : "Оплата недоступна", pd: !m || !amountOk(pay.amount), pa: 'data-act="pay" id="payB"' }) +
