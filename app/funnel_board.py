@@ -54,10 +54,6 @@ ACTIONS = (
     {"id": "feedback_help", "label": "Помощь с VPN", "button": "Нужна помощь"},
     {"id": "feedback_terms", "label": "Не подошли условия", "button": "Не подошли условия"},
     {"id": "feedback_later", "label": "Пока не нужен", "button": "Пока не нужен"},
-    {"id": "why_price", "label": "Почему не продолжили: дорого", "button": "💸 Дорого"},
-    {"id": "why_broken", "label": "Почему не продолжили: работал плохо", "button": "🐢 VPN работал плохо"},
-    {"id": "why_payment", "label": "Почему не продолжили: неудобно оплатить", "button": "💳 Неудобно оплатить"},
-    {"id": "why_later", "label": "Почему не продолжили: пока не нужен", "button": "🕊 Пока не нужен"},
     {"id": "share", "label": "Поделиться ссылкой", "button": "Поделиться ссылкой"},
     {"id": "copy", "label": "Скопировать приглашение", "button": "Скопировать текст"},
     {"id": "resume_pay", "label": "Продолжить оплату счёта", "button": "Продолжить оплату"},
@@ -245,8 +241,6 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
             rows.append([press(label, item, callback_data="vpn_feedback:terms")])
         elif action_id == "feedback_later":
             rows.append([press(label, item, callback_data="vpn_feedback:later")])
-        elif action_id in {"why_price", "why_broken", "why_payment", "why_later"}:
-            rows.append([press(label, item, callback_data=f"giftwhy:{action_id[4:]}")])
         elif action_id == "share":
             button = referral_share_button(int(telegram_id))
             rows.append([button.model_copy(update={

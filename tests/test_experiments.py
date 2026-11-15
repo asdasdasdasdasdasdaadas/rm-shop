@@ -101,7 +101,7 @@ class Steps(unittest.IsolatedAsyncioTestCase):
         ids = {s["id"] for s in ex.testable_steps(graph)}
         self.assertNotIn("pay-1", ids)
         self.assertNotIn("balance-1", ids)
-        self.assertIn("recovery-recover-why-1", ids)
+        self.assertIn("recovery-recover-payment-3", ids)
         self.assertNotIn("recovery-recover-payment-1", ids)
         gifts = [s for s in ex.testable_steps(graph) if s["gift"]]
         self.assertTrue(gifts)

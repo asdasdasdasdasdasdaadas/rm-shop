@@ -216,27 +216,6 @@ async def vpn_feedback(callback: CallbackQuery) -> None:
     value = callback.data.split(':')[1]
     await db.save_vpn_feedback(callback.from_user.id, value)
     await callback.answer("Спасибо, учли ваш ответ")
-    await _vpn_feedback_reply(callback, value)
-
-
-@router.callback_query(F.data.in_({"giftwhy:price", "giftwhy:broken", "giftwhy:payment", "giftwhy:later"}))
-async def gift_end_why(callback: CallbackQuery) -> None:
-    from app import gift_end_feedback
-    reason = callback.data.split(':')[1]
-    await gift_end_feedback.save(callback.from_user.id, reason)
-    await callback.answer("Спасибо, учли ваш ответ")
-    value = gift_end_feedback.AS_VPN_FEEDBACK.get(reason)
-    if value:
-        await db.save_vpn_feedback(callback.from_user.id, value)
-        await _vpn_feedback_reply(callback, value)
-        return
-    from app.keyboards import payment_nudge_keyboard
-    await answer_funnel(callback.message, "Спасибо! В кабинете можно оплатить картой, через СБП или в Telegram. "
-                        "Если нужного способа нет — напишите, какой был бы удобен.",
-                        reply_markup=payment_nudge_keyboard(label="Пополнить баланс"))
-
-
-async def _vpn_feedback_reply(callback: CallbackQuery, value: str) -> None:
     if value in ('help', 'terms'):
         open_support(callback.from_user.id)
     if value == 'help':

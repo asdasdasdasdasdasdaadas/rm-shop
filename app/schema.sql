@@ -774,12 +774,8 @@ CREATE TABLE IF NOT EXISTS checkout_feedback (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_pause_until TIMESTAMPTZ;
 
--- «Почему не продолжили?» after free access ran out (app/gift_end_feedback.py): the latest answer per person.
-CREATE TABLE IF NOT EXISTS gift_end_feedback (
-    telegram_id BIGINT PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
-    reason TEXT NOT NULL CHECK (reason IN ('price','broken','payment','later')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+-- The «почему не продолжили» question was dropped the day it shipped.
+DROP TABLE IF EXISTS gift_end_feedback;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_pause_started_at TIMESTAMPTZ;
 
 -- Invitation card interactions; clicks are not confirmed shares.

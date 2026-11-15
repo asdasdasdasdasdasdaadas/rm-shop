@@ -3025,7 +3025,6 @@ async def admin_badges() -> dict:
 
 async def admin_stats() -> dict:
     from app.checkout_feedback import stats as checkout_feedback_stats
-    from app.gift_end_feedback import stats as gift_end_feedback_stats
     pool = _pool_req()
     users = await pool.fetchrow(
         """
@@ -3143,7 +3142,6 @@ async def admin_stats() -> dict:
         "exit_feedback": await admin_exit_feedback(),
         "reminder_results": await admin_reminder_results(),
         "checkout_feedback": await checkout_feedback_stats(),
-        "gift_end_feedback": await gift_end_feedback_stats(),
     }
 
 
