@@ -40,3 +40,25 @@ class Layout(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExportRequest(unittest.IsolatedAsyncioTestCase):
+    async def test_sections_can_copy_the_request_after_the_body_is_read(self):
+        from unittest.mock import patch
+        from aiohttp import web
+        from aiohttp.test_utils import TestClient, TestServer
+        from app import admin
+
+        async def fake_build(request, days, labels):
+            request.clone(method="GET", rel_url=request.rel_url.with_path("/admin/api/stats"))
+            return xlsx.build([("Лист", [[days]])])
+
+        app = web.Application()
+        app.router.add_post("/admin/api/export.xlsx", admin.api_export_xlsx)
+        with patch.object(admin, "_authed", return_value=True), patch.object(stats_export, "build", fake_build):
+            async with TestClient(TestServer(app)) as client:
+                resp = await client.post("/admin/api/export.xlsx", json={"days": 7, "labels": {}})
+                self.assertEqual(resp.status, 200)
+                self.assertIn("attachment", resp.headers["Content-Disposition"])
+                bad = await client.post("/admin/api/export.xlsx", json={"days": 5})
+                self.assertEqual(bad.status, 400)

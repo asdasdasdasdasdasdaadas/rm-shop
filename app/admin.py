@@ -1459,6 +1459,8 @@ async def api_export_xlsx(request: web.Request) -> web.Response:
     if denied:
         return denied
     from app import stats_export
+    # The sections call the screens' handlers with copies of this request; aiohttp copies only an unread one.
+    base = request.clone(method="GET")
     try:
         body = await request.json()
     except Exception:
@@ -1470,7 +1472,7 @@ async def api_export_xlsx(request: web.Request) -> web.Response:
     if days not in stats_export.PERIODS:
         return web.json_response({"ok": False, "error": "Период: 7, 30, 90, 365 дней или всё время"}, status=400)
     labels = body.get("labels") if isinstance(body.get("labels"), dict) else {}
-    data = await stats_export.build(request, days, labels)
+    data = await stats_export.build(base, days, labels)
     from datetime import datetime as _dt
     name = f"statistics-{_dt.now().strftime('%Y-%m-%d')}-{days or 'all'}d.xlsx"
     return web.Response(body=data, headers={
