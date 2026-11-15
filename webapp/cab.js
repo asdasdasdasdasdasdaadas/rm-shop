@@ -838,6 +838,7 @@
     if (fbEl) {
       const was = fbEl.classList.contains("hit");
       fbEl.classList.toggle("hit", hit);
+      if (!hit) fbEl.classList.remove("pop");
       if (hit && !was) { fbEl.classList.remove("pop"); void fbEl.offsetWidth; fbEl.classList.add("pop"); fbBurst(fbEl); notify("success"); }
     }
     const p = el.querySelector("#amPay");
