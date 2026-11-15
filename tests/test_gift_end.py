@@ -68,7 +68,7 @@ class GiftEndTest(unittest.IsolatedAsyncioTestCase):
                     'recovery-recover-online-2', 'recovery-recover-online-3', 'recovery-recover-gift-2',
                     'recovery-recover-gift-3', 'info-1', 'recovery-recover-quality-1',
                     'recovery-recover-quality-2', 'recovery-recover-quality-3'):
-            self.assertFalse(steps[sid]['enabled'], sid)
+            self.assertNotIn(sid, steps)  # removed: the 90-day statistics showed they bring nothing
         for sid in ('recovery-recover-online-1', 'recovery-recover-online-mid', 'recovery-recover-gift-1'):
             self.assertTrue(steps[sid]['enabled'], sid)
         gift = steps['recovery-recover-payment-3']

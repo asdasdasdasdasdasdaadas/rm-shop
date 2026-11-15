@@ -483,10 +483,6 @@ async def default_graph() -> dict:
             _step("invite-1", "invite", 48, tx("invite_nudge"), ["share", "copy", "menu"], enabled=invite_on),
             {**invite_second, "enabled": invite_on},
         ]},
-        {"id": "cabinet", "title": "Как устроен кабинет", "steps": [
-            # «Как устроен кабинет» brought no clicks or payments in the 90-day statistics: kept for history, off.
-            _step("info-1", "info", 96, tx("info_nudge"), ["cabinet", "menu"], enabled=False),
-        ]},
         {"id": "gift", "title": "Подарок не забран", "steps": [
             _step("trial-1", "trial", 24, gift_text, ["gift", "help"], enabled=trial_on),
         ]},

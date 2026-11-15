@@ -51,9 +51,9 @@ CONDITIONS = (
 KINDS = {c['id']: 'nudge_' + c['id'] for c in CONDITIONS}
 
 GIFT_BRANCHES = {'unpaid', 'idle-return'}
-# Steps the 90-day statistics showed to bring nothing (no clicks, connections or payments): kept on the board
-# for their history, switched off. «Доступ закончился» keeps only its gift step.
-QUIET_STEPS = {'recovery-recover-idle-1', 'recovery-recover-idle-2', 'recovery-recover-late-1',
+# Steps the 90-day statistics showed to bring nothing (no clicks, connections or payments): removed.
+# «Доступ закончился» keeps only its gift step. Their past sends stay in funnel_step_sends and message_log.
+REMOVED_STEPS = {'recovery-recover-idle-1', 'recovery-recover-idle-2', 'recovery-recover-late-1',
                'recovery-recover-late-2', 'recovery-recover-payment-1', 'recovery-recover-payment-2',
                # Almost every connection came from the first-hour nudge; 48 and 72 hours later gave nothing.
                'recovery-recover-online-2', 'recovery-recover-online-3',
@@ -133,10 +133,8 @@ def branches():
             branch['steps'][2].update(wait_hours=24, wait_from='anchor')
     result = result + extra_branches() + paid_branches()
     for branch in result:
-        for step in branch['steps']:
-            if step['id'] in QUIET_STEPS:
-                step['enabled'] = False
-    return result
+        branch['steps'] = [step for step in branch['steps'] if step['id'] not in REMOVED_STEPS]
+    return [branch for branch in result if branch['steps']]
 
 
 ONLINE_MID_ID = 'recovery-recover-online-mid'

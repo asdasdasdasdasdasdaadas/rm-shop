@@ -630,14 +630,16 @@ async def amount_reply(bot, telegram_id: int, text: str) -> str | None:
 
 def bot_commands() -> list:
     from aiogram.types import BotCommand
-    commands = [BotCommand(command="start", description="Открыть профиль")]
+    commands = [BotCommand(command="start", description="Открыть профиль"),
+                BotCommand(command="pay", description="Пополнить баланс"),
+                BotCommand(command="help", description="Написать в поддержку")]
     if enabled():
         commands.append(BotCommand(command="ton", description="Пополнить в Gram (TON)"))
     return commands
 
 
 async def sync_bot_commands(bot) -> None:
-    """The command menu shows /ton only while Gram (TON) payments are on."""
+    """The command menu: /start, /pay, /help, and /ton only while Gram (TON) payments are on."""
     try:
         await bot.set_my_commands(bot_commands())
     except Exception:

@@ -161,9 +161,9 @@ class AmountChatTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ton.nano_for_rub(1, Decimal("101")), 10_000_000)
 
     def test_command_menu_follows_the_switch(self):
-        self.assertEqual([c.command for c in ton.bot_commands()], ["start", "ton"])
+        self.assertEqual([c.command for c in ton.bot_commands()], ["start", "pay", "help", "ton"])
         with patch.object(ton, "get_settings", return_value=settings(ton_enabled=False)):
-            self.assertEqual([c.command for c in ton.bot_commands()], ["start"])
+            self.assertEqual([c.command for c in ton.bot_commands()], ["start", "pay", "help"])
 
 
 class TonButtonsTest(unittest.TestCase):

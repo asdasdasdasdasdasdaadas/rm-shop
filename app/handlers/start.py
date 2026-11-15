@@ -381,6 +381,33 @@ async def cmd_ton(message: Message, command: CommandObject) -> None:
             await message.answer(f"Карточка Gram (TON) не отправилась: {getattr(exc, 'message', None) or type(exc).__name__}")
 
 
+@router.message(Command("pay"))
+async def cmd_pay(message: Message) -> None:
+    """/pay from the command menu: the balance and one button straight to the top-up screen."""
+    if not await gate_or_continue(message):
+        return
+    from app import funnel_board
+    from app.texts import rub_text
+    uid = message.from_user.id
+    local = await db.get_user(uid) or {}
+    buttons = [{"action": "topup", "text": "Пополнить баланс"}]
+    bonus = await funnel_board.first_bonus_for(uid, buttons)
+    body = (f"💳 <b>Пополнение баланса</b>\n\nБаланс: <b>{rub_text(int(local.get('balance_rub') or 0))}</b> · "
+            f"{rub_text(get_settings().vpn_day_price_rub)} в день за устройство.")
+    await answer_funnel(message, funnel_board.with_first_bonus(body, bonus),
+                        reply_markup=funnel_board.markup(buttons, uid, bonus=bonus))
+
+
+@router.message(Command("help"))
+async def cmd_help(message: Message) -> None:
+    """/help from the command menu: the next message goes to support."""
+    from app.handlers.tickets import open_support
+    from app.keyboards import help_ticket_cancel_keyboard
+    from app.notices import notice_text
+    open_support(message.from_user.id)
+    await message.answer(notice_text("help_other"), reply_markup=help_ticket_cancel_keyboard())
+
+
 def _ton_amount_message(message: Message) -> bool:
     """The answer to «Сколько TON отправить?»: a number, or anything sent as a reply to that question."""
     from app import ton

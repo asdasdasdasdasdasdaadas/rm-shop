@@ -202,13 +202,6 @@ def profile_keyboard(*, trial_available: bool, has_access: bool, story_offer: bo
     return builder.as_markup()
 
 
-def faq_keyboard() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    add_cabinet_row(builder)
-    builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
-    return builder.as_markup()
-
-
 def onboarding_keyboard(*, gift: bool = False, has_device: bool = False) -> InlineKeyboardMarkup:
     label = "Забрать подарок" if gift else "Продолжить подключение" if has_device else "Подключить VPN"
     url = mini_app_url()
@@ -222,26 +215,6 @@ def onboarding_keyboard(*, gift: bool = False, has_device: bool = False) -> Inli
     return InlineKeyboardMarkup(inline_keyboard=[
         [button], [InlineKeyboardButton(text="Нужна помощь", callback_data="help:connect")]
     ])
-
-
-def help_connect_keyboard() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    button = cabinet_button()
-    if button:
-        builder.row(button.model_copy(update={"text": "Подключить VPN"}))
-    builder.row(
-        InlineKeyboardButton(
-            text="Нужна помощь",
-            callback_data="help:connect",
-        )
-    )
-    builder.row(
-        InlineKeyboardButton(
-            text="Другая проблема",
-            callback_data="help:other",
-        )
-    )
-    return builder.as_markup()
 
 
 def help_ticket_cancel_keyboard() -> InlineKeyboardMarkup:
@@ -291,19 +264,6 @@ def try_again_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def trial_nudge_keyboard(*, trial_available: bool = True) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    if trial_available:
-        builder.row(
-            InlineKeyboardButton(
-                text="Попробовать бесплатно",
-                callback_data="trial",
-            )
-        )
-    add_cabinet_row(builder)
-    return builder.as_markup()
-
-
 def back_profile_keyboard(*, cabinet: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
@@ -338,24 +298,9 @@ def buy_keyboard(telegram_id: int | None = None) -> InlineKeyboardMarkup:
         builder.row(cabinet, *([ton_btn] if ton_btn else []))
         builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
         return builder.as_markup()
-    for code, plan in settings.shop_plans.items():
-        if settings.rub_pay_configured:
-            label = f"{plan['title']} — {plan['rub_str']} рублей"
-        elif settings.stars_enabled:
-            label = f"{plan['title']} — {plan['stars']} звёзд"
-        else:
-            label = plan["title"]
-        builder.row(InlineKeyboardButton(text=label, callback_data=f"buy:{code}"))
+    # Without the cabinet only Gram (TON) pays in the chat; tariffs bought in the chat are gone.
     if ton_btn:
         builder.row(ton_button("Оплатить в Gram (TON)", telegram_id=telegram_id))
-    builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
-    return builder.as_markup()
-
-
-def pay_keyboard(pay_url: str, order_id: str) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="Оплатить", url=pay_url))
-    builder.row(InlineKeyboardButton(text="Проверить оплату", callback_data=f"rpc:{order_id}"))
     builder.row(InlineKeyboardButton(text="Главное меню", callback_data="profile"))
     return builder.as_markup()
 
@@ -463,22 +408,6 @@ def payout_mod_keyboard(
         ),
     )
     return builder.as_markup()
-
-
-def support_welcome_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Я помогу", callback_data="welcome:continue")
-    ]])
-
-
-def vpn_feedback_keyboard(*, returning: bool = False) -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(text="Всё работает" if not returning else "Вернуться к VPN", callback_data="vpn_feedback:ok" if not returning else "help:connect")],
-            [InlineKeyboardButton(text="Нужна помощь", callback_data="vpn_feedback:help")]]
-    if not returning:
-        rows.append([InlineKeyboardButton(text="Не подошли условия", callback_data="vpn_feedback:terms")])
-    if returning:
-        rows.append([InlineKeyboardButton(text="Пока не нужен", callback_data="vpn_feedback:later")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def support_webapp_button() -> InlineKeyboardButton | None:
