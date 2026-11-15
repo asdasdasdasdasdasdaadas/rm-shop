@@ -89,10 +89,10 @@ class Settings(BaseSettings):
     widgets_enabled: bool = True
     trust_days: int = 3
     trust_fee_rub: int = 12
-    # «+3 дня за первую оплату»: the first top-up from first_bonus_min_rub before the gift runs out.
+    # «+10% к первому пополнению»: the first top-up from first_bonus_min_rub before the gift runs out.
     first_bonus_enabled: bool = True
     first_bonus_min_rub: int = 200
-    first_bonus_days: int = 3
+    first_bonus_percent: int = 10
     balance_charge_interval: int = 600
     billing_concurrency: int = 12
     billing_bulk_chunk: int = 80
@@ -314,7 +314,7 @@ SHOP_KEYS = frozenset(
         "trust_fee_rub",
         "first_bonus_enabled",
         "first_bonus_min_rub",
-        "first_bonus_days",
+        "first_bonus_percent",
         "referral_reward_days",
         "referral_invitee_days",
         "balance_topup_min",

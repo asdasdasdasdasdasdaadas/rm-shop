@@ -103,7 +103,7 @@ def validate_shop(body: dict) -> dict:
     out["trust_fee_rub"] = _as_int(body.get("trust_fee_rub"), 0, 10000, "Комиссия обещанного платежа")
     out["first_bonus_enabled"] = bool(body.get("first_bonus_enabled", get_settings().first_bonus_enabled))
     out["first_bonus_min_rub"] = _as_int(body.get("first_bonus_min_rub", get_settings().first_bonus_min_rub), 1, 100000, "Бонус: пополнение от")
-    out["first_bonus_days"] = _as_int(body.get("first_bonus_days", get_settings().first_bonus_days), 1, 30, "Бонус: дни")
+    out["first_bonus_percent"] = _as_int(body.get("first_bonus_percent", get_settings().first_bonus_percent), 1, 100, "Бонус: процент")
     out["referral_reward_days"] = _as_int(body.get("referral_reward_days"), 0, 365, "Реф. дни пригласившему")
     out["referral_invitee_days"] = _as_int(body.get("referral_invitee_days"), 0, 365, "Реф. дни другу")
     out["balance_topup_min"] = _as_int(body.get("balance_topup_min"), 1, 100000, "Мин. пополнение")
@@ -194,7 +194,7 @@ def snapshot() -> dict:
             "trust_fee_rub": s.trust_fee_rub,
             "first_bonus_enabled": s.first_bonus_enabled,
             "first_bonus_min_rub": s.first_bonus_min_rub,
-            "first_bonus_days": s.first_bonus_days,
+            "first_bonus_percent": s.first_bonus_percent,
             "referral_reward_days": s.referral_reward_days,
             "referral_invitee_days": s.referral_invitee_days,
             "balance_topup_min": s.balance_topup_min,

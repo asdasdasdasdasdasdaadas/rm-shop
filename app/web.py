@@ -548,8 +548,7 @@ async def api_me(request: web.Request) -> web.Response:
             "referred": bool((local or {}).get("referred_by")),
             **ref_view,
             "has_paid_topup": bool((local or {}).get("has_paid_topup")),
-            "first_bonus": first_bonus.offer(local, balance_rub=balance_rub, hours_left=hours_left,
-                                             devices=len(billable_raw)),
+            "first_bonus": first_bonus.offer(local, balance_rub=balance_rub, hours_left=hours_left),
             "first_online_at": (
                 local.get("first_online_at").isoformat()
                 if local and local.get("first_online_at") and hasattr(local.get("first_online_at"), "isoformat")

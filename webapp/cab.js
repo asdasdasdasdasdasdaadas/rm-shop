@@ -481,6 +481,8 @@
   // The first top-up from first_bonus.min_rub before the gift runs out adds days on top (credited by the server).
   const FB = () => (me && me.first_bonus && Number(me.first_bonus.min_rub) > 0 ? me.first_bonus : null);
   const fbOk = (n) => { const f = FB(); return Boolean(f && amountOk(n) && n >= Number(f.min_rub)); };
+  const fbPct = () => Number((FB() || {}).percent) || 0;
+  const fbRub = (n) => Math.floor((Number(n) || 0) * fbPct() / 100);
   let fbEnd = 0;
   function fbDeadline() {
     const f = FB();
@@ -557,10 +559,10 @@
     if (!f || !me.first_online_at || !(Number(f.hours_left) > 0)) return "";
     fbDeadline();
     return `<button type="button" class="fbc" data-act="fbgo"><span class="fbglow"></span><span class="fbin">` +
-      `<span class="fbtop"><span class="fbgift"></span><span class="fbtx"><b>+${days(Number(f.days))} в подарок</b>` +
+      `<span class="fbtop"><span class="fbgift"></span><span class="fbtx"><b>+${fbPct()}% к пополнению</b>` +
       `<span>за первое пополнение от ${rub(f.min_rub)} до конца подарка</span></span></span>` +
       `<span class="fbk">Подарок закончится через</span>${fbUnits()}` +
-      `<span class="pill fbp"><span>Пополнить ${rub(f.min_rub)}</span><i class="fbb on">+${days(Number(f.days))}</i></span></span></button>`;
+      `<span class="pill fbp"><span>Пополнить ${rub(f.min_rub)}</span><i class="fbb on">+${rub(fbRub(f.min_rub))}</i></span></span></button>`;
   }
   // One clock for every countdown on the page: re-renders replace the markup, the clock keeps going.
   function fbTick() {
@@ -597,10 +599,12 @@
     const nb = h.querySelector(".fbneed");
     if (nb) nb.style.setProperty("--p", `${Math.round(Math.min(1, n / need) * 100)}%`);
     const nt = h.querySelector("#fbNeedT");
-    if (nt && need > n) nt.textContent = `Ещё ${rub(need - n)} — и +${days(Number(f.days))} в подарок`;
+    if (nt && need > n) nt.textContent = `Ещё ${rub(need - n)} — и +${fbPct()}% к пополнению`;
     h.classList.toggle("fb-ok", ok);
     const b = h.querySelector("#payB");
-    if (b && !b.querySelector(".fbb")) b.insertAdjacentHTML("beforeend", `<i class="fbb">+${days(Number(f.days))}</i>`);
+    if (b && !b.querySelector(".fbb")) b.insertAdjacentHTML("beforeend", '<i class="fbb"></i>');
+    const plus = `+${rub(fbRub(ok ? n : need))}`;
+    h.querySelectorAll(".fbb, .fb3 b").forEach((x) => { x.textContent = plus; });
     const box = h.querySelector(".fbx");
     if (ok && !box.classList.contains("open")) {
       T(() => { box.classList.remove("idle"); box.classList.add("open"); fbBurst(box); if (!first) notify("success"); }, first ? 450 : 520);
@@ -676,16 +680,16 @@
       const m = curMethod();
       const inChips = chips.includes(pay.amount) && !pay.custom;
       const L = look(m);
-      const fbx = fb ? `<div class="fbx idle"><div class="fbhalo"></div>${FBGIFT()}<div class="fbtag">+${days(Number(fb.days))}</div></div>` : "";
+      const fbx = fb ? `<div class="fbx idle"><div class="fbhalo"></div>${FBGIFT()}<div class="fbtag">+${fbPct()}%</div></div>` : "";
       const need = fb ? `<button type="button" class="fbneed" data-act="fbneed"><i>+</i><span id="fbNeedT"></span></button>` : "";
       return hc(L.c, { cls: fb ? "fbon" : "", ill: fb ? fbx : L.ill(72), n: `<span id="amtN">${rub(pay.amount)}</span>`,
-        p: `<span id="amtP">${amountLine()}</span>` + (fb ? `<span class="fb3">🎁 +${days(Number(fb.days))}</span>` : ""),
+        p: `<span id="amtP">${amountLine()}</span>` + (fb ? `<span class="fb3">🎁&nbsp;<b>+${rub(fbRub(pay.amount))}</b></span>` : ""),
         x: need + `<div class="chp">${chips.map((v) => `<button type="button" data-act="amt" data-v="${v}" class="${inChips && v === pay.amount ? "on" : ""}${fb && v >= Number(fb.min_rub) ? " g" : ""}">${fmt(v)}</button>`).join("")}` +
           `<button type="button" data-act="amtc" class="${inChips ? "" : "on"}">${inChips ? "Своя" : fmt(pay.amount) + " ✎"}</button></div>`,
         pill: m ? `Оплатить ${rub(pay.amount)}` : "Оплата недоступна", pd: !m || !amountOk(pay.amount), pa: 'data-act="pay" id="payB"' }) +
         (m ? ST("Способ оплаты") + cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), esc(methodSub(m))) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
           payMethods().length > 1 ? 'data-go="method"' : ""]]) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
-        (fb ? NOTE(`🎁 +${days(Number(fb.days))} к первому пополнению от ${rub(fb.min_rub)} — пока не закончился подарок`, true) : "") +
+        (fb ? NOTE(`🎁 +${fbPct()}% к первому пополнению от ${rub(fb.min_rub)} — пока не закончился подарок`, true) : "") +
         NOTE(`Баланс ${rub(me.balance_rub)} · разовая оплата, автоплатежей нет`, true);
     },
     on(el) { fbPaint(el, true); },
@@ -966,12 +970,12 @@
     if (g) g.style.fill = "#27a865";
     const N = h.querySelector(".N");
     N.innerHTML = "<span></span>";
-    const bonus = pay.fbDays && delta > pay.amount ? delta - pay.amount : 0;
+    const bonus = pay.fbOn && delta > pay.amount ? delta - pay.amount : 0;
     countTo(N.firstChild, 0, bonus ? pay.amount : delta, " ₽", "+");
     if (bonus) {
-      h.querySelector(".P").insertAdjacentHTML("afterend", `<div class="fbdone"><span>🎁 Бонус за первую оплату</span><b>+${days(pay.fbDays)}</b></div>`);
+      h.querySelector(".P").insertAdjacentHTML("afterend", `<div class="fbdone"><span>🎁 Бонус за первую оплату</span><b>+${rub(bonus)}</b></div>`);
       T(() => { const d = h.querySelector(".fbdone"); if (d) { d.classList.add("in"); fbBurst(d); } }, 900);
-      pay.fbDays = 0;
+      pay.fbOn = false;
     }
     h.querySelector(".P").textContent = "Баланс: " + rub(me.balance_rub);
     const p = h.querySelector(".pill");
@@ -1754,7 +1758,7 @@
     haptic();
     btn.classList.add("dim");
     try {
-      pay.fbDays = fbOk(pay.amount) ? Number(FB().days) : 0;
+      pay.fbOn = fbOk(pay.amount);
       const inv = await post("/api/invoice", { plan: "b" + pay.amount, method: m.id });
       pay.base = Number(me.balance_rub) || 0;
       if (inv.pay_url) {

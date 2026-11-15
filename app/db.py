@@ -5652,9 +5652,7 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
             first_bonus = 0
             if not router_days:
                 from app.first_bonus import bonus_for_payment
-                billed = await conn.fetchval("""SELECT COUNT(*) FROM devices WHERE telegram_id=$1
-                    AND COALESCE(kind,'') <> 'router'""", telegram_id)
-                first_bonus = bonus_for_payment(dict(local), amount, int(billed or 0))
+                first_bonus = bonus_for_payment(dict(local), amount)
             receipt = await conn.fetchrow('''INSERT INTO payment_receipts
                 (payment_key,telegram_id,plan_code,amount,router_days,first_payment,referral_enabled,invitee_bonus,notice_status,first_bonus_rub)
                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9) RETURNING *''',

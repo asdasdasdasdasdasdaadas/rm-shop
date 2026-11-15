@@ -229,9 +229,9 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
             # Two ready amounts side by side; the cabinet opens on the top-up with it chosen (card, SBP, Stars).
             if bonus:
                 # «+3 дня за первую оплату» is on: the second button is the bonus amount.
-                low, (need, days) = quick_amounts()[0], bonus
+                low, (need, pct) = quick_amounts()[0], bonus
                 rows.append([screen(f"Пополнить {low} ₽", "topup", item, amount=low)] if low < need else [])
-                rows[-1].append(screen(f"🎁 {need} ₽ · +{days} {_days_word(days)}", "topup", item, amount=need))
+                rows[-1].append(screen(f"🎁 {need} ₽ · +{pct}%", "topup", item, amount=need))
             else:
                 rows.append([screen(f"Пополнить {amount} ₽", "topup", item, amount=amount) for amount in quick_amounts()])
         elif action_id == "help":
@@ -287,13 +287,8 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def _days_word(n: int) -> str:
-    from app.texts import ru_plural
-    return ru_plural(n, "день", "дня", "дней")
-
-
 async def first_bonus_for(uid: int, buttons) -> tuple[int, int] | None:
-    """(threshold, days) when this person can still get «+N дней за первую оплату» and the step offers quick top-ups."""
+    """(threshold, percent) when this person can still get «+N% к первому пополнению» and the step offers quick top-ups."""
     if not any((b if isinstance(b, str) else b.get("action")) == "topup_quick" for b in buttons):
         return None
     from app import db, first_bonus
@@ -302,7 +297,7 @@ async def first_bonus_for(uid: int, buttons) -> tuple[int, int] | None:
     if not first_bonus.eligible(local) or int((local or {}).get("balance_rub") or 0) <= 0:
         return None
     s = get_settings()
-    return int(s.first_bonus_min_rub), int(s.first_bonus_days)
+    return int(s.first_bonus_min_rub), int(s.first_bonus_percent)
 
 
 def quick_amounts() -> list[int]:
@@ -736,7 +731,7 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                 ) for b in buttons]
             bonus = await first_bonus_for(uid, buttons)
             if bonus:
-                body += f"\n\n🎁 Пополните от {bonus[0]} ₽ до конца подарка — и получите +{bonus[1]} {_days_word(bonus[1])} в подарок."
+                body += f"\n\n🎁 Пополните от {bonus[0]} ₽ до конца подарка — и получите +{bonus[1]}% к сумме на баланс."
             delivered = await _deliver_unbudgeted(
                 bot, kind=kind, telegram_id=uid, first_name=row.get("first_name"),
                 title=CONDITION_IDS[step["condition"]]["label"],

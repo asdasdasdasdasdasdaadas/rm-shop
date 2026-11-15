@@ -1,5 +1,5 @@
-"""«+3 дня за первую оплату»: the first top-up of at least first_bonus_min_rub made before the gift runs out
-adds first_bonus_days of VPN to the balance. The credit itself happens inside db.credit_payment_once."""
+"""«+10% к первому пополнению»: the first top-up of at least first_bonus_min_rub made before the gift runs out
+adds first_bonus_percent of the amount to the balance. The credit itself happens inside db.credit_payment_once."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -10,10 +10,9 @@ from app.config import get_settings
 CHECKOUT_GRACE = timedelta(hours=2)
 
 
-def bonus_rub(devices: int) -> int:
-    """The gift days in rubles: days × the day price × the devices that are billed."""
-    s = get_settings()
-    return max(0, int(s.first_bonus_days)) * max(1, int(s.vpn_day_price_rub)) * max(1, int(devices or 0))
+def bonus_rub(amount: int) -> int:
+    """The bonus for this amount: first_bonus_percent of it, rounded down to whole rubles."""
+    return max(0, int(amount or 0)) * max(0, int(get_settings().first_bonus_percent)) // 100
 
 
 def eligible(local: dict | None, *, now: datetime | None = None) -> bool:
@@ -31,15 +30,15 @@ def eligible(local: dict | None, *, now: datetime | None = None) -> bool:
     return (now or datetime.now(timezone.utc)) - started <= CHECKOUT_GRACE
 
 
-def bonus_for_payment(local: dict | None, amount: int, devices: int) -> int:
+def bonus_for_payment(local: dict | None, amount: int) -> int:
     """Rubles to add on top of this payment, or 0."""
     if int(amount or 0) < int(get_settings().first_bonus_min_rub) or not eligible(local):
         return 0
-    return bonus_rub(devices)
+    return bonus_rub(amount)
 
 
-def offer(local: dict | None, *, balance_rub: int, hours_left: int, devices: int) -> dict | None:
-    """What the cabinet shows: the threshold, the days and how long the offer lasts."""
+def offer(local: dict | None, *, balance_rub: int, hours_left: int) -> dict | None:
+    """What the cabinet shows: the threshold, the percent and how long the offer lasts."""
     s = get_settings()
     if not s.first_bonus_enabled or not local or local.get("has_paid_topup") or not local.get("trial_used"):
         return None
@@ -47,7 +46,6 @@ def offer(local: dict | None, *, balance_rub: int, hours_left: int, devices: int
         return None
     return {
         "min_rub": int(s.first_bonus_min_rub),
-        "days": int(s.first_bonus_days),
-        "rub": bonus_rub(devices),
+        "percent": int(s.first_bonus_percent),
         "hours_left": max(0, int(hours_left or 0)),
     }
