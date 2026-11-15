@@ -774,6 +774,9 @@ CREATE TABLE IF NOT EXISTS checkout_feedback (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_pause_until TIMESTAMPTZ;
 
+-- «Застрял на подключении» alert to the admin (app/stuck_alert.py): sent once per person.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stuck_alert_at TIMESTAMPTZ;
+
 -- A/B test «подарок сразу на балансе» (app/auto_gift.py): one row per test, one group per new person.
 CREATE TABLE IF NOT EXISTS auto_gift_tests (
     id BIGSERIAL PRIMARY KEY,

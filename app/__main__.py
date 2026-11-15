@@ -206,6 +206,8 @@ async def main() -> None:
         gifts_task = asyncio.create_task(gifts_scan_loop(bot), name="gifts-scan")
         from app.balance_watch import balance_watch_loop
         watch_task = asyncio.create_task(balance_watch_loop(rw, bot), name="balance-watch")
+        from app.stuck_alert import stuck_alert_loop
+        stuck_task = asyncio.create_task(stuck_alert_loop(bot), name="stuck-alert")
         try:
             await dp.start_polling(
                 bot,
@@ -226,6 +228,7 @@ async def main() -> None:
             ton_task.cancel()
             gifts_task.cancel()
             watch_task.cancel()
+            stuck_task.cancel()
     finally:
         await runner.cleanup()
         if rp is not None:
