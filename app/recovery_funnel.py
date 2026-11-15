@@ -58,7 +58,9 @@ QUIET_STEPS = {'recovery-recover-idle-1', 'recovery-recover-idle-2', 'recovery-r
                # Almost every connection came from the first-hour nudge; 48 and 72 hours later gave nothing.
                'recovery-recover-online-2', 'recovery-recover-online-3',
                # The unclaimed-gift reminders 2 and 3: 124 sends, one click, no connection.
-               'recovery-recover-gift-2', 'recovery-recover-gift-3'}
+               'recovery-recover-gift-2', 'recovery-recover-gift-3',
+               # «Как работает VPN?» survey: almost nobody answers, and it takes the daily message slot.
+               'recovery-recover-quality-1', 'recovery-recover-quality-2', 'recovery-recover-quality-3'}
 
 NEW_THIRD = {
  'gift': '🎁 Подарок всё ещё ваш: бесплатный VPN на старте, без оплаты и привязки карты. '

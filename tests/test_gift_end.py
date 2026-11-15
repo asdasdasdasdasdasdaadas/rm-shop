@@ -66,7 +66,8 @@ class GiftEndTest(unittest.IsolatedAsyncioTestCase):
         for sid in ('recovery-recover-idle-1', 'recovery-recover-idle-2', 'recovery-recover-late-1',
                     'recovery-recover-late-2', 'recovery-recover-payment-1', 'recovery-recover-payment-2',
                     'recovery-recover-online-2', 'recovery-recover-online-3', 'recovery-recover-gift-2',
-                    'recovery-recover-gift-3', 'info-1'):
+                    'recovery-recover-gift-3', 'info-1', 'recovery-recover-quality-1',
+                    'recovery-recover-quality-2', 'recovery-recover-quality-3'):
             self.assertFalse(steps[sid]['enabled'], sid)
         for sid in ('recovery-recover-online-1', 'recovery-recover-online-mid', 'recovery-recover-gift-1'):
             self.assertTrue(steps[sid]['enabled'], sid)
