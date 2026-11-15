@@ -224,7 +224,11 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
         elif action_id == "connect":
             rows.append([screen(label, "connect", item)])
         elif action_id == "topup":
-            rows.append([screen(label, "topup", item)])
+            if bonus:
+                # The person can still get «+N% к первому пополнению»: the button opens the top-up on the threshold.
+                rows.append([screen(f"🎁 Пополнить {bonus[0]} ₽ · +{bonus[1]}%", "topup", item, amount=bonus[0])])
+            else:
+                rows.append([screen(label, "topup", item)])
         elif action_id == "topup_quick":
             # Two ready amounts side by side; the cabinet opens on the top-up with it chosen (card, SBP, Stars).
             if bonus:
@@ -287,9 +291,20 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def with_first_bonus(body: str, bonus: tuple[int, int] | None) -> str:
+    """Fills {bonus_min}, {bonus_pct}, {bonus_total} when the text names them, otherwise adds the bonus line."""
+    if not bonus:
+        return body
+    need, pct = bonus
+    if "{bonus_" in body:
+        return (body.replace("{bonus_min}", f"{need} ₽").replace("{bonus_pct}", str(pct))
+                .replace("{bonus_total}", f"{need + need * pct // 100} ₽"))
+    return body + f"\n\n🎁 Пополните от {need} ₽ до конца подарка — и получите +{pct}% к сумме на баланс."
+
+
 async def first_bonus_for(uid: int, buttons) -> tuple[int, int] | None:
-    """(threshold, percent) when this person can still get «+N% к первому пополнению» and the step offers quick top-ups."""
-    if not any((b if isinstance(b, str) else b.get("action")) == "topup_quick" for b in buttons):
+    """(threshold, percent) when this person can still get «+N% к первому пополнению» and the step offers a top-up."""
+    if not any((b if isinstance(b, str) else b.get("action")) in {"topup_quick", "topup"} for b in buttons):
         return None
     from app import db, first_bonus
     from app.config import get_settings
@@ -730,8 +745,9 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                     if (b if isinstance(b, str) else b.get('action')) in {'cabinet','connect','topup'} else b
                 ) for b in buttons]
             bonus = await first_bonus_for(uid, buttons)
-            if bonus:
-                body += f"\n\n🎁 Пополните от {bonus[0]} ₽ до конца подарка — и получите +{bonus[1]}% к сумме на баланс."
+            if step["condition"] == "first_bonus" and not bonus:
+                continue  # the bonus is off or no longer applies: the step has nothing to say
+            body = with_first_bonus(body, bonus)
             delivered = await _deliver_unbudgeted(
                 bot, kind=kind, telegram_id=uid, first_name=row.get("first_name"),
                 title=CONDITION_IDS[step["condition"]]["label"],

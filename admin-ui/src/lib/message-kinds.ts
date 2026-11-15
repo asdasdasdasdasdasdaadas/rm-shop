@@ -10,6 +10,7 @@ export const messageKinds: Data = {
   nudge_recover_idle: "Неделя без VPN → возвращение",
   nudge_checkout_again: "Брошенный счёт: второе напоминание",
   nudge_gift_ending: "Подарок заканчивается",
+  nudge_first_bonus: "Бонус к первому пополнению",
   nudge_upsell_device: "Допродажа: второе устройство",
   nudge_upsell_month: "Допродажа: месяц вперёд",
   nudge_invite_again: "Приглашение друзей: второе напоминание",

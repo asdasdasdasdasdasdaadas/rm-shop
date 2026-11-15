@@ -9,7 +9,7 @@ class ExtraJourneys(unittest.IsolatedAsyncioTestCase):
         with patch.object(funnel_board, "_flag", AsyncMock(return_value=True)):
             graph = await funnel_board.default_graph()
         ids = {s["id"] for s in experiments.testable_steps(graph)}
-        for sid in ("checkout-again-1", "gift-ending-1", "upsell-device-1", "upsell-month-1"):
+        for sid in ("checkout-again-1", "gift-ending-1", "first-bonus-1", "upsell-device-1", "upsell-month-1"):
             self.assertIn(sid, ids)
         self.assertEqual(len(extra_journeys.upgrade(graph)["branches"]), len(graph["branches"]))  # no duplicates
 
@@ -24,6 +24,11 @@ class ExtraJourneys(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("{", month)
         self.assertNotIn("{", funnel_board.render_text(extra_journeys.GIFT_ENDING_TEXT, 1, "A"))
         self.assertNotIn("{", funnel_board.render_text(extra_journeys.UPSELL_DEVICE_TEXT, 1, "A"))
+        bonus = funnel_board.with_first_bonus(funnel_board.render_text(extra_journeys.FIRST_BONUS_TEXT, 1, "A"), (200, 35))
+        self.assertNotIn("{", bonus)
+        self.assertIn("+35% к первому пополнению", bonus)
+        self.assertIn("200 ₽ → 270 ₽", bonus)
+        self.assertNotIn("Пополните от", bonus)  # the text names the bonus itself: no second line
 
 
 if __name__ == "__main__":

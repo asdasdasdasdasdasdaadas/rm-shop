@@ -95,6 +95,20 @@ class BotButtonsTest(unittest.TestCase):
         self.assertEqual(texts, ["Пополнить 50 ₽", "🎁 200 ₽ · +10%"])
         self.assertIn("amount=200", kb.inline_keyboard[0][1].web_app.url)
 
+    def test_topup_button_opens_on_the_threshold(self):
+        from app import funnel_board
+        with patch("app.keyboards.mini_app_url", return_value="https://lk.example/app"):
+            kb = funnel_board.markup([{"action": "topup", "text": "Пополнить баланс"}], 1, bonus=(200, 35))
+            plain = funnel_board.markup([{"action": "topup", "text": "Пополнить баланс"}], 1)
+        self.assertEqual(kb.inline_keyboard[0][0].text, "🎁 Пополнить 200 ₽ · +35%")
+        self.assertIn("amount=200", kb.inline_keyboard[0][0].web_app.url)
+        self.assertEqual(plain.inline_keyboard[0][0].text, "Пополнить баланс")
+
+    def test_bonus_line_for_plain_texts(self):
+        from app import funnel_board
+        self.assertEqual(funnel_board.with_first_bonus("Привет", None), "Привет")
+        self.assertIn("+35% к сумме", funnel_board.with_first_bonus("Привет", (200, 35)))
+
 
 if __name__ == "__main__":
     unittest.main()

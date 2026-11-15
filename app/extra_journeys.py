@@ -1,4 +1,4 @@
-"""Three journeys the funnel was missing: a second touch on an abandoned checkout, an early «gift is ending»
+"""Journeys the funnel was missing: a second touch on an abandoned checkout, an early «gift is ending»
 for those who never paid, and upsells (a second device, a month ahead) for paying customers.
 
 They are built-in steps of the funnel board (app/funnel_board.py): same daily and weekly caps, Moscow daytime,
@@ -34,6 +34,12 @@ CONDITIONS = (
         AND COALESCE(u.balance_rub,0) <= {{day}} * 2 * {_DEVICES}""",
      "hint": "Пользуется VPN на подарке, ни разу не платил, осталось от 1 до 2 дней. Один раз. "
              "Последние сутки закрывает «Баланс заканчивается»."},
+    {"id": "first_bonus", "label": "Подарок идёт: бонус к первому пополнению", "anchor": "u.first_online_at",
+     "max_hours": 96,
+     "where": f"""NOT {PAID} AND u.first_online_at IS NOT NULL AND {_ANY_DEVICE}
+        AND COALESCE(u.balance_rub,0) > {{day}} * 2 * {_DEVICES}""",
+     "hint": "VPN подключён, ни разу не платил, подарка больше чем на 2 дня. Один раз, не позже 4 дней после подключения. "
+             "Уходит, только пока бонус к первому пополнению включён и доступен человеку."},
     {"id": "upsell_device", "label": "Платит: второе устройство", "anchor": _FIRST_PAID_AT, "max_hours": 24 * 30,
      "where": f"""{PAID}
         AND (SELECT COUNT(*) FROM devices d WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'') <> 'router') = 1
@@ -52,6 +58,7 @@ CONDITIONS = (
 KINDS = {
     "checkout_again": "nudge_checkout_again",
     "gift_ending_soon": "nudge_gift_ending",
+    "first_bonus": "nudge_first_bonus",
     "upsell_device": "nudge_upsell_device",
     "upsell_month": "nudge_upsell_month",
 }
@@ -68,6 +75,12 @@ GIFT_ENDING_TEXT = (
     '⏳ <b>Подарок закончится примерно через 2 дня</b>\n\n'
     'Чтобы VPN не выключился, пополните баланс заранее — от {min_topup}. '
     'Настраивать заново ничего не придётся: всё продолжит работать на тех же устройствах.'
+)
+FIRST_BONUS_TEXT = (
+    '🎁 <b>+{bonus_pct}% к первому пополнению</b>\n\n'
+    'VPN работает — отлично! Пока идёт подарок, пополните баланс от {bonus_min} — и мы добавим {bonus_pct}% сверху: '
+    '{bonus_min} → {bonus_total} на балансе.\n\n'
+    'Бонус действует только до конца подарка.'
 )
 UPSELL_DEVICE_TEXT = (
     '💻 <b>VPN и на втором устройстве</b>\n\n'
@@ -91,6 +104,9 @@ def branches():
         ]},
         {"id": "gift-ending", "title": "Подарок заканчивается → первая оплата", "steps": [
             _step("gift-ending-1", "gift_ending_soon", 0, GIFT_ENDING_TEXT, ["topup_quick", "menu"]),
+        ]},
+        {"id": "first-bonus", "title": "Подарок идёт → бонус к первому пополнению", "steps": [
+            _step("first-bonus-1", "first_bonus", 28, FIRST_BONUS_TEXT, ["topup_quick", "menu"]),
         ]},
         {"id": "upsell-device", "title": "Допродажа: второе устройство", "steps": [
             _step("upsell-device-1", "upsell_device", 72, UPSELL_DEVICE_TEXT,
