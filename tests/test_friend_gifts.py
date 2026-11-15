@@ -86,12 +86,30 @@ class GiftShareCardTest(unittest.IsolatedAsyncioTestCase):
 
 class GiftLimitsTest(unittest.IsolatedAsyncioTestCase):
     async def test_amount_outside_limits_is_refused_before_any_sql(self):
+        # Only the unlimited-right lookup runs; nothing is written or locked.
         with patch.object(friend_gifts, "get_settings", return_value=SETTINGS), \
+             patch.object(friend_gifts, "gives_free", AsyncMock(return_value=False)), \
              patch.object(friend_gifts.db, "_pool_req") as pool:
             for amount, msg in ((59, "Минимальный"), (20001, "Максимальный")):
                 with self.subTest(amount=amount), self.assertRaisesRegex(friend_gifts.GiftError, msg):
                     await friend_gifts.create_gift(1, amount)
             pool.assert_not_called()
+
+    async def test_granted_user_goes_past_the_limits(self):
+        class Stop(Exception):
+            pass
+        with patch.object(friend_gifts, "get_settings", return_value=SETTINGS), \
+             patch.object(friend_gifts, "gives_free", AsyncMock(return_value=True)) as free, \
+             patch.object(friend_gifts.db, "_pool_req", side_effect=Stop):
+            with self.assertRaises(Stop):
+                await friend_gifts.create_gift(1, 50000)
+            free.assert_awaited()
+
+    def test_granted_flag_in_limits(self):
+        with patch.object(friend_gifts, "get_settings", return_value=SETTINGS):
+            self.assertEqual(friend_gifts.limits(1, {"gift_unlimited": True}), (1, friend_gifts.ADMIN_MAX_RUB))
+            self.assertTrue(friend_gifts.is_granted(1, {"gift_unlimited": True}))
+            self.assertFalse(friend_gifts.is_granted(9, {"gift_unlimited": True}))
 
     async def test_switched_off(self):
         off = Settings.model_construct(gifts_enabled=False, gift_min_rub=60, gift_max_rub=20000)
@@ -103,6 +121,7 @@ class GiftLimitsTest(unittest.IsolatedAsyncioTestCase):
 class GiveawayCountTest(unittest.IsolatedAsyncioTestCase):
     async def test_count_and_total_limits(self):
         with patch.object(friend_gifts, "get_settings", return_value=SETTINGS), \
+             patch.object(friend_gifts, "gives_free", AsyncMock(return_value=False)), \
              patch.object(friend_gifts.db, "_pool_req") as pool:
             for amount, count, msg in ((300, 0, "от 1 до 100"), (300, 101, "от 1 до 100"), (300, 70, "Всего можно")):
                 with self.subTest(count=count), self.assertRaisesRegex(friend_gifts.GiftError, msg):

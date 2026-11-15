@@ -3,6 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 
+class WidgetsOff(RuntimeError):
+    """Widgets are switched off in the admin panel; callers send their ordinary text message instead."""
+
+
 def is_user_blocked_bot(exc: BaseException | None = None, extra: dict | None = None) -> bool:
     parts: list[str] = []
     if exc is not None:

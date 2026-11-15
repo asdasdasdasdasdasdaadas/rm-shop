@@ -121,8 +121,10 @@ CONDITIONS = (
 )
 from app.recovery_funnel import CONDITIONS as RECOVERY_CONDITIONS
 from app.referral_followup import CONDITION as REFERRAL_FOLLOWUP_CONDITION
+from app.referral_followup import (EXTRA_CONDITIONS as REFERRAL_EXTRA, EXTRA_CYCLE as REFERRAL_CYCLE,
+                                   EXTRA_KINDS as REFERRAL_KINDS)
 from app.extra_journeys import CONDITIONS as EXTRA_CONDITIONS, CYCLE as EXTRA_CYCLE, KINDS as EXTRA_KINDS
-CONDITIONS = CONDITIONS + RECOVERY_CONDITIONS + (REFERRAL_FOLLOWUP_CONDITION,) + EXTRA_CONDITIONS
+CONDITIONS = CONDITIONS + RECOVERY_CONDITIONS + (REFERRAL_FOLLOWUP_CONDITION,) + REFERRAL_EXTRA + EXTRA_CONDITIONS
 CONDITION_IDS = {row["id"]: row for row in CONDITIONS}
 SPECIAL_ONCE = {"unpaid_invoice", "balance_low"}
 # Removed features: boards saved earlier may still name them, so they are dropped on load.
@@ -425,9 +427,12 @@ async def default_graph() -> dict:
             _step("quality-1", "quality", 20, tx("vpn_quality_check"), ["feedback_ok", "feedback_help", "feedback_terms"]),
         ]},
     ]
+    from app.referral_followup import extra_steps
+    invite_second, referral_branches = extra_steps(_step)
     branches.extend([
         {"id": "friends", "title": "Пригласить друга", "steps": [
             _step("invite-1", "invite", 48, tx("invite_nudge"), ["share", "copy", "menu"], enabled=invite_on),
+            {**invite_second, "enabled": invite_on},
         ]},
         {"id": "cabinet", "title": "Как устроен кабинет", "steps": [
             _step("info-1", "info", 96, tx("info_nudge"), ["cabinet", "menu"], enabled=info_on),
@@ -435,6 +440,7 @@ async def default_graph() -> dict:
         {"id": "gift", "title": "Подарок не забран", "steps": [
             _step("trial-1", "trial", 24, gift_text, ["gift", "help"], enabled=trial_on),
         ]},
+        *[{**b, "steps": [{**st, "enabled": invite_on} for st in b["steps"]]} for b in referral_branches],
     ])
     from app.recovery_funnel import upgrade
     from app.referral_followup import upgrade as upgrade_referrals
@@ -540,7 +546,7 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int], *, 
                 WHERE p.telegram_id = u.telegram_id AND p.step_id = $5
             )"""
     cycle_clause = ""
-    if step['condition'] in {'recover_idle', 'recover_online', 'recover_late', 'recover_topup', *EXTRA_CYCLE}:
+    if step['condition'] in {'recover_idle', 'recover_online', 'recover_late', 'recover_topup', *EXTRA_CYCLE, *REFERRAL_CYCLE}:
         cycle_anchor = SEEN if step['condition'] in {'recover_idle', 'recover_late'} else anchor
         cycle_clause = f" AND s.sent_at >= {cycle_anchor}"
         time_sql = time_sql.replace("p.step_id = $5", f"p.step_id = $5 AND p.sent_at >= {cycle_anchor}")
@@ -595,7 +601,8 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
         return 0, touched
     from app.recovery_funnel import KINDS
     kind = "nudge_setup_assist" if is_setup_assist(step, prev_id) else (
-        KINDS.get(step["condition"]) or EXTRA_KINDS.get(step["condition"], "nudge_board"))
+        KINDS.get(step["condition"]) or REFERRAL_KINDS.get(step["condition"])
+        or EXTRA_KINDS.get(step["condition"], "nudge_board"))
     from app import funnel_gifts
     wants_gift = any((b if isinstance(b, str) else b.get("action")) == GIFT_ACTION for b in step["buttons"])
     wants_promise = any((b if isinstance(b, str) else b.get("action")) == "promise" for b in step["buttons"])

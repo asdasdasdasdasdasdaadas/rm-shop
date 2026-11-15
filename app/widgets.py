@@ -34,9 +34,23 @@ UPDATE_TYPES = ("widget_query",)
 CAPTION_LIMIT = 1024
 
 
+from app.tg_err import WidgetsOff  # noqa: E402  (re-exported for callers)
+
+
+def widgets_on() -> bool:
+    return bool(get_settings().widgets_enabled)
+
+
 class SendWidget(TelegramMethod[Message]):
+    """Every card goes through here, so the admin switch «Карточки-виджеты в чате» stops them all at once:
+    building one raises WidgetsOff and each sender falls back to its plain message."""
     __returning__ = Message
     __api_method__ = "sendWidget"
+
+    def model_post_init(self, context: Any) -> None:
+        super().model_post_init(context)
+        if not widgets_on():
+            raise WidgetsOff("Виджеты выключены в админке")
 
     chat_id: int | str
     html: str

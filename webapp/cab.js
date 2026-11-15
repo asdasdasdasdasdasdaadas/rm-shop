@@ -2101,7 +2101,7 @@
         g.status === "active" ? `data-act="gfitem" data-code="${esc(g.code)}"` : ""];
     }).map((r) => (r[1] ? r : r[0]))) : "";
     const can = d ? Number(d.giftable_rub) || 0 : null;
-    const note = me.gift_admin ? NOTE("Вы администратор: дарите любую сумму кому угодно, с баланса ничего не спишется", true)
+    const note = me.gift_admin ? NOTE(me.gift_granted ? "Вам открыт безлимит подарков: дарите любую сумму кому угодно, с баланса ничего не спишется" : "Вы администратор: дарите любую сумму кому угодно, с баланса ничего не спишется", true)
       : can == null ? "" : NOTE(can >= gTotal() ? `Баланс ${rub(me.balance_rub)} · подарить можно до ${rub(can)}`
       : can > 0 ? `Подарить можно до ${rub(can)} — это деньги, которые вы внесли сами` : "Подарить можно только свои деньги — сначала пополните баланс", true);
     return hero + `<div class="gf-rest">${note + how + list}</div>`;
@@ -2156,7 +2156,7 @@
     const left = (Number(me.balance_rub) || 0) - n, perDay = dayPrice() * Math.max(1, phones().length);
     const warn = !me.gift_admin && phones().length && left < perDay ? `\n\nНа балансе останется ${rub(left)} — VPN может встать на паузу.` : "";
     const later = cnt > 1 ? "Каждый в группе заберёт по одному. Что не заберут, можно вернуть." : "Друг получит ссылку. Пока он её не откроет, подарок можно вернуть.";
-    const ask = me.gift_admin ? `Подарить ${what}?\n\nПодарок от администратора — с вашего баланса ничего не спишется. ${later}`
+    const ask = me.gift_admin ? `Подарить ${what}?\n\n${me.gift_granted ? "Подарок за счёт сервиса" : "Подарок от администратора"} — с вашего баланса ничего не спишется. ${later}`
       : `Подарить ${what}${cnt > 1 ? ` — ${rub(n)}` : ""} с баланса?\n\n${later}${warn}`;
     if (!(await confirmAsk(ask))) return;
     gs.busy = true;

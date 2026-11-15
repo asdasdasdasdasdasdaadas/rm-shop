@@ -7,6 +7,8 @@ import re
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
+
+from app.tg_err import WidgetsOff
 from aiogram.filters import Command, CommandObject, CommandStart
 from app.cabinet_login import start_challenge_id
 from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
@@ -292,6 +294,8 @@ async def cmd_widget(message: Message) -> None:
         await send_balance_widget(message.bot, message.from_user.id)
     except TelegramBadRequest as exc:
         await message.answer(f"Виджет не отправился: {exc.message}")
+    except WidgetsOff:
+        await message.answer("Виджеты выключены: Настройки → Сервис и поддержка → «Карточки-виджеты в чате».")
 
 
 @router.message(Command("stats"))
@@ -304,6 +308,8 @@ async def cmd_stats(message: Message) -> None:
         await send_stats_widget(message.bot, message.from_user.id)
     except TelegramBadRequest as exc:
         await message.answer(f"Виджет не отправился: {exc.message}")
+    except WidgetsOff:
+        await message.answer("Виджеты выключены: Настройки → Сервис и поддержка → «Карточки-виджеты в чате».")
     except Exception as exc:
         logging.getLogger(__name__).exception("Виджет статистики не собрался")
         await message.answer(f"Статистика не собралась: {type(exc).__name__}")
@@ -319,6 +325,8 @@ async def cmd_forecast(message: Message) -> None:
         await send_forecast_widget(message.bot, message.from_user.id)
     except TelegramBadRequest as exc:
         await message.answer(f"Виджет не отправился: {exc.message}")
+    except WidgetsOff:
+        await message.answer("Виджеты выключены: Настройки → Сервис и поддержка → «Карточки-виджеты в чате».")
     except Exception as exc:
         logging.getLogger(__name__).exception("Виджет прогноза не собрался")
         await message.answer(f"Прогноз не собрался: {type(exc).__name__}")
@@ -336,6 +344,8 @@ async def cmd_digest(message: Message) -> None:
         await send_digest_widget(message.bot, message.from_user.id, day)
     except TelegramBadRequest as exc:
         await message.answer(f"Виджет не отправился: {exc.message}")
+    except WidgetsOff:
+        await message.answer("Виджеты выключены: Настройки → Сервис и поддержка → «Карточки-виджеты в чате».")
     except Exception as exc:
         logging.getLogger(__name__).exception("Виджет итогов дня не собрался")
         await message.answer(f"Итоги не собрались: {type(exc).__name__}")

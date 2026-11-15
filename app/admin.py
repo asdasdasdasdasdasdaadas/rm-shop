@@ -1435,6 +1435,24 @@ async def api_user_billing_pause(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "paused": paused, "billing": billing})
 
 
+async def api_user_gift_unlimited(request: web.Request) -> web.Response:
+    """Lets a user gift any amount free of charge, like an admin; the admin can take it back."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    telegram_id = int(request.match_info["telegram_id"])
+    if not await db.get_user(telegram_id):
+        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    body = await request.json()
+    on = bool(body.get("on"))
+    await db._pool_req().execute("UPDATE users SET gift_unlimited=$2 WHERE telegram_id=$1", telegram_id, on)
+    await db.log_billing_event(
+        telegram_id, "admin_gift_unlimited" if on else "admin_gift_limited", source="admin",
+        note="Админ разрешил дарить подарки без ограничений" if on else "Админ убрал безлимит подарков",
+    )
+    return web.json_response({"ok": True, "gift_unlimited": on})
+
+
 BULK_MAX = 500
 
 
@@ -2956,6 +2974,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/users/{telegram_id}/delete", api_delete_user)
     app.router.add_post("/admin/api/users/{telegram_id}/block", api_block_user)
     app.router.add_post("/admin/api/users/{telegram_id}/billing-pause", api_user_billing_pause)
+    app.router.add_post("/admin/api/users/{telegram_id}/gift-unlimited", api_user_gift_unlimited)
     app.router.add_get("/admin/api/flags", api_flags)
     app.router.add_post("/admin/api/flags", api_flags)
     app.router.add_get("/admin/api/subscriptions/replace", api_replace_subscriptions)

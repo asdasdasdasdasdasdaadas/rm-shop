@@ -35,6 +35,8 @@ export const billKinds: Data = {
   pause: "Пауза",
   admin_pause: "Остановка списаний",
   admin_resume: "Возобновление списаний",
+  admin_gift_unlimited: "Безлимит подарков выдан",
+  admin_gift_limited: "Безлимит подарков убран",
   revive: "Включение",
   trial: "Пробный период",
   admin_balance: "Изменение баланса",

@@ -650,6 +650,9 @@ async def send_pay_widget(bot, telegram_id: int, *, nano: int, rub: int):
     from app.widgets import SendWidget, _json, ton_pay_html
     if not allowed(telegram_id):
         raise ValueError(f"Оплата в {NAME} выключена")
+    from app.widgets import widgets_on
+    if not widgets_on():
+        return await send_pay_link(bot, telegram_id, nano=nano)
     try:
         return await bot(SendWidget(
             chat_id=telegram_id, html=ton_pay_html(), chat_data=_json(_state(nano, rub)),

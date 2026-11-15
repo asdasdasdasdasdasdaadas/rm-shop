@@ -33,6 +33,16 @@ logging.basicConfig(
 logger = logging.getLogger("rm-shop")
 
 
+def _quiet_widgets_off(record: logging.LogRecord) -> bool:
+    # With widgets switched off in the admin every card falls back to text on purpose: no traceback for that.
+    exc = record.exc_info[1] if record.exc_info else None
+    return type(exc).__name__ != "WidgetsOff"
+
+
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(_quiet_widgets_off)
+
+
 async def balance_charge_loop(rw: RemnawaveClient, bot: Bot) -> None:
     settings = get_settings()
     interval = settings.balance_charge_interval

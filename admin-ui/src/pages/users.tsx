@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Sheet,
   SheetContent,
@@ -895,6 +896,8 @@ function UserDetail({
       setUser({ ...u, blocked_at: r.blocked ? "yes" : null });
     if (r.paused !== undefined)
       setUser({ ...u, billing_paused_at: r.paused ? "yes" : null });
+    if (r.gift_unlimited !== undefined)
+      setUser({ ...u, gift_unlimited: r.gift_unlimited });
     await onChange();
     toast.success("Изменения сохранены");
   };
@@ -1029,6 +1032,27 @@ function UserDetail({
                 Применить
               </Button>
             </div>
+          </Panel>
+          <Panel
+            title="Подарки друзьям"
+            description="С безлимитом человек дарит любые суммы, как администратор: с его баланса ничего не списывается."
+          >
+            <label className="flex items-center justify-between gap-3">
+              <span>Дарить без ограничений</span>
+              <Switch
+                checked={!!u.gift_unlimited}
+                onCheckedChange={(on) =>
+                  confirm({
+                    title: on ? "Разрешить безлимитные подарки?" : "Убрать безлимит подарков?",
+                    description: on
+                      ? `${who(u)} сможет дарить друзьям любые суммы за счёт сервиса. Право можно забрать в любой момент.`
+                      : `${who(u)} снова сможет дарить только деньги, которые внёс сам.`,
+                    label: on ? "Разрешить" : "Убрать",
+                    action: () => act("gift-unlimited", { on }),
+                  })
+                }
+              />
+            </label>
           </Panel>
           <div className="flex flex-wrap gap-2">
             <DropdownMenu>

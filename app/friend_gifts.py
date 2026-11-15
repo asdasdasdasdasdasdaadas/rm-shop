@@ -27,13 +27,29 @@ class GiftError(ValueError):
 ADMIN_MAX_RUB = 1_000_000
 
 
-def is_admin(telegram_id: int | None) -> bool:
-    return telegram_id is not None and int(telegram_id) in get_settings().admin_id_set
+def is_admin(telegram_id: int | None, local: dict | None = None) -> bool:
+    """Gifts free of charge and without limits: an admin, or someone an admin granted it (users.gift_unlimited)."""
+    if telegram_id is None:
+        return False
+    return int(telegram_id) in get_settings().admin_id_set or bool((local or {}).get("gift_unlimited"))
 
 
-def limits(telegram_id: int | None = None) -> tuple[int, int]:
-    """Gift amount limits; an admin gifts any amount (the cap only guards against a typo)."""
+def is_granted(telegram_id: int | None, local: dict | None) -> bool:
+    """Unlimited gifts by an admin's grant, not because the person is an admin."""
+    return telegram_id is not None and int(telegram_id) not in get_settings().admin_id_set \
+        and bool((local or {}).get("gift_unlimited"))
+
+
+async def gives_free(telegram_id: int, conn=None) -> bool:
     if is_admin(telegram_id):
+        return True
+    q = conn or db._pool_req()
+    return bool(await q.fetchval("SELECT gift_unlimited FROM users WHERE telegram_id=$1", int(telegram_id)))
+
+
+def limits(telegram_id: int | None = None, local: dict | None = None) -> tuple[int, int]:
+    """Gift amount limits; an admin (or a granted user) gifts any amount (the cap only guards against a typo)."""
+    if is_admin(telegram_id, local):
         return 1, ADMIN_MAX_RUB
     s = get_settings()
     lo = max(1, int(s.gift_min_rub or 1))
@@ -101,7 +117,7 @@ _GIFTABLE_SQL = """
 
 async def giftable_rub(telegram_id: int, conn=None) -> int:
     """How much of the balance can be gifted: the balance, but not more than the user paid in themselves."""
-    if is_admin(telegram_id):
+    if await gives_free(telegram_id, conn):
         return ADMIN_MAX_RUB
     q = conn or db._pool_req()
     return int(await q.fetchval(_GIFTABLE_SQL, telegram_id) or 0)
@@ -109,15 +125,21 @@ async def giftable_rub(telegram_id: int, conn=None) -> int:
 
 async def create_gift(telegram_id: int, amount: int, count: int = 1) -> dict:
     """One gift, or a giveaway of `count` equal gifts behind one link (first come, one each)."""
-    lo, hi = limits(telegram_id)
     admin = is_admin(telegram_id)
+    lo, hi = limits(telegram_id)
     if not get_settings().gifts_enabled:
         raise GiftError("Подарки сейчас недоступны")
     if not isinstance(count, int) or count < 1 or count > MAX_COUNT:
         raise GiftError(f"Подарков может быть от 1 до {MAX_COUNT}")
-    if not isinstance(amount, int) or amount < lo:
+    if not isinstance(amount, int):
         raise GiftError(f"Минимальный подарок — {lo} ₽")
     total = amount * count
+    if not admin and (amount < lo or total > hi) and 1 <= amount and total <= ADMIN_MAX_RUB:
+        # Outside the usual limits: only someone with an admin-granted unlimited right may go on.
+        if await gives_free(telegram_id):
+            admin, lo, hi = True, 1, ADMIN_MAX_RUB
+    if amount < lo:
+        raise GiftError(f"Минимальный подарок — {lo} ₽")
     if total > hi:
         raise GiftError(f"Всего можно подарить до {hi} ₽ за раз" if count > 1 else f"Максимальный подарок — {hi} ₽")
     async with db._pool_req().acquire() as conn:
@@ -125,7 +147,9 @@ async def create_gift(telegram_id: int, amount: int, count: int = 1) -> dict:
             user = await conn.fetchrow("SELECT balance_rub FROM users WHERE telegram_id=$1 FOR UPDATE", telegram_id)
             if not user:
                 raise GiftError("Пользователь не найден")
-            can = await giftable_rub(telegram_id, conn)
+            if not admin:
+                admin = await gives_free(telegram_id, conn)
+            can = 0 if admin else await giftable_rub(telegram_id, conn)
             if not admin and total > can:
                 raise GiftError(
                     f"Можно подарить до {can} ₽ — это деньги, которые вы сами внесли на баланс"
@@ -144,7 +168,8 @@ async def create_gift(telegram_id: int, amount: int, count: int = 1) -> dict:
                 await conn.execute(
                     """INSERT INTO billing_events (telegram_id, kind, source, amount, balance_after, note)
                        VALUES ($1, 'gift_sent', 'admin', 0, $2, $3)""",
-                    telegram_id, balance, f"Подарок {what} от администратора, без списания",
+                    telegram_id, balance, f"Подарок {what} от администратора, без списания" if is_admin(telegram_id)
+                    else f"Подарок {what} без списания (безлимит подарков выдан админом)",
                 )
             else:
                 balance = await conn.fetchval(

@@ -85,6 +85,8 @@ class Settings(BaseSettings):
     welcome_tariff_enabled: bool = True
     welcome_support_enabled: bool = False
     cabinet_price_enabled: bool = True
+    # Cards (sendWidget) in the chat; off — every card goes as an ordinary message with buttons.
+    widgets_enabled: bool = True
     trust_days: int = 3
     trust_fee_rub: int = 12
     balance_charge_interval: int = 600
@@ -303,6 +305,7 @@ SHOP_KEYS = frozenset(
         "welcome_tariff_enabled",
         "welcome_support_enabled",
         "cabinet_price_enabled",
+        "widgets_enabled",
         "trust_days",
         "trust_fee_rub",
         "referral_reward_days",

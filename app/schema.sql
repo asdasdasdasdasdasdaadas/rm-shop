@@ -999,3 +999,6 @@ CREATE TABLE IF NOT EXISTS broadcast_arms (
     delivered_at TIMESTAMPTZ,
     PRIMARY KEY (run_id, telegram_id)
 );
+
+-- Admin-granted right to gift any amount without paying from the balance, like an admin.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS gift_unlimited BOOLEAN NOT NULL DEFAULT FALSE;
