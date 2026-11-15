@@ -12,7 +12,7 @@ import secrets
 import asyncpg
 
 from app.config import get_settings
-from app.tg_err import is_user_blocked_bot
+from app.tg_err import is_user_blocked_bot, is_user_deactivated
 from app.remnawave import panel_lifetime_traffic_bytes, panel_online_at, panel_used_traffic_bytes
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
@@ -1706,6 +1706,52 @@ async def mark_bot_blocked(telegram_id: int) -> bool:
     return True
 
 
+async def mark_tg_deleted(telegram_id: int) -> bool:
+    """A deleted Telegram account: no more messages (bot_blocked_at too), waits for «Удалённые аккаунты» cleanup."""
+    row = await _pool_req().fetchrow(
+        """UPDATE users SET tg_deleted_at = COALESCE(tg_deleted_at, $2), bot_blocked_at = COALESCE(bot_blocked_at, $2)
+           WHERE telegram_id = $1 RETURNING telegram_id""",
+        int(telegram_id), _utc_now(),
+    )
+    if not row:
+        return False
+    await clawback_idle_referral(int(telegram_id))
+    return True
+
+
+_PAID_SQL = """(COALESCE(has_paid_topup, FALSE)
+    OR EXISTS (SELECT 1 FROM payments p WHERE p.telegram_id = users.telegram_id)
+    OR EXISTS (SELECT 1 FROM pay_orders o WHERE o.telegram_id = users.telegram_id AND o.status = 'granted'))"""
+
+
+async def deleted_accounts_summary(admin_ids: list[int]) -> dict:
+    row = await _pool_req().fetchrow(
+        f"""SELECT
+              COUNT(*) FILTER (WHERE tg_deleted_at IS NOT NULL AND NOT {_PAID_SQL})::int AS unpaid,
+              COUNT(*) FILTER (WHERE tg_deleted_at IS NOT NULL AND {_PAID_SQL} AND blocked_at IS NULL)::int AS paid,
+              COUNT(*) FILTER (WHERE tg_deleted_at IS NULL AND bot_blocked_at IS NOT NULL)::int AS unchecked
+            FROM users WHERE NOT (telegram_id = ANY($1::bigint[]))""",
+        [int(x) for x in admin_ids],
+    )
+    return dict(row) if row else {"unpaid": 0, "paid": 0, "unchecked": 0}
+
+
+async def list_unchecked_blockers(limit: int, after: int = 0) -> list[int]:
+    rows = await _pool_req().fetch(
+        """SELECT telegram_id FROM users WHERE tg_deleted_at IS NULL AND bot_blocked_at IS NOT NULL
+           AND telegram_id > $2 ORDER BY telegram_id LIMIT $1""", int(limit), int(after))
+    return [int(r["telegram_id"]) for r in rows]
+
+
+async def list_deleted_accounts(limit: int) -> list[dict]:
+    """Deleted Telegram accounts still in the base: unpaid ones are removed, paid ones only switched off."""
+    rows = await _pool_req().fetch(
+        f"""SELECT telegram_id, {_PAID_SQL} AS paid FROM users
+            WHERE tg_deleted_at IS NOT NULL AND NOT ({_PAID_SQL} AND blocked_at IS NOT NULL)
+            ORDER BY tg_deleted_at, telegram_id LIMIT $1""", int(limit))
+    return [dict(r) for r in rows]
+
+
 async def clawback_idle_referral(invitee_id: int) -> dict | None:
     settings = get_settings()
     amount = int(settings.referral_reward_rub or 0)
@@ -2739,7 +2785,12 @@ async def log_bot_message(
     except Exception:
         logging.getLogger("rm-shop.db").debug("Не удалось записать журнал сообщений", exc_info=True)
         return
-    if str(status or "") == "failed" and telegram_id and is_user_blocked_bot(extra=extra or {}):
+    if str(status or "") == "failed" and telegram_id and is_user_deactivated(extra=extra or {}):
+        try:
+            await mark_tg_deleted(int(telegram_id))
+        except Exception:
+            logging.getLogger("rm-shop.db").debug("Не удалось отметить удалённый аккаунт %s", telegram_id, exc_info=True)
+    elif str(status or "") == "failed" and telegram_id and is_user_blocked_bot(extra=extra or {}):
         try:
             await mark_bot_blocked(int(telegram_id))
         except Exception:

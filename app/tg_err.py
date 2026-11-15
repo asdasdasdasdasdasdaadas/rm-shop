@@ -18,6 +18,18 @@ def is_user_blocked_bot(exc: BaseException | None = None, extra: dict | None = N
     return "blocked by the user" in blob or "пользователь заблокировал бота" in blob
 
 
+def is_user_deactivated(exc: BaseException | None = None, extra: dict | None = None) -> bool:
+    """The Telegram account itself is deleted: no message will ever reach it again."""
+    parts: list[str] = []
+    if exc is not None:
+        parts.append(str(exc))
+    if isinstance(extra, dict):
+        parts.append(str(extra.get("error") or ""))
+        parts.append(str(extra.get("error_raw") or ""))
+    blob = " ".join(parts).lower()
+    return "user is deactivated" in blob or "user deactivated" in blob or "аккаунт telegram удалён" in blob
+
+
 def telegram_fail_reason(exc: BaseException) -> str:
     raw = " ".join(str(exc).strip().split())
     low = raw.lower()

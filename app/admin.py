@@ -1389,6 +1389,70 @@ async def api_purge_bot_blockers(request: web.Request) -> web.Response:
     )
 
 
+async def api_deleted_accounts(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    summary = await db.deleted_accounts_summary(sorted(get_settings().admin_id_set))
+    return web.json_response({"ok": True, **summary})
+
+
+DELETED_PROBE_MAX = 300
+DELETED_PURGE_MAX = 200
+
+
+async def api_purge_deleted_accounts(request: web.Request) -> web.Response:
+    """Deleted Telegram accounts: first ask Telegram about those who stopped receiving messages (a «typing» action,
+    nobody sees it in a chat with a blocked bot), then remove profiles that never paid and switch off paid ones
+    (their VPN and billing stop, payments stay in the books)."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
+    from app.tg_err import is_user_deactivated
+    bot: Bot = request.app["bot"]
+    rw: RemnawaveClient = request.app["rw"]
+    admins = get_settings().admin_id_set
+    found = 0
+    checked = 0
+    for telegram_id in await db.list_unchecked_blockers(DELETED_PROBE_MAX):
+        if telegram_id in admins:
+            continue
+        try:
+            await bot.send_chat_action(telegram_id, "typing")
+        except TelegramRetryAfter as exc:
+            await asyncio.sleep(min(30, float(exc.retry_after or 1)))
+            continue
+        except TelegramForbiddenError as exc:
+            if is_user_deactivated(exc):
+                await db.mark_tg_deleted(telegram_id)
+                found += 1
+        except Exception:
+            logger.debug("Проверка аккаунта %s не удалась", telegram_id, exc_info=True)
+        checked += 1
+        await asyncio.sleep(0.04)
+    deleted = 0
+    switched_off = 0
+    skipped = 0
+    for row in await db.list_deleted_accounts(DELETED_PURGE_MAX):
+        telegram_id = int(row["telegram_id"])
+        if telegram_id in admins:
+            skipped += 1
+            continue
+        if row["paid"]:
+            status = await _apply_block(rw, telegram_id, True, "Аккаунт Telegram удалён")
+            switched_off += status == "ok"
+        else:
+            status = await _purge_user(rw, telegram_id)
+            deleted += status == "ok"
+        if status != "ok":
+            skipped += 1
+        await asyncio.sleep(0.02)
+    summary = await db.deleted_accounts_summary(sorted(admins))
+    return web.json_response({"ok": True, "checked": checked, "found": found, "deleted": deleted,
+                              "switched_off": switched_off, "skipped": skipped, **summary})
+
+
 async def api_block_user(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -2966,6 +3030,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/settings", api_settings)
     app.router.add_post("/admin/api/settings/referrals", api_referral_settings)
     app.router.add_post("/admin/api/users/purge-bot-blockers", api_purge_bot_blockers)
+    app.router.add_get("/admin/api/users/deleted-accounts", api_deleted_accounts)
+    app.router.add_post("/admin/api/users/purge-deleted-accounts", api_purge_deleted_accounts)
     app.router.add_post("/admin/api/users/{telegram_id}/grant", api_grant)
     app.router.add_post("/admin/api/users/{telegram_id}/balance", api_balance)
     app.router.add_post("/admin/api/users/{telegram_id}/trial-reset", api_trial_reset)

@@ -954,7 +954,9 @@ function NoticeEditor({
 }
 function SystemSettings() {
   const flags = useResource("flags"),
-    job = useResource("subscriptions/replace", 5000);
+    job = useResource("subscriptions/replace", 5000),
+    gone = useResource("users/deleted-accounts");
+  const [goneResult, setGoneResult] = useState("");
   const [message, setMessage] = useState(""),
     [file, setFile] = useState<File | null>(null),
     [revoke, setRevoke] = useState(true),
@@ -1142,6 +1144,52 @@ function SystemSettings() {
         {cleanup && (
           <p className="text-sm mt-4" role="status">
             {cleanup}
+          </p>
+        )}
+      </Panel>
+      <Panel
+        title="Удалённые аккаунты Telegram"
+        description="Люди, которые удалили свой аккаунт в Telegram: сообщения им больше не доходят. Бот замечает их сам, когда сообщение не доставлено, а очистка ещё и проверяет тех, кто перестал получать сообщения. Кто ни разу не платил — удаляется. Кто платил — отключается: VPN и списания останавливаются, оплаты остаются в отчётах."
+      >
+        {gone.data && (
+          <dl className="adm-rows mb-4">
+            {[
+              ["Удалённые, без оплат — удалим", gone.data.unpaid],
+              ["Удалённые, платили — отключим", gone.data.paid],
+              ["Не получают сообщения, ещё не проверены", gone.data.unchecked],
+            ].map(([k, v]) => (
+              <div key={String(k)}>
+                <dt>{k}</dt>
+                <dd>{Number(v || 0).toLocaleString("ru-RU")}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        <Button
+          variant="outline"
+          onClick={() =>
+            confirm({
+              title: "Почистить удалённые аккаунты Telegram?",
+              description:
+                "Сначала бот проверит до 300 человек, которые не получают сообщения. Потом удалит до 200 профилей удалённых аккаунтов без оплат и отключит удалённые аккаунты с оплатами. Удаление необратимо.",
+              danger: true,
+              phrase: "ОЧИСТИТЬ",
+              label: "Очистить",
+              action: async () => {
+                const r = await api("users/purge-deleted-accounts", {});
+                setGoneResult(
+                  `Проверено: ${r.checked}, нашлось удалённых: ${r.found}. Удалено: ${r.deleted}. Отключено: ${r.switched_off}. Пропущено: ${r.skipped}. Осталось: без оплат ${r.unpaid}, с оплатами ${r.paid}, не проверено ${r.unchecked}.`,
+                );
+                await gone.reload();
+              },
+            })
+          }
+        >
+          Очистить удалённые аккаунты
+        </Button>
+        {goneResult && (
+          <p className="text-sm mt-4" role="status">
+            {goneResult}
           </p>
         )}
       </Panel>

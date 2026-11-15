@@ -852,9 +852,9 @@ export function UsersPage() {
   );
 }
 const heroTone = (u: Data) =>
-  u.blocked_at ? "red" : u.billing_paused_at ? "orange" : String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "green" : "slate";
+  u.tg_deleted_at || u.blocked_at ? "red" : u.billing_paused_at ? "orange" : String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "green" : "slate";
 const heroStatus = (u: Data) =>
-  u.blocked_at ? "Заблокирован" : u.billing_paused_at ? "Списания на паузе" : String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "Доступ активен" : "Нет доступа";
+  u.tg_deleted_at ? "Аккаунт Telegram удалён" : u.blocked_at ? "Заблокирован" : u.billing_paused_at ? "Списания на паузе" : String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "Доступ активен" : "Нет доступа";
 function UserDetail({
   user,
   onChange,

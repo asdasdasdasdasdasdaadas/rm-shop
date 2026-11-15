@@ -1002,3 +1002,21 @@ CREATE TABLE IF NOT EXISTS broadcast_arms (
 
 -- Admin-granted right to gift any amount without paying from the balance, like an admin.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS gift_unlimited BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- The Telegram account was deleted ("user is deactivated"): nothing reaches it, the admin cleans such profiles up.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tg_deleted_at TIMESTAMPTZ;
+UPDATE users u
+SET tg_deleted_at = m.first_at, bot_blocked_at = COALESCE(u.bot_blocked_at, m.first_at)
+FROM (
+    SELECT telegram_id, MIN(created_at) AS first_at
+    FROM message_log
+    WHERE status = 'failed'
+      AND telegram_id IS NOT NULL
+      AND (
+        extra->>'error' = 'аккаунт Telegram удалён'
+        OR COALESCE(extra->>'error_raw', '') ILIKE '%deactivated%'
+      )
+    GROUP BY telegram_id
+) m
+WHERE u.telegram_id = m.telegram_id
+  AND u.tg_deleted_at IS NULL;
