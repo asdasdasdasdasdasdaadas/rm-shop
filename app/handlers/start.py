@@ -83,6 +83,12 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
             from app.referrals import maybe_reward_menu
             if await maybe_reward_menu(message.bot, from_user.id):
                 local = await db.get_user(from_user.id)
+    granted = None
+    if from_user and trial_is_available(local):
+        from app import auto_gift
+        granted = await auto_gift.grant_if_auto(from_user.id)
+        if granted is not None:
+            local = await db.get_user(from_user.id)
     trial_available = trial_is_available(local)
     access = has_access(local, panel)
     text = profile_text(
@@ -107,6 +113,10 @@ async def show_profile(target: Message | CallbackQuery, rw: RemnawaveClient) -> 
         await answer_funnel(message,
             text, reply_markup=kb, preserve=True, link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
+    if granted is not None:
+        from app import auto_gift
+        from app.keyboards import onboarding_keyboard
+        await answer_funnel(message, auto_gift.granted_text(), reply_markup=onboarding_keyboard(), preserve=True)
     if from_user:
         await db.mark_legal_notice(from_user.id)
 

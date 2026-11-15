@@ -774,6 +774,21 @@ CREATE TABLE IF NOT EXISTS checkout_feedback (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_pause_until TIMESTAMPTZ;
 
+-- A/B test «подарок сразу на балансе» (app/auto_gift.py): one row per test, one group per new person.
+CREATE TABLE IF NOT EXISTS auto_gift_tests (
+    id BIGSERIAL PRIMARY KEY,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    stopped_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS auto_gift_arms (
+    telegram_id BIGINT PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
+    test_id BIGINT NOT NULL REFERENCES auto_gift_tests(id) ON DELETE CASCADE,
+    arm TEXT NOT NULL CHECK (arm IN ('auto','manual')),
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    granted_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS auto_gift_arms_test_idx ON auto_gift_arms(test_id, arm);
+
 -- The «почему не продолжили» question was dropped the day it shipped.
 DROP TABLE IF EXISTS gift_end_feedback;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS marketing_pause_started_at TIMESTAMPTZ;

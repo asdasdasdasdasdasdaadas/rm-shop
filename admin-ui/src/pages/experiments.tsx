@@ -177,6 +177,79 @@ function NewTest({
   );
 }
 
+// «Подарок сразу на балансе»: half of the new people get the start gift credited at once.
+function AutoGiftTest() {
+  const resource = useResource("auto-gift");
+  const confirm = useConfirm();
+  const data = resource.data;
+  const items: Data[] = data?.items || [];
+  const current = items.find((i) => i.running);
+  const shown = current || items[0];
+  const run = (action: "start" | "stop") =>
+    confirm({
+      title: action === "start" ? "Запустить тест подарка?" : "Остановить тест подарка?",
+      description:
+        action === "start"
+          ? `Половина новых пользователей получит стартовый подарок на баланс сразу, без кнопки «Забрать подарок». Дни начнут тратиться только после первого подключения. Результаты — за ${data?.window_days || 14} дней.`
+          : "Все новые снова будут забирать подарок кнопкой. Результаты останутся здесь.",
+      label: action === "start" ? "Запустить" : "Остановить",
+      action: async () => {
+        await api("auto-gift", { action });
+        toast.success(action === "start" ? "Тест запущен" : "Тест остановлен");
+        await resource.reload();
+      },
+    });
+  return (
+    <Panel
+      title="Стартовый подарок: сразу на балансе или по кнопке"
+      description={
+        shown
+          ? `${shown.running ? "Идёт" : "Остановлен"} с ${date(shown.started_at)}` +
+            (shown.stopped_at ? ` по ${date(shown.stopped_at)}` : "") +
+            ` · в тест попадают только новые пользователи · подключения и оплаты за ${data?.window_days || 14} дней`
+          : "Половина новых пользователей получает подарок на баланс сразу, половина — по кнопке, как сейчас."
+      }
+      action={
+        data ? (
+          <Button variant={current ? "outline" : "default"} onClick={() => run(current ? "stop" : "start")}>
+            {current ? "Остановить" : "Запустить тест"}
+          </Button>
+        ) : undefined
+      }
+    >
+      {resource.error ? (
+        <Failure message={resource.error} retry={resource.reload} />
+      ) : !data ? (
+        <Loading />
+      ) : !shown ? (
+        <p className="text-sm text-muted-foreground">Тест ещё не запускали.</p>
+      ) : (
+        <div className="space-y-3">
+          <DataTable
+            rows={shown.arms || []}
+            columns={[
+              { key: "label", label: "Группа" },
+              { key: "users", label: "Людей" },
+              { key: "took_gift", label: "С подарком" },
+              { key: "device", label: "Добавили устройство" },
+              { key: "connected", label: "Подключили VPN", cell: (r) => `${r.connected} · ${pct(r.connected_pct)}` },
+              { key: "payers", label: "Оплатили", cell: (r) => `${r.payers} · ${pct(r.conversion)}` },
+              { key: "rub", label: "Выручка", cell: (r) => money(r.rub) },
+              { key: "rub_per_user", label: "₽ на человека", cell: (r) => money(r.rub_per_user) },
+            ]}
+          />
+          {(shown.verdicts || []).map((v: Data, i: number) => (
+            <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
+              <Badge variant={v.sure ? "default" : "secondary"}>{v.what}</Badge>
+              <span>{v.verdict}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 export function ExperimentsPage() {
   const resource = useResource("experiments"),
     [open, setOpen] = useState(false);
@@ -244,6 +317,7 @@ export function ExperimentsPage() {
           Новый тест
         </Button>
       </div>
+      <AutoGiftTest />
       {resource.error ? (
         <Failure message={resource.error} retry={resource.reload} />
       ) : !data ? (

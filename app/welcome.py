@@ -161,10 +161,17 @@ async def send_welcome_intro(
 async def send_welcome_continuation(message: Message, telegram_id: int, *, in_channel: bool) -> None:
     settings=get_settings()
     in_channel = in_channel or not settings.required_channel_enabled
+    granted = None
+    if in_channel and trial_is_available(await db.get_user(telegram_id)):
+        from app import auto_gift
+        granted = await auto_gift.grant_if_auto(telegram_id)
     local=await db.get_user(telegram_id)
     trial_on=trial_is_available(local)
     days=days_text(settings.trial_days)
-    if trial_on:
+    if granted is not None:
+        from app import auto_gift
+        try_body = auto_gift.granted_text()
+    elif trial_on:
         try_body = notice_text("welcome_intro_try", days=days)
     else:
         try_body = notice_text("welcome_intro_try_no_trial")
@@ -179,11 +186,13 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
             story_offer=False,
         )
     if in_channel:
-        if trial_on:
-            # The hottest moment of the funnel: put the gift one tap away, above the menu.
-            gift = onboarding_keyboard(gift=True).inline_keyboard[0][0]
+        if trial_on or granted is not None:
+            # The hottest moment of the funnel: put the gift (or, with it already credited, the connection)
+            # one tap away, above the menu.
+            gift = onboarding_keyboard(gift=granted is None).inline_keyboard[0][0]
             gift = gift.model_copy(update={"style": "success"})
-            kb = kb.model_copy(update={"inline_keyboard": [[gift], *kb.inline_keyboard]}) if kb else onboarding_keyboard(gift=True)
+            kb = (kb.model_copy(update={"inline_keyboard": [[gift], *kb.inline_keyboard]}) if kb
+                  else onboarding_keyboard(gift=granted is None))
     last += "\n\n" + legal_text()
     await answer_funnel(message, last, reply_markup=kb, preserve=in_channel, link_preview_options=LinkPreviewOptions(is_disabled=True))
     await db.mark_legal_notice(telegram_id)

@@ -2159,6 +2159,32 @@ async def api_experiments(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **await experiments.overview(graph)})
 
 
+async def api_auto_gift(request: web.Request) -> web.Response:
+    """The «подарок сразу на балансе» A/B test: results (GET), start or stop (POST {action})."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import auto_gift
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        action = (body or {}).get("action") if isinstance(body, dict) else None
+        if action == "start":
+            if not get_settings().trial_enabled:
+                return web.json_response({"ok": False, "error": "Стартовый подарок выключен в настройках"}, status=400)
+            try:
+                await auto_gift.start()
+            except ValueError as exc:
+                return web.json_response({"ok": False, "error": str(exc)}, status=400)
+        elif action == "stop":
+            await auto_gift.stop()
+        else:
+            return web.json_response({"ok": False, "error": "Некорректный запрос"}, status=400)
+    return web.json_response({"ok": True, **await auto_gift.overview()})
+
+
 async def api_experiment_stop(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -3087,6 +3113,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/experiments", api_experiments)
     app.router.add_post("/admin/api/experiments", api_experiments)
     app.router.add_post("/admin/api/experiments/{exp_id}/stop", api_experiment_stop)
+    app.router.add_get("/admin/api/auto-gift", api_auto_gift)
+    app.router.add_post("/admin/api/auto-gift", api_auto_gift)
     app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast/media", api_broadcast_media)
