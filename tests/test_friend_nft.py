@@ -40,6 +40,12 @@ class PureTest(unittest.TestCase):
             self.assertEqual(gifts[-1]["a"][1][1], "Onyx Black")
             self.assertEqual(len(gifts), len(friend_nft.DEFAULT["steps"]))
 
+    def test_black_backdrop_is_pure_black(self):
+        old = {"slug": "lolpop-1", "name": "Lol Pop", "bg": ["#5d6265", "#313537", "#121416"], "a": [["Модель", "X", "1%"], ["Фон", "Onyx Black", "1%"]]}
+        self.assertEqual(friend_nft.normalize({"sets": [[old]]})["sets"][0][0]["bg"], friend_nft.BLACK)
+        self.assertEqual(friend_nft.DEFAULT_SETS[0][-1]["bg"][-1], "#000000")
+        self.assertEqual(friend_nft.paint({"a": [["Фон", "Grape", "1%"]], "bg": ["#1"]})["bg"], ["#1"])
+
     def test_validate(self):
         with self.assertRaisesRegex(ValueError, "расти"):
             friend_nft.validate(friend_nft.normalize({"steps": [5, 5, 10, 20, 40]}))

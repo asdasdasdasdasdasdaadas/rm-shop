@@ -31,7 +31,19 @@ PERIOD_KEY = "friend_nft_period"
 LOOP_SECONDS = 600
 F = "https://nft.fragment.com/gift/"
 
-BLACK = ["#5d6265", "#313537", "#121416"]
+# Gifts on a black backdrop are shown really black, not Telegram's greyish Onyx Black.
+BLACK = ["#2a2a2d", "#0e0e10", "#000000"]
+
+
+def is_black(gift: dict) -> bool:
+    return any(len(x) > 1 and x[0] == "Фон" and "black" in str(x[1]).lower() for x in (gift.get("a") or []))
+
+
+def paint(gift: dict) -> dict:
+    """The black backdrop is always pure black, also for gifts saved before."""
+    if isinstance(gift, dict) and is_black(gift):
+        gift = {**gift, "bg": list(BLACK)}
+    return gift
 
 
 def _g(slug: str, name: str, ton: int, bg: list[str], model: tuple, backdrop: tuple, symbol: tuple) -> dict:
@@ -126,6 +138,8 @@ def normalize(raw: dict | None) -> dict:
     for key, value in (raw or {}).items():
         if key in cfg:
             cfg[key] = value
+    if isinstance(cfg.get("sets"), list):
+        cfg["sets"] = [[paint(g) for g in gifts] if isinstance(gifts, list) else gifts for gifts in cfg["sets"]]
     return cfg
 
 
@@ -283,10 +297,10 @@ async def fetch_gift(link: str, ton: int | None = None) -> dict:
     if not attrs:
         raise ValueError(f"Не нашёл подарок по ссылке {link}: проверьте номер")
     name = title or re.sub(r"(?<=[a-z])(?=[A-Z])", " ", page.rsplit("-", 1)[0])
-    return {
+    return paint({
         "slug": slug, "name": name, "no": slug.rsplit("-", 1)[1], "ton": int(ton or 0),
         "bg": backdrop_colors(lottie) or BLACK, "a": attrs, "link": f"https://t.me/nft/{page}",
-    }
+    })
 
 
 # ---------------------------------------------------------------- data
@@ -353,7 +367,7 @@ async def rewards_of(telegram_id: int) -> list[dict]:
         gift = r["gift"]
         out.append({
             "id": int(r["id"]), "need": int(r["need"]),
-            "gift": json.loads(gift) if isinstance(gift, str) else dict(gift),
+            "gift": paint(json.loads(gift) if isinstance(gift, str) else dict(gift)),
             "status": r["status"], "nft_link": r["nft_link"],
             "created_at": _iso(r["created_at"]), "given_at": _iso(r["given_at"]),
         })
