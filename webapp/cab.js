@@ -514,21 +514,21 @@
     if (h >= 5 && h <= 45) return fbRgb(42, Math.min(1, sat + 0.1), Math.min(0.9, l)); // ribbon → gold
     return rgb;
   }
-  function fbWalk(o) {
-    if (Array.isArray(o)) { o.forEach(fbWalk); return; }
+  function fbWalk(o, t = fbTint) {
+    if (Array.isArray(o)) { o.forEach((x) => fbWalk(x, t)); return; }
     if (!o || typeof o !== "object") return;
     if ((o.ty === "fl" || o.ty === "st") && o.c) {
       const k = o.c.k;
-      if (Array.isArray(k) && typeof k[0] === "number") { const t = fbTint(k); k[0] = t[0]; k[1] = t[1]; k[2] = t[2]; }
-      else if (Array.isArray(k)) k.forEach((f) => ["s", "e"].forEach((n) => { if (Array.isArray(f[n])) { const t = fbTint(f[n]); f[n][0] = t[0]; f[n][1] = t[1]; f[n][2] = t[2]; } }));
+      if (Array.isArray(k) && typeof k[0] === "number") { const r = t(k); k[0] = r[0]; k[1] = r[1]; k[2] = r[2]; }
+      else if (Array.isArray(k)) k.forEach((f) => ["s", "e"].forEach((n) => { if (Array.isArray(f[n])) { const r = t(f[n]); f[n][0] = r[0]; f[n][1] = r[1]; f[n][2] = r[2]; } }));
     }
     if ((o.ty === "gf" || o.ty === "gs") && o.g && o.g.k) {
-      const n = Number(o.g.p) || 0, fix = (arr) => { for (let i = 0; i < n; i++) { const t = fbTint(arr.slice(i * 4 + 1, i * 4 + 4)); arr.splice(i * 4 + 1, 3, ...t); } };
+      const n = Number(o.g.p) || 0, fix = (arr) => { for (let i = 0; i < n; i++) { const r = t(arr.slice(i * 4 + 1, i * 4 + 4)); arr.splice(i * 4 + 1, 3, ...r); } };
       const k = o.g.k.k;
       if (Array.isArray(k) && typeof k[0] === "number") fix(k);
       else if (Array.isArray(k)) k.forEach((f) => ["s", "e"].forEach((m) => Array.isArray(f[m]) && fix(f[m])));
     }
-    Object.values(o).forEach(fbWalk);
+    Object.values(o).forEach((x) => fbWalk(x, t));
   }
   const fbGold = (file) => fbData[file] || (fbData[file] = fetch(`/icons/${file}`).then((r) => r.json()).then((d) => { fbWalk(d); return d; }));
   function fbMount(root) {
@@ -1292,7 +1292,7 @@
       return seg + `<div class="tabc">${me.gifts_enabled && p.tab === "give" ? giveTab() : this.invite()}</div>`;
     },
     on(el, p) {
-      if (p.tab === "give") mountGift(el);
+      if (p.tab === "give") gGive(el);
       // Load the gifts up front, so «Подарить» opens complete and does not redraw a moment later.
       if (me.gifts_enabled && !gs.data) loadGifts();
     },
@@ -2145,7 +2145,38 @@
   // =====================================================================
   // The gift is Wallet's own animation (icons/wallet_gift*.json, see icons/PAYMENT-ASSETS.md), split into box and lid
   // so the lid can fly off. Particles, the beam and coins are ours.
-  const gs = { amount: 0, custom: false, count: 1, data: null, busy: false };
+  const gs = { amount: 0, custom: false, count: 1, data: null, busy: false, style: "violet" };
+  // The giver picks how the gift looks: the card in the cabinet, the card in Telegram and the friend's screen share it.
+  // box/rib recolour Wallet's blue box and orange ribbon: [hue, saturation or null to keep it, lightness from the original].
+  const GSTY = {
+    violet: { name: "Фиолетовый", ray: "rgba(255,226,140,.18)", conf: ["#ffd76a", "#fff", "#c9b2ff"], box: [45, 0.08, (l) => Math.min(0.97, 0.86 + l * 0.14)], rib: [42, null] },
+    festive: { name: "Праздничный", ray: "rgba(255,226,140,.16)", conf: ["#ffd76a", "#ff5a5a", "#fff"], box: [356, 0.72, (l) => Math.min(0.62, 0.3 + l * 0.45)], rib: [44, null] },
+    gold: { name: "Золотой", ray: "rgba(255,215,106,.14)", conf: ["#ffd76a", "#f7b733", "#fff3c4"], box: [43, 0.85, (l) => Math.min(0.72, 0.38 + l * 0.42)], rib: [230, 0.12, (l) => Math.max(0.1, l * 0.35)] },
+    sunset: { name: "Закатный", ray: "rgba(255,255,255,.2)", conf: ["#fff", "#7ff0c8", "#ffe08a"], box: [160, 0.55, (l) => Math.min(0.82, 0.5 + l * 0.35)], rib: [40, 0.06, (l) => Math.min(0.98, 0.8 + l * 0.2)] },
+  };
+  const gSty = (k) => (GSTY[k] ? k : "violet");
+  const gTint = (p) => (c) => {
+    const [h, sat, l] = fbHue(c[0], c[1], c[2]);
+    if (sat < 0.12) return c;
+    if (h >= 190 && h <= 300) return fbRgb(p.box[0], p.box[1], p.box[2](l));
+    if (h >= 5 && h <= 45) return p.rib[1] == null ? fbRgb(p.rib[0], Math.min(1, sat + 0.1), Math.min(0.9, l)) : fbRgb(p.rib[0], p.rib[1], p.rib[2](l));
+    return c;
+  };
+  const gRaw = {}, gCol = {};
+  // Lottie writes into the data it plays, so every player gets its own copy.
+  const gData = (file, k) => (gCol[k + file] = gCol[k + file] || (gRaw[file] = gRaw[file] || fetch(`/icons/${file}`).then((r) => r.json()))
+    .then((d) => { const c = JSON.parse(JSON.stringify(d)); fbWalk(c, gTint(GSTY[k])); return c; })).then((d) => JSON.parse(JSON.stringify(d)));
+  // Themed background layers (crossfade), slow rays and falling confetti behind the hero.
+  const gBack = (k) => `<div class="gs-bgs">${Object.keys(GSTY).map((s) => `<i class="gs-${s}${s === k ? " on" : ""}" data-k="${s}"></i>`).join("")}</div>` +
+    `<div class="gs-rays" style="--ray:${GSTY[k].ray}"></div><div class="gs-conf"></div>`;
+  function gConf(h, k) {
+    const c = h && h.querySelector(".gs-conf");
+    if (!c || reduced()) return;
+    const C = GSTY[k].conf;
+    c.innerHTML = Array.from({ length: 18 }, (_, i) => `<i style="left:${(Math.random() * 100).toFixed(1)}%;background:${C[i % 3]};opacity:${(0.45 + Math.random() * 0.5).toFixed(2)};` +
+      `--dx:${(Math.random() * 30 - 15).toFixed(0)}px;animation-duration:${(4 + Math.random() * 5).toFixed(1)}s;animation-delay:-${(Math.random() * 8).toFixed(1)}s"></i>`).join("");
+  }
+  const gName = () => esc((tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name) || "Ваш друг");
   const gTotal = () => gs.amount * (gs.count || 1);
   const gLim = () => [Math.max(1, Number(me.gift_min) || 60), Math.max(1, Number(me.gift_max) || 20000)];
   const gOk = (n) => { const [lo, hi] = gLim(); return Number.isFinite(n) && n >= lo && n <= hi; };
@@ -2161,19 +2192,33 @@
   }<i class="core"></i><i class="pool"></i></div><div class="gf-lot gf-lid"></div><div class="gf-flash"></div></div></div>`;
   const reduced = () => window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   // Box and lid are two players started on the same frame, so they move as one gift until the lid flies off.
-  function mountGift(el) {
+  function mountGift(el, k) {
     const ill = el && el.querySelector(".gf-ill:not([data-on])");
     if (!ill) return;
     ill.setAttribute("data-on", "");
-    lottieLib().then((L) => {
+    k = gSty(k);
+    Promise.all([lottieLib(), gData("wallet_gift_body.json", k), gData("wallet_gift_lid.json", k)]).then(([L, body, lid]) => {
       if (!ill.isConnected) return;
-      const mk = (c, f) => L.loadAnimation({ container: ill.querySelector(c), renderer: "svg", loop: true, autoplay: false, path: `/icons/${f}`,
-        rendererSettings: { preserveAspectRatio: "xMidYMid meet" } });
-      const A = [mk(".gf-body", "wallet_gift_body.json"), mk(".gf-lid", "wallet_gift_lid.json")];
+      const mk = (c, d) => { const box = ill.querySelector(c); box.innerHTML = ""; return L.loadAnimation({ container: box, renderer: "svg", loop: true, autoplay: false, animationData: d,
+        rendererSettings: { preserveAspectRatio: "xMidYMid meet" } }); };
+      (ill._players || []).forEach((a) => a.destroy());
+      const A = [mk(".gf-body", body), mk(".gf-lid", lid)];
       let ready = 0;
-      A.forEach((a) => a.addEventListener("DOMLoaded", () => { if (++ready === 2) A.forEach((b) => (reduced() ? b.goToAndStop(40, true) : b.goToAndPlay(0, true))); }));
+      A.forEach((a) => a.addEventListener("DOMLoaded", () => { if (++ready === 2) { A.forEach((b) => (reduced() ? b.goToAndStop(40, true) : b.goToAndPlay(0, true))); ill.classList.remove("swap"); } }));
       ill._players = A;
     }).catch(() => { ill.querySelector(".gf-body").innerHTML = '<div style="font-size:96px;line-height:159px">🎁</div>'; });
+  }
+  // A small looping gift in the style's colours (tiles, the Telegram card preview, the keypad).
+  function gMini(root) {
+    root.querySelectorAll("[data-gmini]:not([data-on])").forEach((box) => {
+      box.setAttribute("data-on", "");
+      Promise.all([lottieLib(), gData("wallet_gift.json", gSty(box.dataset.gmini))]).then(([L, d]) => {
+        if (!box.isConnected) return;
+        box.innerHTML = "";
+        const a = L.loadAnimation({ container: box, renderer: "svg", loop: !reduced(), autoplay: !reduced(), animationData: d });
+        if (box.dataset.speed) a.setSpeed(Number(box.dataset.speed));
+      }).catch(() => { box.textContent = "🎁"; });
+    });
   }
   // Tapping the gift next to the amount adds one more gift (a giveaway for a group); holding it resets to one.
   function amGiftAdd() {
@@ -2214,11 +2259,10 @@
     ico.addEventListener("click", (e) => { if (held) { held = false; e.stopImmediatePropagation(); } }, true);
   }
   function mountAmGift(el) {
-    const box = el && el.querySelector(".am-gift:not([data-on])");
+    const box = el && el.querySelector(".am-gift:not([data-gmini])");
     if (!box) return;
-    box.setAttribute("data-on", "");
-    lottieLib().then((L) => { if (box.isConnected) L.loadAnimation({ container: box, renderer: "svg", loop: !reduced(), autoplay: !reduced(), path: "/icons/wallet_gift.json" }); })
-      .catch(() => { box.textContent = "🎁"; });
+    box.dataset.gmini = gs.style;
+    gMini(el);
   }
 
   // ---------- the giver ----------
@@ -2229,7 +2273,7 @@
     const many = gs.count > 1;
     const chips = presets.map((v) => `<button type="button" data-act="gfamt" data-v="${v}" class="${!own && v === gs.amount ? "on" : ""}">${rub(v)}</button>`).join("") +
       `<button type="button" data-act="gfown" class="${own ? "on" : ""}">${own ? gOwnLabel() : "Своя"}</button>`;
-    const hero = `<section class="hc indigo gf"><div class="ov"></div>${gScene()}<div class="K">${gKicker()}</div><div class="N gf-amt">${gAmtText()}</div>` +
+    const hero = `<section class="hc gf gs"><div class="ov"></div>${gBack(gs.style)}${gScene()}<div class="K">${gKicker()}</div><div class="N gf-amt">${gAmtText()}</div>` +
       `<div class="P gf-days">${gSubText()}</div><div class="chp">${chips}</div>` +
       `<div class="acts"><button type="button" class="pill" data-act="gfsend">${IC.share}<span>${many ? "Подарить в группу" : "Подарить"}</span></button>` +
       `<button type="button" class="rnd" aria-label="Скопировать ссылку" data-act="gfcopy">${IC.copy}</button></div></section>`;
@@ -2254,7 +2298,41 @@
     const note = me.gift_admin ? NOTE(me.gift_granted ? "Вам открыт безлимит подарков: дарите любую сумму кому угодно, с баланса ничего не спишется" : "Вы администратор: дарите любую сумму кому угодно, с баланса ничего не спишется", true)
       : can == null ? "" : NOTE(can >= gTotal() ? `Баланс ${rub(me.balance_rub)} · подарить можно до ${rub(can)}`
       : can > 0 ? `Подарить можно до ${rub(can)} — это деньги, которые вы внесли сами` : "Подарить можно только свои деньги — сначала пополните баланс", true);
-    return hero + `<div class="gf-rest">${note + how + list}</div>`;
+    return hero + gStyBlock() + `<div class="gf-rest">${note + how + list}</div>`;
+  }
+  // «Оформление»: four tiles with live gifts, then the card the friend (or the chat) will get in Telegram.
+  const gStyBlock = () => `<div class="gf-sty">${ST(`Оформление <span class="gs-tag">${GSTY[gs.style].name}</span>`)}<div class="gs-tiles">${Object.keys(GSTY).map((k) =>
+    `<button type="button" data-act="gfsty" data-k="${k}" class="${k === gs.style ? "on" : ""}"><i class="gs-${k}"></i><div class="mg" data-gmini="${k}" data-speed=".85"></div><span class="ck">✓</span>${GSTY[k].name}</button>`).join("")}</div>` +
+    `${ST(`Так увидит ${gs.count > 1 ? "чат" : "друг"}`)}<div class="gs-pv">${gCard(gs.style, gs.count)}</div></div>`;
+  function gCard(k, n) {
+    const many = n > 1;
+    const txt = many ? `<b>${gName()} раздаёт ${n} ${pl(n, "подарок", "подарка", "подарков")} по ${rub(gs.amount)} на VPN</b> — это ≈ ${days(gDays(gs.amount))} каждому. Кто первый — того и подарок!`
+      : `<b>${gName()} дарит вам ${rub(gs.amount)} на VPN</b> — это ≈ ${days(gDays(gs.amount))}. Откройте подарок, пока он не остыл!`;
+    return `<div class="gs-post"><div class="gs-art"><i class="gs-${k}"></i><div class="gs-rays" style="--ray:${GSTY[k].ray}"></div>` +
+      `<div class="lg"><img src="/icons/frog.png" alt="">Лягушка VPN</div>` +
+      (many ? `<div class="gl" data-gmini="${k}" data-speed=".8"></div><div class="gr" data-gmini="${k}" data-speed=".8"></div>` : "") +
+      `<div class="g1" data-gmini="${k}"></div>` +
+      `<div class="tt">${many ? "Подарки для всех в чате" : "Вам подарок на VPN"}</div><div class="sb">${many ? "Кто первый — того и подарок" : "Нажмите, чтобы забрать — деньги сразу на баланс"}</div></div>` +
+      `<div class="tx">🎁 ${txt}</div></div><div class="gs-kb">${many ? "🎁 Забрать подарок" : "🎁 Открыть подарок"}</div>`;
+  }
+  function gGive(el) { mountGift(el, gs.style); gConf(el.querySelector(".hc.gf"), gs.style); gMini(el); }
+  // Switching the style: the background crossfades, the gift pops out and back in the new colours.
+  function gPick(k) {
+    if (!cur || k === gs.style || !GSTY[k]) return;
+    haptic("light");
+    gs.style = k;
+    const el = cur.el, h = el.querySelector(".hc.gf");
+    el.querySelectorAll(".gs-tiles button").forEach((b) => b.classList.toggle("on", b.dataset.k === k));
+    const tag = el.querySelector(".gs-tag");
+    if (tag) tag.textContent = GSTY[k].name;
+    h.querySelectorAll(".gs-bgs i").forEach((i) => i.classList.toggle("on", i.dataset.k === k));
+    h.querySelector(".gs-rays").style.setProperty("--ray", GSTY[k].ray);
+    gConf(h, k);
+    const ill = h.querySelector(".gf-ill");
+    ill.classList.add("swap");
+    setTimeout(() => { ill.removeAttribute("data-on"); mountGift(h, k); }, 200);
+    const pv = el.querySelector(".gs-pv");
+    if (pv) { pv.innerHTML = gCard(k, gs.count); gMini(pv); }
   }
   const gKicker = () => (gs.count > 1 ? "Подарки в группу" : "Подарок другу");
   const gAmtText = () => (gs.count > 1 ? `${rub(gs.amount)} × ${gs.count}` : rub(gs.amount));
@@ -2269,6 +2347,8 @@
     if (k) k.textContent = gKicker();
     const pill = el.querySelector('.hc.gf [data-act="gfsend"] span');
     if (pill) pill.textContent = gs.count > 1 ? "Подарить в группу" : "Подарить";
+    const tx = el.querySelector(".gs-pv .tx");
+    if (tx) { const t = document.createElement("div"); t.innerHTML = gCard(gs.style, gs.count); tx.innerHTML = t.querySelector(".tx").innerHTML; }
   }
   async function loadGifts() {
     try { gs.data = await api("/api/gifts"); } catch (_e) { gs.data = null; }
@@ -2311,7 +2391,7 @@
     if (!(await confirmAsk(ask))) return;
     gs.busy = true;
     try {
-      const res = await post("/api/gifts", { amount: per, count: cnt });
+      const res = await post("/api/gifts", { amount: per, count: cnt, style: gs.style });
       me.balance_rub = res.balance_rub;
       notify("success");
       shareGift(res, copyOnly);
@@ -2384,14 +2464,16 @@
           : `<div class="H">Подарок отменён</div><div class="P">Подарок вернулся к тому, кто его отправил</div>`;
         acts = `<button type="button" class="pill" data-act="gfhome"><span>На главную</span></button>`;
       }
-      const hero = `<section class="hc indigo gf${g.claimed_by_me || p.opened ? " opened" : ""}"><div class="ov"></div>${gScene()}<div class="gf-txt">${txt}</div>${bar}<div class="acts">${acts}</div></section>`;
+      const hero = `<section class="hc gf gs${g.claimed_by_me || p.opened ? " opened" : ""}"><div class="ov"></div>${gBack(gSty(g.style))}${gScene()}<div class="gf-txt">${txt}</div>${bar}<div class="acts">${acts}</div></section>`;
       if (g.mine || (g.status !== "active" && !g.claimed_by_me)) return hero;
       return hero + ST("Как это работает") + tl([["1", many ? "Заберите подарок" : "Откройте подарок", "Он ничего вам не стоит — подарок уже оплачен"],
         ["2", "Подключите VPN в один тап", "Кабинет подскажет, что установить"],
         [GIFT_IC, `Пользуйтесь ${days(gDays(g.amount_rub))}`, `<b>${rub(g.amount_rub)}</b> лягут на ваш баланс`]]);
     },
     on(el, p) {
-      mountGift(el);
+      const k = gSty(p.gift && p.gift.style);
+      mountGift(el, k);
+      gConf(el.querySelector(".hc.gf"), k);
       if (!p.gift && !p.error) loadPresent(p.code);
       if (p.gift && (p.gift.claimed_by_me || p.opened)) gOpenedStill(el);
     },
@@ -2584,7 +2666,7 @@
       fresh.innerHTML = tab === "give" ? giveTab() : SCR.friends.invite();
       box.replaceWith(fresh);
       sparkle(fresh);
-      if (tab === "give") { mountGift(fresh); loadGifts(); }
+      if (tab === "give") { gGive(fresh); loadGifts(); }
       cur.sig = SCR.friends.sig(cur.params);
     },
     gfamt(b) {
@@ -2599,6 +2681,7 @@
       if (sx) sx.textContent = rub(gs.amount);
     },
     gfown() { haptic(); amt.gift = true; amt.cnt = gs.count || 1; amt.v = gs.custom ? String(gs.amount) : ""; amt.mode = "rub"; amt.d = ""; go("amount", { gift: true }); },
+    gfsty: (b) => gPick(b.dataset.k),
     gfsend: () => sendGift(false),
     gfcopy: () => sendGift(true),
     gfitem: (b) => giftItem(b.dataset.code),

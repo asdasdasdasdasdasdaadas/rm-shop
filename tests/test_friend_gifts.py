@@ -52,7 +52,7 @@ class GiftShareCardTest(unittest.IsolatedAsyncioTestCase):
     def test_link_goes_through_our_page_when_there_is_one(self):
         self._base("https://cab.example.org/app")
         self.assertEqual(friend_gifts.share_link("Abcd1234"), "https://cab.example.org/g/Abcd1234")
-        self.assertEqual(friend_gifts.card_image(), "https://cab.example.org/icons/gift-card.jpg")
+        self.assertEqual(friend_gifts.card_image(), "https://cab.example.org/icons/gift-cards/violet-one.jpg")
         self._base("")
         self.assertEqual(friend_gifts.share_link("Abcd1234"), "https://t.me/frog_bot?start=present_Abcd1234")
         self.assertEqual(friend_gifts.card_image(), "")
@@ -60,21 +60,51 @@ class GiftShareCardTest(unittest.IsolatedAsyncioTestCase):
     def test_landing_has_card_tags_and_escapes_the_name(self):
         self._base("https://cab.example.org")
         page = friend_gifts.landing_html({"from_first_name": '<b>"Ив"</b>', "amount_rub": 300, "count": 1}, "Abcd1234")
-        self.assertIn('property="og:image" content="https://cab.example.org/icons/gift-card.jpg"', page)
+        self.assertIn('property="og:image" content="https://cab.example.org/icons/gift-cards/violet-one.jpg"', page)
         self.assertIn("дарит вам 300 ₽", page)
         self.assertNotIn("<b>", page)
         self.assertIn("https://t.me/frog_bot?start=present_Abcd1234", page)
         group = friend_gifts.landing_html({"from_first_name": "Ив", "amount_rub": 300, "count": 15}, "Abcd1234")
         self.assertIn("раздаёт 15 подарков по 300 ₽", group)
+        styled = friend_gifts.landing_html({"from_first_name": "Ив", "amount_rub": 300, "count": 15, "style": "gold"}, "Abcd1234")
+        self.assertIn("/icons/gift-cards/gold-chat.jpg", styled)
 
-    async def test_prepared_message_is_a_photo_card(self):
+    def test_each_style_has_its_cards_and_unknown_falls_back(self):
+        self._base("https://cab.example.org")
+        for style in friend_gifts.STYLES:
+            for many in (False, True):
+                self.assertTrue((friend_gifts.CARDS_DIR / f"{style}-{'chat' if many else 'one'}.jpg").is_file())
+                self.assertTrue((friend_gifts.CARDS_DIR / f"{style}-{'chat' if many else 'one'}.mp4").is_file())
+                self.assertTrue(friend_gifts.card_image(style, many).endswith(f"/gift-cards/{style}-{'chat' if many else 'one'}.jpg"))
+        self.assertEqual(friend_gifts.clean_style("neon"), "violet")
+        self.assertEqual(friend_gifts.clean_style(None), "violet")
+        self.assertTrue(friend_gifts.card_image("neon").endswith("/gift-cards/violet-one.jpg"))
+        with patch.object(friend_gifts, "CARDS_DIR", friend_gifts.CARDS_DIR / "missing"):
+            self.assertEqual(friend_gifts.card_image("gold", True), "https://cab.example.org/icons/gift-card.jpg")
+
+    async def test_prepared_message_is_an_animated_card(self):
         self._base("https://cab.example.org")
         bot = SimpleNamespace(save_prepared_inline_message=AsyncMock(return_value=SimpleNamespace(id="P1")))
+        last = lambda: bot.save_prepared_inline_message.await_args.kwargs.get("result")  # noqa: E731
         self.assertEqual(await friend_gifts.prepare_share(bot, 5, "Abcd1234", 300, "Ив"), "P1")
-        result = bot.save_prepared_inline_message.await_args.kwargs.get("result") or bot.save_prepared_inline_message.await_args.args[1]
-        self.assertEqual(result.type, "photo")
-        self.assertEqual(result.photo_url, "https://cab.example.org/icons/gift-card.jpg")
-        self.assertIn("300 ₽", result.caption)
+        self.assertEqual(last().type, "mpeg4_gif")
+        self.assertEqual(last().mpeg4_url, "https://cab.example.org/icons/gift-cards/violet-one.mp4")
+        self.assertEqual(last().thumbnail_url, "https://cab.example.org/icons/gift-cards/violet-one.jpg")
+        self.assertIn("300 ₽", last().caption)
+        await friend_gifts.prepare_share(bot, 5, "Abcd1234", 60, "Ив", 30, "sunset")
+        self.assertEqual(last().mpeg4_url, "https://cab.example.org/icons/gift-cards/sunset-chat.mp4")
+        self.assertIn("30 подарков", last().caption)
+
+    async def test_prepared_message_falls_back_to_a_photo(self):
+        self._base("https://cab.example.org")
+        bot = SimpleNamespace(save_prepared_inline_message=AsyncMock(return_value=SimpleNamespace(id="P1")))
+        with patch.object(friend_gifts, "card_video", return_value=""):
+            await friend_gifts.prepare_share(bot, 5, "Abcd1234", 300, "Ив", 1, "gold")
+        result = bot.save_prepared_inline_message.await_args.kwargs["result"]
+        self.assertEqual((result.type, result.photo_url), ("photo", "https://cab.example.org/icons/gift-cards/gold-one.jpg"))
+        self.assertEqual(friend_gifts.card_video("gold"), "https://cab.example.org/icons/gift-cards/gold-one.mp4")
+        self._base("")
+        self.assertEqual(friend_gifts.card_video("gold"), "")
 
     async def test_landing_route(self):
         self._base("https://cab.example.org")
@@ -266,6 +296,15 @@ class GiftPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(await friend_gifts.mark_thanked(2, gift["code"]))
         kinds = await self.pool.fetch("SELECT telegram_id, kind, amount FROM billing_events WHERE kind LIKE 'gift%' ORDER BY id")
         self.assertEqual([(r["telegram_id"], r["kind"], r["amount"]) for r in kinds], [(1, "gift_sent", -180), (2, "gift_received", 180)])
+
+    async def test_style_is_kept_and_unknown_becomes_violet(self):
+        gold = await friend_gifts.create_gift(1, 60, 2, "gold")
+        self.assertEqual(gold["style"], "gold")
+        self.assertEqual((await friend_gifts.get_gift(gold["code"]))["style"], "gold")
+        odd = await friend_gifts.create_gift(1, 60, 1, "neon")
+        self.assertEqual(odd["style"], "violet")
+        self.assertEqual([g["style"] for g in await friend_gifts.list_sent(1)], ["violet", "gold"])
+        self.assertEqual(friend_gifts.public_sent([{"code": "c", "amount_rub": 60, "status": "active", "style": "gold"}])[0]["style"], "gold")
 
     async def test_return_puts_money_back_once(self):
         gift = await friend_gifts.create_gift(1, 100)

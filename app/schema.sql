@@ -975,6 +975,8 @@ ALTER TABLE friend_gifts ADD COLUMN IF NOT EXISTS from_admin BOOLEAN NOT NULL DE
 -- A giveaway: `count` equal gifts behind one link, first come, one each; claims say who took one.
 ALTER TABLE friend_gifts ADD COLUMN IF NOT EXISTS count INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE friend_gifts ADD COLUMN IF NOT EXISTS claimed_count INTEGER NOT NULL DEFAULT 0;
+-- How the gift looks (chosen by the giver): violet, festive, gold or sunset.
+ALTER TABLE friend_gifts ADD COLUMN IF NOT EXISTS style TEXT NOT NULL DEFAULT 'violet';
 CREATE TABLE IF NOT EXISTS friend_gift_claims (
     gift_id BIGINT NOT NULL REFERENCES friend_gifts(id) ON DELETE CASCADE,
     telegram_id BIGINT NOT NULL,

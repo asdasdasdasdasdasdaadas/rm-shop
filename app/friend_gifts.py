@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
+from pathlib import Path
 
 from app import db
 from app.config import get_settings
@@ -91,9 +92,31 @@ def share_link(code: str) -> str:
     return f"{base}/g/{code}" if base else gift_link(code)
 
 
-def card_image() -> str:
+# The giver picks how the gift looks; the cabinet, the Telegram card and the friend's screen all follow it.
+STYLES = ("violet", "festive", "gold", "sunset")
+CARDS_DIR = Path(__file__).resolve().parent.parent / "webapp" / "icons" / "gift-cards"
+
+
+def clean_style(style: str | None) -> str:
+    return style if style in STYLES else STYLES[0]
+
+
+def card_image(style: str | None = None, many: bool = False) -> str:
+    """The picture for the share card: the gift's style, «one friend» or «the whole chat»; the old card if it is missing."""
     base = public_base()
-    return f"{base}/icons/gift-card.jpg" if base else ""
+    if not base:
+        return ""
+    name = f"{clean_style(style)}-{'chat' if many else 'one'}.jpg"
+    if (CARDS_DIR / name).is_file():
+        return f"{base}/icons/gift-cards/{name}"
+    return f"{base}/icons/gift-card.jpg"
+
+
+def card_video(style: str | None = None, many: bool = False) -> str:
+    """The looping silent MP4 of the same card (Telegram plays it like a GIF); empty when there is none."""
+    base = public_base()
+    name = f"{clean_style(style)}-{'chat' if many else 'one'}.mp4"
+    return f"{base}/icons/gift-cards/{name}" if base and (CARDS_DIR / name).is_file() else ""
 
 
 def giver_name(row: dict | None) -> str:
@@ -123,7 +146,7 @@ async def giftable_rub(telegram_id: int, conn=None) -> int:
     return int(await q.fetchval(_GIFTABLE_SQL, telegram_id) or 0)
 
 
-async def create_gift(telegram_id: int, amount: int, count: int = 1) -> dict:
+async def create_gift(telegram_id: int, amount: int, count: int = 1, style: str | None = None) -> dict:
     """One gift, or a giveaway of `count` equal gifts behind one link (first come, one each)."""
     admin = is_admin(telegram_id)
     lo, hi = limits(telegram_id)
@@ -157,9 +180,9 @@ async def create_gift(telegram_id: int, amount: int, count: int = 1) -> dict:
                 )
             code = secrets.token_urlsafe(9)
             gift = await conn.fetchrow(
-                """INSERT INTO friend_gifts (code, from_telegram_id, amount_rub, count, from_admin)
-                   VALUES ($1, $2, $3, $4, $5) RETURNING id, code, amount_rub, count, status, created_at""",
-                code, telegram_id, amount, count, admin,
+                """INSERT INTO friend_gifts (code, from_telegram_id, amount_rub, count, from_admin, style)
+                   VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, code, amount_rub, count, status, style, created_at""",
+                code, telegram_id, amount, count, admin, clean_style(style),
             )
             what = f"{count} × {amount} ₽" if count > 1 else f"{amount} ₽"
             if admin:
@@ -330,7 +353,7 @@ async def mark_thanked(telegram_id: int, code: str) -> dict | None:
 
 async def list_sent(telegram_id: int, limit: int = 20) -> list[dict]:
     rows = await db._pool_req().fetch(
-        """SELECT g.code, g.amount_rub, g.count, g.claimed_count, g.status, g.created_at, g.claimed_at,
+        """SELECT g.code, g.amount_rub, g.count, g.claimed_count, g.status, g.style, g.created_at, g.claimed_at,
                   u.first_name AS friend_name
            FROM friend_gifts g LEFT JOIN users u ON u.telegram_id=g.claimed_by
            WHERE g.from_telegram_id=$1 ORDER BY g.created_at DESC LIMIT $2""",
@@ -348,6 +371,7 @@ def public_sent(rows: list[dict]) -> list[dict]:
             "amount_rub": int(r["amount_rub"]),
             "count": int(r.get("count") or 1),
             "claimed_count": int(r.get("claimed_count") or 0),
+            "style": clean_style(r.get("style")),
             "status": r["status"],
             "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
             "claimed_at": r["claimed_at"].isoformat() if r.get("claimed_at") else None,
@@ -401,12 +425,14 @@ def share_text(name: str, amount: int, count: int = 1) -> str:
     return f"🎁 {name} дарит вам {amount} ₽ на VPN — это ≈ {days_text(amount)}. Откройте подарок, пока он не остыл!"
 
 
-async def prepare_share(bot, telegram_id: int, code: str, amount: int, name: str, count: int = 1) -> str | None:
+async def prepare_share(bot, telegram_id: int, code: str, amount: int, name: str, count: int = 1,
+                        style: str | None = None) -> str | None:
     """A ready card for Telegram's «share» sheet (WebApp.shareMessage). None when Telegram refuses."""
     from aiogram.types import (
         InlineKeyboardButton,
         InlineKeyboardMarkup,
         InlineQueryResultArticle,
+        InlineQueryResultMpeg4Gif,
         InlineQueryResultPhoto,
         InputTextMessageContent,
     )
@@ -418,17 +444,27 @@ async def prepare_share(bot, telegram_id: int, code: str, amount: int, name: str
         markup = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="🎁 Забрать подарок" if count > 1 else "🎁 Открыть подарок", url=gift_link(code)),
         ]])
-        picture = card_image()
-        # The card: the gift picture with the text under it and one button; a plain text card without a public URL.
-        result = InlineQueryResultPhoto(
-            id=f"gift-{code}"[:64], photo_url=picture, thumbnail_url=picture, photo_width=1200, photo_height=630,
-            title=title, caption=share_text(name, amount, count), reply_markup=markup,
-        ) if picture else InlineQueryResultArticle(
-            id=f"gift-{code}"[:64], title=title,
-            description=f"≈ {days_text(amount)} VPN {'каждому ' if count > 1 else ''}от {name}",
-            input_message_content=InputTextMessageContent(message_text=share_text(name, amount, count)),
-            reply_markup=markup,
-        )
+        picture, video = card_image(style, count > 1), card_video(style, count > 1)
+        caption = share_text(name, amount, count)
+        # The card: the animated gift (MP4 played as a GIF), else its picture, with the text under it and one button;
+        # a plain text card without a public URL.
+        if video:
+            result = InlineQueryResultMpeg4Gif(
+                id=f"gift-{code}"[:64], mpeg4_url=video, mpeg4_width=1200, mpeg4_height=630, mpeg4_duration=3,
+                thumbnail_url=picture, thumbnail_mime_type="image/jpeg", title=title, caption=caption, reply_markup=markup,
+            )
+        elif picture:
+            result = InlineQueryResultPhoto(
+                id=f"gift-{code}"[:64], photo_url=picture, thumbnail_url=picture, photo_width=1200, photo_height=630,
+                title=title, caption=caption, reply_markup=markup,
+            )
+        else:
+            result = InlineQueryResultArticle(
+                id=f"gift-{code}"[:64], title=title,
+                description=f"≈ {days_text(amount)} VPN {'каждому ' if count > 1 else ''}от {name}",
+                input_message_content=InputTextMessageContent(message_text=caption),
+                reply_markup=markup,
+            )
         prepared = await bot.save_prepared_inline_message(
             user_id=telegram_id, result=result, allow_user_chats=True, allow_group_chats=True,
         )
@@ -530,7 +566,7 @@ def landing_html(gift: dict | None, code: str) -> str:
     else:
         title, desc = "🎁 Подарок на VPN", "Нажмите, чтобы открыть подарок в Telegram."
     e = lambda t: html.escape(t, quote=True)  # noqa: E731
-    img = card_image()
+    img = card_image(gift.get("style") if gift else None, bool(gift) and int(gift.get("count") or 1) > 1)
     meta = "".join(f'<meta property="{k}" content="{e(v)}">' for k, v in (
         ("og:type", "website"), ("og:title", title), ("og:description", desc), ("og:image", img),
         ("og:image:width", "1200"), ("og:image:height", "630")) if v)
