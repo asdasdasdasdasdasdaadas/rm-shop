@@ -566,6 +566,11 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .hc.inv .K { opacity: .7; }
 .hc.inv .N.inv-n { font-size: 46px; margin-top: 2px; }
 .hc.inv .P { margin-top: 4px; font-size: 15px; opacity: .75; }
+/* Trial gift: the live gift instead of an emoji */
+.hc.trg .ill > div { width: 100%; animation: none; }
+.trg-g { width: 230px; height: 116px; margin: -14px auto -6px; }
+/* Device key: one line, cut with an ellipsis */
+.keyv { display: block; max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
 .st .gs-tag { margin-left: 6px; font-size: 14px; font-weight: 600; color: var(--hint); }
 .gs-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 12px; animation: up .5s .2s var(--ease) both; }
 .gs-tiles button { position: relative; height: 104px; border-radius: 20px; overflow: hidden; isolation: isolate; color: #fff; font-weight: 700; font-size: 11px; padding: 0 3px 8px;

@@ -463,7 +463,7 @@
       const n = Number((me.trial_notice && me.trial_notice.days) || me.trial_days) || 3;
       const bot = me.trial_notice && me.trial_notice.kind === "start_bot";
       const gb = Number(me.traffic_limit_gb) || 0;
-      return hc("purple", { ill: "🎁", h: `Дарим ${days(n)} VPN`, p: "Попробуйте бесплатно на одном устройстве. Карта не нужна",
+      return hc("purple", { cls: "trg", ill: '<div class="trg-g" data-gmini="violet"></div>', h: `Дарим ${days(n)} VPN`, p: "Попробуйте бесплатно на одном устройстве. Карта не нужна",
         pill: bot ? "Запустить бота" : "Забрать подарок", pa: 'data-act="gift"' }) +
         ST("Как это работает") +
         tl([["1", "Забираете подарок", me.trial_rub ? `<b>+${rub(me.trial_rub)}</b> на баланс сразу` : "сразу на баланс"],
@@ -471,7 +471,7 @@
           ["3", `Платите ${dayPrice()} ₽ в день`, "только пока пользуетесь"]]) +
         (gb ? NOTE(`В пробный период доступно ${gb} ГБ`) : "");
     },
-    on() { track("gift_view"); },
+    on(el) { track("gift_view"); gMini(el); },
   };
 
   // ---------- «+3 дня за первую оплату» ----------
@@ -690,7 +690,7 @@
         (m ? ST("Способ оплаты") + cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), esc(methodSub(m))) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
           payMethods().length > 1 ? 'data-go="method"' : ""]]) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
         (fb ? NOTE(`🎁 +${fbPct()}% к первому пополнению от ${rub(fb.min_rub)} — пока не закончился подарок`, true) : "") +
-        NOTE(`Баланс ${rub(me.balance_rub)} · разовая оплата, автоплатежей нет`, true);
+        NOTE(`Баланс ${rub(me.balance_rub)} · разовая оплата, без\u00a0автоплатежей`, true);
     },
     on(el) { fbPaint(el, true); },
   };
@@ -722,6 +722,11 @@
   const amDays = () => (amt.mode === "rub" ? (amt.gift ? gDays(amN()) : daysFor(amN())) : Number(amt.d) || 0);
   const amRow = (m) => cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), `Баланс ${rub(me.balance_rub)}`) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
     payMethods().length > 1 ? 'data-go="method"' : ""]]);
+  // The empty keypad already says where the range starts, instead of «Минимум …» after a wrong number.
+  const amHint0 = () => {
+    const lo = Number(me.topup_min) || 0;
+    return amt.mode === "rub" ? (lo > 1 ? `Наберите сумму от ${rub(lo)}` : "Наберите сумму") : "Наберите количество дней";
+  };
   SCR.amount = {
     h() {
       const m = curMethod();
@@ -736,7 +741,7 @@
           `<div class="am-num" id="amNum"><span>0</span></div><div class="am-caret"></div><div class="am-unit" id="amUnit">₽</div>` +
           (!gift && FB() ? `<div class="am-fbs" id="amFbs">+${fbPct()}%</div>` : "") + `</div>` +
           `<button type="button" class="am-sub" id="amSub" data-act="amtsw"><span id="amSubT"></span><span class="sw">⇅</span></button>` +
-          `<div class="am-hint">Наберите сумму</div></div>` +
+          `<div class="am-hint">${esc(amHint0())}</div></div>` +
         `<div class="am-bottom"><div class="am-quick">${[100, 500, 1000].map((q) => `<button type="button" data-act="amtq" data-v="${q}">+${fmt(q)}</button>`).join("")}</div>` +
           `<button type="button" class="am-pay off" id="amPay" data-act="amtpay"><span>Введите сумму</span></button>` +
           `<div class="am-padw"><div><div class="am-pad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "c", "0", "b"].map((k) =>
@@ -814,7 +819,7 @@
     u.classList.toggle("days", amt.mode !== "rub");
     el.querySelector(".am-hint").textContent = many ? `${amt.cnt} ${pl(amt.cnt, "подарок", "подарка", "подарков")} по ${amt.mode === "rub" ? rub(n) : days(amDays())} · удерживайте, чтобы сбросить`
       : amt.gift ? (amt.mode === "rub" ? "Сколько подарить?" : "Сколько дней подарить?")
-      : amt.mode === "rub" ? "Наберите сумму" : "Наберите количество дней";
+      : amHint0();
     // «+35% к первому пополнению»: a sticker on the number lights up from the threshold,
     // and the line under it says what lands on the balance (or how much is missing).
     const fbEl = el.querySelector("#amFbs"), f = FB(), hit = Boolean(fbEl && f && !amt.gift && fbOk(n));
@@ -927,7 +932,7 @@
   SCR.method = {
     h() {
       const L = look(curMethod());
-      return hc(L.c, { ill: L.ill(64), h: "Чем оплатить?", p: `${rub(pay.amount)} на баланс · без автоплатежей` }) +
+      return hc(L.c, { ill: L.ill(64), h: "Чем оплатить?", p: pay.amount > 0 ? `${rub(pay.amount)} на баланс · без автоплатежей` : "Разовая оплата, без автоплатежей" }) +
         ST("Способы") + cd(payMethods().map((m) => [E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), esc(methodSub(m))) + V(RD(m.id === pay.method)), `data-act="meth" data-v="${esc(m.id)}"`])) +
         `<div class="bot"><button type="button" class="bbtn" data-act="back">Готово</button></div>`;
     },
@@ -1036,16 +1041,18 @@
       const list = appsFor(wiz.platform);
       if (wiz.has && (wiz.client === "other" || list.some((a) => a.id === wiz.client))) {
         const own = appById(wiz.client), other = wiz.client === "other";
-        return hc("teal", { ill: other ? "📋" : appIcon(own, 92), h: other ? "Своё приложение" : `${esc(own.name)} уже стоит`,
-          p: other ? "Создадим ключ — вы вставите его в своё приложение" : `Создадим ключ и добавим его в ${esc(own.name)}`,
+        // The app is a guess from another device (or the user's own pick): ask, and make «install» just as easy.
+        return hc("teal", { ill: other ? "📋" : appIcon(own, 92), h: other ? "Своё приложение" : `${esc(own.name)} уже есть?`,
+          p: other ? "Создадим ключ — вы вставите его в своё приложение" : `Если ${esc(own.name)} стоит на этом устройстве, сразу добавим в него ключ`,
           x: '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>',
-          pill: "Создать ключ", pa: 'data-act="create" id="wizOk"' }) +
+          pill: other ? "Создать ключ" : "Да, создать ключ", pa: 'data-act="create" id="wizOk"' }) +
+          (other ? "" : cd([[E("⬇️") + TT(`Нет, установить ${esc(own.name)}`, "бесплатно, займёт полминуты") + V(CV), 'data-act="hasnot"']])) +
           ST("Как это работает") +
-          tl([["1", "Нажмите «Создать ключ»", "<b>отдельный ключ</b> для этого устройства"],
+          tl([["1", "Нажмите «Создать ключ»", "отдельный ключ для этого устройства"],
             ["2", other ? "Скопируйте ключ и вставьте в приложение" : `Подтвердите добавление в ${esc(own.name)}`, other ? "обычно «+» → «Импорт из буфера»" : "кнопка откроет приложение"],
             ["3", "Включите VPN", `${dayPrice()} ₽ в день, пока пользуетесь`]]) +
           cd([[E("🔄") + "Выбрать другое приложение" + V(CV), 'data-act="hasyes"'],
-            ...(other ? [] : [[E("⬇️") + `На этом устройстве нет ${esc(own.name)}` + V("Скачать " + CV), 'data-act="hasnot"']])]);
+          ]);
       }
       if (!list.some((a) => a.id === wiz.client)) wiz.client = prefApp(wiz.platform);
       const a = appById(wiz.client);
@@ -1059,7 +1066,7 @@
         pill: dl ? "Скачать" : "Готово, установлено", pa: dl ? 'data-act="store"' : 'data-act="create"', r: "chk", rl: "Приложение установлено", ra: 'data-act="create" id="wizOk"' }) +
         guideRow(a) + appMore(list, a) +
         ST("Как это работает") +
-        tl([["1", `Установите ${esc(a.name)}`, "займёт полминуты"], ["2", "Вернитесь сюда и нажмите ✓", "<b>создадим ключ</b> для этого устройства"],
+        tl([["1", `Установите ${esc(a.name)}`, "займёт полминуты"], ["2", "Вернитесь сюда и нажмите ✓", "создадим ключ для этого устройства"],
           ["3", "Подключите в один тап", `${dayPrice()} ₽ в день, пока пользуетесь`]]) +
         cd([[E(PLAT_EMO[wiz.platform] || "📱") + esc(platTitle(wiz.platform)) + V("Другое устройство " + CV), 'data-act="replat"']]);
     },
@@ -1281,7 +1288,8 @@
         ST("Устройство") +
         cd([[E("✏️") + TT("Название", esc(d.title || "Устройство")) + V(CV), 'data-act="rename"'],
           a ? [`<span class="e">${appIcon(a, 26)}</span>` + TT("Приложение", a.id === "other" ? "Своё — ключ вставляется вручную" : esc(a.name)) + V("сменить " + CV), 'data-act="devapp"'] : null,
-          `${E("🔑")}${TT("Ключ подписки", `<span style="font-family:ui-monospace,Menlo,monospace">${esc((d.subscription_url || "").replace(/^https?:\/\//, "").slice(0, 34))}…</span>`)}`,
+          d.subscription_url ? [E("🔑") + TT("Ключ подписки", `<span class="keyv">${esc(d.subscription_url.replace(/^https?:\/\//, ""))}</span>`) + V("Скопировать"), 'data-act="devcopy"']
+            : `${E("🔑")}${TT("Ключ подписки", "появится, когда устройство будет готово")}`,
           fresh ? null : [E("💡") + TT("Перестал работать VPN?", "Выпустим новый ключ, старый отключится") + V(CV), 'data-act="reissue"'],
           [E("🆘") + "Помощь с подключением" + V(CV), 'data-act="helpdevice"']]) +
         `<div style="height:12px"></div>` +
@@ -1297,7 +1305,7 @@
     h(p) {
       return hc("slate", { ill: FROG(70, true), h: "Устройство удалено", p: "Подскажите, что нам улучшить" }) +
         ST("Почему?") + cd(EXIT.map(([v, t]) => [RD(v === p.reason) + t, `data-act="fb" data-v="${v}"`])) +
-        `<div class="bot"><button type="button" class="bbtn" data-act="sendfb">Отправить</button><button type="button" class="lnk" data-act="home">Пропустить</button></div>`;
+        `<div class="bot"><button type="button" class="bbtn" data-act="sendfb">${p.reason === "not_working" ? "Написать в поддержку" : "Отправить"}</button><button type="button" class="lnk" data-act="home">Пропустить</button></div>`;
     },
     bot: true,
   };
@@ -1396,7 +1404,7 @@
     h(p) {
       const t = p.ticket;
       const status = t ? ({ open: "ждём ответ", pending: "есть ответ", closed: "закрыт" }[t.status] || "") : "онлайн";
-      const hero = hc("green", { cls: "compact", rb: status, ill: FROG(64), h: "Поддержка", p: t ? `Обращение №${t.id} · ответ придёт сюда и в бот` : "Напишите нам — ответ придёт сюда и в бот" });
+      const hero = hc("green", { cls: "compact", rb: status, ill: FROG(64), h: "Поддержка", p: t ? `Обращение №${t.id} · ответ придёт сюда и\u00a0в\u00a0чат с\u00a0ботом` : "Ответ придёт сюда и\u00a0в\u00a0чат с\u00a0ботом" });
       let chat = "";
       const msgs = (t && t.messages) || [];
       if (!p.loaded) chat = `<div class="empty"><span class="typing"><span></span><span></span><span></span></span></div>`;
@@ -1468,7 +1476,7 @@
   SCR.faq = {
     h() {
       const items = (me.faq || []).filter((x) => x && x.q);
-      return hc("orange", { ill: "💡", h: "Частые вопросы", p: "Подключение, оплата и деньги", pill: "Написать в поддержку", pa: 'data-act="support"', r: "msg", rl: "Поддержка", ra: 'data-act="support"' }) +
+      return hc("orange", { ill: "💡", h: "Частые вопросы", p: "Подключение, оплата и деньги", pill: "Написать в поддержку", pi: "msg", pa: 'data-act="support"' }) +
         (items.length ? ST("Популярное") + `<div class="cd">${items.map((q, i) => `<button type="button" class="rw q${i ? "" : " open"}" data-act="acc"><span class="qh"><b>${esc(q.q)}</b>${V(CV)}</span><span class="ans">${esc(q.a || "")}</span></button>`).join("")}</div>`
           : NOTE("Вопросов пока нет — напишите нам, ответим.", true));
     },
@@ -2025,6 +2033,8 @@
       haptic();
       cur.params.reason = b.dataset.v;
       cur.el.querySelectorAll(".rd").forEach((r) => r.classList.toggle("on", r.closest("[data-v]").dataset.v === cur.params.reason));
+      const send = cur.el.querySelector('[data-act="sendfb"]');
+      if (send) send.textContent = cur.params.reason === "not_working" ? "Написать в поддержку" : "Отправить";
     },
     async sendfb(b) {
       const { token, reason } = cur.params;
