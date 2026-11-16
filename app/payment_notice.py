@@ -3,7 +3,8 @@ import logging
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 from app import db
 from app.funnel_ui import send_funnel_message
-from app.keyboards import onboarding_keyboard, cabinet_keyboard
+from app.config import get_settings
+from app.keyboards import onboarding_keyboard, cabinet_keyboard, with_referral_share
 from app.notices import notice_text
 from app.texts import rub_text
 
@@ -45,6 +46,12 @@ async def deliver_payment_notice(bot, receipt):
             if used_vpn(local, devices):
                 body += '\n\nVPN уже настроен, больше ничего делать не нужно. Если не подключается — напишите в поддержку.'
                 markup = cabinet_keyboard()
+                # Right after paying people are happy with the service: offer to bring a friend (not to quiet ones).
+                cfg = get_settings()
+                if cfg.referral_program_enabled and not local.get('quiet_notifications'):
+                    reward = int(getattr(cfg, 'referral_reward_rub', 0) or 50)
+                    body += f'\n\n🎁 Пригласите друга: ему {reward} ₽ сразу, вам {reward} ₽, когда он подключит VPN.'
+                    markup = with_referral_share(uid, markup)
                 step = 'ok'
             elif not devices:
                 body += '\n\n📱 Добавьте устройство — покажем, как подключить VPN.'

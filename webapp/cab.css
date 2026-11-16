@@ -112,6 +112,9 @@ a { color: var(--link); text-decoration: none; }
 .bars { display: flex; align-items: flex-end; gap: 5px; height: 50px; margin: 16px 6px 0; }
 .bars i { flex: 1; border-radius: 4px 4px 0 0; background: rgba(255, 255, 255, .3); transform-origin: bottom; animation: grow .7s var(--ease) both; min-height: 3px; }
 .bars i.on { background: #fff; }
+.bars-l { display: flex; gap: 5px; margin: 6px 6px 0; }
+.bars-l span { flex: 1; text-align: center; font-size: 11px; color: rgba(255, 255, 255, .55); white-space: nowrap; }
+.bars-l span.on { color: #fff; font-weight: 600; }
 @keyframes grow { from { transform: scaleY(0); } }
 
 /* ---------- below the card ---------- */
@@ -546,7 +549,7 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .gs-festive { background: radial-gradient(120% 75% at 50% 0%, #27a36b 0%, rgba(39, 163, 107, 0) 62%), linear-gradient(170deg, #062a1d, #0f5138 55%, #17704c); }
 .gs-gold { background: radial-gradient(120% 75% at 50% 0%, #4a4030 0%, rgba(74, 64, 48, 0) 62%), linear-gradient(170deg, #08080c, #14141c 55%, #262230); }
 .gs-sunset { background: radial-gradient(120% 75% at 50% 0%, #ffb38a 0%, rgba(255, 179, 138, 0) 62%), linear-gradient(170deg, #7a1f5c, #e2477a 55%, #ff8a5b); }
-.hc.gs { isolation: isolate; background: #2b1663; }
+.hc.gs { isolation: isolate; background: #2b1663; contain: paint; }
 .gs-bgs { position: absolute; inset: 0; z-index: -3; pointer-events: none; }
 .gs-bgs i { position: absolute; inset: 0; opacity: 0; transition: opacity .55s ease; }
 .gs-bgs i.on { opacity: 1; }
@@ -558,6 +561,11 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 @keyframes gscf { to { transform: translate3d(var(--dx, 10px), 560px, 0) rotate(540deg); } }
 .hc.gs .gf-ill { transition: opacity .2s, transform .45s cubic-bezier(.3, 1.6, .5, 1); }
 .hc.gs .gf-ill.swap { opacity: 0; transform: scale(.6) rotate(-8deg); transition: opacity .2s, transform .2s ease-in; }
+/* «Пригласить»: the purple stage of «Подарить» with a red-and-gold gift */
+.hc.inv .inv-g { position: relative; width: 315px; height: 159px; margin: -10px auto 6px; left: 50%; margin-left: -157.5px; pointer-events: none; }
+.hc.inv .K { opacity: .7; }
+.hc.inv .N.inv-n { font-size: 46px; margin-top: 2px; }
+.hc.inv .P { margin-top: 4px; font-size: 15px; opacity: .75; }
 .st .gs-tag { margin-left: 6px; font-size: 14px; font-weight: 600; color: var(--hint); }
 .gs-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 12px; animation: up .5s .2s var(--ease) both; }
 .gs-tiles button { position: relative; height: 104px; border-radius: 20px; overflow: hidden; isolation: isolate; color: #fff; font-weight: 700; font-size: 11px; padding: 0 3px 8px;

@@ -355,7 +355,7 @@
     const t = {
       first: [`<div class="ok-badge">${CHKS("#3ccf74", 13)} VPN работает</div>`, "Сохраните запасной вход", "На случай, если Telegram не откроется"],
       low: ["", "Пополнить можно и с компьютера", "Кабинет открывается в браузере — без ника и пароля"],
-      gen: ["", "Кабинет есть и в браузере", "Даже если Telegram не грузится"],
+      gen: ["", "Кабинет\u00a0есть и\u00a0в\u00a0браузере", "Даже если Telegram не грузится"],
     }[kind];
     return `<div class="bpc${kind === "first" ? " okg" : ""}"><div class="sw">${browserScene()}</div>` +
       `<div class="tx">${t[0]}<b>${t[1]}</b><span>${t[2]}</span><button type="button" class="lnk" data-act="browserHow">Как войти ›</button></div>` +
@@ -1286,7 +1286,7 @@
           [E("🆘") + "Помощь с подключением" + V(CV), 'data-act="helpdevice"']]) +
         `<div style="height:12px"></div>` +
         cd([[E("🗑️") + "Удалить устройство", 'data-act="delete"', "red"]]) +
-        NOTE(me.balance_enabled ? "Удалите устройство, если больше не пользуетесь, — списания за него прекратятся." : "");
+        NOTE(me.balance_enabled ? "Если устройство больше не нужно, удалите его — списания за него прекратятся." : "");
     },
     sig: (p) => JSON.stringify(deviceById(p.id) || null),
   };
@@ -1311,7 +1311,7 @@
       return seg + `<div class="tabc">${me.gifts_enabled && p.tab === "give" ? giveTab() : this.invite()}</div>`;
     },
     on(el, p) {
-      if (p.tab === "give") gGive(el);
+      if (p.tab === "give") gGive(el); else gInvite(el);
       // Load the gifts up front, so «Подарить» opens complete and does not redraw a moment later.
       if (me.gifts_enabled && !gs.data) loadGifts();
     },
@@ -1321,9 +1321,12 @@
       const terms = me.referral_terms && typeof me.referral_terms === "object" ? me.referral_terms : {};
       const friends = Array.isArray(me.referrals) ? me.referrals : [];
       const invited = Number(me.invited_count) || 0, earned = Number(me.referral_earned) || 0;
-      const hero = hc("indigo", { ill: "🎁", h: on ? `Пригласите друзей и получайте по ${rub(reward)}` : "Пригласите друзей",
-        p: on ? "Как только друг откроет бота по вашей ссылке, вы оба получите бонус на баланс" : "Пользоваться вместе приятнее. Сейчас новые награды не начисляются",
-        pill: "Поделиться", pi: "share", pa: 'data-act="share"', r: "copy", rl: "Скопировать", ra: 'data-act="copyinvite"', cls: "ref" });
+      // The same purple stage as «Подарить», with a red-and-gold gift so the two tabs do not look alike.
+      const hero = `<section class="hc gs inv ref"><div class="ov"></div>${gBack("violet")}<div class="inv-g" data-gmini="festive"></div>` +
+        (on ? `<div class="K">Пригласите друзей</div><div class="N inv-n">+${rub(reward)}</div><div class="P">вам и другу за каждого приглашённого</div>`
+          : `<div class="H">Пригласите друзей</div><div class="P">Пользоваться вместе приятнее. Сейчас новые награды не начисляются</div>`) +
+        `<div class="acts"><button type="button" class="pill" data-act="share">${IC.share}<span>Поделиться</span></button>` +
+        `<button type="button" class="rnd" aria-label="Скопировать" data-act="copyinvite">${IC.copy}</button></div></section>`;
       const how = on ? ST("Как это работает") + tl([["1", "Друг открывает бота по ссылке", esc(terms.friend || "и получает подарок")],
         ["2", "Начинает пользоваться VPN", esc(terms.when || "")], ["🎁", `Вам ${rub(reward)} на баланс`, earned ? `<b>+${rub(earned)}</b> уже получено` : esc(terms.how || "")]]) : "";
       const stats = ST("Ваши друзья") + cd([E("👥") + "Приглашено" + V(String(invited)), E("💰") + "Получено" + V(rub(earned))]);
@@ -1359,9 +1362,14 @@
         if (slot) slot.sum += -v;
       });
       const max = Math.max(1, ...byDay.map((x) => x.sum));
-      const bars = `<div class="bars">${byDay.map((x, i) => `<i class="${i === 6 ? "on" : ""}" style="height:${Math.max(6, Math.round((x.sum / max) * 100))}%;animation-delay:${0.2 + i * 0.06}s"></i>`).join("")}</div>`;
-      const hero = hc("slate", { n: charged ? cnt(charged, " ₽", "−") : "0 ₽", p: items.length ? `списано за 7 дней · ${items.length} ${pl(items.length, "операция", "операции", "операций")}` : "Пока не было списаний и начислений", x: bars });
-      if (!items.length) return hero + NOTE("Здесь появятся списания и пополнения баланса.", true);
+      if (!items.length) {
+        return hc("slate", { ill: "🧾", h: "Пока пусто", p: "Здесь появятся пополнения, списания за VPN и бонусы", pill: "Пополнить баланс", pi: "plus", pa: 'data-go="topup"' });
+      }
+      // Seven days of spending, each bar signed with its weekday; today is the bright one.
+      const WD = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+      const bars = `<div class="bars">${byDay.map((x, i) => `<i class="${i === 6 ? "on" : ""}" style="height:${Math.max(6, Math.round((x.sum / max) * 100))}%;animation-delay:${0.2 + i * 0.06}s"></i>`).join("")}</div>` +
+        `<div class="bars-l">${byDay.map((x, i) => `<span class="${i === 6 ? "on" : ""}">${i === 6 ? "сегодня" : WD[new Date(x.key).getDay()]}</span>`).join("")}</div>`;
+      const hero = hc("slate", { n: charged ? cnt(charged, " ₽", "−") : "0 ₽", p: `списано за 7 дней · ${items.length} ${pl(items.length, "операция", "операции", "операций")}`, x: bars });
       const groups = [];
       items.forEach((e) => {
         const d = parseDate(e.created_at);
@@ -1473,14 +1481,15 @@
       const u = me.user || {};
       const photo = u.photo ? `<span class="frogw"><img class="frog" src="${esc(u.photo)}" width="80" height="80" style="width:80px;height:80px" alt="" onerror="this.src='/icons/frog.png'"></span>` : FROG(80);
       const quiet = Boolean(me.quiet_notifications);
-      return hc("slate", { ill: photo, h: esc(u.name || "Профиль"), p: esc(u.username || `ID ${u.id || ""}`), pill: "Скопировать ID", pa: 'data-act="copyid"', r: "msg", rl: "Поддержка", ra: 'data-act="support"' }) +
+      const who = [u.username ? "@" + esc(u.username) : "", u.id ? `ID ${esc(u.id)}` : ""].filter(Boolean).join(" · ");
+      return hc("slate", { ill: photo, h: esc(u.name || "Профиль"), p: who, pill: "Поддержка", pi: "msg", pa: 'data-act="support"', r: "copy", rl: "Скопировать ID", ra: 'data-act="copyid"' }) +
         (me.notification_settings_available ? ST("Уведомления") + cd([["Режим тишины" + `<span class="tg ${quiet ? "" : "off"}"></span>`, 'data-act="quiet"']]) +
           NOTE("Без приглашений, акций и напоминаний. Сообщения о деньгах, доступе и ответы поддержки останутся.") : "") +
         ST("Ещё") +
-        cd([me.cabinet_site_url && inTelegram() ? [E("💻") + "Кабинет в браузере" + V(esc(siteHost()) + " " + CV), 'data-act="browserHow"'] : null,
+        cd([[E("🧾") + "История операций" + V(CV), 'data-go="history"'],
           me.promo_enabled ? [E("🎟️") + "Промокод" + V(CV), 'data-go="promo"'] : null,
           [E("💡") + "Частые вопросы" + V(CV), 'data-go="faq"'],
-          [E("🧾") + "История" + V(CV), 'data-go="history"'],
+          me.cabinet_site_url && inTelegram() ? [E("💻") + "Кабинет в браузере" + V(esc(siteHost()) + " " + CV), 'data-act="browserHow"'] : null,
           me.legal && me.legal.offer ? [E("📄") + "Пользовательское соглашение" + V(CV), `data-act="link" data-v="${esc(me.legal.offer)}"`] : null,
           me.legal && me.legal.privacy ? [E("🔒") + "Политика конфиденциальности" + V(CV), `data-act="link" data-v="${esc(me.legal.privacy)}"`] : null]);
     },
@@ -1752,7 +1761,10 @@
     if (btn) btn.classList.add("dim");
     try {
       const names = { ios: "Мой iPhone", android: "Мой Android", macos: "MacBook", windows: "Ноутбук", androidtv: "Телевизор", appletv: "Apple TV" };
-      const title = names[wiz.platform] || "Моё устройство";
+      // A second «Мой iPhone» becomes «Мой iPhone 2», so the list tells them apart.
+      const base = names[wiz.platform] || "Моё устройство", taken = new Set((me.devices || []).map((d) => String(d.title || "").trim()));
+      let title = base;
+      for (let n = 2; taken.has(title); n++) title = `${base} ${n}`;
       const made = await post("/api/devices", { title, platform: wiz.platform, client: wiz.client });
       if (wiz.client) store.set("app_" + wiz.platform, wiz.client);
       Object.assign(wiz, { title, url: made.subscription_url || "", deviceId: made.device_id });
@@ -2334,6 +2346,7 @@
       `<div class="tt">${many ? "Подарки для всех в чате" : "Вам подарок на VPN"}</div><div class="sb">${many ? "Кто первый — того и подарок" : "Нажмите, чтобы забрать — деньги сразу на баланс"}</div></div>` +
       `<div class="tx">🎁 ${txt}</div></div><div class="gs-kb">${many ? "🎁 Забрать подарок" : "🎁 Открыть подарок"}</div>`;
   }
+  function gInvite(el) { gMini(el); gConf(el.querySelector(".hc.inv"), "festive"); }
   function gGive(el) { mountGift(el, gs.style); gConf(el.querySelector(".hc.gf"), gs.style); gMini(el); }
   // Switching the style: the background crossfades, the gift pops out and back in the new colours.
   function gPick(k) {
@@ -2685,7 +2698,7 @@
       fresh.innerHTML = tab === "give" ? giveTab() : SCR.friends.invite();
       box.replaceWith(fresh);
       sparkle(fresh);
-      if (tab === "give") { gGive(fresh); loadGifts(); }
+      if (tab === "give") { gGive(fresh); loadGifts(); } else gInvite(fresh);
       cur.sig = SCR.friends.sig(cur.params);
     },
     gfamt(b) {

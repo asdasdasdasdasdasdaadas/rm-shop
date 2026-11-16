@@ -50,6 +50,21 @@ class PaymentNoticeTest(unittest.IsolatedAsyncioTestCase):
         await notice.deliver_payment_notice(self.bot,self.receipt)
         self.assertIn('VPN уже настроен',self.bot.send_message.call_args.args[1])
 
+    async def test_connected_payer_is_offered_to_invite_a_friend(self):
+        self.user.return_value={'balance_rub':94,'first_online_at':'date'}
+        on=SimpleNamespace(referral_program_enabled=True,referral_reward_rub=50)
+        with patch.object(notice,'get_settings',return_value=on):
+            await notice.deliver_payment_notice(self.bot,self.receipt)
+        rows=self.bot.send_message.call_args.kwargs['reply_markup'].inline_keyboard
+        self.assertTrue(any('Поделиться' in b.text for r in rows for b in r))
+        self.assertIn('Пригласите друга: ему 50 ₽',self.bot.send_message.call_args.args[1])
+        self.bot.send_message.reset_mock()
+        self.user.return_value={'balance_rub':94,'first_online_at':'date','quiet_notifications':True}
+        with patch.object(notice,'get_settings',return_value=on):
+            await notice.deliver_payment_notice(self.bot,self.receipt)
+        rows=self.bot.send_message.call_args.kwargs['reply_markup'].inline_keyboard
+        self.assertFalse(any('Поделиться' in b.text for r in rows for b in r))
+
     async def test_device_seen_online_counts_as_connected(self):
         self.devices.return_value=[{'id':1,'last_online_at':'date'}]
         await notice.deliver_payment_notice(self.bot,self.receipt)
