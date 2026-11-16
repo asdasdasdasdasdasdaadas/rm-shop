@@ -322,30 +322,60 @@ def _num(value) -> int | float:
     return int(x) if x == int(x) else x
 
 
-async def fetch_gift(link: str, ton: float | None = None) -> dict:
-    """Everything the cabinet shows for one gift, read from its Telegram page and Fragment animation."""
+BACKDROPS_KEY = "friend_nft_backdrops"  # backdrop name → its three colours, so the animation is fetched once per backdrop
+
+
+def _backdrop(attrs: list) -> str:
+    return next((str(x[1]) for x in attrs if len(x) > 1 and x[0] == "Фон"), "")
+
+
+async def backdrop_cache() -> dict:
+    """Backdrop colours known so far: Telegram has a fixed set of backdrops, the same in every collection."""
+    known = {_backdrop(g["a"]): g["bg"] for gifts in DEFAULT_SETS for g in gifts if not is_black(g)}
+    try:
+        saved = json.loads(await db.get_kv(BACKDROPS_KEY) or "{}")
+    except ValueError:
+        saved = {}
+    return {**known, **(saved if isinstance(saved, dict) else {})}
+
+
+async def fetch_gift(link: str, ton: float | None = None, *, http=None, colors: dict | None = None) -> dict:
+    """Everything the cabinet shows for one gift: its Telegram page, and its backdrop colours from the Fragment
+    animation — only when that backdrop is new (`colors` is the cache, filled in place)."""
     import aiohttp
 
     parsed = parse_link(link)
     if not parsed:
         raise ValueError("Нужна ссылка вида t.me/nft/IceCream-162005")
     slug, page = parsed
-    timeout = aiohttp.ClientTimeout(total=20)
-    async with aiohttp.ClientSession(timeout=timeout) as http:
-        async with http.get(f"https://t.me/nft/{page}") as resp:
+    own = http is None
+    if own:
+        http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20))
+    try:
+        # t.me gives the attributes table to a plain client, not to a browser.
+        async with http.get(f"https://t.me/nft/{page}", headers={"User-Agent": "aiohttp"}) as resp:
             html = await resp.text() if resp.status == 200 else ""
+        title, attrs = page_attrs(html)
+        if not attrs:
+            raise ValueError(f"Не нашёл подарок по ссылке {link}: проверьте номер")
+        gift = {"slug": slug, "name": title or re.sub(r"(?<=[a-z])(?=[A-Z])", " ", page.rsplit("-", 1)[0]),
+                "no": slug.rsplit("-", 1)[1], "ton": _num(ton), "bg": BLACK, "a": attrs, "link": f"https://t.me/nft/{page}"}
+        name = _backdrop(attrs)
+        if is_black(gift):
+            return paint(gift)
+        if colors is not None and colors.get(name):
+            return {**gift, "bg": colors[name]}
         async with http.get(f"{F}{slug}.lottie.json") as resp:
             if resp.status != 200:
                 raise ValueError(f"Fragment не отдал подарок {slug}")
             lottie = await resp.json(content_type=None)
-    title, attrs = page_attrs(html)
-    if not attrs:
-        raise ValueError(f"Не нашёл подарок по ссылке {link}: проверьте номер")
-    name = title or re.sub(r"(?<=[a-z])(?=[A-Z])", " ", page.rsplit("-", 1)[0])
-    return paint({
-        "slug": slug, "name": name, "no": slug.rsplit("-", 1)[1], "ton": _num(ton),
-        "bg": backdrop_colors(lottie) or BLACK, "a": attrs, "link": f"https://t.me/nft/{page}",
-    })
+        gift["bg"] = backdrop_colors(lottie) or BLACK
+        if colors is not None and name:
+            colors[name] = gift["bg"]
+        return gift
+    finally:
+        if own:
+            await http.close()
 
 
 # ---------------------------------------------------------------- Fragment market
@@ -382,7 +412,7 @@ def pick_regular(rows: list[dict], n: int, avoid: set[str], max_ton: float) -> l
             if any(p["collection"] == r["collection"] for p in picks) or (skip_old and r["collection"] in avoid):
                 continue
             picks.append(r)
-    return sorted(picks, key=lambda r: r["ton"])
+    return picks  # best first: the ones after n are stand-ins
 
 
 def similar_url(gift: dict) -> str:
@@ -407,28 +437,55 @@ async def discover(cfg: dict, avoid: set[str] | None = None) -> list[dict]:
         rows = market_rows(await page(f"{FRAG}/gifts?sort=price_asc&filter=sale"))
         if not rows:
             raise ValueError("Fragment не показал подарки на продаже")
-        regular = pick_regular(rows, n - 1, set(avoid or ()), float(cfg["max_ton"]))
+        # Every cheap collection in order: the first n-1 are the picks, the rest stand in if a page fails.
+        regular = pick_regular(rows, len(rows), set(avoid or ()), float(cfg["max_ton"]))
         if len(regular) < n - 1:
             raise ValueError(f"На продаже мало подарков дешевле {cfg['max_ton']} TON")
-        best = None
-        for col in list(dict.fromkeys(r["collection"] for r in rows))[:BLACK_SCAN]:
-            try:
-                found = [r for r in market_rows(await page(f"{FRAG}/gifts/{col}?sort=price_asc&filter=sale&{BLACK_FILTER}"))
-                         if r["collection"] == col and r["ton"] <= float(cfg["black_max_ton"])]
-            except Exception:
-                logger.info("Fragment: коллекция %s не открылась", col, exc_info=True)
-                continue
-            if found and (best is None or _rank(min(found, key=_rank)) < _rank(best)):
-                best = min(found, key=_rank)
-        if not best:
+        # The cheapest Onyx Black one: a few cheap collections at once (Fragment filters by backdrop per collection).
+        gate = asyncio.Semaphore(4)
+
+        async def black_in(col: str) -> list[dict]:
+            async with gate:
+                try:
+                    html = await page(f"{FRAG}/gifts/{col}?sort=price_asc&filter=sale&{BLACK_FILTER}")
+                except Exception:
+                    logger.info("Fragment: коллекция %s не открылась", col, exc_info=True)
+                    return []
+            return [r for r in market_rows(html) if r["collection"] == col and r["ton"] <= float(cfg["black_max_ton"])]
+
+        cols = list(dict.fromkeys(r["collection"] for r in rows))[:BLACK_SCAN]
+        blacks = [r for found in await asyncio.gather(*(black_in(c) for c in cols)) for r in found]
+        if not blacks:
             raise ValueError(f"Не нашёл подарок на чёрном фоне дешевле {cfg['black_max_ton']} TON")
-    gifts = []
-    for r in regular + [best]:
-        gift = await fetch_gift(f"https://t.me/nft/{r['slug']}", r["ton"])
-        gift["fragment"] = f"{FRAG}/gift/{r['slug']}"
-        gifts.append(gift)
-    if not is_black(gifts[-1]):
-        raise ValueError(f"У {gifts[-1]['name']} не чёрный фон — Fragment не применил фильтр")
+        colors = await backdrop_cache()
+        known = len(colors)
+
+        async def read(r: dict) -> dict | None:
+            try:
+                gift = await fetch_gift(f"https://t.me/nft/{r['slug']}", r["ton"], http=http, colors=colors)
+            except Exception as exc:  # sold and withdrawn, or the page did not open: take the next one
+                logger.info("Fragment: %s пропущен (%s)", r["slug"], exc)
+                return None
+            return {**gift, "fragment": f"{FRAG}/gift/{r['slug']}"}
+
+        picked: list[dict] = []
+        spare = list(regular)
+        while len(picked) < n - 1 and spare:
+            batch, spare = spare[:n - 1 - len(picked)], spare[n - 1 - len(picked):]
+            picked += [g for g in await asyncio.gather(*(read(r) for r in batch)) if g]
+        if len(picked) < n - 1:
+            raise ValueError(f"На продаже мало подарков дешевле {cfg['max_ton']} TON")
+        main = None
+        for r in sorted(blacks, key=_rank)[:6]:
+            main = await read(r)
+            if main and is_black(main):
+                break
+            main = None
+        if not main:
+            raise ValueError("Подарки на чёрном фоне не открылись — Fragment не применил фильтр")
+        if len(colors) > known:
+            await db.set_kv(BACKDROPS_KEY, json.dumps(colors, ensure_ascii=False))
+    gifts = sorted(picked, key=lambda g: g["ton"]) + [main]
     return gifts
 
 

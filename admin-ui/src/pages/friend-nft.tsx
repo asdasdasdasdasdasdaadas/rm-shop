@@ -148,8 +148,8 @@ function Auto({ data, reload }: { data: Data; reload: () => Promise<void> }) {
   };
   const search = async (action: string) => {
     await api("friend-nft", { action });
-    toast.success("Ищу подарки на Fragment — витрина обновится примерно через минуту");
-    setTimeout(() => void reload(), 45000);
+    toast.success("Ищу подарки на Fragment — витрина обновится секунд через 20");
+    setTimeout(() => void reload(), 20000);
   };
   const gifts: Data[] = data.showcase || [];
   const steps: number[] = cfg.steps || [];

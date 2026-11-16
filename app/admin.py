@@ -2223,7 +2223,7 @@ async def api_friend_nft(request: web.Request) -> web.Response:
                 if cfg["enabled"] and cfg["auto"]:
                     asyncio.create_task(friend_nft.refresh_live(await friend_nft.config()), name="friend-nft-find")
             elif action in ("rotate", "find"):
-                # Fragment answers slowly (half a minute for a showcase): the search runs on, the page reloads later.
+                # Fragment answers slowly (5–20 s for a showcase): the search runs on, the page reloads later.
                 cfg = await friend_nft.rotate_now() if action == "rotate" else await friend_nft.config()
                 if cfg["auto"]:
                     async def find() -> None:

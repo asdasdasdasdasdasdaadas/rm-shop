@@ -60,10 +60,48 @@ class PureTest(unittest.TestCase):
         self.assertEqual(rows[-1]["ton"], 1200)
         # One per collection, a fixed price before an auction, the last showcase's collections only if nothing else.
         picks = friend_nft.pick_regular(rows, 3, {"icecream"}, 8)
-        self.assertEqual([p["slug"] for p in picks], ["lunarsnake-2", "bigyear-1", "snakebox-4"])
+        self.assertEqual([p["slug"] for p in picks], ["lunarsnake-2", "snakebox-4", "bigyear-1"])
         self.assertEqual([p["slug"] for p in friend_nft.pick_regular(rows, 4, {"icecream"}, 8)][-1], "icecream-5")
         self.assertIn("Onyx+Black", friend_nft.similar_url(friend_nft.DEFAULT_SETS[0][-1]))
         self.assertTrue(friend_nft.similar_url(friend_nft.DEFAULT_SETS[0][0]).endswith("/gifts/icecream?sort=price_asc&filter=sale"))
+
+    def test_discover_skips_a_gift_that_does_not_open(self):
+        def item(slug, ton):
+            return (f'<a href="/gift/{slug}"><div class="tm-grid-item-value tm-value icon-before icon-ton">{ton}</div>'
+                    '<div class="tm-grid-item-status tm-status-avail">For sale</div></a>')
+        market = "".join(item(x, 5) for x in ["aa-1", "bb-2", "cc-3"])
+        black = {"aa": item("aa-9", 12), "bb": item("bb-8", 10), "cc": ""}
+        page_attrs = lambda back: ('<meta property="og:title" content="Gift #1"><th>Model</th><td>M <mark>1%</mark></td>'
+                                   f'<th>Backdrop</th><td>{back} <mark>1%</mark></td><th>Symbol</th><td>S <mark>1%</mark></td>')
+
+        class Resp:
+            def __init__(self, status, text=""): self.status, self._text = status, text
+            async def __aenter__(self): return self
+            async def __aexit__(self, *a): return False
+            async def text(self): return self._text
+            async def json(self, content_type=None): return {"layers": []}
+
+        class Http:
+            def __init__(self, *a, **k): self.urls = []
+            async def __aenter__(self): return self
+            async def __aexit__(self, *a): return False
+            def get(self, url, headers=None):
+                if "/gifts?" in url: return Resp(200, market)
+                if "/gifts/" in url: return Resp(200, black[url.split("/gifts/")[1].split("?")[0]])
+                if "t.me/nft/aa-1" in url: return Resp(200, "no table")  # sold and gone
+                if "t.me/nft/bb-8" in url: return Resp(200, page_attrs("Onyx Black"))
+                if "t.me/nft/" in url: return Resp(200, page_attrs("Grape"))
+                return Resp(200)
+
+        import aiohttp
+        store = {}
+        with patch.object(aiohttp, "ClientSession", Http), \
+             patch.object(db, "get_kv", AsyncMock(side_effect=lambda k: store.get(k, ""))), \
+             patch.object(db, "set_kv", AsyncMock(side_effect=lambda k, v: store.__setitem__(k, v))):
+            gifts = asyncio.run(friend_nft.discover(friend_nft.normalize({"steps": [1, 2, 3]})))
+        self.assertEqual([g["slug"] for g in gifts], ["bb-2", "cc-3", "bb-8"])  # aa-1 skipped, the cheapest black last
+        self.assertEqual((gifts[-1]["ton"], gifts[-1]["bg"], gifts[-1]["fragment"]), (10, friend_nft.BLACK, "https://fragment.com/gift/bb-8"))
+        self.assertEqual(gifts[0]["bg"], ["#b48ad6", "#794da0", "#3f2457"])  # Grape is known: no animation download
 
     def test_validate(self):
         with self.assertRaisesRegex(ValueError, "расти"):
