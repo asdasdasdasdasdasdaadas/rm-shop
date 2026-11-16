@@ -68,6 +68,7 @@ const templates: [string, string][] = [
   ["", "Своё сообщение"],
   ["gift3", "+3 дня всем с текстом"],
   ["referral_news", "Новая реферальная программа"],
+  ["gift_ny", "Подарок на Новый год"],
   ["whitelist", "Белые списки включены"],
   ["invite", "Пригласить друзей"],
   ["unused", "Помощь с первым подключением"],
@@ -77,6 +78,7 @@ const templateIcon: Record<string, string> = {
   "": "✏️",
   gift3: "🎁",
   referral_news: "👥",
+  gift_ny: "🎄",
   whitelist: "📋",
   invite: "🤝",
   unused: "🛟",
@@ -90,6 +92,12 @@ const templateAudience: Record<string, string> = {
 };
 // A photo, GIF or video goes with one's own text or with «Кабинет в браузере» (a screen recording of the login).
 const withMedia = (t: string) => !t || t === "browser";
+// «Подарок на Новый год» always goes with its animated card.
+const NY_CLIP = {
+  url: "/admin/api/broadcast/builtin/gift-ny.mp4",
+  kind: "animation",
+  video: true,
+};
 // «Кабинет в браузере» ships its own looping clip (app/assets/browser-login.mp4); the admin may swap or drop it.
 const BUILTIN_CLIP = {
   url: "/admin/api/broadcast/builtin/browser-login.mp4",
@@ -105,6 +113,7 @@ const clipOptions: [string, string][] = [
 const announce: Record<string, string> = {
   gift3: "Забрать 3 дня бесплатно",
   referral_news: "Пригласить друзей",
+  gift_ny: "🎁 Выбрать подарок",
 };
 // Telegram caption limit is 1024; the bot adds a short «Откройте личный кабинет 👇» line.
 const CAPTION_MAX = 964;
@@ -463,7 +472,11 @@ export function BroadcastPage() {
         : null,
     shown =
       attached ||
-      (template === "browser" && clip === "builtin" ? BUILTIN_CLIP : null),
+      (template === "browser" && clip === "builtin"
+        ? BUILTIN_CLIP
+        : template === "gift_ny"
+          ? NY_CLIP
+          : null),
     tooLong = !!attached && text.length > CAPTION_MAX,
     ready = (!!body.trim() || !!attached) && !tooLong;
   const selectTemplate = (v: string) => {
@@ -737,7 +750,9 @@ export function BroadcastPage() {
                             <dd>
                               {shown === BUILTIN_CLIP
                                 ? "Встроенное видео: вход по QR"
-                                : kindLabel[shown.kind]}
+                                : shown === NY_CLIP
+                                  ? "Новогодняя открытка (анимация)"
+                                  : kindLabel[shown.kind]}
                             </dd>
                           </div>
                         )}

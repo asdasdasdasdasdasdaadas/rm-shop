@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     gifts_enabled: bool = True
     gift_min_rub: int = 60
     gift_max_rub: int = 20000
+    # New Year gifts (festive looks first, round amounts, the home banner): MM-DD to MM-DD, across the new year.
+    new_year_gifts_from: str = "12-01"
+    new_year_gifts_to: str = "01-10"
     referral_program_enabled: bool = False
     referral_reward_rub: int = 50
     referral_invitee_reward_rub: int = 30

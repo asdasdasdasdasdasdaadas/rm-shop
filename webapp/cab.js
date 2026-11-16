@@ -438,6 +438,7 @@
       const giftLater = me.trial_available && !showOffer() ? [E("🎁") + "Попробовать бесплатно" + V(rub(me.trial_rub) + " " + CV), 'data-go="gift"'] : null;
       return hero +
         fbCard() +
+        nyCard() +
         browserCard() +
         (showInvitee ? NOTE(`Вы пришли по ссылке друга — после первого пополнения на баланс ещё ${rub(invitee)}.`, true) : "") +
         (devRows.length ? ST(`Устройства${cap ? ` <span style="color:var(--hint);font-weight:500">· ${devs.length} из ${cap}</span>` : ""}`) + cd(devRows) : "") +
@@ -450,11 +451,13 @@
           [E("⚙️") + "Настройки" + V(CV), 'data-go="settings"'],
         ]);
     },
-    on() {
+    on(el) {
       store.set("shown_bal", Number(me.balance_rub) || 0);
       track("cabinet");
+      const nb = el && el.querySelector(".nyb");
+      if (nb) { gMini(nb); gConf(nb, "snow"); }
     },
-    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.has_paid_topup, me.browser_login, me.first_bonus]),
+    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.has_paid_topup, me.browser_login, me.first_bonus, me.gift_season]),
   };
 
   // ---------- gift for newcomers ----------
@@ -550,6 +553,14 @@
   }
   new MutationObserver(() => fbMount(document)).observe(document.getElementById("root"), { childList: true, subtree: true });
   const fbUnits = () => `<div class="fbcd">${["д", "ч", "мин", "сек"].map((l) => `<div class="u"><div class="v"><span>0</span></div><div class="l">${l}</div></div>`).join("")}</div>`;
+  // While the New Year gifts run: a snowy banner that opens «Подарить» with the festive looks.
+  function nyCard() {
+    if (!me.gifts_enabled || me.gift_season !== "ny") return "";
+    const now = new Date(), jan = now.getMonth() === 0, left = Math.ceil((new Date(now.getFullYear() + 1, 0, 1) - now) / 864e5);
+    const k = jan ? "С Новым годом!" : left > 1 ? `До Нового года ${days(left)}` : "Завтра Новый год";
+    return `<button type="button" class="nyb" data-act="gfgive"><i class="gs-snow"></i><span class="gs-conf"></span><span class="nyb-g" data-gmini="snow" data-speed=".9"></span>` +
+      `<span class="nyb-k">${k}</span><span class="nyb-t">Подарите VPN близким</span><span class="nyb-a">Выбрать подарок</span></button>`;
+  }
   function fbCard() {
     const f = FB();
     // The countdown means something only once the gift is running (after the first connection).
@@ -2186,7 +2197,7 @@
   // =====================================================================
   // The gift is Wallet's own animation (icons/wallet_gift*.json, see icons/PAYMENT-ASSETS.md), split into box and lid
   // so the lid can fly off. Particles, the beam and coins are ours.
-  const gs = { amount: 0, custom: false, count: 1, data: null, busy: false, style: "violet" };
+  const gs = { amount: 0, custom: false, count: 1, data: null, busy: false, style: "violet", touched: false, greeting: "", greeted: false };
   // The giver picks how the gift looks: the card in the cabinet, the card in Telegram and the friend's screen share it.
   // box/rib recolour Wallet's blue box and orange ribbon: [hue, saturation or null to keep it, lightness from the original].
   const GSTY = {
@@ -2194,7 +2205,28 @@
     festive: { name: "Праздничный", ray: "rgba(255,226,140,.16)", conf: ["#ffd76a", "#ff5a5a", "#fff"], box: [356, 0.72, (l) => Math.min(0.62, 0.3 + l * 0.45)], rib: [44, null] },
     gold: { name: "Золотой", ray: "rgba(255,215,106,.14)", conf: ["#ffd76a", "#f7b733", "#fff3c4"], box: [43, 0.85, (l) => Math.min(0.72, 0.38 + l * 0.42)], rib: [230, 0.12, (l) => Math.max(0.1, l * 0.35)] },
     sunset: { name: "Закатный", ray: "rgba(255,255,255,.2)", conf: ["#fff", "#7ff0c8", "#ffe08a"], box: [160, 0.55, (l) => Math.min(0.82, 0.5 + l * 0.35)], rib: [40, 0.06, (l) => Math.min(0.98, 0.8 + l * 0.2)] },
+    // New Year: snow (and a garland, or golden sparks) instead of confetti; offered first while the season runs.
+    snow: { name: "Снежный", ny: 1, fx: "snow", ray: "rgba(190,220,255,.14)", conf: ["#fff", "#fff", "#dbe9ff"], box: [205, 0.6, (l) => Math.min(0.86, 0.6 + l * 0.3)], rib: [210, 0.1, (l) => Math.min(0.98, 0.84 + l * 0.16)] },
+    tree: { name: "Ёлка", ny: 1, fx: "snow", gar: 1, ray: "rgba(255,226,140,.12)", conf: ["#fff", "#fff", "#e8fff0"], box: [45, 0.08, (l) => Math.min(0.97, 0.86 + l * 0.14)], rib: [356, 0.78, (l) => Math.min(0.6, 0.34 + l * 0.4)] },
+    tangerine: { name: "Мандарины", ny: 1, fx: "spark", ray: "rgba(255,190,110,.16)", conf: ["#fff", "#fff", "#ffd76a"], box: [27, 0.95, (l) => Math.min(0.64, 0.42 + l * 0.32)], rib: [128, 0.55, (l) => Math.min(0.5, 0.24 + l * 0.34)] },
   };
+  const nySeason = () => me.gift_season === "ny";
+  const isNy = (k) => !!(GSTY[k] && GSTY[k].ny);
+  // In the season the New Year looks come first; out of it only the usual four are offered.
+  const gStyKeys = () => { const all = Object.keys(GSTY), ny = all.filter(isNy), reg = all.filter((k) => !isNy(k)); return nySeason() ? [...ny, ...reg] : reg; };
+  const GREETS = ["С Новым годом! 🎄", "Пусть в новом году всё открывается с первого раза 🎄", "Без блокировок в новом году", "Чтобы YouTube не тормозил 🎉"];
+  // A sagging wire with blinking bulbs along the top edge («Ёлка»).
+  function gGarland(w, h) {
+    const C = ["#ff5a5a", "#ffd76a", "#5fd38d", "#5fa8ff"], sag = 3, step = w / sag, pts = [];
+    let d = "M0 2";
+    for (let i = 0; i < sag; i++) {
+      const x0 = i * step;
+      d += ` Q${x0 + step / 2} ${h * 0.75} ${x0 + step} 2`;
+      for (let j = 1; j < 6; j++) { const t = j / 6; pts.push([x0 + step * t, 2 + 2 * t * (1 - t) * (h * 0.75 - 2)]); }
+    }
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><path d="${d}" stroke="rgba(0,0,0,.45)" stroke-width="1.4" fill="none"/>${pts.map(([x, y], i) =>
+      `<circle cx="${x.toFixed(1)}" cy="${(y + 4).toFixed(1)}" r="3.6" fill="${C[i % 4]}" style="filter:drop-shadow(0 0 4px ${C[i % 4]});animation-delay:-${(i * 0.37 % 1.6).toFixed(2)}s"/>`).join("")}</svg>`;
+  }
   const gSty = (k) => (GSTY[k] ? k : "violet");
   const gTint = (p) => (c) => {
     const [h, sat, l] = fbHue(c[0], c[1], c[2]);
@@ -2209,11 +2241,22 @@
     .then((d) => { const c = JSON.parse(JSON.stringify(d)); fbWalk(c, gTint(GSTY[k])); return c; })).then((d) => JSON.parse(JSON.stringify(d)));
   // Themed background layers (crossfade), slow rays and falling confetti behind the hero.
   const gBack = (k) => `<div class="gs-bgs">${Object.keys(GSTY).map((s) => `<i class="gs-${s}${s === k ? " on" : ""}" data-k="${s}"></i>`).join("")}</div>` +
-    `<div class="gs-rays" style="--ray:${GSTY[k].ray}"></div><div class="gs-conf"></div>`;
+    `<div class="gs-rays" style="--ray:${GSTY[k].ray}"></div><div class="gs-conf"></div><div class="gs-gar"></div>`;
   function gConf(h, k) {
+    const g = h && h.querySelector(".gs-gar");
+    if (g) g.innerHTML = GSTY[k].gar ? gGarland(g.clientWidth || 375, g.clientHeight || 46) : "";
     const c = h && h.querySelector(".gs-conf");
     if (!c || reduced()) return;
-    const C = GSTY[k].conf;
+    const P = GSTY[k], C = P.conf;
+    if (P.fx) {
+      // Snowflakes drift side to side; «Мандарины» mixes in golden sparks.
+      c.innerHTML = Array.from({ length: 26 }, (_, i) => {
+        const spark = P.fx === "spark" && i % 3 === 0, sz = spark ? 3 : (2 + Math.random() * 3.5).toFixed(1);
+        return `<i class="${spark ? "sp" : "sn"}" style="left:${(Math.random() * 100).toFixed(1)}%;width:${sz}px;height:${sz}px;opacity:${(0.4 + Math.random() * 0.55).toFixed(2)};` +
+          `--dx:${(4 + Math.random() * 16).toFixed(0)}px;animation-duration:${(7 + Math.random() * 6).toFixed(1)}s;animation-delay:-${(Math.random() * 10).toFixed(1)}s"></i>`;
+      }).join("");
+      return;
+    }
     c.innerHTML = Array.from({ length: 18 }, (_, i) => `<i style="left:${(Math.random() * 100).toFixed(1)}%;background:${C[i % 3]};opacity:${(0.45 + Math.random() * 0.5).toFixed(2)};` +
       `--dx:${(Math.random() * 30 - 15).toFixed(0)}px;animation-duration:${(4 + Math.random() * 5).toFixed(1)}s;animation-delay:-${(Math.random() * 8).toFixed(1)}s"></i>`).join("");
   }
@@ -2222,7 +2265,7 @@
   const gLim = () => [Math.max(1, Number(me.gift_min) || 60), Math.max(1, Number(me.gift_max) || 20000)];
   const gOk = (n) => { const [lo, hi] = gLim(); return Number.isFinite(n) && n >= lo && n <= hi; };
   const gDays = (n) => Math.floor((Number(n) || 0) / dayPrice());
-  const gPresets = () => [30, 90, 360].map((d) => d * dayPrice()).filter(gOk);
+  const gPresets = () => (nySeason() && (gs.count || 1) === 1 ? [300, 500, 1000] : [30, 90, 360].map((d) => d * dayPrice())).filter(gOk);
   const gDaysLine = (n) => `≈ ${days(gDays(n))} VPN`;
   const HEART = '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z" fill="#fff"/></svg>';
   const GIFT_IC = '<svg width="22" height="22" viewBox="0 0 24 24" fill="#c4c9d3"><path d="M4 11h7v10H6a2 2 0 0 1-2-2zm9 0h7v8a2 2 0 0 1-2 2h-5zM3 7h8v3H3zm10 0h8v3h-8z"/><path d="M12 7C9 2 5 4 7 7m5 0c3-5 7-3 5 0" stroke="#c4c9d3" stroke-width="1.6" fill="none"/></svg>';
@@ -2308,8 +2351,10 @@
 
   // ---------- the giver ----------
   function giveTab() {
+    if (nySeason() && !gs.touched) gs.style = "snow";
+    if (nySeason() && !gs.greeted) gs.greeting = GREETS[0];
     const presets = gPresets(), [lo] = gLim();
-    if (!gOk(gs.amount)) { gs.amount = presets[0] || lo; gs.custom = false; }
+    if (!gOk(gs.amount)) { gs.amount = presets[nySeason() ? Math.min(1, presets.length - 1) : 0] || lo; gs.custom = false; }
     const own = gs.custom && (gs.count > 1 || !presets.includes(gs.amount));
     const many = gs.count > 1;
     const chips = presets.map((v) => `<button type="button" data-act="gfamt" data-v="${v}" class="${!own && v === gs.amount ? "on" : ""}">${rub(v)}</button>`).join("") +
@@ -2342,27 +2387,36 @@
     return hero + gStyBlock() + `<div class="gf-rest">${note + how + list}</div>`;
   }
   // «Оформление»: four tiles with live gifts, then the card the friend (or the chat) will get in Telegram.
-  const gStyBlock = () => `<div class="gf-sty">${ST(`Оформление <span class="gs-tag">${GSTY[gs.style].name}</span>`)}<div class="gs-tiles">${Object.keys(GSTY).map((k) =>
-    `<button type="button" data-act="gfsty" data-k="${k}" class="${k === gs.style ? "on" : ""}"><i class="gs-${k}"></i><div class="mg" data-gmini="${k}" data-speed=".85"></div><span class="ck">✓</span>${GSTY[k].name}</button>`).join("")}</div>` +
-    `${ST(`Так увидит ${gs.count > 1 ? "чат" : "друг"}`)}<div class="gs-pv">${gCard(gs.style, gs.count)}</div></div>`;
+  const gTile = (k) => `<button type="button" data-act="gfsty" data-k="${k}" class="${k === gs.style ? "on" : ""}"><i class="gs-${k}"></i><div class="mg" data-gmini="${k}" data-speed=".85"></div>` +
+    `${isNy(k) ? '<span class="fl">❄</span>' : ""}<span class="ck">✓</span>${GSTY[k].name}</button>`;
+  const gGreetRow = () => cd([[E("✍️") + TT(gs.greeting ? `«${esc(gs.greeting)}»` : "Добавить поздравление", gs.greeting ? "увидит друг в карточке" : "необязательно, до 200 символов") + V(CV),
+    'data-act="gfgreet"']]).replace('class="cd"', 'class="cd grr"');
+  const gStyBlock = () => {
+    const keys = gStyKeys(), ny = keys.filter(isNy), reg = keys.filter((k) => !isNy(k));
+    return `<div class="gf-sty">${ST(`Оформление <span class="gs-tag">${GSTY[gs.style].name}</span>`)}` +
+      (ny.length ? `<div class="gs-tiles ny">${ny.map(gTile).join("")}</div>` : "") + `<div class="gs-tiles${ny.length ? " reg" : ""}">${reg.map(gTile).join("")}</div>` +
+      ST("Поздравление") + `<div class="gs-grt">${gGreetRow()}</div>` +
+      `${ST(`Так увидит ${gs.count > 1 ? "чат" : "друг"}`)}<div class="gs-pv">${gCard(gs.style, gs.count)}</div></div>`;
+  };
   function gCard(k, n) {
-    const many = n > 1;
-    const txt = many ? `<b>${gName()} раздаёт ${n} ${pl(n, "подарок", "подарка", "подарков")} по ${rub(gs.amount)} на VPN</b> — это ≈ ${days(gDays(gs.amount))} каждому. Кто первый — того и подарок!`
-      : `<b>${gName()} дарит вам ${rub(gs.amount)} на VPN</b> — это ≈ ${days(gDays(gs.amount))}. Откройте подарок, пока он не остыл!`;
-    return `<div class="gs-post"><div class="gs-art"><i class="gs-${k}"></i><div class="gs-rays" style="--ray:${GSTY[k].ray}"></div>` +
+    const many = n > 1, ny = isNy(k) ? " к Новому году" : "", wish = gs.greeting ? `<br><i>«${esc(gs.greeting)}»</i>` : "";
+    const txt = many ? `<b>${gName()} раздаёт ${n} ${pl(n, "подарок", "подарка", "подарков")} по ${rub(gs.amount)} на VPN${ny}</b> — это ≈ ${days(gDays(gs.amount))} каждому. Кто первый — того и подарок!${wish}`
+      : `<b>${gName()} дарит вам ${rub(gs.amount)} на VPN${ny}</b> — это ≈ ${days(gDays(gs.amount))}.${wish || " Откройте подарок, пока он не остыл!"}`;
+    return `<div class="gs-post"><div class="gs-art"><i class="gs-${k}"></i><div class="gs-rays" style="--ray:${GSTY[k].ray}"></div><div class="gs-conf"></div><div class="gs-gar"></div>` +
       `<div class="lg"><img src="/icons/frog.png" alt="">Лягушка VPN</div>` +
       (many ? `<div class="gl" data-gmini="${k}" data-speed=".8"></div><div class="gr" data-gmini="${k}" data-speed=".8"></div>` : "") +
       `<div class="g1" data-gmini="${k}"></div>` +
-      `<div class="tt">${many ? "Подарки для всех в чате" : "Вам подарок на VPN"}</div><div class="sb">${many ? "Кто первый — того и подарок" : "Нажмите, чтобы забрать — деньги сразу на баланс"}</div></div>` +
+      `<div class="tt">${isNy(k) ? (many ? "Подарки к Новому году" : "С Новым годом!") : many ? "Подарки для всех в чате" : "Вам подарок на VPN"}</div>` +
+      `<div class="sb">${many ? "Кто первый — того и подарок" : isNy(k) ? "Вам подарок на VPN — нажмите, чтобы открыть" : "Нажмите, чтобы забрать — деньги сразу на баланс"}</div></div>` +
       `<div class="tx">🎁 ${txt}</div></div><div class="gs-kb">${many ? "🎁 Забрать подарок" : "🎁 Открыть подарок"}</div>`;
   }
   function gInvite(el) { gMini(el); gConf(el.querySelector(".hc.inv"), "festive"); }
-  function gGive(el) { mountGift(el, gs.style); gConf(el.querySelector(".hc.gf"), gs.style); gMini(el); }
+  function gGive(el) { mountGift(el, gs.style); gConf(el.querySelector(".hc.gf"), gs.style); gConf(el.querySelector(".gs-art"), gs.style); gMini(el); }
   // Switching the style: the background crossfades, the gift pops out and back in the new colours.
   function gPick(k) {
     if (!cur || k === gs.style || !GSTY[k]) return;
     haptic("light");
-    gs.style = k;
+    gs.style = k; gs.touched = true;
     const el = cur.el, h = el.querySelector(".hc.gf");
     el.querySelectorAll(".gs-tiles button").forEach((b) => b.classList.toggle("on", b.dataset.k === k));
     const tag = el.querySelector(".gs-tag");
@@ -2374,9 +2428,11 @@
     ill.classList.add("swap");
     setTimeout(() => { ill.removeAttribute("data-on"); mountGift(h, k); }, 200);
     const pv = el.querySelector(".gs-pv");
-    if (pv) { pv.innerHTML = gCard(k, gs.count); gMini(pv); }
+    if (pv) { pv.innerHTML = gCard(k, gs.count); gMini(pv); gConf(pv.querySelector(".gs-art"), k); }
+    const kk = h.querySelector(".K");
+    if (kk) kk.textContent = gKicker();
   }
-  const gKicker = () => (gs.count > 1 ? "Подарки в группу" : "Подарок другу");
+  const gKicker = () => (gs.count > 1 ? "Подарки в группу" : isNy(gs.style) ? "Подарок к Новому году" : "Подарок другу");
   const gAmtText = () => (gs.count > 1 ? `${rub(gs.amount)} × ${gs.count}` : rub(gs.amount));
   const gSubText = () => (gs.count > 1 ? `${rub(gTotal())} всего · каждому ≈ ${days(gDays(gs.amount))}` : gDaysLine(gs.amount));
   const gOwnLabel = () => (gs.count > 1 ? `×${gs.count} ✎` : rub(gs.amount) + " ✎");
@@ -2433,7 +2489,7 @@
     if (!(await confirmAsk(ask))) return;
     gs.busy = true;
     try {
-      const res = await post("/api/gifts", { amount: per, count: cnt, style: gs.style });
+      const res = await post("/api/gifts", { amount: per, count: cnt, style: gs.style, greeting: gs.greeting });
       me.balance_rub = res.balance_rub;
       notify("success");
       shareGift(res, copyOnly);
@@ -2476,6 +2532,27 @@
   }
 
   // ---------- the friend ----------
+  // The giver's wishes: one line up to 200 characters, links and @mentions dropped (the server cleans them too).
+  const gClean = (t) => String(t || "").replace(/(?:https?:\/\/|www\.)\S+|\b[\w-]+(?:\.[\w-]+)*\.(?:ru|рф|com|net|org|me|io|su|xyz|info|top|app|link|ly|gg|cc|tk|online|site|shop|pro)(?![\w-])\S*|@\w+/gi, "").replace(/[<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
+  SCR.greet = {
+    h() {
+      const v = gs.greeting;
+      return hc(isNy(gs.style) ? "blue" : "purple", { ill: "✍️", h: "Поздравление", p: "Друг увидит его в карточке и когда откроет подарок" }) +
+        `<div class="grt"><textarea id="grt" rows="3" maxlength="200" placeholder="Например: с днём рождения!">${esc(v)}</textarea><div class="grt-n"><span>${v.length}</span> / 200</div></div>` +
+        `<div class="grt-chips">${(nySeason() || isNy(gs.style) ? GREETS : ["С днём рождения! 🎉", "Пользуйся на здоровье", "Спасибо, что ты есть ❤️"]).map((t) =>
+          `<button type="button" data-act="grchip" data-v="${esc(t)}" class="${t === v ? "on" : ""}">${esc(t)}</button>`).join("")}</div>` +
+        NOTE("Ссылки и @упоминания убираем — так подарок не примут за спам.", true) +
+        `<div class="bot"><button type="button" class="bbtn" data-act="grdone">Готово</button></div>`;
+    },
+    bot: true,
+    on(el) {
+      const ta = el.querySelector("#grt"), n = el.querySelector(".grt-n span");
+      ta.addEventListener("input", () => {
+        n.textContent = ta.value.length;
+        el.querySelectorAll(".grt-chips button").forEach((b) => b.classList.toggle("on", b.dataset.v === ta.value));
+      });
+    },
+  };
   SCR.present = {
     h(p) {
       const g = p.gift;
@@ -2485,6 +2562,7 @@
       }
       const name = esc(g.from_name || "друга");
       const n = Number(g.count) || 1, many = n > 1;
+      const wish = g.greeting && !g.mine ? `<div class="gf-qt"><p>«${esc(g.greeting)}»</p><small><i>${esc((g.from_name || "Д").slice(0, 1).toUpperCase())}</i>${name}</small></div>` : "";
       const leftBar = (k) => `<div class="gf-left"><div class="gf-bar"><i style="width:${Math.round((k / n) * 100)}%"></i></div><span>Осталось <b data-left>${k}</b> из ${n}</span></div>`;
       let txt, acts, bar = "";
       if (g.mine) {
@@ -2497,7 +2575,7 @@
         acts = `<button type="button" class="pill" data-act="gfvpn"><span>${phones().length ? "Открыть VPN" : "Подключить VPN"}</span></button>` +
           (g.thanked ? "" : `<button type="button" class="rnd" aria-label="Сказать спасибо" data-act="gfthanks">${HEART}</button>`);
       } else if (g.status === "active") {
-        txt = `<div class="K">${name} ${many ? "раздаёт подарки" : "дарит вам"}</div><div class="H">Подарок на VPN</div>`;
+        txt = `<div class="K">${name} ${many ? "раздаёт подарки" : "дарит вам"}</div><div class="H">${isNy(g.style) ? "Подарок к Новому году" : "Подарок на VPN"}</div>`;
         acts = `<button type="button" class="pill" data-act="gfopen"><span>${many ? "Забрать подарок" : "Открыть подарок"}</span></button>`;
         if (many) bar = leftBar(Number(g.left) || 0);
       } else {
@@ -2506,7 +2584,7 @@
           : `<div class="H">Подарок отменён</div><div class="P">Подарок вернулся к тому, кто его отправил</div>`;
         acts = `<button type="button" class="pill" data-act="gfhome"><span>На главную</span></button>`;
       }
-      const hero = `<section class="hc gf gs${g.claimed_by_me || p.opened ? " opened" : ""}"><div class="ov"></div>${gBack(gSty(g.style))}${gScene()}<div class="gf-txt">${txt}</div>${bar}<div class="acts">${acts}</div></section>`;
+      const hero = `<section class="hc gf gs${g.claimed_by_me || p.opened ? " opened" : ""}"><div class="ov"></div>${gBack(gSty(g.style))}${gScene()}<div class="gf-txt">${txt}</div>${g.status === "active" || g.claimed_by_me || p.opened ? wish : ""}${bar}<div class="acts">${acts}</div></section>`;
       if (g.mine || (g.status !== "active" && !g.claimed_by_me)) return hero;
       return hero + ST("Как это работает") + tl([["1", many ? "Заберите подарок" : "Откройте подарок", "Он ничего вам не стоит — подарок уже оплачен"],
         ["2", "Подключите VPN в один тап", "Кабинет подскажет, что установить"],
@@ -2728,6 +2806,9 @@
     gfcopy: () => sendGift(true),
     gfitem: (b) => giftItem(b.dataset.code),
     gfgive() { haptic(); go("friends", { tab: "give" }); },
+    gfgreet() { haptic(); go("greet"); },
+    grchip(b) { haptic("light"); const ta = cur.el.querySelector("#grt"); ta.value = b.dataset.v; ta.dispatchEvent(new Event("input")); },
+    grdone() { haptic(); gs.greeting = gClean(cur.el.querySelector("#grt").value); gs.greeted = true; back(); },
     gfbox() { if (cur && cur.key === "present") openPresent(); else if (cur) { const i = cur.el.querySelector(".gf-box"); if (i) { haptic(); gShake(i); } } },
     gfopen: () => openPresent(),
     gfresend() { const g = cur.params.gift; if (g) post(`/api/gifts/${encodeURIComponent(g.code)}/share`).then((r) => shareGift(r)).catch(showErr); },

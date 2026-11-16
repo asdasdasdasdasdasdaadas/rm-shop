@@ -114,6 +114,34 @@ class GiftShareCardTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("og:title", resp.text)
 
 
+class NewYearTest(unittest.TestCase):
+    def test_greeting_drops_links_mentions_and_keeps_200_chars(self):
+        clean = friend_gifts.clean_greeting
+        self.assertEqual(clean("С Новым годом! Пусть в 2027-м всё открывается 🎄"), "С Новым годом! Пусть в 2027-м всё открывается 🎄")
+        self.assertEqual(clean("заходи t.me/chan, vpn.ru! и www.x.org @vasya <b>"), "заходи и b")
+        self.assertEqual(clean("т.е.   всё\n\nок"), "т.е. всё ок")
+        self.assertEqual(len(clean("а" * 300)), 200)
+        self.assertEqual(clean(None), "")
+
+    def test_season_runs_across_the_new_year(self):
+        from datetime import date
+        with patch.object(friend_gifts, "get_settings", return_value=SETTINGS):
+            self.assertEqual([friend_gifts.ny_season(date(2026, m, d)) for m, d in [(11, 30), (12, 1), (12, 31), (1, 10), (1, 11)]],
+                             [False, True, True, True, False])
+        odd = Settings.model_construct(new_year_gifts_from="12-20", new_year_gifts_to="bad")
+        with patch.object(friend_gifts, "get_settings", return_value=odd):
+            self.assertEqual([friend_gifts.ny_season(date(2026, m, d)) for m, d in [(12, 19), (12, 20), (1, 10), (1, 11)]], [False, True, True, False])
+
+    def test_share_text_says_new_year_and_carries_the_greeting(self):
+        with patch.object(friend_gifts, "get_settings", return_value=SETTINGS):
+            text = friend_gifts.share_text("Аня", 500, 1, "С НГ! @spam", "tree")
+            self.assertIn("500 ₽ на VPN к Новому году", text)
+            self.assertTrue(text.endswith("«С НГ!»"))
+            self.assertNotIn("к Новому году", friend_gifts.share_text("Аня", 500, 1, None, "violet"))
+            self.assertIn("Откройте подарок", friend_gifts.share_text("Аня", 500))
+        self.assertTrue(set(friend_gifts.NY_STYLES) <= set(friend_gifts.STYLES))
+
+
 class GiftLimitsTest(unittest.IsolatedAsyncioTestCase):
     async def test_amount_outside_limits_is_refused_before_any_sql(self):
         # Only the unlimited-right lookup runs; nothing is written or locked.
@@ -305,6 +333,13 @@ class GiftPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(odd["style"], "violet")
         self.assertEqual([g["style"] for g in await friend_gifts.list_sent(1)], ["violet", "gold"])
         self.assertEqual(friend_gifts.public_sent([{"code": "c", "amount_rub": 60, "status": "active", "style": "gold"}])[0]["style"], "gold")
+
+    async def test_greeting_is_kept_clean(self):
+        gift = await friend_gifts.create_gift(1, 60, 1, "snow", "  С Новым годом!  пиши @vasya https://x.com  ")
+        self.assertEqual((gift["style"], gift["greeting"]), ("snow", "С Новым годом! пиши"))
+        self.assertEqual((await friend_gifts.get_gift(gift["code"]))["greeting"], "С Новым годом! пиши")
+        plain = await friend_gifts.create_gift(1, 60)
+        self.assertEqual(plain["greeting"], "")
 
     async def test_return_puts_money_back_once(self):
         gift = await friend_gifts.create_gift(1, 100)

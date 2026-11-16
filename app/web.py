@@ -580,6 +580,7 @@ async def api_me(request: web.Request) -> web.Response:
             "gifts_enabled": bool(settings.gifts_enabled),
             "gift_min": friend_gifts.limits(telegram_id, local)[0],
             "gift_max": friend_gifts.limits(telegram_id, local)[1],
+            "gift_season": "ny" if friend_gifts.ny_season() else "",
             "gift_admin": friend_gifts.is_admin(telegram_id, local),
             "gift_granted": friend_gifts.is_granted(telegram_id, local),
             "devices": devices,
@@ -873,13 +874,15 @@ async def api_gift_create(request: web.Request) -> web.Response:
     except (TypeError, ValueError):
         return json_error("Укажите сумму подарка")
     try:
-        gift = await friend_gifts.create_gift(telegram_id, amount, count, friend_gifts.clean_style(body.get("style")))
+        gift = await friend_gifts.create_gift(telegram_id, amount, count, friend_gifts.clean_style(body.get("style")),
+                                              body.get("greeting"))
     except friend_gifts.GiftError as exc:
         return json_error(str(exc))
     balance = await _sync_after_gift(request, telegram_id, "gift")
     local = await db.get_user(telegram_id)
     name = friend_gifts.giver_name(local)
-    prepared = await friend_gifts.prepare_share(request.app.get("bot"), telegram_id, gift["code"], amount, name, count, gift["style"])
+    prepared = await friend_gifts.prepare_share(request.app.get("bot"), telegram_id, gift["code"], amount, name, count, gift["style"],
+                                                gift["greeting"])
     return web.json_response({
         "ok": True,
         "code": gift["code"],
@@ -887,7 +890,8 @@ async def api_gift_create(request: web.Request) -> web.Response:
         "amount_rub": amount,
         "count": count,
         "style": gift["style"],
-        "share_text": friend_gifts.share_text(name, amount, count),
+        "greeting": gift["greeting"],
+        "share_text": friend_gifts.share_text(name, amount, count, gift["greeting"], gift["style"]),
         "prepared_id": prepared,
         "balance_rub": gift["balance_rub"] if balance is None else balance,
     })
@@ -906,9 +910,10 @@ async def api_gift_share(request: web.Request) -> web.Response:
     name = friend_gifts.giver_name({"first_name": gift.get("from_first_name")})
     amount, count = int(gift["amount_rub"]), int(gift.get("count") or 1)
     prepared = await friend_gifts.prepare_share(request.app.get("bot"), telegram_id, gift["code"], amount, name, count,
-                                                gift.get("style"))
+                                                gift.get("style"), gift.get("greeting"))
     return web.json_response({"ok": True, "code": gift["code"], "url": friend_gifts.share_link(gift["code"]),
-                              "share_text": friend_gifts.share_text(name, amount, count), "prepared_id": prepared})
+                              "share_text": friend_gifts.share_text(name, amount, count, gift.get("greeting"), gift.get("style")),
+                              "prepared_id": prepared})
 
 
 async def api_gift_view(request: web.Request) -> web.Response:
@@ -932,6 +937,7 @@ async def api_gift_view(request: web.Request) -> web.Response:
         "thanked": bool(gift.get("viewer_thanked_at")),
         "count": count,
         "style": friend_gifts.clean_style(gift.get("style")),
+        "greeting": friend_gifts.clean_greeting(gift.get("greeting")),
         "left": max(0, count - int(gift.get("claimed_count") or 0)) if gift["status"] == "active" else 0,
         "url": friend_gifts.share_link(gift["code"]) if mine else None,
     })

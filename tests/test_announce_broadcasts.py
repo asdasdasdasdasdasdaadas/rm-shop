@@ -58,3 +58,28 @@ class AnnounceBroadcastTest(unittest.IsolatedAsyncioTestCase):
         button = self.bot.send_message.await_args_list[0].kwargs['reply_markup'].inline_keyboard[0][0]
         self.assertEqual((button.text, button.callback_data), ('Пригласить друзей', 'share'))
         self.assertEqual(job['sent'], 2)
+
+    async def test_new_year_gift_opens_the_gift_tab_with_its_card(self):
+        job = {'running': True, 'run_id': 8, 'media': {'id': 'gift-ny.mp4', 'kind': 'animation'}}
+        from aiogram.types import WebAppInfo
+        app = WebAppInfo(url='https://cab.example.org/?screen=giftsend')
+        with patch('app.keyboards.mini_app_screen', return_value=app) as screen, \
+                patch('app.broadcast_media.send', AsyncMock(return_value=SimpleNamespace(message_id=7))) as send:
+            await admin._broadcast_all(self.bot, 'Подарите VPN', job, None, 'gift_ny')
+        screen.assert_called_with('giftsend')
+        self.reserve_optional_message.assert_not_awaited()
+        self.assertEqual(job['sent'], 2)
+        call = send.await_args_list[0]
+        self.assertEqual(call.args[2]['id'], 'gift-ny.mp4')
+        button = call.args[4].inline_keyboard[0][0]
+        self.assertEqual(button.text, '🎁 Выбрать подарок')
+
+    def test_new_year_template_gets_its_card_and_needs_gifts(self):
+        on = SimpleNamespace(referral_program_enabled=True, gifts_enabled=True)
+        with patch.object(admin, 'get_settings', return_value=on):
+            spec, error = admin._check_broadcast({'template': 'gift_ny', 'text': ''})
+        self.assertIsNone(error)
+        self.assertEqual(spec['media'], {'id': 'gift-ny.mp4', 'kind': 'animation'})
+        self.assertIn('Подарите близким VPN', spec['text'])
+        with patch.object(admin, 'get_settings', return_value=SimpleNamespace(referral_program_enabled=True, gifts_enabled=False)):
+            self.assertEqual(admin._check_broadcast({'template': 'gift_ny'})[1], 'Подарки другу выключены')

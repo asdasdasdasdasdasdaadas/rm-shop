@@ -977,6 +977,7 @@ ALTER TABLE friend_gifts ADD COLUMN IF NOT EXISTS count INTEGER NOT NULL DEFAULT
 ALTER TABLE friend_gifts ADD COLUMN IF NOT EXISTS claimed_count INTEGER NOT NULL DEFAULT 0;
 -- How the gift looks (chosen by the giver): violet, festive, gold or sunset.
 ALTER TABLE friend_gifts ADD COLUMN IF NOT EXISTS style TEXT NOT NULL DEFAULT 'violet';
+ALTER TABLE friend_gifts ADD COLUMN IF NOT EXISTS greeting TEXT NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS friend_gift_claims (
     gift_id BIGINT NOT NULL REFERENCES friend_gifts(id) ON DELETE CASCADE,
     telegram_id BIGINT NOT NULL,

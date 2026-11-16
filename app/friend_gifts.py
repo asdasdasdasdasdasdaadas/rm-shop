@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
+from datetime import date
 from pathlib import Path
 
 from app import db
@@ -93,12 +94,44 @@ def share_link(code: str) -> str:
 
 
 # The giver picks how the gift looks; the cabinet, the Telegram card and the friend's screen all follow it.
-STYLES = ("violet", "festive", "gold", "sunset")
+STYLES = ("violet", "festive", "gold", "sunset", "snow", "tree", "tangerine")
+# New Year looks: offered first (and «snow» chosen by default) while the season runs, see ny_season().
+NY_STYLES = ("snow", "tree", "tangerine")
 CARDS_DIR = Path(__file__).resolve().parent.parent / "webapp" / "icons" / "gift-cards"
 
 
 def clean_style(style: str | None) -> str:
     return style if style in STYLES else STYLES[0]
+
+
+def _month_day(text: str, fallback: tuple[int, int]) -> tuple[int, int]:
+    try:
+        m, d = (int(x) for x in str(text).split("-"))
+        date(2024, m, d)
+        return m, d
+    except (TypeError, ValueError):
+        return fallback
+
+
+def ny_season(today: date | None = None) -> bool:
+    """Whether the New Year gifts are on: from `new_year_gifts_from` to `new_year_gifts_to` (MM-DD, across the new year)."""
+    s = get_settings()
+    start = _month_day(getattr(s, "new_year_gifts_from", "12-01"), (12, 1))
+    end = _month_day(getattr(s, "new_year_gifts_to", "01-10"), (1, 10))
+    now = ((today or date.today()).month, (today or date.today()).day)
+    return start <= now <= end if start <= end else (now >= start or now <= end)
+
+
+GREETING_MAX = 200
+_LINK_RE = re.compile(r"(?i)\b(?:https?://|www\.)\S+|\b[\w-]+(?:\.[\w-]+)*\.(?:ru|рф|com|net|org|me|io|su|xyz|info|top|app|link|ly|gg|cc|tk|online|site|shop|pro)\b\S*|@\w+")
+
+
+def clean_greeting(text: str | None) -> str:
+    """The giver's wishes: one paragraph up to 200 characters, without links and @mentions (so it never reads as spam)."""
+    t = _LINK_RE.sub("", str(text or ""))
+    t = re.sub(r"[<>]", "", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t[:GREETING_MAX].strip()
 
 
 def card_image(style: str | None = None, many: bool = False) -> str:
@@ -146,7 +179,8 @@ async def giftable_rub(telegram_id: int, conn=None) -> int:
     return int(await q.fetchval(_GIFTABLE_SQL, telegram_id) or 0)
 
 
-async def create_gift(telegram_id: int, amount: int, count: int = 1, style: str | None = None) -> dict:
+async def create_gift(telegram_id: int, amount: int, count: int = 1, style: str | None = None,
+                      greeting: str | None = None) -> dict:
     """One gift, or a giveaway of `count` equal gifts behind one link (first come, one each)."""
     admin = is_admin(telegram_id)
     lo, hi = limits(telegram_id)
@@ -180,9 +214,9 @@ async def create_gift(telegram_id: int, amount: int, count: int = 1, style: str 
                 )
             code = secrets.token_urlsafe(9)
             gift = await conn.fetchrow(
-                """INSERT INTO friend_gifts (code, from_telegram_id, amount_rub, count, from_admin, style)
-                   VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, code, amount_rub, count, status, style, created_at""",
-                code, telegram_id, amount, count, admin, clean_style(style),
+                """INSERT INTO friend_gifts (code, from_telegram_id, amount_rub, count, from_admin, style, greeting)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, code, amount_rub, count, status, style, greeting, created_at""",
+                code, telegram_id, amount, count, admin, clean_style(style), clean_greeting(greeting),
             )
             what = f"{count} × {amount} ₽" if count > 1 else f"{amount} ₽"
             if admin:
@@ -418,15 +452,21 @@ def _gifts_word(n: int) -> str:
     return _plural(n, "подарок", "подарка", "подарков")
 
 
-def share_text(name: str, amount: int, count: int = 1) -> str:
+def share_text(name: str, amount: int, count: int = 1, greeting: str | None = None, style: str | None = None) -> str:
+    ny = " к Новому году" if style in NY_STYLES else ""
+    wish = clean_greeting(greeting)
     if count > 1:
-        return (f"🎁 {name} раздаёт {count} {_gifts_word(count)} по {amount} ₽ на VPN — это ≈ {days_text(amount)} каждому. "
+        text = (f"🎁 {name} раздаёт {count} {_gifts_word(count)} по {amount} ₽ на VPN{ny} — это ≈ {days_text(amount)} каждому. "
                 "Кто первый — того и подарок!")
-    return f"🎁 {name} дарит вам {amount} ₽ на VPN — это ≈ {days_text(amount)}. Откройте подарок, пока он не остыл!"
+    elif wish:
+        text = f"🎁 {name} дарит вам {amount} ₽ на VPN{ny} — это ≈ {days_text(amount)}."
+    else:
+        text = f"🎁 {name} дарит вам {amount} ₽ на VPN{ny} — это ≈ {days_text(amount)}. Откройте подарок, пока он не остыл!"
+    return f"{text}\n\n«{wish}»" if wish else text
 
 
 async def prepare_share(bot, telegram_id: int, code: str, amount: int, name: str, count: int = 1,
-                        style: str | None = None) -> str | None:
+                        style: str | None = None, greeting: str | None = None) -> str | None:
     """A ready card for Telegram's «share» sheet (WebApp.shareMessage). None when Telegram refuses."""
     from aiogram.types import (
         InlineKeyboardButton,
@@ -445,7 +485,7 @@ async def prepare_share(bot, telegram_id: int, code: str, amount: int, name: str
             InlineKeyboardButton(text="🎁 Забрать подарок" if count > 1 else "🎁 Открыть подарок", url=gift_link(code)),
         ]])
         picture, video = card_image(style, count > 1), card_video(style, count > 1)
-        caption = share_text(name, amount, count)
+        caption = share_text(name, amount, count, greeting, style)
         # The card: the animated gift (MP4 played as a GIF), else its picture, with the text under it and one button;
         # a plain text card without a public URL.
         if video:
@@ -499,7 +539,10 @@ async def send_gift_card(message, code: str) -> bool:
         text = (f"🎁 <b>{_html(name)}</b> раздаёт подарки: <b>{amount} ₽</b> на VPN каждому — это ≈ {days_text(amount)}.\n\n"
                 f"Осталось {left} из {count}. Заберите свой, пока не разобрали!")
     else:
-        text = f"🎁 <b>{_html(name)}</b> дарит вам <b>{amount} ₽</b> на VPN — это ≈ {days_text(amount)}.\n\nОткройте подарок, и деньги сразу лягут на баланс."
+        ny = " к Новому году" if gift.get("style") in NY_STYLES else ""
+        wish = clean_greeting(gift.get("greeting"))
+        text = (f"🎁 <b>{_html(name)}</b> дарит вам <b>{amount} ₽</b> на VPN{ny} — это ≈ {days_text(amount)}.\n\n"
+                + (f"<i>«{_html(wish)}»</i>\n\n" if wish else "") + "Откройте подарок, и деньги сразу лягут на баланс.")
     show = gift["status"] == "active" or gift.get("taken_by_viewer")
     btn = open_button(gift["code"], "🎁 Забрать подарок" if count > 1 else "🎁 Открыть подарок") if show else None
     await message.answer(text, parse_mode="HTML",

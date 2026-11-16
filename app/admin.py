@@ -1861,6 +1861,10 @@ async def _broadcast_all(
         try:
             if gift_id:
                 message = await _flood_retry(lambda: _send_gift(bot, telegram_id, gift_id, body, markup))
+            elif announce and media:
+                # «Подарок на Новый год»: the animated card with the text as its caption, uploaded once per broadcast.
+                from app.broadcast_media import send as send_media
+                message = await _flood_retry(lambda: send_media(bot, telegram_id, media, body, markup, media_kw["cache"]))
             elif announce:
                 message = await _flood_retry(lambda: bot.send_message(telegram_id, body, reply_markup=markup))
             else:
@@ -1944,18 +1948,24 @@ async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup, medi
 
 
 # Admin announcements to everyone: own buttons, no daily/weekly cap of optional messages.
-ANNOUNCE_TEMPLATES = {"gift3", "referral_news"}
+ANNOUNCE_TEMPLATES = {"gift3", "referral_news", "gift_ny"}
 # Stored templates that always go to their own segment.
 TEMPLATE_AUDIENCE = {"invite": "using", "unused": "unused", "browser": "no_browser"}
 # A photo, GIF or video can go with one's own text and with «кабинет в браузере» (a screen recording of the login).
-MEDIA_TEMPLATES = {"", "browser"}
+MEDIA_TEMPLATES = {"", "browser", "gift_ny"}
 # What a template sends when the admin attaches nothing: «Кабинет в браузере» shows the QR login as a looping clip.
-TEMPLATE_MEDIA = {"browser": {"id": "browser-login.mp4", "kind": "animation"}}
+TEMPLATE_MEDIA = {"browser": {"id": "browser-login.mp4", "kind": "animation"},
+                  "gift_ny": {"id": "gift-ny.mp4", "kind": "animation"}}
 ANNOUNCE_DEFAULTS = {
     "gift3": (
         "🎁 <b>Дарим 3 дня VPN</b>\n\n"
         "Нажмите кнопку ниже — начислим на баланс 3 дня бесплатного VPN для ваших устройств. "
         "Подарок можно забрать в течение 7 дней."
+    ),
+    "gift_ny": (
+        "🎄 <b>Подарите близким VPN на Новый год</b>\n\n"
+        "Выберите сумму и новогоднее оформление, добавьте поздравление. Друг откроет подарок прямо в Telegram, "
+        "деньги сразу упадут ему на баланс."
     ),
     "referral_news": (
         "👥 <b>Новая реферальная программа</b>\n\n"
@@ -1969,6 +1979,12 @@ def _announce_keyboard(template: str, gift_id: int | None = None):
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
     if template == "gift3":
         button = InlineKeyboardButton(text="Забрать 3 дня бесплатно", callback_data=f"fgift:{gift_id}", style="success")
+    elif template == "gift_ny":
+        from app.keyboards import mini_app_screen
+        app = mini_app_screen("giftsend")
+        if not app:
+            return cabinet_keyboard()
+        button = InlineKeyboardButton(text="🎁 Выбрать подарок", web_app=app, style="success")
     else:
         button = InlineKeyboardButton(text="Пригласить друзей", callback_data="share", style="success")
     return InlineKeyboardMarkup(inline_keyboard=[[button]])
@@ -1979,6 +1995,8 @@ def _broadcast_title(template: str) -> str:
         return "Рассылка: +3 дня всем"
     if template == "referral_news":
         return "Рассылка: новая реферальная программа"
+    if template == "gift_ny":
+        return "Рассылка: подарок на Новый год"
     if template == "whitelist":
         return "Рассылка: белые списки включены"
     if template == "invite":
@@ -2235,6 +2253,8 @@ def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
             return None, "Кабинет не открывается в браузере: нужен адрес https в WEBAPP_PUBLIC_URL"
     if template in {"invite", "referral_news"} and not get_settings().referral_program_enabled:
         return None, "Реферальная программа приостановлена"
+    if template == "gift_ny" and not get_settings().gifts_enabled:
+        return None, "Подарки другу выключены"
     text = str(body.get("text") or "").strip()
     audience = "all"
     if template in ANNOUNCE_TEMPLATES:
@@ -2447,6 +2467,7 @@ async def api_broadcast(request: web.Request) -> web.Response:
                 "whitelist": _broadcast_template_preview("whitelist"),
                 "gift3": _broadcast_template_preview("gift3"),
                 "referral_news": _broadcast_template_preview("referral_news"),
+                "gift_ny": _broadcast_template_preview("gift_ny"),
                 "browser": _broadcast_template_preview("browser"),
             }
         extra["scheduled"] = await _load_scheduled()

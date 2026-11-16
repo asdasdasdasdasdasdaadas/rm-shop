@@ -21,7 +21,9 @@ KEEP_DAYS = 90
 STORED_RE = re.compile(r"^[0-9a-f]{32}\.(jpg|png|webp|gif|mp4|mov|webm)$")
 KIND_LABEL = {"photo": "фото", "animation": "GIF", "video": "видео"}
 # Files that ship with the code (app/assets): a funnel's own media, sent without an upload.
-BUILTIN = {"browser-login.mp4": ROOT / "app" / "assets" / "browser-login.mp4"}
+BUILTIN = {"browser-login.mp4": ROOT / "app" / "assets" / "browser-login.mp4",
+           # «Подарите VPN на Новый год»: the festive card, made with the gift cards (webapp/icons/gift-cards).
+           "gift-ny.mp4": ROOT / "webapp" / "icons" / "gift-cards" / "ny-promo.mp4"}
 
 
 def _ext(data: bytes, filename: str) -> str:
