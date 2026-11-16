@@ -1,0 +1,449 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NFT-подарки за друзей</title><link rel="stylesheet" href="../../webapp/cab.css">
+<style>
+body { background: #08090b; padding: 20px 12px 60px; color: #fff; }
+h1 { font-size: 24px; margin: 10px 8px 4px; } p.s { color: #9aa0ab; margin: 0 8px 18px; font-size: 14.5px; max-width: 980px; line-height: 1.45; } p.s b { color: #fff; }
+.wall { display: flex; flex-wrap: wrap; gap: 26px; align-items: flex-start; }
+.side { width: 300px; } .side .lab { font-weight: 800; font-size: 17px; margin: 0 4px 10px; }
+.ctl { display: grid; gap: 8px; }
+.ctl button { padding: 13px 16px; border-radius: 14px; background: #1e2026; color: #fff; font-weight: 700; font-size: 14.5px; text-align: left; }
+.ctl button.p { background: #3e88f7; } .ctl button small { display: block; color: rgba(255,255,255,.6); font-weight: 500; font-size: 12.5px; margin-top: 2px; }
+.cnt { color: #9aa0ab; font-size: 13.5px; margin: 10px 4px 0; line-height: 1.5; }
+.ph { position: relative; width: 390px; height: 820px; background: var(--bg); border-radius: 40px; box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 30px 80px rgba(0,0,0,.5); overflow: hidden; }
+.ph .scr { min-height: 0; height: 100%; overflow-y: auto; padding: 14px 0 30px; scrollbar-width: none; } .ph .scr::-webkit-scrollbar { display: none; }
+.hc.nf { isolation: isolate; contain: paint; padding: 18px 22px 22px; background: #22384a; }
+.nf-bgs { position: absolute; inset: 0; z-index: -3; }
+.nf-bgs i { position: absolute; inset: 0; opacity: 0; transition: opacity .7s ease; } .nf-bgs i.on { opacity: 1; }
+.nf-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; }
+.nf-top span { padding: 5px 11px; border-radius: 99px; background: rgba(0,0,0,.18); }
+.nf-gift { position: relative; width: 270px; height: 250px; margin: -14px auto -22px; }
+.nf-gift .lt { position: absolute; inset: 0; animation: fl 3.4s ease-in-out infinite; filter: drop-shadow(0 18px 24px rgba(0,0,0,.3)); }
+.nf-gift .lt > img { width: 100%; height: 100%; border-radius: 30px; }
+.nf-gift.swap .lt { animation: nfin .7s var(--ease) both, fl 3.4s .7s ease-in-out infinite; }
+@keyframes nfin { from { opacity: 0; transform: scale(.4) rotate(-14deg); } 60% { transform: scale(1.08) rotate(3deg); } }
+.nf-n { font-size: 34px; font-weight: 800; letter-spacing: -.5px; line-height: 1.05; }
+.nf-p { font-size: 16px; opacity: .9; margin-top: 6px; } .nf-p b { font-weight: 800; }
+.nf-bar { display: flex; gap: 6px; margin: 16px 4px 0; }
+.nf-bar i { position: relative; flex: 1; height: 8px; border-radius: 9px; background: rgba(0,0,0,.2); overflow: hidden; }
+.nf-bar i::after { content: ""; position: absolute; inset: 0; background: #fff; border-radius: 9px; transform: scaleX(0); transform-origin: left; transition: transform .6s var(--ease); }
+.nf-bar i.on::after { transform: none; }
+.nf-bar i.new::after { animation: nfbar .8s var(--ease) both; } @keyframes nfbar { from { transform: scaleX(0); } }
+.nf-plus { position: absolute; left: 50%; top: 58%; z-index: 5; padding: 6px 12px; border-radius: 99px; background: #fff; color: #1d2340; font-weight: 800; font-size: 14px; pointer-events: none;
+  animation: nfplus 1.4s var(--ease) forwards; transform: translateX(-50%); white-space: nowrap; }
+@keyframes nfplus { from { opacity: 0; transform: translate(-50%, 20px) scale(.6); } 25% { opacity: 1; transform: translate(-50%, 0) scale(1.05); } 70% { opacity: 1; } to { opacity: 0; transform: translate(-50%, -40px); } }
+.hc.nf.bump { animation: nfbump .5s var(--ease); } @keyframes nfbump { 40% { transform: scale(1.025); } }
+/* the gift's own Telegram pattern (its «Узор») softly behind, and a breathing glow under the gift */
+.nf-pat { position: absolute; left: 50%; top: 40%; width: 560px; height: 560px; margin: -280px 0 0 -280px; z-index: -2; opacity: .5; pointer-events: none; transition: opacity .6s; }
+.nf-glow { position: absolute; left: 50%; top: 172px; width: 280px; height: 280px; margin: -140px 0 0 -140px; z-index: -1; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255,255,255,.42), rgba(255,255,255,0) 64%); animation: nfglow 3.4s ease-in-out infinite; }
+@keyframes nfglow { 50% { transform: scale(1.14); opacity: .65; } }
+.nf-top span.b { background: rgba(255,255,255,.92); color: #1d2340; }
+.nf-rar { display: flex; gap: 5px; justify-content: center; margin-top: 10px; white-space: nowrap; }
+.nf-rar span { padding: 4px 8px; border-radius: 99px; background: rgba(0,0,0,.18); font-size: 11.5px; font-weight: 700; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.nf-rar span i { font-style: normal; opacity: .7; font-weight: 600; margin-right: 4px; }
+.nf-lbl { display: flex; justify-content: space-between; align-items: baseline; margin: 18px 4px 0; font-size: 14px; font-weight: 600; }
+.nf-lbl b { font-size: 16px; font-weight: 800; } .nf-lbl span { opacity: .85; }
+.nf-bar { margin-top: 8px; }
+.nf-bar i.nx { animation: nfnx 1.6s ease-in-out infinite; } @keyframes nfnx { 50% { background: rgba(255,255,255,.38); } }
+.hc.nf .pill { position: relative; overflow: hidden; }
+.hc.nf .pill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(94,168,255,.28), transparent 70%); animation: sh 2.8s ease-in-out infinite; }
+@keyframes stpul { 50% { transform: scale(1.06); } }
+.rw .gi { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; }
+.rw .bdg { font-size: 12.5px; font-weight: 700; padding: 3px 9px; border-radius: 99px; }
+.rw .bdg.w { background: rgba(241,201,76,.14); color: #f1c94c; } .rw .bdg.ok { background: rgba(60,207,116,.14); color: #3ccf74; }
+.tl .n.gift { background: rgba(241,201,76,.15); }
+.rv { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 28px;
+  background: rgba(8,9,12,.93); opacity: 0; pointer-events: none; transition: opacity .35s; isolation: isolate; overflow: hidden; }
+.rv.on { opacity: 1; pointer-events: auto; }
+.rv .rays { position: absolute; left: 50%; top: 38%; width: 760px; height: 760px; margin: -380px 0 0 -380px; border-radius: 50%; z-index: -1;
+  background: repeating-conic-gradient(from 0deg, var(--rc, rgba(255,215,106,.16)) 0 6deg, transparent 6deg 22deg);
+  -webkit-mask: radial-gradient(circle, #000 10%, transparent 55%); mask: radial-gradient(circle, #000 10%, transparent 55%); animation: fbspin 18s linear infinite; }
+.rv .card { position: relative; width: 250px; height: 250px; perspective: 900px; }
+.rv .card .in { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateY(180deg) scale(.5); opacity: 0; }
+.rv.on .card .in { animation: flip 1.3s .15s cubic-bezier(.2,.9,.25,1.15) forwards; }
+@keyframes flip { 0% { opacity: 0; transform: rotateY(180deg) scale(.4); } 25% { opacity: 1; } 100% { opacity: 1; transform: rotateY(0) scale(1); } }
+.rv .fc, .rv .bk { position: absolute; inset: 0; border-radius: 36px; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.6); }
+.rv .bk { transform: rotateY(180deg); background: linear-gradient(160deg, #6a3cc0, #3b1f78); display: grid; place-items: center; font-size: 96px; font-weight: 900; color: #f1c94c; }
+.rv .fc .lt { width: 100%; height: 100%; } .rv .fc .lt > img { width: 100%; height: 100%; }
+.rv .t1 { font-size: 14px; font-weight: 700; color: #f1c94c; margin-top: 26px; letter-spacing: .04em; text-transform: uppercase; opacity: 0; }
+.rv .t2 { font-size: 32px; font-weight: 800; margin-top: 4px; opacity: 0; } .rv .t3 { color: var(--hint); font-size: 15px; margin-top: 8px; line-height: 1.4; opacity: 0; }
+.rv .acts { width: 100%; opacity: 0; }
+.rv.on .t1 { animation: up .5s 1.1s var(--ease) both; } .rv.on .t2 { animation: up .5s 1.2s var(--ease) both; } .rv.on .t3 { animation: up .5s 1.3s var(--ease) both; } .rv.on .acts { animation: up .5s 1.45s var(--ease) both; }
+.fx { position: absolute; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
+.fx i { position: absolute; left: 50%; top: 36%; width: 8px; height: 13px; border-radius: 2px; animation: fxb 1.7s cubic-bezier(.15,.8,.3,1) forwards; }
+@keyframes fxb { 70% { opacity: 1; } to { transform: translate(var(--x), var(--y)) rotate(var(--r)); opacity: 0; } }
+.sh { position: absolute; inset: 0; z-index: 20; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity .25s; }
+.sh.on { opacity: 1; pointer-events: auto; }
+.sh .pan { width: 100%; background: var(--bg); border-radius: 28px 28px 0 0; padding: 8px 0 24px; transform: translateY(100%); transition: transform .4s var(--ease); }
+.sh.on .pan { transform: none; } .sh .grab { width: 38px; height: 5px; border-radius: 9px; background: #3a3d45; margin: 0 auto 10px; }
+.sh .hc { padding: 0; height: 270px; } .sh .hc .lt { position: absolute; left: 50%; top: 50%; width: 330px; height: 330px; margin: -180px 0 0 -165px; }
+.sh .hc .ttl { position: absolute; left: 0; right: 0; bottom: 16px; font-size: 26px; font-weight: 800; text-shadow: 0 2px 12px rgba(0,0,0,.4); }
+.sh .hc .ttl small { display: block; font-size: 14px; font-weight: 600; opacity: .9; margin-top: 2px; }
+.sh .rw .rr { margin-left: auto; font-size: 12.5px; font-weight: 700; padding: 3px 9px; border-radius: 99px; background: rgba(94,168,255,.14); color: var(--link); }
+.tgc { width: 340px; background: #0e1621; border-radius: 30px; padding: 16px 12px; box-shadow: 0 0 0 1px rgba(255,255,255,.07); min-height: 400px; }
+.tgh { display: flex; align-items: center; gap: 10px; font-weight: 700; margin: 0 4px 14px; } .tgh img { width: 34px; height: 34px; border-radius: 50%; } .tgh small { display: block; color: #7f91a4; font-weight: 500; font-size: 12px; }
+.bub { background: #182533; color: #e9eef3; border-radius: 16px 16px 16px 6px; padding: 10px 12px; font-size: 14px; line-height: 1.45; } .bub b { color: #fff; }
+.msg { margin-bottom: 12px; animation: up .4s var(--ease) both; } .tm { color: #6d7f92; font-size: 11px; text-align: right; margin-top: 3px; }
+.tkb { display: grid; gap: 4px; margin-top: 4px; } .tkb span { background: rgba(43,82,120,.55); border-radius: 10px; padding: 8px; text-align: center; font-size: 13px; font-weight: 600; }
+.svc { text-align: center; margin: 2px 0 12px; animation: up .4s var(--ease) both; } .svc span { display: inline-block; padding: 8px 12px; border-radius: 16px; background: rgba(0,0,0,.35); font-size: 12.5px; }
+.svc img { display: block; width: 96px; height: 96px; margin: 0 auto 6px; border-radius: 14px; }
+.empty { color: #6d7f92; font-size: 13.5px; text-align: center; margin-top: 40px; line-height: 1.5; }
+</style>
+<style>
+.fw .rw { min-height: 50px; } .fw .av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 800; flex-shrink: 0; color: #fff; }
+.fw .tt > span { display: flex; align-items: center; gap: 6px; }
+.fw .mb { width: 44px; height: 4px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; display: inline-block; } .fw .mb i { display: block; height: 100%; background: #f1c94c; transition: width .5s var(--ease); }
+.fw .rw.bad b { color: var(--hint); text-decoration: line-through; text-decoration-color: rgba(255,90,79,.6); }
+.fw .rw.new { animation: fwin .6s var(--ease) both; } @keyframes fwin { from { opacity: 0; transform: translateX(-14px); background: rgba(94,168,255,.08); } }
+.chk { font-size: 15px; } .chk .tl { padding: 11px 0; } .chk .tl .n { width: 34px; height: 34px; font-size: 15px; background: rgba(60,207,116,.14); color: #3ccf74; }
+.chk .tl:not(:last-child) .n::after { display: none; } .chk .tl + .tl::before { left: 50px; } .chk .tl .tx { font-size: 15.5px; } .chk .tl .sx { font-size: 13.5px; }
+.nf-wait { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; font-size: 13.5px; font-weight: 600; opacity: .92; }
+.nf-wait i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; animation: rot 1s linear infinite; }
+.ctl .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ctl .bad { background: #3a1d1d; }
+.adm { margin: 0 0 14px; padding: 14px 16px; border-radius: 16px; background: #0f1013; box-shadow: 0 0 0 1px rgba(255,255,255,.09); }
+.adm .h { color: #8b8f99; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+.adm .r { display: flex; align-items: center; gap: 12px; cursor: pointer; } .adm .r b { font-size: 15px; } .adm .r small { display: block; color: #8b8f99; font-size: 12.5px; margin-top: 2px; line-height: 1.35; }
+.ctl.off .nft { opacity: .35; pointer-events: none; }
+.adm .r2 { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.07); color: #8b8f99; font-size: 12.5px; line-height: 1.45; } .adm .r2 b { color: #fff; }
+/* the showcase refreshes every 3 days */
+.rot { display: flex; align-items: center; gap: 12px; margin: 0 12px; padding: 12px 14px; border-radius: 22px; background: var(--card); animation: up .5s .15s var(--ease) both; }
+.rot .ring { position: relative; width: 46px; height: 46px; flex-shrink: 0; }
+.rot .ring::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(#f1c94c calc(var(--p, 0) * 1%), rgba(255,255,255,.09) 0);
+  -webkit-mask: radial-gradient(circle, transparent 18px, #000 19px); mask: radial-gradient(circle, transparent 18px, #000 19px); }
+.rot .ring span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; animation: rot 6s linear infinite; }
+.rot .tt { display: flex; flex-direction: column; font-size: 14px; color: var(--hint); } .rot .tmr { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.3px; color: #fff; margin-top: 1px; }
+.rot .tmr i { font-style: normal; color: var(--hint); font-size: 14px; font-weight: 600; margin: 0 3px 0 1px; }
+.rot .nx { margin-left: auto; position: relative; width: 44px; height: 44px; flex-shrink: 0; }
+.rot .nx i { position: absolute; width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(160deg, #6a3cc0, #3b1f78); display: grid; place-items: center; font-style: normal; font-weight: 900; color: #f1c94c; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,.4); }
+.rot .nx i:nth-child(1) { left: 0; top: 8px; transform: rotate(-12deg); opacity: .6; } .rot .nx i:nth-child(2) { left: 10px; top: 0; transform: rotate(8deg); }
+.rot.soon .tmr { color: #f1c94c; } .rot.soon .ring span { animation-duration: 1.5s; }
+.nf-top .tmh { display: inline-flex; gap: 5px; align-items: center; font-variant-numeric: tabular-nums; }
+.lad2.flip .rg2.lock .th, .lad2.flip .rg2.cur .th { animation: stflip .8s var(--ease) both; }
+.lad2.flip .rg2:nth-child(2) .th { animation-delay: .07s; } .lad2.flip .rg2:nth-child(3) .th { animation-delay: .14s; } .lad2.flip .rg2:nth-child(4) .th { animation-delay: .21s; } .lad2.flip .rg2:nth-child(5) .th { animation-delay: .28s; }
+/* rewards: a vertical list in the cabinet look */
+.lad2 { margin: 10px 12px 0; padding: 6px; border-radius: 26px; background: var(--card); animation: up .5s .2s var(--ease) both; }
+.rg2 { position: relative; display: flex; align-items: center; gap: 14px; padding: 10px; border-radius: 20px; cursor: pointer; transition: background .3s, transform .15s; }
+.rg2:active { transform: scale(.98); }
+.rg2 + .rg2 { margin-top: 2px; }
+.rg2 .th { position: relative; width: 56px; height: 56px; flex-shrink: 0; border-radius: 16px; }
+.rg2 .th img { width: 100%; height: 100%; border-radius: 16px; display: block; transition: filter .5s; }
+.rg2:not(:last-child) .th::after { content: ""; position: absolute; left: 27px; top: 62px; width: 2px; height: 14px; border-radius: 2px; background: #2d3038; }
+.rg2.past .th::after { background: #28a464; }
+.rg2 .th em { position: absolute; right: -5px; bottom: -5px; width: 22px; height: 22px; border-radius: 50%; background: #28a464; display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 900; box-shadow: 0 0 0 3px var(--card); animation: pop .5s var(--ease) both; }
+.rg2.lock .th img { filter: grayscale(.85) brightness(.5); }
+.rg2 .md { flex: 1; min-width: 0; } .rg2 .md b { display: block; font-size: 16.5px; font-weight: 600; }
+.rg2 .sb { display: flex; align-items: center; gap: 8px; color: var(--hint); font-size: 13.5px; margin-top: 3px; }
+.rg2.lock .md b { color: #c4c9d3; }
+.rg2 .pb { flex: 1; max-width: 110px; height: 6px; border-radius: 6px; background: rgba(255,255,255,.1); overflow: hidden; } .rg2 .pb i { display: block; height: 100%; border-radius: 6px; transition: width .6s var(--ease); }
+.rg2 .en { flex-shrink: 0; } .rg2 .lft { font-size: 13.5px; color: var(--hint); } .rg2 .lft b { color: #fff; font-size: 16px; }
+.rg2 .lk2 { font-size: 15px; opacity: .55; }
+.rg2 .bdg { font-size: 12.5px; font-weight: 700; padding: 3px 9px; border-radius: 99px; } .rg2 .bdg.w { background: rgba(241,201,76,.14); color: #f1c94c; } .rg2 .bdg.ok { background: rgba(60,207,116,.14); color: #3ccf74; }
+.rg2.cur { background: linear-gradient(100deg, color-mix(in srgb, var(--c1) 26%, transparent), color-mix(in srgb, var(--c2) 8%, transparent) 70%); }
+.rg2.cur .th { box-shadow: 0 0 0 2px #fff, 0 6px 22px color-mix(in srgb, var(--c1) 60%, transparent); animation: stpul 2.4s ease-in-out infinite; }
+.rg2.top .crown { display: block; color: #f1c94c; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 1px; }
+.rg2.top .th { box-shadow: 0 0 0 2px rgba(241,201,76,.8), 0 0 18px rgba(241,201,76,.25); }
+.rg2.top .th::before { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: 16px; pointer-events: none; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.35) 50%, transparent 65%) -60px 0 / 200% 100% no-repeat; animation: shine 3s ease-in-out infinite; }
+@keyframes shine { 60%, 100% { background-position: 100px 0; } }
+@keyframes stflip { 0% { transform: perspective(300px) rotateY(0); } 45% { transform: perspective(300px) rotateY(90deg) scale(.9); filter: brightness(2); } 100% { transform: none; } }
+.nf-new { position: absolute; top: 58px; left: 50%; transform: translateX(-50%); z-index: 3; padding: 5px 12px; border-radius: 99px; background: #f1c94c; color: #3a2a00; font-size: 12.5px; font-weight: 800; animation: pop .6s var(--ease) both; }
+.hc.old { isolation: isolate; contain: paint; background: radial-gradient(120% 75% at 50% 0%, #8a5cf0 0%, rgba(138,92,240,0) 62%), linear-gradient(170deg, #2b1663, #4a2a96 55%, #6d43c4); }
+.hc.old .ill { font-size: 84px; margin: 6px 0 10px; }
+.scr.swap { animation: scrsw .45s var(--ease) both; } @keyframes scrsw { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+</style></head><body>
+
+<h1>NFT-подарки за друзей</h1>
+<p class="s">Недорогие коллекционные подарки Telegram (самые дешёвые на Fragment — около <b>5–7 TON</b>, главный — на чёрном фоне, ~10 TON) и только за <b>настоящих</b> друзей: первый подарок — за 5. Друг засчитывается, когда сам оплатил VPN и пользуется им неделю. Накрутки и возвраты не считаются. <b>Жмите слева</b> и смотрите на кабинет и чат с ботом.</p>
+
+<div class="wall">
+  <div class="side"><div class="adm"><div class="h">Админка · Приглашения</div>
+      <div class="r" id="tog"><div><b>NFT-подарки за друзей</b><small id="togs">Включено: в ЛК подарки за друзей</small></div><span class="tg" id="tgl"></span></div>
+      <div class="r2">Подарки на пути меняются каждые <b>3 дня</b>. Заработанные остаются у человека.<br>Следующие: <span id="nxt"></span></div></div>
+    <div class="lab">Управление</div>
+    <div class="ctl" id="ctl">
+      <button class="p" id="add">＋ Друг оплатил VPN<small id="adds">попадает на проверку на 7 дней</small></button>
+      <button class="nft" id="week">⏩ Прошла неделя<small>кто пользовался VPN — засчитан</small></button>
+      <button class="nft" id="five">＋5 проверенных друзей<small>чтобы быстрее дойти до подарка</small></button>
+      <button class="bad nft" id="fake">🚫 Попытка накрутки<small>свой второй аккаунт, та же карта, без VPN</small></button>
+      <div class="row"><button id="sub">↩︎ Возврат<small>платёж отменили</small></button><button id="give">🎁 Выдать<small>вы, в админке</small></button></div>
+      <button class="nft" id="rotb">🔄 Обновить витрину<small>как будто прошли 3 дня</small></button>
+      <button id="reset">Сначала</button>
+    </div><div class="cnt" id="cnt"></div></div>
+  <div class="ph" id="ph"><div class="scr" id="scr"></div><div class="rv" id="rv"></div><div class="sh" id="sh"><div class="pan"></div></div></div>
+  <div class="tgc"><div class="tgh"><img src="../../webapp/icons/frog.png" alt=""><div>Лягушка VPN<small>бот</small></div></div><div id="chat"></div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+<script>
+const F = "https://nft.fragment.com/gift/";
+// Cheap real collectibles (floor ≈ 5–7 TON on Fragment); the last step is always the cheapest one on a black (Onyx Black, ≈10 TON) backdrop.
+const P = [
+  { need: 5,  slug: "icecream-162005",     name: "Ice Cream",     no: "162005", ton: 5, bg: ["#b48ad6", "#794da0", "#3f2457"], a: [["Модель", "Trio Scoop", "3%"], ["Фон", "Grape", "1,5%"], ["Узор", "Maple Leaf", "0,7%"]] },
+  { need: 10, slug: "instantramen-182697", name: "Instant Ramen", no: "182697", ton: 5, bg: ["#c48c74", "#73443b", "#3c221d"], a: [["Модель", "Sewing Stew", "3%"], ["Фон", "Chocolate", "1%"], ["Узор", "Pickaxe", "0,5%"]] },
+  { need: 15, slug: "happybrownie-103336", name: "Happy Brownie", no: "103336", ton: 6, bg: ["#7dd0e0", "#528bc1", "#2a4a6e"], a: [["Модель", "Toilet Bot", "2%"], ["Фон", "Sky Blue", "1,2%"], ["Узор", "Cactus", "0,2%"]] },
+  { need: 25, slug: "candycane-155038",    name: "Candy Cane",    no: "155038", ton: 5, bg: ["#a3abf8", "#855ed3", "#42297a"], a: [["Модель", "Colorfunk", "2,6%"], ["Фон", "Cyberpunk", "1,5%"], ["Узор", "Champagne", "1,6%"]] },
+  { need: 40, slug: "lolpop-207408", name: "Lol Pop", no: "207408", ton: 10, bg: ["#5d6265", "#313537", "#121416"], a: [["Модель", "Cappuccino", "1,2%"], ["Фон", "Onyx Black", "1,5%"], ["Узор", "Burger", "0,5%"]] },
+];
+// Next showcases (also cheap, 5–7 TON).
+const POOL_SETS = [
+  [
+    { slug: "lunarsnake-185259", name: "Lunar Snake", no: "185259", ton: 5, bg: ["#72d4bb", "#3d95b9", "#1f4f66"], a: [["Модель", "Blue Boa", "1,5%"], ["Фон", "Pacific Cyan", "2%"], ["Узор", "Shooting Star", "1,8%"]] },
+    { slug: "spicedwine-2877", name: "Spiced Wine", no: "2877", ton: 6, bg: ["#c99490", "#814b51", "#44262b"], a: [["Модель", "Color Theory", "1,3%"], ["Фон", "Rosewood", "1,5%"], ["Узор", "Pear", "0,4%"]] },
+    { slug: "xmasstocking-72071", name: "Xmas Stocking", no: "72071", ton: 5, bg: ["#8fadff", "#6762e3", "#33307a"], a: [["Модель", "Fresh Lemon", "2,2%"], ["Фон", "Neon Blue", "1,2%"], ["Узор", "Trophy", "0,5%"]] },
+    { slug: "bigyear-62366", name: "Big Year", no: "62366", ton: 5, bg: ["#adc495", "#5b814b", "#2f4527"], a: [["Модель", "Christmas Carol", "2,3%"], ["Фон", "Pistachio", "1%"], ["Узор", "Key", "0,5%"]] },
+    { slug: "whipcupcake-247087", name: "Whip Cupcake", no: "247087", ton: 10, bg: ["#5d6265", "#313537", "#121416"], a: [["Модель", "High Five", "3%"], ["Фон", "Onyx Black", "1,2%"], ["Узор", "Toy Bucket", "0,5%"]] },
+  ],
+  [
+    { slug: "bdaycandle-257800", name: "B-Day Candle", no: "257800", ton: 6, bg: ["#adc495", "#5b814b", "#2f4527"], a: [["Модель", "Cheers", "1,5%"], ["Фон", "Pistachio", "1%"], ["Узор", "Okami Wolf", "0,5%"]] },
+    { slug: "petsnake-188646", name: "Pet Snake", no: "188646", ton: 6, bg: ["#e88a5a", "#b54a2c", "#5e2414"], a: [["Модель", "King Cobra", "2%"], ["Фон", "Burnt Sienna", "1,2%"], ["Узор", "Candle", "0,6%"]] },
+    { slug: "snakebox-123774", name: "Snake Box", no: "123774", ton: 5, bg: ["#7dd0e0", "#528bc1", "#2a4a6e"], a: [["Модель", "Raspberry", "3%"], ["Фон", "Sky Blue", "1,5%"], ["Узор", "Thunderbird", "0,8%"]] },
+    { slug: "deskcalendar-156558", name: "Desk Calendar", no: "156558", ton: 7, bg: ["#86c497", "#3d7970", "#1e3f3a"], a: [["Модель", "The Nineties", "1,3%"], ["Фон", "Pine Green", "2%"], ["Узор", "Thief", "0,3%"]] },
+    { slug: "vicecream-194020", name: "Vice Cream", no: "194020", ton: 10, bg: ["#5d6265", "#313537", "#121416"], a: [["Модель", "Birthday", "3%"], ["Фон", "Onyx Black", "1%"], ["Узор", "Bottle", "0,4%"]] },
+  ]
+];
+// The showcase: every 3 days the steps not earned yet get the next set of gifts; earned ones stay as they were.
+const DAY = 864e5, EVERY = 3 * DAY;
+const ROT = [P.map(({ need, ...g }) => g)].concat(POOL_SETS);
+const R = { i: 0, next: Date.now() + 2 * DAY + 13 * 36e5 + 47 * 6e4 + 12e3, fresh: false };
+function rotate() {
+  R.i = (R.i + 1) % ROT.length; R.next = Date.now() + EVERY; R.fresh = true;
+  P.forEach((p, i) => { if (S.st[i] === "none") P[i] = { need: p.need, ...ROT[R.i][i] }; });
+  if (S.on) say(`🔄 <b>Новые NFT-подарки за друзей!</b><br>На пути теперь: ${P.filter((p, i) => S.st[i] === "none").map((p) => p.name).join(", ")}. Следующее обновление через 3 дня.`, ["Посмотреть подарки"]);
+  S.shown = -1; draw(); R.fresh = false;
+  if (S.on) toast("🔄 Витрина обновилась — новые подарки на пути");
+}
+const left = () => Math.max(0, R.next - Date.now());
+function tfmt(ms, short) {
+  const d = Math.floor(ms / DAY), h = Math.floor(ms % DAY / 36e5), m = Math.floor(ms % 36e5 / 6e4), sec = Math.floor(ms % 6e4 / 1e3), z = (x) => String(x).padStart(2, "0");
+  if (short) return d ? `${d} д ${h} ч` : `${z(h)}:${z(m)}:${z(sec)}`;
+  return `${d ? `${d}<i>д</i>` : ""}${z(h)}<i>:</i>${z(m)}<i>:</i>${z(sec)}`;
+}
+function tick() {
+  if (left() <= 0) rotate();
+  const ms = left();
+  document.querySelectorAll(".tmr").forEach((e) => e.innerHTML = tfmt(ms));
+  document.querySelectorAll(".tmh b").forEach((e) => e.textContent = tfmt(ms, 1));
+  document.querySelectorAll(".rot").forEach((e) => { e.style.setProperty("--p", (100 - ms / EVERY * 100).toFixed(2)); e.classList.toggle("soon", ms < DAY); });
+  const nx = document.getElementById("nxt"); if (nx) nx.textContent = ROT[(R.i + 1) % ROT.length].map((g) => g.name).join(", ");
+}
+const NAMES = ["Оля", "Дима", "Аня", "Саша", "Катя", "Миша", "Лена", "Гоша", "Вика", "Тимур", "Женя", "Петя", "Марина", "Илья", "Соня", "Рома", "Даша", "Костя", "Юля", "Артём"];
+const FAKES = [["Аккаунт без имени", "это ваш второй аккаунт — тот же телефон"], ["Пользователь 8…", "оплатил вашей картой"], ["Max", "оплатил и не включал VPN"], ["Аккаунт 61…", "уже был в боте до вашей ссылки"], ["Bot user", "оплата подарочным балансом, не своими деньгами"]];
+const COLORS = ["#e2724f", "#4f9be2", "#9b62d8", "#3cb878", "#e2a23c", "#d8557d", "#3cb0b8"];
+const S = { on: true, f: [], st: P.map(() => "none"), log: [], shown: -1, fresh: false, frogAt: -1, nameI: 0, fakeI: 0, newId: -1 };
+const ok = () => S.f.filter((x) => x.st === "ok").length;
+const pl = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; };
+const fr = (n) => `${n} ${pl(n, "друг", "друга", "друзей")}`;
+const img = (g) => F + g.slug + ".webp";
+const grad = (g) => `radial-gradient(110% 70% at 50% 30%, ${g.bg[0]} 0%, ${g.bg[1]} 55%, ${g.bg[2]} 100%)`;
+const IC = { share: '<svg width="24" height="24" viewBox="0 0 24 24"><path d="M14 5l7 6-7 6v-3.5c-5 0-8 1.5-10 5 .7-5.5 3.5-9.5 10-10.5z" fill="currentColor"/></svg>',
+  copy: '<svg width="22" height="22" viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2.5" fill="#fff"/><rect x="4" y="7" width="12" height="15" rx="2.5" fill="#fff" opacity=".7"/></svg>' };
+
+const cache = {};
+// only = "Gift" keeps just the gift so it floats on the cabinet card; without it — the whole Telegram card.
+function play(box, g, only) {
+  box.innerHTML = only ? "" : `<img src="${img(g)}" alt="">`;
+  if (!window.lottie) { box.innerHTML = `<img src="${img(g)}" alt="">`; return; }
+  (cache[g.slug] = cache[g.slug] || fetch(F + g.slug + ".lottie.json").then((r) => r.json())).then((d0) => {
+    if (!box.isConnected) return;
+    const d = JSON.parse(JSON.stringify(d0)); if (only) d.layers = d.layers.filter((l) => only.split(",").includes(l.nm));
+    box.innerHTML = ""; lottie.loadAnimation({ container: box, renderer: "svg", loop: true, autoplay: true, animationData: d, rendererSettings: { preserveAspectRatio: "xMidYMid slice" } });
+  }).catch(() => { box.innerHTML = `<img src="${img(g)}" alt="">`; });
+}
+function burst(host, colors) {
+  const b = document.createElement("div"); b.className = "fx";
+  b.innerHTML = Array.from({ length: 70 }, (_, i) => `<i style="background:${colors[i % colors.length]};--x:${(Math.random() - .5) * 460}px;--y:${(Math.random() - .25) * 700}px;--r:${Math.random() * 900}deg;animation-delay:${Math.random() * .12}s"></i>`).join("");
+  host.appendChild(b); setTimeout(() => b.remove(), 1900);
+}
+const cur = () => { const n = ok(), i = P.findIndex((p) => n < p.need); return i < 0 ? P.length : i; };
+
+function hero() {
+  const n = ok(), ci = cur(), all = ci >= P.length, g = P[Math.min(ci, P.length - 1)];
+  const prev = ci === 0 ? 0 : P[Math.min(ci, P.length) - 1].need, steps = all ? 1 : g.need - prev, done = all ? 1 : n - prev;
+  const checking = S.f.filter((x) => x.st === "check");
+  const soon = checking.length ? Math.min(...checking.map((x) => 7 - x.day)) : 0;
+  const conf = Array.from({ length: 14 }, (_, i) => `<i style="left:${(i * 37) % 100}%;background:${i % 3 ? "rgba(255,255,255,.7)" : g.bg[0]};animation-duration:${4 + (i % 5)}s;animation-delay:-${i * .7}s;--dx:${(i % 2 ? 1 : -1) * (8 + i % 4 * 6)}px"></i>`).join("");
+  return `<section class="hc nf" id="hero"><div class="nf-bgs">${P.map((p) => `<i class="${p === g ? "on" : ""}" style="background:${grad(p)}"></i>`).join("")}</div>` +
+    `<div class="nf-pat" data-i="${P.indexOf(g)}"></div><div class="gs-rays" style="--ray:rgba(255,255,255,.12)"></div><div class="nf-glow"></div><div class="gs-conf">${conf}</div>` +
+    `<div class="nf-top"><span class="b">+50 ₽ за каждого друга</span><span class="tmh">${all ? "Путь пройден 🏆" : `🔄 <b>${tfmt(left(), 1)}</b>`}</span></div>${R.fresh && !all ? '<span class="nf-new">Новый подарок!</span>' : ""}` +
+    `<div class="nf-gift ${S.shown !== ci ? "swap" : ""}"><div class="lt" data-i="${P.indexOf(g)}"></div></div>` +
+    `<div class="K" style="margin-top:2px">${all ? "Вы собрали все подарки" : ci === P.length - 1 ? "Главный подарок · чёрный фон" : "Следующий NFT-подарок"}</div><div class="nf-n">${g.name}</div>` +
+    `<div class="nf-rar">${g.a.map(([k, v, p]) => `<span><i>${v}</i>${p}</span>`).join("")}</div>` +
+    (all ? `<div class="nf-lbl" style="justify-content:center"><span>Спасибо, что зовёте друзей 💚</span></div>`
+      : `<div class="nf-lbl"><span><b>${done}</b> из ${steps} засчитано</span><span>ещё ${fr(g.need - n)}</span></div>`) +
+    `<div class="nf-bar">${Array.from({ length: steps }, (_, i) => `<i class="${i < done ? "on" : ""}${i === done - 1 && S.fresh ? " new" : ""}${!all && i === done ? " nx" : ""}"></i>`).join("")}</div>` +
+    (checking.length ? `<div class="nf-wait"><i></i>${fr(checking.length)} на проверке · ${soon ? `${soon} ${pl(soon, "день", "дня", "дней")}` : "сегодня"}</div>` : "") +
+    `<div class="acts"><button type="button" class="pill" data-act="share">${IC.share}<span>Поделиться</span></button><button type="button" class="rnd" data-act="share">${IC.copy}</button></div></section>`;
+}
+function path() {
+  const n = ok(), ci = cur(), last = P.length - 1;
+  return `<div class="st">Подарки за друзей</div>` +
+    `<div class="rot"><div class="ring"><span>🔄</span></div><span class="tt"><span style="margin:0">Новые подарки через</span><span class="tmr">${tfmt(left())}</span></span><div class="nx"><i>?</i><i>?</i></div></div>` +
+    `<div class="lad2${R.fresh ? " flip" : ""}">${P.map((p, i) => {
+      const c = S.st[i] === "got" ? "got" : S.st[i] === "wait" ? "wait" : i === ci ? "cur" : "lock";
+      const prev = i ? P[i - 1].need : 0, pct = c === "cur" ? Math.min(100, n / p.need * 100) : 0;
+      const end = c === "got" ? `<span class="bdg ok">получен</span>` : c === "wait" ? `<span class="bdg w">в пути</span>`
+        : c === "cur" ? `<span class="lft">ещё <b>${p.need - n}</b></span>` : `<span class="lk2">🔒</span>`;
+      const sub = c === "cur" ? `<span class="pb"><i style="width:${pct}%;background:linear-gradient(90deg, ${p.bg[0]}, ${p.bg[1]})"></i></span><span>${n} из ${fr(p.need)}</span>`
+        : c === "got" ? `<span>#${p.no} · у вас в Telegram</span>` : c === "wait" ? `<span>#${p.no} · придёт за сутки</span>` : `<span>за ${fr(p.need)}</span>`;
+      return `<div class="rg2 ${c}${i === last ? " top" : ""}${i < ci ? " past" : ""}" data-sheet="${i}" style="--c1:${p.bg[0]};--c2:${p.bg[1]}">` +
+        `<div class="th"><img src="${img(p)}" alt="">${c === "got" ? '<em>✓</em>' : ""}</div>` +
+        `<div class="md">${i === last ? '<small class="crown">Главный подарок</small>' : ""}<b>${p.name}</b><div class="sb">${sub}</div></div><div class="en">${end}</div></div>`;
+    }).join("")}</div>`;
+}
+function mine() {
+  const rows = P.map((p, i) => ({ p, i })).filter(({ i }) => S.st[i] !== "none");
+  if (!rows.length) return "";
+  return `<div class="st">Ваши NFT</div><div class="cd">${rows.reverse().map(({ p, i }) => `<button type="button" class="rw" data-sheet="${i}"><img class="gi" src="${img(p)}" alt="">` +
+    `<span class="tt"><b>${p.name} #${p.no}</b><span>${S.st[i] === "got" ? "в вашем профиле Telegram" : "отправим в течение суток"}</span></span>` +
+    `<span class="v"><span class="bdg ${S.st[i] === "got" ? "ok" : "w"}">${S.st[i] === "got" ? "у вас" : "в пути"}</span></span></button>`).join("")}</div>`;
+}
+function friends() {
+  if (!S.f.length) return `<div class="st">Ваши друзья</div><div class="cd"><div class="rw"><span class="e">👋</span><span class="tt"><b>Пока никого</b><span>Отправьте ссылку — друг получит подарок на баланс</span></span></div></div>`;
+  const bad = S.f.filter((x) => x.st === "bad").length, chk = S.f.filter((x) => x.st === "check").length;
+  const rows = S.f.slice().reverse().slice(0, 7).map((x) => {
+    const sub = x.st === "ok" ? "оплатил(а) и пользуется VPN" : x.st === "check" ? `проверка · ${x.day} из 7 дней <span class="mb"><i style="width:${x.day / 7 * 100}%"></i></span>` : `не засчитан · ${x.why}`;
+    return `<div class="rw ${x.st}${x.id === S.newId ? " new" : ""}"><span class="av" style="background:${x.st === "bad" ? "#3a3d45" : x.c}">${x.name[0]}</span><span class="tt"><b>${x.name}</b><span>${sub}</span></span>` +
+      `<span class="v"><span class="bdg ${x.st === "ok" ? "ok" : x.st === "check" ? "w" : ""}" style="${x.st === "bad" ? "background:rgba(255,90,79,.12);color:#ff7a70" : ""}">${x.st === "ok" ? "есть" : x.st === "check" ? "ждём" : "нет"}</span></span></div>`;
+  }).join("");
+  return `<div class="st">Ваши друзья · ${ok()} засчитано</div><div class="cd fw">${rows}</div>` +
+    (chk || bad ? `<div class="note">${chk ? `${fr(chk)} на проверке. ` : ""}${bad ? `${bad} ${pl(bad, "аккаунт не засчитан", "аккаунта не засчитаны", "аккаунтов не засчитано")} — это не новые живые пользователи.` : ""}</div>` : "");
+}
+function rules() {
+  return `<div class="st">Кто засчитывается</div><div class="cd chk">${[["Новый человек", "раньше не заходил в бота и пришёл по вашей ссылке"], ["Сам оплатил VPN от 100 ₽", "своей картой или СБП — не бонусами и не подарком"], ["Пользуется VPN", "подключался хотя бы 3 дня из первых 7"], ["Неделя без возврата", "засчитываем через 7 дней после оплаты"], ["Это не вы", "другая карта, другой телефон и устройство"]]
+    .map((x, i) => `<div class="tl" style="--i:${i}"><div class="n">✓</div><div><div class="tx">${x[0]}</div><div class="sx">${x[1]}</div></div></div>`).join("")}</div>` +
+    `<div class="note">Подарки выдаём вручную и перед отправкой смотрим каждого друга. За накрутку путь обнуляется.</div>`;
+}
+// Promotion off: the invite tab as it is in the cabinet today (+50 ₽ for a friend), plus NFTs already earned.
+function classic(scr, seg) {
+  const n = S.f.filter((x) => x.st !== "bad").length;
+  scr.innerHTML = seg + `<section class="hc old"><div class="gs-rays"></div><div class="ill"><span>🎁</span></div><div class="K">Пригласите друзей</div><div class="N">+50 ₽</div><div class="P">вам и другу за каждого приглашённого</div>` +
+    `<div class="acts"><button type="button" class="pill" data-act="share">${IC.share}<span>Поделиться</span></button><button type="button" class="rnd" data-act="share">${IC.copy}</button></div></section>` +
+    `<div class="st">Как это работает</div><div class="cd">${[["1", "Друг открывает бота по ссылке", "и получает подарок"], ["2", "Начинает пользоваться VPN", ""], ["🎁", "Вам 50 ₽ на баланс", n ? `<b>+${n * 50} ₽</b> уже получено` : ""]]
+      .map((x, i) => `<div class="tl" style="--i:${i}"><div class="n">${x[0]}</div><div><div class="tx">${x[1]}</div>${x[2] ? `<div class="sx">${x[2]}</div>` : ""}</div></div>`).join("")}</div>` +
+    `<div class="st">Ваши друзья</div><div class="cd"><div class="rw"><span class="e">👥</span>Приглашено<span class="v">${n}</span></div><div class="rw"><span class="e">💰</span>Получено<span class="v">${n * 50} ₽</span></div></div>` +
+    (n ? `<div class="cd">${S.f.filter((x) => x.st !== "bad").slice().reverse().slice(0, 5).map((x) => `<div class="rw"><span class="e">✅</span><span class="tt"><b>${x.name}</b><span>есть оплата</span></span></div>`).join("")}</div>` : "") +
+    (S.st.some((x) => x !== "none") ? mine() + `<div class="note">Акция с NFT закончилась. Подарки, которые вы уже заработали, всё равно придут.</div>` : "");
+  scr.querySelectorAll("[data-sheet]").forEach((el) => el.onclick = () => sheet(Number(el.dataset.sheet)));
+  scr.querySelectorAll('[data-act="share"]').forEach((el) => el.onclick = () => toast("Открылось окно «Поделиться» с вашей ссылкой"));
+  S.frogAt = -1; chat();
+  document.getElementById("cnt").innerHTML = `Акция выключена. Друзей: <b style="color:#fff">${n}</b>, получено ${n * 50} ₽.`;
+}
+function draw() {
+  const scr = document.getElementById("scr"), top = scr.scrollTop;
+  const seg = `<div class="seg"><button class="on">Пригласить</button><button>Подарить</button></div>`;
+  if (!S.on) return classic(scr, seg);
+  scr.innerHTML = seg + hero() + path() + mine() + friends() + rules();
+  scr.scrollTop = top;
+  S.shown = cur(); S.fresh = false; S.newId = -1;
+  scr.querySelectorAll(".nf-gift .lt").forEach((b) => play(b, P[b.dataset.i], "Gift"));
+  scr.querySelectorAll(".nf-pat").forEach((b) => play(b, P[b.dataset.i], "Pattern,Color Icon"));
+  scr.querySelectorAll("[data-sheet]").forEach((el) => el.onclick = () => sheet(Number(el.dataset.sheet)));
+  scr.querySelectorAll('[data-act="share"]').forEach((el) => el.onclick = () => toast("Открылось окно «Поделиться» с вашей ссылкой"));
+  chat();
+  const wait = S.st.map((x, i) => (x === "wait" ? P[i] : null)).filter(Boolean);
+  document.getElementById("cnt").innerHTML = `Засчитано: <b style="color:#fff">${fr(ok())}</b>. На проверке: ${S.f.filter((x) => x.st === "check").length}. Не засчитано: ${S.f.filter((x) => x.st === "bad").length}.` +
+    (wait.length ? `<br>Ждут выдачи: ${wait.map((g) => `${g.name} (~${g.ton} TON)`).join(", ")}.` : "");
+}
+const chat = () => { document.getElementById("chat").innerHTML = S.log.length ? S.log.slice(-9).join("") : `<div class="empty">Пока тихо.<br>Нажмите «＋ Друг оплатил VPN».</div>`; };
+function sheet(i) {
+  const g = P[i], st = S.st[i], sh = document.getElementById("sh");
+  const what = st === "got" ? "Подарок у вас в профиле Telegram. Его можно оставить, подарить или продать."
+    : st === "wait" ? "Вы его заработали — отправим в течение суток, придёт сообщение от бота."
+    : `Нужно ${fr(g.need)}, которые сами оплатили VPN и пользуются им. Осталось ${fr(Math.max(0, g.need - ok()))}.`;
+  sh.querySelector(".pan").innerHTML = `<div class="grab"></div><section class="hc nf" style="background:${grad(g)}"><div class="gs-rays" style="--ray:rgba(255,255,255,.12);top:46%"></div><div class="lt"></div><div class="ttl">${g.name}<small>${st === "none" ? `Коллекционный подарок Telegram · за ${fr(g.need)}` : `#${g.no} · ${st === "got" ? "ваш" : "в пути"}`}</small></div></section>` +
+    `<div class="cd" style="margin-top:12px">${g.a.map(([k, v, p]) => `<div class="rw"><span class="tt"><span style="margin:0">${k}</span><b>${v}</b></span><span class="rr">${p}</span></div>`).join("")}</div><div class="note">${what}</div>`;
+  play(sh.querySelector(".lt"), g, "Gift");
+  sh.classList.add("on");
+  sh.onclick = (e) => { if (e.target === sh) sh.classList.remove("on"); };
+}
+function toast(t) {
+  const ph = document.getElementById("ph"); let el = ph.querySelector(".tst");
+  if (!el) { el = document.createElement("div"); el.className = "tst"; el.style.cssText = "position:absolute;left:16px;right:16px;top:14px;z-index:50;padding:13px 16px;border-radius:16px;background:rgba(40,42,48,.97);font-size:14.5px;font-weight:600;transform:translateY(-130%);transition:transform .4s var(--ease)"; ph.appendChild(el); }
+  el.textContent = t; requestAnimationFrame(() => el.style.transform = "none"); clearTimeout(el._t); el._t = setTimeout(() => el.style.transform = "translateY(-130%)", 2600);
+}
+function reveal(i) {
+  const g = P[i], rv = document.getElementById("rv");
+  rv.style.setProperty("--rc", g.bg[0] + "30");
+  rv.innerHTML = `<div class="rays"></div><div class="card"><div class="in"><div class="fc"><div class="lt"></div></div><div class="bk">?</div></div></div>` +
+    `<div class="t1">Новый NFT-подарок</div><div class="t2">${g.name} ваш!</div><div class="t3">${fr(g.need)} оплатили VPN и пользуются им. Отправим #${g.no} в ваш профиль Telegram в течение суток.</div>` +
+    `<div class="acts"><button type="button" class="pill" id="rvok"><span>Ура!</span></button></div>`;
+  play(rv.querySelector(".fc .lt"), g);
+  requestAnimationFrame(() => rv.classList.add("on"));
+  setTimeout(() => burst(document.getElementById("ph"), [g.bg[0], "#fff", "#f1c94c", "#3ccf74", g.bg[1]]), 1050);
+  rv.querySelector("#rvok").onclick = () => { rv.classList.remove("on"); draw(); };
+}
+const t = () => { const d = new Date(); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`; };
+const say = (html, kb) => S.log.push(`<div class="msg"><div class="bub">${html}<div class="tm">${t()}</div></div>${kb ? `<div class="tkb">${kb.map((k) => `<span>${k}</span>`).join("")}</div>` : ""}</div>`);
+const friend = (st, extra) => { const x = { id: S.f.length, name: NAMES[S.nameI++ % NAMES.length], c: COLORS[S.f.length % COLORS.length], st, day: 0, ...extra }; S.f.push(x); S.newId = x.id; return x; };
+// Count friends that just passed the check; open the gift if a step was reached.
+function settle(before) {
+  const after = ok(); S.fresh = after > before;
+  const hits = P.map((p, i) => i).filter((i) => before < P[i].need && after >= P[i].need && S.st[i] === "none");
+  hits.forEach((i) => { S.st[i] = "wait"; say(`🎉 <b>Это ваш ${P[i].need}-й настоящий друг!</b><br>Вам положен NFT-подарок <b>«${P[i].name}»</b>. Отправим его в ваш профиль Telegram в течение суток.`); });
+  if (hits.length) { chat(); reveal(hits[hits.length - 1]); return; }
+  draw();
+  if (after > before) {
+    const h = document.getElementById("hero"); h.classList.add("bump");
+    const b = document.createElement("div"); b.className = "nf-plus"; b.textContent = `+${fr(after - before)} засчитано`; h.appendChild(b);
+  }
+}
+document.getElementById("add").onclick = () => {
+  if (!S.on) { const y = friend("ok", { day: 7 }); say(`💰 <b>+50 ₽ на баланс</b> — ${y.name} оплатил(а) VPN по вашей ссылке.`); draw(); toast("+50 ₽ за друга"); return; }
+  const x = friend("check");
+  say(`🕐 <b>${x.name} оплатил(а) VPN по вашей ссылке.</b> Засчитаем через 7 дней, если ${x.name} будет пользоваться VPN.`);
+  draw(); toast(`${x.name} на проверке — 7 дней`);
+};
+document.getElementById("week").onclick = () => {
+  const before = ok(), c = S.f.filter((x) => x.st === "check");
+  if (!c.length) return toast("Никого на проверке");
+  c.forEach((x, k) => { if (k === 2) { x.st = "bad"; x.why = "не включал VPN"; } else { x.st = "ok"; x.day = 7; } });
+  const good = c.filter((x) => x.st === "ok"), badOne = c.find((x) => x.st === "bad");
+  if (good.length) say(`✅ <b>Засчитаны: ${good.map((x) => x.name).join(", ")}.</b> Всего настоящих друзей: ${ok()}.`);
+  if (badOne) say(`ℹ️ ${badOne.name} оплатил(а), но за неделю ни разу не включил(а) VPN — не засчитываем.`);
+  settle(before);
+};
+document.getElementById("five").onclick = () => { const before = ok(); for (let k = 0; k < 5; k++) friend("ok", { day: 7 }); say(`✅ <b>+5 друзей засчитаны.</b> Всего настоящих друзей: ${ok()}.`); settle(before); };
+document.getElementById("fake").onclick = () => {
+  const [name, why] = FAKES[S.fakeI++ % FAKES.length]; const x = friend("bad", { why }); x.name = name;
+  say(`🚫 <b>${name}</b> — не засчитан: ${why}.`); draw(); toast("Не засчитан — это не настоящий друг");
+};
+document.getElementById("sub").onclick = () => {
+  const x = [...S.f].reverse().find((y) => y.st === "ok" || y.st === "check"); if (!x) return;
+  x.st = "bad"; x.why = "платёж вернули";
+  const n = ok(); P.forEach((p, i) => { if (n < p.need && S.st[i] === "wait") S.st[i] = "none"; });
+  say(`↩︎ ${x.name} вернул(а) платёж — друг снят.`); draw();
+};
+document.getElementById("give").onclick = () => {
+  const i = S.st.indexOf("wait"); if (i < 0) return toast("Очередь пуста — некому выдавать");
+  const g = P[i]; S.st[i] = "got";
+  S.log.push(`<div class="svc"><span><img src="${img(g)}" alt="">Вам передали подарок «${g.name} #${g.no}»</span></div>`);
+  say(`💎 <b>Подарок у вас!</b> «${g.name} #${g.no}» уже в профиле Telegram.`, ["Пригласить ещё"]);
+  draw(); burst(document.getElementById("ph"), ["#3ccf74", "#fff", g.bg[0]]); toast(`💎 ${g.name} доставлен в ваш Telegram`);
+};
+document.getElementById("reset").onclick = () => { Object.assign(S, { f: [], st: P.map(() => "none"), log: [], shown: -1, frogAt: -1, nameI: 0, fakeI: 0 }); draw(); };
+document.getElementById("tog").onclick = () => {
+  S.on = !S.on;
+  document.getElementById("tgl").classList.toggle("off", !S.on);
+  document.getElementById("ctl").classList.toggle("off", !S.on);
+  document.getElementById("togs").textContent = S.on ? "Включено: в ЛК подарки за друзей" : "Выключено: в ЛК обычное приглашение +50 ₽";
+  document.getElementById("adds").textContent = S.on ? "попадает на проверку на 7 дней" : "сразу +50 ₽, как сейчас";
+  draw(); const scr = document.getElementById("scr"); scr.classList.remove("swap"); scr.offsetWidth; scr.classList.add("swap");
+  toast(S.on ? "Акция включена — подарки за друзей снова в ЛК" : "Акция выключена — вернулось обычное приглашение");
+};
+const q = new URLSearchParams(location.search);
+if (q.get("off")) { S.on = false; document.getElementById("tgl").classList.add("off"); document.getElementById("ctl").classList.add("off"); document.getElementById("togs").textContent = "Выключено: в ЛК обычное приглашение +50 ₽"; }
+for (let k = 0; k < Number(q.get("n") || 0); k++) friend("ok", { day: 7 });
+for (let k = 0; k < Number(q.get("c") || 0); k++) friend("check", { day: 2 + k * 2 });
+if (q.get("x")) { const x = friend("bad", { why: FAKES[1][1] }); x.name = FAKES[1][0]; }
+P.forEach((p, i) => { if (ok() >= p.need) S.st[i] = "got"; });
+if (q.get("wait")) S.st[P.reduce((a, p, i) => (ok() >= p.need ? i : a), 0)] = "wait";
+if (q.get("tall")) { document.getElementById("ph").style.height = "auto"; document.getElementById("scr").style.height = "auto"; }
+S.shown = cur(); S.newId = -1;
+draw();
+if (q.get("soon")) R.next = Date.now() + Number(q.get("soon")) * 1e3;
+tick(); setInterval(tick, 1000);
+document.getElementById("rotb").onclick = () => rotate();
+if (q.get("reveal")) reveal(Number(q.get("reveal")));
+if (q.get("sheet")) sheet(Number(q.get("sheet")));
+</script>
+</body></html>

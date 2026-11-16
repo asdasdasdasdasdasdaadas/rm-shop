@@ -208,6 +208,8 @@ async def main() -> None:
         watch_task = asyncio.create_task(balance_watch_loop(rw, bot), name="balance-watch")
         from app.stuck_alert import stuck_alert_loop
         stuck_task = asyncio.create_task(stuck_alert_loop(bot), name="stuck-alert")
+        from app.friend_nft import loop as friend_nft_loop
+        friend_nft_task = asyncio.create_task(friend_nft_loop(bot), name="friend-nft")
         try:
             await dp.start_polling(
                 bot,
@@ -229,6 +231,7 @@ async def main() -> None:
             gifts_task.cancel()
             watch_task.cancel()
             stuck_task.cancel()
+            friend_nft_task.cancel()
     finally:
         await runner.cleanup()
         if rp is not None:

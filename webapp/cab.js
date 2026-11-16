@@ -1335,6 +1335,11 @@
       if (me.gifts_enabled && !gs.data) loadGifts();
     },
     invite() {
+      const nf = me.friend_nft || {};
+      if (nf.enabled && Array.isArray(nf.steps) && nf.steps.length) return nfInvite(nf);
+      return this.classic() + nfMine(nf.rewards, true);
+    },
+    classic() {
       const on = Boolean(me.referral_program_enabled);
       const reward = Number(me.referral_reward_rub) || 50;
       const terms = me.referral_terms && typeof me.referral_terms === "object" ? me.referral_terms : {};
@@ -1352,8 +1357,215 @@
       const list = friends.length ? cd(friends.map((f) => E(f.paid ? "✅" : "⏳") + TT(esc(f.name || "друг") + (f.username ? ` · @${esc(f.username)}` : ""), f.paid ? "есть оплата" : "ещё без оплаты"))) : "";
       return hero + how + stats + list + (terms.note ? NOTE(esc(terms.note)) : "");
     },
-    sig: (p) => JSON.stringify([me.invited_count, me.referral_earned, me.referrals, me.referral_program_enabled, me.gifts_enabled, p && p.tab === "give" ? me.balance_rub : 0]),
+    sig: (p) => JSON.stringify([me.invited_count, me.referral_earned, me.referrals, me.referral_program_enabled, me.gifts_enabled, me.friend_nft, p && p.tab === "give" ? me.balance_rub : 0]),
   };
+
+  // ---------- NFT gifts for friends ----------
+  // Real Telegram collectibles for friends who paid VPN themselves and use it. The gift floats on its own
+  // Telegram backdrop (the Lottie «Gift» layer, its pattern behind), the showcase rotates on a timer.
+  const NF = "https://nft.fragment.com/gift/";
+  const nfImg = (g) => NF + encodeURIComponent(g.slug) + ".webp";
+  const nfBg = (g) => (Array.isArray(g.bg) && g.bg.length === 3 ? g.bg : ["#5d6265", "#313537", "#121416"]).map((c) => /^#[0-9a-f]{6}$/i.test(c) ? c : "#313537");
+  const nfGrad = (g) => { const b = nfBg(g); return `radial-gradient(110% 70% at 50% 30%, ${b[0]} 0%, ${b[1]} 55%, ${b[2]} 100%)`; };
+  const nfPl = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; };
+  const nfFr = (n) => `${n} ${nfPl(n, "друг", "друга", "друзей")}`;
+  const nfDays = (n) => `${n} ${nfPl(n, "день", "дня", "дней")}`;
+  const nfNo = (g) => esc(String(g.no || ""));
+  let nfLottie = null;
+  const nfCache = {};
+  function nfLoadLottie() {
+    if (window.lottie) return Promise.resolve(window.lottie);
+    if (!nfLottie) nfLottie = new Promise((ok, no) => {
+      const sc = document.createElement("script");
+      sc.src = "https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js";
+      sc.onload = () => (window.lottie ? ok(window.lottie) : no(new Error("lottie")));
+      sc.onerror = () => { nfLottie = null; no(new Error("lottie")); };
+      document.head.appendChild(sc);
+    });
+    return nfLottie;
+  }
+  // only = "Gift" keeps just the gift so it floats on the cabinet card; "Pattern,Color Icon" is its pattern; nothing — the whole Telegram card.
+  function nfPlay(box, g, only) {
+    if (!box || !g) return;
+    const still = () => { if (box.isConnected && (!only || only === "Gift")) box.innerHTML = `<img src="${nfImg(g)}" alt="">`; };
+    if (!only) still();
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { still(); return; }
+    const data = nfCache[g.slug] = nfCache[g.slug] || fetch(NF + encodeURIComponent(g.slug) + ".lottie.json").then((r) => { if (!r.ok) throw new Error("gift"); return r.json(); });
+    Promise.all([nfLoadLottie(), data]).then(([L, d0]) => {
+      if (!box.isConnected) return;
+      const d = JSON.parse(JSON.stringify(d0));
+      if (only) d.layers = (d.layers || []).filter((l) => only.split(",").includes(l.nm));
+      box.innerHTML = "";
+      L.loadAnimation({ container: box, renderer: "svg", loop: true, autoplay: true, animationData: d, rendererSettings: { preserveAspectRatio: "xMidYMid slice" } });
+    }).catch(() => { nfCache[g.slug] = null; still(); });
+  }
+  const nfLeft = (nf) => Math.max(0, (Date.parse(nf.next_at) || 0) - Date.now());
+  function nfFmt(ms, short) {
+    const d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4), sec = Math.floor(ms % 6e4 / 1e3), z = (x) => String(x).padStart(2, "0");
+    if (short) return d ? `${d} д ${h} ч` : `${z(h)}:${z(m)}:${z(sec)}`;
+    return `${d ? `${d}<i>д</i>` : ""}${z(h)}<i>:</i>${z(m)}<i>:</i>${z(sec)}`;
+  }
+  // The step being collected now: the first one not earned yet (−1 when all are earned).
+  const nfCur = (nf) => nf.steps.findIndex((s) => s.state === "none");
+  const nfFresh = (nf) => { const seen = store.get("nf_period"); return seen != null && seen !== "" && seen !== String(nf.period); };
+  function nfInvite(nf) {
+    return nfHero(nf) + nfPath(nf) + nfMine(nf.rewards) + nfFriends(nf) + nfRules(nf);
+  }
+  function nfHero(nf) {
+    const n = Number(nf.counted) || 0, ci = nfCur(nf), all = ci < 0, last = nf.steps.length - 1;
+    const st = nf.steps[all ? last : ci], g = st.gift, bg = nfBg(g);
+    const prev = !all && ci > 0 ? nf.steps[ci - 1].need : 0, size = all ? 1 : Math.max(1, st.need - prev), done = all ? 1 : Math.max(0, Math.min(size, n - prev));
+    const conf = Array.from({ length: 14 }, (_, i) => `<i style="left:${(i * 37) % 100}%;background:${i % 3 ? "rgba(255,255,255,.7)" : bg[0]};animation-duration:${4 + (i % 5)}s;animation-delay:-${i * .7}s;--dx:${(i % 2 ? 1 : -1) * (8 + i % 4 * 6)}px"></i>`).join("");
+    const reward = Number(me.referral_reward_rub) || 50, chk = Number(nf.checking) || 0, soon = Number(nf.checking_left) || 0;
+    const attrs = (Array.isArray(g.a) ? g.a : []).map((x) => `<span><i>${esc(x[1])}</i>${esc(x[2])}</span>`).join("");
+    return `<section class="hc nf" style="background:${nfGrad(g)}"><div class="nf-pat" data-nfg="${all ? last : ci}" data-only="Pattern,Color Icon"></div>` +
+      `<div class="gs-rays" style="--ray:rgba(255,255,255,.12)"></div><div class="nf-glow"></div><div class="gs-conf">${conf}</div>` +
+      `<div class="nf-top">${me.referral_program_enabled ? `<span class="b">+${rub(reward)} за каждого друга</span>` : "<span></span>"}` +
+      `<span class="nf-tmh">${all ? "Все собраны 🏆" : `🔄 <b>${nfFmt(nfLeft(nf), 1)}</b>`}</span></div>${nfFresh(nf) && !all ? '<span class="nf-new">Новый подарок!</span>' : ""}` +
+      `<div class="nf-gift" data-act="nfsheet" data-i="${all ? last : ci}"><div class="nf-lt" data-nfg="${all ? last : ci}" data-only="Gift"><img src="${nfImg(g)}" alt=""></div></div>` +
+      `<div class="K" style="margin-top:2px">${all ? "Вы собрали все подарки" : ci === last ? "Главный подарок" : "Следующий NFT-подарок"}</div><div class="nf-n">${esc(g.name)}</div>` +
+      `<div class="nf-rar">${attrs}</div>` +
+      (all ? `<div class="nf-lbl" style="justify-content:center"><span>Спасибо, что зовёте друзей 💚</span></div>`
+        : `<div class="nf-lbl"><span><b>${done}</b> из ${size} засчитано</span><span>ещё ${nfFr(Math.max(0, st.need - n))}</span></div>`) +
+      `<div class="nf-bar">${Array.from({ length: Math.min(size, 40) }, (_, i) => `<i class="${i < done ? "on" : ""}${!all && i === done ? " nx" : ""}"></i>`).join("")}</div>` +
+      (chk ? `<div class="nf-wait"><i></i>${nfFr(chk)} на проверке · ${soon ? nfDays(soon) : "сегодня"}</div>` : "") +
+      `<div class="acts"><button type="button" class="pill" data-act="share">${IC.share}<span>Поделиться</span></button>` +
+      `<button type="button" class="rnd" aria-label="Скопировать" data-act="copyinvite">${IC.copy}</button></div></section>`;
+  }
+  function nfPath(nf) {
+    const n = Number(nf.counted) || 0, ci = nfCur(nf), last = nf.steps.length - 1, ms = nfLeft(nf), span = (Number(nf.period_days) || 3) * 864e5;
+    const rows = nf.steps.map((s, i) => {
+      const g = s.gift, bg = nfBg(g);
+      const c = s.state === "got" ? "got" : s.state === "wait" ? "wait" : i === ci ? "cur" : "lock";
+      const pct = c === "cur" ? Math.min(100, n / s.need * 100) : 0;
+      const end = c === "got" ? `<span class="nf-bdg ok">получен</span>` : c === "wait" ? `<span class="nf-bdg w">в пути</span>`
+        : c === "cur" ? `<span class="nf-lft">ещё <b>${Math.max(0, s.need - n)}</b></span>` : `<span class="nf-lk">🔒</span>`;
+      const sub = c === "cur" ? `<span class="nf-pb"><i style="width:${pct}%;background:linear-gradient(90deg, ${bg[0]}, ${bg[1]})"></i></span><span>${n} из ${nfFr(s.need)}</span>`
+        : c === "got" ? `<span>#${nfNo(g)} · у вас в Telegram</span>` : c === "wait" ? `<span>#${nfNo(g)} · придёт за сутки</span>` : `<span>за ${nfFr(s.need)}</span>`;
+      return `<button type="button" class="nf-rg ${c}${i === last ? " top" : ""}${ci < 0 || i < ci ? " past" : ""}" data-act="nfsheet" data-i="${i}" style="--c1:${bg[0]};--c2:${bg[1]}">` +
+        `<span class="nf-th"><img src="${nfImg(g)}" alt="">${c === "got" ? "<em>✓</em>" : ""}</span>` +
+        `<span class="nf-md">${i === last ? '<small class="nf-crown">Главный подарок</small>' : ""}<b>${esc(g.name)}</b><span class="nf-sb">${sub}</span></span><span class="nf-en">${end}</span></button>`;
+    }).join("");
+    return ST("Подарки за друзей") +
+      `<div class="nf-rot${ms < 864e5 ? " soon" : ""}" style="--p:${(100 - ms / span * 100).toFixed(2)}"><div class="nf-ring"><span>🔄</span></div>` +
+      `<span class="nf-rt"><span>Новые подарки через</span><span class="nf-tmr">${nfFmt(ms)}</span></span><div class="nf-nx"><i>?</i><i>?</i></div></div>` +
+      `<div class="nf-lad${nfFresh(nf) ? " flip" : ""}">${rows}</div>`;
+  }
+  // Gifts the person earned: kept when the promotion is off too.
+  function nfMine(rewards, ended) {
+    const rows = (Array.isArray(rewards) ? rewards : []).slice().reverse();
+    if (!rows.length) return "";
+    return ST("Ваши NFT") + `<div class="cd">${rows.map((r) => {
+      const g = r.gift || {}, got = r.status === "given";
+      return `<button type="button" class="rw" data-act="nfmine" data-id="${Number(r.id)}"><img class="nf-gi" src="${nfImg(g)}" alt="">` +
+        TT(`${esc(g.name)} #${nfNo(g)}`, got ? "в вашем профиле Telegram" : "отправим в течение суток") +
+        V(`<span class="nf-bdg ${got ? "ok" : "w"}">${got ? "у вас" : "в пути"}</span>`) + "</button>";
+    }).join("")}</div>` + (ended ? NOTE("Акция с NFT-подарками закончилась. Подарки, которые вы уже заработали, всё равно придут.") : "");
+  }
+  const NF_COL = ["#e2724f", "#4f9be2", "#9b62d8", "#3cb878", "#e2a23c", "#d8557d", "#3cb0b8"];
+  function nfFriends(nf) {
+    const list = Array.isArray(nf.friends) ? nf.friends : [], days = Number(nf.check_days) || 7;
+    if (!list.length) return ST("Ваши друзья") + cd([E("👋") + TT("Пока никого", "Отправьте ссылку — друг получит подарок на баланс")]);
+    const bad = list.filter((x) => x.st === "bad").length, chk = list.filter((x) => x.st === "check").length;
+    const rows = list.slice(0, 30).map((x, k) => {
+      const name = esc(x.name || "Друг");
+      const sub = x.st === "ok" ? "оплатил(а) и пользуется VPN"
+        : x.st === "check" ? `проверка · ${Number(x.day) || 0} из ${nfDays(days)} <span class="nf-mb"><i style="width:${Math.min(100, (Number(x.day) || 0) / days * 100)}%"></i></span>`
+        : x.st === "bad" ? `не засчитан · ${esc(x.reason || "не прошёл проверку")}`
+        : x.st === "old" ? "пришёл до начала акции" : `ещё не оплатил VPN · нужно от ${rub(Number(nf.min_rub) || 100)}`;
+      const tag = x.st === "ok" ? ["ok", "есть"] : x.st === "check" ? ["w", "ждём"] : x.st === "bad" ? ["no", "нет"] : ["", "—"];
+      return `<div class="rw ${x.st}"><span class="nf-av" style="background:${x.st === "bad" || x.st === "old" ? "#3a3d45" : NF_COL[k % NF_COL.length]}">${esc(Array.from(x.name || "Д")[0] || "Д")}</span>` +
+        `<span class="tt"><b>${name}</b><span>${sub}</span></span>${V(`<span class="nf-bdg ${tag[0]}">${tag[1]}</span>`)}</div>`;
+    }).join("");
+    return ST(`Ваши друзья · ${Number(nf.counted) || 0} засчитано`) + `<div class="cd nf-fw">${rows}</div>` +
+      (chk || bad ? NOTE(`${chk ? `${nfFr(chk)} на проверке. ` : ""}${bad ? `${bad} ${nfPl(bad, "аккаунт не засчитан", "аккаунта не засчитаны", "аккаунтов не засчитано")} — это не новые живые пользователи.` : ""}`) : "");
+  }
+  function nfRules(nf) {
+    const days = Number(nf.check_days) || 7, on = Number(nf.online_days) || 0;
+    const items = [["Новый человек", "раньше не заходил в бота и пришёл по вашей ссылке"], [`Сам оплатил VPN от ${rub(Number(nf.min_rub) || 100)}`, "своей картой или СБП — не бонусами и не подарком"]];
+    if (on) items.push(["Пользуется VPN", `подключался хотя бы ${nfDays(on)} из первых ${days}`]);
+    items.push([`${days === 7 ? "Неделя" : nfDays(days)} без возврата`, `засчитываем через ${nfDays(days)} после оплаты`], ["Это не вы", "другая карта, другой телефон и устройство"]);
+    return ST("Кто засчитывается") + `<div class="cd nf-chk">${items.map((x, i) => `<div class="tl" style="--i:${i}"><div class="n">✓</div><div><div class="tx">${x[0]}</div><div class="sx">${x[1]}</div></div></div>`).join("")}</div>` +
+      NOTE("Подарки выдаём вручную и перед отправкой смотрим каждого друга. За накрутку путь обнуляется.");
+  }
+  // After a render: animations, the timer, and the reveal for a gift that was just earned.
+  let nfTick = 0;
+  function nfMount(el) {
+    clearInterval(nfTick);
+    const nf = me && me.friend_nft;
+    if (!nf || !nf.enabled || !Array.isArray(nf.steps) || !el.querySelector(".hc.nf")) return;
+    el.querySelectorAll("[data-nfg]").forEach((b) => nfPlay(b, (nf.steps[Number(b.dataset.nfg)] || {}).gift, b.dataset.only));
+    const span = (Number(nf.period_days) || 3) * 864e5;
+    let asked = false;
+    nfTick = setInterval(() => {
+      if (!el.isConnected) { clearInterval(nfTick); return; }
+      const ms = nfLeft(nf);
+      el.querySelectorAll(".nf-tmr").forEach((e) => { e.innerHTML = nfFmt(ms); });
+      el.querySelectorAll(".nf-tmh b").forEach((e) => { e.textContent = nfFmt(ms, 1); });
+      el.querySelectorAll(".nf-rot").forEach((e) => { e.style.setProperty("--p", (100 - ms / span * 100).toFixed(2)); e.classList.toggle("soon", ms < 864e5); });
+      if (ms <= 0 && !asked) { asked = true; setTimeout(() => load(true).catch(() => {}), 1500); }
+    }, 1000);
+    const seenP = store.get("nf_period");
+    setTimeout(() => store.set("nf_period", nf.period), 1500);
+    if (seenP == null || seenP === "") store.set("nf_period", nf.period);
+    const seen = new Set(String(store.get("nf_seen") || "").split(",").filter(Boolean));
+    const fresh = (nf.rewards || []).filter((r) => r.status === "wait" && !seen.has(String(r.id)));
+    if (fresh.length) {
+      fresh.forEach((r) => seen.add(String(r.id)));
+      store.set("nf_seen", [...seen].slice(-40).join(","));
+      const r = fresh[fresh.length - 1];
+      setTimeout(() => { if (el.isConnected) nfReveal(r); }, 450);
+    }
+  }
+  function nfBurst(colors) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const b = document.createElement("div");
+    b.className = "nf-fx";
+    b.innerHTML = Array.from({ length: 70 }, (_, i) => `<i style="background:${colors[i % colors.length]};--x:${(Math.random() - .5) * 460}px;--y:${(Math.random() - .25) * 700}px;--r:${Math.random() * 900}deg;animation-delay:${Math.random() * .12}s"></i>`).join("");
+    document.body.appendChild(b);
+    setTimeout(() => b.remove(), 1900);
+  }
+  function nfReveal(r) {
+    const g = r.gift || {}, bg = nfBg(g);
+    const rv = document.createElement("div");
+    rv.className = "nf-rv";
+    rv.style.setProperty("--rc", bg[0] + "30");
+    rv.innerHTML = `<div class="nf-rays"></div><div class="nf-card"><div class="in"><div class="fc"><div class="nf-lt"></div></div><div class="bk">?</div></div></div>` +
+      `<div class="t1">Новый NFT-подарок</div><div class="t2">${esc(g.name)} ваш!</div>` +
+      `<div class="t3">${nfFr(Number(r.need) || 0)} оплатили VPN и пользуются им. Отправим #${nfNo(g)} в ваш профиль Telegram в течение суток.</div>` +
+      `<div class="acts"><button type="button" class="pill"><span>Ура!</span></button></div>`;
+    document.body.appendChild(rv);
+    nfPlay(rv.querySelector(".nf-lt"), g);
+    requestAnimationFrame(() => requestAnimationFrame(() => rv.classList.add("on")));
+    setTimeout(() => { nfBurst([bg[0], "#fff", "#f1c94c", "#3ccf74", bg[1]]); notify("success"); }, 1050);
+    const close = () => { rv.classList.remove("on"); setTimeout(() => rv.remove(), 400); };
+    rv.querySelector(".pill").onclick = () => { haptic(); close(); };
+  }
+  function nfSheet(g, title, what) {
+    if (!g) return;
+    closeSheet();
+    haptic();
+    const el = document.createElement("div");
+    el.className = "bsheet nfs";
+    el.innerHTML = `<div role="dialog" aria-label="${esc(g.name)}"><div class="grab"></div><section class="hc nf" style="background:${nfGrad(g)}">` +
+      `<div class="gs-rays" style="--ray:rgba(255,255,255,.12);top:46%"></div><div class="nf-lt"></div><div class="nf-ttl">${esc(g.name)}<small>${title}</small></div></section>` +
+      cd((Array.isArray(g.a) ? g.a : []).map((x) => `<span class="tt"><span style="margin:0">${esc(x[0])}</span><b>${esc(x[1])}</b></span><span class="nf-rr">${esc(x[2])}</span>`)) +
+      NOTE(what) + "</div>";
+    el.addEventListener("click", (ev) => { if (ev.target === el || ev.target.classList.contains("grab")) closeSheet(); });
+    document.body.appendChild(el);
+    sheetEl = el;
+    call(() => tg.BackButton.show());
+    nfPlay(el.querySelector(".nf-lt"), g, "Gift");
+  }
+  function nfStepSheet(i) {
+    const nf = me.friend_nft || {}, s = (nf.steps || [])[i];
+    if (!s) return;
+    const n = Number(nf.counted) || 0, g = s.gift;
+    const what = s.state === "got" ? "Подарок у вас в профиле Telegram. Его можно оставить, подарить или продать."
+      : s.state === "wait" ? "Вы его заработали — отправим в течение суток, придёт сообщение от бота."
+      : `Нужно ${nfFr(s.need)}, которые сами оплатили VPN и пользуются им. Осталось ${nfFr(Math.max(0, s.need - n))}.`;
+    nfSheet(g, s.state === "none" ? `Коллекционный подарок Telegram · за ${nfFr(s.need)}` : `#${nfNo(g)} · ${s.state === "got" ? "ваш" : "в пути"}`, what);
+  }
 
   // ---------- history ----------
   const BILL = { charge: "VPN", pause: "Пауза тарификации", disable: "Отключение", revive: "Включение", trial: "Подарок", admin_balance: "Баланс",
@@ -2063,6 +2275,14 @@
       setTimeout(home, 700);
     },
     share: () => shareInvite(false),
+    nfsheet: (b) => nfStepSheet(Number(b.dataset.i)),
+    nfmine: (b) => {
+      const r = (((me.friend_nft || {}).rewards) || []).find((x) => Number(x.id) === Number(b.dataset.id));
+      if (!r) return;
+      const got = r.status === "given";
+      if (got && r.nft_link && /^https:\/\/t\.me\//.test(r.nft_link)) { call(() => tg.openTelegramLink(r.nft_link)); return; }
+      nfSheet(r.gift, `#${nfNo(r.gift || {})} · ${got ? "ваш" : "в пути"}`, got ? "Подарок у вас в профиле Telegram. Его можно оставить, подарить или продать." : "Вы его заработали — отправим в течение суток, придёт сообщение от бота.");
+    },
     copyinvite: () => shareInvite(true),
     copyid: () => copy(String((me.user || {}).id || ""), "ID скопирован"),
     async quiet(b) {
@@ -2410,7 +2630,7 @@
       `<div class="sb">${many ? "Кто первый — того и подарок" : isNy(k) ? "Вам подарок на VPN — нажмите, чтобы открыть" : "Нажмите, чтобы забрать — деньги сразу на баланс"}</div></div>` +
       `<div class="tx">🎁 ${txt}</div></div><div class="gs-kb">${many ? "🎁 Забрать подарок" : "🎁 Открыть подарок"}</div>`;
   }
-  function gInvite(el) { gMini(el); gConf(el.querySelector(".hc.inv"), "festive"); }
+  function gInvite(el) { gMini(el); gConf(el.querySelector(".hc.inv"), "festive"); nfMount(el); }
   function gGive(el) { mountGift(el, gs.style); gConf(el.querySelector(".hc.gf"), gs.style); gConf(el.querySelector(".gs-art"), gs.style); gMini(el); }
   // Switching the style: the background crossfades, the gift pops out and back in the new colours.
   function gPick(k) {
@@ -2940,6 +3160,7 @@
     }
     if (entry === "present") { const code = new URLSearchParams(location.search).get("code"); if (code) { go("present", { code }); return; } }
     if (entry === "giftsend" && me.gifts_enabled) { go("friends", { tab: "give" }); return; }
+    if (entry === "friends") { go("friends", { tab: "invite" }); return; }
     if (entry === "browser") { openBrowserSheet(); return; }
     if (entry === "promise") { const t = me.trust || {}; go(t.open || t.available ? "promise" : "topup"); return; }
     if (entry === "gift" && me.trial_available) { go("gift"); return; }

@@ -1045,3 +1045,51 @@ FROM (
 ) m
 WHERE u.telegram_id = m.telegram_id
   AND u.tg_deleted_at IS NULL;
+
+-- NFT gifts for real friends (app/friend_nft.py).
+-- Days a person had VPN online: a friend counts after using it 3 days out of the first 7.
+CREATE TABLE IF NOT EXISTS online_days (
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    day DATE NOT NULL,
+    PRIMARY KEY (telegram_id, day)
+);
+CREATE OR REPLACE FUNCTION track_online_day() RETURNS trigger AS $$
+BEGIN
+    IF NEW.last_online_at IS NOT NULL AND (TG_OP = 'INSERT' OR NEW.last_online_at IS DISTINCT FROM OLD.last_online_at) THEN
+        INSERT INTO online_days(telegram_id, day) VALUES (NEW.telegram_id, (NEW.last_online_at AT TIME ZONE 'UTC')::date)
+        ON CONFLICT DO NOTHING;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS online_day ON devices;
+CREATE TRIGGER online_day AFTER INSERT OR UPDATE OF last_online_at ON devices
+FOR EACH ROW EXECUTE FUNCTION track_online_day();
+-- A friend who paid by the invite link: on check for a week, then counted (ok) or not (bad, with the reason).
+CREATE TABLE IF NOT EXISTS friend_nft_checks (
+    invitee_id BIGINT PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
+    referrer_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    paid_at TIMESTAMPTZ NOT NULL,
+    status TEXT NOT NULL DEFAULT 'check' CHECK (status IN ('check','ok','bad')),
+    reason TEXT,
+    by_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    decided_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS friend_nft_checks_referrer_idx ON friend_nft_checks(referrer_id);
+CREATE INDEX IF NOT EXISTS friend_nft_checks_open_idx ON friend_nft_checks(paid_at) WHERE status = 'check';
+-- An earned gift: waits for the admin to transfer it by hand, then given (with the NFT link) or cancelled.
+CREATE TABLE IF NOT EXISTS friend_nft_rewards (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    need INTEGER NOT NULL,
+    gift JSONB NOT NULL,
+    status TEXT NOT NULL DEFAULT 'wait' CHECK (status IN ('wait','given','cancelled')),
+    nft_link TEXT,
+    note TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    given_at TIMESTAMPTZ,
+    cancelled_at TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS friend_nft_rewards_step ON friend_nft_rewards(telegram_id, need) WHERE status <> 'cancelled';
+CREATE INDEX IF NOT EXISTS friend_nft_rewards_wait_idx ON friend_nft_rewards(created_at) WHERE status = 'wait';

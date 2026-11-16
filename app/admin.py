@@ -2203,6 +2203,47 @@ async def api_auto_gift(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **await auto_gift.overview()})
 
 
+async def api_friend_nft(request: web.Request) -> web.Response:
+    """«NFT-подарки за друзей»: config, issue queue and friend checks (GET); actions (POST {action})."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import friend_nft
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        body = body if isinstance(body, dict) else {}
+        action = body.get("action")
+        bot = request.app.get("bot")
+        try:
+            if action == "save":
+                await friend_nft.save_config(body.get("config") or {})
+            elif action == "rotate":
+                await friend_nft.rotate_now()
+            elif action == "gift":
+                gift = await friend_nft.fetch_gift(str(body.get("link") or ""), body.get("ton"))
+                return web.json_response({"ok": True, "gift": gift})
+            elif action == "give":
+                await friend_nft.give(bot, int(body.get("id") or 0), str(body.get("link") or ""))
+            elif action == "cancel":
+                await friend_nft.cancel_reward(int(body.get("id") or 0), str(body.get("note") or ""))
+            elif action == "friend":
+                await friend_nft.set_friend(bot, int(body.get("invitee_id") or 0), str(body.get("status") or ""),
+                                            str(body.get("reason") or ""))
+            elif action == "run":
+                await friend_nft.run_once(bot)
+            else:
+                return web.json_response({"ok": False, "error": "Некорректный запрос"}, status=400)
+        except (TypeError, ValueError) as exc:
+            return web.json_response({"ok": False, "error": str(exc) or "Некорректный запрос"}, status=400)
+        except Exception:
+            logger.exception("NFT-подарки: действие %s", action)
+            return web.json_response({"ok": False, "error": "Не получилось, попробуйте ещё раз"}, status=500)
+    return web.json_response({"ok": True, **await friend_nft.admin_overview()})
+
+
 async def api_experiment_stop(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -3136,6 +3177,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/experiments/{exp_id}/stop", api_experiment_stop)
     app.router.add_get("/admin/api/auto-gift", api_auto_gift)
     app.router.add_post("/admin/api/auto-gift", api_auto_gift)
+    app.router.add_get("/admin/api/friend-nft", api_friend_nft)
+    app.router.add_post("/admin/api/friend-nft", api_friend_nft)
     app.router.add_get("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast", api_broadcast)
     app.router.add_post("/admin/api/broadcast/media", api_broadcast_media)

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FriendNftPanel } from "./friend-nft";
 import { api, useResource, type Data } from "@/lib/api";
 import {
   ActionButton,
@@ -162,6 +163,7 @@ export function ReferralsPage() {
           Настроить программу
         </Button>
       </div>
+      <FriendNftPanel />
       <RecordsPage kind="referrals" />
     </div>
   );
