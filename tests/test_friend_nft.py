@@ -46,6 +46,25 @@ class PureTest(unittest.TestCase):
         self.assertEqual(friend_nft.DEFAULT_SETS[0][-1]["bg"][-1], "#000000")
         self.assertEqual(friend_nft.paint({"a": [["Фон", "Grape", "1%"]], "bg": ["#1"]})["bg"], ["#1"])
 
+    def test_market_page(self):
+        def item(slug, ton, timer=False):
+            return (f'<a href="/gift/{slug}?collection=all" class="tm-grid-item"><div>'
+                    + ('<div class="tm-timer">6 days</div>' if timer else '')
+                    + f'<div class="tm-grid-item-value tm-value icon-before icon-ton">{ton}</div>'
+                    + '<div class="tm-grid-item-status tm-status-avail">For sale</div></div></a>')
+        html = "".join([item("bigyear-1", 5, True), item("lunarsnake-2", 5), item("lunarsnake-3", 5), item("snakebox-4", "5.5"),
+                        item("icecream-5", 6), item("candycane-6", "1,200")])
+        rows = friend_nft.market_rows(html)
+        self.assertEqual([(r["slug"], r["ton"], r["auction"]) for r in rows][:4],
+                         [("bigyear-1", 5, True), ("lunarsnake-2", 5, False), ("lunarsnake-3", 5, False), ("snakebox-4", 5.5, False)])
+        self.assertEqual(rows[-1]["ton"], 1200)
+        # One per collection, a fixed price before an auction, the last showcase's collections only if nothing else.
+        picks = friend_nft.pick_regular(rows, 3, {"icecream"}, 8)
+        self.assertEqual([p["slug"] for p in picks], ["lunarsnake-2", "bigyear-1", "snakebox-4"])
+        self.assertEqual([p["slug"] for p in friend_nft.pick_regular(rows, 4, {"icecream"}, 8)][-1], "icecream-5")
+        self.assertIn("Onyx+Black", friend_nft.similar_url(friend_nft.DEFAULT_SETS[0][-1]))
+        self.assertTrue(friend_nft.similar_url(friend_nft.DEFAULT_SETS[0][0]).endswith("/gifts/icecream?sort=price_asc&filter=sale"))
+
     def test_validate(self):
         with self.assertRaisesRegex(ValueError, "расти"):
             friend_nft.validate(friend_nft.normalize({"steps": [5, 5, 10, 20, 40]}))
@@ -77,6 +96,16 @@ class FriendNftPostgresTest(unittest.IsolatedAsyncioTestCase):
         p.start()
         self.addCleanup(p.stop)
         p = patch.object(friend_nft, "_button", return_value=None)
+        p.start()
+        self.addCleanup(p.stop)
+        # No network in tests: Fragment «does not answer» unless a test says otherwise.
+        self.discover = AsyncMock(side_effect=ValueError("Fragment не ответил"))
+        p = patch.object(friend_nft, "discover", self.discover)
+        p.start()
+        self.addCleanup(p.stop)
+        self.fetch = AsyncMock(return_value={"slug": "icecream-777", "name": "Ice Cream", "no": "777", "ton": 0, "bg": ["#1", "#2", "#3"],
+                                             "a": [["Фон", "Grape", "1%"]], "link": "https://t.me/nft/IceCream-777"})
+        p = patch.object(friend_nft, "fetch_gift", self.fetch)
         p.start()
         self.addCleanup(p.stop)
         self.bot = SimpleNamespace(send_message=AsyncMock())
@@ -141,10 +170,12 @@ class FriendNftPostgresTest(unittest.IsolatedAsyncioTestCase):
         # Counted back: the gift comes again; then the admin gives it with the link.
         await friend_nft.set_friend(self.bot, 14, "ok")
         reward = (await friend_nft.rewards_of(1))[0]
-        await friend_nft.give(self.bot, reward["id"], "t.me/nft/IceCream-162005")
+        await friend_nft.give(self.bot, reward["id"], "t.me/nft/IceCream-777")
         self.assertIn("Подарок у вас", self.texts()[-1][1])
+        self.assertIn("Ice Cream #777", self.texts()[-1][1])  # the gift actually bought, not the shown number
         view = await friend_nft.user_view(1)
-        self.assertEqual((view["steps"][0]["state"], view["steps"][0]["nft_link"]), ("got", "https://t.me/nft/IceCream-162005"))
+        self.assertEqual((view["steps"][0]["state"], view["steps"][0]["nft_link"]), ("got", "https://t.me/nft/IceCream-777"))
+        self.assertEqual((view["steps"][0]["gift"]["no"], view["steps"][0]["gift"]["ton"]), ("777", 5))
         with self.assertRaisesRegex(ValueError, "уже выдан"):
             await friend_nft.give(self.bot, reward["id"], "")
         overview = await friend_nft.admin_overview()
@@ -169,6 +200,40 @@ class FriendNftPostgresTest(unittest.IsolatedAsyncioTestCase):
         await self.friend(10, "Оля")  # came 10 days ago, before the promotion
         self.assertEqual((await friend_nft.run_once(self.bot))["checks"], 0)
         self.assertEqual((await friend_nft.user_view(1))["friends"][0]["st"], "old")
+
+    async def test_showcase_found_on_fragment(self):
+        found = [dict(g, slug=f"x{i}-1", name=f"Найден {i}") for i, g in enumerate(friend_nft.DEFAULT_SETS[1][:2])]
+        self.discover.side_effect = None
+        self.discover.return_value = found
+        cfg = await friend_nft.config()
+        await friend_nft.refresh_live(cfg)
+        self.assertEqual([g["name"] for g in friend_nft.showcase(await friend_nft.config())], ["Найден 0", "Найден 1"])
+        self.assertEqual(self.discover.await_count, 1)
+        await friend_nft.refresh_live(await friend_nft.config())  # found already: Fragment is not asked again
+        self.assertEqual(self.discover.await_count, 1)
+        # A new rotation start drops it; a failure falls back to the saved sets and waits half an hour.
+        await friend_nft.rotate_now()
+        self.discover.side_effect = ValueError("нет сети")
+        cfg = await friend_nft.config()
+        await friend_nft.refresh_live(cfg)
+        self.assertEqual(friend_nft.showcase(cfg)[0]["name"], "Lunar Snake")
+        self.assertEqual(cfg["live"]["error"], "нет сети")
+        await friend_nft.refresh_live(await friend_nft.config())
+        self.assertEqual(self.discover.await_count, 2)
+        # Off: the saved sets.
+        await friend_nft.save_config({"auto": False})
+        self.assertEqual(friend_nft.showcase(await friend_nft.config())[0]["name"], "Lunar Snake")
+
+    async def test_next_showcase_is_found_ahead(self):
+        self.discover.side_effect = None
+        self.discover.return_value = friend_nft.DEFAULT_SETS[2][:2]
+        cfg = await friend_nft.config()
+        cfg["epoch"] = (datetime.now(timezone.utc) - timedelta(days=3) + timedelta(minutes=10)).isoformat()
+        await db.set_kv(friend_nft.KEY, json.dumps({k: v for k, v in cfg.items() if k != "live"}))
+        live = await friend_nft.refresh_live(await friend_nft.config())
+        self.assertEqual(sorted(live["by_period"]), ["0", "1"])
+        later = datetime.now(timezone.utc) + timedelta(minutes=11)
+        self.assertEqual(friend_nft.showcase(await friend_nft.config(), later)[0]["name"], "B-Day Candle")
 
     async def test_rotation_announces_once(self):
         await self.friend(10, "Оля", paid=0)

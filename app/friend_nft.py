@@ -28,6 +28,11 @@ logger = logging.getLogger("rm-shop.friend-nft")
 
 KEY = "friend_nft"
 PERIOD_KEY = "friend_nft_period"
+LIVE_KEY = "friend_nft_live"  # the showcase the bot found on Fragment for the current period
+FRAG = "https://fragment.com"
+BLACK_FILTER = "attr%5BBackdrop%5D=%5B%22Onyx+Black%22%5D"
+BLACK_SCAN = 8  # cheap collections searched for a gift on Onyx Black
+RETRY_MINUTES = 30
 LOOP_SECONDS = 600
 F = "https://nft.fragment.com/gift/"
 
@@ -88,6 +93,9 @@ DEFAULT = {
     "online_days": 3,
     "check_days": 7,
     "sets": DEFAULT_SETS,
+    "auto": True,  # at every rotation the bot picks the cheapest gifts on sale on Fragment
+    "max_ton": 8,  # the most a regular step may cost
+    "black_max_ton": 15,  # the most the main (black) gift may cost
     "epoch": None,  # start of the showcase rotation (ISO)
     "since": None,  # friends who came to the bot before this moment do not count (ISO)
 }
@@ -167,6 +175,9 @@ def validate(cfg: dict) -> dict:
     out["online_days"] = max(0, min(out["check_days"], int(cfg.get("online_days") or 0)))
     out["min_rub"] = max(1, int(cfg.get("min_rub") or 100))
     out["enabled"] = bool(cfg.get("enabled"))
+    out["auto"] = bool(cfg.get("auto"))
+    out["max_ton"] = max(1, min(1000, float(cfg.get("max_ton") or 8)))
+    out["black_max_ton"] = max(1, min(1000, float(cfg.get("black_max_ton") or 15)))
     return out
 
 
@@ -177,12 +188,22 @@ async def config() -> dict:
     except ValueError:
         logger.warning("Настройки NFT-подарков не читаются, беру по умолчанию")
         data = {}
-    return normalize(data if isinstance(data, dict) else {})
+    cfg = normalize(data if isinstance(data, dict) else {})
+    try:
+        live = json.loads(await db.get_kv(LIVE_KEY) or "{}")
+    except ValueError:
+        live = {}
+    cfg["live"] = live if isinstance(live, dict) else {}
+    return cfg
+
+
+async def _store(cfg: dict) -> None:
+    await db.set_kv(KEY, json.dumps({k: v for k, v in cfg.items() if k != "live"}, ensure_ascii=False))
 
 
 async def save_config(patch: dict) -> dict:
     cfg = await config()
-    for key in ("enabled", "steps", "period_days", "min_rub", "online_days", "check_days", "sets"):
+    for key in ("enabled", "steps", "period_days", "min_rub", "online_days", "check_days", "sets", "auto", "max_ton", "black_max_ton"):
         if key in patch:
             cfg[key] = patch[key]
     cfg = validate(cfg)
@@ -190,7 +211,7 @@ async def save_config(patch: dict) -> dict:
     if cfg["enabled"]:
         cfg["since"] = cfg.get("since") or now
         cfg["epoch"] = cfg.get("epoch") or now
-    await db.set_kv(KEY, json.dumps(cfg, ensure_ascii=False))
+    await _store(cfg)
     return cfg
 
 
@@ -200,7 +221,7 @@ async def rotate_now() -> dict:
     period, _, _ = rotation(cfg)
     days = int(cfg["period_days"])
     cfg["epoch"] = _iso(_now() - timedelta(days=days * (period + 1), seconds=1))
-    await db.set_kv(KEY, json.dumps(cfg, ensure_ascii=False))
+    await _store(cfg)
     return cfg
 
 
@@ -213,8 +234,24 @@ def rotation(cfg: dict, now: datetime | None = None) -> tuple[int, int, datetime
     return period, period % max(1, len(cfg.get("sets") or [1])), epoch + span * (period + 1)
 
 
+def _found(cfg: dict, period: int) -> list[dict] | None:
+    """The gifts the bot found on Fragment for this period of this rotation, if any."""
+    live = cfg.get("live") or {}
+    gifts = (live.get("by_period") or {}).get(str(period)) if live.get("epoch") == cfg.get("epoch") else None
+    return gifts if isinstance(gifts, list) and len(gifts) == len(cfg["steps"]) else None
+
+
+def live_ok(cfg: dict, now: datetime | None = None) -> bool:
+    period, _, _ = rotation(cfg, now)
+    return bool(cfg.get("auto") and _found(cfg, period))
+
+
 def showcase(cfg: dict, now: datetime | None = None) -> list[dict]:
-    _, idx, _ = rotation(cfg, now)
+    """Found on sale for this period; the saved sets while there is nothing found (Fragment did not answer)."""
+    period, idx, _ = rotation(cfg, now)
+    found = _found(cfg, period) if cfg.get("auto") else None
+    if found:
+        return [paint(g) for g in found]
     return list(cfg["sets"][idx])
 
 
@@ -277,7 +314,15 @@ def page_attrs(html: str) -> tuple[str | None, list[list[str]]]:
     return title, attrs
 
 
-async def fetch_gift(link: str, ton: int | None = None) -> dict:
+def _num(value) -> int | float:
+    try:
+        x = round(float(value or 0), 2)
+    except (TypeError, ValueError):
+        return 0
+    return int(x) if x == int(x) else x
+
+
+async def fetch_gift(link: str, ton: float | None = None) -> dict:
     """Everything the cabinet shows for one gift, read from its Telegram page and Fragment animation."""
     import aiohttp
 
@@ -298,9 +343,125 @@ async def fetch_gift(link: str, ton: int | None = None) -> dict:
         raise ValueError(f"Не нашёл подарок по ссылке {link}: проверьте номер")
     name = title or re.sub(r"(?<=[a-z])(?=[A-Z])", " ", page.rsplit("-", 1)[0])
     return paint({
-        "slug": slug, "name": name, "no": slug.rsplit("-", 1)[1], "ton": int(ton or 0),
+        "slug": slug, "name": name, "no": slug.rsplit("-", 1)[1], "ton": _num(ton),
         "bg": backdrop_colors(lottie) or BLACK, "a": attrs, "link": f"https://t.me/nft/{page}",
     })
+
+
+# ---------------------------------------------------------------- Fragment market
+
+def market_rows(html: str) -> list[dict]:
+    """Gifts on sale from a Fragment catalog page: slug, collection, price in TON, auction or fixed price."""
+    rows = []
+    for block in re.split(r'<a href="/gift/', html or "")[1:]:
+        m = re.match(r"([a-z0-9]+)-(\d+)", block)
+        price = re.search(r'icon-ton">([\d,.]+)', block)
+        if not m or not price or "tm-status-avail" not in block[:3000]:
+            continue
+        try:
+            ton = float(price.group(1).replace(",", ""))
+        except ValueError:
+            continue
+        rows.append({"slug": f"{m.group(1)}-{m.group(2)}", "collection": m.group(1), "ton": ton,
+                     "auction": "tm-timer" in block[:3000]})
+    return rows
+
+
+def _rank(row: dict) -> tuple:
+    return (row["auction"], row["ton"])  # a fixed price first: an auction may end higher
+
+
+def pick_regular(rows: list[dict], n: int, avoid: set[str], max_ton: float) -> list[dict]:
+    """The n cheapest gifts on sale, one per collection, new collections first."""
+    cheap = sorted((r for r in rows if r["ton"] <= max_ton), key=_rank)
+    picks: list[dict] = []
+    for skip_old in (True, False):
+        for r in cheap:
+            if len(picks) >= n:
+                break
+            if any(p["collection"] == r["collection"] for p in picks) or (skip_old and r["collection"] in avoid):
+                continue
+            picks.append(r)
+    return sorted(picks, key=lambda r: r["ton"])
+
+
+def similar_url(gift: dict) -> str:
+    """Fragment: the same collection on sale, cheapest first (on Onyx Black for a black gift)."""
+    col = str(gift.get("slug") or "").rsplit("-", 1)[0]
+    return f"{FRAG}/gifts/{col}?sort=price_asc&filter=sale" + (f"&{BLACK_FILTER}" if is_black(gift) else "")
+
+
+async def discover(cfg: dict, avoid: set[str] | None = None) -> list[dict]:
+    """A new showcase from what is on sale now: cheap gifts for the steps, the cheapest Onyx Black one last."""
+    import aiohttp
+
+    n = len(cfg["steps"])
+    timeout = aiohttp.ClientTimeout(total=25)
+    async with aiohttp.ClientSession(timeout=timeout, headers={"User-Agent": "Mozilla/5.0"}) as http:
+        async def page(url: str) -> str:
+            async with http.get(url) as resp:
+                if resp.status != 200:
+                    raise ValueError(f"Fragment ответил {resp.status}")
+                return await resp.text()
+
+        rows = market_rows(await page(f"{FRAG}/gifts?sort=price_asc&filter=sale"))
+        if not rows:
+            raise ValueError("Fragment не показал подарки на продаже")
+        regular = pick_regular(rows, n - 1, set(avoid or ()), float(cfg["max_ton"]))
+        if len(regular) < n - 1:
+            raise ValueError(f"На продаже мало подарков дешевле {cfg['max_ton']} TON")
+        best = None
+        for col in list(dict.fromkeys(r["collection"] for r in rows))[:BLACK_SCAN]:
+            try:
+                found = [r for r in market_rows(await page(f"{FRAG}/gifts/{col}?sort=price_asc&filter=sale&{BLACK_FILTER}"))
+                         if r["collection"] == col and r["ton"] <= float(cfg["black_max_ton"])]
+            except Exception:
+                logger.info("Fragment: коллекция %s не открылась", col, exc_info=True)
+                continue
+            if found and (best is None or _rank(min(found, key=_rank)) < _rank(best)):
+                best = min(found, key=_rank)
+        if not best:
+            raise ValueError(f"Не нашёл подарок на чёрном фоне дешевле {cfg['black_max_ton']} TON")
+    gifts = []
+    for r in regular + [best]:
+        gift = await fetch_gift(f"https://t.me/nft/{r['slug']}", r["ton"])
+        gift["fragment"] = f"{FRAG}/gift/{r['slug']}"
+        gifts.append(gift)
+    if not is_black(gifts[-1]):
+        raise ValueError(f"У {gifts[-1]['name']} не чёрный фон — Fragment не применил фильтр")
+    return gifts
+
+
+async def refresh_live(cfg: dict, *, force: bool = False) -> dict | None:
+    """Find on Fragment the gifts for this period, and 20 minutes ahead for the next one, so the showcase
+    changes right on time. A failed search is retried in half an hour; meanwhile the saved sets are shown."""
+    if not cfg.get("auto"):
+        return None
+    now = _now()
+    period, _, next_at = rotation(cfg, now)
+    old = cfg.get("live") or {}
+    live = dict(old) if old.get("epoch") == cfg.get("epoch") else {"epoch": cfg.get("epoch")}
+    found = dict(live.get("by_period") or {})
+    targets = [period] if force or not _found(cfg, period) else []
+    if next_at - now < timedelta(minutes=20) and not _found(cfg, period + 1):
+        targets.append(period + 1)
+    failed = _ts(live.get("error_at"))
+    if not targets or (not force and failed and now - failed < timedelta(minutes=RETRY_MINUTES)):
+        return None
+    for target in targets:
+        before = found.get(str(target - 1)) or []
+        avoid = {str(g.get("slug", "")).rsplit("-", 1)[0] for g in before}
+        try:
+            found[str(target)] = await discover(cfg, avoid)
+        except Exception as exc:
+            logger.warning("NFT-витрина: не нашёл подарки на Fragment (%s), показываю запасной набор", exc)
+            live.update(error=str(exc) or "Fragment не ответил", error_at=_iso(_now()))
+            break
+        live.update(error=None, error_at=None, found_at=_iso(_now()))
+    live["by_period"] = {k: v for k, v in found.items() if int(k) >= period - 1}
+    await db.set_kv(LIVE_KEY, json.dumps(live, ensure_ascii=False))
+    cfg["live"] = live
+    return live
 
 
 # ---------------------------------------------------------------- data
@@ -536,7 +697,9 @@ async def _admin_alert(bot, telegram_id: int, need: int, gift: dict) -> None:
     text = (f"💎 <b>Выдать NFT-подарок</b>\n\n{_who(dict(user) if user else None, telegram_id)}\n"
             f"Заработал «{escape(gift['name'])} #{escape(str(gift.get('no') or ''))}» за {friends_word(need)}"
             + (f" · ~{int(gift['ton'])} TON" if gift.get("ton") else "")
-            + f"\n{escape(gift.get('link') or '')}\n\nПосле передачи отметьте «Выдано» в админке → Подарки за друзей.")
+            + f"\n{escape(gift.get('link') or '')}"
+            + (f"\nКупить: {escape(gift['fragment'])}" if gift.get("fragment") else "")
+            + f"\nПохожие на продаже: {escape(similar_url(gift))}\n\nПосле передачи отметьте «Выдано» в админке → Подарки за друзей.")
     for chat in await _targets():
         await _say(bot, chat, text)
 
@@ -585,6 +748,10 @@ async def run_once(bot) -> dict:
 
 
 async def _rotation_tick(bot, cfg: dict) -> None:
+    try:
+        await refresh_live(cfg)
+    except Exception:
+        logger.exception("NFT-витрина: поиск на Fragment")
     period, _, _ = rotation(cfg)
     last = await db.get_kv(PERIOD_KEY)
     if last == str(period):
@@ -619,13 +786,19 @@ async def announce(bot, cfg: dict) -> int:
 
 async def loop(bot) -> None:
     while True:
+        wait = LOOP_SECONDS
         try:
             await run_once(bot)
+            cfg = await config()
+            if cfg["enabled"]:
+                # Wake right after the showcase changes, to tell people about the new gifts on time.
+                left = (rotation(cfg)[2] - _now()).total_seconds()
+                wait = max(5, min(LOOP_SECONDS, left + 3))
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception("NFT-подарки за друзей")
-        await asyncio.sleep(LOOP_SECONDS)
+        await asyncio.sleep(wait)
 
 
 # ---------------------------------------------------------------- admin
@@ -674,7 +847,8 @@ async def admin_overview() -> dict:
     return {
         "config": cfg,
         "rotation": {"period": period, "index": idx, "next_at": _iso(next_at),
-                     "next_index": (idx + 1) % max(1, len(cfg["sets"]))},
+                     "next_index": (idx + 1) % max(1, len(cfg["sets"])), "live": live_ok(cfg)},
+        "showcase": showcase(cfg),
         "queue": [rec(r) for r in queue],
         "checks": [rec(r) for r in checks],
         "totals": {**dict(totals or {}), **dict(given or {})},
@@ -685,9 +859,18 @@ async def give(bot, reward_id: int, link: str) -> dict:
     link = (link or "").strip()
     if link and not re.match(r"^https?://", link):
         link = "https://" + link
+    # The admin may buy another gift of the same kind than the one shown: the person sees the one they got.
+    actual = None
+    if link and parse_link(link):
+        try:
+            actual = await fetch_gift(link)
+        except Exception:
+            logger.info("NFT %s не прочитался, оставляю подарок из витрины", link, exc_info=True)
     row = await db._pool_req().fetchrow(
-        """UPDATE friend_nft_rewards SET status = 'given', given_at = NOW(), nft_link = NULLIF($2, '')
-           WHERE id = $1 AND status = 'wait' RETURNING telegram_id, gift, nft_link""", int(reward_id), link)
+        """UPDATE friend_nft_rewards SET status = 'given', given_at = NOW(), nft_link = NULLIF($2, ''),
+                  gift = CASE WHEN $3::text IS NULL THEN gift ELSE gift || $3::jsonb END
+           WHERE id = $1 AND status = 'wait' RETURNING telegram_id, gift, nft_link""",
+        int(reward_id), link, json.dumps({k: v for k, v in actual.items() if k != "ton"}, ensure_ascii=False) if actual else None)
     if not row:
         raise ValueError("Этот подарок уже выдан или отменён")
     gift = _gift_of(dict(row))

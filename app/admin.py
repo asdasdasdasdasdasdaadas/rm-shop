@@ -2219,9 +2219,20 @@ async def api_friend_nft(request: web.Request) -> web.Response:
         bot = request.app.get("bot")
         try:
             if action == "save":
-                await friend_nft.save_config(body.get("config") or {})
-            elif action == "rotate":
-                await friend_nft.rotate_now()
+                cfg = await friend_nft.save_config(body.get("config") or {})
+                if cfg["enabled"] and cfg["auto"]:
+                    asyncio.create_task(friend_nft.refresh_live(await friend_nft.config()), name="friend-nft-find")
+            elif action in ("rotate", "find"):
+                # Fragment answers slowly (half a minute for a showcase): the search runs on, the page reloads later.
+                cfg = await friend_nft.rotate_now() if action == "rotate" else await friend_nft.config()
+                if cfg["auto"]:
+                    async def find() -> None:
+                        try:
+                            await friend_nft.refresh_live(await friend_nft.config(), force=True)
+                        except Exception:
+                            logger.info("NFT-витрина: поиск из админки не удался", exc_info=True)
+                    asyncio.create_task(find(), name="friend-nft-find")
+                    return web.json_response({"ok": True, "searching": True})
             elif action == "gift":
                 gift = await friend_nft.fetch_gift(str(body.get("link") or ""), body.get("ton"))
                 return web.json_response({"ok": True, "gift": gift})

@@ -21,6 +21,22 @@ const left = (iso: string) => {
   const d = Math.floor(ms / 864e5), h = Math.floor((ms % 864e5) / 36e5), m = Math.floor((ms % 36e5) / 6e4);
   return d ? `${d} д ${h} ч` : `${h} ч ${m} мин`;
 };
+const isBlack = (g: Data) => (g.a || []).some((x: string[]) => x[0] === "Фон" && /black/i.test(x[1] || ""));
+const similar = (g: Data) =>
+  `https://fragment.com/gifts/${String(g.slug || "").replace(/-\d+$/, "")}?sort=price_asc&filter=sale` +
+  (isBlack(g) ? "&attr%5BBackdrop%5D=%5B%22Onyx+Black%22%5D" : "");
+const BuyLinks = ({ g }: { g: Data }) => (
+  <span className="flex gap-3 text-xs">
+    {g.fragment && (
+      <a className="text-primary hover:underline" href={g.fragment} target="_blank" rel="noreferrer">
+        Купить на Fragment
+      </a>
+    )}
+    <a className="text-primary hover:underline" href={similar(g)} target="_blank" rel="noreferrer">
+      Похожие дешевле
+    </a>
+  </span>
+);
 const chat = (r: Data, id = "telegram_id", nick = "username") =>
   r[nick] ? `https://t.me/${String(r[nick]).replace(/^@/, "")}` : `tg://user?id=${r[id]}`;
 
@@ -120,12 +136,112 @@ function Rules({ cfg, reload }: { cfg: Data; reload: () => Promise<void> }) {
   );
 }
 
+function Auto({ data, reload }: { data: Data; reload: () => Promise<void> }) {
+  const cfg = data.config, rot = data.rotation, live = cfg.live || {};
+  const [form, setForm] = useState<Data>({});
+  const confirm = useConfirm();
+  useEffect(() => setForm({ max_ton: cfg.max_ton, black_max_ton: cfg.black_max_ton }), [cfg]);
+  const save = async (patch: Data, done: string) => {
+    await api("friend-nft", { action: "save", config: patch });
+    toast.success(done);
+    await reload();
+  };
+  const search = async (action: string) => {
+    await api("friend-nft", { action });
+    toast.success("Ищу подарки на Fragment — витрина обновится примерно через минуту");
+    setTimeout(() => void reload(), 45000);
+  };
+  const gifts: Data[] = data.showcase || [];
+  const steps: number[] = cfg.steps || [];
+  return (
+    <Panel
+      title="Подарки на витрине"
+      description={`Каждые ${cfg.period_days} ${pl(cfg.period_days, "день", "дня", "дней")} шаги, которые человек ещё не прошёл, получают новые подарки. Заработанные не меняются. Последний шаг — «Главный подарок» на чёрном фоне.`}
+      action={
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <Switch
+            checked={!!cfg.auto}
+            onCheckedChange={(on) =>
+              void save({ auto: on }, on ? "Бот сам подбирает подарки на продаже" : "Подарки из наборов ниже").catch((e) =>
+                toast.error((e as Error).message),
+              )
+            }
+          />
+          Бот сам находит на Fragment
+        </label>
+      }
+    >
+      {cfg.auto ? (
+        <p className="text-sm text-muted-foreground mb-4">
+          При каждом обновлении бот берёт самые дешёвые подарки на продаже — по одному из разных коллекций, а для главного —
+          самый дешёвый на Onyx Black. Покупаете вы, когда человек заработал подарок: ссылки будут в очереди выдачи.
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground mb-4">Подарки берутся из наборов ниже по очереди.</p>
+      )}
+      {cfg.auto && (
+        <div className="grid gap-4 sm:grid-cols-3 mb-4 items-end">
+          <Field label="Обычный подарок до, TON">
+            <Input type="number" min={1} value={form.max_ton ?? ""} onChange={(e) => setForm({ ...form, max_ton: e.target.value })} />
+          </Field>
+          <Field label="Главный (чёрный) до, TON">
+            <Input type="number" min={1} value={form.black_max_ton ?? ""} onChange={(e) => setForm({ ...form, black_max_ton: e.target.value })} />
+          </Field>
+          <ActionButton
+            variant="outline"
+            onAction={() => save({ max_ton: Number(form.max_ton), black_max_ton: Number(form.black_max_ton) }, "Цены сохранены")}
+          >
+            Сохранить цены
+          </ActionButton>
+        </div>
+      )}
+      <div className="text-sm font-medium mb-2">
+        Сейчас на витрине · следующие через {left(rot.next_at)}
+        {cfg.auto && !rot.live && <Badge variant="secondary" className="ml-2">запасной набор</Badge>}
+      </div>
+      {cfg.auto && live.error && !rot.live && (
+        <p className="text-sm text-destructive mb-2">Fragment: {live.error}. Бот попробует ещё раз через полчаса.</p>
+      )}
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {gifts.map((g, i) => (
+          <div key={i} className="rounded-lg border p-3 space-y-2">
+            <div className="text-xs text-muted-foreground">
+              {i === steps.length - 1 ? "Главный · " : ""}за {friends(steps[i])}
+            </div>
+            <Gift g={g} small />
+            {g.fragment && <BuyLinks g={g} />}
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {cfg.auto && (
+          <ActionButton variant="outline" onAction={() => search("find")}>
+            Найти заново
+          </ActionButton>
+        )}
+        <Button
+          variant="outline"
+          onClick={() =>
+            confirm({
+              title: "Обновить витрину сейчас?",
+              description: "Таймер начнётся заново, бот напишет о новых подарках тем, кто приглашает друзей.",
+              label: "Обновить",
+              action: () => (cfg.auto ? search("rotate") : api("friend-nft", { action: "rotate" }).then(reload)),
+            })
+          }
+        >
+          Обновить витрину сейчас
+        </Button>
+      </div>
+    </Panel>
+  );
+}
+
 function Sets({ data, reload }: { data: Data; reload: () => Promise<void> }) {
   const cfg = data.config, rot = data.rotation;
   const [sets, setSets] = useState<Data[][]>([]);
   const [links, setLinks] = useState<Record<string, string>>({});
   const [tons, setTons] = useState<Record<string, string>>({});
-  const confirm = useConfirm();
   useEffect(() => {
     setSets(cfg.sets || []);
     setLinks({});
@@ -154,8 +270,10 @@ function Sets({ data, reload }: { data: Data; reload: () => Promise<void> }) {
   };
   return (
     <Panel
-      title="Подарки на витрине"
-      description={`Каждые ${cfg.period_days} ${pl(cfg.period_days, "день", "дня", "дней")} шаги, которые человек ещё не прошёл, получают следующий набор. Заработанные подарки не меняются. Последний шаг — «Главный подарок»: лучше самый дешёвый на чёрном фоне (Onyx Black).`}
+      title={cfg.auto ? "Запасные наборы" : "Наборы подарков"}
+      description={cfg.auto
+        ? "Показываются, только если Fragment не ответил при обновлении витрины."
+        : "Наборы идут по очереди при каждом обновлении. Последний шаг — «Главный подарок»: лучше самый дешёвый на чёрном фоне (Onyx Black)."}
       action={
         <div className="flex flex-wrap gap-2">
           <Button
@@ -166,28 +284,11 @@ function Sets({ data, reload }: { data: Data; reload: () => Promise<void> }) {
           >
             Добавить набор
           </Button>
-          <Button
-            variant="outline"
-            onClick={() =>
-              confirm({
-                title: "Обновить витрину сейчас?",
-                description: "Следующий набор появится в кабинете сразу, бот напишет об этом тем, кто приглашает друзей.",
-                label: "Обновить",
-                action: async () => {
-                  await api("friend-nft", { action: "rotate" });
-                  toast.success("Витрина обновлена");
-                  await reload();
-                },
-              })
-            }
-          >
-            Обновить витрину сейчас
-          </Button>
         </div>
       }
     >
       <p className="text-sm text-muted-foreground mb-4">
-        Сейчас набор {rot.index + 1}, следующий ({(rot.next_index || 0) + 1}) через {left(rot.next_at)}. Вставьте ссылку вида
+        {!cfg.auto && <>Сейчас набор {rot.index + 1}, следующий — {(rot.next_index || 0) + 1}. </>}Вставьте ссылку вида
         t.me/nft/IceCream-162005 — модель, фон и узор подтянутся сами.
       </p>
       <div className="space-y-4">
@@ -195,7 +296,7 @@ function Sets({ data, reload }: { data: Data; reload: () => Promise<void> }) {
           <div key={s} className={`rounded-lg border p-3 ${s === rot.index ? "border-primary" : ""}`}>
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-sm">
-                Набор {s + 1} {s === rot.index && <Badge className="ml-1">сейчас</Badge>}
+                Набор {s + 1} {s === rot.index && !cfg.auto && <Badge className="ml-1">сейчас</Badge>}
               </span>
               {sets.length > 1 && (
                 <Button variant="ghost" size="sm" onClick={() => setSets(sets.filter((_, j) => j !== s))}>
@@ -244,7 +345,7 @@ function Queue({ data, reload }: { data: Data; reload: () => Promise<void> }) {
   return (
     <Panel
       title="Выдать подарки"
-      description="Передайте подарок человеку в Telegram, вставьте ссылку на переданный NFT и нажмите «Выдано» — бот напишет ему. Перед выдачей посмотрите его друзей ниже."
+      description="Купите подарок на Fragment (если этот номер уже продан — «Похожие дешевле»), передайте его человеку в Telegram, вставьте ссылку на переданный NFT и нажмите «Выдано» — бот напишет ему и покажет именно этот подарок. Перед выдачей посмотрите его друзей ниже."
     >
       <DataTable
         rows={rows}
@@ -262,7 +363,16 @@ function Queue({ data, reload }: { data: Data; reload: () => Promise<void> }) {
               </span>
             ),
           },
-          { key: "gift", label: "Подарок", cell: (r) => <Gift g={r.gift} /> },
+          {
+            key: "gift",
+            label: "Подарок",
+            cell: (r) => (
+              <span className="space-y-1 block">
+                <Gift g={r.gift} />
+                {r.status === "wait" && <BuyLinks g={r.gift} />}
+              </span>
+            ),
+          },
           { key: "need", label: "За", cell: (r) => friends(r.need) },
           { key: "created_at", label: "Заработал", cell: (r) => date(r.created_at) },
           {
@@ -472,6 +582,7 @@ export function FriendNftPanel() {
           <Queue data={data} reload={res.reload} />
         </>
       )}
+      <Auto data={data} reload={res.reload} />
       <Sets data={data} reload={res.reload} />
       <Checks data={data} reload={res.reload} />
     </div>
