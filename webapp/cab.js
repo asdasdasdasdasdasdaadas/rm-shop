@@ -1338,7 +1338,7 @@
       const nf = me.friend_nft || {};
       nfThumbs = [];
       if (nf.enabled && Array.isArray(nf.steps) && nf.steps.length) return nfInvite(nf);
-      return this.classic() + nfMine(nf.rewards, true);
+      return this.classic();
     },
     classic() {
       const on = Boolean(me.referral_program_enabled);
@@ -1422,7 +1422,7 @@
   const nfCur = (nf) => nf.steps.findIndex((s) => s.state === "none");
   const nfFresh = (nf) => { const seen = store.get("nf_period"); return seen != null && seen !== "" && seen !== String(nf.period); };
   function nfInvite(nf) {
-    return nfHero(nf) + nfPath(nf) + nfMine(nf.rewards) + nfFriends(nf) + nfRules(nf);
+    return nfHero(nf) + nfPath(nf) + nfFriends(nf) + nfRules(nf);
   }
   function nfHero(nf) {
     const n = Number(nf.counted) || 0, ci = nfCur(nf), all = ci < 0, last = nf.steps.length - 1;
@@ -1463,17 +1463,6 @@
       `<div class="nf-rot${ms < 864e5 ? " soon" : ""}" style="--p:${(100 - ms / span * 100).toFixed(2)}"><div class="nf-ring"><span>🔄</span></div>` +
       `<span class="nf-rt"><span>Новые подарки через</span><span class="nf-tmr">${nfFmt(ms)}</span></span><div class="nf-nx"><i>?</i><i>?</i></div></div>` +
       `<div class="nf-lad${nfFresh(nf) ? " flip" : ""}">${rows}</div>`;
-  }
-  // Gifts the person earned: kept when the promotion is off too.
-  function nfMine(rewards, ended) {
-    const rows = (Array.isArray(rewards) ? rewards : []).slice().reverse();
-    if (!rows.length) return "";
-    return ST("Ваши NFT") + `<div class="cd">${rows.map((r) => {
-      const g = r.gift || {}, got = r.status === "given";
-      return `<button type="button" class="rw" data-act="nfmine" data-id="${Number(r.id)}">${nfThumb(g, "nf-gi")}` +
-        TT(`${esc(g.name)} #${nfNo(g)}`, got ? "в вашем профиле Telegram" : "отправим в течение суток") +
-        V(`<span class="nf-bdg ${got ? "ok" : "w"}">${got ? "у вас" : "в пути"}</span>`) + "</button>";
-    }).join("")}</div>` + (ended ? NOTE("Акция с NFT-подарками закончилась. Подарки, которые вы уже заработали, всё равно придут.") : "");
   }
   const NF_COL = ["#e2724f", "#4f9be2", "#9b62d8", "#3cb878", "#e2a23c", "#d8557d", "#3cb0b8"];
   function nfFriends(nf) {
@@ -1576,6 +1565,7 @@
     const nf = me.friend_nft || {}, s = (nf.steps || [])[i];
     if (!s) return;
     const n = Number(nf.counted) || 0, g = s.gift;
+    if (s.state === "got" && s.nft_link && /^https:\/\/t\.me\//.test(s.nft_link)) { haptic(); call(() => tg.openTelegramLink(s.nft_link)); return; }
     const what = s.state === "got" ? "Подарок у вас в профиле Telegram. Его можно оставить, подарить или продать."
       : s.state === "wait" ? "Вы его заработали — отправим в течение суток, придёт сообщение от бота."
       : `Нужно ${nfFr(s.need)}, которые сами оплатили VPN и пользуются им. Осталось ${nfFr(Math.max(0, s.need - n))}.`;
@@ -2291,13 +2281,6 @@
     },
     share: () => shareInvite(false),
     nfsheet: (b) => nfStepSheet(Number(b.dataset.i)),
-    nfmine: (b) => {
-      const r = (((me.friend_nft || {}).rewards) || []).find((x) => Number(x.id) === Number(b.dataset.id));
-      if (!r) return;
-      const got = r.status === "given";
-      if (got && r.nft_link && /^https:\/\/t\.me\//.test(r.nft_link)) { call(() => tg.openTelegramLink(r.nft_link)); return; }
-      nfSheet(r.gift, `#${nfNo(r.gift || {})} · ${got ? "ваш" : "в пути"}`, got ? "Подарок у вас в профиле Telegram. Его можно оставить, подарить или продать." : "Вы его заработали — отправим в течение суток, придёт сообщение от бота.");
-    },
     copyinvite: () => shareInvite(true),
     copyid: () => copy(String((me.user || {}).id || ""), "ID скопирован"),
     async quiet(b) {
