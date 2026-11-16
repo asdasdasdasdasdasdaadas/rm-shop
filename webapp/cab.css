@@ -776,6 +776,13 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
   background: linear-gradient(90deg, #fff3c4, #ffd76a 40%, #fff3c4 60%, #f7b733); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   animation: fbtext 3.5s linear infinite; }
 .fbsub { display: block; font-size: 14px; color: #d9cff5; margin-top: 5px; max-width: 175px; line-height: 1.35; }
+/* Invite after a successful payment: the «+35%» banner's look, sliding in after the confetti */
+.fbban.pinv { margin-top: 18px; animation: pinvin .6s var(--ease) both; }
+@keyframes pinvin { from { opacity: 0; transform: translateY(24px) scale(.96); } }
+.pinv-k { display: block; font-size: 14px; font-weight: 700; color: #fff; opacity: .85; margin-bottom: 6px; }
+.pinv .fbsub { max-width: 160px; }
+.pinv .fbbp { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 16px; }
+.pinv .fbbp svg { width: 18px; height: 18px; }
 .fbban .fbcd { gap: 5px; margin-top: 14px; width: max-content; }
 .fbban .fbcd .u { flex: none; display: flex; align-items: baseline; gap: 2px; padding: 5px 8px; border-radius: 10px; background: rgba(0, 0, 0, .22); box-shadow: none; }
 .fbban .fbcd .v { height: 20px; line-height: 20px; font-size: 16px; }

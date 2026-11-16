@@ -993,6 +993,25 @@
     notify("success");
     boom();
     toast(`+${rub(delta)} на балансе 🎉`);
+    T(() => paidInvite(el), 1100);
+  }
+  // Right after a payment people are happy with the service: offer to bring a friend. Shown on the first payment,
+  // then at most once a month, only while the referral program pays out.
+  function paidInvite(el) {
+    if (!me.referral_program_enabled || !cur || cur.el !== el || el.querySelector(".pinv")) return;
+    const last = Number(store.get("pinv_at")) || 0;
+    if (last && Date.now() - last < 30 * 864e5) return;
+    store.set("pinv_at", Date.now());
+    const r = rub(Number(me.referral_reward_rub) || 50);
+    const box = document.createElement("div");
+    box.innerHTML = `<button type="button" class="fbban pinv" data-act="share"><span class="fbrays2"></span><span class="fbgift"></span>` +
+      `<span class="pinv-k">Поделитесь с другом</span><span class="fbpc">+${r}</span><span class="fbsub">вам и другу: ему сразу, вам — когда он подключит VPN</span>` +
+      `<span class="pill fbbp">${IC.share}<span>Пригласить друга</span></span></button>`;
+    const note = el.querySelector(".note");
+    const b = box.firstChild;
+    if (note) note.replaceWith(b); else el.appendChild(b);
+    T(() => b.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "nearest" }), 250);
+    track("paid_invite_view");
   }
 
   // ---------- connect a device ----------
