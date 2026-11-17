@@ -56,6 +56,24 @@ class SupportInboxTest(unittest.IsolatedAsyncioTestCase):
         items, _ = await db.admin_list_tickets("Аня", 25, 0, {})
         self.assertEqual((items[0]["last_photo_id"], items[0]["last_body"]), (att["id"], "b.png"))
 
+    async def test_seen_mark_and_reply_time(self):
+        t, _ = await db.open_or_get_ticket(5, "max", "Макс")
+        for i in range(5):
+            await db.add_ticket_message(t["id"], "user", f"вопрос {i}")
+            await db.add_ticket_message(t["id"], "admin", f"ответ {i}")
+        await self.pool.execute(
+            "UPDATE ticket_messages SET created_at = timezone('utc', now()) - (60 - id * 3) * INTERVAL '1 minute' WHERE ticket_id = $1", t["id"])
+        median, n = await db.support_reply_seconds()
+        self.assertEqual((round(median), n), (180, 5))
+        self.assertIsNone((await db.get_ticket(t["id"])).get("admin_seen_at"))
+        await db.mark_ticket_seen(t["id"])
+        self.assertIsNotNone((await db.get_ticket(t["id"]))["admin_seen_at"])
+        from app import tickets
+        tickets.set_typing(t["id"])
+        self.assertTrue(tickets.is_typing(t["id"]))
+        tickets.set_typing(t["id"], False)
+        self.assertFalse(tickets.is_typing(t["id"]))
+
     async def test_client_card(self):
         t, _ = await db.open_or_get_ticket(5, "max", "Макс")
         await self.pool.execute("UPDATE tickets SET support_rating = 4 WHERE id = $1", t["id"])

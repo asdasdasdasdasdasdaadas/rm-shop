@@ -1315,11 +1315,16 @@ async def api_tickets(request: web.Request) -> web.Response:
         from app.tickets import serialize_messages
 
         tid = int(row["id"])
+        from app.tickets import is_typing
+
         current = {
             **row,
             "messages": serialize_messages(await db.list_ticket_messages(tid), for_admin=False),
+            "typing": row.get("status") != "closed" and is_typing(tid),
         }
-    return web.json_response({"ok": True, "items": items, "current": current})
+    from app.tickets import reply_minutes
+
+    return web.json_response({"ok": True, "items": items, "current": current, "reply_minutes": await reply_minutes()})
 
 
 async def api_ticket_send(request: web.Request) -> web.Response:
@@ -1447,10 +1452,15 @@ async def api_billing_history(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tg(request)
     if denied:
         return denied
-    items = await db.user_billing_history(telegram_id, days=7)
+    # A month back, so the cabinet can sum up the current month; the headline stays at 7 days.
+    items = await db.user_billing_history(telegram_id, days=31)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
     charged = 0
     for item in items:
         if item.get("kind") != "charge":
+            continue
+        at = parse_dt(item.get("created_at"))
+        if at and at < week_ago:
             continue
         try:
             amount = int(item.get("amount") or 0)
@@ -1458,7 +1468,7 @@ async def api_billing_history(request: web.Request) -> web.Response:
             amount = 0
         if amount < 0:
             charged += -amount
-    return web.json_response({"ok": True, "days": 7, "charged_rub": charged, "items": items})
+    return web.json_response({"ok": True, "days": 31, "charged_rub": charged, "items": items})
 
 
 async def health(_request: web.Request) -> web.Response:

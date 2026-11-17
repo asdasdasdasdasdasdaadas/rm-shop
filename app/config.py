@@ -96,6 +96,11 @@ class Settings(BaseSettings):
     first_bonus_enabled: bool = True
     first_bonus_min_rub: int = 200
     first_bonus_percent: int = 35
+    # «Возвращайтесь с бонусом»: 10 days after a payer's money ran out, +percent to a top-up from min within days.
+    return_bonus_enabled: bool = True
+    return_bonus_min_rub: int = 200
+    return_bonus_percent: int = 20
+    return_bonus_days: int = 7
     balance_charge_interval: int = 600
     billing_concurrency: int = 12
     billing_bulk_chunk: int = 80
@@ -318,6 +323,10 @@ SHOP_KEYS = frozenset(
         "first_bonus_enabled",
         "first_bonus_min_rub",
         "first_bonus_percent",
+        "return_bonus_enabled",
+        "return_bonus_min_rub",
+        "return_bonus_percent",
+        "return_bonus_days",
         "referral_reward_days",
         "referral_invitee_days",
         "balance_topup_min",

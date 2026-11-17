@@ -4688,6 +4688,8 @@ _USER_BILLING_KINDS = (
     "topup",
     "router",
     "promo",
+    "first_bonus",
+    "return_bonus",
 )
 
 
@@ -4701,7 +4703,7 @@ async def user_billing_history(telegram_id: int, *, days: int = 7) -> list[dict]
           AND created_at >= timezone('utc', now()) - ($2::int * INTERVAL '1 day')
           AND kind = ANY($3::text[])
         ORDER BY created_at DESC, id DESC
-        LIMIT 200
+        LIMIT 600
         """,
         int(telegram_id),
         window,
@@ -5063,6 +5065,30 @@ async def user_list_tickets(telegram_id: int, limit: int = 20) -> list[dict]:
         int(limit),
     )
     return [_jsonable(dict(r)) for r in rows]
+
+
+async def mark_ticket_seen(ticket_id: int) -> None:
+    await _pool_req().execute("UPDATE tickets SET admin_seen_at = timezone('utc', now()) WHERE id = $1", int(ticket_id))
+
+
+async def support_reply_seconds(days: int = 14) -> tuple[float | None, int]:
+    """Median time from a client's message to support's answer over recent dialogs, and how many answers it is based on."""
+    row = await _pool_req().fetchrow(
+        """
+        WITH m AS (
+            SELECT author, created_at,
+                   LAG(author) OVER w AS prev_author, LAG(created_at) OVER w AS prev_at
+            FROM ticket_messages
+            WHERE created_at > timezone('utc', now()) - make_interval(days => $1)
+            WINDOW w AS (PARTITION BY ticket_id ORDER BY id)
+        )
+        SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM created_at - prev_at))::float AS median,
+               COUNT(*)::int AS n
+        FROM m WHERE author = 'admin' AND prev_author = 'user'
+        """,
+        int(days),
+    )
+    return (row["median"] if row else None), int(row["n"] or 0) if row else 0
 
 
 async def admin_ticket_counts() -> dict:
@@ -5687,11 +5713,15 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
             if not router_days:
                 from app.first_bonus import bonus_for_payment
                 first_bonus = bonus_for_payment(dict(local), amount)
+            return_bonus = 0
+            if not router_days and not first_bonus and local['has_paid_topup']:
+                from app.return_bonus import for_payment as return_bonus_for
+                return_bonus = await return_bonus_for(conn, telegram_id, amount)
             receipt = await conn.fetchrow('''INSERT INTO payment_receipts
-                (payment_key,telegram_id,plan_code,amount,router_days,first_payment,referral_enabled,invitee_bonus,notice_status,first_bonus_rub)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9) RETURNING *''',
+                (payment_key,telegram_id,plan_code,amount,router_days,first_payment,referral_enabled,invitee_bonus,notice_status,first_bonus_rub,return_bonus_rub)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10) RETURNING *''',
                 payment_key,telegram_id,plan_code,amount,router_days,not local['has_paid_topup'],
-                settings.referral_program_enabled, max(0, settings.referral_invitee_reward_rub), first_bonus)
+                settings.referral_program_enabled, max(0, settings.referral_invitee_reward_rub), first_bonus, return_bonus)
             if router_days:
                 await conn.execute('''UPDATE users SET router_expire_at=
                     GREATEST(COALESCE(router_expire_at,NOW()),NOW())+($2::int * INTERVAL '1 day')
@@ -5711,6 +5741,11 @@ async def credit_payment_once(telegram_id: int, plan_code: str, payment_key: str
                     WHERE telegram_id=$1 RETURNING balance_rub''', telegram_id, first_bonus)
                 await conn.execute('''INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
                     VALUES ($1,'first_bonus','pay',$2,$3,'Бонус за первую оплату')''', telegram_id, first_bonus, after)
+            if return_bonus:
+                after = await conn.fetchval('''UPDATE users SET balance_rub=COALESCE(balance_rub,0)+$2
+                    WHERE telegram_id=$1 RETURNING balance_rub''', telegram_id, return_bonus)
+                await conn.execute('''INSERT INTO billing_events (telegram_id,kind,source,amount,balance_after,note)
+                    VALUES ($1,'return_bonus','pay',$2,$3,'Бонус за возвращение')''', telegram_id, return_bonus, after)
             if provider == 'order':
                 await conn.execute("UPDATE pay_orders SET status='granted',paid_at=NOW() WHERE order_id=$1", provider_id)
             elif provider == 'ton':

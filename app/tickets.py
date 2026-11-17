@@ -25,6 +25,38 @@ from app.ticket_files import (
 
 logger = logging.getLogger("rm-shop.tickets")
 
+# «Поддержка печатает…»: the admin's composer pings while typing; the client sees it for a few seconds.
+TYPING_SECONDS = 6
+_typing: dict[int, float] = {}
+
+
+def set_typing(ticket_id: int, on: bool = True) -> None:
+    import time
+    if on:
+        _typing[int(ticket_id)] = time.monotonic()
+    else:
+        _typing.pop(int(ticket_id), None)
+
+
+def is_typing(ticket_id: int) -> bool:
+    import time
+    at = _typing.get(int(ticket_id))
+    return bool(at and time.monotonic() - at < TYPING_SECONDS)
+
+
+_reply_cache: dict = {}
+
+
+async def reply_minutes() -> int | None:
+    """«Обычно отвечаем за N мин»: the median answer time, refreshed every 10 minutes; None with too few answers."""
+    import time
+    if _reply_cache and time.monotonic() - _reply_cache["at"] < 600:
+        return _reply_cache["v"]
+    seconds, n = await db.support_reply_seconds()
+    value = max(1, round(seconds / 60)) if seconds is not None and n >= 5 else None
+    _reply_cache.update(at=time.monotonic(), v=value)
+    return value
+
 MAX_BODY = 2000
 STATUS_LABEL = {
     "open": "ждёт ответа",

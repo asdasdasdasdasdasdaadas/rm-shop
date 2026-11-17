@@ -155,6 +155,9 @@ PAID_EMPTY_TEXTS = (
     'Пополните от {min_topup}, и он включится сам: заново настраивать ничего не нужно.',
     'VPN всё ещё выключен 👋 Пополнение займёт минуту — после него всё заработает на тех же устройствах.',
     'Что-то не так с VPN? Если он работал плохо или не подошли условия — ответьте одной кнопкой, разберёмся.',
+    '🎁 <b>Возвращайтесь с бонусом</b>\n\n'
+    'Пополните баланс от {bonus_min} до {bonus_until} — добавим +{bonus_pct}% сверху. '
+    'VPN включится сам на тех же устройствах.',
 )
 
 
@@ -166,6 +169,8 @@ def paid_branches():
         _step('recovery-recover-topup-2', 'recover_topup', 48, PAID_EMPTY_TEXTS[1], ['topup_quick', 'promise', 'help'], 'previous'),
         _step('recovery-recover-topup-3', 'recover_topup', 96, PAID_EMPTY_TEXTS[2],
               [topup, 'feedback_help', 'feedback_terms', 'feedback_later'], 'previous'),
+        # 10 days after the money ran out (24 + 48 + 96 + 72 hours): a bonus to come back, app/return_bonus.py.
+        _step('recovery-recover-topup-4', 'recover_topup', 72, PAID_EMPTY_TEXTS[3], ['topup_return', 'menu'], 'previous'),
     ]}]
 
 

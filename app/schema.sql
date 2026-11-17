@@ -624,6 +624,8 @@ CREATE TABLE IF NOT EXISTS pending_legal_messages (
 
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS support_rating SMALLINT CHECK (support_rating BETWEEN 1 AND 5);
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS rated_at TIMESTAMPTZ;
+-- When support last opened the dialog: the client sees «прочитано» on messages before it.
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS admin_seen_at TIMESTAMPTZ;
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS quiet_notifications BOOLEAN NOT NULL DEFAULT FALSE;
 
@@ -727,6 +729,8 @@ ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS notice_status TEXT NOT NUL
 ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS notice_retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS notice_sent_at TIMESTAMPTZ;
 ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS first_bonus_rub INT NOT NULL DEFAULT 0;
+-- «Возвращайтесь с бонусом» (app/return_bonus.py): added on top of a top-up after the offer.
+ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS return_bonus_rub INT NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS payment_receipts_notice_pending ON payment_receipts(notice_retry_at)
 WHERE notice_status='pending';
 

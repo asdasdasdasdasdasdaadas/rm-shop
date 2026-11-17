@@ -1593,7 +1593,7 @@
   const BILL = { charge: "VPN", pause: "Пауза тарификации", disable: "Отключение", revive: "Включение", trial: "Подарок", admin_balance: "Баланс",
     admin_grant: "Начисление", trust: "Обещанный платёж", trust_collect: "Возврат обещанного", device_delete: "Удаление устройства", referral: "Бонус за друга",
     referral_payout: "Реферальная награда", referral_revoke: "Возврат за друга", story: "Награда за историю", topup: "Пополнение", router: "Роутер", promo: "Промокод",
-    first_bonus: "Бонус за первую оплату", gift_sent: "Подарок другу", gift_received: "Подарок от друга", gift_return: "Подарок вернулся" };
+    first_bonus: "Бонус за первую оплату", return_bonus: "Бонус за возвращение", gift_sent: "Подарок другу", gift_received: "Подарок от друга", gift_return: "Подарок вернулся" };
   SCR.history = {
     h(p) {
       const data = p.data;
@@ -1601,40 +1601,95 @@
         return hc("slate", { cls: "shim", ill: "🧾", h: "История", p: "Загружаю…" }) + `<div class="cd" style="height:150px"></div>`;
       }
       if (data.error) return hc("slate", { ill: "🧾", h: "История", p: esc(data.error), pill: "Повторить", pa: 'data-act="rehistory"' });
-      const items = data.items || [];
+      const all = data.items || [];
       const charged = Math.abs(Number(data.charged_rub) || 0);
       const now = new Date(), byDay = [];
+      const weekFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
       for (let i = 6; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
         byDay.push({ key: d.toDateString(), sum: 0 });
       }
-      items.forEach((e) => {
+      const devs = {};
+      all.forEach((e) => {
         const d = parseDate(e.created_at), v = Number(e.amount);
-        if (!d || !(v < 0)) return;
+        if (!d || !(v < 0) || d < weekFrom) return;
         const slot = byDay.find((x) => x.key === d.toDateString());
         if (slot) slot.sum += -v;
+        if (e.kind === "charge") {
+          const k = e.device_title || "Устройство";
+          const x = devs[k] || (devs[k] = { sum: 0, n: 0, first: d });
+          x.sum += -v; x.n += 1; if (d < x.first) x.first = d;
+        }
       });
       const max = Math.max(1, ...byDay.map((x) => x.sum));
-      if (!items.length) {
+      if (!all.length) {
         return hc("slate", { ill: "🧾", h: "Пока пусто", p: "Здесь появятся пополнения, списания за VPN и бонусы", pill: "Пополнить баланс", pi: "plus", pa: 'data-go="topup"' });
       }
       // Seven days of spending, each bar signed with its weekday; today is the bright one.
       const WD = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
       const bars = `<div class="bars">${byDay.map((x, i) => `<i class="${i === 6 ? "on" : ""}" style="height:${Math.max(6, Math.round((x.sum / max) * 100))}%;animation-delay:${0.2 + i * 0.06}s"></i>`).join("")}</div>` +
         `<div class="bars-l">${byDay.map((x, i) => `<span class="${i === 6 ? "on" : ""}">${i === 6 ? "сегодня" : WD[new Date(x.key).getDay()]}</span>`).join("")}</div>`;
-      const hero = hc("slate", { n: charged ? cnt(charged, " ₽", "−") : "0 ₽", p: `списано за 7 дней · ${items.length} ${pl(items.length, "операция", "операции", "операций")}`, x: bars });
+      // The headline answers «на сколько хватит», the line below — how fast it goes.
+      const bal = Math.max(0, Number(me && me.balance_rub) || 0), left = Math.max(0, Number(me && me.days_left) || 0);
+      const perDay = Math.round(byDay.slice(-3).reduce((a, x) => a + x.sum, 0) / 3);
+      const spend = `списано ${rub(charged)} за 7 дней${perDay ? ` · ${rub(perDay)} в день` : ""}`;
+      const hero = me && me.balance_rub != null && charged
+        ? hc("slate", { k: `Баланс ${esc(rub(bal))} · хватит на`, n: `${left} ${pl(left, "день", "дня", "дней")}`, p: spend, x: bars })
+        : hc("slate", { n: charged ? cnt(charged, " ₽", "−") : "0 ₽", p: `списано за 7 дней`, x: bars });
+      // Where the money goes: one row per device over the week.
+      const dl = Object.entries(devs).sort((a, b) => b[1].sum - a[1].sum);
+      const top = Math.max(1, ...dl.map(([, x]) => x.sum));
+      const where = dl.length ? ST("Куда уходят деньги") + cd(dl.map(([name, x]) => {
+        const day = Math.round(x.sum / Math.max(1, x.n));
+        const since = x.first > new Date(weekFrom.getTime() + 864e5) ? ` · с ${dayLabel(x.first).toLowerCase()}` : "";
+        return `<span class="tt"><b>${esc(name)}</b><span>${rub(day)} в день · ${rub(x.sum)} за неделю${esc(since)}</span><span class="hm"><i style="width:${Math.max(6, Math.round(x.sum / top * 100))}%"></i></span></span>`;
+      })) : "";
+      // Filter chips, then the feed: one day's VPN charges fold into one line.
+      const F = p.filter || "all";
+      const KIND = (k) => k === "charge" || k === "trust_collect" || k === "device_delete" ? "out" : k === "topup" || k === "router" ? "in" : "bonus";
+      const chips = `<div class="hf">${[["all", "Все"], ["out", "Списания"], ["in", "Пополнения"], ["bonus", "Бонусы"]].map(([v, t]) =>
+        `<button type="button" class="${F === v ? "on" : ""}" data-act="hfilter" data-v="${v}">${t}</button>`).join("")}</div>`;
+      const items = all.filter((e) => F === "all" || (KIND(e.kind) === F && (F !== "bonus" || Number(e.amount) > 0)));
       const groups = [];
       items.forEach((e) => {
         const d = parseDate(e.created_at);
         const label = d ? dayLabel(d) : "Ранее";
         let g = groups[groups.length - 1];
-        if (!g || g.label !== label) { g = { label, rows: [] }; groups.push(g); }
+        if (!g || g.label !== label) { g = { label, rows: [], vpn: null }; groups.push(g); }
         const v = Number(e.amount);
+        if (e.kind === "charge" && v < 0) {
+          if (!g.vpn) { g.vpn = { sum: 0, devs: new Set(), at: d, i: g.rows.length }; g.rows.push(null); }
+          g.vpn.sum += -v; g.vpn.devs.add(e.device_title || "");
+          return;
+        }
         const sub = [e.device_title, e.note, d ? timeHM(d) : ""].filter(Boolean).map(esc).join(" · ");
         const amt = Number.isFinite(v) && v ? `<span class="${v > 0 ? "pos" : "neg"}">${v > 0 ? "+" : "−"}${rub(Math.abs(v))}</span>` : "";
         g.rows.push(TT(esc(BILL[e.kind] || "Операция"), sub) + V(amt));
       });
-      return hero + groups.map((g) => ST(g.label) + cd(g.rows)).join("");
+      groups.forEach((g) => {
+        if (!g.vpn) return;
+        const n = g.vpn.devs.size;
+        g.rows[g.vpn.i] = TT("VPN за день", [n > 1 ? `${n} ${pl(n, "устройство", "устройства", "устройств")}` : esc([...g.vpn.devs][0] || ""), g.vpn.at ? timeHM(g.vpn.at) : ""].filter(Boolean).join(" · ")) +
+          V(`<span class="neg">−${rub(g.vpn.sum)}</span>`);
+      });
+      const feed = groups.length ? groups.map((g) => ST(g.label) + cd(g.rows)).join("") : NOTE("За последний месяц таких операций нет");
+      // This month in three numbers.
+      const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+      const tot = { in: 0, bonus: 0, out: 0 };
+      all.forEach((e) => {
+        const d = parseDate(e.created_at), v = Number(e.amount);
+        if (!d || !v || d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) return;
+        const k = KIND(e.kind);
+        if (k === "in" && v > 0) tot.in += v;
+        else if (k === "out" && v < 0) { if (e.kind === "charge") tot.out += -v; }
+        else if (v > 0) tot.bonus += v;
+      });
+      const month = tot.in || tot.bonus || tot.out ? ST(MONTHS[now.getMonth()]) + cd([
+        tot.in ? TT("Пополнено") + V(`<span class="pos">+${rub(tot.in)}</span>`) : "",
+        tot.bonus ? TT("Бонусы и награды") + V(`<span class="pos">+${rub(tot.bonus)}</span>`) : "",
+        tot.out ? TT("Списано за VPN") + V(`−${rub(tot.out)}`) : "",
+      ]) : "";
+      return hero + where + chips + feed + month;
     },
     on(el, p) { if (!p.data) loadHistory(); },
   };
@@ -1649,13 +1704,16 @@
     h(p) {
       const t = p.ticket;
       const status = t ? ({ open: "ждём ответ", pending: "есть ответ", closed: "закрыт" }[t.status] || "") : "онлайн";
-      const hero = hc("green", { cls: "compact", rb: status, ill: FROG(64), h: "Поддержка", p: t ? `Обращение №${t.id} · ответ придёт сюда и\u00a0в\u00a0чат с\u00a0ботом` : "Ответ придёт сюда и\u00a0в\u00a0чат с\u00a0ботом" });
+      const reply = Number(p.reply) || 0;
+      const eta = reply ? `<div class="sp-eta"><i></i>Обычно отвечаем за ${reply < 60 ? `${reply} мин` : `${Math.round(reply / 60)} ${pl(Math.round(reply / 60), "час", "часа", "часов")}`}</div>` : "";
+      const hero = hc("green", { cls: "compact", rb: status, ill: FROG(64), h: "Поддержка", p: (t ? `Обращение №${t.id} · ответ придёт сюда и\u00a0в\u00a0чат с\u00a0ботом` : "Ответ придёт сюда и\u00a0в\u00a0чат с\u00a0ботом") + eta });
       let chat = "";
       const msgs = (t && t.messages) || [];
       if (!p.loaded) chat = `<div class="empty"><span class="typing"><span></span><span></span><span></span></span></div>`;
       else if (!msgs.length) {
         chat = `<div class="empty">${support.context ? "Опишите, что не получилось. Устройство, приложение и этап настройки приложим сами." :
-          t && t.status === "closed" ? "Нужна помощь? Напишите — откроем новое обращение." : "Что случилось? Опишите проблему — поможем разобраться."}</div>`;
+          t && t.status === "closed" ? "Нужна помощь? Выберите тему или напишите — откроем новое обращение." : "Что случилось? Выберите тему или опишите своими словами"}</div>` +
+          (support.context ? "" : `<div class="sp-topics">${SP_TOPICS.map(([e, label], i) => `<button type="button" data-act="sptopic" data-v="${i}">${e} ${label}</button>`).join("")}</div>`);
       } else {
         let last = "";
         msgs.forEach((m) => {
@@ -1663,10 +1721,12 @@
           if (d && dayLabel(d) !== last) { last = dayLabel(d); chat += `<div class="day">${last}</div>`; }
           const op = m.author === "admin";
           const atts = (m.attachments || []).map((a) => ((a.kind === "photo" || String(a.mime || "").startsWith("image/")) && a.url
-            ? `<a href="${esc(a.url)}" target="_blank" rel="noopener"><img src="${esc(a.url)}" alt="${esc(a.original_name || "Фото")}"></a>`
+            ? `<button type="button" class="sp-img" data-act="spzoom" data-v="${esc(a.url)}"><img src="${esc(a.url)}" alt="${esc(a.original_name || "Фото")}"></button>`
             : `<a class="file" href="${esc(a.url || "#")}" target="_blank" rel="noopener">${esc(a.original_name || "Файл")}</a>`)).join("");
-          chat += `<div class="bub ${op ? "op" : "me"}">${op ? '<span class="who">Поддержка</span>' : ""}${esc(m.body || "")}${atts}${d ? `<i>${timeHM(d)}</i>` : ""}</div>`;
+          const tick = op ? "" : `<b class="sp-tk${spSeen(t, d) ? " seen" : ""}" data-at="${d ? d.getTime() : 0}">${spSeen(t, d) ? "✓✓" : "✓"}</b>`;
+          chat += `<div class="bub ${op ? "op" : "me"}">${op ? '<span class="who">Поддержка</span>' : ""}${esc(m.body || "")}${atts}${d ? `<i>${timeHM(d)}${tick}</i>` : ""}</div>`;
         });
+        chat += `<div class="bub op sp-typing" id="sptyping"${t && t.typing ? "" : " hidden"}><span class="typing"><span></span><span></span><span></span></span>Поддержка печатает</div>`;
       }
       let actions = "";
       if (t && t.status !== "closed" && msgs.length) actions = `<button type="button" class="lnk" data-act="tclose">Вопрос решён</button>`;
@@ -1674,7 +1734,10 @@
         actions = t.support_rating ? NOTE(`Спасибо! Ваша оценка: ${t.support_rating} из 5`, true)
           : NOTE("Как вам помощь?", true) + `<div class="rate">${[1, 2, 3, 4, 5].map((r) => `<button type="button" data-act="trate" data-v="${r}">${r} ★</button>`).join("")}</div>`;
       }
-      const files = support.files.map((f, i) => `<button type="button" data-act="unfile" data-v="${i}">📎 ${esc(f.name)} ✕</button>`).join("");
+      // Pictures waiting to be sent show as thumbnails; other files by name.
+      const files = support.files.map((f, i) => String(f.type || "").startsWith("image/")
+        ? `<button type="button" class="sp-th" data-act="unfile" data-v="${i}" aria-label="Убрать ${esc(f.name)}"><img src="${spThumb(f)}" alt=""><b>✕</b></button>`
+        : `<button type="button" data-act="unfile" data-v="${i}">📎 ${esc(f.name)} ✕</button>`).join("");
       return hero + `<div class="chat" id="chat">${chat}</div>` + actions +
         `<div style="height:8px"></div>` + cd([[E("💡") + "Частые вопросы" + V(CV), 'data-go="faq"']]) +
         `<div class="bot"><div class="files">${files}</div><div class="compose">` +
@@ -1698,19 +1761,44 @@
       if (!p.loaded) loadTickets();
       scrollChat();
       clearInterval(support.poll);
-      support.poll = setInterval(() => { if (cur && cur.key === "support") loadTickets(true); else clearInterval(support.poll); }, 8000);
+      // Faster while a dialog is open, so «печатает» and the answer show up quickly.
+      support.poll = setInterval(() => { if (cur && cur.key === "support") loadTickets(true); else clearInterval(support.poll); }, p.ticket && p.ticket.status !== "closed" ? 4000 : 8000);
     },
   };
   function scrollChat() { requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight)); }
+  const SP_TOPICS = [
+    ["🔌", "Не подключается", "VPN не подключается. "],
+    ["🐢", "Медленно работает", "VPN работает медленно. "],
+    ["💳", "Не пришли деньги", "Пополнил баланс, но деньги не пришли. "],
+    ["📱", "Новое устройство", "Хочу подключить ещё одно устройство. "],
+    ["❓", "Другое", ""],
+  ];
+  // «✓✓» once support has opened the dialog after the message was sent.
+  const spSeen = (t, d) => { const seen = parseDate(t && t.admin_seen_at); return !!(seen && d && seen >= d); };
+  const spThumbs = new WeakMap();
+  const spThumb = (f) => { if (!spThumbs.has(f)) spThumbs.set(f, URL.createObjectURL(f)); return spThumbs.get(f); };
+  // Typing and read marks change often: patch them in place so the composer keeps focus and caret.
+  function spPatch(t) {
+    if (!cur || !cur.el) return;
+    const ty = cur.el.querySelector("#sptyping");
+    if (ty) { const was = ty.hidden; ty.hidden = !(t && t.typing); if (was && !ty.hidden) scrollChat(); }
+    cur.el.querySelectorAll(".sp-tk").forEach((b) => {
+      const ok = spSeen(t, new Date(Number(b.dataset.at)));
+      b.classList.toggle("seen", ok);
+      b.textContent = ok ? "✓✓" : "✓";
+    });
+  }
+  const spKey = (t) => JSON.stringify(t ? { ...t, typing: 0, admin_seen_at: 0 } : null);
   async function loadTickets(silent) {
     try {
       const data = await api("/api/tickets");
       if (!cur || cur.key !== "support") return;
-      const before = JSON.stringify(cur.params.ticket || null);
+      const before = spKey(cur.params.ticket);
       cur.params.ticket = data.current || null;
-      const changed = !cur.params.loaded || before !== JSON.stringify(cur.params.ticket);
+      cur.params.reply = data.reply_minutes || 0;
+      const changed = !cur.params.loaded || before !== spKey(cur.params.ticket);
       cur.params.loaded = true;
-      if (changed) { rerender(false); scrollChat(); }
+      if (changed) { rerender(false); scrollChat(); } else spPatch(cur.params.ticket);
     } catch (e) {
       if (!silent) showErr(e);
       if (cur && cur.key === "support" && !cur.params.loaded) { cur.params.loaded = true; rerender(false); }
@@ -2112,7 +2200,27 @@
     },
     wizard: () => startWizard(),
     resume,
+    hfilter(b) { haptic(); cur.params.filter = b.dataset.v; rerender(false); },
     support: () => openSupport(),
+    sptopic(b) {
+      haptic();
+      const tp = SP_TOPICS[Number(b.dataset.v)];
+      if (!tp) return;
+      support.draft = tp[2];
+      const ta = cur.el.querySelector("#msg");
+      if (ta) { ta.value = tp[2]; ta.dispatchEvent(new Event("input")); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    },
+    // A picture from the chat, big, without leaving the cabinet.
+    spzoom(b) {
+      haptic();
+      const z = document.createElement("button");
+      z.type = "button";
+      z.className = "sp-zoom";
+      z.setAttribute("aria-label", "Закрыть");
+      z.innerHTML = `<img src="${esc(b.dataset.v)}" alt="">`;
+      z.onclick = () => z.remove();
+      document.body.appendChild(z);
+    },
     helpconnect: () => openSupport(connectContext()),
     helpdevice: () => openSupport(connectContext(deviceById(cur.params.id))),
     device: (b) => { haptic(); go("device", { id: b.dataset.id }); },

@@ -152,6 +152,7 @@ function Dialog({ row, onBack, onChange, onDirty }: { row: Data; onBack: () => v
     [zoom, setZoom] = useState<string | null>(null);
   const confirm = useConfirm();
   const log = useRef<HTMLDivElement>(null);
+  const typedAt = useRef(0);
   const draft = !!text.trim() || !!files.length;
   useDirty(draft);
   useEffect(() => {
@@ -327,7 +328,14 @@ function Dialog({ row, onBack, onChange, onDirty }: { row: Data; onBack: () => v
               rows={2}
               value={text}
               onPaste={paste}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value);
+                // The client sees «Поддержка печатает…» while the answer is being typed.
+                if (e.target.value.trim() && Date.now() - typedAt.current > 3000) {
+                  typedAt.current = Date.now();
+                  api("tickets/" + row.id, { action: "typing" }).catch(() => {});
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && draft) {
                   e.preventDefault();

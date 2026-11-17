@@ -1190,6 +1190,7 @@ async def api_ticket_one(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "Тикет не найден"}, status=404)
     from app.tickets import serialize_messages
 
+    await db.mark_ticket_seen(ticket_id)
     messages = serialize_messages(await db.list_ticket_messages(ticket_id), for_admin=True)
     return web.json_response({"ok": True, "ticket": ticket, "messages": messages})
 
@@ -1202,11 +1203,17 @@ async def api_ticket_act(request: web.Request) -> web.Response:
     from app.tickets import close_ticket, parse_ticket_request, receive_admin_reply, serialize_messages
 
     text, action, files = await parse_ticket_request(request)
+    if action == "typing":
+        from app.tickets import set_typing
+        set_typing(ticket_id)
+        return web.json_response({"ok": True})
     bot: Bot = request.app["bot"]
     try:
         if action == "close":
             ticket = await close_ticket(bot, ticket_id)
         else:
+            from app.tickets import set_typing
+            set_typing(ticket_id, False)
             ticket = await receive_admin_reply(bot, ticket_id, text, attachments=files)
     except KeyError:
         return web.json_response({"ok": False, "error": "Тикет не найден"}, status=404)

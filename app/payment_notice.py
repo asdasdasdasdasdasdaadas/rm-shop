@@ -42,6 +42,8 @@ async def deliver_payment_notice(bot, receipt):
             body = notice_text('topup_ok',amount=rub_text(receipt['amount']))
             if int(receipt.get('first_bonus_rub') or 0) > 0:
                 body += f"\n🎁 Бонус за первую оплату: +{int(receipt['first_bonus_rub'])} ₽."
+            if int(receipt.get('return_bonus_rub') or 0) > 0:
+                body += f"\n🎁 Бонус за возвращение: +{int(receipt['return_bonus_rub'])} ₽."
             body += '\nБаланс: ' + rub_text(int(local.get('balance_rub') or 0)) + '.'
             if used_vpn(local, devices):
                 body += '\n\nVPN уже настроен, больше ничего делать не нужно. Если не подключается — напишите в поддержку.'

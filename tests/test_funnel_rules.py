@@ -132,7 +132,7 @@ class PaidEmptyTest(unittest.TestCase):
         actions = [b if isinstance(b, str) else b["action"] for st in branch["steps"] for b in st["buttons"]]
         self.assertNotIn(rf.GIFT, actions)
         self.assertIn("promise", actions)
-        self.assertEqual([st["wait_hours"] for st in branch["steps"]], [24, 48, 96])
+        self.assertEqual([st["wait_hours"] for st in branch["steps"]], [24, 48, 96, 72])
         funnel_board.validate({"branches": rf.branches()})
 
     def test_idle_branch_skips_paid_customers_out_of_money(self):

@@ -48,6 +48,7 @@ ACTIONS = (
     {"id": "connect", "label": "Подключение", "button": "Подключить VPN"},
     {"id": "topup", "label": "Пополнение баланса", "button": "Пополнить баланс"},
     {"id": "topup_quick", "label": "Пополнение: две кнопки с готовой суммой (минимум и месяц)", "button": "Пополнить"},
+    {"id": "topup_return", "label": "Пополнение с бонусом за возвращение: «200 ₽ → 240 ₽»", "button": "Пополнить другую сумму"},
     {"id": "help", "label": "Нужна помощь с подключением", "button": "Нужна помощь"},
     {"id": "welcome", "label": "Продолжить знакомство", "button": "Я помогу"},
     {"id": "channel", "label": "Подписка на канал", "button": "Подписаться на канал"},
@@ -136,6 +137,9 @@ RETIRED_ACTIONS = {"ambassador"}
 class _Safe(dict):
     def __missing__(self, key: str) -> str:
         return "{" + key + "}"
+
+
+RETURN_BONUS_STEP = "recovery-recover-topup-4"
 
 
 def _button(action_id: str) -> dict:
@@ -238,6 +242,16 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
                 rows[-1].append(screen(f"🎁 {need} ₽ · +{pct}%", "topup", item, amount=need))
             else:
                 rows.append([screen(f"Пополнить {amount} ₽", "topup", item, amount=amount) for amount in quick_amounts()])
+        elif action_id == "topup_return":
+            # «Возвращайтесь с бонусом»: the threshold and the next step up, each showing what lands on the balance.
+            from app import return_bonus
+            t = return_bonus.terms()
+            if t:
+                need, pct, _days = t
+                step = max(1, int(get_settings().balance_topup_step or 50))
+                amounts = [need, -(-(need + 100) // step) * step]
+                rows.append([screen(f"{a} ₽ → {a + return_bonus.bonus_rub(a, pct)} ₽", "topup", item, amount=a) for a in amounts])
+            rows.append([screen(label, "topup", item)])
         elif action_id == "help":
             rows.append([press(label, item, callback_data="help:connect")])
         elif action_id == "welcome":
@@ -740,6 +754,12 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                     {'action':'connect' if funded else 'topup','text':'Подключить VPN' if funded else 'Пополнить баланс', **({'emoji': b['emoji']} if isinstance(b, dict) and b.get('emoji') else {})}
                     if (b if isinstance(b, str) else b.get('action')) in {'cabinet','connect','topup'} else b
                 ) for b in buttons]
+            if step["id"] == RETURN_BONUS_STEP:
+                from app import return_bonus
+                filled = return_bonus.fill(body)
+                if filled is None:
+                    continue  # the bonus is off: the step has nothing to offer
+                body = filled
             bonus = await first_bonus_for(uid, buttons)
             if step["condition"] == "first_bonus" and not bonus:
                 continue  # the bonus is off or no longer applies: the step has nothing to say

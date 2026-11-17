@@ -413,7 +413,7 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute("UPDATE users SET bot_started_at=NOW()-INTERVAL '40 days',first_online_at=NOW()-INTERVAL '30 days' WHERE telegram_id=1")
         await db.add_device(1,'Phone',77)
         await self.pool.execute("UPDATE devices SET last_online_at=NOW()-INTERVAL '20 days'")
-        first,second,last=branches()[-1]['steps']
+        first,second,last=branches()[-1]['steps'][:3]
         for step in (first,second,last):
             await self.pool.execute("INSERT INTO funnel_step_sends(telegram_id,step_id,sent_at) VALUES(1,$1,NOW()-INTERVAL '12 days')",step['id'])
         with patch.object(config,'get_settings',return_value=self.settings):

@@ -216,6 +216,32 @@ const groups: {
         min: 1,
         max: 100,
       },
+      {
+        key: "return_bonus_enabled",
+        label: "Бонус за возвращение",
+        type: "switch",
+        hint: "Через 10 дней после того, как у платившего клиента кончились деньги, бот предлагает процент к пополнению. Бонус начисляется сам вместе с пополнением, один раз.",
+      },
+      {
+        key: "return_bonus_min_rub",
+        label: "Возвращение: пополнение от, ₽",
+        type: "number",
+        min: 1,
+      },
+      {
+        key: "return_bonus_percent",
+        label: "Возвращение: процент к пополнению",
+        type: "number",
+        min: 1,
+        max: 100,
+      },
+      {
+        key: "return_bonus_days",
+        label: "Возвращение: сколько дней действует",
+        type: "number",
+        min: 1,
+        max: 60,
+      },
     ],
   },
   {
