@@ -1412,6 +1412,23 @@
       if (frozen) a.addEventListener("DOMLoaded", () => a.goToAndStop(0, true));
     }).catch(() => { nfCache[g.slug] = null; still(); });
   }
+  // Warm everything the gift tab needs as soon as the cabinet loads: the player, every step's animation
+  // and picture. Opening «Пригласить» then plays at once instead of waiting on Fragment.
+  const nfPics = {};
+  function nfPreload(nf) {
+    if (!nf || !nf.enabled || !Array.isArray(nf.steps) || !nf.steps.length) return;
+    const go = () => {
+      nfLoadLottie().catch(() => {});
+      nf.steps.forEach((s) => {
+        const g = s && s.gift;
+        if (!g || !g.slug) return;
+        if (!nfPics[g.slug]) { const im = new Image(); im.decoding = "async"; im.src = nfImg(g); nfPics[g.slug] = im; }
+        if (!nfCache[g.slug]) nfCache[g.slug] = fetch(NF + encodeURIComponent(g.slug) + ".lottie.json").then((r) => { if (!r.ok) throw new Error("gift"); return r.json(); });
+        nfCache[g.slug].catch(() => { nfCache[g.slug] = null; });
+      });
+    };
+    (window.requestIdleCallback || ((f) => setTimeout(f, 300)))(go, { timeout: 1200 });
+  }
   const nfLeft = (nf) => Math.max(0, (Date.parse(nf.next_at) || 0) - Date.now());
   function nfFmt(ms, short) {
     const d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4), sec = Math.floor(ms % 6e4 / 1e3), z = (x) => String(x).padStart(2, "0");
@@ -3126,6 +3143,7 @@
     me.balance_enabled = true;
     if (me.brand_name) document.title = me.brand_name;
     if (me.first_device_thanks_pending) thanksArmed = true;
+    nfPreload(me.friend_nft);
     if (!cur || SCR[cur.key].bare) { first(); return; }
     // Fresh data repaints screens that show it, only when something they show has changed.
     const s = SCR[cur.key];
