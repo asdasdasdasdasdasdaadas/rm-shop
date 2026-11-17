@@ -20,7 +20,7 @@ import json
 import logging
 import re
 from datetime import datetime, timedelta, timezone
-from html import escape
+from html import escape, unescape
 
 from app import db
 
@@ -318,11 +318,12 @@ def page_attrs(html: str) -> tuple[str | None, list[list[str]]]:
     title = None
     m = re.search(r'og:title" content="([^"#]+)#?', html)
     if m:
-        title = m.group(1).strip()
+        title = unescape(m.group(1)).strip()
     names = {"Model": "Модель", "Backdrop": "Фон", "Symbol": "Узор"}
     attrs = []
     for key, value, pct in re.findall(r"<th>(Model|Backdrop|Symbol)</th><td>([^<]*?)\s*<mark>([^<]*)</mark>", html):
-        attrs.append([names[key], value.strip(), pct.strip().replace(".", ",")])
+        # The page escapes some characters (Jester Hat «Honk&#33;»): store plain text, the cabinet escapes it itself.
+        attrs.append([names[key], unescape(value).strip(), unescape(pct).strip().replace(".", ",")])
     return title, attrs
 
 

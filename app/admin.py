@@ -1948,14 +1948,15 @@ async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup, medi
 
 
 # Admin announcements to everyone: own buttons, no daily/weekly cap of optional messages.
-ANNOUNCE_TEMPLATES = {"gift3", "referral_news", "gift_ny"}
+ANNOUNCE_TEMPLATES = {"gift3", "referral_news", "gift_ny", "friend_nft"}
 # Stored templates that always go to their own segment.
 TEMPLATE_AUDIENCE = {"invite": "using", "unused": "unused", "browser": "no_browser"}
 # A photo, GIF or video can go with one's own text and with «кабинет в браузере» (a screen recording of the login).
-MEDIA_TEMPLATES = {"", "browser", "gift_ny"}
+MEDIA_TEMPLATES = {"", "browser", "gift_ny", "friend_nft"}
 # What a template sends when the admin attaches nothing: «Кабинет в браузере» shows the QR login as a looping clip.
 TEMPLATE_MEDIA = {"browser": {"id": "browser-login.mp4", "kind": "animation"},
-                  "gift_ny": {"id": "gift-ny.mp4", "kind": "animation"}}
+                  "gift_ny": {"id": "gift-ny.mp4", "kind": "animation"},
+                  "friend_nft": {"id": "friend-nft.mp4", "kind": "animation"}}
 ANNOUNCE_DEFAULTS = {
     "gift3": (
         "🎁 <b>Дарим 3 дня VPN</b>\n\n"
@@ -1966,6 +1967,13 @@ ANNOUNCE_DEFAULTS = {
         "🎄 <b>Подарите близким VPN на Новый год</b>\n\n"
         "Выберите сумму и новогоднее оформление, добавьте поздравление. Друг откроет подарок прямо в Telegram, "
         "деньги сразу упадут ему на баланс."
+    ),
+    "friend_nft": (
+        "💎 <b>NFT-подарки за друзей</b>\n\n"
+        "Зовите друзей в Лягушка VPN и получайте настоящие коллекционные подарки Telegram.\n\n"
+        "5 друзей — первый подарок, дальше за 10, 15 и 25. За 40 — главный подарок на чёрном фоне.\n\n"
+        "Друг засчитывается, когда сам оплатит VPN и пользуется им неделю. Подарки на витрине меняются "
+        "каждые 3 дня, а заработанный остаётся вашим навсегда — оставьте себе, подарите или продайте."
     ),
     "referral_news": (
         "👥 <b>Новая реферальная программа</b>\n\n"
@@ -1985,6 +1993,12 @@ def _announce_keyboard(template: str, gift_id: int | None = None):
         if not app:
             return cabinet_keyboard()
         button = InlineKeyboardButton(text="🎁 Выбрать подарок", web_app=app, style="success")
+    elif template == "friend_nft":
+        from app.keyboards import mini_app_screen
+        app = mini_app_screen("friends")
+        if not app:
+            return cabinet_keyboard()
+        button = InlineKeyboardButton(text="💎 Получить подарок", web_app=app, style="success")
     else:
         button = InlineKeyboardButton(text="Пригласить друзей", callback_data="share", style="success")
     return InlineKeyboardMarkup(inline_keyboard=[[button]])
@@ -1997,6 +2011,8 @@ def _broadcast_title(template: str) -> str:
         return "Рассылка: новая реферальная программа"
     if template == "gift_ny":
         return "Рассылка: подарок на Новый год"
+    if template == "friend_nft":
+        return "Рассылка: NFT-подарки за друзей"
     if template == "whitelist":
         return "Рассылка: белые списки включены"
     if template == "invite":
@@ -2405,12 +2421,22 @@ async def _broadcast_ids(spec: dict) -> list[int] | None:
     return sorted(random.sample(ids, n))
 
 
+async def _template_off(template: str) -> str | None:
+    """Why a template cannot go out right now, for checks that need the database."""
+    if template == "friend_nft":
+        from app import friend_nft
+        if not (await friend_nft.config()).get("enabled"):
+            return "Акция «NFT-подарки за друзей» выключена"
+    return None
+
+
 async def _launch_broadcast(app: web.Application, spec: dict) -> tuple[dict, int]:
     """Start a checked broadcast now. Returns (json payload, http status)."""
     job = _bc_job(app)
     if job.get("running"):
         return {"ok": False, "error": "Рассылка уже идёт", **job}, 409
     spec, error = _check_broadcast(spec)
+    error = error or await _template_off(spec["template"])
     if error:
         return {"ok": False, "error": error}, 400
     template, text, audience = spec["template"], spec["text"], spec["audience"]
@@ -2520,6 +2546,7 @@ async def api_broadcast(request: web.Request) -> web.Response:
                 "gift3": _broadcast_template_preview("gift3"),
                 "referral_news": _broadcast_template_preview("referral_news"),
                 "gift_ny": _broadcast_template_preview("gift_ny"),
+                "friend_nft": _broadcast_template_preview("friend_nft"),
                 "browser": _broadcast_template_preview("browser"),
             }
         extra["scheduled"] = await _load_scheduled()
@@ -2543,6 +2570,7 @@ async def api_broadcast(request: web.Request) -> web.Response:
         if when > now + timedelta(days=SCHEDULE_MAX_DAYS):
             return web.json_response({"ok": False, "error": f"Не дальше чем на {SCHEDULE_MAX_DAYS} дней вперёд"}, status=400)
         spec, error = _check_broadcast(body)
+        error = error or await _template_off(spec["template"])
         if error:
             return web.json_response({"ok": False, "error": error}, status=400)
         import secrets

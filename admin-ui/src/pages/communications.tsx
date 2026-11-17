@@ -69,6 +69,7 @@ const templates: [string, string][] = [
   ["gift3", "+3 дня всем с текстом"],
   ["referral_news", "Новая реферальная программа"],
   ["gift_ny", "Подарок на Новый год"],
+  ["friend_nft", "NFT-подарки за друзей"],
   ["whitelist", "Белые списки включены"],
   ["invite", "Пригласить друзей"],
   ["unused", "Помощь с первым подключением"],
@@ -79,6 +80,7 @@ const templateIcon: Record<string, string> = {
   gift3: "🎁",
   referral_news: "👥",
   gift_ny: "🎄",
+  friend_nft: "💎",
   whitelist: "📋",
   invite: "🤝",
   unused: "🛟",
@@ -98,6 +100,12 @@ const NY_CLIP = {
   kind: "animation",
   video: true,
 };
+// «NFT-подарки за друзей» goes with the showcase animation: 5 → 40 friends, the last gift on black.
+const NFT_CLIP = {
+  url: "/admin/api/broadcast/builtin/friend-nft.mp4",
+  kind: "animation",
+  video: true,
+};
 // «Кабинет в браузере» ships its own looping clip (app/assets/browser-login.mp4); the admin may swap or drop it.
 const BUILTIN_CLIP = {
   url: "/admin/api/broadcast/builtin/browser-login.mp4",
@@ -114,6 +122,7 @@ const announce: Record<string, string> = {
   gift3: "Забрать 3 дня бесплатно",
   referral_news: "Пригласить друзей",
   gift_ny: "🎁 Выбрать подарок",
+  friend_nft: "💎 Получить подарок",
 };
 // Telegram caption limit is 1024; the bot adds a short «Откройте личный кабинет 👇» line.
 const CAPTION_MAX = 964;
@@ -476,7 +485,9 @@ export function BroadcastPage() {
         ? BUILTIN_CLIP
         : template === "gift_ny"
           ? NY_CLIP
-          : null),
+          : template === "friend_nft"
+            ? NFT_CLIP
+            : null),
     tooLong = !!attached && text.length > CAPTION_MAX,
     ready = (!!body.trim() || !!attached) && !tooLong;
   const selectTemplate = (v: string) => {
@@ -752,7 +763,9 @@ export function BroadcastPage() {
                                 ? "Встроенное видео: вход по QR"
                                 : shown === NY_CLIP
                                   ? "Новогодняя открытка (анимация)"
-                                  : kindLabel[shown.kind]}
+                                  : shown === NFT_CLIP
+                                    ? "Витрина NFT-подарков (анимация)"
+                                    : kindLabel[shown.kind]}
                             </dd>
                           </div>
                         )}

@@ -25,6 +25,8 @@ class PureTest(unittest.TestCase):
                 '<th>Model</th><td>Trio Scoop <mark>3%</mark></td><th>Backdrop</th><td>Grape <mark>1.5%</mark></td>'
                 '<th>Symbol</th><td>Maple Leaf <mark>0.7%</mark></td>')
         self.assertEqual(friend_nft.page_attrs(html), ("Ice Cream", [["Модель", "Trio Scoop", "3%"], ["Фон", "Grape", "1,5%"], ["Узор", "Maple Leaf", "0,7%"]]))
+        jester = '<th>Model</th><td>Honk&#33; <mark>0.7%</mark></td>'
+        self.assertEqual(friend_nft.page_attrs(jester)[1], [["Модель", "Honk!", "0,7%"]])
 
     def test_rotation_moves_every_period(self):
         start = datetime(2026, 10, 31, 21, 1, tzinfo=timezone.utc)  # 1 Nov, 00:01 MSK

@@ -23,7 +23,9 @@ KIND_LABEL = {"photo": "фото", "animation": "GIF", "video": "видео"}
 # Files that ship with the code (app/assets): a funnel's own media, sent without an upload.
 BUILTIN = {"browser-login.mp4": ROOT / "app" / "assets" / "browser-login.mp4",
            # «Подарите VPN на Новый год»: the festive card, made with the gift cards (webapp/icons/gift-cards).
-           "gift-ny.mp4": ROOT / "webapp" / "icons" / "gift-cards" / "ny-promo.mp4"}
+           "gift-ny.mp4": ROOT / "webapp" / "icons" / "gift-cards" / "ny-promo.mp4",
+           # «NFT-подарки за друзей»: the showcase stepping 5 → 40 friends (made in Remotion from Fragment's animations).
+           "friend-nft.mp4": ROOT / "app" / "assets" / "friend-nft.mp4"}
 
 
 def _ext(data: bytes, filename: str) -> str:

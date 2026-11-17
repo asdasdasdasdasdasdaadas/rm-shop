@@ -83,3 +83,29 @@ class AnnounceBroadcastTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Подарите близким VPN', spec['text'])
         with patch.object(admin, 'get_settings', return_value=SimpleNamespace(referral_program_enabled=True, gifts_enabled=False)):
             self.assertEqual(admin._check_broadcast({'template': 'gift_ny'})[1], 'Подарки другу выключены')
+
+    async def test_friend_nft_opens_the_invite_tab_with_its_showcase(self):
+        job = {'running': True, 'run_id': 9, 'media': {'id': 'friend-nft.mp4', 'kind': 'animation'}}
+        from aiogram.types import WebAppInfo
+        app = WebAppInfo(url='https://cab.example.org/?screen=friends')
+        with patch('app.keyboards.mini_app_screen', return_value=app) as screen, \
+                patch('app.broadcast_media.send', AsyncMock(return_value=SimpleNamespace(message_id=7))) as send:
+            await admin._broadcast_all(self.bot, 'NFT', job, None, 'friend_nft')
+        screen.assert_called_with('friends')
+        self.assertEqual(job['sent'], 2)
+        call = send.await_args_list[0]
+        self.assertEqual(call.args[2]['id'], 'friend-nft.mp4')
+        self.assertEqual(call.args[4].inline_keyboard[0][0].text, '💎 Получить подарок')
+
+    async def test_friend_nft_template_gets_its_clip_and_needs_the_promotion(self):
+        from app import broadcast_media, friend_nft
+        self.assertTrue(broadcast_media.BUILTIN['friend-nft.mp4'].is_file())
+        spec, error = admin._check_broadcast({'template': 'friend_nft', 'text': ''})
+        self.assertIsNone(error)
+        self.assertEqual(spec['media'], {'id': 'friend-nft.mp4', 'kind': 'animation'})
+        self.assertIn('NFT-подарки за друзей', spec['text'])
+        self.assertLessEqual(len(spec['text']), 964)
+        with patch.object(friend_nft, 'config', AsyncMock(return_value={'enabled': False})):
+            self.assertEqual(await admin._template_off('friend_nft'), 'Акция «NFT-подарки за друзей» выключена')
+        with patch.object(friend_nft, 'config', AsyncMock(return_value={'enabled': True})):
+            self.assertIsNone(await admin._template_off('friend_nft'))
