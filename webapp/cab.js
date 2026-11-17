@@ -1449,10 +1449,10 @@
     const reward = Number(me.referral_reward_rub) || 50, chk = Number(nf.checking) || 0, soon = Number(nf.checking_left) || 0;
     const attrs = (Array.isArray(g.a) ? g.a : []).map((x) => `<span><i>${esc(x[1])}</i>${esc(x[2])}</span>`).join("");
     return `<section class="hc nf${nfBlack(g) ? " blk" : ""}" style="background:${nfGrad(g)}"><div class="nf-pat" data-nfg="${all ? last : ci}" data-only="Pattern,Color Icon"></div>` +
-      `<div class="gs-rays" style="--ray:rgba(255,255,255,.12)"></div><div class="nf-glow"></div><div class="gs-conf">${conf}</div>` +
+      `<div class="gs-conf">${conf}</div>` +
       `<div class="nf-top">${me.referral_program_enabled ? `<span class="b">+${rub(reward)} за каждого друга</span>` : "<span></span>"}` +
       `<span class="nf-tmh">${all ? "Все собраны 🏆" : `🔄 <b>${nfFmt(nfLeft(nf), 1)}</b>`}</span></div>${nfFresh(nf) && !all ? '<span class="nf-new">Новый подарок!</span>' : ""}` +
-      `<div class="nf-gift" data-act="nfsheet" data-i="${all ? last : ci}"><div class="nf-lt" data-nfg="${all ? last : ci}" data-only="Gift"><img src="${nfImg(g)}" alt=""></div></div>` +
+      `<div class="nf-gift" data-act="nfsheet" data-i="${all ? last : ci}"><div class="gs-rays" style="--ray:rgba(255,255,255,.12)"></div><div class="nf-glow"></div><div class="nf-lt" data-nfg="${all ? last : ci}" data-only="Gift"><img src="${nfImg(g)}" alt=""></div></div>` +
       `<div class="K" style="margin-top:2px">${all ? "Вы собрали все подарки" : ci === last ? "Главный подарок" : "Следующий NFT-подарок"}</div><div class="nf-n">${esc(g.name)}</div>` +
       `<div class="nf-rar">${attrs}</div>` +
       (all ? `<div class="nf-lbl" style="justify-content:center"><span>Спасибо, что зовёте друзей 💚</span></div>`
@@ -1569,7 +1569,7 @@
     const el = document.createElement("div");
     el.className = "bsheet nfs";
     el.innerHTML = `<div role="dialog" aria-label="${esc(g.name)}"><div class="grab"></div><section class="hc nf${nfBlack(g) ? " blk" : ""}" style="background:${nfGrad(g)}">` +
-      `<div class="gs-rays" style="--ray:rgba(255,255,255,.12);top:46%"></div><div class="nf-lt"></div><div class="nf-ttl">${esc(g.name)}<small>${title}</small></div></section>` +
+      `<div class="gs-rays" style="--ray:rgba(255,255,255,.12);top:calc(50% - 15px)"></div><div class="nf-lt"></div><div class="nf-ttl">${esc(g.name)}<small>${title}</small></div></section>` +
       cd((Array.isArray(g.a) ? g.a : []).map((x) => `<span class="tt"><span style="margin:0">${esc(x[0])}</span><b>${esc(x[1])}</b></span><span class="nf-rr">${esc(x[2])}</span>`)) +
       NOTE(what) + "</div>";
     el.addEventListener("click", (ev) => { if (ev.target === el || ev.target.classList.contains("grab")) closeSheet(); });
