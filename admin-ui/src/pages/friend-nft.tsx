@@ -98,7 +98,7 @@ function Rules({ cfg, reload }: { cfg: Data; reload: () => Promise<void> }) {
         <Field label="Шаги, друзей" hint="Сколько друзей нужно для каждого подарка">
           <Input value={form.steps || ""} onChange={set("steps")} />
         </Field>
-        <Field label="Витрина меняется, дней">
+        <Field label="Витрина меняется, дней" hint="Смена в 00:01 по Москве">
           <Input type="number" min={1} max={30} value={form.period_days || ""} onChange={set("period_days")} />
         </Field>
         <Field label="Оплата друга от, ₽" hint="Своими деньгами, не бонусами">

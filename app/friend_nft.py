@@ -215,20 +215,32 @@ async def save_config(patch: dict) -> dict:
     return cfg
 
 
+# The showcase changes at 00:01 Moscow time.
+MSK = timezone(timedelta(hours=3))
+ROTATE_AT = timedelta(minutes=1)
+
+
+def _anchor(when: datetime) -> datetime:
+    """The latest 00:01 MSK at or before `when`."""
+    local = when.astimezone(MSK)
+    day = local.replace(hour=0, minute=0, second=0, microsecond=0) + ROTATE_AT
+    return day if day <= local else day - timedelta(days=1)
+
+
 async def rotate_now() -> dict:
-    """Start the next showcase right now (the admin's «Обновить витрину»)."""
+    """Start the next showcase right now (the admin's «Обновить витрину»); the one after comes at 00:01 MSK."""
     cfg = await config()
     period, _, _ = rotation(cfg)
-    days = int(cfg["period_days"])
-    cfg["epoch"] = _iso(_now() - timedelta(days=days * (period + 1), seconds=1))
+    span = timedelta(days=int(cfg["period_days"]))
+    cfg["epoch"] = _iso(_anchor(_now()) - span * (period + 1))
     await _store(cfg)
     return cfg
 
 
 def rotation(cfg: dict, now: datetime | None = None) -> tuple[int, int, datetime]:
-    """(period number, index of the current set, when the next set comes)."""
+    """(period number, index of the current set, when the next set comes). Sets change at 00:01 MSK."""
     now = now or _now()
-    epoch = _ts(cfg.get("epoch")) or now
+    epoch = _anchor(_ts(cfg.get("epoch")) or now)
     span = timedelta(days=max(1, int(cfg.get("period_days") or 3)))
     period = max(0, int((now - epoch) / span))
     return period, period % max(1, len(cfg.get("sets") or [1])), epoch + span * (period + 1)

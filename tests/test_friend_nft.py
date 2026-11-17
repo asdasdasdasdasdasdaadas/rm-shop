@@ -27,13 +27,22 @@ class PureTest(unittest.TestCase):
         self.assertEqual(friend_nft.page_attrs(html), ("Ice Cream", [["Модель", "Trio Scoop", "3%"], ["Фон", "Grape", "1,5%"], ["Узор", "Maple Leaf", "0,7%"]]))
 
     def test_rotation_moves_every_period(self):
-        start = datetime(2026, 11, 1, tzinfo=timezone.utc)
+        start = datetime(2026, 10, 31, 21, 1, tzinfo=timezone.utc)  # 1 Nov, 00:01 MSK
         cfg = friend_nft.normalize({"epoch": start.isoformat()})
         self.assertEqual(friend_nft.rotation(cfg, start + timedelta(hours=1))[:2], (0, 0))
         period, idx, nxt = friend_nft.rotation(cfg, start + timedelta(days=7))
         self.assertEqual((period, idx, nxt), (2, 2, start + timedelta(days=9)))
         self.assertEqual(friend_nft.rotation(cfg, start + timedelta(days=9))[1], 0)
         self.assertEqual(friend_nft.showcase(cfg, start + timedelta(days=4))[0]["name"], "Lunar Snake")
+
+    def test_showcase_changes_at_0001_msk(self):
+        # Turned on at 13:00 MSK: the first set lasts until 00:01 MSK three days on, and so on.
+        cfg = friend_nft.normalize({"epoch": datetime(2026, 11, 1, 10, 0, tzinfo=timezone.utc).isoformat()})
+        nxt = friend_nft.rotation(cfg, datetime(2026, 11, 2, tzinfo=timezone.utc))[2]
+        self.assertEqual(nxt, datetime(2026, 11, 3, 21, 1, tzinfo=timezone.utc))
+        self.assertEqual(nxt.astimezone(friend_nft.MSK).strftime("%d %H:%M"), "04 00:01")
+        self.assertEqual(friend_nft.rotation(cfg, datetime(2026, 11, 3, 21, 0, 59, tzinfo=timezone.utc))[0], 0)
+        self.assertEqual(friend_nft.rotation(cfg, datetime(2026, 11, 3, 21, 1, tzinfo=timezone.utc))[0], 1)
 
     def test_last_step_is_on_black(self):
         for gifts in friend_nft.DEFAULT_SETS:
@@ -266,11 +275,13 @@ class FriendNftPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.discover.side_effect = None
         self.discover.return_value = friend_nft.DEFAULT_SETS[2][:2]
         cfg = await friend_nft.config()
-        cfg["epoch"] = (datetime.now(timezone.utc) - timedelta(days=3) + timedelta(minutes=10)).isoformat()
+        now = datetime(2026, 11, 17, 20, 51, tzinfo=timezone.utc)  # 23:51 MSK, ten minutes before the change
+        cfg["epoch"] = datetime(2026, 11, 14, 21, 1, tzinfo=timezone.utc).isoformat()
         await db.set_kv(friend_nft.KEY, json.dumps({k: v for k, v in cfg.items() if k != "live"}))
-        live = await friend_nft.refresh_live(await friend_nft.config())
+        with patch.object(friend_nft, "_now", return_value=now):
+            live = await friend_nft.refresh_live(await friend_nft.config())
         self.assertEqual(sorted(live["by_period"]), ["0", "1"])
-        later = datetime.now(timezone.utc) + timedelta(minutes=11)
+        later = now + timedelta(minutes=11)
         self.assertEqual(friend_nft.showcase(await friend_nft.config(), later)[0]["name"], "B-Day Candle")
 
     async def test_rotation_announces_once(self):
