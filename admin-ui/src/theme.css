@@ -337,3 +337,82 @@ nav[aria-label="Разделы админки"] button:hover .adm-tile { transfo
 .adm-toggle[aria-pressed="true"] { color: var(--primary); background: color-mix(in srgb, var(--primary) 14%, var(--card)); box-shadow: var(--card-shadow), inset 0 0 0 1.5px color-mix(in srgb, var(--primary) 60%, transparent); }
 .adm-toggle:disabled { opacity: .45; cursor: not-allowed; }
 .adm-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* Support desk: dialogs · conversation · client. */
+.sd { display: grid; grid-template-columns: 340px minmax(0, 1fr) 290px; height: calc(100dvh - 150px); min-height: 560px; border-radius: var(--radius-xl); overflow: hidden; background: var(--card); box-shadow: var(--card-shadow); }
+.sd > * { min-height: 0; }
+.sd-list { display: flex; flex-direction: column; border-right: 1px solid var(--border); }
+.sd-tabs { display: flex; gap: 6px; padding: 12px 12px 8px; }
+.sd-tabs button { padding: 6px 12px; border-radius: 99px; background: var(--secondary); font-size: 13px; font-weight: 600; color: var(--muted-foreground); display: inline-flex; align-items: center; gap: 6px; }
+.sd-tabs button.on { background: var(--primary); color: var(--primary-foreground); }
+.sd-tabs i { font-style: normal; font-size: 11px; font-weight: 800; padding: 0 6px; border-radius: 9px; background: #ff9500; color: #2b1700; }
+.sd-search { display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 0 12px; height: 38px; border-radius: 12px; background: var(--secondary); }
+.sd-search svg { width: 16px; height: 16px; color: var(--muted-foreground); flex-shrink: 0; }
+.sd-search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; font-size: 14px; color: var(--foreground); }
+.sd-rows { flex: 1; overflow-y: auto; padding: 0 6px 8px; }
+.sd-empty { text-align: center; color: var(--muted-foreground); padding: 40px 10px; }
+.sd-row { width: 100%; display: flex; gap: 10px; padding: 10px; border-radius: 14px; text-align: left; transition: background .15s; }
+.sd-row:hover { background: var(--secondary); }
+.sd-row.sel { background: color-mix(in srgb, var(--primary) 16%, transparent); }
+.sd-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sd-row-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.sd-row-top b { font-size: 14.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sd-row-top small { font-size: 12px; color: var(--muted-foreground); flex-shrink: 0; }
+.sd-row-pv { font-size: 13px; line-height: 1.35; color: var(--muted-foreground); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.sd-row-pv b { color: var(--foreground); font-weight: 600; }
+.sd-row-pv img { display: inline-block; width: 20px; height: 20px; border-radius: 5px; object-fit: cover; vertical-align: -5px; margin-right: 5px; }
+.sd-row-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
+.sd-chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--secondary); color: var(--muted-foreground); }
+.sd-chip.open { background: #ff9500; color: #2b1700; }
+.sd-chip.new { background: var(--primary); color: var(--primary-foreground); }
+.sd-chip.ghost { background: none; padding-left: 2px; }
+:root:not([data-theme="dark"]) .sd-chip.open { background: #c25e00; color: #fff; }
+.sd-chat { display: flex; flex-direction: column; min-width: 0; background: var(--background); }
+.sd-none { align-items: center; justify-content: center; color: var(--muted-foreground); }
+.sd-chat-hd { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--card); }
+.sd-chat-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sd-chat-t b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sd-chat-t span { font-size: 12px; color: var(--muted-foreground); }
+.sd-back { display: none; width: 34px; height: 34px; place-items: center; border-radius: 50%; } .sd-back svg { width: 20px; height: 20px; }
+.sd-log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; background:
+  radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 40%),
+  radial-gradient(circle at 80% 90%, color-mix(in srgb, #3e88f7 7%, transparent), transparent 40%); }
+.sd-msg { display: flex; flex-direction: column; gap: 8px; }
+.sd-day { align-self: center; font-size: 12px; font-weight: 600; color: var(--muted-foreground); background: var(--card); padding: 3px 10px; border-radius: 99px; }
+.sd-msg .adm-bubble { max-width: 72%; }
+.sd-img { display: block; margin: 2px 0 4px; border-radius: 12px; overflow: hidden; max-width: 300px; cursor: zoom-in; }
+.sd-img img { display: block; width: 100%; max-height: 340px; object-fit: cover; }
+.sd-comp { padding: 8px 16px 12px; border-top: 1px solid var(--border); background: var(--card); }
+.sd-quick { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+.sd-q { flex-shrink: 0; display: inline-flex; align-items: center; border-radius: 99px; background: var(--secondary); font-size: 12px; font-weight: 600; }
+.sd-q > button:first-child { padding: 5px 4px 5px 11px; white-space: nowrap; }
+.sd-q .x { display: grid; place-items: center; width: 22px; height: 22px; margin-right: 3px; border-radius: 50%; color: var(--muted-foreground); opacity: 0; transition: opacity .15s; }
+.sd-q:hover .x { opacity: 1; } .sd-q .x svg { width: 12px; height: 12px; }
+.sd-q.add { padding: 5px 11px; color: var(--muted-foreground); } .sd-q.add:disabled { opacity: .5; }
+.sd-files { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.sd-files span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 4px; border-radius: 12px; background: var(--secondary); font-size: 12px; font-weight: 600; }
+.sd-files img { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; }
+.sd-files button { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; }
+.sd-side { overflow-y: auto; padding: 14px; border-left: 1px solid var(--border); }
+.sd-side h3 { margin: 16px 2px 6px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); }
+.sd-card { background: var(--background); border-radius: 14px; padding: 6px 12px; }
+.sd-kv { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; font-size: 13.5px; }
+.sd-kv + .sd-kv { border-top: 1px solid var(--border); }
+.sd-kv > span:first-child { color: var(--muted-foreground); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-kv b { font-weight: 700; white-space: nowrap; } .sd-kv b.bad { color: var(--destructive); }
+.sd-kv b.ok { color: #2fb46a; } .sd-kv b.mut { color: var(--muted-foreground); font-weight: 600; font-size: 12.5px; }
+.sd-dev { display: inline-flex; align-items: center; gap: 4px; }
+.sd-dev button { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: var(--muted-foreground); } .sd-dev button:hover { background: var(--secondary); color: var(--foreground); }
+.sd-dev svg { width: 14px; height: 14px; }
+.sd-mut { color: var(--muted-foreground); font-size: 13px; padding: 6px 0; }
+.sd-warn { color: var(--destructive); font-size: 13px; font-weight: 600; padding: 4px 0; }
+.sd-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sd-hist { margin-top: 10px; }
+.sd-zoom { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(0,0,0,.82); cursor: zoom-out; }
+.sd-zoom img { max-width: 92vw; max-height: 92vh; border-radius: 12px; }
+@media (max-width: 1279px) { .sd { grid-template-columns: 320px minmax(0, 1fr); } .sd-side { display: none; } }
+@media (max-width: 860px) {
+  .sd { grid-template-columns: 1fr; height: calc(100dvh - 120px); }
+  .sd.has-chat .sd-list, .sd:not(.has-chat) .sd-chat { display: none; }
+  .sd-back { display: grid; }
+}

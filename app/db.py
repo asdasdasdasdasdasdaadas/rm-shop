@@ -5065,6 +5065,25 @@ async def user_list_tickets(telegram_id: int, limit: int = 20) -> list[dict]:
     return [_jsonable(dict(r)) for r in rows]
 
 
+async def admin_ticket_counts() -> dict:
+    """How many dialogs wait for an answer, for the inbox tabs."""
+    row = await _pool_req().fetchrow(
+        f"""SELECT COUNT(*) FILTER (WHERE status = 'open')::int AS open,
+                   COUNT(*) FILTER (WHERE status = 'pending')::int AS pending
+            FROM tickets WHERE NOT ({_old_closed_ticket()})"""
+    )
+    return dict(row) if row else {"open": 0, "pending": 0}
+
+
+async def admin_ticket_history(telegram_id: int) -> dict:
+    """The client's dialogs with support: how many and the average rating."""
+    row = await _pool_req().fetchrow(
+        "SELECT COUNT(*)::int AS total, AVG(support_rating)::float AS rating FROM tickets WHERE telegram_id = $1",
+        int(telegram_id),
+    )
+    return {"total": int(row["total"] or 0), "rating": round(float(row["rating"]), 1) if row and row["rating"] else None}
+
+
 async def admin_list_tickets(
     query: str,
     limit: int,
@@ -5089,6 +5108,7 @@ async def admin_list_tickets(
             OR COALESCE(first_name, '') ILIKE ${n}
             OR telegram_id::text LIKE ${n}
             OR id::text LIKE ${n}
+            OR EXISTS (SELECT 1 FROM ticket_messages sm WHERE sm.ticket_id = t.id AND sm.body ILIKE ${n})
             )"""
         )
     from_d = str(extra.get("from") or "").strip()
@@ -5100,7 +5120,7 @@ async def admin_list_tickets(
         args.append(to_d)
         clauses.append(f"last_message_at < (${len(args)}::date + INTERVAL '1 day')")
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
-    total = await pool.fetchval(f"SELECT COUNT(*)::int FROM tickets {where}", *args)
+    total = await pool.fetchval(f"SELECT COUNT(*)::int FROM tickets t {where}", *args)
     n = len(args)
     rows = await pool.fetch(
         f"""
@@ -5110,7 +5130,21 @@ async def admin_list_tickets(
                 FROM ticket_messages tm
                 WHERE tm.ticket_id = t.id
                 ORDER BY tm.id DESC LIMIT 1
-            ) AS last_body
+            ) AS last_body,
+            (SELECT tm.author FROM ticket_messages tm WHERE tm.ticket_id = t.id ORDER BY tm.id DESC LIMIT 1) AS last_author,
+            -- A picture in the last message, shown as a thumbnail in the inbox.
+            (
+                SELECT ta.id FROM ticket_attachments ta
+                WHERE ta.message_id = (SELECT MAX(lm.id) FROM ticket_messages lm WHERE lm.ticket_id = t.id)
+                  AND (ta.kind = 'photo' OR COALESCE(ta.mime, '') LIKE 'image/%')
+                ORDER BY ta.id LIMIT 1
+            ) AS last_photo_id,
+            -- Client messages since the last answer.
+            (
+                SELECT COUNT(*)::int FROM ticket_messages um
+                WHERE um.ticket_id = t.id AND um.author <> 'admin'
+                  AND um.id > COALESCE((SELECT MAX(am.id) FROM ticket_messages am WHERE am.ticket_id = t.id AND am.author = 'admin'), 0)
+            ) AS unread
         FROM tickets t
         {where}
         ORDER BY

@@ -1134,7 +1134,50 @@ async def api_tickets(request: web.Request) -> web.Response:
         (page - 1) * limit,
         _query_extra(request, "status", "from", "to"),
     )
-    return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit})
+    counts = await db.admin_ticket_counts()
+    return web.json_response({"ok": True, "items": items, "total": total, "page": page, "limit": limit, "counts": counts})
+
+
+async def api_ticket_client(request: web.Request) -> web.Response:
+    """Everything support needs next to a dialog: balance, how long it lasts, devices, last payments, past dialogs."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    ticket = await db.get_ticket(int(request.match_info["ticket_id"]))
+    if not ticket:
+        return web.json_response({"ok": False, "error": "Тикет не найден"}, status=404)
+    telegram_id = int(ticket["telegram_id"])
+    local = await db.get_user(telegram_id) or {}
+    raw = await db.list_devices(telegram_id)
+    from app.web import balance_runway
+
+    balance = int(local.get("balance_rub") or 0)
+    days, hours = balance_runway(local, raw, balance)
+    devices = [
+        db._jsonable({k: d.get(k) for k in ("id", "title", "platform", "app", "kind", "status", "panel_status", "last_online_at")})
+        for d in raw
+    ]
+    orders, _ = await db.admin_list_orders(str(telegram_id), 10, 0, {"status": "granted"})
+    payments = [
+        {"amount_rub": o.get("amount_rub"), "provider": o.get("provider") or o.get("method") or "", "created_at": o.get("granted_at") or o.get("created_at")}
+        for o in orders if int(o.get("telegram_id") or 0) == telegram_id
+    ][:3]
+    return web.json_response({
+        "ok": True,
+        "user": {
+            "telegram_id": telegram_id,
+            "first_name": local.get("first_name"),
+            "username": local.get("username"),
+            "balance_rub": balance,
+            "days_left": days,
+            "hours_left": hours,
+            "blocked": bool(local.get("blocked_at")),
+            "created_at": db._jsonable({"x": local.get("created_at")})["x"],
+        },
+        "devices": devices,
+        "payments": payments,
+        "history": await db.admin_ticket_history(telegram_id),
+    })
 
 
 async def api_ticket_one(request: web.Request) -> web.Response:
@@ -3186,6 +3229,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/tickets", api_tickets)
     app.router.add_get("/admin/api/tickets/files/{att_id}", api_ticket_file)
     app.router.add_get("/admin/api/tickets/{ticket_id}", api_ticket_one)
+    app.router.add_get("/admin/api/tickets/{ticket_id}/client", api_ticket_client)
     app.router.add_post("/admin/api/tickets/{ticket_id}", api_ticket_act)
     app.router.add_get("/admin/api/billing", api_billing)
     app.router.add_get("/admin/api/settings", api_settings)

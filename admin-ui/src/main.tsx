@@ -100,7 +100,8 @@ const users = section(() => import("@/pages/users")),
   settingsPage = section(() => import("@/pages/settings")),
   marketing = section(() => import("@/pages/marketing")),
   communications = section(() => import("@/pages/communications")),
-  experiments = section(() => import("@/pages/experiments"));
+  experiments = section(() => import("@/pages/experiments")),
+  support = section(() => import("@/pages/support"));
 const UsersPage = users.page("UsersPage"),
   FinancePage = finance.page("FinancePage"),
   StatisticsPage = statistics.page("StatisticsPage"),
@@ -111,11 +112,12 @@ const UsersPage = users.page("UsersPage"),
   AdsPage = marketing.page("AdsPage"),
   ReferralsPage = marketing.page("ReferralsPage"),
   BroadcastPage = communications.page("BroadcastPage"),
-  ExperimentsPage = experiments.page("ExperimentsPage");
+  ExperimentsPage = experiments.page("ExperimentsPage"),
+  SupportPage = support.page("SupportPage");
 const PRELOAD: Record<string, () => Promise<unknown>> = {
   statistics: statistics.get, users: users.get, finance: finance.get, settings: settingsPage.get,
   ads: marketing.get, referrals: marketing.get, broadcast: communications.get, experiments: experiments.get,
-  tickets: records.get, orders: records.get, billing: records.get, messages: records.get, ton: records.get, backups: records.get,
+  tickets: support.get, orders: records.get, billing: records.get, messages: records.get, ton: records.get, backups: records.get,
 };
 import "./theme.css";
 // Telegram-settings style: every section gets its own coloured tile.
@@ -591,6 +593,9 @@ function Workspace({
       break;
     case "experiments":
       page = <ExperimentsPage />;
+      break;
+    case "tickets":
+      page = <SupportPage />;
       break;
     case "backups":
       page = <BackupsPage />;
