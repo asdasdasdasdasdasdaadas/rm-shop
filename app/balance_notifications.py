@@ -1,4 +1,5 @@
 """Presentation shared by balance reminders and their preview."""
+from __future__ import annotations
 from app.button_icons import PINNED_ICONS
 
 BALANCE_ENDING = (
@@ -11,9 +12,12 @@ BALANCE_EMPTY = (
 )
 
 
-def balance_details(balance: int, devices: int, day_price: int) -> str:
+def balance_details(balance: int, devices: int, day_price: int, off_label: str | None = None) -> str:
+    """off_label: when the VPN switches off (app/balance_forecast.py), «завтра около 7:00»."""
     def rub_text(value):
         return f"{value:,} ₽".replace(",", " ")
+    if off_label:
+        return f'\n\nОстаток: <b>{rub_text(balance)}</b>. Без пополнения VPN выключится <b>{off_label}</b> по Москве.'
     per_day = max(1, int(day_price)) * max(1, int(devices))
     days = max(0, int(balance)) // per_day
     if days >= 1:

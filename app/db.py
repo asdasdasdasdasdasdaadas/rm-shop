@@ -4025,7 +4025,11 @@ async def list_due_trial_end_nudges(
                 SELECT COUNT(*)::int FROM devices d WHERE d.telegram_id = u.telegram_id AND COALESCE(d.kind, '') <> 'router'
             ) AS device_count,
             COALESCE(u.has_paid_topup, FALSE) AS paid,
-            u.balance_warn3_at
+            u.balance_warn3_at,
+            -- Last daily charge of each device that is on: the forecast of when the VPN switches off.
+            ARRAY(SELECT d.last_billed_at FROM devices d WHERE d.telegram_id = u.telegram_id
+                  AND COALESCE(d.kind, '') <> 'router' AND UPPER(COALESCE(d.panel_status, '')) <> 'DISABLED'
+                  AND d.last_billed_at IS NOT NULL) AS billed
         FROM users u
         WHERE u.trial_end_nudge_at IS NULL
           AND u.first_online_at IS NOT NULL
@@ -4044,12 +4048,13 @@ async def list_due_trial_end_nudges(
           )
           AND NOT (u.telegram_id = ANY($2::bigint[]))
         )
-        -- Stage 1: less than a day left (everyone). Stage 3: up to three days left, for people who paid before.
-        SELECT telegram_id, first_name, balance_rub, device_count, paid,
-               CASE WHEN balance_rub <= $3 * GREATEST(device_count, 1) THEN 1 ELSE 3 END AS stage
+        -- Stage 1: the switch-off is close (everyone); nudge.py decides the moment from the forecast.
+        -- Stage 3: up to three days left, for people who paid before. Closest to running out first.
+        SELECT telegram_id, first_name, balance_rub, device_count, paid, billed, balance_warn3_at,
+               CASE WHEN balance_rub <= $3 * 2 * GREATEST(device_count, 1) THEN 1 ELSE 3 END AS stage
         FROM due
-        WHERE balance_rub <= $3 * GREATEST(device_count, 1) OR (paid AND balance_warn3_at IS NULL)
-        ORDER BY first_online_at
+        WHERE balance_rub <= $3 * 2 * GREATEST(device_count, 1) OR (paid AND balance_warn3_at IS NULL)
+        ORDER BY balance_rub * 1.0 / GREATEST(device_count, 1), first_online_at
         LIMIT $1
         """,
         int(limit),
@@ -5393,7 +5398,7 @@ BALANCE_WARN_EARLY_DAYS = 3
 async def rearm_balance_warnings(day_price: int) -> None:
     """A balance that grew back past a warning threshold (payment, bonus, admin credit) gets that warning again."""
     await _pool_req().execute("""UPDATE users AS u SET
-            trial_end_nudge_at = CASE WHEN COALESCE(u.balance_rub,0) > $1 * n.c THEN NULL ELSE u.trial_end_nudge_at END,
+            trial_end_nudge_at = CASE WHEN COALESCE(u.balance_rub,0) > $1 * 2 * n.c THEN NULL ELSE u.trial_end_nudge_at END,
             balance_warn3_at = CASE WHEN COALESCE(u.balance_rub,0) > $1 * $2 * n.c THEN NULL ELSE u.balance_warn3_at END
         FROM (SELECT d.telegram_id, GREATEST(COUNT(*),1) AS c FROM devices d
               WHERE COALESCE(d.kind,'')<>'router' GROUP BY d.telegram_id) n
@@ -5425,7 +5430,7 @@ async def claim_balance_ending_notice(telegram_id: int, day_price: int, *, stage
           AND bot_blocked_at IS NULL AND blocked_at IS NULL AND billing_paused_at IS NULL
           AND COALESCE(balance_rub,0)>0
           AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'')<>'router')
-          AND balance_rub <= $2 * (SELECT COUNT(*) FROM devices d
+          AND balance_rub <= $2 * 2 * (SELECT COUNT(*) FROM devices d
               WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'')<>'router')
           AND NOT EXISTS (SELECT 1 FROM message_log m WHERE m.telegram_id=u.telegram_id
               AND m.kind='nudge_trial_end' AND m.status='sent' AND m.created_at>NOW()-INTERVAL '24 hours')

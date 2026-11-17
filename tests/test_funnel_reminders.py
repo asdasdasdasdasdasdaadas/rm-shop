@@ -67,6 +67,8 @@ class FunnelSelectionTest(unittest.IsolatedAsyncioTestCase):
             sql = sql.replace("u.first_online_at + INTERVAL '24 hours'", "datetime(u.first_online_at, '+24 hours')")
             sql = sql.replace("NOW() - INTERVAL '7 days'", "'2026-09-13 12:00:00'")
             sql = sql.replace('GREATEST(', 'MAX(')
+            import re
+            sql = re.sub(r"ARRAY\(SELECT d\.last_billed_at.*?\) AS billed", "NULL AS billed", sql, flags=re.S)
             sql = sql.replace('u.telegram_id = ANY($2::bigint[])', 'u.telegram_id IN (SELECT value FROM json_each($2))')
             import json
             return conn.execute(sql, {str(i): json.dumps(a) if isinstance(a, list) else a for i,a in enumerate(args,1)}).fetchall()

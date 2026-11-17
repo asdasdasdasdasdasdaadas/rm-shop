@@ -6,7 +6,9 @@ import logging
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
-from app import db
+from datetime import datetime, timedelta, timezone
+
+from app import balance_forecast, db
 from app.config import get_settings
 from app.keyboards import onboarding_keyboard, payment_nudge_keyboard
 from app.notices import notice_text
@@ -141,17 +143,31 @@ async def send_due_trial_end_nudges(
     if await db.flag_on("maintenance"):
         return 0, touched
     sent = 0
+    now = datetime.now(timezone.utc)
     await db.rearm_balance_warnings(settings.vpn_day_price_rub)
     for row in await db.list_due_trial_end_nudges(settings.vpn_day_price_rub, NUDGE_BATCH, skip_ids):
         telegram_id = int(row["telegram_id"])
         stage = 3 if int(row.get("stage") or 1) == 3 else 1
+        count = max(1, int(row.get("device_count") or 1))
+        balance = int(row.get("balance_rub") or 0)
+        price = max(1, int(settings.vpn_day_price_rub))
+        off = balance_forecast.off_at(balance, row.get("billed") or [], price, now)
+        if stage == 1:
+            # The moment comes from when each device is charged next: a day ahead, the evening before
+            # a night or morning switch-off, and not at night unless the morning would be too late.
+            due = balance_forecast.warn_now(off, now) if off else balance <= price * count
+            if not due:
+                if not (row.get("paid") and row.get("balance_warn3_at") is None and balance > price * count):
+                    continue
+                stage = 3
         if not await db.nudge_delivery_allowed(telegram_id, "nudge_trial_end"):
             continue
         if not await db.claim_balance_ending_notice(telegram_id, settings.vpn_day_price_rub, stage=stage):
             continue
-        count = max(1, int(row.get("device_count") or 1))
         from app.balance_notifications import balance_details, balance_keyboard
-        suffix = balance_details(int(row.get('balance_rub') or 0), count, settings.vpn_day_price_rub)
+        soon = off if off and off - now <= timedelta(hours=48) else None
+        suffix = balance_details(balance, count, settings.vpn_day_price_rub,
+                                 off_label=balance_forecast.when_label(soon, now) if soon else None)
         gift = stage == 1 and not row.get("paid")
         if gift:
             # Never paid: the balance is the gift, so the last day sells the first top-up.
