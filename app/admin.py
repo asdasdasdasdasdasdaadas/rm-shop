@@ -497,8 +497,16 @@ async def api_user_devices(request: web.Request) -> web.Response:
         async with sem:
             return await _enrich_device_network(rw, row)
 
-    items = await asyncio.gather(*(one(row) for row in rows)) if rows else []
-    return web.json_response({"ok": True, "items": list(items)})
+    items = list(await asyncio.gather(*(one(row) for row in rows))) if rows else []
+    try:
+        ips = await db.device_ip_history([int(x["id"]) for x in items if x.get("id")])
+    except Exception:
+        logger.exception("IP устройств не загрузились для %s", telegram_id)
+        ips = {}
+    for item in items:
+        if item.get("id"):
+            item["ips"] = ips.get(int(item["id"]), [])
+    return web.json_response({"ok": True, "items": items})
 
 
 async def api_device_reissue(request: web.Request) -> web.Response:

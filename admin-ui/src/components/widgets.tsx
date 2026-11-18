@@ -9,6 +9,7 @@ import {
   Hourglass,
   LifeBuoy,
   Moon,
+  Plug,
   Radio,
   Users as UsersIcon,
   Wallet,
@@ -337,6 +338,41 @@ function DailyUsersWidget({ daily }: { daily: Data }) {
   );
 }
 
+/** Share of new people with VPN working in their first 24 hours: the last 7 finished days, the week before, and per day. */
+function ActivationWidget({ act }: { act: Data }) {
+  const week: Data = act?.week || {}, prev: Data = act?.prev || {};
+  const days: Data[] = act?.days || [];
+  const pct = week.pct == null ? null : Number(week.pct);
+  const delta = pct != null && prev.pct != null ? pct - Number(prev.pct) : null;
+  return (
+    <Widget title="Подключились в первые сутки" icon={<Plug />} tone="#2fb46a">
+      <div className="adm-act">
+        <b className="adm-sleep-n">{pct == null ? "—" : <><CountUp value={pct} />%</>}</b>
+        {delta != null && delta !== 0 && (
+          <span className={"adm-act-d " + (delta > 0 ? "up" : "down")}>
+            {delta > 0 ? "▲" : "▼"} {Math.abs(delta)} п.п. к прошлой неделе
+          </span>
+        )}
+      </div>
+      <p className="adm-sub">
+        {Number(week.ok || 0)} из {Number(week.new || 0)} новых за 7 дней: VPN включился и пошёл трафик в первые 24 часа
+      </p>
+      <div className="adm-act-bars" aria-label="По дням">
+        {days.map((d) => (
+          <span
+            key={d.day}
+            className={d.done ? "" : "wait"}
+            title={`${d.day}: ${d.done ? `${d.ok} из ${d.new} (${d.pct ?? 0}%)` : `ещё не прошли сутки, пока ${d.ok} из ${d.new}`}`}
+          >
+            <i style={{ height: `${Math.max(4, d.done ? Number(d.pct || 0) : 100)}%` }} />
+          </span>
+        ))}
+      </div>
+      <p className="adm-sub">14 дней по дате прихода · серые — сутки ещё не прошли</p>
+    </Widget>
+  );
+}
+
 const WHY: [string, string][] = [
   ["setup", "Не разобрался, как подключить"],
   ["broken", "Не заработал"],
@@ -365,7 +401,7 @@ function SleepersWidget({ sleep }: { sleep: Data }) {
   const why: Data = sleep?.why || {};
   const answered = WHY.reduce((a, [k]) => a + Number(why[k] || 0), 0);
   return (
-    <Widget title="Спящие" icon={<Moon />} tone="#8e8e93" action="Рассылки" onAction={() => navigate("broadcast")} className="adm-span3">
+    <Widget title="Спящие" icon={<Moon />} tone="#8e8e93" action="Рассылки" onAction={() => navigate("broadcast")} className="adm-span2">
       <div className="adm-sleep">
         <div>
           <b className="adm-sleep-n"><CountUp value={Number(sleep?.total || 0)} /></b>
@@ -424,6 +460,7 @@ export function DashboardWidgets({ s }: { s: Data }) {
       {series.length > 0 ? <SignupsWidget series={series} users={s.users || {}} /> : <div className="adm-widget adm-skel" />}
       <PaySoonWidget pay={s.pay_soon || {}} />
       <DailyUsersWidget daily={s.daily_users || {}} />
+      <ActivationWidget act={s.activation || {}} />
       <SleepersWidget sleep={s.sleepers || {}} />
     </div>
   );

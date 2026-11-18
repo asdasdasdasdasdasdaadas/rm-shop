@@ -8,6 +8,9 @@ so the first run after a deploy does not dig up old cases.
 «Подключился, но трафика нет»: a device added within two days went online, yet no_traffic_alert_after_minutes
 after its first online it has moved less than no_traffic_alert_min_mb — VPN switched on, but sites do not open
 (a provider block, the wrong app or protocol). One message per device, admin only.
+
+«Подключения за сутки»: once a day after 10:00 Moscow time, new devices of the last day grouped by system and app —
+how many work, went online without traffic, or never switched on — so a broken app or instruction shows up.
 """
 from __future__ import annotations
 
@@ -137,6 +140,87 @@ async def send_no_traffic(bot) -> int:
     return len(rows)
 
 
+DIGEST_KEY = "connect_digest_day"
+DIGEST_HOUR_MSK = 10
+DIGEST_SQL = """
+SELECT COALESCE(NULLIF(d.platform, ''), 'Система не указана') AS platform,
+       COALESCE(NULLIF(d.client, ''), 'приложение не указано') AS client,
+       COUNT(*)::int AS total,
+       COUNT(*) FILTER (WHERE GREATEST(COALESCE(d.lifetime_traffic_bytes,0), COALESCE(d.used_traffic_bytes,0)) >= $1::bigint)::int AS works,
+       COUNT(*) FILTER (WHERE d.first_online_at IS NOT NULL
+           AND GREATEST(COALESCE(d.lifetime_traffic_bytes,0), COALESCE(d.used_traffic_bytes,0)) < $1::bigint)::int AS no_traffic,
+       COUNT(*) FILTER (WHERE d.first_online_at IS NULL
+           AND GREATEST(COALESCE(d.lifetime_traffic_bytes,0), COALESCE(d.used_traffic_bytes,0)) < $1::bigint)::int AS never
+FROM devices d JOIN users u ON u.telegram_id = d.telegram_id
+WHERE d.created_at > NOW() - INTERVAL '26 hours' AND d.created_at <= NOW() - INTERVAL '2 hours'
+  AND COALESCE(d.kind, '') <> 'router' AND u.blocked_at IS NULL
+GROUP BY 1, 2
+"""
+
+
+def _pct(part: int, total: int) -> int:
+    return round(part * 100 / total) if total else 0
+
+
+def format_digest(groups: list[dict]) -> str | None:
+    """«Подключения за сутки»: new devices by system and app, how many work, how many went online
+    without traffic and how many never switched on. None when there were no new devices."""
+    total = sum(int(g["total"]) for g in groups)
+    if not total:
+        return None
+    works = sum(int(g["works"]) for g in groups)
+    lines = ["📊 <b>Подключения за сутки</b>", "",
+             f"Новых устройств: <b>{total}</b> · заработало <b>{works}</b> ({_pct(works, total)}%)", ""]
+    bad = lambda g: int(g["no_traffic"]) + int(g["never"])
+    for g in sorted(groups, key=lambda g: (-bad(g), -int(g["total"]), str(g["platform"]))):
+        name = f"{escape(str(g['platform']))} · {escape(str(g['client']))}"
+        n, problems = int(g["total"]), bad(g)
+        if not problems:
+            lines.append(f"✅ {name} — все {n} работают")
+            continue
+        bits = []
+        if int(g["no_traffic"]):
+            bits.append(f"{int(g['no_traffic'])} без трафика")
+        if int(g["never"]):
+            bits.append(f"{int(g['never'])} не включались")
+        mark = "🔴" if n >= 3 and problems * 2 > n else "🟡"
+        lines.append(f"{mark} {name} — {', '.join(bits)} из {n}")
+    worst = [g for g in groups if int(g["total"]) >= 3 and bad(g) * 2 > int(g["total"])]
+    if worst:
+        w = max(worst, key=lambda g: (bad(g) / int(g["total"]), int(g["total"])))
+        lines += ["", f"Хуже всего: <b>{escape(str(w['platform']))} · {escape(str(w['client']))}</b> — "
+                      f"не работает у {_pct(bad(w), int(w['total']))}%. Проверьте инструкцию и протокол для этого приложения."]
+    lines += ["", "Без трафика — VPN включился, но меньше порога из настроек. Не включались — ни разу не были онлайн."]
+    return "\n".join(lines)
+
+
+async def send_digest(bot, now: datetime | None = None) -> bool:
+    """Once a day after 10:00 Moscow time, to the live channel or the admins."""
+    from datetime import timedelta
+    from app.config import get_settings
+    s = get_settings()
+    if not s.connect_digest_enabled:
+        return False
+    msk = (now or datetime.now(timezone.utc)).astimezone(timezone(timedelta(hours=3)))
+    day = msk.date().isoformat()
+    if msk.hour < DIGEST_HOUR_MSK or await db.get_kv(DIGEST_KEY) == day:
+        return False
+    targets = await _targets()
+    if not targets:
+        return False
+    await db.set_kv(DIGEST_KEY, day)
+    min_bytes = max(1, int(s.no_traffic_alert_min_mb)) * 1024 * 1024
+    text = format_digest([dict(r) for r in await db._pool_req().fetch(DIGEST_SQL, min_bytes)])
+    if not text:
+        return False
+    for chat in targets:
+        try:
+            await bot.send_message(chat, text, parse_mode="HTML")
+        except Exception:
+            logger.warning("Сводка подключений не ушла в %s", chat, exc_info=True)
+    return True
+
+
 async def _targets() -> list:
     from app.config import get_settings
     from app.live import _chat_id
@@ -165,6 +249,7 @@ async def stuck_alert_loop(bot) -> None:
         try:
             await send_due(bot)
             await send_no_traffic(bot)
+            await send_digest(bot)
         except asyncio.CancelledError:
             raise
         except Exception:

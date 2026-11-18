@@ -1221,6 +1221,32 @@ function UserDetail({
                       </div>
                     ))}
                   </dl>
+                  <h4 className="font-medium mt-5 mb-2">
+                    IP-адреса за 30 дней
+                    {(d.ips || []).length ? ` · ${(d.ips || []).length}` : ""}
+                  </h4>
+                  {(d.ips || []).length ? (
+                    (d.ips || []).map((v: Data) => (
+                      <div
+                        className="text-xs py-2 border-t flex flex-wrap items-baseline gap-x-3 gap-y-1"
+                        key={v.ip}
+                      >
+                        <code className="font-mono text-sm">{v.ip}</code>
+                        <span className="text-muted-foreground">
+                          последний раз {date(v.last_seen)} · впервые {date(v.first_seen)}
+                        </span>
+                        {Number(v.others) > 0 && (
+                          <span className="rounded-full px-2 py-0.5 bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                            этот IP ещё у {v.others} {Number(v.others) === 1 ? "клиента" : "клиентов"}
+                          </span>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Пока нет данных. IP собираются раз в 10 минут, если панель это поддерживает.
+                    </p>
+                  )}
                   <h4 className="font-medium mt-5 mb-2">HWID-сессии</h4>
                   {(d.sessions || []).length ? (
                     (d.sessions || []).map((v: Data, j: number) => (

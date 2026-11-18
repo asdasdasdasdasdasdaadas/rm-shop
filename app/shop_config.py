@@ -114,6 +114,7 @@ def validate_shop(body: dict) -> dict:
     out["no_traffic_alert_enabled"] = bool(body.get("no_traffic_alert_enabled", get_settings().no_traffic_alert_enabled))
     out["no_traffic_alert_min_mb"] = _as_int(body.get("no_traffic_alert_min_mb", get_settings().no_traffic_alert_min_mb), 1, 1000, "Нет трафика: порог, МБ")
     out["no_traffic_alert_after_minutes"] = _as_int(body.get("no_traffic_alert_after_minutes", get_settings().no_traffic_alert_after_minutes), 10, 1440, "Нет трафика: через сколько минут")
+    out["connect_digest_enabled"] = bool(body.get("connect_digest_enabled", get_settings().connect_digest_enabled))
     out["panel_cleanup_enabled"] = bool(body.get("panel_cleanup_enabled", get_settings().panel_cleanup_enabled))
     out["panel_cleanup_days"] = _as_int(body.get("panel_cleanup_days", get_settings().panel_cleanup_days), 7, 365, "Чистка панели: дней")
     out["referral_reward_days"] = _as_int(body.get("referral_reward_days"), 0, 365, "Реф. дни пригласившему")
@@ -217,6 +218,7 @@ def snapshot() -> dict:
             "no_traffic_alert_enabled": s.no_traffic_alert_enabled,
             "no_traffic_alert_min_mb": s.no_traffic_alert_min_mb,
             "no_traffic_alert_after_minutes": s.no_traffic_alert_after_minutes,
+            "connect_digest_enabled": s.connect_digest_enabled,
             "panel_cleanup_enabled": s.panel_cleanup_enabled,
             "panel_cleanup_days": s.panel_cleanup_days,
             "referral_reward_days": s.referral_reward_days,

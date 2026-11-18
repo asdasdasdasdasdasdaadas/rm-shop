@@ -107,6 +107,7 @@ class Settings(BaseSettings):
     no_traffic_alert_enabled: bool = True
     no_traffic_alert_min_mb: int = 1
     no_traffic_alert_after_minutes: int = 30
+    connect_digest_enabled: bool = True
     panel_cleanup_enabled: bool = True
     panel_cleanup_days: int = 30
     balance_charge_interval: int = 600
@@ -341,6 +342,7 @@ SHOP_KEYS = frozenset(
         "no_traffic_alert_enabled",
         "no_traffic_alert_min_mb",
         "no_traffic_alert_after_minutes",
+        "connect_digest_enabled",
         "panel_cleanup_enabled",
         "panel_cleanup_days",
         "referral_reward_days",

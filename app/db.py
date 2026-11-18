@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import hashlib
 from decimal import Decimal, InvalidOperation
@@ -3213,6 +3213,7 @@ async def admin_stats() -> dict:
         },
         "daily_users": await admin_daily_users(),
         "sleepers": await admin_sleepers(),
+        "activation": await admin_activation(),
         "funnel": await admin_funnel(),
         "onboarding_steps": await admin_onboarding_steps(),
         "cohort_outcomes": await admin_cohort_outcomes(),
@@ -6304,3 +6305,53 @@ async def drop_never_online_device(device_id: int) -> dict | None:
              AND first_online_at IS NULL AND COALESCE(lifetime_traffic_bytes,0) = 0 AND COALESCE(used_traffic_bytes,0) = 0
            RETURNING id, telegram_id, title""", int(device_id))
     return dict(row) if row else None
+
+
+async def device_ip_history(device_ids: list[int], days: int = 30) -> dict[int, list[dict]]:
+    """IPs of these devices for the admin card: first and last seen, and how many other people
+    were seen from the same IP in the same days (a shared address shows who shares)."""
+    ids = [int(x) for x in device_ids if x]
+    if not ids:
+        return {}
+    rows = await _pool_req().fetch(
+        """SELECT i.device_id, i.ip, i.first_seen, i.last_seen,
+                  (SELECT COUNT(DISTINCT o.telegram_id) FROM device_ips x JOIN devices o ON o.id = x.device_id
+                   WHERE x.ip = i.ip AND o.telegram_id <> d.telegram_id
+                     AND x.last_seen > NOW() - ($2::int * INTERVAL '1 day'))::int AS others
+           FROM device_ips i JOIN devices d ON d.id = i.device_id
+           WHERE i.device_id = ANY($1::bigint[]) AND i.last_seen > NOW() - ($2::int * INTERVAL '1 day')
+           ORDER BY i.device_id, i.last_seen DESC""", ids, int(days))
+    out: dict[int, list[dict]] = {}
+    for r in rows:
+        out.setdefault(int(r["device_id"]), []).append(_jsonable({
+            "ip": r["ip"], "first_seen": r["first_seen"], "last_seen": r["last_seen"], "others": int(r["others"] or 0)}))
+    return out
+
+
+async def admin_activation(days: int = 14, min_mb: int = 1) -> dict:
+    """Share of new people (by the Moscow day they started the bot) who had VPN working within 24 hours:
+    online within a day of the start and at least min_mb of traffic on some device. Days whose 24 hours
+    are not over yet are «pending» and left out of the rates."""
+    rows = await _pool_req().fetch(
+        """WITH n AS (
+               SELECT (u.bot_started_at AT TIME ZONE 'Europe/Moscow')::date AS day,
+                      u.bot_started_at + INTERVAL '24 hours' <= NOW() AS done,
+                      (u.first_online_at IS NOT NULL AND u.first_online_at <= u.bot_started_at + INTERVAL '24 hours'
+                       AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
+                           AND GREATEST(COALESCE(d.lifetime_traffic_bytes,0), COALESCE(d.used_traffic_bytes,0)) >= $2::bigint)) AS ok
+               FROM users u
+               WHERE u.bot_started_at > NOW() - ($1::int * INTERVAL '1 day') - INTERVAL '1 day')
+           SELECT day, COUNT(*)::int AS new, COUNT(*) FILTER (WHERE ok)::int AS ok, BOOL_AND(done) AS done
+           FROM n GROUP BY day ORDER BY day""", int(days) * 2, int(min_mb) * 1024 * 1024)
+    series = [{"day": str(r["day"])[:10], "new": int(r["new"]), "ok": int(r["ok"]), "done": bool(r["done"])} for r in rows]
+    done = [x for x in series if x["done"]]
+
+    def rate(items):
+        n = sum(x["new"] for x in items)
+        return {"new": n, "ok": sum(x["ok"] for x in items), "pct": round(sum(x["ok"] for x in items) * 100 / n) if n else None}
+
+    today = datetime.now(timezone(timedelta(hours=3))).date()
+    week = [x for x in done if (today - date.fromisoformat(x["day"])).days <= 7]
+    prev = [x for x in done if 7 < (today - date.fromisoformat(x["day"])).days <= 14]
+    return {"week": rate(week), "prev": rate(prev), "days": [
+        {**x, "pct": round(x["ok"] * 100 / x["new"]) if x["new"] else None} for x in series[-int(days):]]}
