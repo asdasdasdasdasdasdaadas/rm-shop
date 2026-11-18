@@ -1113,3 +1113,19 @@ CREATE TABLE IF NOT EXISTS device_ips (
 CREATE INDEX IF NOT EXISTS device_ips_last_seen_idx ON device_ips (last_seen);
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS sharing_alert_at TIMESTAMPTZ;
 ALTER TABLE devices ADD COLUMN IF NOT EXISTS sharing_alert_ips INTEGER;
+
+-- «Подключился, но трафика нет» (app/stuck_alert.py): when a device first went online, and when the admin heard of it.
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS first_online_at TIMESTAMPTZ;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS no_traffic_alert_at TIMESTAMPTZ;
+CREATE OR REPLACE FUNCTION track_device_first_online() RETURNS trigger AS $$
+BEGIN
+    IF NEW.first_online_at IS NULL AND NEW.last_online_at IS NOT NULL THEN
+        NEW.first_online_at := NEW.last_online_at;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS device_first_online ON devices;
+CREATE TRIGGER device_first_online BEFORE INSERT OR UPDATE OF last_online_at ON devices
+FOR EACH ROW EXECUTE FUNCTION track_device_first_online();
+UPDATE devices SET first_online_at = last_online_at WHERE first_online_at IS NULL AND last_online_at IS NOT NULL;

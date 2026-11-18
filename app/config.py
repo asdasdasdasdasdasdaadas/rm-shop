@@ -104,6 +104,9 @@ class Settings(BaseSettings):
     sharing_alert_enabled: bool = True
     sharing_alert_simultaneous: int = 3
     sharing_alert_daily: int = 10
+    no_traffic_alert_enabled: bool = True
+    no_traffic_alert_min_mb: int = 1
+    no_traffic_alert_after_minutes: int = 30
     balance_charge_interval: int = 600
     billing_concurrency: int = 12
     billing_bulk_chunk: int = 80
@@ -333,6 +336,9 @@ SHOP_KEYS = frozenset(
         "sharing_alert_enabled",
         "sharing_alert_simultaneous",
         "sharing_alert_daily",
+        "no_traffic_alert_enabled",
+        "no_traffic_alert_min_mb",
+        "no_traffic_alert_after_minutes",
         "referral_reward_days",
         "referral_invitee_days",
         "balance_topup_min",
