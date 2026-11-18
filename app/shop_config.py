@@ -108,6 +108,9 @@ def validate_shop(body: dict) -> dict:
     out["return_bonus_min_rub"] = _as_int(body.get("return_bonus_min_rub", get_settings().return_bonus_min_rub), 1, 100000, "Бонус за возвращение: от")
     out["return_bonus_percent"] = _as_int(body.get("return_bonus_percent", get_settings().return_bonus_percent), 1, 100, "Бонус за возвращение: процент")
     out["return_bonus_days"] = _as_int(body.get("return_bonus_days", get_settings().return_bonus_days), 1, 60, "Бонус за возвращение: дней")
+    out["sharing_alert_enabled"] = bool(body.get("sharing_alert_enabled", get_settings().sharing_alert_enabled))
+    out["sharing_alert_simultaneous"] = _as_int(body.get("sharing_alert_simultaneous", get_settings().sharing_alert_simultaneous), 2, 50, "Шеринг: IP одновременно")
+    out["sharing_alert_daily"] = _as_int(body.get("sharing_alert_daily", get_settings().sharing_alert_daily), 2, 500, "Шеринг: IP за сутки")
     out["referral_reward_days"] = _as_int(body.get("referral_reward_days"), 0, 365, "Реф. дни пригласившему")
     out["referral_invitee_days"] = _as_int(body.get("referral_invitee_days"), 0, 365, "Реф. дни другу")
     out["balance_topup_min"] = _as_int(body.get("balance_topup_min"), 1, 100000, "Мин. пополнение")
@@ -203,6 +206,9 @@ def snapshot() -> dict:
             "return_bonus_min_rub": s.return_bonus_min_rub,
             "return_bonus_percent": s.return_bonus_percent,
             "return_bonus_days": s.return_bonus_days,
+            "sharing_alert_enabled": s.sharing_alert_enabled,
+            "sharing_alert_simultaneous": s.sharing_alert_simultaneous,
+            "sharing_alert_daily": s.sharing_alert_daily,
             "referral_reward_days": s.referral_reward_days,
             "referral_invitee_days": s.referral_invitee_days,
             "balance_topup_min": s.balance_topup_min,

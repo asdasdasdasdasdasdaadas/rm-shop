@@ -6158,3 +6158,60 @@ async def invitation_card_statistics(days: int = 30) -> dict:
 async def admin_journey_comparison():
     from app.funnel_journey_metrics import metrics
     return await metrics(_pool_req(), _utc_now())
+
+
+async def store_device_ips(seen: dict[int, dict[str, datetime]]) -> int:
+    """Upsert {panel user id: {ip: last seen}} into device_ips; each panel user is one device."""
+    pids, ips, when = [], [], []
+    for pid, items in seen.items():
+        for ip, at in items.items():
+            pids.append(int(pid))
+            ips.append(str(ip))
+            when.append(at.astimezone(timezone.utc).isoformat())
+    if not pids:
+        return 0
+    await _pool_req().execute(
+        """INSERT INTO device_ips (device_id, ip, last_seen)
+           SELECT DISTINCT ON (d.id, x.ip) d.id, x.ip, x.seen::timestamptz
+           FROM unnest($1::bigint[], $2::text[], $3::text[]) AS x(pid, ip, seen)
+           JOIN devices d ON d.remnawave_id = x.pid
+           ORDER BY d.id, x.ip, x.seen::timestamptz DESC
+           ON CONFLICT (device_id, ip) DO UPDATE SET last_seen = GREATEST(device_ips.last_seen, EXCLUDED.last_seen)""",
+        pids, ips, when)
+    return len(pids)
+
+
+async def claim_sharing_alerts(simultaneous: int, daily: int, now_minutes: int = 10, repeat_days: int = 3,
+                               limit: int = 20) -> list[dict]:
+    """Devices over a threshold that were not reported within repeat_days (or whose IP count grew by half
+    since the last report); marks them reported and returns who, which device and the counts."""
+    rows = await _pool_req().fetch(
+        """WITH s AS (
+               SELECT i.device_id,
+                      COUNT(*) FILTER (WHERE i.last_seen > NOW() - make_interval(mins => $3::int))::int AS now_ips,
+                      COUNT(*)::int AS day_ips
+               FROM device_ips i WHERE i.last_seen > NOW() - INTERVAL '24 hours' GROUP BY i.device_id),
+           hit AS (
+               SELECT s.* FROM s JOIN devices d ON d.id = s.device_id JOIN users u ON u.telegram_id = d.telegram_id
+               WHERE (s.now_ips >= $1 OR s.day_ips >= $2) AND u.blocked_at IS NULL
+                 AND (d.sharing_alert_at IS NULL OR d.sharing_alert_at < NOW() - ($4::int * INTERVAL '1 day')
+                      OR GREATEST(s.now_ips, s.day_ips) * 2 >= COALESCE(d.sharing_alert_ips, 0) * 3)
+               ORDER BY s.now_ips DESC, s.day_ips DESC LIMIT $5)
+           UPDATE devices d SET sharing_alert_at = NOW(), sharing_alert_ips = GREATEST(hit.now_ips, hit.day_ips)
+           FROM hit, users u
+           WHERE d.id = hit.device_id AND u.telegram_id = d.telegram_id
+           RETURNING d.id AS device_id, d.telegram_id, u.username, u.first_name, d.title, d.platform, d.client,
+                     d.created_at, d.used_traffic_bytes, d.lifetime_traffic_bytes, hit.now_ips, hit.day_ips""",
+        int(simultaneous), int(daily), int(now_minutes), int(repeat_days), int(limit))
+    return [dict(r) for r in rows]
+
+
+async def device_ips_recent(device_id: int) -> list[dict]:
+    rows = await _pool_req().fetch(
+        """SELECT ip, last_seen FROM device_ips WHERE device_id=$1 AND last_seen > NOW() - INTERVAL '24 hours'
+           ORDER BY last_seen DESC, ip""", int(device_id))
+    return [dict(r) for r in rows]
+
+
+async def prune_device_ips(keep_days: int = 30) -> None:
+    await _pool_req().execute("DELETE FROM device_ips WHERE last_seen < NOW() - ($1::int * INTERVAL '1 day')", int(keep_days))

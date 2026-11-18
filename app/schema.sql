@@ -1101,3 +1101,15 @@ CREATE TABLE IF NOT EXISTS friend_nft_rewards (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS friend_nft_rewards_step ON friend_nft_rewards(telegram_id, need) WHERE status <> 'cancelled';
 CREATE INDEX IF NOT EXISTS friend_nft_rewards_wait_idx ON friend_nft_rewards(created_at) WHERE status = 'wait';
+
+-- «Шеринг подписки»: the IPs each device was seen from (Remnawave /connections/by-node), kept 30 days.
+CREATE TABLE IF NOT EXISTS device_ips (
+    device_id BIGINT NOT NULL REFERENCES devices (id) ON DELETE CASCADE,
+    ip TEXT NOT NULL,
+    first_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_seen TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (device_id, ip)
+);
+CREATE INDEX IF NOT EXISTS device_ips_last_seen_idx ON device_ips (last_seen);
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS sharing_alert_at TIMESTAMPTZ;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS sharing_alert_ips INTEGER;

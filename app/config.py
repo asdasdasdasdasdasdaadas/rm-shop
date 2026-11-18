@@ -101,6 +101,9 @@ class Settings(BaseSettings):
     return_bonus_min_rub: int = 200
     return_bonus_percent: int = 20
     return_bonus_days: int = 7
+    sharing_alert_enabled: bool = True
+    sharing_alert_simultaneous: int = 3
+    sharing_alert_daily: int = 10
     balance_charge_interval: int = 600
     billing_concurrency: int = 12
     billing_bulk_chunk: int = 80
@@ -327,6 +330,9 @@ SHOP_KEYS = frozenset(
         "return_bonus_min_rub",
         "return_bonus_percent",
         "return_bonus_days",
+        "sharing_alert_enabled",
+        "sharing_alert_simultaneous",
+        "sharing_alert_daily",
         "referral_reward_days",
         "referral_invitee_days",
         "balance_topup_min",
