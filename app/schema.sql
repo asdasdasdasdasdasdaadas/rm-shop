@@ -1129,3 +1129,12 @@ DROP TRIGGER IF EXISTS device_first_online ON devices;
 CREATE TRIGGER device_first_online BEFORE INSERT OR UPDATE OF last_online_at ON devices
 FOR EACH ROW EXECUTE FUNCTION track_device_first_online();
 UPDATE devices SET first_online_at = last_online_at WHERE first_online_at IS NULL AND last_online_at IS NOT NULL;
+
+-- «Спящие» (app/sleepers.py): never online, never paid, the bot's messages are over. sleep_at: said «Пока не нужен».
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sleep_at TIMESTAMPTZ;
+-- Answers to «Что помешало?»: the last answer per person.
+CREATE TABLE IF NOT EXISTS why_answers (
+    telegram_id BIGINT PRIMARY KEY REFERENCES users (telegram_id) ON DELETE CASCADE,
+    answer TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

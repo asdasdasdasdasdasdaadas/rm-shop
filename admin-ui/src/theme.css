@@ -137,6 +137,7 @@ tbody tr { border-color: var(--border); transition: background-color .15s; }
 .adm-board > *:nth-child(2) { animation-delay: .06s; } .adm-board > *:nth-child(3) { animation-delay: .12s; }
 .adm-board > *:nth-child(4) { animation-delay: .18s; } .adm-board > *:nth-child(5) { animation-delay: .24s; } .adm-board > *:nth-child(6) { animation-delay: .3s; }
 .adm-span2 { grid-column: span 2; }
+.adm-span3 { grid-column: 1 / -1; }
 @media (max-width: 1100px) { .adm-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .adm-board { grid-template-columns: 1fr; } .adm-span2 { grid-column: auto; } }
 .adm-widget { background: var(--card); border-radius: var(--radius-xl); padding: 18px 20px 20px; box-shadow: var(--card-shadow); min-width: 0; transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s; }
@@ -184,6 +185,16 @@ tbody tr { border-color: var(--border); transition: background-color .15s; }
 .adm-p-val { display: flex; flex-direction: column; align-items: flex-end; }
 .adm-skel { min-height: 240px; background: linear-gradient(100deg, var(--card) 40%, var(--secondary) 50%, var(--card) 60%) 0 0 / 300% 100%; animation: admShim 1.4s linear infinite !important; }
 @keyframes admShim { to { background-position: -150% 0; } }
+.adm-sleep { display: grid; grid-template-columns: 1fr 1.2fr 1.2fr; gap: 20px; }
+.adm-sleep h4 { font-size: 13px; font-weight: 600; color: var(--muted-foreground); margin: 0 0 8px; }
+.adm-sleep-n { display: block; font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
+.adm-sleep small { display: block; font-size: 13px; line-height: 1.3; color: var(--muted-foreground); margin: 4px 0 8px; }
+.adm-sleep-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.adm-sleep-bars li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; }
+.adm-sleep-bars li b { font-weight: 700; }
+.adm-sleep-bars li i { grid-column: 1 / -1; height: 6px; min-width: 3px; border-radius: 3px; background: #8e8e93; opacity: .55; }
+@media (max-width: 1100px) { .adm-sleep { grid-template-columns: 1fr 1fr; } .adm-sleep > :first-child { grid-column: 1 / -1; } }
+@media (max-width: 700px) { .adm-sleep { grid-template-columns: 1fr; } }
 .adm-daily-k { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
 .adm-daily-k > div { background: var(--secondary); border-radius: 14px; padding: 10px 12px; }
 .adm-daily-k b { display: block; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }

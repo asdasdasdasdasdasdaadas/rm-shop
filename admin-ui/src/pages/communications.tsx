@@ -34,7 +34,14 @@ const audiences: [string, string][] = [
   ["zero_off", "VPN отключился — закончились деньги"],
   ["low_balance", "Баланса осталось меньше чем на 3 дня"],
   ["no_browser", "Пользуются VPN, но ни разу не входили в браузере"],
+  ["sleepers", "Спящие: не подключались больше 3 недель"],
 ];
+// Audiences of the survey templates and announcements: not in the picker, only shown as «Кому».
+const hiddenAudiences: Record<string, string> = {
+  why_nodevice: "Не пользовались VPN, устройства нет (и спящие)",
+  why_offline: "Добавили устройство, но не подключились (и спящие)",
+  everyone: "Все, включая спящих",
+};
 // What each segment is for: shown under the audience picker.
 const audienceHint: Record<string, string> = {
   not_connected:
@@ -43,6 +50,8 @@ const audienceHint: Record<string, string> = {
     "Пользовались VPN, он выключился из-за нулевого баланса. Лучше всего работает напоминание пополнить с одной кнопкой.",
   low_balance:
     "VPN работает, но скоро выключится. Предупредите заранее — так меньше людей теряют доступ.",
+  sleepers:
+    "Ни разу не подключались и не платили, бот им уже не пишет. Остальные аудитории их не включают — сюда только крупные новости.",
   no_browser:
     "VPN работал за последние 30 дней, а кабинет в браузере не открывали. Запасной вход пригодится, если Telegram не грузится.",
 };
@@ -63,7 +72,7 @@ const nextEveningMsk = () => {
   return at;
 };
 const audienceLabel = (id: string) =>
-  audiences.find(([a]) => a === id)?.[1] || id;
+  audiences.find(([a]) => a === id)?.[1] || hiddenAudiences[id] || id;
 const templates: [string, string][] = [
   ["", "Своё сообщение"],
   ["gift3", "+3 дня всем с текстом"],
@@ -74,6 +83,8 @@ const templates: [string, string][] = [
   ["invite", "Пригласить друзей"],
   ["unused", "Помощь с первым подключением"],
   ["browser", "Кабинет в браузере"],
+  ["why_nodevice", "Опрос «Что помешало?»: нет устройства"],
+  ["why_offline", "Опрос «Что помешало?»: не подключились"],
 ];
 const templateIcon: Record<string, string> = {
   "": "✏️",
@@ -85,12 +96,16 @@ const templateIcon: Record<string, string> = {
   invite: "🤝",
   unused: "🛟",
   browser: "💻",
+  why_nodevice: "🤔",
+  why_offline: "🤔",
 };
 // Stored templates with an audience of their own.
 const templateAudience: Record<string, string> = {
   invite: "using",
   unused: "unused",
   browser: "no_browser",
+  why_nodevice: "why_nodevice",
+  why_offline: "why_offline",
 };
 // A photo, GIF or video goes with one's own text or with «Кабинет в браузере» (a screen recording of the login).
 const withMedia = (t: string) => !t || t === "browser";
@@ -471,7 +486,7 @@ export function BroadcastPage() {
   const data = resource.data,
     effectiveAudience =
       templateAudience[template] ??
-      (template === "whitelist" || template in announce ? "all" : audience),
+      (template in announce ? "everyone" : template === "whitelist" ? "all" : audience),
     count = data?.audiences?.[effectiveAudience] ?? 0,
     editable = !template || template in announce,
     body = editable ? text : data?.previews?.[template] || "",

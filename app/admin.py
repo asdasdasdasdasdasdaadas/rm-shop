@@ -1841,7 +1841,7 @@ async def _broadcast_all(
     if tpl in TEMPLATE_AUDIENCE:
         targets = await db.list_broadcast_targets(TEMPLATE_AUDIENCE[tpl])
     elif tpl in ANNOUNCE_TEMPLATES:
-        targets = await db.list_broadcast_targets("all")
+        targets = await db.list_broadcast_targets("everyone")  # big news reaches sleepers too
     elif ids is not None:
         targets = [{"telegram_id": int(item), "first_name": None} for item in ids]
     else:
@@ -2023,7 +2023,8 @@ async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup, medi
 # Admin announcements to everyone: own buttons, no daily/weekly cap of optional messages.
 ANNOUNCE_TEMPLATES = {"gift3", "referral_news", "gift_ny", "friend_nft"}
 # Stored templates that always go to their own segment.
-TEMPLATE_AUDIENCE = {"invite": "using", "unused": "unused", "browser": "no_browser"}
+TEMPLATE_AUDIENCE = {"invite": "using", "unused": "unused", "browser": "no_browser",
+                     "why_nodevice": "why_nodevice", "why_offline": "why_offline"}
 # A photo, GIF or video can go with one's own text and with «кабинет в браузере» (a screen recording of the login).
 MEDIA_TEMPLATES = {"", "browser", "gift_ny", "friend_nft"}
 # What a template sends when the admin attaches nothing: «Кабинет в браузере» shows the QR login as a looping clip.
@@ -2094,6 +2095,10 @@ def _broadcast_title(template: str) -> str:
         return "Рассылка: не подключались"
     if template == "browser":
         return "Рассылка: кабинет в браузере"
+    if template == "why_nodevice":
+        return "Опрос: что помешало (нет устройства)"
+    if template == "why_offline":
+        return "Опрос: что помешало (не подключился)"
     return "Рассылка"
 
 
@@ -2149,6 +2154,9 @@ def _broadcast_payload(
         return text, cabinet_keyboard()
     if template == "browser":
         return notice_text("broadcast_browser"), _browser_keyboard()
+    if template in {"why_nodevice", "why_offline"}:
+        from app.sleepers import why_keyboard
+        return notice_text("broadcast_" + template), why_keyboard()
     return text, None
 
 
@@ -2240,6 +2248,8 @@ def _broadcast_template_preview(template: str) -> str:
         return notice_text("broadcast_unused", name="друг")
     if template == "browser":
         return notice_text("broadcast_browser")
+    if template in {"why_nodevice", "why_offline"}:
+        return notice_text("broadcast_" + template)
     return ""
 
 
@@ -2483,7 +2493,9 @@ async def _broadcast_ids(spec: dict) -> list[int] | None:
     if not spec.get("sample") and not spec.get("parent"):
         return None
     audience = spec["audience"]
-    if spec["template"] in ANNOUNCE_TEMPLATES or spec["template"] == "whitelist":
+    if spec["template"] in ANNOUNCE_TEMPLATES:
+        audience = "everyone"
+    elif spec["template"] == "whitelist":
         audience = "all"
     ids = await db.list_broadcast_ids(audience)
     if spec.get("parent"):
@@ -2621,6 +2633,8 @@ async def api_broadcast(request: web.Request) -> web.Response:
                 "gift_ny": _broadcast_template_preview("gift_ny"),
                 "friend_nft": _broadcast_template_preview("friend_nft"),
                 "browser": _broadcast_template_preview("browser"),
+                "why_nodevice": _broadcast_template_preview("why_nodevice"),
+                "why_offline": _broadcast_template_preview("why_offline"),
             }
         extra["scheduled"] = await _load_scheduled()
         return web.json_response({"ok": True, **job, **extra})

@@ -159,6 +159,8 @@ async def main() -> None:
     dp.include_router(live_router)
     from app.sharing_alert import router as sharing_router
     dp.include_router(sharing_router)
+    from app.sleepers import router as sleepers_router
+    dp.include_router(sleepers_router)
     from app.funnel_gifts import router as funnel_gifts_router
     dp.include_router(funnel_gifts_router)
 
@@ -212,6 +214,8 @@ async def main() -> None:
         stuck_task = asyncio.create_task(stuck_alert_loop(bot), name="stuck-alert")
         from app.sharing_alert import sharing_loop
         sharing_task = asyncio.create_task(sharing_loop(rw, bot), name="sharing-alert")
+        from app.sleepers import cleanup_loop
+        cleanup_task = asyncio.create_task(cleanup_loop(rw), name="panel-cleanup")
         from app.friend_nft import loop as friend_nft_loop
         friend_nft_task = asyncio.create_task(friend_nft_loop(bot), name="friend-nft")
         try:
@@ -236,6 +240,7 @@ async def main() -> None:
             watch_task.cancel()
             stuck_task.cancel()
             sharing_task.cancel()
+            cleanup_task.cancel()
             friend_nft_task.cancel()
     finally:
         await runner.cleanup()

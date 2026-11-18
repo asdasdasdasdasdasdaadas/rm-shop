@@ -32,7 +32,7 @@ class AnnounceBroadcastTest(unittest.IsolatedAsyncioTestCase):
         job = {'running': True, 'run_id': 5}
         with patch.object(funnel_gifts, 'issue_for_broadcast', AsyncMock(side_effect=[11, 12])) as issue:
             await admin._broadcast_all(self.bot, 'Дарим 3 дня', job, None, 'gift3')
-        self.list_broadcast_targets.assert_awaited_once_with('all')
+        self.list_broadcast_targets.assert_awaited_once_with('everyone')  # sleepers get big news too
         # The daily/weekly cap of optional messages does not apply to the announcement.
         self.reserve_optional_message.assert_not_awaited()
         self.assertEqual([c.args for c in issue.await_args_list], [(1, 5), (2, 5)])

@@ -8,6 +8,7 @@ import {
   Flame,
   Hourglass,
   LifeBuoy,
+  Moon,
   Radio,
   Users as UsersIcon,
   Wallet,
@@ -336,6 +337,67 @@ function DailyUsersWidget({ daily }: { daily: Data }) {
   );
 }
 
+const WHY: [string, string][] = [
+  ["setup", "Не разобрался, как подключить"],
+  ["broken", "Не заработал"],
+  ["price", "Дорого"],
+  ["later", "Пока не нужен"],
+];
+
+function Bars({ rows }: { rows: [string, number][] }) {
+  const max = Math.max(1, ...rows.map(([, n]) => n));
+  return (
+    <ul className="adm-sleep-bars">
+      {rows.map(([label, n]) => (
+        <li key={label}>
+          <span>{label}</span>
+          <b>{n}</b>
+          <i style={{ width: `${(n / max) * 100}%` }} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** «Спящие»: never online, never paid, the bot no longer writes to them; who they are and «Что помешало?». */
+function SleepersWidget({ sleep }: { sleep: Data }) {
+  const navigate = useNavigate();
+  const why: Data = sleep?.why || {};
+  const answered = WHY.reduce((a, [k]) => a + Number(why[k] || 0), 0);
+  return (
+    <Widget title="Спящие" icon={<Moon />} tone="#8e8e93" action="Рассылки" onAction={() => navigate("broadcast")} className="adm-span3">
+      <div className="adm-sleep">
+        <div>
+          <b className="adm-sleep-n"><CountUp value={Number(sleep?.total || 0)} /></b>
+          <small>ни разу не подключались и не платили — бот им больше не пишет, рассылки только с новостями</small>
+          <p className="adm-sub">
+            до месяца {Number(sleep?.month || 0)} · 1–3 мес. {Number(sleep?.quarter || 0)} · дольше {Number(sleep?.older || 0)}
+          </p>
+          {Number(sleep?.cleaned || 0) > 0 && (
+            <p className="adm-sub">За 30 дней убрано из панели устройств без подключения: {Number(sleep.cleaned)}</p>
+          )}
+        </div>
+        <div>
+          <h4>Кто это</h4>
+          <Bars rows={[
+            ["Нет устройства", Number(sleep?.no_device || 0)],
+            ["Устройство без подключения", Number(sleep?.no_online || 0)],
+            ["Сказали «Пока не нужен»", Number(sleep?.said_later || 0)],
+          ]} />
+        </div>
+        <div>
+          <h4>Что помешало{answered ? ` · ${answered} ответ${answered % 10 === 1 && answered % 100 !== 11 ? "" : answered % 10 >= 2 && answered % 10 <= 4 && (answered % 100 < 10 || answered % 100 >= 20) ? "а" : "ов"}` : ""}</h4>
+          {answered ? (
+            <Bars rows={WHY.map(([k, label]) => [label, Number(why[k] || 0)] as [string, number])} />
+          ) : (
+            <p className="adm-sub">Ответов пока нет. Отправьте опрос «Что помешало?» в «Рассылках».</p>
+          )}
+        </div>
+      </div>
+    </Widget>
+  );
+}
+
 const AV = ["#ff6b6b", "#ff9f43", "#f7b731", "#2fb46a", "#3e88f7", "#5856d6", "#af52de", "#ff2d55"];
 export function Avatar({ row, size = 36 }: { row: Data; size?: number }) {
   const name = String(row.first_name || row.username || row.telegram_id || "?");
@@ -362,6 +424,7 @@ export function DashboardWidgets({ s }: { s: Data }) {
       {series.length > 0 ? <SignupsWidget series={series} users={s.users || {}} /> : <div className="adm-widget adm-skel" />}
       <PaySoonWidget pay={s.pay_soon || {}} />
       <DailyUsersWidget daily={s.daily_users || {}} />
+      <SleepersWidget sleep={s.sleepers || {}} />
     </div>
   );
 }

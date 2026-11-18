@@ -3212,6 +3212,7 @@ async def admin_stats() -> dict:
             "people": await admin_list_pay_soon(get_settings().vpn_day_price_rub),
         },
         "daily_users": await admin_daily_users(),
+        "sleepers": await admin_sleepers(),
         "funnel": await admin_funnel(),
         "onboarding_steps": await admin_onboarding_steps(),
         "cohort_outcomes": await admin_cohort_outcomes(),
@@ -4150,6 +4151,20 @@ async def mark_trial_end_nudge_sent(telegram_id: int) -> None:
     )
 
 
+# «Спящие»: never online and never paid, and the funnel had its three weeks — or they said «Пока не нужен».
+# A device added or a checkout started in the last week wakes them. Automatic messages skip them,
+# broadcasts too, except announcements, the «Спящие» audience and the «Что помешало?» survey.
+SLEEPER = """(u.first_online_at IS NULL AND NOT COALESCE(u.has_paid_topup, FALSE)
+    AND (COALESCE(u.sleep_at > NOW() - INTERVAL '90 days', FALSE)
+         OR COALESCE(u.bot_started_at, u.created_at) < NOW() - INTERVAL '21 days')
+    AND (u.checkout_started_at IS NULL OR u.checkout_started_at < NOW() - INTERVAL '7 days')
+    AND NOT EXISTS (SELECT 1 FROM devices sd WHERE sd.telegram_id = u.telegram_id
+                    AND sd.created_at > NOW() - INTERVAL '7 days'))"""
+_NEVER_ONLINE_DEVICE = """EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id AND COALESCE(d.kind,'') <> 'router')
+        AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id AND COALESCE(d.kind,'') <> 'router'
+            AND (d.last_online_at IS NOT NULL OR d.legacy_last_online_at IS NOT NULL
+                 OR COALESCE(d.lifetime_traffic_bytes,0) > 0 OR COALESCE(d.used_traffic_bytes,0) > 0))"""
+
 # Who a broadcast goes to. Each is a condition on users u; {price} is the day price of one device.
 _LIVE_DEVICE = "d.telegram_id = u.telegram_id AND COALESCE(d.kind,'') <> 'router'"
 _ACTIVE_DEVICES = f"(SELECT COUNT(*) FROM devices d WHERE {_LIVE_DEVICE} AND d.last_billed_at > NOW() - INTERVAL '24 hours')"
@@ -4172,6 +4187,13 @@ BROADCAST_SEGMENTS = {
     "no_browser": f"""EXISTS (SELECT 1 FROM devices d WHERE {_LIVE_DEVICE}
             AND d.last_online_at > timezone('utc', now()) - INTERVAL '30 days')
         AND NOT EXISTS (SELECT 1 FROM cabinet_tokens t WHERE t.telegram_id = u.telegram_id)""",
+    "sleepers": SLEEPER,
+    # «Что помешало?»: never used VPN, sleepers included — the survey is for them.
+    "why_nodevice": """u.first_online_at IS NULL AND NOT COALESCE(u.has_paid_topup, FALSE)
+        AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)""",
+    "why_offline": f"""u.first_online_at IS NULL AND NOT COALESCE(u.has_paid_topup, FALSE) AND {_NEVER_ONLINE_DEVICE}""",
+    # Announcements (big news): everyone, sleepers included.
+    "everyone": "TRUE",
     "low_balance": f"""NOT u.trial_waiting_connection AND u.billing_paused_at IS NULL
         AND {_ACTIVE_DEVICES} > 0
         AND COALESCE(u.balance_rub,0) < 3 * {{price}} * {_ACTIVE_DEVICES}
@@ -4180,10 +4202,17 @@ BROADCAST_SEGMENTS = {
 _REACHABLE = "u.blocked_at IS NULL AND u.quiet_notifications = FALSE"
 
 
+# Segments that reach sleepers; every other one leaves them out.
+WITH_SLEEPERS = {"sleepers", "why_nodevice", "why_offline", "everyone"}
+
+
 def _segment_sql(audience: str) -> str:
-    cond = BROADCAST_SEGMENTS.get(str(audience or "all").strip())
+    key = str(audience or "all").strip()
+    cond = BROADCAST_SEGMENTS.get(key)
     if cond is None:
         raise ValueError("Неизвестная аудитория")
+    if key not in WITH_SLEEPERS:
+        cond = f"({cond}) AND NOT {SLEEPER}"
     return cond.replace("{price}", "$1::int")
 
 
@@ -5984,6 +6013,8 @@ async def reserve_optional_message(telegram_id: int, kind: str, *, manual: bool 
                 if not allowed:
                     return None
                 return await conn.fetchval('INSERT INTO optional_message_slots (telegram_id,kind) VALUES ($1,$2) RETURNING id', telegram_id, kind)
+            if await conn.fetchval(f"SELECT EXISTS (SELECT 1 FROM users u WHERE u.telegram_id=$1 AND {SLEEPER})", telegram_id):
+                return None  # «Спящие»: the funnel is over for them
             allowed = await conn.fetchval('''SELECT
                 NOT EXISTS (SELECT 1 FROM users WHERE telegram_id=$1 AND marketing_pause_until > NOW())
                 AND
@@ -6215,3 +6246,61 @@ async def device_ips_recent(device_id: int) -> list[dict]:
 
 async def prune_device_ips(keep_days: int = 30) -> None:
     await _pool_req().execute("DELETE FROM device_ips WHERE last_seen < NOW() - ($1::int * INTERVAL '1 day')", int(keep_days))
+
+
+async def admin_sleepers() -> dict:
+    """«Спящие» for the dashboard: how many, who (no device / device never online / said «Пока не нужен»),
+    since when, and the answers to «Что помешало?»."""
+    pool = _pool_req()
+    row = await pool.fetchrow(
+        f"""SELECT COUNT(*)::int AS total,
+               COUNT(*) FILTER (WHERE u.sleep_at IS NOT NULL)::int AS said_later,
+               COUNT(*) FILTER (WHERE u.sleep_at IS NULL AND NOT EXISTS (
+                   SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id))::int AS no_device,
+               COUNT(*) FILTER (WHERE u.sleep_at IS NULL AND EXISTS (
+                   SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id))::int AS no_online,
+               COUNT(*) FILTER (WHERE COALESCE(u.bot_started_at, u.created_at) > NOW() - INTERVAL '30 days')::int AS month,
+               COUNT(*) FILTER (WHERE COALESCE(u.bot_started_at, u.created_at) <= NOW() - INTERVAL '30 days'
+                                  AND COALESCE(u.bot_started_at, u.created_at) > NOW() - INTERVAL '90 days')::int AS quarter,
+               COUNT(*) FILTER (WHERE COALESCE(u.bot_started_at, u.created_at) <= NOW() - INTERVAL '90 days')::int AS older
+           FROM users u WHERE u.blocked_at IS NULL AND u.bot_blocked_at IS NULL AND {SLEEPER}""")
+    answers = await pool.fetch("SELECT answer, COUNT(*)::int AS n FROM why_answers GROUP BY answer")
+    out = {k: int((row and row[k]) or 0) for k in ("total", "said_later", "no_device", "no_online", "month", "quarter", "older")}
+    out["why"] = {r["answer"]: int(r["n"]) for r in answers}
+    out["cleaned"] = int(await pool.fetchval(
+        "SELECT COUNT(*)::int FROM billing_events WHERE kind='device_delete' AND source='cleanup' "
+        "AND created_at > NOW() - INTERVAL '30 days'") or 0)
+    return out
+
+
+async def save_why_answer(telegram_id: int, answer: str) -> None:
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """INSERT INTO why_answers (telegram_id, answer) VALUES ($1, $2)
+                   ON CONFLICT (telegram_id) DO UPDATE SET answer = EXCLUDED.answer, created_at = NOW()""",
+                int(telegram_id), answer)
+            await conn.execute("UPDATE users SET sleep_at = CASE WHEN $2 THEN NOW() ELSE NULL END WHERE telegram_id=$1",
+                               int(telegram_id), answer == "later")
+
+
+async def never_online_devices(days: int, limit: int = 50) -> list[dict]:
+    """Devices that never carried traffic for `days` days since they were added (routers aside),
+    of people without an open ticket: the panel cleanup removes them."""
+    rows = await _pool_req().fetch(
+        """SELECT d.id, d.telegram_id, d.title, d.remnawave_id FROM devices d
+           WHERE d.created_at < NOW() - ($1::int * INTERVAL '1 day') AND COALESCE(d.kind,'') <> 'router'
+             AND d.last_online_at IS NULL AND d.legacy_last_online_at IS NULL AND d.first_online_at IS NULL
+             AND COALESCE(d.lifetime_traffic_bytes,0) = 0 AND COALESCE(d.used_traffic_bytes,0) = 0
+             AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id = d.telegram_id AND t.status <> 'closed')
+           ORDER BY d.created_at LIMIT $2""", int(days), int(limit))
+    return [dict(r) for r in rows]
+
+
+async def drop_never_online_device(device_id: int) -> dict | None:
+    """Delete the device row only if it still never went online (no exit survey: the person did not ask)."""
+    row = await _pool_req().fetchrow(
+        """DELETE FROM devices WHERE id=$1 AND last_online_at IS NULL AND legacy_last_online_at IS NULL
+             AND first_online_at IS NULL AND COALESCE(lifetime_traffic_bytes,0) = 0 AND COALESCE(used_traffic_bytes,0) = 0
+           RETURNING id, telegram_id, title""", int(device_id))
+    return dict(row) if row else None
