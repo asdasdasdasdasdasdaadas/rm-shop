@@ -2910,11 +2910,16 @@ def _pay_soon_sql(select: str) -> str:
                     AND COALESCE(u.balance_rub, 0) <= $1::int * dev.n
                 ) AS low_balance
             FROM users u
+            -- Only devices the VPN is on for right now: charged within the last day and not switched off.
+            -- Someone whose access ended days ago is not «about to run out» and stays out of the list.
             CROSS JOIN LATERAL (
-                SELECT COUNT(*)::int AS n
+                SELECT COUNT(*)::int AS n,
+                       BOOL_OR(d.last_online_at > timezone('utc', now()) - INTERVAL '3 days') AS used
                 FROM devices d
                 WHERE d.telegram_id = u.telegram_id
                   AND COALESCE(d.kind, '') <> 'router'
+                  AND UPPER(COALESCE(d.panel_status, '')) <> 'DISABLED'
+                  AND d.last_billed_at > timezone('utc', now()) - INTERVAL '24 hours'
             ) dev
             LEFT JOIN LATERAL (
                 SELECT t.amount, t.due_at
@@ -2925,6 +2930,8 @@ def _pay_soon_sql(select: str) -> str:
             WHERE u.first_online_at IS NOT NULL
               AND u.blocked_at IS NULL
               AND u.bot_blocked_at IS NULL
+              AND dev.n > 0
+              AND COALESCE(dev.used, FALSE)
         ) s
         WHERE s.low_balance OR s.trust_open
     """
@@ -2948,7 +2955,8 @@ def _pay_soon_person(row, price: int) -> dict:
 
 
 async def admin_pay_soon_counts(day_price: int) -> dict:
-    """Online users whose balance covers at most three days, or who have an open trust loan."""
+    """People using the VPN right now (on, charged today, online in the last 3 days) whose balance covers
+    at most three days, or who have an open trust loan."""
     price = max(1, int(day_price or 1))
     row = await _pool_req().fetchrow(
         _pay_soon_sql(
