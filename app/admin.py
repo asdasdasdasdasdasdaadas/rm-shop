@@ -243,6 +243,7 @@ async def api_statistics(request: web.Request) -> web.Response:
     try:
         data = await db.admin_statistics(int(request.query.get("days", "30")))
         data["invitation_card"] = await db.invitation_card_statistics(int(request.query.get("days", "30")))
+        data["blocks"] = await db.admin_block_report(int(request.query.get("days", "30")))
     except ValueError:
         return web.json_response({"ok": False, "error": "Выберите период: 7, 30, 90 или 365 дней"}, status=400)
     return web.json_response({"ok": True, **data})

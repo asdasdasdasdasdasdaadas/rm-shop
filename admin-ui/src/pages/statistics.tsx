@@ -210,6 +210,58 @@ function WeekdayPattern({ rows, metric, days, isMoney }: { rows: Data[]; metric:
     </Panel>
   );
 }
+/** «Когда блокируют бота»: exact blocks (Telegram tells the bot at that moment) by time since the first /start,
+ * by how far the person got, and by the last message the bot had sent them. */
+function BlocksPanel({ blocks }: { blocks?: Data }) {
+  const total = Number(blocks?.total || 0);
+  const share = (n: number) => (total ? Math.round((n / total) * 100) + "%" : "—");
+  const list = (rows: Data[], extra?: (r: Data) => string) => (
+    <ul className="space-y-2 text-sm">
+      {rows.map((r) => (
+        <li key={r.label} className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
+          <span className="min-w-0 break-words">{r.label}{extra ? <span className="text-muted-foreground">{extra(r)}</span> : null}</span>
+          <b className="tabular-nums">{number(r.n)} · {share(Number(r.n))}</b>
+          <i className="col-span-2 block h-1.5 rounded-full bg-rose-500/70" style={{ width: share(Number(r.n)) === "—" ? "0" : share(Number(r.n)) }} />
+        </li>
+      ))}
+    </ul>
+  );
+  return (
+    <Panel
+      title="Когда блокируют бота"
+      description="Точное время блокировки за выбранный период: Telegram сообщает боту в момент нажатия «Заблокировать». Считается с этого обновления, старые блокировки сюда не попадают."
+    >
+      {total ? (
+        <>
+          <div className="mb-4 text-sm text-muted-foreground">
+            Заблокировали: <b>{number(total)}</b> · из них в течение часа после сообщения бота:{" "}
+            <b>{number(blocks?.right_after)}</b> ({share(Number(blocks?.right_after || 0))}) · разблокировали потом:{" "}
+            <b>{number(blocks?.unblocked)}</b>
+          </div>
+          <div className="grid gap-6 md:grid-cols-3">
+            <div>
+              <h4 className="font-medium mb-3">Через сколько после первого запуска</h4>
+              {list(blocks?.timing || [])}
+            </div>
+            <div>
+              <h4 className="font-medium mb-3">До какого шага дошли</h4>
+              {list(blocks?.stages || [])}
+            </div>
+            <div>
+              <h4 className="font-medium mb-3">Последнее сообщение бота перед блокировкой</h4>
+              {list(blocks?.last || [], (r) => (Number(r.soon) ? ` · ${number(r.soon)} в течение часа` : ""))}
+            </div>
+          </div>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Пока ни одной точной блокировки. Данные появятся, когда кто-то заблокирует бота после этого обновления.
+        </p>
+      )}
+    </Panel>
+  );
+}
+
 export function StatisticsPage() {
   const navigate = useNavigate();
   const [days, setDays] = useHashParam("days", "30");
@@ -492,6 +544,7 @@ export function StatisticsPage() {
                 ]}
               />
             </Panel>
+            <BlocksPanel blocks={history.data?.blocks} />
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"

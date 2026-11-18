@@ -6355,3 +6355,99 @@ async def admin_activation(days: int = 14, min_mb: int = 1) -> dict:
     prev = [x for x in done if 7 < (today - date.fromisoformat(x["day"])).days <= 14]
     return {"week": rate(week), "prev": rate(prev), "days": [
         {**x, "pct": round(x["ok"] * 100 / x["new"]) if x["new"] else None} for x in series[-int(days):]]}
+
+
+BLOCK_STAGES = {
+    "channel": "Не прошёл подписку на канал",
+    "nodevice": "Нет устройства",
+    "device": "Устройство есть, VPN не подключался",
+    "used": "Пользовался VPN, не платил",
+    "paid": "Платил",
+}
+
+
+async def record_bot_block(telegram_id: int, at: datetime, *, channel_required: bool = False) -> bool:
+    """The person blocked the bot (Telegram said so at that moment). Keeps the exact time on the user,
+    and a snapshot: how far they got and the last message the bot had sent them. One open record a person."""
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            user = await conn.fetchrow(
+                """SELECT u.telegram_id, COALESCE(u.bot_started_at, u.created_at) AS started,
+                       CASE WHEN COALESCE(u.has_paid_topup, FALSE) THEN 'paid'
+                            WHEN u.first_online_at IS NOT NULL THEN 'used'
+                            WHEN EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id) THEN 'device'
+                            WHEN $2 AND NOT EXISTS (SELECT 1 FROM onboarding_events e
+                                 WHERE e.telegram_id = u.telegram_id AND e.stage = 'channel_passed') THEN 'channel'
+                            ELSE 'nodevice' END AS stage
+                   FROM users u WHERE u.telegram_id = $1 FOR UPDATE""", int(telegram_id), bool(channel_required))
+            if not user:
+                return False
+            await conn.execute("UPDATE users SET bot_blocked_at = $2 WHERE telegram_id = $1", int(telegram_id), at)
+            if await conn.fetchval("SELECT EXISTS (SELECT 1 FROM bot_blocks WHERE telegram_id=$1 AND unblocked_at IS NULL)",
+                                   int(telegram_id)):
+                return True
+            last = await conn.fetchrow(
+                """SELECT kind, title, created_at FROM message_log
+                   WHERE telegram_id = $1 AND status = 'sent' AND created_at <= $2
+                   ORDER BY created_at DESC LIMIT 1""", int(telegram_id), at)
+            started = user["started"]
+            since = None
+            if started is not None and not isinstance(started, str):
+                since = max(0, int((at - started).total_seconds()))
+            elif isinstance(started, str):
+                from app.remnawave import parse_dt
+                s = parse_dt(started)
+                since = max(0, int((at - s).total_seconds())) if s else None
+            await conn.execute(
+                """INSERT INTO bot_blocks (telegram_id, blocked_at, stage, since_start_sec, last_kind, last_title, last_sent_at)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+                int(telegram_id), at, user["stage"], since,
+                last["kind"] if last else None, (last["title"] if last else None) or None, last["created_at"] if last else None)
+    try:
+        await clawback_idle_referral(int(telegram_id))
+    except Exception:
+        logging.getLogger("rm-shop.db").debug("Clawback after block failed %s", telegram_id, exc_info=True)
+    return True
+
+
+async def record_bot_unblock(telegram_id: int, at: datetime) -> None:
+    await _pool_req().execute("UPDATE users SET bot_blocked_at = NULL WHERE telegram_id = $1", int(telegram_id))
+    await _pool_req().execute("UPDATE bot_blocks SET unblocked_at = $2 WHERE telegram_id = $1 AND unblocked_at IS NULL",
+                              int(telegram_id), at)
+
+
+async def admin_block_report(days: int = 30) -> dict:
+    """«Когда блокируют»: blocks of the period by time since the first /start, by stage,
+    and by the last message the bot had sent before."""
+    pool = _pool_req()
+    head = await pool.fetchrow(
+        """SELECT COUNT(*)::int AS total,
+               COUNT(*) FILTER (WHERE unblocked_at IS NOT NULL)::int AS unblocked,
+               COUNT(*) FILTER (WHERE since_start_sec < 600)::int AS m10,
+               COUNT(*) FILTER (WHERE since_start_sec >= 600 AND since_start_sec < 3600)::int AS h1,
+               COUNT(*) FILTER (WHERE since_start_sec >= 3600 AND since_start_sec < 86400)::int AS d1,
+               COUNT(*) FILTER (WHERE since_start_sec >= 86400 AND since_start_sec < 604800)::int AS w1,
+               COUNT(*) FILTER (WHERE since_start_sec >= 604800 OR since_start_sec IS NULL)::int AS later,
+               COUNT(*) FILTER (WHERE last_sent_at IS NOT NULL AND blocked_at - last_sent_at < INTERVAL '1 hour')::int AS right_after
+           FROM bot_blocks WHERE blocked_at > NOW() - ($1::int * INTERVAL '1 day')""", int(days))
+    stages = await pool.fetch(
+        """SELECT stage, COUNT(*)::int AS n FROM bot_blocks WHERE blocked_at > NOW() - ($1::int * INTERVAL '1 day')
+           GROUP BY stage ORDER BY n DESC""", int(days))
+    lasts = await pool.fetch(
+        """SELECT COALESCE(last_kind, '') AS kind, MAX(COALESCE(NULLIF(last_title, ''), last_kind, '')) AS title,
+                  COUNT(*)::int AS n,
+                  COUNT(*) FILTER (WHERE last_sent_at IS NOT NULL AND blocked_at - last_sent_at < INTERVAL '1 hour')::int AS soon
+           FROM bot_blocks WHERE blocked_at > NOW() - ($1::int * INTERVAL '1 day')
+           GROUP BY 1 ORDER BY n DESC LIMIT 10""", int(days))
+    total = int((head and head["total"]) or 0)
+    return {
+        "total": total,
+        "unblocked": int((head and head["unblocked"]) or 0),
+        "right_after": int((head and head["right_after"]) or 0),
+        "timing": [{"label": label, "n": int((head and head[key]) or 0)} for key, label in (
+            ("m10", "до 10 минут"), ("h1", "10 минут – час"), ("d1", "в первые сутки"),
+            ("w1", "в первую неделю"), ("later", "позже"))],
+        "stages": [{"stage": r["stage"], "label": BLOCK_STAGES.get(r["stage"], r["stage"]), "n": int(r["n"])} for r in stages],
+        "last": [{"kind": r["kind"], "label": (r["title"] or r["kind"]) or "Бот ничего не присылал сам",
+                  "n": int(r["n"]), "soon": int(r["soon"])} for r in lasts],
+    }

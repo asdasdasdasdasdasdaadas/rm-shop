@@ -361,9 +361,29 @@ async def verify_live_chat(value: str) -> None:
 @router.my_chat_member()
 async def on_bot_chat_member(event: ChatMemberUpdated) -> None:
     new = event.new_chat_member
+    if str(getattr(event.chat, "type", "") or "") == "private":
+        # A person blocked («kicked») or unblocked («member») the bot: Telegram tells us at that very moment.
+        await note_private_block(event)
+        return
     if str(getattr(new, "status", "") or "") not in {"administrator", "creator"}:
         return
     try:
         await remember_live_chat(event.chat)
     except Exception:
         logger.debug("Не удалось запомнить канал для живых событий", exc_info=True)
+
+
+async def note_private_block(event: ChatMemberUpdated) -> None:
+    status = str(getattr(event.new_chat_member, "status", "") or "")
+    at = event.date
+    if at.tzinfo is None:
+        from datetime import timezone as _tz
+        at = at.replace(tzinfo=_tz.utc)
+    try:
+        if status == "kicked":
+            settings = get_settings()
+            await db.record_bot_block(event.chat.id, at, channel_required=bool(getattr(settings, "required_channel_enabled", False)))
+        elif status == "member":
+            await db.record_bot_unblock(event.chat.id, at)
+    except Exception:
+        logger.exception("Не удалось записать блокировку бота %s", event.chat.id)

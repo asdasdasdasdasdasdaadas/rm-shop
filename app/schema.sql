@@ -1138,3 +1138,19 @@ CREATE TABLE IF NOT EXISTS why_answers (
     answer TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Exact blocks of the bot (Telegram's my_chat_member «kicked» in a private chat), with what the person had
+-- reached and the last message the bot had sent: «Когда блокируют» in the statistics.
+CREATE TABLE IF NOT EXISTS bot_blocks (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL,
+    blocked_at TIMESTAMPTZ NOT NULL,
+    unblocked_at TIMESTAMPTZ,
+    stage TEXT NOT NULL,
+    since_start_sec BIGINT,
+    last_kind TEXT,
+    last_title TEXT,
+    last_sent_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS bot_blocks_at_idx ON bot_blocks (blocked_at DESC);
+CREATE INDEX IF NOT EXISTS bot_blocks_tg_idx ON bot_blocks (telegram_id, blocked_at DESC);
