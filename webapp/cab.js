@@ -219,7 +219,8 @@
     { id: "happ", name: "Happ", icon: "/icons/happ.png", deep_link: "happ://add/{url}", platforms: ["ios", "macos", "appletv", "android", "androidtv", "windows"],
       stores: { ios: "https://apps.apple.com/app/id6504287215", macos: "https://apps.apple.com/app/id6504287215", appletv: "https://apps.apple.com/app/id6504287215",
         android: "https://play.google.com/store/apps/details?id=com.happproxy", androidtv: "https://play.google.com/store/apps/details?id=com.happproxy",
-        windows: "https://github.com/Happ-proxy/happ-desktop/releases" } },
+        windows: "https://github.com/Happ-proxy/happ-desktop/releases" },
+      direct: { android: "https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk" } },
     { id: "rabbithole", name: "RabbitHole", mark: "RH", icon: "/icons/rabbithole.png", deep_link: "rabbithole://add/{url}", platforms: ["ios", "macos", "appletv"],
       stores: { ios: "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629", macos: "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629",
         appletv: "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629" } },
@@ -283,7 +284,7 @@
     // The bridge page shows the app, a download button if it is not installed, the key to copy and the way back.
     const stores = (a && a.stores) || {};
     const q = new URLSearchParams({ to: deep, n: (a && a.name) || "", i: (a && a.icon) || "",
-      s: stores[detectPlatform()] || Object.values(stores)[0] || "", k: url,
+      s: stores[detectPlatform()] || Object.values(stores)[0] || "", d: ((a && a.direct) || {})[detectPlatform()] || "", k: url,
       b: String((me && me.bot_start_url) || "").split("?")[0] });
     tg.openLink(new URL("open.html", location.href).href + "?" + q.toString());
   }
@@ -1079,7 +1080,7 @@
       return hc("teal", { ill: appIcon(a, 92), h: `Установите ${esc(a.name)}`, p: `Бесплатно в ${storeName(wiz.platform, a)}. Уже стоит — жмите ✓`,
         x: '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>',
         pill: dl ? "Скачать" : "Готово, установлено", pa: dl ? 'data-act="store"' : 'data-act="create"', r: "chk", rl: "Приложение установлено", ra: 'data-act="create" id="wizOk"' }) +
-        guideRow(a) + appMore(list, a) +
+        apkRow(a) + guideRow(a) + appMore(list, a) +
         ST("Как это работает") +
         tl([["1", `Установите ${esc(a.name)}`, "займёт полминуты"], ["2", "Вернитесь сюда и нажмите ✓", "создадим ключ для этого устройства"],
           ["3", "Подключите в один тап", `${dayPrice()} ₽ в день, пока пользуетесь`]]) +
@@ -1091,6 +1092,14 @@
       if (cur && cur.el.querySelector(".atip")) store.set("alt_tip", 1);
     },
   };
+  // «Скачать APK напрямую»: the app's file straight from its site, for Android without Google Play
+  // or where the store does not open. Only when the app has a direct link for this platform.
+  function apkRow(a) {
+    const url = a && (a.direct || {})[wiz.platform];
+    return url ? `<button type="button" class="gde apk" data-act="apk"><span class="gi">${APK_IC}</span>
+      <span class="al"><b>Скачать APK напрямую</b><span>Если Google Play нет или не работает</span></span>${CV}</button>` : "";
+  }
+  const APK_IC = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>';
   // «Как установить»: the app's guide (article or video) from the admin settings; nothing when it is not set.
   function guideRow(a) {
     return a && a.guide ? `<button type="button" class="gde" data-act="guide" data-v="${esc(a.id)}"><span class="gi">${GUIDE_IC}</span>
@@ -2342,13 +2351,20 @@
         swap(el.querySelector(".hc .ill"), tmp.querySelector(".hc .ill"));
         ["H", "P"].forEach((c) => { const n = tmp.querySelector(`.hc .${c}`); if (n) n.classList.add("fx"); swap(el.querySelector(`.hc .${c}`), n); });
         swap(el.querySelector(".hc .acts"), tmp.querySelector(".hc .acts"));
-        const g = el.querySelector(".gde"), ng = tmp.querySelector(".gde");
-        if (ng) ng.classList.add("still");
-        if (g && ng) swap(g, ng); else if (g) g.remove(); else if (ng) { const w = el.querySelector(".altw"); if (w) w.before(ng); }
+        [".gde.apk", ".gde:not(.apk)"].forEach((sel) => {
+          const g = el.querySelector(sel), ng = tmp.querySelector(sel);
+          if (ng) ng.classList.add("still");
+          if (g && ng) swap(g, ng); else if (g) g.remove(); else if (ng) { const w = el.querySelector(sel === ".gde.apk" ? ".gde:not(.apk), .altw" : ".altw"); if (w) w.before(ng); }
+        });
         swap(el.querySelector(".alt"), tmp.querySelector(".alt"), true);
         const tl = el.querySelector(".tl"), ntl = tmp.querySelector(".tl");
         swap(tl && tl.parentNode, ntl && ntl.parentNode, true);
       }, alt ? 280 : 0);
+    },
+    apk() {
+      const a = appById(wiz.client);
+      const url = a && (a.direct || {})[wiz.platform];
+      if (url) { haptic(); tg.openLink(url); }
     },
     store() {
       const a = appById(wiz.client);

@@ -363,6 +363,8 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 .gde .al b { font-weight: 600; }
 .gde .al span { font-size: 13.5px; color: var(--hint); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gde .cv { margin-left: auto; }
+.gde.apk .gi { background: linear-gradient(160deg, #5fd87d, #2a9d4b); }
+.gde.apk + .gde { margin-top: 10px; }
 .gde + .altw .alt { margin-top: 10px; }
 .ava { display: flex; flex-shrink: 0; max-width: 220px; transition: max-width .4s var(--ease); }
 .ava > * { border: 2px solid var(--card); box-sizing: content-box; margin-left: -9px; transition: transform .35s var(--ease), opacity .3s; }

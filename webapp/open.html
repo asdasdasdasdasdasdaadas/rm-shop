@@ -76,6 +76,7 @@
   <div id="fail" hidden>
     <div class="acts">
       <a class="btn pri" id="store" hidden></a>
+      <a class="btn sec" id="direct" hidden>Скачать APK напрямую</a>
       <button class="btn sec" id="again" type="button"></button>
     </div>
     <div class="card">
@@ -109,7 +110,7 @@
   var name = String(q.n || "").slice(0, 40) || "приложение";
   var web = function (u) { return /^https:\/\//.test(u || "") ? u : ""; };
   var icon = /^(\/icons\/|\/static\/icons\/)[\w.-]+$/.test(q.i || "") ? q.i : web(q.i);
-  var store = web(q.s), key = web(q.k), back = /^https:\/\/t\.me\//.test(q.b || "") ? q.b : "";
+  var store = web(q.s), direct = web(q.d), key = web(q.k), back = /^https:\/\/t\.me\//.test(q.b || "") ? q.b : "";
   var where = /apps\.apple\.com/.test(store) ? "App Store" : /play\.google\.com/.test(store) ? "Google Play" : /github\.com/.test(store) ? "GitHub" : "";
 
   var hero = $("hero"), h = $("h"), p = $("p");
@@ -139,6 +140,7 @@
       s.lastChild.textContent = "Скачать " + (name === "приложение" ? "приложение" : name) + (where ? " · " + where : "");
       $("how").hidden = false;
     }
+    if (direct) { $("direct").href = direct; $("direct").hidden = false; }
     $("again").textContent = "Открыть ещё раз";
     if (!store) $("again").className = "btn pri";
     if (key && navigator.clipboard) $("copy").hidden = false;

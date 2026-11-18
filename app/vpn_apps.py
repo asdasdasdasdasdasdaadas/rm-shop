@@ -59,6 +59,8 @@ DEFAULT_VPN_APPS: list[dict[str, Any]] = [
             "androidtv": "https://play.google.com/store/apps/details?id=com.happproxy",
             "windows": "https://github.com/Happ-proxy/happ-desktop/releases",
         },
+        # The APK straight from Happ's GitHub releases: for phones without Google Play or where it does not open.
+        "direct": {"android": "https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk"},
     },
     {
         "id": "rabbithole",
@@ -190,6 +192,16 @@ def validate_vpn_apps(raw: Any) -> list[dict[str, Any]]:
             url = _clean_url(stores_raw.get(p))
             if url:
                 stores[p] = url
+        # A direct download besides the store (Happ's APK). A list saved before it existed has no «direct»:
+        # the built-in app's own link is used then.
+        direct_raw = item.get("direct")
+        if not isinstance(direct_raw, dict):
+            direct_raw = next((x.get("direct") or {} for x in DEFAULT_VPN_APPS if x["id"] == app_id), {})
+        direct = {}
+        for p in platforms:
+            url = _clean_url(direct_raw.get(p))
+            if url:
+                direct[p] = url
         out.append(
             {
                 "id": app_id,
@@ -199,6 +211,7 @@ def validate_vpn_apps(raw: Any) -> list[dict[str, Any]]:
                 "deep_link": deep,
                 "platforms": platforms,
                 "stores": stores,
+                **({"direct": direct} if direct else {}),
                 "guide": _clean_guide(item.get("guide"), app_id),
                 **({"hidden": True} if item.get("hidden") is True else {}),
             }
