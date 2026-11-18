@@ -5,6 +5,7 @@ import {
   ArrowRight,
   BadgeRussianRuble,
   CircleCheck,
+  Flame,
   Hourglass,
   LifeBuoy,
   Radio,
@@ -282,31 +283,54 @@ export const ago = (v: unknown) => {
   return Math.round(h / 24) + " дн назад";
 };
 
-function PaymentsWidget() {
+const WD = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+
+/** People who really use the VPN every day (online_days): the week as seven dots, streak and balance. */
+function DailyUsersWidget({ daily }: { daily: Data }) {
   const navigate = useNavigate();
-  const res = useResource("orders?status=granted&limit=6", 60000);
-  const rows: Data[] = res.data?.items || [];
+  const people: Data[] = daily?.people || [];
+  const labels = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - (6 - i));
+    return i === 6 ? "сег" : WD[d.getUTCDay()];
+  });
   return (
-    <Widget title="Последние оплаты" icon={<Wallet />} tone="#34aadc" action="Все платежи" onAction={() => navigate("orders")} className="adm-span2">
-      {!res.data ? (
-        <div className="adm-skel-rows">{[0, 1, 2, 3].map((i) => <i key={i} />)}</div>
-      ) : rows.length ? (
+    <Widget title="Пользуются каждый день" icon={<Flame />} tone="#ff9500" action="Все пользователи" onAction={() => navigate("users")} className="adm-span2">
+      <div className="adm-daily-k">
+        <div>
+          <b><CountUp value={Number(daily?.every_day || 0)} /></b>
+          <small>каждый день<br />за неделю</small>
+        </div>
+        <div>
+          <b><CountUp value={Number(daily?.most_days || 0)} /></b>
+          <small>5–6 дней<br />из 7</small>
+        </div>
+        <div>
+          <b><CountUp value={Number(daily?.today || 0)} /></b>
+          <small>были онлайн<br />сегодня</small>
+        </div>
+      </div>
+      {people.length ? (
         <ul className="adm-people adm-feed">
-          {rows.map((r) => (
-            <li key={r.order_id}>
-              <button type="button" onClick={() => navigate("users?q=" + r.telegram_id)}>
-                <Avatar row={r} />
+          {people.map((p) => (
+            <li key={p.telegram_id}>
+              <button type="button" onClick={() => navigate("users?q=" + p.telegram_id)}>
+                <Avatar row={p} />
                 <span className="adm-p-name">
-                  <b>{who(r)}</b>
-                  <small>{ago(r.paid_at || r.created_at)}</small>
+                  <b>{who(p)}</b>
+                  <small>{p.streak >= 2 ? `🔥 ${p.streak} ${p.streak % 10 === 1 && p.streak % 100 !== 11 ? "день" : p.streak % 10 >= 2 && p.streak % 10 <= 4 && (p.streak % 100 < 10 || p.streak % 100 >= 20) ? "дня" : "дней"} подряд` : `${p.week} из 7 дней`} · баланс {money(p.balance_rub)}</small>
                 </span>
-                <span className="adm-pay-sum">+{money(r.amount_rub)}</span>
+                <span className="adm-daily-w" aria-label={`Онлайн ${p.week} из 7 дней`}>
+                  {(p.days || []).map((on: boolean, i: number) => (
+                    <i key={i} className={on ? "on" : ""} title={labels[i]} />
+                  ))}
+                </span>
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <div className="adm-calm"><span>💸</span><b>Пока нет оплат</b><small>Здесь появятся последние пополнения</small></div>
+        <div className="adm-calm"><span>🌱</span><b>Пока никого</b><small>Здесь появятся те, кто включает VPN 5 дней из 7 и чаще</small></div>
       )}
     </Widget>
   );
@@ -337,7 +361,7 @@ export function DashboardWidgets({ s }: { s: Data }) {
       {series.length > 0 ? <RevenueWidget series={series} previous={stats.data?.previous} /> : <div className="adm-widget adm-span2 adm-skel" />}
       {series.length > 0 ? <SignupsWidget series={series} users={s.users || {}} /> : <div className="adm-widget adm-skel" />}
       <PaySoonWidget pay={s.pay_soon || {}} />
-      <PaymentsWidget />
+      <DailyUsersWidget daily={s.daily_users || {}} />
     </div>
   );
 }

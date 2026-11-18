@@ -45,5 +45,21 @@ class PaySoonTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await db.admin_pay_soon_counts(6))["total"], 1)
 
 
+    async def test_daily_users_week_streak_and_counts(self):
+        await self.pool.execute("""INSERT INTO users (telegram_id, first_name, balance_rub) VALUES
+            (1, 'Каждый день', 120), (2, 'Пять из семи', 40), (3, 'Иногда', 10)""")
+        today = "(timezone('utc', now()))::date"
+        await self.pool.execute(f"""INSERT INTO online_days (telegram_id, day)
+            SELECT 1, {today} - g FROM generate_series(0, 9) g
+            UNION ALL SELECT 2, {today} - g FROM generate_series(0, 6) g WHERE g NOT IN (2, 4)
+            UNION ALL SELECT 3, {today} - 1""")
+        got = await db.admin_daily_users()
+        self.assertEqual((got["every_day"], got["most_days"], got["today"]), (1, 1, 2))
+        first, second = got["people"]
+        self.assertEqual((first["telegram_id"], first["week"], first["streak"], first["days"]), (1, 7, 10, [True] * 7))
+        self.assertEqual((second["telegram_id"], second["week"], second["streak"]), (2, 5, 2))
+        self.assertEqual(second["days"], [True, True, False, True, False, True, True])
+
+
 if __name__ == "__main__":
     unittest.main()

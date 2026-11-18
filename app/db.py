@@ -2985,6 +2985,56 @@ async def admin_pay_soon_counts(day_price: int) -> dict:
     }
 
 
+async def admin_daily_users(limit: int = 6) -> dict:
+    """Who really uses the VPN every day, from online_days: 7 of the last 7 days, 5–6 of 7, online today,
+    and the steadiest people with their week, streak of days in a row and balance."""
+    from datetime import date as _date, timedelta as _td
+    rows = await _pool_req().fetch(
+        """
+        WITH d AS (
+            SELECT o.telegram_id, ARRAY_AGG(o.day ORDER BY o.day DESC) AS days,
+                   COUNT(*) FILTER (WHERE o.day > (timezone('utc', now()))::date - 7)::int AS week
+            FROM online_days o
+            WHERE o.day > (timezone('utc', now()))::date - 60
+            GROUP BY o.telegram_id
+        )
+        SELECT d.telegram_id, d.days, d.week, (timezone('utc', now()))::date AS today,
+               COALESCE(u.username, '') AS username, COALESCE(u.first_name, '') AS first_name,
+               COALESCE(u.balance_rub, 0)::int AS balance_rub
+        FROM d JOIN users u ON u.telegram_id = d.telegram_id
+        WHERE u.blocked_at IS NULL AND d.week >= 1
+        """
+    )
+    every = most = today_n = 0
+    people = []
+    for row in rows:
+        today = row["today"]
+        if isinstance(today, str):
+            today = _date.fromisoformat(today[:10])
+        days = {(_date.fromisoformat(str(x)[:10]) if not isinstance(x, _date) else x) for x in (row["days"] or [])}
+        week = int(row["week"] or 0)
+        if today in days:
+            today_n += 1
+        if week >= 7:
+            every += 1
+        elif week >= 5:
+            most += 1
+        if week < 5:
+            continue
+        # Days in a row up to today (or up to yesterday, if today has not shown up yet).
+        start = today if today in days else today - _td(days=1)
+        streak = 0
+        while start - _td(days=streak) in days:
+            streak += 1
+        people.append({
+            "telegram_id": int(row["telegram_id"]), "username": row["username"], "first_name": row["first_name"],
+            "balance_rub": int(row["balance_rub"] or 0), "week": week, "streak": streak,
+            "days": [today - _td(days=6 - i) in days for i in range(7)],
+        })
+    people.sort(key=lambda p: (-p["week"], -p["streak"], -p["balance_rub"], p["telegram_id"]))
+    return {"every_day": every, "most_days": most, "today": today_n, "people": people[:max(1, int(limit))]}
+
+
 async def admin_list_pay_soon(day_price: int) -> list[dict]:
     price = max(1, int(day_price or 1))
     rows = await _pool_req().fetch(
@@ -3161,6 +3211,7 @@ async def admin_stats() -> dict:
             **await admin_pay_soon_counts(get_settings().vpn_day_price_rub),
             "people": await admin_list_pay_soon(get_settings().vpn_day_price_rub),
         },
+        "daily_users": await admin_daily_users(),
         "funnel": await admin_funnel(),
         "onboarding_steps": await admin_onboarding_steps(),
         "cohort_outcomes": await admin_cohort_outcomes(),

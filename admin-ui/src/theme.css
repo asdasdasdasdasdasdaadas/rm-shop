@@ -184,6 +184,13 @@ tbody tr { border-color: var(--border); transition: background-color .15s; }
 .adm-p-val { display: flex; flex-direction: column; align-items: flex-end; }
 .adm-skel { min-height: 240px; background: linear-gradient(100deg, var(--card) 40%, var(--secondary) 50%, var(--card) 60%) 0 0 / 300% 100%; animation: admShim 1.4s linear infinite !important; }
 @keyframes admShim { to { background-position: -150% 0; } }
+.adm-daily-k { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+.adm-daily-k > div { background: var(--secondary); border-radius: 14px; padding: 10px 12px; }
+.adm-daily-k b { display: block; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+.adm-daily-k small { font-size: 12px; line-height: 1.25; color: var(--muted-foreground); }
+.adm-daily-w { display: flex; gap: 4px; flex-shrink: 0; }
+.adm-daily-w i { width: 10px; height: 10px; border-radius: 3px; background: var(--secondary); }
+.adm-daily-w i.on { background: #ff9500; }
 .adm-pay-sum { font-weight: 800; font-size: 15px; color: #1d7a45; white-space: nowrap; }
 :root[data-theme="dark"] .adm-pay-sum { color: var(--primary); }
 .adm-feed li { animation: admIn .45s cubic-bezier(.2,.8,.2,1) both; }
