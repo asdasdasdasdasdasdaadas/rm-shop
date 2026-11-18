@@ -376,6 +376,16 @@ async def api_cabinet_login_status(request: web.Request) -> web.Response:
     return empty
 
 
+async def _return_offer(telegram_id: int, local: dict | None) -> dict | None:
+    """«Возвращайтесь с бонусом» in the cabinet: the same banner and top-up badge as the first-payment bonus."""
+    from app import return_bonus
+    try:
+        return await return_bonus.offer(telegram_id, local)
+    except Exception:
+        logger.exception("Бонус за возвращение не прочитался %s", telegram_id)
+        return None
+
+
 def balance_runway(local: dict | None, raw_devices: list[dict], balance_rub: int) -> tuple[int, int]:
     """How long the balance lasts: (days, hours). Routers are paid separately and don't count."""
     price = max(1, get_settings().vpn_day_price_rub)
@@ -549,7 +559,7 @@ async def api_me(request: web.Request) -> web.Response:
             "friend_nft": await friend_nft.user_view(telegram_id),
             **ref_view,
             "has_paid_topup": bool((local or {}).get("has_paid_topup")),
-            "first_bonus": first_bonus.offer(local, balance_rub=balance_rub, hours_left=hours_left),
+            "first_bonus": first_bonus.offer(local, balance_rub=balance_rub, hours_left=hours_left) or await _return_offer(telegram_id, local),
             "first_online_at": (
                 local.get("first_online_at").isoformat()
                 if local and local.get("first_online_at") and hasattr(local.get("first_online_at"), "isoformat")

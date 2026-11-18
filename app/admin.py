@@ -585,6 +585,12 @@ def _ad_public(row: dict) -> dict:
         "users": int(row.get("users") or 0),
         "trial": int(row.get("trial") or 0),
         "paid": int(row.get("paid") or 0),
+        "connected": int(row.get("connected") or 0),
+        # Payback: what the placement cost against what its people paid.
+        "spend_rub": row.get("spend_rub"),
+        "revenue": int(row.get("revenue") or 0),
+        "payer_cost": round(int(row["spend_rub"]) / int(row["paid"])) if row.get("spend_rub") and row.get("paid") else None,
+        "user_cost": round(int(row["spend_rub"]) / int(row["users"])) if row.get("spend_rub") and row.get("users") else None,
         "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
         "archived": bool(row.get("archived_at")),
     }
@@ -658,6 +664,23 @@ async def api_ad_links(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": str(exc)}, status=400)
     item = _ad_public({**row, "users": 0, "trial": 0, "paid": 0, "clicks": int(row.get("clicks") or 0)})
     return web.json_response({"ok": True, "item": item})
+
+
+async def api_ad_link_spend(request: web.Request) -> web.Response:
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    try:
+        link_id = int(request.match_info["link_id"])
+        body = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "Ссылка не найдена"}, status=404)
+    raw = str(body.get("spend_rub") if body.get("spend_rub") is not None else "").strip().replace(" ", "")
+    if raw and (not raw.isdigit() or int(raw) > 100_000_000):
+        return web.json_response({"ok": False, "error": "Расход — целое число рублей"}, status=400)
+    if not await db.set_ad_link_spend(link_id, int(raw) if raw else None):
+        return web.json_response({"ok": False, "error": "Ссылка не найдена"}, status=404)
+    return web.json_response({"ok": True})
 
 
 async def api_ad_link_archive(request: web.Request) -> web.Response:
@@ -3219,6 +3242,7 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/ads", api_ad_links)
     app.router.add_post("/admin/api/ads", api_ad_links)
     app.router.add_post("/admin/api/ads/{link_id}/archive", api_ad_link_archive)
+    app.router.add_post("/admin/api/ads/{link_id}/spend", api_ad_link_spend)
     app.router.add_get("/admin/api/partners", api_partners)
     app.router.add_post("/admin/api/partners", api_partners)
     app.router.add_post("/admin/api/partners/{partner_id}/revoke", api_partner_revoke)

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { FriendNftPanel } from "./friend-nft";
-import { api, useResource, type Data } from "@/lib/api";
+import { api, money, useResource, type Data } from "@/lib/api";
 import {
   ActionButton,
   DataTable,
@@ -32,8 +32,11 @@ export function AdsPage() {
   const resource = useResource("ads"),
     [open, setOpen] = useState(false),
     [title, setTitle] = useState(""),
-    [slug, setSlug] = useState("");
+    [slug, setSlug] = useState(""),
+    [spendOf, setSpendOf] = useState<Data | null>(null),
+    [spend, setSpend] = useState("");
   const confirm = useConfirm();
+  const dash = <span className="text-muted-foreground">—</span>;
   return (
     <div className="space-y-5">
       <div className="flex justify-end">
@@ -69,6 +72,44 @@ export function AdsPage() {
               ),
             },
             { key: "paid", label: "Оплатили" },
+            {
+              key: "spend_rub",
+              label: <span title="Сколько стоило размещение. Нажмите, чтобы указать.">Расход</span>,
+              cell: (r) => (
+                <button
+                  type="button"
+                  className="underline decoration-dotted underline-offset-4 text-left"
+                  onClick={() => {
+                    setSpendOf(r);
+                    setSpend(r.spend_rub != null ? String(r.spend_rub) : "");
+                  }}
+                >
+                  {r.spend_rub != null ? money(r.spend_rub) : <span className="text-muted-foreground">указать</span>}
+                </button>
+              ),
+            },
+            {
+              key: "payer_cost",
+              label: <span title="Расход ÷ число оплативших">Цена платящего</span>,
+              cell: (r) => (r.payer_cost != null ? money(r.payer_cost) : dash),
+            },
+            {
+              key: "revenue",
+              label: (
+                <span title="Все пополнения людей, пришедших по ссылке, и сколько это от расхода. Зелёным — уже окупилась.">
+                  Выручка
+                </span>
+              ),
+              cell: (r) =>
+                r.revenue ? (
+                  <span className={r.spend_rub && r.revenue >= r.spend_rub ? "text-emerald-600 font-medium" : ""}>
+                    {money(r.revenue)}
+                    {r.spend_rub ? ` · ${Math.round((r.revenue / r.spend_rub) * 100)}%` : ""}
+                  </span>
+                ) : (
+                  dash
+                ),
+            },
             {
               key: "actions",
               label: "",
@@ -107,6 +148,35 @@ export function AdsPage() {
           ]}
         />
       )}
+      <Dialog open={!!spendOf} onOpenChange={(v) => !v && setSpendOf(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Расход на «{spendOf?.title}»</DialogTitle>
+            <DialogDescription>
+              Сколько вы заплатили за размещение. По нему считаются цена одного платящего и окупаемость.
+            </DialogDescription>
+          </DialogHeader>
+          <Field label="Расход, ₽" hint="Пусто — убрать расход.">
+            <Input
+              aria-label="Расход, ₽"
+              inputMode="numeric"
+              value={spend}
+              onChange={(e) => setSpend(e.target.value.replace(/\D/g, ""))}
+              placeholder="Например, 3000"
+            />
+          </Field>
+          <ActionButton
+            onAction={async () => {
+              await api(`ads/${spendOf?.id}/spend`, { spend_rub: spend });
+              setSpendOf(null);
+              toast.success("Расход сохранён");
+              await resource.reload();
+            }}
+          >
+            Сохранить
+          </ActionButton>
+        </DialogContent>
+      </Dialog>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

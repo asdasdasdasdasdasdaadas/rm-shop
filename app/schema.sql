@@ -838,6 +838,8 @@ CREATE TABLE IF NOT EXISTS ad_partners (
 );
 ALTER TABLE ad_links ADD COLUMN IF NOT EXISTS partner_id BIGINT REFERENCES ad_partners (id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS ad_links_partner_idx ON ad_links (partner_id) WHERE partner_id IS NOT NULL;
+-- What the placement cost, entered by hand: the admin shows the price of one payer and the payback.
+ALTER TABLE ad_links ADD COLUMN IF NOT EXISTS spend_rub INTEGER CHECK (spend_rub IS NULL OR spend_rub >= 0);
 -- Referral bonus for reaching the main menu. Existing rows get the epoch so
 -- old invitees are not paid retroactively; new rows start as NULL.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_menu_bonus_at TIMESTAMPTZ DEFAULT 'epoch';
@@ -1009,6 +1011,8 @@ CREATE TABLE IF NOT EXISTS funnel_experiments (
     stopped_at TIMESTAMPTZ
 );
 CREATE UNIQUE INDEX IF NOT EXISTS funnel_experiments_running_idx ON funnel_experiments(step_id) WHERE stopped_at IS NULL;
+-- «Возвращайтесь с бонусом»: arm B gets this percent instead of the one in the settings (app/return_bonus.py).
+ALTER TABLE funnel_experiments ADD COLUMN IF NOT EXISTS b_bonus_pct INTEGER CHECK (b_bonus_pct IS NULL OR b_bonus_pct BETWEEN 1 AND 100);
 -- Who was due the step while the test ran and which arm they got. Control is never sent the step.
 CREATE TABLE IF NOT EXISTS funnel_experiment_users (
     experiment_id BIGINT NOT NULL REFERENCES funnel_experiments(id) ON DELETE CASCADE,

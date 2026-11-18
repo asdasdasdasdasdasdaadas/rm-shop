@@ -107,7 +107,8 @@ function NewTest({
     [holdout, setHoldout] = useState("10"),
     [bPct, setBPct] = useState("50"),
     [text, setText] = useState(""),
-    [days, setDays] = useState("");
+    [days, setDays] = useState(""),
+    [bonus, setBonus] = useState("");
   const step = useMemo(() => steps.find((s) => s.id === stepId), [steps, stepId]);
   const hasB = Number(bPct) > 0;
   return (
@@ -141,10 +142,18 @@ function NewTest({
         <>
           <Field
             label="Текст варианта B"
-            hint="Пусто — текст как у A (если меняете только подарок). Можно {name}, {gift_days}, {price}, {min_topup}, HTML как в боте."
+            hint={`Пусто — текст как у A (если меняете только подарок или бонус). Можно {name}, {gift_days}, {price}, {min_topup}${step?.bonus ? ", {bonus_min}, {bonus_pct}, {bonus_until}" : ""}, HTML как в боте.`}
           >
             <Textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} />
           </Field>
+          {step?.bonus && (
+            <Field
+              label="Процент бонуса для B"
+              hint="Пусто — как в настройках. Например 10, чтобы проверить, хватит ли меньшего бонуса. Начисляется при пополнении тем, кто попал в B."
+            >
+              <Input inputMode="numeric" value={bonus} onChange={(e) => setBonus(e.target.value.replace(/\D/g, ""))} />
+            </Field>
+          )}
           {step?.gift && (
             <Field label="Дней в подарке для B" hint="Пусто — как у A (3 дня). От 1 до 14.">
               <Input inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))} />
@@ -165,6 +174,7 @@ function NewTest({
               b_pct: bPct,
               b_text: hasB ? text : "",
               b_gift_days: hasB && step?.gift ? days : "",
+              b_bonus_pct: hasB && step?.bonus ? bonus : "",
             });
             toast.success("Тест запущен");
             onDone();
@@ -269,7 +279,8 @@ export function ExperimentsPage() {
         (item.stopped_at ? ` по ${date(item.stopped_at)}` : "") +
         ` · контроль ${item.holdout_pct}%` +
         (item.b_pct ? ` · B ${item.b_pct}% остальных` : "") +
-        (item.b_gift_days ? ` · подарок B: ${item.b_gift_days} дн.` : "")
+        (item.b_gift_days ? ` · подарок B: ${item.b_gift_days} дн.` : "") +
+        (item.b_bonus_pct ? ` · бонус B: +${item.b_bonus_pct}%` : "")
       }
       action={
         item.running ? (

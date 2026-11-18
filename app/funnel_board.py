@@ -180,7 +180,8 @@ def validate_buttons(buttons):
 
 
 def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gift_id: int | None = None,
-           promise: bool = False, gift_days: int | None = None, bonus: tuple[int, int] | None = None):
+           promise: bool = False, gift_days: int | None = None, bonus: tuple[int, int] | None = None,
+           return_pct: int | None = None):
     from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
     from aiogram.types import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
@@ -248,6 +249,7 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
             t = return_bonus.terms()
             if t:
                 need, pct, _days = t
+                pct = return_pct or pct  # arm B of an A/B test may offer another percent
                 step = max(1, int(get_settings().balance_topup_step or 50))
                 amounts = [need, -(-(need + 100) // step) * step]
                 rows.append([screen(f"{a} ₽ → {a + return_bonus.bonus_rub(a, pct)} ₽", "topup", item, amount=a) for a in amounts])
@@ -756,7 +758,8 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                 ) for b in buttons]
             if step["id"] == RETURN_BONUS_STEP:
                 from app import return_bonus
-                filled = return_bonus.fill(body)
+                return_pct = int(exp["b_bonus_pct"]) if exp and arm == "b" and exp.get("b_bonus_pct") else None
+                filled = return_bonus.fill(body, pct=return_pct)
                 if filled is None:
                     continue  # the bonus is off: the step has nothing to offer
                 body = filled
@@ -768,7 +771,8 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                 bot, kind=kind, telegram_id=uid, first_name=row.get("first_name"),
                 title=CONDITION_IDS[step["condition"]]["label"],
                 body=body,
-                reply_markup=markup(buttons, uid, gift_id=gift_id, promise=promise, gift_days=gift_days, bonus=bonus), preserve=True,
+                reply_markup=markup(buttons, uid, gift_id=gift_id, promise=promise, gift_days=gift_days, bonus=bonus,
+                                    return_pct=return_pct if step["id"] == RETURN_BONUS_STEP else None), preserve=True,
                 extra={"step_id": step["id"], **({"gift_id": gift_id} if gift_id else {})},
             )
         except Exception:

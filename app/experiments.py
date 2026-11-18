@@ -74,7 +74,7 @@ def variant(step: dict, exp: dict | None, arm: str) -> tuple[str, int | None]:
 # ---------- admin ----------
 
 def testable_steps(graph: dict) -> list[dict]:
-    from app.funnel_board import CONDITION_IDS, GIFT_ACTION
+    from app.funnel_board import CONDITION_IDS, GIFT_ACTION, RETURN_BONUS_STEP
     steps = []
     for branch in graph.get("branches") or []:
         for n, step in enumerate(branch["steps"], 1):
@@ -85,6 +85,7 @@ def testable_steps(graph: dict) -> list[dict]:
             steps.append({
                 "id": step["id"], "branch": branch["title"], "n": n, "condition": spec.get("label") or step["condition"],
                 "wait_hours": step["wait_hours"], "text": step["text"], "gift": GIFT_ACTION in actions,
+                "bonus": step["id"] == RETURN_BONUS_STEP,
             })
     return steps
 
@@ -112,24 +113,29 @@ def check(body: dict, steps: dict[str, dict]) -> dict:
     days = whole("b_gift_days", *GIFT_DAYS_RANGE, "Дней в подарке") if days not in (None, "") else None
     if days and not step["gift"]:
         raise ValueError("В этом сообщении нет подарка — менять дни не на чем")
+    bonus = body.get("b_bonus_pct")
+    bonus = whole("b_bonus_pct", 1, 100, "Процент бонуса для B") if bonus not in (None, "") else None
+    if bonus and not step.get("bonus"):
+        raise ValueError("В этом сообщении нет бонуса — менять процент не на чем")
     if text:
         from app.funnel_board import render_text
         try:
             render_text(text, 1, "Имя")
         except Exception:
             raise ValueError("Текст варианта B не читается")
-        if text == step["text"].strip() and not days:
+        if text == step["text"].strip() and not days and not bonus:
             raise ValueError("Вариант B совпадает с A")
-    if b_pct and not text and not days:
+    if b_pct and not text and not days and not bonus:
         raise ValueError("Для варианта B напишите текст или измените подарок")
-    if not b_pct and (text or days):
+    if not b_pct and (text or days or bonus):
         raise ValueError("Укажите, какой доле отправлять вариант B")
     if not holdout and not b_pct:
         raise ValueError("Нечего сравнивать: задайте контрольную группу или вариант B")
     if b_pct == 100 and not holdout:
         pass  # «оставить B для всех»: B replaces A until stopped
     return {"step_id": step_id, "holdout_pct": holdout, "b_pct": b_pct,
-            "b_text": text or None, "b_gift_days": days, "note": str(body.get("note") or "").strip()[:200] or None}
+            "b_text": text or None, "b_gift_days": days, "b_bonus_pct": bonus,
+            "note": str(body.get("note") or "").strip()[:200] or None}
 
 
 async def create(clean: dict) -> int:
@@ -140,9 +146,10 @@ async def create(clean: dict) -> int:
             if busy:
                 raise ValueError("Для этого сообщения тест уже идёт — сначала остановите его")
             return int(await conn.fetchval(
-                """INSERT INTO funnel_experiments (step_id, holdout_pct, b_pct, b_text, b_gift_days, note)
-                   VALUES ($1,$2,$3,$4,$5,$6) RETURNING id""",
-                clean["step_id"], clean["holdout_pct"], clean["b_pct"], clean["b_text"], clean["b_gift_days"], clean["note"]))
+                """INSERT INTO funnel_experiments (step_id, holdout_pct, b_pct, b_text, b_gift_days, note, b_bonus_pct)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id""",
+                clean["step_id"], clean["holdout_pct"], clean["b_pct"], clean["b_text"], clean["b_gift_days"], clean["note"],
+                clean.get("b_bonus_pct")))
 
 
 async def stop(experiment_id: int) -> bool:

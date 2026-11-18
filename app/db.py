@@ -404,6 +404,11 @@ async def ensure_story_ad_link(
     return dict(row)
 
 
+async def set_ad_link_spend(link_id: int, spend_rub: int | None) -> bool:
+    return bool(await _pool_req().fetchval(
+        "UPDATE ad_links SET spend_rub = $2 WHERE id = $1 RETURNING id", int(link_id), spend_rub))
+
+
 async def archive_ad_link(link_id: int) -> bool:
     row = await _pool_req().fetchrow(
         """
@@ -435,7 +440,10 @@ async def list_ad_links(
             COUNT(u.telegram_id)::int AS users,
             COUNT(u.telegram_id) FILTER (WHERE u.trial_used)::int AS trial,
             COUNT(u.telegram_id) FILTER (WHERE u.first_online_at IS NOT NULL)::int AS connected,
-            COUNT(u.telegram_id) FILTER (WHERE COALESCE(u.has_paid_topup, FALSE))::int AS paid
+            COUNT(u.telegram_id) FILTER (WHERE COALESCE(u.has_paid_topup, FALSE))::int AS paid,
+            l.spend_rub,
+            COALESCE((SELECT SUM(r.amount) FROM payment_receipts r JOIN users x ON x.telegram_id = r.telegram_id
+                      WHERE x.ad_link_id = l.id), 0)::int AS revenue
         FROM ad_links l
         LEFT JOIN ad_partners p ON p.id = l.partner_id
         LEFT JOIN users u ON u.ad_link_id = l.id

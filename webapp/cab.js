@@ -482,6 +482,9 @@
   const FB = () => (me && me.first_bonus && Number(me.first_bonus.min_rub) > 0 ? me.first_bonus : null);
   const fbOk = (n) => { const f = FB(); return Boolean(f && amountOk(n) && n >= Number(f.min_rub)); };
   const fbPct = () => Number((FB() || {}).percent) || 0;
+  // The same offer also comes back as «Возвращайтесь с бонусом» (kind "return") for payers whose money ran out.
+  const fbRet = () => Boolean(FB() && FB().kind === "return");
+  const fbTo = () => (fbRet() ? "к пополнению" : "к первому пополнению");
   const fbRub = (n) => Math.floor((Number(n) || 0) * fbPct() / 100);
   let fbEnd = 0;
   function fbDeadline() {
@@ -568,7 +571,7 @@
     fbDeadline();
     const need = Number(f.min_rub);
     return `<button type="button" class="fbban" data-act="fbgo"><span class="fbrays2"></span><span class="fbgift"></span>` +
-      `<span class="fbpc">+${fbPct()}%</span><span class="fbsub">к первому пополнению от ${rub(need)}</span>` +
+      `<span class="fbpc">+${fbPct()}%</span><span class="fbsub">${fbTo()} от ${rub(need)}${fbRet() ? " · бонус за возвращение" : ""}</span>` +
       `${fbUnits()}<span class="pill fbbp"><span>Пополнить ${rub(need)} → ${rub(need + fbRub(need))}</span></span></button>`;
   }
   // One clock for every countdown on the page: re-renders replace the markup, the clock keeps going.
@@ -700,7 +703,8 @@
         pill: m ? `Оплатить ${rub(pay.amount)}` : "Оплата недоступна", pd: !m || !amountOk(pay.amount), pa: 'data-act="pay" id="payB"' }) +
         (m ? ST("Способ оплаты") + cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), esc(methodSub(m))) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
           payMethods().length > 1 ? 'data-go="method"' : ""]]) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
-        (fb ? NOTE(`🎁 +${fbPct()}% к первому пополнению от ${rub(fb.min_rub)} — пока не закончился подарок`, true) : "") +
+        (fb ? NOTE(fbRet() ? `🎁 Бонус за возвращение: +${fbPct()}% к пополнению от ${rub(fb.min_rub)} до ${esc(fb.until || "конца акции")}`
+          : `🎁 +${fbPct()}% к первому пополнению от ${rub(fb.min_rub)} — пока не закончился подарок`, true) : "") +
         NOTE(`Баланс ${rub(me.balance_rub)} · разовая оплата, без\u00a0автоплатежей`, true);
     },
     on(el) { fbPaint(el, true); },
@@ -989,7 +993,7 @@
     const bonus = pay.fbOn && delta > pay.amount ? delta - pay.amount : 0;
     countTo(N.firstChild, 0, bonus ? pay.amount : delta, " ₽", "+");
     if (bonus) {
-      h.querySelector(".P").insertAdjacentHTML("afterend", `<div class="fbdone"><span>🎁 Бонус за первую оплату</span><b>+${rub(bonus)}</b></div>`);
+      h.querySelector(".P").insertAdjacentHTML("afterend", `<div class="fbdone"><span>🎁 ${pay.fbRet ? "Бонус за возвращение" : "Бонус за первую оплату"}</span><b>+${rub(bonus)}</b></div>`);
       T(() => { const d = h.querySelector(".fbdone"); if (d) { d.classList.add("in"); fbBurst(d); } }, 900);
       pay.fbOn = false;
     }
@@ -2131,6 +2135,7 @@
     btn.classList.add("dim");
     try {
       pay.fbOn = fbOk(pay.amount);
+      pay.fbRet = fbRet();
       const inv = await post("/api/invoice", { plan: "b" + pay.amount, method: m.id });
       pay.base = Number(me.balance_rub) || 0;
       if (inv.pay_url) {

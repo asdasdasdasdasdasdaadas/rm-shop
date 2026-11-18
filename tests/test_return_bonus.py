@@ -93,6 +93,37 @@ class CreditTest(unittest.IsolatedAsyncioTestCase):
                                 return_bonus.STEP_ID)
         self.assertEqual((await self.order(2, "o4", 300))["return_bonus_rub"], 0)
 
+    async def test_cabinet_offer_and_ab_arms(self):
+        local = {"has_paid_topup": True}
+        self.assertIsNone(await return_bonus.offer(1, local))
+        await self.pool.execute("INSERT INTO funnel_step_sends (telegram_id, step_id, sent_at) VALUES (1, $1, NOW() - INTERVAL '1 day')",
+                                return_bonus.STEP_ID)
+        got = await return_bonus.offer(1, local)
+        self.assertEqual((got["kind"], got["min_rub"], got["percent"]), ("return", 200, 20))
+        self.assertTrue(140 <= got["hours_left"] <= 144)
+        # Arm B of an A/B test gets its own percent, in the cabinet and in the credit.
+        exp = await self.pool.fetchval("""INSERT INTO funnel_experiments (step_id, holdout_pct, b_pct, b_bonus_pct, started_at)
+            VALUES ($1, 10, 50, 10, NOW() - INTERVAL '2 days') RETURNING id""", return_bonus.STEP_ID)
+        await self.pool.execute("INSERT INTO funnel_experiment_users (experiment_id, telegram_id, arm) VALUES ($1, 1, 'b'), ($1, 2, 'control')", exp)
+        self.assertEqual((await return_bonus.offer(1, local))["percent"], 10)
+        self.assertEqual((await self.order(1, "o5", 300))["return_bonus_rub"], 30)
+        # The control group never saw the message: no bonus, nothing in the cabinet.
+        await self.pool.execute("INSERT INTO funnel_step_sends (telegram_id, step_id, sent_at) VALUES (2, $1, NOW() - INTERVAL '1 day')",
+                                return_bonus.STEP_ID)
+        self.assertIsNone(await return_bonus.offer(2, local))
+        self.assertEqual((await self.order(2, "o6", 300))["return_bonus_rub"], 0)
+
+
+class ExperimentFormTest(unittest.TestCase):
+    def test_bonus_percent_only_for_the_bonus_step(self):
+        from app import experiments
+        steps = {return_bonus.STEP_ID: {"id": return_bonus.STEP_ID, "text": "t", "gift": False, "bonus": True},
+                 "other": {"id": "other", "text": "t", "gift": False, "bonus": False}}
+        clean = experiments.check({"step_id": return_bonus.STEP_ID, "holdout_pct": "10", "b_pct": "50", "b_bonus_pct": "10"}, steps)
+        self.assertEqual(clean["b_bonus_pct"], 10)
+        with self.assertRaises(ValueError):
+            experiments.check({"step_id": "other", "b_pct": "50", "b_bonus_pct": "10"}, steps)
+
 
 if __name__ == "__main__":
     unittest.main()
