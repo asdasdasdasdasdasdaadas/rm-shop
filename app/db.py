@@ -2889,6 +2889,11 @@ async def admin_statistics(days: int = 30) -> dict:
 
 
 PAY_SOON_DAYS = 3
+# «Пользуется регулярно»: online within this many hours, first connected at least this many days ago,
+# and at least this much traffic in total — not someone who tried the gift once.
+PAY_SOON_ONLINE_HOURS = 24
+PAY_SOON_SINCE_DAYS = 3
+PAY_SOON_MIN_TRAFFIC = 100 * 1024 * 1024
 
 
 def _pay_soon_sql(select: str) -> str:
@@ -2914,7 +2919,7 @@ def _pay_soon_sql(select: str) -> str:
             -- Someone whose access ended days ago is not «about to run out» and stays out of the list.
             CROSS JOIN LATERAL (
                 SELECT COUNT(*)::int AS n,
-                       BOOL_OR(d.last_online_at > timezone('utc', now()) - INTERVAL '3 days') AS used
+                       BOOL_OR(d.last_online_at > timezone('utc', now()) - INTERVAL '{PAY_SOON_ONLINE_HOURS} hours') AS used
                 FROM devices d
                 WHERE d.telegram_id = u.telegram_id
                   AND COALESCE(d.kind, '') <> 'router'
@@ -2932,6 +2937,9 @@ def _pay_soon_sql(select: str) -> str:
               AND u.bot_blocked_at IS NULL
               AND dev.n > 0
               AND COALESCE(dev.used, FALSE)
+              AND u.first_online_at <= timezone('utc', now()) - INTERVAL '{PAY_SOON_SINCE_DAYS} days'
+              AND (SELECT COALESCE(SUM(GREATEST(COALESCE(d.lifetime_traffic_bytes, 0), COALESCE(d.used_traffic_bytes, 0))), 0)
+                   FROM devices d WHERE d.telegram_id = u.telegram_id) >= {PAY_SOON_MIN_TRAFFIC}
         ) s
         WHERE s.low_balance OR s.trust_open
     """
@@ -2955,8 +2963,8 @@ def _pay_soon_person(row, price: int) -> dict:
 
 
 async def admin_pay_soon_counts(day_price: int) -> dict:
-    """People using the VPN right now (on, charged today, online in the last 3 days) whose balance covers
-    at most three days, or who have an open trust loan."""
+    """People who use the VPN regularly (on and charged today, online in the last day, connected for 3+ days,
+    100+ MB of traffic) whose balance covers at most three days, or who have an open trust loan."""
     price = max(1, int(day_price or 1))
     row = await _pool_req().fetchrow(
         _pay_soon_sql(

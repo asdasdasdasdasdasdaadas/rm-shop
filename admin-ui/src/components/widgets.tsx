@@ -262,10 +262,10 @@ function PaySoonWidget({ pay }: { pay: Data }) {
         </ul>
       ) : null}
       {people.length > 0 && Number(pay?.total || 0) > people.length && (
-        <p className="adm-sub mt-2">И ещё {Number(pay.total) - people.length} — пользуются VPN, денег на 3 дня или меньше</p>
+        <p className="adm-sub mt-2">И ещё {Number(pay.total) - people.length} — пользуются VPN регулярно, денег на 3 дня или меньше</p>
       )}
       {!people.length && (
-        <div className="adm-calm"><span>✨</span><b>Никого</b><small>У всех, кто сейчас пользуется VPN, денег больше чем на 3 дня</small></div>
+        <div className="adm-calm"><span>✨</span><b>Никого</b><small>У всех, кто регулярно пользуется VPN, денег больше чем на 3 дня</small></div>
       )}
     </Widget>
   );
