@@ -256,6 +256,7 @@
     const used = usedApp(p);
     wiz.client = used || prefApp(p);
     wiz.has = Boolean(used) || wiz.client === "other";
+    wiz.went = false;
   }
   const platTitle = (id) => (PLATFORMS.find((p) => p.id === id) || { title: "Устройство" }).title;
   // Where the download link really leads: Karing on Windows ships from GitHub.
@@ -1077,6 +1078,20 @@
           pill: "Написать в поддержку", pa: 'data-act="support"' });
       }
       const dl = (a.stores || {})[wiz.platform];
+      if (dl && me && me.install_ab === "new") {
+        // A/B test (app/install_test.py), group B. Two steps on one card: install, then add the key. «Добавить» works from the start (the app may already be
+        // there); after «Скачать» step 1 is ticked and step 2 lights up, so coming back from the store shows what to press.
+        const went = Boolean(wiz.went), sn = storeName(wiz.platform, a);
+        const steps = `<div class="wsteps"><div class="wst ${went ? "ok" : "cur"}"><span class="wn">${went ? CHK(14) : "1"}</span>
+          <span class="wt"><b>Установите ${esc(a.name)}</b><span>${went ? `Открыли ${esc(sn)}` : "бесплатно, полминуты"}</span></span>
+          <button type="button" class="wsb${went ? " ghost" : ""}" data-act="store">${went ? "Ещё раз" : "Скачать"}</button></div>
+          <div class="wst${went ? " cur" : ""}"><span class="wn">2</span><span class="wt"><b>Добавьте ключ в ${esc(a.name)}</b>
+          <span>${went ? "Установили? Жмите кнопку ниже" : "Если уже стоит — жмите сразу"}</span></span></div></div>`;
+        return hc("teal", { cls: "wiz2s" + (went ? " went" : ""), ill: appIcon(a, 64), h: "Подключим за 2 шага", p: `${esc(a.name)} — бесплатно в ${esc(sn)}`, x: steps,
+          pill: `Добавить в ${esc(a.name)}`, pa: 'data-act="addkey" id="wizOk"' }) +
+          apkRow(a) + guideRow(a) + appMore(list, a) +
+          cd([[E(PLAT_EMO[wiz.platform] || "📱") + esc(platTitle(wiz.platform)) + V("Другое устройство " + CV), 'data-act="replat"']]);
+      }
       return hc("teal", { ill: appIcon(a, 92), h: `Установите ${esc(a.name)}`, p: `Бесплатно в ${storeName(wiz.platform, a)}. Уже стоит — жмите ✓`,
         x: '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>',
         pill: dl ? "Скачать" : "Готово, установлено", pa: dl ? 'data-act="store"' : 'data-act="create"', r: "chk", rl: "Приложение установлено", ra: 'data-act="create" id="wizOk"' }) +
@@ -2109,7 +2124,7 @@
     go("wiz3");
   }
   let creating = false;
-  async function createDevice(btn) {
+  async function createDevice(btn, opt = {}) {
     if (creating) return;
     creating = true;
     if (btn) btn.classList.add("dim");
@@ -2126,6 +2141,7 @@
       store.set("onboard", 1);
       await load(true).catch(() => {});
       notify("success");
+      if (opt.open) openClient(wiz.client, wiz.url);
       stack = [];
       go("wiz3", {}, "f");
       stack = [{ key: "home", params: {} }];
@@ -2340,6 +2356,7 @@
     client(b) {
       haptic();
       wiz.client = b.dataset.v;
+      wiz.went = false;
       const el = cur.el, alt = el.querySelector(".alt");
       if (alt) alt.classList.remove("on");
       // Swap the card in place: the icon pops in, texts fade, the list folds back with the new app checked.
@@ -2351,6 +2368,7 @@
         swap(el.querySelector(".hc .ill"), tmp.querySelector(".hc .ill"));
         ["H", "P"].forEach((c) => { const n = tmp.querySelector(`.hc .${c}`); if (n) n.classList.add("fx"); swap(el.querySelector(`.hc .${c}`), n); });
         swap(el.querySelector(".hc .acts"), tmp.querySelector(".hc .acts"));
+        swap(el.querySelector(".hc .wsteps"), tmp.querySelector(".hc .wsteps"), true);
         [".gde.apk", ".gde:not(.apk)"].forEach((sel) => {
           const g = el.querySelector(sel), ng = tmp.querySelector(sel);
           if (ng) ng.classList.add("still");
@@ -2369,9 +2387,11 @@
     store() {
       const a = appById(wiz.client);
       const url = a && (a.stores || {})[wiz.platform];
+      if (url && !wiz.went) { wiz.went = true; T(() => rerender(), 400); }
       if (url) { haptic(); tg.openLink(url); }
     },
     create: () => createDevice(cur.el.querySelector("#wizOk")),
+    addkey: () => createDevice(cur.el.querySelector("#wizOk"), { open: true }),
     connect: () => openClient(wiz.client, wiz.url),
     copykey: () => copy(wiz.url, "Ключ скопирован"),
     devopen() {

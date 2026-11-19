@@ -1154,3 +1154,18 @@ CREATE TABLE IF NOT EXISTS bot_blocks (
 );
 CREATE INDEX IF NOT EXISTS bot_blocks_at_idx ON bot_blocks (blocked_at DESC);
 CREATE INDEX IF NOT EXISTS bot_blocks_tg_idx ON bot_blocks (telegram_id, blocked_at DESC);
+
+-- A/B test of the cabinet's «install the app» step (app/install_test.py): one group per person per test.
+CREATE TABLE IF NOT EXISTS install_tests (
+    id BIGSERIAL PRIMARY KEY,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    stopped_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS install_arms (
+    test_id BIGINT NOT NULL REFERENCES install_tests(id) ON DELETE CASCADE,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    arm TEXT NOT NULL CHECK (arm IN ('old','new')),
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (test_id, telegram_id)
+);
+CREATE INDEX IF NOT EXISTS install_arms_test_idx ON install_arms(test_id, arm);

@@ -260,6 +260,82 @@ function AutoGiftTest() {
   );
 }
 
+// The cabinet's install step: half of those adding their first device see the two-step card.
+function InstallTest() {
+  const resource = useResource("install-test");
+  const confirm = useConfirm();
+  const data = resource.data;
+  const items: Data[] = data?.items || [];
+  const current = items.find((i) => i.running);
+  const shown = current || items[0];
+  const run = (action: "start" | "stop") =>
+    confirm({
+      title: action === "start" ? "Запустить тест шага установки?" : "Остановить тест шага установки?",
+      description:
+        action === "start"
+          ? "Половина тех, кто подключает первое устройство, увидит новый шаг: «Скачать» и «Добавить в приложение» на одной карточке. Вторая половина — как сейчас. Главное мерило — подключили VPN за сутки."
+          : "Все снова увидят шаг установки как сейчас. Результаты останутся здесь.",
+      label: action === "start" ? "Запустить" : "Остановить",
+      action: async () => {
+        await api("install-test", { action });
+        toast.success(action === "start" ? "Тест запущен" : "Тест остановлен");
+        await resource.reload();
+      },
+    });
+  return (
+    <Panel
+      title="Шаг «Установите приложение»: как сейчас или два шага на одной карточке"
+      description={
+        shown
+          ? `${shown.running ? "Идёт" : "Остановлен"} с ${date(shown.started_at)}` +
+            (shown.stopped_at ? ` по ${date(shown.stopped_at)}` : "") +
+            ` · в тест попадают те, у кого ещё нет устройства · ключи и оплаты за ${data?.window_days || 7} дней`
+          : "Половина новичков видит новый шаг установки, половина — как сейчас. Сравниваем, сколько подключили VPN за сутки."
+      }
+      action={
+        data ? (
+          <Button variant={current ? "outline" : "default"} onClick={() => run(current ? "stop" : "start")}>
+            {current ? "Остановить" : "Запустить тест"}
+          </Button>
+        ) : undefined
+      }
+    >
+      {resource.error ? (
+        <Failure message={resource.error} retry={resource.reload} />
+      ) : !data ? (
+        <Loading />
+      ) : !shown ? (
+        <p className="text-sm text-muted-foreground">Тест ещё не запускали.</p>
+      ) : (
+        <div className="space-y-3">
+          <DataTable
+            rows={shown.arms || []}
+            columns={[
+              { key: "label", label: "Группа" },
+              { key: "users", label: "Людей" },
+              { key: "device", label: "Создали ключ", cell: (r) => `${r.device} · ${pct(r.device_pct)}` },
+              {
+                key: "connected_day",
+                label: "Подключили за сутки",
+                cell: (r) => `${r.connected_day} из ${r.day_done} · ${pct(r.connected_day_pct)}`,
+              },
+              { key: "connected", label: "За неделю", cell: (r) => `${r.connected} · ${pct(r.connected_pct)}` },
+              { key: "payers", label: "Оплатили", cell: (r) => `${r.payers} · ${pct(r.conversion)}` },
+              { key: "rub", label: "Выручка", cell: (r) => money(r.rub) },
+            ]}
+          />
+          {(shown.verdicts || []).map((v: Data, i: number) => (
+            <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
+              <Badge variant={v.sure ? "default" : "secondary"}>{v.what}</Badge>
+              <span>{v.verdict}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 export function ExperimentsPage() {
   const resource = useResource("experiments"),
     [open, setOpen] = useState(false);
@@ -328,6 +404,7 @@ export function ExperimentsPage() {
           Новый тест
         </Button>
       </div>
+      <InstallTest />
       <AutoGiftTest />
       {resource.error ? (
         <Failure message={resource.error} retry={resource.reload} />

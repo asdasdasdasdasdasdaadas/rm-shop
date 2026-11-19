@@ -404,6 +404,16 @@ def balance_runway(local: dict | None, raw_devices: list[dict], balance_rub: int
     return hours_left // 24, hours_left
 
 
+async def _install_arm(telegram_id: int, has_devices: bool) -> str | None:
+    """Which install step the cabinet shows while its A/B test runs (app/install_test.py)."""
+    try:
+        from app import install_test
+        return await install_test.arm_for(telegram_id, has_devices)
+    except Exception:
+        logging.getLogger(__name__).exception("Тест шага установки: группа не определилась")
+        return None
+
+
 async def api_me(request: web.Request) -> web.Response:
     settings = get_settings()
     telegram_id, parsed = await _resolve_telegram_id(request)
@@ -599,6 +609,7 @@ async def api_me(request: web.Request) -> web.Response:
             "faq": faq_items(),
             "vpn_apps": public_vpn_apps(),
             "first_device_thanks_pending": bool((local or {}).get("first_device_thanks_pending")),
+            "install_ab": await _install_arm(telegram_id, bool(devices)),
         }
     )
 
@@ -647,6 +658,12 @@ async def api_onboarding_event(request: web.Request) -> web.Response:
     if not isinstance(stage, str) or stage not in {"cabinet", "gift_view", "wizard_1", "wizard_2", "wizard_3", "wizard_4"}:
         return json_error("Некорректное событие", 400)
     await db.record_onboarding_event(telegram_id, stage)
+    if stage == "wizard_2":
+        try:
+            from app import install_test
+            await install_test.enter(telegram_id)
+        except Exception:
+            logging.getLogger(__name__).exception("Тест шага установки: не записали группу %s", telegram_id)
     if stage in {"cabinet", "gift_view"}:
         from app.live import web_user_action
         await web_user_action(telegram_id, stage)

@@ -2311,6 +2311,30 @@ async def api_auto_gift(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **await auto_gift.overview()})
 
 
+async def api_install_test(request: web.Request) -> web.Response:
+    """A/B test of the cabinet's install step: results (GET), start or stop (POST {action})."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import install_test
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        action = (body or {}).get("action") if isinstance(body, dict) else None
+        if action == "start":
+            try:
+                await install_test.start()
+            except ValueError as exc:
+                return web.json_response({"ok": False, "error": str(exc)}, status=400)
+        elif action == "stop":
+            await install_test.stop()
+        else:
+            return web.json_response({"ok": False, "error": "Некорректный запрос"}, status=400)
+    return web.json_response({"ok": True, **await install_test.overview()})
+
+
 async def api_friend_nft(request: web.Request) -> web.Response:
     """«NFT-подарки за друзей»: config, issue queue and friend checks (GET); actions (POST {action})."""
     denied = _need_auth(request)
@@ -3314,6 +3338,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/experiments/{exp_id}/stop", api_experiment_stop)
     app.router.add_get("/admin/api/auto-gift", api_auto_gift)
     app.router.add_post("/admin/api/auto-gift", api_auto_gift)
+    app.router.add_get("/admin/api/install-test", api_install_test)
+    app.router.add_post("/admin/api/install-test", api_install_test)
     app.router.add_get("/admin/api/friend-nft", api_friend_nft)
     app.router.add_post("/admin/api/friend-nft", api_friend_nft)
     app.router.add_get("/admin/api/broadcast", api_broadcast)
