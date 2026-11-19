@@ -668,6 +668,20 @@
     })).catch(() => boxes.forEach((b) => { b.textContent = "⭐"; b.classList.add("fb"); }));
   };
   new MutationObserver(() => mountStars(document)).observe(document.getElementById("root"), { childList: true, subtree: true });
+  const mountLaptop = (root) => {
+    const boxes = [...root.querySelectorAll(".lapl:not([data-on])")];
+    if (!boxes.length) return;
+    boxes.forEach((b) => b.setAttribute("data-on", ""));
+    const still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    lottieLib().then((L) => boxes.forEach((b) => {
+      if (!b.isConnected) return;
+      const a = L.loadAnimation({ container: b, renderer: "svg", loop: true, autoplay: !still, path: "/icons/laptop.json?v=1",
+        rendererSettings: { preserveAspectRatio: "xMidYMid meet" } });
+      if (still) a.addEventListener("DOMLoaded", () => a.goToAndStop(90, true));
+      a.addEventListener("data_failed", () => { b.textContent = "💻"; b.classList.add("fb"); });
+    })).catch(() => boxes.forEach((b) => { b.textContent = "💻"; b.classList.add("fb"); }));
+  };
+  new MutationObserver(() => mountLaptop(document)).observe(document.getElementById("root"), { childList: true, subtree: true });
   const SBPBIG = (w) => `<div style="width:${w}px;height:${w}px;border-radius:${Math.round(w * .28)}px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(0,0,0,.25)"><img src="/icons/sbp.svg" width="${Math.round(w * .5)}" height="${Math.round(w * .58)}" alt=""></div>`;
   const CARDBIG = (w) => `<svg width="${w}" height="${Math.round(w * .72)}" viewBox="0 0 100 72"><rect x="2" y="2" width="96" height="68" rx="12" fill="#fff"/><rect x="2" y="16" width="96" height="12" fill="#2b3a66"/>` +
     `<rect x="12" y="40" width="22" height="16" rx="3" fill="#f2c14e"/><rect x="44" y="46" width="40" height="5" rx="2.5" fill="#c9cfdc"/></svg>`;
@@ -1171,6 +1185,8 @@
   const NAME_TIPS = ["Мой телефон", "Телефон мамы", "Рабочий", "Планшет сына", "Телевизор"];
   const NAME_MAX = 32;
   const devIcon = (d) => (d && d.icon) || PLAT_EMO[(d && d.platform) || ""] || "📱";
+  // The device card's big picture: computers get the animated laptop (icons/laptop.json, LottieFiles «Laptop» by TheSub).
+  const devBig = (d) => (!(d && d.icon) && ["macos", "windows"].includes((d && d.platform) || "") ? '<div class="lapl"></div>' : devIcon(d));
   function seenLine(d) {
     const on = parseDate(d.online_at);
     if (!d.active) return "неактивно";
@@ -1319,7 +1335,7 @@
       if (!d) return hc("slate", { ill: "📱", h: "Устройство удалено", pill: "На главную", pa: 'data-act="home"' });
       const a = devApp(d) || appById("happ");
       const fresh = d.active && d.connected === false;
-      return hc("teal", { rb: !d.active ? "пауза" : fresh ? "ждёт" : "онлайн", ill: devIcon(d), h: esc(d.title || "Устройство"),
+      return hc("teal", { rb: !d.active ? "пауза" : fresh ? "ждёт" : "онлайн", ill: devBig(d), h: esc(d.title || "Устройство"),
         p: !d.active ? "Неактивно — пополните баланс" : fresh ? `Ключ готов — добавьте его в ${esc((a && a.name) || "приложение")} и включите VPN`
           : `Активно · ${dayPrice()} ₽ в день`,
         ...(a && a.id === "other" ? { pill: "Скопировать ключ", pa: 'data-act="devcopy"' }
