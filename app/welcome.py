@@ -11,7 +11,7 @@ from aiogram.types import LinkPreviewOptions, Message
 
 from app import db
 from app.config import get_settings
-from app.keyboards import channel_keyboard, legal_text, onboarding_keyboard
+from app.keyboards import channel_keyboard, onboarding_keyboard
 from app.notices import notice_text
 from app.referrals import trial_is_available
 from app.texts import days_text
@@ -130,10 +130,24 @@ async def send_welcome_intro(
         return False
 
 
+def _footer(settings, *, after_gift: bool) -> str:
+    """The price and the legal notice as one small line under the gift, so the button stays the main thing."""
+    from html import escape
+    bits = []
+    if getattr(settings, "welcome_tariff_enabled", True):
+        price = max(1, int(getattr(settings, "vpn_day_price_rub", 6) or 6))
+        bits.append(f"{price} ₽ в день за устройство{' после подарка' if after_gift else ''} · без подписки")
+    offer = escape(str(getattr(settings, "legal_offer_url", "") or ""), quote=True)
+    privacy = escape(str(getattr(settings, "legal_privacy_url", "") or ""), quote=True)
+    legal = f'продолжая, вы принимаете <a href="{offer}">оферту</a> и <a href="{privacy}">политику конфиденциальности</a>'
+    bits.append(legal if bits else legal[0].upper() + legal[1:])
+    return "<i>" + " · ".join(bits) + "</i>"
+
+
 async def send_welcome_continuation(message: Message, telegram_id: int, *, in_channel: bool,
                                     first_name: str | None = None) -> str:
-    """The one welcome message: hello and the gift (or «уже на балансе»), price, legal, and two buttons —
-    take the gift and connect, or ask for help. Without the required channel, the channel step instead."""
+    """The one welcome message: hello and the gift (or «уже на балансе»), one small line with the price and the
+    legal notice, and one button — take the gift and connect. Without the required channel, the channel step instead."""
     settings = get_settings()
     in_channel = in_channel or not settings.required_channel_enabled
     granted = None
@@ -151,9 +165,6 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
         parts = [notice_text("welcome_intro_hi", name=name, days=days)]
     else:
         parts = [notice_text("welcome_intro_hi_plain", name=name), notice_text("welcome_intro_try_no_trial")]
-    if getattr(settings, "welcome_tariff_enabled", True):
-        from app.keyboards import tariff_block
-        parts.append(tariff_block(referral=False))
     referral_bonus = bool(settings.referral_program_enabled and local.get("referred_by")
                           and not local.get("referral_menu_bonus_at"))
     if referral_bonus:
@@ -166,12 +177,12 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
         first = kb.inline_keyboard[0][0].model_copy(update={
             "text": "🎁 Забрать подарок и подключиться" if trial_on and granted is None else "Подключить VPN",
             "style": "success"})
-        rows = [[first], *kb.inline_keyboard[1:]]
+        rows = [[first]]  # one action: help is a tap away inside the cabinet
         if referral_bonus:
             from aiogram.types import InlineKeyboardButton
             rows.append([InlineKeyboardButton(text="Главное меню", callback_data="profile")])
         kb = kb.model_copy(update={"inline_keyboard": rows})
-    parts.append(legal_text())
+    parts.append(_footer(settings, after_gift=trial_on or granted is not None))
     text = "\n\n".join(p for p in parts if p)
     await answer_funnel(message, text, reply_markup=kb, preserve=in_channel,
                         link_preview_options=LinkPreviewOptions(is_disabled=True))

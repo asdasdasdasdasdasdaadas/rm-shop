@@ -18,7 +18,7 @@ class WelcomeOneMessageTest(unittest.IsolatedAsyncioTestCase):
         message = SimpleNamespace(bot=object(), from_user=SimpleNamespace(id=1, first_name="Иван"),
                                   chat=SimpleNamespace(id=1), answer=AsyncMock())
         with ExitStack() as stack:
-            stack.enter_context(patch.object(welcome, "get_settings", return_value=settings(**kw)))
+            stack.enter_context(patch.object(welcome, "get_settings", return_value=settings(legal_offer_url="o", legal_privacy_url="p", **kw)))
             stack.enter_context(patch.object(keyboards, "get_settings", return_value=settings(
                 webapp_public_url="", required_channel_url="https://t.me/ch", legal_offer_url="o", legal_privacy_url="p", **kw)))
             stack.enter_context(patch.object(keyboards, "mini_app_url", return_value=""))
@@ -38,18 +38,20 @@ class WelcomeOneMessageTest(unittest.IsolatedAsyncioTestCase):
     def texts(self, kb):
         return [b.text for row in kb.inline_keyboard for b in row]
 
-    async def test_one_message_with_gift_price_and_two_buttons(self):
+    async def test_one_message_with_gift_small_print_and_one_button(self):
         text, kb = await self.run_intro()
         self.assertIn("Иван", text)
         self.assertIn("Дарим 3 дня VPN", text)
-        self.assertIn("6 ₽ в день", text)
-        self.assertIn("оферт", text)
+        small = text.split("\n\n")[-1]  # price and legal fold into one small last line
+        self.assertTrue(small.startswith("<i>6 ₽ в день за устройство после подарка · без подписки · продолжая"))
+        self.assertIn('<a href="o">оферту</a>', small)
         self.assertNotIn("Позовите друга", text)
-        self.assertEqual(self.texts(kb), ["🎁 Забрать подарок и подключиться", "Нужна помощь"])
+        self.assertEqual(self.texts(kb), ["🎁 Забрать подарок и подключиться"])
 
     async def test_price_line_can_be_switched_off(self):
         text, _ = await self.run_intro(welcome_tariff_enabled=False)
         self.assertNotIn("6 ₽ в день", text)
+        self.assertIn("<i>Продолжая, вы принимаете", text)
 
     async def test_auto_gift_group_sees_it_credited(self):
         text, kb = await self.run_intro(granted=18)
@@ -64,7 +66,8 @@ class WelcomeOneMessageTest(unittest.IsolatedAsyncioTestCase):
     async def test_required_channel_asks_to_subscribe(self):
         from app import keyboards
         message = SimpleNamespace(answer=AsyncMock())
-        with patch.object(welcome, "get_settings", return_value=settings(required_channel_enabled=True)), \
+        with patch.object(welcome, "get_settings", return_value=settings(required_channel_enabled=True,
+                                                                        legal_offer_url="o", legal_privacy_url="p")), \
                 patch.object(keyboards, "get_settings", return_value=settings(
                     required_channel_url="https://t.me/ch", legal_offer_url="o", legal_privacy_url="p")), \
                 patch.object(keyboards, "mini_app_url", return_value=""), \

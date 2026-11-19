@@ -112,11 +112,10 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                 stack.enter_context(patch.object(welcome, 'get_settings', return_value=SimpleNamespace(
                     brand_name='VPN', referral_invitee_reward_rub=0, referral_program_enabled=False,
                     balance_enabled=False, trial_enabled=False, trial_days=0, required_channel_enabled=False,
-                    welcome_tariff_enabled=False)))
+                    welcome_tariff_enabled=False, legal_offer_url='o', legal_privacy_url='p')))
                 stack.enter_context(patch.object(welcome.logger, 'warning'))
                 stack.enter_context(patch.object(welcome, 'trial_is_available', return_value=False))
                 stack.enter_context(patch.object(welcome, 'notice_text', return_value='Hello'))
-                stack.enter_context(patch.object(welcome, 'legal_text', return_value='Legal links'))
                 keyboard = stack.enter_context(patch.object(welcome, 'onboarding_keyboard', return_value=InlineKeyboardMarkup(
                     inline_keyboard=[[InlineKeyboardButton(text='Подключить VPN', callback_data='help:connect')]])))
                 for name in ('send_welcome_sticker', '_pause', '_log'):
@@ -134,7 +133,7 @@ class WelcomeDeliveryTest(unittest.IsolatedAsyncioTestCase):
                     # One welcome message: hello, the offer and the legal note together.
                     db.mark_legal_notice.assert_awaited_once_with(123)
                     keyboard.assert_called_once()
-                    self.assertIn('Legal links', message.answer.call_args.args[0])
+                    self.assertIn('<a href="o">оферту</a>', message.answer.call_args.args[0])
                     self.assertTrue(message.answer.call_args.kwargs['link_preview_options'].is_disabled)
 
 
