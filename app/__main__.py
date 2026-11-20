@@ -212,6 +212,8 @@ async def main() -> None:
         watch_task = asyncio.create_task(balance_watch_loop(rw, bot), name="balance-watch")
         from app.stuck_alert import stuck_alert_loop
         stuck_task = asyncio.create_task(stuck_alert_loop(bot, rw), name="stuck-alert")
+        from app.tg_ads import tg_ads_loop
+        tg_ads_task = asyncio.create_task(tg_ads_loop(), name="tg-ads")
         from app.sharing_alert import sharing_loop
         sharing_task = asyncio.create_task(sharing_loop(rw, bot), name="sharing-alert")
         from app.sleepers import cleanup_loop
@@ -240,6 +242,7 @@ async def main() -> None:
             watch_task.cancel()
             stuck_task.cancel()
             sharing_task.cancel()
+            tg_ads_task.cancel()
             cleanup_task.cancel()
             friend_nft_task.cancel()
     finally:

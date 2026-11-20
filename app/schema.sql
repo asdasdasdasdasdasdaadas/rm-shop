@@ -1174,3 +1174,23 @@ CREATE INDEX IF NOT EXISTS install_arms_test_idx ON install_arms(test_id, arm);
 -- to bring the balance to −100 000 ₽, so «Разблокировать» can give exactly that back.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS sharing_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS sharing_penalty_rub INTEGER;
+
+-- Telegram Ads (app/tg_ads.py): one row per ad of the account, tied to an ad link by the start=ad_<slug> of its URL.
+CREATE TABLE IF NOT EXISTS tg_ads (
+    ad_id BIGINT PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT '',
+    promote_url TEXT NOT NULL DEFAULT '',
+    slug TEXT,
+    ad_link_id BIGINT REFERENCES ad_links (id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT '',
+    currency TEXT NOT NULL DEFAULT 'TON',
+    cpm NUMERIC NOT NULL DEFAULT 0,
+    spent NUMERIC NOT NULL DEFAULT 0,
+    spent_rub INTEGER,
+    views INTEGER NOT NULL DEFAULT 0,
+    clicks INTEGER NOT NULL DEFAULT 0,
+    actions INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ,
+    synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS tg_ads_link_idx ON tg_ads (ad_link_id) WHERE ad_link_id IS NOT NULL;

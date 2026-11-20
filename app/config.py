@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     ton_wallet: str = "UQBuU8RCIxH121MjJofAC2xyvn-7pr2LmdqIiO5d_xVkkGgT"
     ton_rate_margin_pct: float = 1.0
     toncenter_api_key: str = ""
+    tg_ads_token: str = ""
+    tg_ads_rub_rate: int = 0
 
     balance_enabled: bool = True
     vpn_day_price_rub: int = 6
@@ -353,6 +355,7 @@ SHOP_KEYS = frozenset(
         "sharing_penalty_enabled",
         "sharing_penalty_balance_rub",
         "sharing_notify_user",
+        "tg_ads_rub_rate",
         "no_traffic_alert_enabled",
         "no_traffic_alert_min_mb",
         "no_traffic_alert_after_minutes",

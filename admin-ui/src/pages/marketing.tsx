@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FriendNftPanel } from "./friend-nft";
 import { api, money, useResource, type Data } from "@/lib/api";
+import { saveSettingsPatchWith } from "@/lib/contracts.mjs";
 import {
   ActionButton,
   DataTable,
@@ -45,6 +46,7 @@ export function AdsPage() {
           Создать рекламную ссылку
         </Button>
       </div>
+      <TgAdsPanel onChange={resource.reload} />
       <PartnersPanel onChange={resource.reload} />
       {resource.error ? (
         <Failure message={resource.error} retry={resource.reload} />
@@ -59,6 +61,21 @@ export function AdsPage() {
               key: "partner",
               label: "Рекламодатель",
               cell: (r) => r.partner || <span className="text-muted-foreground">—</span>,
+            },
+            {
+              key: "tg",
+              label: (
+                <span title="Из Telegram Ads по объявлениям с этой ссылкой: показы, клики и CTR">Telegram Ads</span>
+              ),
+              cell: (r) =>
+                r.tg ? (
+                  <span className="whitespace-nowrap tabular-nums">
+                    {Number(r.tg.views).toLocaleString("ru-RU")} показов · {Number(r.tg.clicks).toLocaleString("ru-RU")} кликов
+                    {r.tg.ctr != null ? ` · ${String(r.tg.ctr).replace(".", ",")}%` : ""}
+                  </span>
+                ) : (
+                  dash
+                ),
             },
             { key: "clicks", label: "Переходы" },
             { key: "users", label: "Пользователи" },
@@ -81,10 +98,16 @@ export function AdsPage() {
                   className="underline decoration-dotted underline-offset-4 text-left"
                   onClick={() => {
                     setSpendOf(r);
-                    setSpend(r.spend_rub != null ? String(r.spend_rub) : "");
+                    setSpend(r.spend_manual != null ? String(r.spend_manual) : "");
                   }}
                 >
                   {r.spend_rub != null ? money(r.spend_rub) : <span className="text-muted-foreground">указать</span>}
+                  {r.tg?.spent != null && (
+                    <span className="block text-xs text-muted-foreground">
+                      {r.spend_auto ? "Telegram Ads: " : "в Telegram Ads: "}
+                      {Number(r.tg.spent).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} {r.tg.currency}
+                    </span>
+                  )}
                 </button>
               ),
             },
@@ -153,7 +176,8 @@ export function AdsPage() {
           <DialogHeader>
             <DialogTitle>Расход на «{spendOf?.title}»</DialogTitle>
             <DialogDescription>
-              Сколько вы заплатили за размещение. По нему считаются цена одного платящего и окупаемость.
+              Сколько вы заплатили за размещение. По нему считаются цена одного платящего и окупаемость. Для ссылок из
+              Telegram Ads расход подставляется сам — указывайте, только если хотите его заменить.
             </DialogDescription>
           </DialogHeader>
           <Field label="Расход, ₽" hint="Пусто — убрать расход.">
@@ -219,6 +243,114 @@ export function AdsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+// Telegram Ads: the account's ads, synced every 30 minutes; ads are tied to links by start=ad_<code>.
+function TgAdsPanel({ onChange }: { onChange: () => void }) {
+  const resource = useResource("tg-ads");
+  const settings = useResource("settings");
+  const [rate, setRate] = useState<string | null>(null);
+  const d = resource.data;
+  if (!d) return null;
+  const r: Data = d.report || {};
+  const unmatched: Data[] = d.unmatched || [];
+  const rateValue = rate ?? String(settings.data?.values?.tg_ads_rub_rate || "");
+  const num = (v: unknown) => Number(v || 0).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+  return (
+    <Panel
+      title="Telegram Ads"
+      description={
+        d.configured
+          ? "Объявления кабинета подтягиваются раз в 30 минут и привязываются к ссылкам ниже по коду start=ad_… — расход, показы и клики видны рядом с оплатами."
+          : "Чтобы подтянуть статистику, получите токен в настройках кабинета Telegram Ads, добавьте в .env на сервере строку TG_ADS_TOKEN=… и перезапустите бота."
+      }
+    >
+      {d.configured && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            {r.ok ? (
+              <>
+                <span>
+                  Объявлений: <b>{r.ads ?? 0}</b> · привязано к ссылкам: <b>{r.matched ?? 0}</b>
+                </span>
+                {r.remaining != null && (
+                  <span>
+                    Остаток: <b>{num(r.remaining)} {r.currency}</b>
+                  </span>
+                )}
+                <span className="text-muted-foreground">
+                  {r.rate ? `курс ${Math.round(r.rate)} ₽ за 1 ${r.currency}` : "без курса — расход только в валюте кабинета"}
+                </span>
+              </>
+            ) : r.error ? (
+              <span className="text-destructive">Ошибка: {r.error}</span>
+            ) : (
+              <span className="text-muted-foreground">Ещё не обновлялось</span>
+            )}
+            {r.at && <span className="text-muted-foreground">обновлено {new Date(r.at).toLocaleString("ru-RU")}</span>}
+            <ActionButton
+              variant="outline"
+              onAction={async () => {
+                const got = (await api("tg-ads", {})) as Data;
+                resource.setData(got);
+                onChange();
+                toast.success(`Telegram Ads: объявлений ${got.ads ?? 0}, привязано ${got.matched ?? 0}`);
+              }}
+            >
+              Обновить
+            </ActionButton>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <Field
+              label="Курс, ₽ за 1 единицу валюты кабинета"
+              hint="Пусто или 0 — для TON берётся рыночный курс. Для EUR и Stars укажите вручную."
+            >
+              <Input
+                aria-label="Курс Telegram Ads в рублях"
+                inputMode="numeric"
+                className="w-40"
+                value={rateValue}
+                onChange={(e) => setRate(e.target.value.replace(/\D/g, ""))}
+              />
+            </Field>
+            <ActionButton
+              variant="outline"
+              disabled={rate === null}
+              onAction={async () => {
+                await saveSettingsPatchWith(api, { tg_ads_rub_rate: Number(rate || 0) });
+                const got = (await api("tg-ads", {})) as Data;
+                resource.setData(got);
+                setRate(null);
+                await settings.reload();
+                onChange();
+                toast.success("Курс сохранён, расход пересчитан");
+              }}
+            >
+              Сохранить курс
+            </ActionButton>
+          </div>
+          {unmatched.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Объявления без нашей ссылки — оплаты по ним не посчитать</div>
+              <div className="rounded-md border divide-y text-sm">
+                {unmatched.map((a) => (
+                  <div key={a.ad_id} className="flex flex-wrap gap-x-3 gap-y-1 px-3 py-2">
+                    <span className="font-medium">{a.title || `Объявление ${a.ad_id}`}</span>
+                    <span className="text-muted-foreground break-all">{a.promote_url}</span>
+                    <span className="ml-auto tabular-nums whitespace-nowrap">
+                      {num(a.views)} показов · {num(a.spent)} {a.currency}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Создайте рекламную ссылку и поставьте её в объявление вместо этой — со следующего обновления оно привяжется.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </Panel>
   );
 }
 export function ReferralsPage() {

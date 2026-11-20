@@ -583,6 +583,10 @@ async def api_referrals(request: web.Request) -> web.Response:
 def _ad_public(row: dict) -> dict:
     settings = get_settings()
     slug = str(row.get("slug") or "")
+    # Typed by hand wins; otherwise what Telegram Ads spent on the ads promoting this link.
+    manual = row.get("spend_rub")
+    spend = manual if manual is not None else row.get("tg_spent_rub")
+    tg_views, tg_clicks = int(row.get("tg_views") or 0), int(row.get("tg_clicks") or 0)
     return {
         "id": int(row["id"]),
         "slug": slug,
@@ -596,10 +600,15 @@ def _ad_public(row: dict) -> dict:
         "paid": int(row.get("paid") or 0),
         "connected": int(row.get("connected") or 0),
         # Payback: what the placement cost against what its people paid.
-        "spend_rub": row.get("spend_rub"),
+        "spend_rub": spend,
+        "spend_manual": manual,
+        "spend_auto": manual is None and spend is not None,
+        "tg": {"ads": int(row.get("tg_ads") or 0), "views": tg_views, "clicks": tg_clicks,
+               "ctr": round(tg_clicks * 100 / tg_views, 2) if tg_views else None,
+               "spent": row.get("tg_spent"), "currency": row.get("tg_currency")} if row.get("tg_ads") else None,
         "revenue": int(row.get("revenue") or 0),
-        "payer_cost": round(int(row["spend_rub"]) / int(row["paid"])) if row.get("spend_rub") and row.get("paid") else None,
-        "user_cost": round(int(row["spend_rub"]) / int(row["users"])) if row.get("spend_rub") and row.get("users") else None,
+        "payer_cost": round(int(spend) / int(row["paid"])) if spend and row.get("paid") else None,
+        "user_cost": round(int(spend) / int(row["users"])) if spend and row.get("users") else None,
         "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
         "archived": bool(row.get("archived_at")),
     }
@@ -2353,6 +2362,21 @@ async def api_sharing_check(request: web.Request) -> web.Response:
     return web.json_response(out, dumps=lambda o: json.dumps(o, default=str), status=200 if out.get("ok") else 502)
 
 
+async def api_tg_ads(request: web.Request) -> web.Response:
+    """Telegram Ads: last sync and ads without our link (GET); sync now (POST)."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import tg_ads
+    out: dict = {"ok": True}
+    if request.method == "POST":
+        out = await tg_ads.sync_locked()
+    configured = bool((get_settings().tg_ads_token or "").strip())
+    out.update({"configured": configured, "report": await db.get_job_report("tg_ads"),
+                "unmatched": await db.tg_ads_unmatched() if configured else []})
+    return web.json_response(out, dumps=lambda o: json.dumps(o, default=str), status=200 if out.get("ok") else 502)
+
+
 async def api_friend_nft(request: web.Request) -> web.Response:
     """«NFT-подарки за друзей»: config, issue queue and friend checks (GET); actions (POST {action})."""
     denied = _need_auth(request)
@@ -3356,6 +3380,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/experiments/{exp_id}/stop", api_experiment_stop)
     app.router.add_get("/admin/api/auto-gift", api_auto_gift)
     app.router.add_post("/admin/api/auto-gift", api_auto_gift)
+    app.router.add_get("/admin/api/tg-ads", api_tg_ads)
+    app.router.add_post("/admin/api/tg-ads", api_tg_ads)
     app.router.add_get("/admin/api/sharing-check", api_sharing_check)
     app.router.add_post("/admin/api/sharing-check", api_sharing_check)
     app.router.add_get("/admin/api/install-test", api_install_test)

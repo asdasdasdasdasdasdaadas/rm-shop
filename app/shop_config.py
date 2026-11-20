@@ -118,6 +118,7 @@ def validate_shop(body: dict) -> dict:
     out["sharing_penalty_enabled"] = bool(body.get("sharing_penalty_enabled", get_settings().sharing_penalty_enabled))
     out["sharing_penalty_balance_rub"] = _as_int(body.get("sharing_penalty_balance_rub", get_settings().sharing_penalty_balance_rub), -1000000, 0, "Шеринг: баланс после наказания")
     out["sharing_notify_user"] = bool(body.get("sharing_notify_user", get_settings().sharing_notify_user))
+    out["tg_ads_rub_rate"] = _as_int(body.get("tg_ads_rub_rate", get_settings().tg_ads_rub_rate), 0, 100000, "Telegram Ads: курс")
     out["no_traffic_alert_enabled"] = bool(body.get("no_traffic_alert_enabled", get_settings().no_traffic_alert_enabled))
     out["no_traffic_alert_min_mb"] = _as_int(body.get("no_traffic_alert_min_mb", get_settings().no_traffic_alert_min_mb), 1, 1000, "Нет трафика: порог, МБ")
     out["no_traffic_alert_after_minutes"] = _as_int(body.get("no_traffic_alert_after_minutes", get_settings().no_traffic_alert_after_minutes), 10, 1440, "Нет трафика: через сколько минут")
@@ -229,6 +230,7 @@ def snapshot() -> dict:
             "sharing_penalty_enabled": s.sharing_penalty_enabled,
             "sharing_penalty_balance_rub": s.sharing_penalty_balance_rub,
             "sharing_notify_user": s.sharing_notify_user,
+            "tg_ads_rub_rate": s.tg_ads_rub_rate,
             "no_traffic_alert_enabled": s.no_traffic_alert_enabled,
             "no_traffic_alert_min_mb": s.no_traffic_alert_min_mb,
             "no_traffic_alert_after_minutes": s.no_traffic_alert_after_minutes,
