@@ -28,6 +28,18 @@ def _settings(token="tok", rate=0):
     return SimpleNamespace(tg_ads_token=token, tg_ads_rub_rate=rate)
 
 
+class SettingsTest(unittest.TestCase):
+    def test_token_is_saved_from_the_admin(self):
+        from app.config import SHOP_KEYS
+        from app.shop_config import validate_shop
+        self.assertIn("tg_ads_token", SHOP_KEYS)
+        self.assertIn("tg_ads_rub_rate", SHOP_KEYS)
+        from app.shop_config import snapshot
+        body = {**snapshot()["values"], "tg_ads_token": "  abc:DEF  ", "tg_ads_rub_rate": 95}
+        out = validate_shop(body)
+        self.assertEqual((out["tg_ads_token"], out["tg_ads_rub_rate"]), ("abc:DEF", 95))
+
+
 class SyncTest(unittest.IsolatedAsyncioTestCase):
     def _client(self, handler):
         return httpx.AsyncClient(transport=httpx.MockTransport(handler))

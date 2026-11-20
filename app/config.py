@@ -356,6 +356,7 @@ SHOP_KEYS = frozenset(
         "sharing_penalty_balance_rub",
         "sharing_notify_user",
         "tg_ads_rub_rate",
+        "tg_ads_token",
         "no_traffic_alert_enabled",
         "no_traffic_alert_min_mb",
         "no_traffic_alert_after_minutes",

@@ -2,7 +2,7 @@
 
 Every ad in Telegram Ads promotes a URL; ours look like https://t.me/<bot>?start=ad_<slug>, the same slug as an
 ad link in «Источники трафика». Every 30 minutes (and on «Обновить») the bot reads all ads of the account
-(promoteapi.telegram.org/getAdsList, token from TG_ADS_TOKEN in .env) and stores per ad: views, clicks,
+(promoteapi.telegram.org/getAdsList, token in Настройки → Telegram Ads or TG_ADS_TOKEN in .env) and stores per ad: views, clicks,
 conversions, spend in the account currency and in rubles. The links page then shows, next to who came and who paid,
 what Telegram counted and what it cost — without typing the spend by hand.
 
@@ -81,7 +81,7 @@ async def sync(client: httpx.AsyncClient | None = None) -> dict:
     """Read every ad of the account and store it. Returns a short report (also kept for the admin)."""
     token = (get_settings().tg_ads_token or "").strip()
     if not token:
-        return {"ok": False, "error": "Не задан TG_ADS_TOKEN в .env"}
+        return {"ok": False, "error": "Не задан токен: Настройки → Telegram Ads"}
     own = client is None
     client = client or httpx.AsyncClient(timeout=20)
     try:

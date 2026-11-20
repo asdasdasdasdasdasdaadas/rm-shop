@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { FriendNftPanel } from "./friend-nft";
 import { api, money, useResource, type Data } from "@/lib/api";
-import { saveSettingsPatchWith } from "@/lib/contracts.mjs";
 import {
   ActionButton,
   DataTable,
@@ -248,13 +247,10 @@ export function AdsPage() {
 // Telegram Ads: the account's ads, synced every 30 minutes; ads are tied to links by start=ad_<code>.
 function TgAdsPanel({ onChange }: { onChange: () => void }) {
   const resource = useResource("tg-ads");
-  const settings = useResource("settings");
-  const [rate, setRate] = useState<string | null>(null);
   const d = resource.data;
   if (!d) return null;
   const r: Data = d.report || {};
   const unmatched: Data[] = d.unmatched || [];
-  const rateValue = rate ?? String(settings.data?.values?.tg_ads_rub_rate || "");
   const num = (v: unknown) => Number(v || 0).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
   return (
     <Panel
@@ -262,7 +258,7 @@ function TgAdsPanel({ onChange }: { onChange: () => void }) {
       description={
         d.configured
           ? "Объявления кабинета подтягиваются раз в 30 минут и привязываются к ссылкам ниже по коду start=ad_… — расход, показы и клики видны рядом с оплатами."
-          : "Чтобы подтянуть статистику, получите токен в настройках кабинета Telegram Ads, добавьте в .env на сервере строку TG_ADS_TOKEN=… и перезапустите бота."
+          : "Чтобы подтянуть статистику, вставьте API-токен кабинета в Настройки → Telegram Ads. Токен выдаётся на ads.telegram.org в настройках аккаунта, раздел API."
       }
     >
       {d.configured && (
@@ -279,7 +275,7 @@ function TgAdsPanel({ onChange }: { onChange: () => void }) {
                   </span>
                 )}
                 <span className="text-muted-foreground">
-                  {r.rate ? `курс ${Math.round(r.rate)} ₽ за 1 ${r.currency}` : "без курса — расход только в валюте кабинета"}
+                  {r.rate ? `курс ${Math.round(r.rate)} ₽ за 1 ${r.currency}` : "без курса — расход только в валюте кабинета (курс задаётся в Настройках → Telegram Ads)"}
                 </span>
               </>
             ) : r.error ? (
@@ -298,35 +294,6 @@ function TgAdsPanel({ onChange }: { onChange: () => void }) {
               }}
             >
               Обновить
-            </ActionButton>
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <Field
-              label="Курс, ₽ за 1 единицу валюты кабинета"
-              hint="Пусто или 0 — для TON берётся рыночный курс. Для EUR и Stars укажите вручную."
-            >
-              <Input
-                aria-label="Курс Telegram Ads в рублях"
-                inputMode="numeric"
-                className="w-40"
-                value={rateValue}
-                onChange={(e) => setRate(e.target.value.replace(/\D/g, ""))}
-              />
-            </Field>
-            <ActionButton
-              variant="outline"
-              disabled={rate === null}
-              onAction={async () => {
-                await saveSettingsPatchWith(api, { tg_ads_rub_rate: Number(rate || 0) });
-                const got = (await api("tg-ads", {})) as Data;
-                resource.setData(got);
-                setRate(null);
-                await settings.reload();
-                onChange();
-                toast.success("Курс сохранён, расход пересчитан");
-              }}
-            >
-              Сохранить курс
             </ActionButton>
           </div>
           {unmatched.length > 0 && (
