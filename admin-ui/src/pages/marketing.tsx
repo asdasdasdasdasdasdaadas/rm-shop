@@ -55,7 +55,7 @@ export function AdsPage() {
         <DataTable
           rows={resource.data.items || []}
           columns={[
-            { key: "title", label: "Источник" },
+            { key: "title", label: "Источник", cell: (r) => <span className="block min-w-40 leading-snug">{r.title}</span> },
             {
               key: "partner",
               label: "Рекламодатель",
@@ -68,9 +68,12 @@ export function AdsPage() {
               ),
               cell: (r) =>
                 r.tg ? (
-                  <span className="whitespace-nowrap tabular-nums">
-                    {Number(r.tg.views).toLocaleString("ru-RU")} показов · {Number(r.tg.clicks).toLocaleString("ru-RU")} кликов
-                    {r.tg.ctr != null ? ` · ${String(r.tg.ctr).replace(".", ",")}%` : ""}
+                  <span className="block whitespace-nowrap tabular-nums leading-tight">
+                    {Number(r.tg.views).toLocaleString("ru-RU")} показов
+                    <span className="block text-xs text-muted-foreground mt-0.5">
+                      {Number(r.tg.clicks).toLocaleString("ru-RU")} кликов
+                      {r.tg.ctr != null ? ` · CTR ${String(r.tg.ctr).replace(".", ",")}%` : ""}
+                    </span>
                   </span>
                 ) : (
                   dash
@@ -94,16 +97,24 @@ export function AdsPage() {
               cell: (r) => (
                 <button
                   type="button"
-                  className="underline decoration-dotted underline-offset-4 text-left"
+                  className="block whitespace-nowrap text-left tabular-nums leading-tight"
+                  title={
+                    r.tg?.spent != null
+                      ? r.spend_auto
+                        ? "Посчитано по Telegram Ads. Нажмите, чтобы указать вручную."
+                        : "Указано вручную; ниже — расход в Telegram Ads"
+                      : undefined
+                  }
                   onClick={() => {
                     setSpendOf(r);
                     setSpend(r.spend_manual != null ? String(r.spend_manual) : "");
                   }}
                 >
-                  {r.spend_rub != null ? money(r.spend_rub) : <span className="text-muted-foreground">указать</span>}
+                  <span className="underline decoration-dotted underline-offset-4">
+                    {r.spend_rub != null ? money(r.spend_rub) : <span className="text-muted-foreground">указать</span>}
+                  </span>
                   {r.tg?.spent != null && (
-                    <span className="block text-xs text-muted-foreground">
-                      {r.spend_auto ? "Telegram Ads: " : "в Telegram Ads: "}
+                    <span className="block text-xs text-muted-foreground mt-0.5">
                       {Number(r.tg.spent).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} {r.tg.currency}
                     </span>
                   )}
