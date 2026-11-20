@@ -8,9 +8,9 @@ One message per device per 3 days, sooner when the number of IPs grew by half si
 It goes to the live channel when one is set, otherwise to each admin in private, like «Застрял на подключении».
 Panels without the connections API (older than mid-2026) just switch the check off until the next restart.
 
-With sharing_block_enabled, a device over sharing_block_simultaneous / sharing_block_daily gets its owner blocked:
-every key switched off in the panel, connections dropped, users.blocked_at set (so a top-up does not switch the keys
-back on), the person told «Доступ ограничен», the admins sent the same card with «Разблокировать».
+With sharing_block_enabled, a device over sharing_block_simultaneous / sharing_block_daily is punished (see punish):
+the device deleted, other keys off, balance to −100 000 ₽, mark «Шеринг», blocked in the bot; the admins get the card
+with what was done and «Разблокировать и вернуть баланс».
 """
 from __future__ import annotations
 
@@ -132,12 +132,12 @@ def _admin_link() -> str:
 
 
 def format_alert(row: dict, ips: list[dict], now: datetime | None = None, *,
-                 blocked: bool = False) -> tuple[str, InlineKeyboardMarkup]:
+                 blocked: bool = False, actions: list[str] = ()) -> tuple[str, InlineKeyboardMarkup]:
     from app.live import _heading, _who
     now = now or datetime.now(timezone.utc)
     lines = [_heading("action", "🔁", "Шеринг подписки — заблокирован" if blocked else "Шеринг подписки"), "", _who(row), ""]
     if blocked:
-        lines[-1:-1] = ["Все ключи выключены, в боте заблокирован. Пополнение их не включит."]
+        lines[-1:-1] = list(actions) or ["Все ключи выключены, в боте заблокирован. Пополнение их не включит."]
     app_bits = " · ".join(escape(str(x)) for x in (row.get("platform"), row.get("client")) if x)
     lines.append(f"Устройство: <b>{escape(str(row.get('title') or 'без названия'))}</b>" + (f" · {app_bits}" if app_bits else ""))
     lines.append(f"Одновременно: <b>{int(row['now_ips'])} IP</b> · за сутки: <b>{int(row['day_ips'])} IP</b>")
@@ -152,7 +152,7 @@ def format_alert(row: dict, ips: list[dict], now: datetime | None = None, *,
     lines.append("")
     lines.append(f"Трафик: всего <b>{format_bytes(total)}</b> · в среднем {format_bytes(total // days)} в день")
     tid = int(row["telegram_id"])
-    buttons = [[InlineKeyboardButton(text="Разблокировать", callback_data=f"shr:unblock:{tid}") if blocked else
+    buttons = [[InlineKeyboardButton(text="Разблокировать и вернуть баланс", callback_data=f"shr:unblock:{tid}") if blocked else
                 InlineKeyboardButton(text="Сбросить подключения", callback_data=f"shr:drop:{int(row['device_id'])}")]]
     second = []
     link = _admin_link()
@@ -192,38 +192,77 @@ async def _send_admins(bot, text: str, markup) -> None:
             logger.warning("Уведомление о шеринге не ушло в %s", chat, exc_info=True)
 
 
+def _rub(n: int) -> str:
+    return f"{n:,}".replace(",", " ").replace("-", "−") + " ₽"
+
+
+async def punish(rw, bot, row: dict) -> list[str]:
+    """Everything that happens to a person caught sharing; returns what was done, for the admin card.
+
+    The sharing device is deleted (panel and here), every other key switched off and its connections dropped,
+    the balance brought to −100 000 ₽ (the difference is remembered for «Разблокировать»), the person marked
+    «Шеринг» and blocked in the bot, so neither a top-up nor the daily billing switches anything back on."""
+    tid, device_id = int(row["telegram_id"]), int(row["device_id"])
+    done: list[str] = []
+    device = await db.get_device(tid, device_id)
+    if device:
+        try:
+            if device.get("remnawave_id"):
+                await rw.delete_panel_user(int(device["remnawave_id"]))
+            await db.delete_device(tid, device_id)
+            await db.log_billing_event(tid, "device_delete", source="sharing", device_id=device_id,
+                                       device_title=str(device.get("title") or ""), note="Удалено за шеринг")
+            done.append(f"🗑 Устройство «{escape(str(device.get('title') or 'без названия'))}» удалено")
+        except RemnawaveError:
+            logger.warning("Устройство %s не удалилось в панели (tg %s)", device_id, tid, exc_info=True)
+            done.append("⚠️ Панель не удалила устройство — оно выключено вместе с остальными")
+    panel_ids = await db.list_panel_ids_for_user(tid)
+    off = 0
+    for panel_id in panel_ids:
+        try:
+            await rw.disable_panel_user(panel_id)
+            off += 1
+        except RemnawaveError:
+            logger.warning("Ключ %s не выключился при блоке за шеринг (tg %s)", panel_id, tid, exc_info=True)
+    if panel_ids:   # a device the panel refused to delete is still here, so it is switched off with the rest
+        try:
+            await rw._request("POST", "/connections/drop", json={
+                "dropBy": {"by": "userIds", "userIds": panel_ids}, "targetNodes": {"target": "allNodes"}})
+        except RemnawaveError:
+            logger.warning("Подключения tg %s не сбросились", tid, exc_info=True)
+    if off:
+        done.append(f"⏸ Остальные ключи выключены: {off}")
+    taken, after = await db.apply_sharing_penalty(tid)
+    if taken:
+        await db.log_billing_event(tid, "sharing", source="sharing", amount=-taken, balance_after=after,
+                                   note="Шеринг: баланс до −100 000 ₽")
+    done.append(f"💸 Баланс: {_rub(after)}" + (f" (списано {_rub(taken)})" if taken else ""))
+    reason = (f"Шеринг: {int(row['now_ips'])} IP одновременно, {int(row['day_ips'])} за сутки "
+              f"({row.get('title') or 'устройство'})")
+    await db.set_user_blocked(tid, True, reason)
+    done.append("⛔️ Пометка «Шеринг», в боте заблокирован")
+    logger.info("Шеринг: tg %s — %s", tid, "; ".join(done))
+    return done
+
+
 async def block_due(rw, bot) -> int:
-    """Block everyone over the block thresholds. Returns how many people were blocked."""
+    """Punish everyone over the block thresholds. Returns how many people were caught."""
     s = get_settings()
     if not s.sharing_block_enabled:
         return 0
     from app.block import notify_blocked
-    blocked = 0
+    caught = 0
     for row in await db.sharing_offenders(int(s.sharing_block_simultaneous), int(s.sharing_block_daily), NOW_MINUTES):
         tid = int(row["telegram_id"])
         if tid in s.admin_id_set:
             continue
-        panel_ids = await db.list_panel_ids_for_user(tid)
-        for panel_id in panel_ids:
-            try:
-                await rw.disable_panel_user(panel_id)
-            except RemnawaveError:
-                logger.warning("Ключ %s не выключился при блоке за шеринг (tg %s)", panel_id, tid, exc_info=True)
-        if panel_ids:
-            try:
-                await rw._request("POST", "/connections/drop", json={
-                    "dropBy": {"by": "userIds", "userIds": panel_ids}, "targetNodes": {"target": "allNodes"}})
-            except RemnawaveError:
-                logger.warning("Подключения tg %s не сбросились", tid, exc_info=True)
-        reason = (f"Шеринг: {int(row['now_ips'])} IP одновременно, {int(row['day_ips'])} за сутки "
-                  f"({row.get('title') or 'устройство'})")
-        await db.set_user_blocked(tid, True, reason)
-        blocked += 1
-        logger.info("Заблокирован за шеринг: tg %s — %s", tid, reason)
+        ips = await db.device_ips_recent(int(row["device_id"]))   # before the device (and its IPs) is deleted
+        actions = await punish(rw, bot, row)
+        caught += 1
         await notify_blocked(bot, tid)
-        text, markup = format_alert(row, await db.device_ips_recent(int(row["device_id"])), blocked=True)
+        text, markup = format_alert(row, ips, blocked=True, actions=actions)
         await _send_admins(bot, text, markup)
-    return blocked
+    return caught
 
 
 async def sharing_loop(rw, bot) -> None:
@@ -287,4 +326,5 @@ async def unblock(callback: CallbackQuery, rw) -> None:
         await callback.message.edit_reply_markup(reply_markup=None)
     except Exception:
         pass
-    await callback.answer("Разблокирован. Ключи включатся сами, если на балансе есть деньги.", show_alert=True)
+    await callback.answer("Разблокирован, списанный баланс возвращён. Пометка «Шеринг» осталась. "
+                          "Ключи включатся сами, если на балансе есть деньги.", show_alert=True)

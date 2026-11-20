@@ -1169,3 +1169,8 @@ CREATE TABLE IF NOT EXISTS install_arms (
     PRIMARY KEY (test_id, telegram_id)
 );
 CREATE INDEX IF NOT EXISTS install_arms_test_idx ON install_arms(test_id, arm);
+
+-- «Шеринг»: caught sharing a key. Stays after unblocking, as a mark. sharing_penalty_rub is what was taken
+-- to bring the balance to −100 000 ₽, so «Разблокировать» can give exactly that back.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sharing_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sharing_penalty_rub INTEGER;

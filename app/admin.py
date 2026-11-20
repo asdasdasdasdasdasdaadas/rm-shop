@@ -1405,6 +1405,10 @@ async def _apply_block(
         await db.set_user_blocked(telegram_id, False)
         await db.clear_device_billing(telegram_id)
         await db.clear_device_ips(telegram_id)   # or the sharing check blocks them again on the old IPs
+        given, after = await db.refund_sharing_penalty(telegram_id)
+        if given:
+            await db.log_billing_event(telegram_id, "sharing", source="admin", amount=given, balance_after=after,
+                                       note="Разблокирован: баланс за шеринг возвращён")
     return "ok"
 
 

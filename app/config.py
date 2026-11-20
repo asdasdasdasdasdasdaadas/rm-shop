@@ -104,7 +104,7 @@ class Settings(BaseSettings):
     sharing_alert_enabled: bool = True
     sharing_alert_simultaneous: int = 3
     sharing_alert_daily: int = 10
-    sharing_block_enabled: bool = False
+    sharing_block_enabled: bool = True
     sharing_block_simultaneous: int = 5
     sharing_block_daily: int = 25
     no_traffic_alert_enabled: bool = True

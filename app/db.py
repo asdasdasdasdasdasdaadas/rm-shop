@@ -4800,6 +4800,7 @@ _USER_BILLING_KINDS = (
     "promo",
     "first_bonus",
     "return_bonus",
+    "sharing",
 )
 
 
@@ -6262,6 +6263,34 @@ async def sharing_offenders(simultaneous: int, daily: int, now_minutes: int = 10
            LIMIT $4""",
         int(simultaneous), int(daily), int(now_minutes), int(limit))
     return [dict(r) for r in rows]
+
+
+SHARING_BALANCE_RUB = -100_000
+
+
+async def apply_sharing_penalty(telegram_id: int) -> tuple[int, int]:
+    """Mark «Шеринг» and bring the balance to SHARING_BALANCE_RUB. Returns (taken, balance after);
+    taken is 0 when the balance was already there."""
+    row = await _pool_req().fetchrow(
+        """WITH old AS (SELECT telegram_id, COALESCE(balance_rub, 0) AS before FROM users WHERE telegram_id = $1 FOR UPDATE)
+           UPDATE users u SET balance_rub = LEAST(old.before, $2),
+                  sharing_at = NOW(),
+                  sharing_penalty_rub = COALESCE(u.sharing_penalty_rub, 0) + (old.before - LEAST(old.before, $2))
+           FROM old WHERE u.telegram_id = old.telegram_id
+           RETURNING old.before - u.balance_rub AS taken, u.balance_rub AS after""",
+        int(telegram_id), SHARING_BALANCE_RUB)
+    return (int(row["taken"]), int(row["after"])) if row else (0, 0)
+
+
+async def refund_sharing_penalty(telegram_id: int) -> tuple[int, int]:
+    """Give back what apply_sharing_penalty took (the mark stays). Returns (given, balance after)."""
+    row = await _pool_req().fetchrow(
+        """WITH old AS (SELECT telegram_id, COALESCE(sharing_penalty_rub, 0) AS back FROM users WHERE telegram_id = $1 FOR UPDATE)
+           UPDATE users u SET balance_rub = COALESCE(u.balance_rub, 0) + old.back, sharing_penalty_rub = NULL
+           FROM old WHERE u.telegram_id = old.telegram_id
+           RETURNING old.back AS given, u.balance_rub AS after""",
+        int(telegram_id))
+    return (int(row["given"]), int(row["after"])) if row else (0, 0)
 
 
 async def clear_device_ips(telegram_id: int) -> None:

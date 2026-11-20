@@ -41,6 +41,7 @@ export const billKinds: Data = {
   trial: "Пробный период",
   admin_balance: "Изменение баланса",
   admin_grant: "Начисление",
+  sharing: "Шеринг",
   referral: "Реферальная награда",
   referral_payout: "Реферальная награда",
   referral_revoke: "Возврат награды",

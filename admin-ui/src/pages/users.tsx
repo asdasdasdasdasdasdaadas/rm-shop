@@ -650,7 +650,9 @@ export function UsersPage() {
                   cell: (u) => (
                     <Status
                       value={
-                        u.blocked_at
+                        u.sharing_at && u.blocked_at
+                          ? "Шеринг"
+                          : u.blocked_at
                           ? "DISABLED"
                           : u.bot_blocked_at
                             ? "Бот заблокирован"
@@ -854,7 +856,7 @@ export function UsersPage() {
 const heroTone = (u: Data) =>
   u.tg_deleted_at || u.blocked_at ? "red" : u.billing_paused_at ? "orange" : String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "green" : "slate";
 const heroStatus = (u: Data) =>
-  u.tg_deleted_at ? "Аккаунт Telegram удалён" : u.blocked_at ? "Заблокирован" : u.billing_paused_at ? "Списания на паузе" : String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "Доступ активен" : "Нет доступа";
+  u.tg_deleted_at ? "Аккаунт Telegram удалён" : u.sharing_at && u.blocked_at ? "Шеринг — заблокирован" : u.blocked_at ? "Заблокирован" : u.billing_paused_at ? "Списания на паузе" : String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "Доступ активен" : "Нет доступа";
 function UserDetail({
   user,
   onChange,
