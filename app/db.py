@@ -3097,11 +3097,15 @@ async def admin_badges() -> dict:
     return {key: int(value or 0) for key, value in dict(row or {}).items()}
 
 
+# Midnight today in Moscow, as a timestamptz: «сегодня» in the admin.
+MSK_MIDNIGHT_SQL = "((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::date) AT TIME ZONE 'Europe/Moscow'"
+
+
 async def admin_stats() -> dict:
     from app.checkout_feedback import stats as checkout_feedback_stats
     pool = _pool_req()
     users = await pool.fetchrow(
-        """
+        f"""
         SELECT
             COUNT(*)::int AS users_total,
             COUNT(*) FILTER (WHERE accepted_legal_at IS NOT NULL)::int AS legal_ok,
@@ -3109,7 +3113,8 @@ async def admin_stats() -> dict:
             -- Billing is by balance, so expire_at means nothing: active = a device was online in the last day.
             COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=users.telegram_id
                 AND d.last_online_at > NOW() - INTERVAL '1 day'))::int AS active,
-            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day')::int AS new_1d,
+            -- «Сегодня»: since midnight in Moscow, not the last 24 hours (the admin reads it as today).
+            COUNT(*) FILTER (WHERE created_at >= {MSK_MIDNIGHT_SQL})::int AS new_1d,
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::int AS new_7d,
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')::int AS new_30d,
             COUNT(*) FILTER (WHERE referred_by IS NOT NULL)::int AS referred,

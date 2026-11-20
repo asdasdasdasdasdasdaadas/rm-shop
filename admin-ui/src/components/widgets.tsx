@@ -147,7 +147,7 @@ function SignupsWidget({ series, users }: { series: Data[]; users: Data }) {
     <Widget title="Новые пользователи" icon={<UsersIcon />} tone="#3e88f7" action="Клиенты" onAction={() => navigate("users")}>
       <div className="adm-big">
         <CountUp value={Number(users.new_1d || 0)} />
-        <span className="adm-unit">за сутки</span>
+        <span className="adm-unit">сегодня</span>
       </div>
       <p className="adm-sub">{Number(users.new_7d || 0).toLocaleString("ru-RU")} за неделю · {Number(users.new_30d || 0).toLocaleString("ru-RU")} за месяц</p>
       <div className="adm-chart">
