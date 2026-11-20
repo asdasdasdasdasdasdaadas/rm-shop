@@ -5,6 +5,10 @@ which device and app, and a link to write to them. It goes to the live channel w
 (Настройки → живой канал), otherwise to each admin in private. Devices older than two days are not reported,
 so the first run after a deploy does not dig up old cases.
 
+The panel sync walks every user in portions, so «online» and traffic here can be hours behind. Before either
+alert goes out, the person's devices are asked from the panel right now; whoever turns out connected (or with
+enough traffic) is skipped, so the admin does not write to someone who is fine.
+
 «Подключился, но трафика нет»: a device added within two days went online, yet no_traffic_alert_after_minutes
 after its first online it has moved less than no_traffic_alert_min_mb — VPN switched on, but sites do not open
 (a provider block, the wrong app or protocol). One message per device, admin only.
@@ -53,6 +57,9 @@ ORDER BY d.created_at DESC LIMIT 1
 
 
 def _ago(when: datetime | None) -> str:
+    if isinstance(when, str):
+        from app.remnawave import parse_dt
+        when = parse_dt(when)
     if not when:
         return ""
     if when.tzinfo is None:
@@ -119,7 +126,46 @@ def format_no_traffic(row: dict, min_mb: int) -> tuple[str, InlineKeyboardMarkup
     return "\n".join(lines), markup
 
 
-async def send_no_traffic(bot) -> int:
+_DEVICES_SQL = """SELECT remnawave_id FROM devices WHERE telegram_id = $1 AND remnawave_id IS NOT NULL
+                   AND COALESCE(kind, '') <> 'router' ORDER BY id"""
+
+
+async def _refresh(rw, telegram_id: int, device_ids: list[int] | None = None) -> bool:
+    """Ask the panel about the person's devices (or just `device_ids`) now and store it.
+    False when the panel could not be asked: then the alert goes out as before."""
+    if rw is None:
+        return False
+    if device_ids is None:
+        device_ids = [int(r["remnawave_id"]) for r in await db._pool_req().fetch(_DEVICES_SQL, int(telegram_id))]
+    panels = []
+    try:
+        for panel_id in device_ids:
+            got = await rw.get_user_by_id(int(panel_id))
+            if got:
+                panels.append(got)
+    except Exception:
+        logger.warning("Панель не ответила при проверке перед уведомлением (tg %s)", telegram_id, exc_info=True)
+        return False
+    if panels:
+        await db.apply_panel_snapshots(panels)
+        try:
+            from app.live import note_first_online_from_panels
+            await note_first_online_from_panels(panels)
+        except Exception:
+            logger.debug("Первое подключение не отмечено (tg %s)", telegram_id, exc_info=True)
+    return True
+
+
+async def _connected(telegram_id: int) -> bool:
+    return bool(await db._pool_req().fetchval(
+        """SELECT EXISTS (SELECT 1 FROM users WHERE telegram_id = $1 AND first_online_at IS NOT NULL)
+               OR EXISTS (SELECT 1 FROM devices WHERE telegram_id = $1 AND COALESCE(kind, '') <> 'router'
+                          AND (last_online_at IS NOT NULL OR GREATEST(COALESCE(lifetime_traffic_bytes, 0),
+                                                                      COALESCE(used_traffic_bytes, 0)) > 0))""",
+        int(telegram_id)))
+
+
+async def send_no_traffic(bot, rw=None) -> int:
     from app.config import get_settings
     s = get_settings()
     if not s.no_traffic_alert_enabled:
@@ -130,14 +176,24 @@ async def send_no_traffic(bot) -> int:
     min_mb = max(1, int(s.no_traffic_alert_min_mb))
     rows = [dict(r) for r in await db._pool_req().fetch(
         NO_TRAFFIC_SQL, max(1, int(s.no_traffic_alert_after_minutes)), min_mb * 1024 * 1024)]
+    sent = 0
     for row in rows:
+        panel_id = await db._pool_req().fetchval("SELECT remnawave_id FROM devices WHERE id = $1", int(row["device_id"]))
+        if panel_id and await _refresh(rw, int(row["telegram_id"]), [int(panel_id)]):
+            traffic = await db._pool_req().fetchval(
+                "SELECT GREATEST(COALESCE(lifetime_traffic_bytes, 0), COALESCE(used_traffic_bytes, 0)) FROM devices WHERE id = $1",
+                int(row["device_id"]))
+            if int(traffic or 0) >= min_mb * 1024 * 1024:
+                continue   # the sync was behind: traffic is there
+            row["traffic"] = int(traffic or 0)
+        sent += 1
         text, markup = format_no_traffic(row, min_mb)
         for chat in targets:
             try:
                 await bot.send_message(chat, text, parse_mode="HTML", reply_markup=markup)
             except Exception:
                 logger.warning("Уведомление «нет трафика» не ушло в %s", chat, exc_info=True)
-    return len(rows)
+    return sent
 
 
 DIGEST_KEY = "connect_digest_day"
@@ -228,12 +284,18 @@ async def _targets() -> list:
     return [chat] if chat else sorted(get_settings().admin_id_set)
 
 
-async def send_due(bot) -> int:
+async def send_due(bot, rw=None) -> int:
     targets = await _targets()
     if not targets:
         return 0
     users = [dict(r) for r in await db._pool_req().fetch(CLAIM_SQL)]
+    sent = 0
     for user in users:
+        tid = int(user["telegram_id"])
+        if await _refresh(rw, tid) and await _connected(tid):
+            logger.info("«Застрял на подключении» не отправлено: tg %s уже подключился", tid)
+            continue
+        sent += 1
         row = await db._pool_req().fetchrow(DETAILS_SQL, int(user["telegram_id"]))
         text, markup = format_alert(user, dict(row) if row else None)
         for chat in targets:
@@ -241,14 +303,14 @@ async def send_due(bot) -> int:
                 await bot.send_message(chat, text, parse_mode="HTML", reply_markup=markup)
             except Exception:
                 logger.warning("Уведомление «застрял на подключении» не ушло в %s", chat, exc_info=True)
-    return len(users)
+    return sent
 
 
-async def stuck_alert_loop(bot) -> None:
+async def stuck_alert_loop(bot, rw=None) -> None:
     while True:
         try:
-            await send_due(bot)
-            await send_no_traffic(bot)
+            await send_due(bot, rw)
+            await send_no_traffic(bot, rw)
             await send_digest(bot)
         except asyncio.CancelledError:
             raise

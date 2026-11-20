@@ -211,7 +211,7 @@ async def main() -> None:
         from app.balance_watch import balance_watch_loop
         watch_task = asyncio.create_task(balance_watch_loop(rw, bot), name="balance-watch")
         from app.stuck_alert import stuck_alert_loop
-        stuck_task = asyncio.create_task(stuck_alert_loop(bot), name="stuck-alert")
+        stuck_task = asyncio.create_task(stuck_alert_loop(bot, rw), name="stuck-alert")
         from app.sharing_alert import sharing_loop
         sharing_task = asyncio.create_task(sharing_loop(rw, bot), name="sharing-alert")
         from app.sleepers import cleanup_loop
