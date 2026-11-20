@@ -6268,9 +6268,13 @@ async def sharing_offenders(simultaneous: int, daily: int, now_minutes: int = 10
 SHARING_BALANCE_RUB = -100_000
 
 
-async def apply_sharing_penalty(telegram_id: int) -> tuple[int, int]:
-    """Mark «Шеринг» and bring the balance to SHARING_BALANCE_RUB. Returns (taken, balance after);
-    taken is 0 when the balance was already there."""
+async def mark_sharing(telegram_id: int) -> None:
+    await _pool_req().execute("UPDATE users SET sharing_at = NOW() WHERE telegram_id = $1", int(telegram_id))
+
+
+async def apply_sharing_penalty(telegram_id: int, target: int = SHARING_BALANCE_RUB) -> tuple[int, int]:
+    """Mark «Шеринг» and bring the balance down to `target`. Returns (taken, balance after);
+    taken is 0 when the balance was already that low."""
     row = await _pool_req().fetchrow(
         """WITH old AS (SELECT telegram_id, COALESCE(balance_rub, 0) AS before FROM users WHERE telegram_id = $1 FOR UPDATE)
            UPDATE users u SET balance_rub = LEAST(old.before, $2),
@@ -6278,7 +6282,7 @@ async def apply_sharing_penalty(telegram_id: int) -> tuple[int, int]:
                   sharing_penalty_rub = COALESCE(u.sharing_penalty_rub, 0) + (old.before - LEAST(old.before, $2))
            FROM old WHERE u.telegram_id = old.telegram_id
            RETURNING old.before - u.balance_rub AS taken, u.balance_rub AS after""",
-        int(telegram_id), SHARING_BALANCE_RUB)
+        int(telegram_id), min(0, int(target)))
     return (int(row["taken"]), int(row["after"])) if row else (0, 0)
 
 
@@ -6291,6 +6295,21 @@ async def refund_sharing_penalty(telegram_id: int) -> tuple[int, int]:
            RETURNING old.back AS given, u.balance_rub AS after""",
         int(telegram_id))
     return (int(row["given"]), int(row["after"])) if row else (0, 0)
+
+
+async def sharing_top(limit: int = 10) -> list[dict]:
+    """Devices with the most IPs right now / today, for «Проверить сейчас»: who is close to the thresholds."""
+    rows = await _pool_req().fetch(
+        """WITH s AS (
+               SELECT i.device_id,
+                      COUNT(*) FILTER (WHERE i.last_seen > NOW() - INTERVAL '10 minutes')::int AS now_ips,
+                      COUNT(*)::int AS day_ips
+               FROM device_ips i WHERE i.last_seen > NOW() - INTERVAL '24 hours' GROUP BY i.device_id)
+           SELECT d.id AS device_id, d.telegram_id, u.username, u.first_name, d.title, s.now_ips, s.day_ips,
+                  (u.blocked_at IS NOT NULL) AS blocked
+           FROM s JOIN devices d ON d.id = s.device_id JOIN users u ON u.telegram_id = d.telegram_id
+           ORDER BY s.now_ips DESC, s.day_ips DESC, d.id LIMIT $1""", int(limit))
+    return [dict(r) for r in rows]
 
 
 async def clear_device_ips(telegram_id: int) -> None:

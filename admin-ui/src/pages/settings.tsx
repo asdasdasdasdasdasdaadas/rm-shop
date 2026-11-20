@@ -150,7 +150,7 @@ const groups: {
   {
     id: "access",
     title: "Доступ и устройства",
-    description: "Ограничения подключений устройств и проверка шеринга подписки.",
+    description: "Ограничения подключений устройств, проверка трафика и чистка панели.",
     fields: [
       {
         key: "max_devices",
@@ -167,50 +167,6 @@ const groups: {
         min: 0,
         max: 20,
         hint: "Количество аппаратных идентификаторов на подписку.",
-      },
-      {
-        key: "sharing_alert_enabled",
-        label: "Уведомлять о шеринге подписки",
-        type: "switch",
-        hint: "Раз в 10 минут бот берёт из панели IP, с которых подключено каждое устройство. Если IP слишком много — уведомление в живой канал (или админам в личку): кто, IP, трафик и кнопка «Сбросить подключения». По одному устройству не чаще раза в 3 дня.",
-      },
-      {
-        key: "sharing_alert_simultaneous",
-        label: "Шеринг: IP одновременно, от",
-        type: "number",
-        min: 2,
-        max: 50,
-        hint: "Разные IP за последние 10 минут. Wi-Fi и мобильный интернет вместе — это 2, поэтому по умолчанию 3.",
-      },
-      {
-        key: "sharing_alert_daily",
-        label: "Шеринг: IP за сутки, от",
-        type: "number",
-        min: 2,
-        max: 500,
-        hint: "Мобильный интернет сам часто меняет IP, поэтому порог выше.",
-      },
-      {
-        key: "sharing_block_enabled",
-        label: "Блокировать за шеринг",
-        type: "switch",
-        hint: "Если у устройства IP не меньше порогов ниже, бот сам удаляет это устройство, выключает остальные ключи, ставит баланс −100 000 ₽, помечает «Шеринг» и блокирует в боте. Админам — сообщение с кнопкой «Разблокировать и вернуть баланс».",
-      },
-      {
-        key: "sharing_block_simultaneous",
-        label: "Блок: IP одновременно, от",
-        type: "number",
-        min: 3,
-        max: 50,
-        hint: "Разные IP за последние 10 минут. Выше порога уведомления, чтобы не задеть телефон с Wi-Fi и LTE.",
-      },
-      {
-        key: "sharing_block_daily",
-        label: "Блок: IP за сутки, от",
-        type: "number",
-        min: 5,
-        max: 500,
-        hint: "Разные IP за 24 часа. Мобильный интернет за день даёт 5–10 адресов, поэтому порог с запасом.",
       },
       {
         key: "no_traffic_alert_enabled",
@@ -251,6 +207,83 @@ const groups: {
         type: "number",
         min: 7,
         max: 365,
+      },
+    ],
+  },
+  {
+    id: "sharing",
+    title: "Шеринг подписки",
+    description: "Раз в 10 минут бот берёт из панели IP каждого устройства: много IP — предупреждение, ещё больше — наказание.",
+    fields: [
+      {
+        key: "sharing_alert_enabled",
+        label: "Уведомлять о шеринге подписки",
+        type: "switch",
+        hint: "Раз в 10 минут бот берёт из панели IP, с которых подключено каждое устройство. Если IP слишком много — уведомление в живой канал (или админам в личку): кто, IP, трафик и кнопка «Сбросить подключения». По одному устройству не чаще раза в 3 дня.",
+      },
+      {
+        key: "sharing_alert_simultaneous",
+        label: "Уведомление: IP одновременно, от",
+        type: "number",
+        min: 2,
+        max: 50,
+        hint: "Разные IP за последние 10 минут. Wi-Fi и мобильный интернет вместе — это 2, поэтому по умолчанию 3.",
+      },
+      {
+        key: "sharing_alert_daily",
+        label: "Уведомление: IP за сутки, от",
+        type: "number",
+        min: 2,
+        max: 500,
+        hint: "Мобильный интернет сам часто меняет IP, поэтому порог выше.",
+      },
+      {
+        key: "sharing_block_enabled",
+        label: "Блокировать за шеринг",
+        type: "switch",
+        hint: "Если у устройства IP не меньше порогов ниже, бот сам выключает все ключи человека, ставит пометку «Шеринг» и блокирует в боте; что ещё — настройки ниже. Админам — сообщение с кнопкой «Разблокировать и вернуть баланс».",
+      },
+      {
+        key: "sharing_block_simultaneous",
+        label: "Блок: IP одновременно, от",
+        type: "number",
+        min: 3,
+        max: 50,
+        hint: "Разные IP за последние 10 минут. Выше порога уведомления, чтобы не задеть телефон с Wi-Fi и LTE.",
+      },
+      {
+        key: "sharing_block_daily",
+        label: "Блок: IP за сутки, от",
+        type: "number",
+        min: 5,
+        max: 500,
+        hint: "Разные IP за 24 часа. Мобильный интернет за день даёт 5–10 адресов, поэтому порог с запасом.",
+      },
+      {
+        key: "sharing_delete_device",
+        label: "Удалять устройство",
+        type: "switch",
+        hint: "Устройство, с которого раздавали ключ, удаляется из панели и кабинета. Остальные устройства только выключаются.",
+      },
+      {
+        key: "sharing_penalty_enabled",
+        label: "Штраф на баланс",
+        type: "switch",
+        hint: "Баланс опускается до суммы ниже. Сколько списали, запоминается: при разблокировке вернётся ровно это.",
+      },
+      {
+        key: "sharing_penalty_balance_rub",
+        label: "Баланс после штрафа, ₽",
+        type: "number",
+        min: -1000000,
+        max: 0,
+        hint: "Например −100000. Если баланс уже ниже — не трогаем.",
+      },
+      {
+        key: "sharing_notify_user",
+        label: "Сообщать человеку",
+        type: "switch",
+        hint: "Бот пишет ему «Доступ ограничен» сразу. Выключено — узнает при следующем сообщении боту.",
       },
     ],
   },
@@ -481,6 +514,7 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
             </form>
           </Panel>
         )}
+        {section === "sharing" && <SharingCheck />}
         {section === "payments" && (
           <Panel
             title="Способы оплаты"
@@ -1323,5 +1357,80 @@ function SystemSettings() {
         )}
       </Panel>
     </div>
+  );
+}
+
+// «Проверить сейчас»: one full sharing pass right away, then who has the most IPs.
+function SharingCheck() {
+  const resource = useResource("sharing-check");
+  const [last, setLast] = useState<Data | null>(null);
+  const top: Data[] = (last || resource.data)?.top || [];
+  const who = (u: Data) =>
+    u.username ? `@${u.username}` : u.first_name || String(u.telegram_id);
+  return (
+    <Panel
+      title="Проверить сейчас"
+      description="Забрать IP из панели и применить настройки выше прямо сейчас, не дожидаясь 10 минут. Сохраните настройки перед проверкой."
+    >
+      <div className="space-y-4">
+        <ActionButton
+          onAction={async () => {
+            const r = (await api("sharing-check", {})) as Data;
+            setLast(r);
+            const n = (r.caught || []).length;
+            toast.success(
+              n
+                ? `Поймано: ${n}`
+                : `Шеринга нет · IP записано: ${r.ips ?? 0}${r.warned ? ` · предупреждений: ${r.warned}` : ""}`,
+            );
+          }}
+        >
+          Проверить сейчас
+        </ActionButton>
+        {last && (last.caught || []).length > 0 && (
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Поймано и наказано</div>
+            {(last.caught as Data[]).map((c) => (
+              <div key={c.telegram_id} className="rounded-md border p-3 text-sm">
+                <div className="font-medium">
+                  {who(c)} · {c.title || "устройство"} · {c.now_ips} IP сейчас · {c.day_ips} за сутки
+                </div>
+                <ul className="mt-1 text-muted-foreground">
+                  {(c.actions as string[]).map((a, i) => (
+                    <li key={i}>{a}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+        {last && (
+          <div className="text-sm text-muted-foreground">
+            IP записано: {last.ips ?? 0} · предупреждений отправлено: {last.warned ?? 0}
+          </div>
+        )}
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Больше всего IP сейчас</div>
+          {resource.error ? (
+            <Failure message={resource.error} retry={resource.reload} />
+          ) : top.length === 0 ? (
+            <Empty title="Данных пока нет" description="Появятся после первой проверки." />
+          ) : (
+            <div className="rounded-md border divide-y text-sm">
+              {top.map((t) => (
+                <div key={t.device_id} className="flex flex-wrap gap-x-3 gap-y-1 px-3 py-2">
+                  <span className="font-medium">{who(t)}</span>
+                  <span className="text-muted-foreground">{t.title || "устройство"}</span>
+                  <span className="ml-auto tabular-nums">
+                    {t.now_ips} сейчас · {t.day_ips} за сутки
+                  </span>
+                  {t.blocked && <Badge variant="destructive">заблокирован</Badge>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </Panel>
   );
 }

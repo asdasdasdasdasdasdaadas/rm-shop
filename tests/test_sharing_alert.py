@@ -13,6 +13,8 @@ from app import db, sharing_alert
 def settings(**kw):
     return SimpleNamespace(**{"sharing_alert_enabled": True, "sharing_alert_simultaneous": 3, "sharing_alert_daily": 10,
                               "sharing_block_enabled": True, "sharing_block_simultaneous": 5, "sharing_block_daily": 25,
+                              "sharing_delete_device": True, "sharing_penalty_enabled": True,
+                              "sharing_penalty_balance_rub": -100000, "sharing_notify_user": True,
                               "webapp_public_url": "https://lk.example", "admin_id_set": {42}, **kw})
 
 
@@ -152,7 +154,9 @@ class SharingTest(unittest.IsolatedAsyncioTestCase):
         rw, told = Rw(), AsyncMock()
         with patch("app.live._chat_id", return_value=None), patch("app.config.get_settings", return_value=settings()), \
                 patch("app.block.notify_blocked", new=told):
-            self.assertEqual(await sharing_alert.block_due(rw, Bot()), 1)
+            caught = await sharing_alert.block_due(rw, Bot())
+            self.assertEqual([(c["telegram_id"], c["now_ips"]) for c in caught], [(1, 5)])
+            self.assertIn("Устройство «iPhone» удалено", caught[0]["actions"][0])
             self.assertEqual(rw.deleted, [501])                      # the sharing device is gone
             self.assertIsNone(await db.get_device(1, 10))
             self.assertEqual(sorted(rw.off), [500, 502])             # the rest are off
@@ -173,12 +177,49 @@ class SharingTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Баланс: −100 000 ₽ (списано 100 340 ₽)", sent[0][1])
             self.assertIn("10.0.0.1", sent[0][1])                     # IPs read before the device went
             # Already blocked: not again, and no plain sharing warning either.
-            self.assertEqual(await sharing_alert.block_due(rw, Bot()), 0)
+            self.assertEqual(await sharing_alert.block_due(rw, Bot()), [])
             self.assertNotIn(1, [r["telegram_id"] for r in await db.claim_sharing_alerts(3, 10)])
             # Off switch: nothing happens.
             with patch.object(sharing_alert, "get_settings", return_value=settings(sharing_block_enabled=False)):
                 await self.pool.execute("UPDATE users SET blocked_at = NULL WHERE telegram_id = 1")
-                self.assertEqual(await sharing_alert.block_due(rw, Bot()), 0)
+                self.assertEqual(await sharing_alert.block_due(rw, Bot()), [])
+
+    async def test_only_block_when_delete_and_fine_are_off(self):
+        await self.pool.execute("UPDATE users SET balance_rub = 70 WHERE telegram_id = 1")
+        await self.pool.execute("""INSERT INTO device_ips (device_id, ip, last_seen)
+            SELECT 10, '10.0.0.' || g, NOW() FROM generate_series(1, 6) g""")
+
+        class Rw:
+            off, deleted = [], []
+
+            async def disable_panel_user(self, panel_id):
+                self.off.append(panel_id)
+
+            async def delete_panel_user(self, panel_id):
+                self.deleted.append(panel_id)
+
+            async def _request(self, method, path, **kw):
+                return {}
+
+        class Bot:
+            async def send_message(self, *a, **kw):
+                pass
+
+        quiet = settings(sharing_delete_device=False, sharing_penalty_enabled=False, sharing_notify_user=False)
+        told = AsyncMock()
+        with patch.object(sharing_alert, "get_settings", return_value=quiet), patch("app.live._chat_id", return_value=None), \
+                patch("app.config.get_settings", return_value=quiet), patch("app.block.notify_blocked", new=told):
+            got = await sharing_alert.run_check(Rw(), Bot())
+        self.assertEqual(len(got["caught"]), 1)
+        self.assertEqual((Rw.deleted, Rw.off), ([], [501]))
+        self.assertIsNotNone(await db.get_device(1, 10))
+        u = await self.pool.fetchrow("SELECT balance_rub, sharing_at, blocked_at FROM users WHERE telegram_id=1")
+        self.assertEqual(u["balance_rub"], 70)
+        self.assertIsNotNone(u["sharing_at"])
+        self.assertIsNotNone(u["blocked_at"])
+        told.assert_not_awaited()
+        top = await db.sharing_top()
+        self.assertEqual((top[0]["device_id"], top[0]["now_ips"], top[0]["blocked"]), (10, 6, True))
 
     async def test_unblock_forgets_old_ips_and_gives_balance_back(self):
         await self.pool.execute("UPDATE users SET balance_rub = 50 WHERE telegram_id = 1")

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from html import escape
 
@@ -199,12 +200,13 @@ def _rub(n: int) -> str:
 async def punish(rw, bot, row: dict) -> list[str]:
     """Everything that happens to a person caught sharing; returns what was done, for the admin card.
 
-    The sharing device is deleted (panel and here), every other key switched off and its connections dropped,
-    the balance brought to −100 000 ₽ (the difference is remembered for «Разблокировать»), the person marked
-    «Шеринг» and blocked in the bot, so neither a top-up nor the daily billing switches anything back on."""
+    Always: every key switched off, connections dropped, the mark «Шеринг», blocked in the bot (so neither a top-up
+    nor the daily billing switches anything back on). By the settings: the sharing device deleted (panel and here),
+    the balance brought down to sharing_penalty_balance_rub (the difference is remembered for «Разблокировать»)."""
+    s = get_settings()
     tid, device_id = int(row["telegram_id"]), int(row["device_id"])
     done: list[str] = []
-    device = await db.get_device(tid, device_id)
+    device = await db.get_device(tid, device_id) if s.sharing_delete_device else None
     if device:
         try:
             if device.get("remnawave_id"):
@@ -216,7 +218,7 @@ async def punish(rw, bot, row: dict) -> list[str]:
         except RemnawaveError:
             logger.warning("Устройство %s не удалилось в панели (tg %s)", device_id, tid, exc_info=True)
             done.append("⚠️ Панель не удалила устройство — оно выключено вместе с остальными")
-    panel_ids = await db.list_panel_ids_for_user(tid)
+    panel_ids = await db.list_panel_ids_for_user(tid)   # a device the panel refused to delete is still here
     off = 0
     for panel_id in panel_ids:
         try:
@@ -224,19 +226,22 @@ async def punish(rw, bot, row: dict) -> list[str]:
             off += 1
         except RemnawaveError:
             logger.warning("Ключ %s не выключился при блоке за шеринг (tg %s)", panel_id, tid, exc_info=True)
-    if panel_ids:   # a device the panel refused to delete is still here, so it is switched off with the rest
+    if panel_ids:
         try:
             await rw._request("POST", "/connections/drop", json={
                 "dropBy": {"by": "userIds", "userIds": panel_ids}, "targetNodes": {"target": "allNodes"}})
         except RemnawaveError:
             logger.warning("Подключения tg %s не сбросились", tid, exc_info=True)
     if off:
-        done.append(f"⏸ Остальные ключи выключены: {off}")
-    taken, after = await db.apply_sharing_penalty(tid)
-    if taken:
-        await db.log_billing_event(tid, "sharing", source="sharing", amount=-taken, balance_after=after,
-                                   note="Шеринг: баланс до −100 000 ₽")
-    done.append(f"💸 Баланс: {_rub(after)}" + (f" (списано {_rub(taken)})" if taken else ""))
+        done.append(f"⏸ {'Остальные ключи' if done else 'Ключи'} выключены: {off}")
+    await db.mark_sharing(tid)
+    if s.sharing_penalty_enabled:
+        target = int(s.sharing_penalty_balance_rub)
+        taken, after = await db.apply_sharing_penalty(tid, target)
+        if taken:
+            await db.log_billing_event(tid, "sharing", source="sharing", amount=-taken, balance_after=after,
+                                       note=f"Шеринг: баланс до {_rub(target)}")
+        done.append(f"💸 Баланс: {_rub(after)}" + (f" (списано {_rub(taken)})" if taken else ""))
     reason = (f"Шеринг: {int(row['now_ips'])} IP одновременно, {int(row['day_ips'])} за сутки "
               f"({row.get('title') or 'устройство'})")
     await db.set_user_blocked(tid, True, reason)
@@ -245,24 +250,44 @@ async def punish(rw, bot, row: dict) -> list[str]:
     return done
 
 
-async def block_due(rw, bot) -> int:
-    """Punish everyone over the block thresholds. Returns how many people were caught."""
+async def block_due(rw, bot) -> list[dict]:
+    """Punish everyone over the block thresholds. Returns who was caught and what was done."""
     s = get_settings()
     if not s.sharing_block_enabled:
-        return 0
+        return []
     from app.block import notify_blocked
-    caught = 0
+    caught = []
     for row in await db.sharing_offenders(int(s.sharing_block_simultaneous), int(s.sharing_block_daily), NOW_MINUTES):
         tid = int(row["telegram_id"])
         if tid in s.admin_id_set:
             continue
         ips = await db.device_ips_recent(int(row["device_id"]))   # before the device (and its IPs) is deleted
         actions = await punish(rw, bot, row)
-        caught += 1
-        await notify_blocked(bot, tid)
+        caught.append({"telegram_id": tid, "username": row.get("username"), "first_name": row.get("first_name"),
+                       "title": row.get("title"), "now_ips": int(row["now_ips"]), "day_ips": int(row["day_ips"]),
+                       "actions": [re.sub(r"<[^>]+>", "", a) for a in actions]})
+        if s.sharing_notify_user:
+            await notify_blocked(bot, tid)
         text, markup = format_alert(row, ips, blocked=True, actions=actions)
         await _send_admins(bot, text, markup)
     return caught
+
+
+_lock = asyncio.Lock()
+
+
+async def run_check(rw, bot) -> dict:
+    """One full pass: IPs from the panel, punish, warn, prune. The loop and «Проверить сейчас» share the lock,
+    so one person is never punished twice by two passes at once."""
+    async with _lock:
+        if _unsupported:
+            return {"ok": False, "error": "Панель не отдаёт IP подключений (нужна Remnawave с /connections)"}
+        rows = await collect(rw)
+        caught = await block_due(rw, bot)   # first: a blocked person gets the block card, not a second warning
+        warned = await send_due(bot)
+        await db.prune_device_ips(KEEP_DAYS)
+        return {"ok": not _unsupported, "ips": rows, "caught": caught, "warned": warned,
+                **({"error": "Панель не отдаёт IP подключений (нужна Remnawave с /connections)"} if _unsupported else {})}
 
 
 async def sharing_loop(rw, bot) -> None:
@@ -271,10 +296,7 @@ async def sharing_loop(rw, bot) -> None:
         try:
             s = get_settings()
             if s.sharing_alert_enabled or s.sharing_block_enabled:
-                await collect(rw)
-                await block_due(rw, bot)   # first: a blocked person gets the block card, not a second warning
-                await send_due(bot)
-                await db.prune_device_ips(KEEP_DAYS)
+                await run_check(rw, bot)
         except asyncio.CancelledError:
             raise
         except Exception:

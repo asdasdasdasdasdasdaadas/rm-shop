@@ -107,6 +107,10 @@ class Settings(BaseSettings):
     sharing_block_enabled: bool = True
     sharing_block_simultaneous: int = 5
     sharing_block_daily: int = 25
+    sharing_delete_device: bool = True
+    sharing_penalty_enabled: bool = True
+    sharing_penalty_balance_rub: int = -100000
+    sharing_notify_user: bool = True
     no_traffic_alert_enabled: bool = True
     no_traffic_alert_min_mb: int = 1
     no_traffic_alert_after_minutes: int = 30
@@ -345,6 +349,10 @@ SHOP_KEYS = frozenset(
         "sharing_block_enabled",
         "sharing_block_simultaneous",
         "sharing_block_daily",
+        "sharing_delete_device",
+        "sharing_penalty_enabled",
+        "sharing_penalty_balance_rub",
+        "sharing_notify_user",
         "no_traffic_alert_enabled",
         "no_traffic_alert_min_mb",
         "no_traffic_alert_after_minutes",

@@ -114,6 +114,10 @@ def validate_shop(body: dict) -> dict:
     out["sharing_block_enabled"] = bool(body.get("sharing_block_enabled", get_settings().sharing_block_enabled))
     out["sharing_block_simultaneous"] = _as_int(body.get("sharing_block_simultaneous", get_settings().sharing_block_simultaneous), 3, 50, "Блок за шеринг: IP одновременно")
     out["sharing_block_daily"] = _as_int(body.get("sharing_block_daily", get_settings().sharing_block_daily), 5, 500, "Блок за шеринг: IP за сутки")
+    out["sharing_delete_device"] = bool(body.get("sharing_delete_device", get_settings().sharing_delete_device))
+    out["sharing_penalty_enabled"] = bool(body.get("sharing_penalty_enabled", get_settings().sharing_penalty_enabled))
+    out["sharing_penalty_balance_rub"] = _as_int(body.get("sharing_penalty_balance_rub", get_settings().sharing_penalty_balance_rub), -1000000, 0, "Шеринг: баланс после наказания")
+    out["sharing_notify_user"] = bool(body.get("sharing_notify_user", get_settings().sharing_notify_user))
     out["no_traffic_alert_enabled"] = bool(body.get("no_traffic_alert_enabled", get_settings().no_traffic_alert_enabled))
     out["no_traffic_alert_min_mb"] = _as_int(body.get("no_traffic_alert_min_mb", get_settings().no_traffic_alert_min_mb), 1, 1000, "Нет трафика: порог, МБ")
     out["no_traffic_alert_after_minutes"] = _as_int(body.get("no_traffic_alert_after_minutes", get_settings().no_traffic_alert_after_minutes), 10, 1440, "Нет трафика: через сколько минут")
@@ -221,6 +225,10 @@ def snapshot() -> dict:
             "sharing_block_enabled": s.sharing_block_enabled,
             "sharing_block_simultaneous": s.sharing_block_simultaneous,
             "sharing_block_daily": s.sharing_block_daily,
+            "sharing_delete_device": s.sharing_delete_device,
+            "sharing_penalty_enabled": s.sharing_penalty_enabled,
+            "sharing_penalty_balance_rub": s.sharing_penalty_balance_rub,
+            "sharing_notify_user": s.sharing_notify_user,
             "no_traffic_alert_enabled": s.no_traffic_alert_enabled,
             "no_traffic_alert_min_mb": s.no_traffic_alert_min_mb,
             "no_traffic_alert_after_minutes": s.no_traffic_alert_after_minutes,

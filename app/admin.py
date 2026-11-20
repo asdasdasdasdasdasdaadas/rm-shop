@@ -2340,6 +2340,19 @@ async def api_install_test(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **await install_test.overview()})
 
 
+async def api_sharing_check(request: web.Request) -> web.Response:
+    """«Проверить сейчас»: a full sharing pass right away (POST), and who has the most IPs (GET and after the pass)."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import sharing_alert
+    out: dict = {"ok": True}
+    if request.method == "POST":
+        out = await sharing_alert.run_check(request.app["rw"], request.app.get("bot"))
+    out["top"] = await db.sharing_top(10)
+    return web.json_response(out, dumps=lambda o: json.dumps(o, default=str), status=200 if out.get("ok") else 502)
+
+
 async def api_friend_nft(request: web.Request) -> web.Response:
     """«NFT-подарки за друзей»: config, issue queue and friend checks (GET); actions (POST {action})."""
     denied = _need_auth(request)
@@ -3343,6 +3356,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/experiments/{exp_id}/stop", api_experiment_stop)
     app.router.add_get("/admin/api/auto-gift", api_auto_gift)
     app.router.add_post("/admin/api/auto-gift", api_auto_gift)
+    app.router.add_get("/admin/api/sharing-check", api_sharing_check)
+    app.router.add_post("/admin/api/sharing-check", api_sharing_check)
     app.router.add_get("/admin/api/install-test", api_install_test)
     app.router.add_post("/admin/api/install-test", api_install_test)
     app.router.add_get("/admin/api/friend-nft", api_friend_nft)
