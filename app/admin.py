@@ -1404,6 +1404,7 @@ async def _apply_block(
     else:
         await db.set_user_blocked(telegram_id, False)
         await db.clear_device_billing(telegram_id)
+        await db.clear_device_ips(telegram_id)   # or the sharing check blocks them again on the old IPs
     return "ok"
 
 

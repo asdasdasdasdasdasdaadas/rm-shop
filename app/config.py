@@ -104,6 +104,9 @@ class Settings(BaseSettings):
     sharing_alert_enabled: bool = True
     sharing_alert_simultaneous: int = 3
     sharing_alert_daily: int = 10
+    sharing_block_enabled: bool = False
+    sharing_block_simultaneous: int = 5
+    sharing_block_daily: int = 25
     no_traffic_alert_enabled: bool = True
     no_traffic_alert_min_mb: int = 1
     no_traffic_alert_after_minutes: int = 30
@@ -339,6 +342,9 @@ SHOP_KEYS = frozenset(
         "sharing_alert_enabled",
         "sharing_alert_simultaneous",
         "sharing_alert_daily",
+        "sharing_block_enabled",
+        "sharing_block_simultaneous",
+        "sharing_block_daily",
         "no_traffic_alert_enabled",
         "no_traffic_alert_min_mb",
         "no_traffic_alert_after_minutes",

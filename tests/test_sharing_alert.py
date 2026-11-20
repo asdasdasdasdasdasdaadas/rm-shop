@@ -12,6 +12,7 @@ from app import db, sharing_alert
 
 def settings(**kw):
     return SimpleNamespace(**{"sharing_alert_enabled": True, "sharing_alert_simultaneous": 3, "sharing_alert_daily": 10,
+                              "sharing_block_enabled": True, "sharing_block_simultaneous": 5, "sharing_block_daily": 25,
                               "webapp_public_url": "https://lk.example", "admin_id_set": {42}, **kw})
 
 
@@ -58,6 +59,11 @@ class FormatTest(unittest.TestCase):
         self.assertEqual([b.text for b in flat], ["Открыть клиента", "Написать", "Сбросить подключения"])
         self.assertEqual(flat[0].url, "https://lk.example/admin#users?q=123")
         self.assertEqual(flat[2].callback_data, "shr:drop:7")
+        with patch.object(sharing_alert, "get_settings", return_value=settings()):
+            text, kb = sharing_alert.format_alert(row, ips, now, blocked=True)
+        self.assertIn("заблокирован", text)
+        self.assertIn("Пополнение их не включит", text)
+        self.assertEqual(kb.inline_keyboard[-1][0].callback_data, "shr:unblock:123")
 
 
 @unittest.skipUnless(os.environ.get("PGLITE_MODULE"), "Set PGLITE_MODULE to run PostgreSQL integration scenarios")
@@ -112,6 +118,63 @@ class SharingTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await sharing_alert.send_due(Bot()), 1)
         self.assertEqual(sent[0][0], 42)
         self.assertIn("3 IP", sent[0][1])
+
+    async def test_block_due_switches_off_every_key_once(self):
+        await self.pool.execute("UPDATE users SET remnawave_id = 500 WHERE telegram_id = 1")
+        await self.pool.execute("INSERT INTO users (telegram_id, first_name) VALUES (42, 'Админ')")
+        await self.pool.execute("INSERT INTO devices (id, telegram_id, title, remnawave_id) VALUES (12, 1, 'Mac', 502), (13, 42, 'A', 900)")
+        await self.pool.execute("""INSERT INTO device_ips (device_id, ip, last_seen)
+            SELECT 10, '10.0.0.' || g, NOW() FROM generate_series(1, 5) g""")
+        await self.pool.execute("""INSERT INTO device_ips (device_id, ip, last_seen)
+            SELECT 13, '10.1.0.' || g, NOW() FROM generate_series(1, 9) g""")   # the admin: never blocked
+        await self.pool.execute("""INSERT INTO device_ips (device_id, ip, last_seen)
+            SELECT 11, '10.2.0.' || g, NOW() - INTERVAL '2 hours' FROM generate_series(1, 4) g""")  # under both thresholds
+
+        class Rw:
+            def __init__(self):
+                self.off, self.calls = [], []
+
+            async def disable_panel_user(self, panel_id):
+                self.off.append(panel_id)
+
+            async def _request(self, method, path, **kw):
+                self.calls.append((path, kw.get("json")))
+
+        sent = []
+
+        class Bot:
+            async def send_message(self, chat, text, **kw):
+                sent.append((chat, text, kw.get("reply_markup")))
+
+        rw, told = Rw(), AsyncMock()
+        with patch("app.live._chat_id", return_value=None), patch("app.config.get_settings", return_value=settings()), \
+                patch("app.block.notify_blocked", new=told):
+            self.assertEqual(await sharing_alert.block_due(rw, Bot()), 1)
+            self.assertEqual(sorted(rw.off), [500, 501, 502])
+            self.assertEqual(rw.calls[0][1]["dropBy"]["userIds"], [500, 501, 502])
+            self.assertTrue(await db.user_is_blocked(1))
+            self.assertIn("5 IP одновременно", await self.pool.fetchval("SELECT blocked_reason FROM users WHERE telegram_id=1"))
+            self.assertFalse(await db.user_is_blocked(2))
+            self.assertFalse(await db.user_is_blocked(42))
+            told.assert_awaited_once()
+            self.assertEqual([c for c, *_ in sent], [42])
+            self.assertIn("заблокирован", sent[0][1])
+            # Already blocked: not again, and no plain sharing warning either.
+            self.assertEqual(await sharing_alert.block_due(rw, Bot()), 0)
+            self.assertNotIn(1, [r["telegram_id"] for r in await db.claim_sharing_alerts(3, 10)])
+            # Off switch: nothing happens.
+            with patch.object(sharing_alert, "get_settings", return_value=settings(sharing_block_enabled=False)):
+                await self.pool.execute("UPDATE users SET blocked_at = NULL WHERE telegram_id = 1")
+                self.assertEqual(await sharing_alert.block_due(rw, Bot()), 0)
+
+    async def test_unblock_forgets_old_ips(self):
+        await self.pool.execute("INSERT INTO device_ips (device_id, ip, last_seen) VALUES (10, '1.1.1.1', NOW())")
+        await db.set_user_blocked(1, True, "Шеринг")
+        from app.admin import _apply_block
+        with patch("app.admin.get_settings", return_value=settings()):
+            self.assertEqual(await _apply_block(object(), 1, False), "ok")
+        self.assertFalse(await db.user_is_blocked(1))
+        self.assertEqual(await self.pool.fetchval("SELECT COUNT(*) FROM device_ips WHERE device_id=10"), 0)
 
     async def test_old_panel_switches_the_check_off(self):
         from app.remnawave import RemnawaveError

@@ -111,6 +111,9 @@ def validate_shop(body: dict) -> dict:
     out["sharing_alert_enabled"] = bool(body.get("sharing_alert_enabled", get_settings().sharing_alert_enabled))
     out["sharing_alert_simultaneous"] = _as_int(body.get("sharing_alert_simultaneous", get_settings().sharing_alert_simultaneous), 2, 50, "Шеринг: IP одновременно")
     out["sharing_alert_daily"] = _as_int(body.get("sharing_alert_daily", get_settings().sharing_alert_daily), 2, 500, "Шеринг: IP за сутки")
+    out["sharing_block_enabled"] = bool(body.get("sharing_block_enabled", get_settings().sharing_block_enabled))
+    out["sharing_block_simultaneous"] = _as_int(body.get("sharing_block_simultaneous", get_settings().sharing_block_simultaneous), 3, 50, "Блок за шеринг: IP одновременно")
+    out["sharing_block_daily"] = _as_int(body.get("sharing_block_daily", get_settings().sharing_block_daily), 5, 500, "Блок за шеринг: IP за сутки")
     out["no_traffic_alert_enabled"] = bool(body.get("no_traffic_alert_enabled", get_settings().no_traffic_alert_enabled))
     out["no_traffic_alert_min_mb"] = _as_int(body.get("no_traffic_alert_min_mb", get_settings().no_traffic_alert_min_mb), 1, 1000, "Нет трафика: порог, МБ")
     out["no_traffic_alert_after_minutes"] = _as_int(body.get("no_traffic_alert_after_minutes", get_settings().no_traffic_alert_after_minutes), 10, 1440, "Нет трафика: через сколько минут")
@@ -215,6 +218,9 @@ def snapshot() -> dict:
             "sharing_alert_enabled": s.sharing_alert_enabled,
             "sharing_alert_simultaneous": s.sharing_alert_simultaneous,
             "sharing_alert_daily": s.sharing_alert_daily,
+            "sharing_block_enabled": s.sharing_block_enabled,
+            "sharing_block_simultaneous": s.sharing_block_simultaneous,
+            "sharing_block_daily": s.sharing_block_daily,
             "no_traffic_alert_enabled": s.no_traffic_alert_enabled,
             "no_traffic_alert_min_mb": s.no_traffic_alert_min_mb,
             "no_traffic_alert_after_minutes": s.no_traffic_alert_after_minutes,

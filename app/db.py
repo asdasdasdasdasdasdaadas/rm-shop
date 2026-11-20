@@ -6245,6 +6245,31 @@ async def device_ips_recent(device_id: int) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+async def sharing_offenders(simultaneous: int, daily: int, now_minutes: int = 10, limit: int = 20) -> list[dict]:
+    """Not-yet-blocked people with a device over the block thresholds: one row each, their worst device."""
+    rows = await _pool_req().fetch(
+        """WITH s AS (
+               SELECT i.device_id,
+                      COUNT(*) FILTER (WHERE i.last_seen > NOW() - make_interval(mins => $3::int))::int AS now_ips,
+                      COUNT(*)::int AS day_ips
+               FROM device_ips i WHERE i.last_seen > NOW() - INTERVAL '24 hours' GROUP BY i.device_id)
+           SELECT DISTINCT ON (d.telegram_id)
+                  d.id AS device_id, d.telegram_id, u.username, u.first_name, d.title, d.platform, d.client,
+                  d.created_at, d.used_traffic_bytes, d.lifetime_traffic_bytes, s.now_ips, s.day_ips
+           FROM s JOIN devices d ON d.id = s.device_id JOIN users u ON u.telegram_id = d.telegram_id
+           WHERE (s.now_ips >= $1 OR s.day_ips >= $2) AND u.blocked_at IS NULL
+           ORDER BY d.telegram_id, s.now_ips DESC, s.day_ips DESC
+           LIMIT $4""",
+        int(simultaneous), int(daily), int(now_minutes), int(limit))
+    return [dict(r) for r in rows]
+
+
+async def clear_device_ips(telegram_id: int) -> None:
+    """Forget a person's IPs, so an unblocked person is not caught again on yesterday's addresses."""
+    await _pool_req().execute(
+        "DELETE FROM device_ips WHERE device_id IN (SELECT id FROM devices WHERE telegram_id = $1)", int(telegram_id))
+
+
 async def prune_device_ips(keep_days: int = 30) -> None:
     await _pool_req().execute("DELETE FROM device_ips WHERE last_seen < NOW() - ($1::int * INTERVAL '1 day')", int(keep_days))
 

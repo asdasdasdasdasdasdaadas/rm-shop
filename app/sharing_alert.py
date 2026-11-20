@@ -7,6 +7,10 @@ sharing_alert_simultaneous IPs seen in the last 10 minutes, or sharing_alert_dai
 One message per device per 3 days, sooner when the number of IPs grew by half since the last one.
 It goes to the live channel when one is set, otherwise to each admin in private, like «Застрял на подключении».
 Panels without the connections API (older than mid-2026) just switch the check off until the next restart.
+
+With sharing_block_enabled, a device over sharing_block_simultaneous / sharing_block_daily gets its owner blocked:
+every key switched off in the panel, connections dropped, users.blocked_at set (so a top-up does not switch the keys
+back on), the person told «Доступ ограничен», the admins sent the same card with «Разблокировать».
 """
 from __future__ import annotations
 
@@ -127,10 +131,13 @@ def _admin_link() -> str:
     return f"{base}/admin" if base.startswith("https://") else ""
 
 
-def format_alert(row: dict, ips: list[dict], now: datetime | None = None) -> tuple[str, InlineKeyboardMarkup]:
+def format_alert(row: dict, ips: list[dict], now: datetime | None = None, *,
+                 blocked: bool = False) -> tuple[str, InlineKeyboardMarkup]:
     from app.live import _heading, _who
     now = now or datetime.now(timezone.utc)
-    lines = [_heading("action", "🔁", "Шеринг подписки"), "", _who(row), ""]
+    lines = [_heading("action", "🔁", "Шеринг подписки — заблокирован" if blocked else "Шеринг подписки"), "", _who(row), ""]
+    if blocked:
+        lines[-1:-1] = ["Все ключи выключены, в боте заблокирован. Пополнение их не включит."]
     app_bits = " · ".join(escape(str(x)) for x in (row.get("platform"), row.get("client")) if x)
     lines.append(f"Устройство: <b>{escape(str(row.get('title') or 'без названия'))}</b>" + (f" · {app_bits}" if app_bits else ""))
     lines.append(f"Одновременно: <b>{int(row['now_ips'])} IP</b> · за сутки: <b>{int(row['day_ips'])} IP</b>")
@@ -145,7 +152,8 @@ def format_alert(row: dict, ips: list[dict], now: datetime | None = None) -> tup
     lines.append("")
     lines.append(f"Трафик: всего <b>{format_bytes(total)}</b> · в среднем {format_bytes(total // days)} в день")
     tid = int(row["telegram_id"])
-    buttons = [[InlineKeyboardButton(text="Сбросить подключения", callback_data=f"shr:drop:{int(row['device_id'])}")]]
+    buttons = [[InlineKeyboardButton(text="Разблокировать", callback_data=f"shr:unblock:{tid}") if blocked else
+                InlineKeyboardButton(text="Сбросить подключения", callback_data=f"shr:drop:{int(row['device_id'])}")]]
     second = []
     link = _admin_link()
     if link:
@@ -171,20 +179,61 @@ async def send_due(bot) -> int:
     for row in rows:
         ips = await db.device_ips_recent(int(row["device_id"]))
         text, markup = format_alert(row, ips)
-        for chat in targets:
-            try:
-                await bot.send_message(chat, text, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
-            except Exception:
-                logger.warning("Уведомление о шеринге не ушло в %s", chat, exc_info=True)
+        await _send_admins(bot, text, markup)
     return len(rows)
+
+
+async def _send_admins(bot, text: str, markup) -> None:
+    from app.stuck_alert import _targets
+    for chat in await _targets():
+        try:
+            await bot.send_message(chat, text, parse_mode="HTML", reply_markup=markup, disable_web_page_preview=True)
+        except Exception:
+            logger.warning("Уведомление о шеринге не ушло в %s", chat, exc_info=True)
+
+
+async def block_due(rw, bot) -> int:
+    """Block everyone over the block thresholds. Returns how many people were blocked."""
+    s = get_settings()
+    if not s.sharing_block_enabled:
+        return 0
+    from app.block import notify_blocked
+    blocked = 0
+    for row in await db.sharing_offenders(int(s.sharing_block_simultaneous), int(s.sharing_block_daily), NOW_MINUTES):
+        tid = int(row["telegram_id"])
+        if tid in s.admin_id_set:
+            continue
+        panel_ids = await db.list_panel_ids_for_user(tid)
+        for panel_id in panel_ids:
+            try:
+                await rw.disable_panel_user(panel_id)
+            except RemnawaveError:
+                logger.warning("Ключ %s не выключился при блоке за шеринг (tg %s)", panel_id, tid, exc_info=True)
+        if panel_ids:
+            try:
+                await rw._request("POST", "/connections/drop", json={
+                    "dropBy": {"by": "userIds", "userIds": panel_ids}, "targetNodes": {"target": "allNodes"}})
+            except RemnawaveError:
+                logger.warning("Подключения tg %s не сбросились", tid, exc_info=True)
+        reason = (f"Шеринг: {int(row['now_ips'])} IP одновременно, {int(row['day_ips'])} за сутки "
+                  f"({row.get('title') or 'устройство'})")
+        await db.set_user_blocked(tid, True, reason)
+        blocked += 1
+        logger.info("Заблокирован за шеринг: tg %s — %s", tid, reason)
+        await notify_blocked(bot, tid)
+        text, markup = format_alert(row, await db.device_ips_recent(int(row["device_id"])), blocked=True)
+        await _send_admins(bot, text, markup)
+    return blocked
 
 
 async def sharing_loop(rw, bot) -> None:
     await asyncio.sleep(60)
     while not _unsupported:
         try:
-            if get_settings().sharing_alert_enabled:
+            s = get_settings()
+            if s.sharing_alert_enabled or s.sharing_block_enabled:
                 await collect(rw)
+                await block_due(rw, bot)   # first: a blocked person gets the block card, not a second warning
                 await send_due(bot)
                 await db.prune_device_ips(KEEP_DAYS)
         except asyncio.CancelledError:
@@ -218,3 +267,24 @@ async def drop_connections(callback: CallbackQuery, rw) -> None:
         return
     await callback.answer("Подключения сброшены. Устройство переподключится само, если им пользуется один человек.",
                           show_alert=True)
+
+
+@router.callback_query(F.data.startswith("shr:unblock:"))
+async def unblock(callback: CallbackQuery, rw) -> None:
+    if callback.from_user.id not in get_settings().admin_id_set:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    try:
+        tid = int((callback.data or "").rsplit(":", 1)[1])
+    except ValueError:
+        await callback.answer("Нет пользователя", show_alert=True)
+        return
+    from app.admin import _apply_block
+    if await _apply_block(rw, tid, False) == "missing":
+        await callback.answer("Пользователь уже удалён", show_alert=True)
+        return
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.answer("Разблокирован. Ключи включатся сами, если на балансе есть деньги.", show_alert=True)
