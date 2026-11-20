@@ -3144,7 +3144,9 @@ async def admin_badges() -> dict:
 
 
 # Midnight today in Moscow, as a timestamptz: «сегодня» in the admin.
-MSK_MIDNIGHT_SQL = "((CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::date) AT TIME ZONE 'Europe/Moscow'"
+# date_trunc keeps a timestamp (Moscow wall clock), which AT TIME ZONE turns back into the real instant. Going through
+# ::date instead silently uses the server's own time zone (UTC on the server) — that gave «today from 06:00 MSK».
+MSK_MIDNIGHT_SQL = "(date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow') AT TIME ZONE 'Europe/Moscow')"
 
 
 async def admin_stats() -> dict:
