@@ -114,7 +114,6 @@
   // ---------- pictures ----------
   const GP = "M66.5 11.3H33.5c-4.4 0-6.6 0-8.6.6a13.8 13.8 0 0 0-4.8 2.6c-1.6 1.3-2.8 3.2-5.2 6.9L4.4 37.8c-1.6 2.4-2.4 3.7-2.6 5a6.3 6.3 0 0 0 .4 3.4c.5 1.2 1.5 2.2 3.6 4.3l39 39c1.8 1.8 2.7 2.7 3.8 3.1.9.3 1.9.3 2.8 0 1.1-.3 2-1.3 3.8-3.1l39-39c2.1-2.1 3.1-3.1 3.6-4.3a6.3 6.3 0 0 0 .4-3.4c-.2-1.3-1-2.5-2.6-5L85.1 21.5c-2.4-3.7-3.6-5.6-5.2-6.9a13.8 13.8 0 0 0-4.8-2.6c-2-.6-4.2-.6-8.6-.6z";
   const SPK = "M60.3 24.2c.5-1.5 2.6-1.5 3.1 0l3.7 10a2.2 2.2 0 0 0 1.3 1.3l10 3.7c1.5.5 1.5 2.6 0 3.1l-10 3.7a2.2 2.2 0 0 0-1.3 1.3l-3.7 10c-.5 1.5-2.6 1.5-3.1 0l-3.7-10a2.2 2.2 0 0 0-1.3-1.3l-10-3.7c-1.5-.5-1.5-2.6 0-3.1l10-3.7a2.2 2.2 0 0 0 1.3-1.3z";
-  const GEM = (w) => `<svg width="${w}" height="${w}" viewBox="0 0 100 100"><path fill="#fff" d="${GP}"/><path class="gst" fill="#2f86f0" style="transition:fill .7s" d="${SPK}"/></svg>`;
   const FROG = (s, gray) => `<span class="frogw"><img class="frog" src="/icons/frog.png" width="${s}" height="${s}" style="width:${s}px;height:${s}px${gray ? ";filter:grayscale(.85)" : ""}" alt=""></span>`;
   const CHK = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const IC = {
@@ -642,7 +641,16 @@
     if (!list.some((m) => m.id === pay.method)) pay.method = (list[0] || {}).id || "";
     return list.find((m) => m.id === pay.method) || null;
   }
-  const METHOD_EMO = { ton: "💎", stars: "⭐", sbp: "🏦", card: "💳", crypto: "🪙" };
+  // Gram in lists: the brand's diamond mark.
+  const GRAM_MINI = `<svg class="coinmini" width="28" height="28" viewBox="0 0 100 100" aria-hidden="true"><path fill="#30A1F5" d="${GP}"/><path fill="#fff" d="${SPK}"/></svg>`;
+  // Crypto in lists: a small ETH coin behind a BTC one, matching the coin animation on the crypto screen.
+  const COINS_MINI = `<svg class="coinmini" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><defs>` +
+    `<linearGradient id="cmE" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9aaaf5"/><stop offset="1" stop-color="#4a63d6"/></linearGradient>` +
+    `<linearGradient id="cmB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffc46b"/><stop offset=".55" stop-color="#f7931a"/><stop offset="1" stop-color="#c8700c"/></linearGradient></defs>` +
+    `<circle cx="9" cy="9" r="8.6" fill="url(#cmE)"/><path d="M8 2.9L5.1 7.9 8 9.6l2.9-1.7zM5.1 8.8L8 12.9l2.9-4.1L8 10.5z" fill="#fff"/>` +
+    `<circle cx="18" cy="18" r="10.4" fill="rgba(0,0,0,.3)"/><circle cx="18" cy="18" r="9.4" fill="#fff"/>` +
+    `<path transform="translate(8.5 8.5) scale(.7917)" fill="url(#cmB)" fill-rule="evenodd" d="M23.638 14.904c-1.602 6.43-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.548v-.002zm-6.35-4.613c.24-1.59-.974-2.45-2.64-3.03l.54-2.153-1.315-.33-.525 2.107c-.345-.087-.705-.167-1.064-.25l.526-2.127-1.32-.33-.54 2.165c-.285-.067-.565-.132-.84-.2l-1.815-.45-.35 1.407s.975.225.955.236c.535.136.63.486.615.766l-1.477 5.92c-.075.166-.24.406-.614.314.015.02-.96-.24-.96-.24l-.66 1.51 1.71.426.93.242-.54 2.19 1.32.327.54-2.17c.36.1.705.19 1.05.273l-.51 2.154 1.32.33.545-2.19c2.24.427 3.93.257 4.64-1.774.57-1.637-.03-2.58-1.217-3.196.854-.193 1.5-.76 1.68-1.93h.01zm-3.01 4.22c-.404 1.64-3.157.75-4.05.53l.72-2.9c.896.23 3.757.67 3.33 2.37zm.41-4.24c-.37 1.49-2.662.735-3.405.55l.654-2.64c.744.18 3.137.524 2.75 2.084v.006z"/></svg>`;
+  const METHOD_EMO = { ton: GRAM_MINI, stars: "⭐", sbp: "🏦", card: "💳", crypto: COINS_MINI };
   const METHOD_SUB = { ton: "Из кошелька Telegram, окно придёт в чат", stars: "Звёздами Telegram", sbp: "Через приложение банка", card: "Visa, Mastercard, Мир", crypto: "Валюту и сеть выберете при оплате" };
   const methodSub = (m) => METHOD_SUB[m.id] || m.note || "";
   // Each payment method has its own widget: Gram keeps the blue gem, Stars is gold, SBP wears its own colours.
@@ -684,17 +692,156 @@
     })).catch(() => boxes.forEach((b) => { b.textContent = "💻"; b.classList.add("fb"); }));
   };
   new MutationObserver(() => mountLaptop(document)).observe(document.getElementById("root"), { childList: true, subtree: true });
+  // Interactive 3D pictures for payment methods:
+  //   coins — crypto: BTC → ETH → USDT, a coin tosses, flips and turns into the next (icons/crypto-coins.json).
+  // start/period/hold: where the still part of each cycle begins, how long a cycle is, how long it stays still.
+  const ANIM3D = {
+    coins: { path: "/icons/crypto-coins.json?v=5", start: 20, period: 136, hold: 96, still: 30, fb: "🪙" },
+  };
+  const COINS = (w) => `<div class="coinl" data-k="coins" style="width:${w}px;height:${w}px"></div>`;
+  // Tap plays the toss/spin right away; dragging a finger (or the mouse) tilts the picture towards it.
+  const coinPlay = (b, a, still, COIN_T) => {
+    if (b.closest("button, .am-ic")) return; // a small icon inside a button keeps the button's own tap
+    b.classList.add("coinx");
+    const tilt = (x, y) => { b.style.transform = `perspective(420px) rotateX(${(-y * 16).toFixed(1)}deg) rotateY(${(x * 18).toFixed(1)}deg)`; };
+    const at = (e) => { const r = b.getBoundingClientRect(); return [Math.max(-1, Math.min(1, (e.clientX - r.left) / r.width * 2 - 1)), Math.max(-1, Math.min(1, (e.clientY - r.top) / r.height * 2 - 1))]; };
+    let down = false;
+    b.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") b.classList.add("hov"); });
+    b.addEventListener("pointermove", (e) => { if (down || e.pointerType === "mouse") tilt(...at(e)); });
+    b.addEventListener("pointerdown", (e) => { down = true; b.classList.add("prs"); tilt(...at(e)); });
+    const up = () => { down = false; b.classList.remove("prs", "hov"); b.style.transform = ""; };
+    b.addEventListener("pointerleave", up);
+    b.addEventListener("pointercancel", up);
+    b.addEventListener("pointerup", () => { down = false; b.classList.remove("prs"); if (!b.classList.contains("hov")) b.style.transform = ""; });
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      down = false; b.classList.remove("prs");
+      const total = a.totalFrames || COIN_T.period, f = a.currentFrame, k = (((f - COIN_T.start) % COIN_T.period) + COIN_T.period) % COIN_T.period;
+      haptic("medium");
+      if (still) { a.goToAndStop((f + COIN_T.period) % total || COIN_T.still, true); return; }
+      if (k >= COIN_T.hold) return; // already in the air
+      a.setSpeed(1.6);
+      a.goToAndPlay((f - k + COIN_T.hold) % total, true);
+      setTimeout(() => a.setSpeed(1), 450);
+    });
+  };
+  const mountCoins = (root) => {
+    const boxes = [...root.querySelectorAll(".coinl:not([data-on])")];
+    if (!boxes.length) return;
+    boxes.forEach((b) => b.setAttribute("data-on", ""));
+    const still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const kind = (b) => ANIM3D[b.dataset.k] || ANIM3D.coins;
+    lottieLib().then((L) => boxes.forEach((b) => {
+      if (!b.isConnected) return;
+      const k = kind(b);
+      const a = L.loadAnimation({ container: b, renderer: "svg", loop: true, autoplay: !still, path: k.path,
+        rendererSettings: { preserveAspectRatio: "xMidYMid meet" } });
+      if (still) a.addEventListener("DOMLoaded", () => a.goToAndStop(k.still, true));
+      a.addEventListener("data_failed", () => { b.textContent = k.fb; b.classList.add("fb"); });
+      coinPlay(b, a, still, k);
+    })).catch(() => boxes.forEach((b) => { b.textContent = kind(b).fb; b.classList.add("fb"); }));
+  };
+  new MutationObserver(() => mountCoins(document)).observe(document.getElementById("root"), { childList: true, subtree: true });
+
+  // Gram: a cut diamond (icons/gram-gem.json) over its glow and rays (icons/gram-fx.json). It pops in once (frames
+  // 0..GEM.ent), then turns for ever. The cut repeats every 360°/8 and the light stays put, so frames ent..ent+loop are
+  // one facet step: any angle maps onto them. A finger turns it a little, letting go springs it back; a tap nudges it and it hops.
+  const GEM = { ent: 72, loop: 84, step: 45, idle: 45 / 1.4, pull: 24, gem: "/icons/gram-gem.json?v=6", fx: "/icons/gram-fx.json?v=3" };
+  // The brand's star sits where it is in the Gram mark (upper right of the crown) and stays: it only twinkles.
+  const GEML = (w) => `<div class="geml" style="width:${w}px;height:${w}px"><div class="gfx"></div><div class="ggem">` +
+    `<svg class="gspk" viewBox="43.8 23.1 36 36" aria-hidden="true"><path fill="#fff" d="${SPK}"/></svg></div></div>`;
+  const gemPlay = (b, a, still) => {
+    const box = b.querySelector(".ggem");
+    // base: the idle turn; off: how far a finger has turned it away from there — a little, with growing resistance
+    // (at most GEM.pull°). While held the idle turn waits; on release `off` springs back to 0 and the idle turn eases
+    // back in, so the stone settles where it was and carries on turning without a seam.
+    let base = 0, off = 0, vel = 0, speed = still ? 0 : 1, drag = null, run = false, last = 0;
+    const show = () => {
+      const ph = base + off;
+      a.goToAndStop(GEM.ent + ((((ph % GEM.step) + GEM.step) % GEM.step) / GEM.step) * GEM.loop, true);
+    };
+    const tick = (now) => {
+      if (!b.isConnected) { run = false; return; }
+      const dt = Math.min(.05, (now - (last || now)) / 1000);
+      last = now;
+      if (!drag) {
+        vel += (-off * 160 - vel * 18) * dt;   // a spring, just under critical damping: one soft settle
+        off += vel * dt;
+        if (Math.abs(off) < .05 && Math.abs(vel) < .5) { off = 0; vel = 0; }
+        speed += ((still ? 0 : 1) - speed) * (1 - Math.exp(-dt * 5));
+        base += GEM.idle * speed * dt;
+      }
+      show();
+      if (run) requestAnimationFrame(tick);
+    };
+    const go = () => { if (!run) { run = true; last = 0; requestAnimationFrame(tick); } };
+    if (!still) a.addEventListener("complete", go, { once: true });
+    if (b.closest("button, .am-ic")) return;
+    b.classList.add("gemx");
+    b.addEventListener("pointerdown", (e) => {
+      drag = { x: e.clientX, y: e.clientY, t: performance.now(), off, moved: 0 };
+      vel = 0; speed = 0;
+      try { b.setPointerCapture(e.pointerId); } catch (_) { /* old webviews */ }
+      box.classList.add("held");
+      go();
+    });
+    b.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      off = GEM.pull * Math.tanh((drag.off / GEM.pull) + dx * .6 / GEM.pull);
+      drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
+      b.style.setProperty("--gtx", `${(8 * Math.tanh(dy * -.02)).toFixed(1)}deg`);
+    });
+    const up = () => {
+      if (!drag) return;
+      const tap = drag.moved < 6 && performance.now() - drag.t < 350;
+      drag = null;
+      if (!still) speed = Math.max(speed, .45);   // it picks the idle turn up again while it settles
+      box.classList.remove("held");
+      b.style.removeProperty("--gtx");
+      if (tap) {
+        vel = 240;                       // a small nudge that springs home
+        haptic("medium");
+        box.classList.remove("hop"); void box.offsetWidth; box.classList.add("hop");
+      }
+    };
+    b.addEventListener("pointerup", up);
+    b.addEventListener("pointercancel", up);
+  };
+  const mountGems = (root) => {
+    const boxes = [...root.querySelectorAll(".geml:not([data-on])")];
+    if (!boxes.length) return;
+    boxes.forEach((b) => b.setAttribute("data-on", ""));
+    const still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const fail = (b) => { b.textContent = "💎"; b.classList.add("fb"); };
+    lottieLib().then((L) => boxes.forEach((b) => {
+      if (!b.isConnected) return;
+      const opt = { renderer: "svg", rendererSettings: { preserveAspectRatio: "xMidYMid meet" } };
+      const fx = L.loadAnimation({ ...opt, container: b.querySelector(".gfx"), loop: true, autoplay: !still, path: GEM.fx });
+      const a = L.loadAnimation({ ...opt, container: b.querySelector(".ggem"), loop: false, autoplay: false, path: GEM.gem });
+      a.addEventListener("DOMLoaded", () => {
+        if (still) { a.goToAndStop(GEM.ent, true); fx.goToAndStop(0, true); } else a.playSegments([0, GEM.ent], true);
+      });
+      a.addEventListener("data_failed", () => fail(b));
+      gemPlay(b, a, still);
+    })).catch(() => boxes.forEach(fail));
+  };
+  new MutationObserver(() => mountGems(document)).observe(document.getElementById("root"), { childList: true, subtree: true });
   const SBPBIG = (w) => `<div style="width:${w}px;height:${w}px;border-radius:${Math.round(w * .28)}px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(0,0,0,.25)"><img src="/icons/sbp.svg" width="${Math.round(w * .5)}" height="${Math.round(w * .58)}" alt=""></div>`;
   const CARDBIG = (w) => `<svg width="${w}" height="${Math.round(w * .72)}" viewBox="0 0 100 72"><rect x="2" y="2" width="96" height="68" rx="12" fill="#fff"/><rect x="2" y="16" width="96" height="12" fill="#2b3a66"/>` +
     `<rect x="12" y="40" width="22" height="16" rx="3" fill="#f2c14e"/><rect x="44" y="46" width="40" height="5" rx="2.5" fill="#c9cfdc"/></svg>`;
   const LOOK = {
-    ton: { c: "blue", ill: (w) => GEM(w) },
+    ton: { c: "blue", ill: (w) => GEML(w + 64) },
     stars: { c: "stars", ill: (w) => STARBIG(w + 28) },
     sbp: { c: "sbp", ill: (w) => SBPBIG(w + 4) },
     card: { c: "cardpay", ill: (w) => CARDBIG(w + 14) },
-    crypto: { c: "slate", ill: () => "🪙" },
+    crypto: { c: "slate", ill: (w) => COINS(w + 44) },
   };
-  const look = (m) => LOOK[(m && m.id) || ""] || LOOK.ton;
+  // Every method's picture sits in a slot of the same height, so the payment cards don't jump when the method changes.
+  const look = (m) => {
+    const L = LOOK[(m && m.id) || ""] || LOOK.ton;
+    return { ...L, ill: (w) => `<div class="payill" style="height:${w + 24}px">${L.ill(w)}</div>` };
+  };
   const WAIT_TEXT = {
     stars: ["Открыли счёт в Telegram", "<b>обычно мгновенно</b>"],
     sbp: ["Открыли оплату через СБП", "<b>подтвердите в приложении банка</b>"],
@@ -741,7 +888,7 @@
 
   // ---------- own amount: big number, own keypad, live hints ----------
   const GRAM = (w) => `<svg width="${w}" height="${w}" viewBox="0 0 100 100"><path fill="#30A1F5" d="${GP}"/><path fill="#fff" d="${SPK}"/></svg>`;
-  const AM_ICON = { ton: () => GRAM(42), stars: () => STARBIG(52), sbp: () => `<img src="/icons/sbp.svg" width="30" height="35" alt="">`, card: () => CARDBIG(40), crypto: () => "🪙" };
+  const AM_ICON = { ton: () => GRAM(42), stars: () => STARBIG(52), sbp: () => `<img src="/icons/sbp.svg" width="30" height="35" alt="">`, card: () => CARDBIG(40), crypto: () => COINS(52) };
   const AM_TONE = { ton: "", stars: "gold", sbp: "green", card: "green", crypto: "" };
   const amt = { v: "", d: "", mode: "rub", rolling: false, gift: false, cnt: 1 };
   // The same screen types a gift for a friend («Своя» in «Подарить»): its own limits, one device's day price, no payment method.
@@ -2489,9 +2636,11 @@
     pay: (b) => startPay(b),
     meth(b) {
       haptic();
+      const same = (curMethod() || {}).id === b.dataset.v;
       pay.method = b.dataset.v;
       cur.el.querySelectorAll(".rd").forEach((r) => r.classList.toggle("on", r.closest("[data-v]").dataset.v === pay.method));
-      // The widget on top changes to the chosen method's look.
+      // The widget on top changes to the chosen method's look (the same method keeps its picture, it doesn't pop in again).
+      if (same) return;
       const h = cur.el.querySelector(".hc"), L = look(curMethod());
       Object.values(LOOK).forEach((x) => h.classList.remove(x.c));
       h.classList.add(L.c);
