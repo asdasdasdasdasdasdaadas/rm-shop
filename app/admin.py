@@ -18,7 +18,6 @@ from app.referral_terms import referral_terms
 from app.reminder_tracking import tracked_keyboard, _finish as finish_tracked_delivery
 from app import db, runtime
 from app.balance import sync_user_billing
-from app.block import blocked_notice
 from app.backup import (
     MAX_UPLOAD,
     backup_path,
@@ -32,7 +31,6 @@ from app.backup import (
 from app.config import ROOT, get_settings
 from app.shop_config import save_shop_overlay, save_referral_settings, snapshot as shop_snapshot
 from app.keyboards import (
-    blocked_keyboard,
     cabinet_keyboard,
     payment_nudge_keyboard,
     onboarding_keyboard,
@@ -1354,18 +1352,33 @@ async def _apply_block(
     telegram_id: int,
     blocked: bool,
     reason: str | None = None,
+    bot: Bot | None = None,
 ) -> str:
+    """Blocking is total: the bot and the cabinet stop answering (block.py), the bot writes nothing to them, every
+    device is deleted (panel and here), their own panel key is switched off, and they are removed from the channel."""
     if telegram_id in get_settings().admin_id_set:
         return "skipped"
     if not await db.get_user(telegram_id):
         return "missing"
     if blocked:
+        await db.set_user_blocked(telegram_id, True, reason)   # first, so nothing switches back on meanwhile
+        for item in await db.list_devices(telegram_id):
+            device_id = int(item["id"])
+            try:
+                if item.get("remnawave_id"):
+                    await rw.delete_panel_user(int(item["remnawave_id"]))
+            except RemnawaveError:
+                logger.exception("Не удалось удалить устройство %s в панели при блоке %s", device_id, telegram_id)
+                continue   # it stays here and is switched off below
+            if await db.delete_device(telegram_id, device_id):
+                await db.log_billing_event(telegram_id, "device_delete", source="admin", device_id=device_id,
+                                           device_title=str(item.get("title") or ""), note="Удалено при блокировке")
         for panel_id in await db.list_panel_ids_for_user(telegram_id):
             try:
                 await rw.disable_panel_user(panel_id)
             except RemnawaveError:
                 logger.exception("Не удалось отключить панель %s при блоке %s", panel_id, telegram_id)
-        await db.set_user_blocked(telegram_id, True, reason)
+        await _channel_member(bot, telegram_id, banned=True)
     else:
         await db.set_user_blocked(telegram_id, False)
         await db.clear_device_billing(telegram_id)
@@ -1374,7 +1387,22 @@ async def _apply_block(
         if given:
             await db.log_billing_event(telegram_id, "sharing", source="admin", amount=given, balance_after=after,
                                        note="Разблокирован: баланс за шеринг возвращён")
+        await _channel_member(bot, telegram_id, banned=False)
     return "ok"
+
+
+async def _channel_member(bot: Bot | None, telegram_id: int, *, banned: bool) -> None:
+    """Out of the Telegram channel while blocked (a ban, so the link does not let them back); unblock lifts it."""
+    channel = str(get_settings().required_channel_id or "").strip()
+    if not bot or not channel:
+        return
+    try:
+        if banned:
+            await bot.ban_chat_member(channel, telegram_id)
+        else:
+            await bot.unban_chat_member(channel, telegram_id, only_if_banned=True)
+    except Exception:
+        logger.warning("Канал: не удалось %s %s", "исключить" if banned else "разбанить", telegram_id, exc_info=True)
 
 
 async def api_delete_user(request: web.Request) -> web.Response:
@@ -1542,17 +1570,11 @@ async def api_block_user(request: web.Request) -> web.Response:
     body = await request.json()
     blocked = bool(body.get("blocked"))
     reason = str(body.get("reason") or "").strip() or None
-    result = await _apply_block(request.app["rw"], telegram_id, blocked, reason)
+    result = await _apply_block(request.app["rw"], telegram_id, blocked, reason, request.app.get("bot"))
     if result == "missing":
         return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
     if result == "skipped":
         return web.json_response({"ok": False, "error": "Админа заблокировать нельзя"}, status=400)
-    if blocked:
-        bot: Bot = request.app["bot"]
-        try:
-            await bot.send_message(telegram_id, blocked_notice(), reply_markup=blocked_keyboard())
-        except Exception:
-            logger.debug("Не удалось написать заблокированному %s", telegram_id, exc_info=True)
     return web.json_response({"ok": True, "blocked": blocked})
 
 
@@ -1688,7 +1710,7 @@ async def api_users_bulk(request: web.Request) -> web.Response:
                 else:
                     failed += 1
             elif action == "block":
-                result = await _apply_block(rw, telegram_id, True)
+                result = await _apply_block(rw, telegram_id, True, bot=bot)
                 if result == "ok":
                     ok_n += 1
                 elif result == "skipped":
@@ -1696,7 +1718,7 @@ async def api_users_bulk(request: web.Request) -> web.Response:
                 else:
                     failed += 1
             elif action == "unblock":
-                result = await _apply_block(rw, telegram_id, False)
+                result = await _apply_block(rw, telegram_id, False, bot=bot)
                 if result == "ok":
                     ok_n += 1
                 elif result == "skipped":

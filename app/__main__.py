@@ -127,6 +127,8 @@ async def main() -> None:
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     from app.legal_notice import LegalNoticeRequestMiddleware, LegalNoticeInteractionMiddleware
     bot.session.middleware(LegalNoticeRequestMiddleware())
+    from app.block import BlockedRequestMiddleware
+    bot.session.middleware(BlockedRequestMiddleware())   # nothing goes out to a person blocked in the admin panel
     from app.button_icons import install_button_icons
     await install_button_icons(bot)
     runtime.bot = bot
