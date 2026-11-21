@@ -1632,7 +1632,7 @@
   const nfCur = (nf) => nf.steps.findIndex((s) => s.state === "none");
   const nfFresh = (nf) => { const seen = store.get("nf_period"); return seen != null && seen !== "" && seen !== String(nf.period); };
   function nfInvite(nf) {
-    return nfHero(nf) + nfPath(nf) + nfFriends(nf) + nfRules(nf);
+    return nfHero(nf) + nfPath(nf) + nfFriends(nf);
   }
   function nfHero(nf) {
     const n = Number(nf.counted) || 0, ci = nfCur(nf), all = ci < 0, last = nf.steps.length - 1;
@@ -1691,14 +1691,6 @@
     }).join("");
     return ST(`Ваши друзья · ${Number(nf.counted) || 0} засчитано`) + `<div class="cd nf-fw">${rows}</div>` +
       (chk || bad ? NOTE(`${chk ? `${nfFr(chk)} на проверке. ` : ""}${bad ? `${bad} ${nfPl(bad, "аккаунт не засчитан", "аккаунта не засчитаны", "аккаунтов не засчитано")} — это не новые живые пользователи.` : ""}`) : "");
-  }
-  function nfRules(nf) {
-    const days = Number(nf.check_days) || 7, on = Number(nf.online_days) || 0;
-    const items = [["Новый человек", "раньше не заходил в бота и пришёл по вашей ссылке"], [`Сам оплатил VPN от ${rub(Number(nf.min_rub) || 100)}`, "своей картой или СБП — не бонусами и не подарком"]];
-    if (on) items.push(["Пользуется VPN", `подключался хотя бы ${nfDays(on)} из первых ${days}`]);
-    items.push([`${days === 7 ? "Неделя" : nfDays(days)} без возврата`, `засчитываем через ${nfDays(days)} после оплаты`], ["Это не вы", "другая карта, другой телефон и устройство"]);
-    return ST("Кто засчитывается") + `<div class="cd nf-chk">${items.map((x, i) => `<div class="tl" style="--i:${i}"><div class="n">✓</div><div><div class="tx">${x[0]}</div><div class="sx">${x[1]}</div></div></div>`).join("")}</div>` +
-      NOTE("Подарки выдаём вручную и перед отправкой смотрим каждого друга. За накрутку путь обнуляется.");
   }
   // After a render: animations, the timer, and the reveal for a gift that was just earned.
   let nfTick = 0;
@@ -2015,7 +2007,7 @@
       const u = me.user || {};
       const photo = u.photo ? `<span class="frogw"><img class="frog" src="${esc(u.photo)}" width="80" height="80" style="width:80px;height:80px" alt="" onerror="this.src='/icons/frog.png'"></span>` : FROG(80);
       const quiet = Boolean(me.quiet_notifications);
-      const who = [u.username ? "@" + esc(u.username) : "", u.id ? `ID ${esc(u.id)}` : ""].filter(Boolean).join(" · ");
+      const who = [u.username ? "@" + esc(String(u.username).replace(/^@+/, "")) : "", u.id ? `ID ${esc(u.id)}` : ""].filter(Boolean).join(" · ");
       return hc("slate", { ill: photo, h: esc(u.name || "Профиль"), p: who, pill: "Поддержка", pi: "msg", pa: 'data-act="support"', r: "copy", rl: "Скопировать ID", ra: 'data-act="copyid"' }) +
         (me.notification_settings_available ? ST("Уведомления") + cd([["Режим тишины" + `<span class="tg ${quiet ? "" : "off"}"></span>`, 'data-act="quiet"']]) +
           NOTE("Без приглашений, акций и напоминаний. Сообщения о деньгах, доступе и ответы поддержки останутся.") : "") +
@@ -3225,7 +3217,6 @@
         `<div class="grt"><textarea id="grt" rows="3" maxlength="200" placeholder="Например: с днём рождения!">${esc(v)}</textarea><div class="grt-n"><span>${v.length}</span> / 200</div></div>` +
         `<div class="grt-chips">${(nySeason() || isNy(gs.style) ? GREETS : ["С днём рождения! 🎉", "Пользуйся на здоровье", "Спасибо, что ты есть ❤️"]).map((t) =>
           `<button type="button" data-act="grchip" data-v="${esc(t)}" class="${t === v ? "on" : ""}">${esc(t)}</button>`).join("")}</div>` +
-        NOTE("Ссылки и @упоминания убираем — так подарок не примут за спам.", true) +
         `<div class="bot"><button type="button" class="bbtn" data-act="grdone">Готово</button></div>`;
     },
     bot: true,
