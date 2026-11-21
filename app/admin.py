@@ -2311,6 +2311,30 @@ async def api_install_test(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **await install_test.overview()})
 
 
+async def api_frog_test(request: web.Request) -> web.Response:
+    """A/B test of the living frog on the cabinet's home card: results (GET), start or stop (POST {action})."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import frog_test
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        action = (body or {}).get("action") if isinstance(body, dict) else None
+        if action == "start":
+            try:
+                await frog_test.start()
+            except ValueError as exc:
+                return web.json_response({"ok": False, "error": str(exc)}, status=400)
+        elif action == "stop":
+            await frog_test.stop()
+        else:
+            return web.json_response({"ok": False, "error": "Некорректный запрос"}, status=400)
+    return web.json_response({"ok": True, **await frog_test.overview()})
+
+
 async def api_sharing_check(request: web.Request) -> web.Response:
     """«Проверить сейчас»: a full sharing pass right away (POST), and who has the most IPs (GET and after the pass)."""
     denied = _need_auth(request)
@@ -3341,6 +3365,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/sharing-check", api_sharing_check)
     app.router.add_get("/admin/api/install-test", api_install_test)
     app.router.add_post("/admin/api/install-test", api_install_test)
+    app.router.add_get("/admin/api/frog-test", api_frog_test)
+    app.router.add_post("/admin/api/frog-test", api_frog_test)
     app.router.add_get("/admin/api/friend-nft", api_friend_nft)
     app.router.add_post("/admin/api/friend-nft", api_friend_nft)
     app.router.add_get("/admin/api/broadcast", api_broadcast)

@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Своё VPN-приложение</title>
+<link rel="stylesheet" href="cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:hidden}
+.top{padding:28px 24px 6px;max-width:1080px;margin:0 auto}
+.top h1{font-size:26px;margin:0;font-weight:800;letter-spacing:-.3px}
+.top p{margin:8px 0 0;color:#9aa0ab;font-size:15px;line-height:1.5;max-width:800px}
+.rules{max-width:1080px;margin:22px auto 0;padding:0 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.rule{background:#15171b;border-radius:18px;padding:14px 16px;font-size:13.5px;color:#9aa0ab;line-height:1.45}
+.rule b{display:block;color:#fff;font-size:14.5px;margin-bottom:3px}
+.var{max-width:1080px;margin:36px auto 0;padding:0 24px 30px;display:grid;grid-template-columns:340px 1fr;gap:40px;align-items:start}
+.var + .var{border-top:1px solid #1d1f24;padding-top:36px}
+@media (max-width:820px){.var{grid-template-columns:1fr;gap:20px}.var .phone{max-width:340px;margin:0 auto}}
+.vh .k{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#5ea8ff;margin-bottom:6px}
+.vh .k.best{color:#0a0b0d;background:#3ccf74;border-radius:99px;padding:3px 9px}
+.vh h2{margin:0;font-size:22px}.vh p{margin:6px 0 0;color:#9aa0ab;font-size:14.5px;line-height:1.5}
+.vh .ctl{display:flex;gap:14px;margin-top:10px}.vh .ctl button{font-size:14px;color:#5ea8ff;font-weight:600}
+.notes{list-style:none;margin:18px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.notes li{display:grid;grid-template-columns:30px 1fr;gap:12px;padding:12px 14px;border-radius:16px;background:#121418;transition:background .35s,opacity .35s,transform .35s;opacity:.55}
+.notes li .i{width:30px;height:30px;border-radius:99px;background:#22252c;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;transition:background .3s}
+.notes li b{font-size:15px;display:block}.notes li span.d{font-size:13.5px;color:#9aa0ab;line-height:1.45;display:block;margin-top:3px}
+.notes li .pt{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.notes li .pt em{font-style:normal;font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:99px;background:rgba(94,168,255,.12);color:#8cc0ff}
+.notes li.done{opacity:.8}.notes li.done .i{background:#28a464}
+.notes li.on{opacity:1;background:#1a2433;transform:translateX(4px)}.notes li.on .i{background:#3e88f7}
+.pros{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.pros div{background:#121418;border-radius:14px;padding:10px 12px;font-size:13px;color:#9aa0ab;line-height:1.45}
+.pros div b{display:block;font-size:12px;letter-spacing:.4px;text-transform:uppercase;margin-bottom:3px}
+.pros .p b{color:#3ccf74}.pros .m b{color:#f0b43c}
+.combo{max-width:1080px;margin:40px auto 60px;padding:0 24px}
+.combo div{background:linear-gradient(135deg,#132a1d,#15171b 60%);border:1px solid rgba(60,207,116,.25);border-radius:22px;padding:18px 20px;font-size:15px;line-height:1.55;color:#cfd5de}
+.combo b{color:#fff}
+/* phone */
+.phone{width:100%;height:720px;border-radius:46px;border:9px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;background:var(--bg);isolation:isolate}
+.phone .scr{position:absolute;inset:0;overflow:hidden;padding:16px 0 30px;transition:transform .45s var(--ease),opacity .45s}
+.phone .scr.off{transform:translateX(30%);opacity:0}
+.phone .scr.back{transform:translateX(-25%);opacity:0}
+.finger{position:absolute;left:0;top:0;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.9);z-index:90;opacity:0;pointer-events:none;transition:transform .6s cubic-bezier(.3,.8,.3,1),opacity .3s;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.finger.on{opacity:1}.finger.press{background:rgba(255,255,255,.6)}
+.finger::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:2px solid #fff;opacity:0}
+.finger.press::after{animation:ring .45s ease-out}
+@keyframes ring{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(2.1)}}
+.pressed{transform:scale(.96)!important;transition:transform .12s}
+/* bits */
+.ai{display:inline-flex;align-items:center;justify-content:center;border-radius:24%;font-weight:800;color:#fff;flex:none;overflow:hidden}
+.ai img{width:100%;height:100%;display:block}
+.sw{position:absolute;inset:0;z-index:40;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;animation:fadein .25s both}
+.sw.out{animation:fadeout .3s both}
+.sh{width:100%;background:#1c1e23;border-radius:24px 24px 0 0;padding:8px 16px 26px;animation:sheet .4s var(--ease) both}
+.sw.out .sh{animation:sheetout .3s both}
+.sh .grab{width:38px;height:5px;border-radius:3px;background:#3a3d45;margin:0 auto 14px}
+.sh h3{font-size:19px;font-weight:800;margin:0 0 4px}.sh .sub{color:#9aa0ab;font-size:13.5px;margin-bottom:14px;line-height:1.4}
+.al2 button{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:16px;background:#26292f;margin-bottom:8px;text-align:left;border:1.5px solid transparent;transition:border-color .25s,background .25s,transform .15s}
+.al2 button.on{border-color:var(--blue);background:rgba(62,136,247,.12)}
+.al2 .t{flex:1;min-width:0}.al2 .t b{display:block;font-size:16px}.al2 .t span{font-size:12.5px;color:#9aa0ab}
+.al2 .ck{width:24px;height:24px;border-radius:50%;border:2px solid #4a4e57;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;transition:all .25s}
+.al2 button.on .ck{background:var(--blue);border-color:var(--blue)}
+.sh .cn{display:block;width:100%;text-align:center;color:var(--link);margin-top:6px;font-size:16px}
+.toast2{position:absolute;top:44px;left:50%;transform:translate(-50%,-20px);opacity:0;background:rgba(40,42,48,.97);padding:11px 16px;border-radius:14px;font-size:14px;font-weight:600;z-index:60;white-space:nowrap;transition:all .35s var(--ease);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.toast2.on{opacity:1;transform:translate(-50%,0)}
+.swap{animation:swap .45s var(--ease)}
+@keyframes swap{0%{opacity:0;transform:translateY(8px)}100%{opacity:1}}
+@keyframes fadein{from{opacity:0}}@keyframes fadeout{to{opacity:0}}
+@keyframes sheet{from{transform:translateY(100%)}}@keyframes sheetout{to{transform:translateY(100%)}}
+/* v2 split pill */
+.split{flex:1;display:flex;height:52px;border-radius:99px;background:#fff;color:#1d2340;font-weight:700;font-size:16.5px;overflow:hidden}
+.split .m{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.split .c{width:50px;display:flex;align-items:center;justify-content:center;border-left:1px solid #dfe3ea;font-size:15px}
+.pop{position:absolute;z-index:40;left:18px;right:18px;background:rgba(36,38,44,.98);border-radius:18px;padding:6px;box-shadow:0 20px 50px rgba(0,0,0,.6);transform-origin:85% 0;animation:popin .3s var(--ease) both}
+.pop.out{animation:popout .2s both}
+.pop button{display:flex;align-items:center;gap:12px;width:100%;padding:10px;border-radius:12px;font-size:15.5px;text-align:left}
+.pop button.on{background:rgba(62,136,247,.15)}.pop button i{margin-left:auto;font-style:normal;color:var(--blue);font-weight:800}
+.pop .sep{height:1px;background:#33363d;margin:4px 10px}
+.pop .hint{font-size:12px;color:#9aa0ab;padding:6px 10px 2px}
+@keyframes popin{from{opacity:0;transform:scale(.9) translateY(-8px)}}@keyframes popout{to{opacity:0;transform:scale(.95)}}
+/* v3 away */
+.away{position:absolute;inset:0;z-index:30;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#9aa0ab;font-size:14px;animation:fadein .3s both}
+.away.out{animation:fadeout .3s both}
+.away .ios{width:250px;background:rgba(40,40,44,.97);border-radius:16px;text-align:center;overflow:hidden;animation:popin .3s .4s var(--ease) both}
+.away .ios b{display:block;padding:16px 16px 4px;color:#fff;font-size:16px}.away .ios span{display:block;padding:0 16px 14px;font-size:13px}
+.away .ios u{display:block;text-decoration:none;border-top:1px solid #444;padding:11px;color:#5ea8ff;font-size:16px}
+.ret{margin:12px 12px 0;background:linear-gradient(135deg,#2a2412,#1c1e23 70%);border:1px solid rgba(240,180,60,.3);border-radius:22px;padding:14px;animation:rise .5s var(--ease) both}
+.ret b{display:block;font-size:15.5px}.ret span{display:block;color:#9aa0ab;font-size:13px;margin-top:2px}
+.ret .bs{display:flex;gap:8px;margin-top:12px}
+.ret .bs button{flex:1;height:40px;border-radius:99px;background:#f0b43c;color:#1a1406;font-weight:700;font-size:14px}
+.ret .bs button+button{background:#2a2d34;color:#fff}
+@keyframes rise{from{opacity:0;transform:translateY(20px) scale(.97)}}
+/* v4 question */
+.q2{display:flex;flex-direction:column;gap:10px;margin:0 12px}
+.q2 button{display:flex;align-items:center;gap:14px;padding:16px;border-radius:22px;background:var(--card);text-align:left;border:1.5px solid transparent;transition:border-color .25s,background .25s,transform .15s}
+.q2 button.on{border-color:var(--blue);background:#1a2433}
+.q2 .e2{font-size:30px}.q2 b{display:block;font-size:16.5px}.q2 span{font-size:13px;color:#9aa0ab}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 12px}
+.grid button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border-radius:20px;background:var(--card);font-size:13.5px;font-weight:600;border:1.5px solid transparent;transition:all .25s;animation:rise .45s var(--ease) both}
+.grid button.on{border-color:var(--blue);background:#1a2433}
+/* v5 icons strip */
+.strip{display:flex;gap:10px;justify-content:center;margin-top:16px}
+.strip button{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:rgba(255,255,255,.85);transition:transform .3s var(--ease)}
+.strip button .ai{box-shadow:0 0 0 0 transparent;transition:box-shadow .3s}
+.strip button.on .ai{box-shadow:0 0 0 3px #fff}
+.strip .lab{font-size:12px;color:rgba(255,255,255,.75);text-align:center;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>«У меня уже есть другое приложение»</h1>
+  <p>Сейчас кнопка «Открыть в …» на экране устройства всегда ведёт в первое приложение платформы — на iPhone это Incy, даже если человек подключался через Happ. Ниже пять способов дать выбрать своё приложение. Каждый вариант проигрывается сам; справа — что происходит и почему.</p>
+</div>
+<div class="rules">
+  <div class="rule"><b>Запоминать выбор</b>Приложение сохраняется у устройства и в браузере: один раз выбрал — дальше всё открывается там.</div>
+  <div class="rule"><b>Узнать заранее, а не чинить потом</b>Спросить на шаге установки дешевле, чем ловить «не то приложение» после.</div>
+  <div class="rule"><b>Всегда есть запасной путь</b>«Скопировать ключ» работает в любом приложении, даже которого нет в списке.</div>
+  <div class="rule"><b>Не прятать действие</b>Сменить приложение — видимая строка, а не скрытый жест.</div>
+</div>
+
+<div id="vars"></div>
+
+<div class="combo"><div>💡 <b>Рекомендую 4 + 1.</b> На подключении спрашиваем «Уже есть приложение для VPN?» — кто ответил «да», сразу выбирает своё и пропускает установку. А на экране устройства строка «Приложение · Happ · сменить» исправляет выбор в любой момент. Выбор сохраняется у устройства, так что кнопка «Открыть» всегда ведёт куда нужно. Вариант 3 можно добавить позже как страховку.</div></div>
+
+<script>
+const APPS = {
+  incy: { name: "Incy", img: "icons/incy.png", sub: "★ рекомендуем · ключ добавится сам" },
+  happ: { name: "Happ", img: "icons/happ.png", sub: "ключ добавится сам" },
+  tun: { name: "V2RayTun", bg: "linear-gradient(135deg,#7b5cff,#4a2fd0)", l: "V", sub: "ключ добавится сам" },
+  str: { name: "Streisand", bg: "linear-gradient(135deg,#ff9a3c,#e2551b)", l: "S", sub: "ключ добавится сам" },
+};
+const ai = (id, s) => { const a = APPS[id]; return a.img ? `<span class="ai" style="width:${s}px;height:${s}px"><img src="${a.img}" alt=""></span>` : `<span class="ai" style="width:${s}px;height:${s}px;background:${a.bg};font-size:${s * .45}px">${a.l}</span>`; };
+const CV = '<span class="cv">›</span>';
+const hero = (pill, extra = "", rb = "онлайн") => `<section class="hc teal"><div class="ov"></div><div class="rb">${rb}</div><div class="ill"><div>📱</div></div><div class="H">Мой iPhone</div><div class="P">Активно · 6 ₽ в день</div>${extra}<div class="acts">${pill}<button type="button" class="rnd" data-k="copy"><svg width="22" height="22" viewBox="0 0 24 24"><rect x="8" y="3" width="12" height="15" rx="2.5" fill="#fff"/><rect x="4" y="7" width="12" height="15" rx="2.5" fill="#fff" opacity=".7"/></svg></button></div></section>`;
+const pill = (id) => `<button type="button" class="pill" data-k="open"><span class="pl">Открыть в ${APPS[id].name}</span></button>`;
+const rows = (extra = "") => `<div class="st">Устройство</div><div class="cd">${extra}<div class="rw"><span class="e">✏️</span><span class="tt"><b>Название</b><span>Мой iPhone</span></span><span class="v">${CV}</span></div><div class="rw"><span class="e">🔑</span><span class="tt"><b>Ключ подписки</b><span>sub.frog-vpn.ru/s/9fK2…</span></span></div><div class="rw"><span class="e">🆘</span>Помощь с подключением<span class="v">${CV}</span></div></div>`;
+const appRow = (id) => `<button type="button" class="rw" data-k="app"><span class="e">${ai(id, 26)}</span><span class="tt"><b>Приложение</b><span class="an">${APPS[id].name}</span></span><span class="v">сменить ${CV}</span></button>`;
+const list = (on, ids = ["incy", "happ", "tun", "str"]) => `<div class="al2">${ids.map((id) => `<button type="button" data-k="${id}" class="${id === on ? "on" : ""}">${ai(id, 40)}<span class="t"><b>${APPS[id].name}</b><span>${APPS[id].sub}</span></span><span class="ck">${id === on ? "✓" : ""}</span></button>`).join("")}<button type="button" data-k="other">${'<span class="ai" style="width:40px;height:40px;background:#34373e;font-size:20px">📋</span>'}<span class="t"><b>Другое приложение</b><span>скопируем ключ — вставьте его вручную</span></span><span class="ck"></span></button></div>`;
+
+const VARS = [
+  { k: "Вариант 1 · экран устройства", best: true, h: "Строка «Приложение» и шторка выбора",
+    p: "Прямо под карточкой — строка с иконкой текущего приложения. Тап открывает шторку со списком, выбор сразу меняет главную кнопку.",
+    notes: [["Видно, куда ведёт кнопка", "Иконка и название приложения в строке — человек сразу видит «Incy» и понимает, что у него не оно.", ["видимость состояния"]],
+      ["Шторка со списком", "Рекомендованное помечено звездой, текущее — галочкой. Последний пункт «Другое приложение» — скопировать ключ.", ["bottom sheet", "запасной путь"]],
+      ["Выбор применяется сразу", "Без кнопки «Сохранить»: тап — галочка переезжает, шторка закрывается, кнопка становится «Открыть в Happ».", ["меньше шагов"]],
+      ["Тост-подтверждение", "«Теперь ключ откроется в Happ». Выбор запомнен у устройства.", ["обратная связь"]]],
+    pros: ["Понятно, работает и для старых устройств", "На одну строку длиннее экран"],
+    async run(P) {
+      P.screen(hero(pill("incy")) + rows(appRow("incy")));
+      await P.note(0); await P.wait(1200);
+      await P.tap('[data-k="app"]'); await P.note(1);
+      P.sheet(`<h3>Каким приложением пользуетесь?</h3><div class="sub">Кнопка «Открыть» будет добавлять ключ в него</div>${list("incy")}<button class="cn">Отмена</button>`);
+      await P.wait(1500); await P.note(2);
+      await P.tap('.sw [data-k="happ"]');
+      P.$$(".sw .al2 button").forEach((b) => { b.classList.toggle("on", b.dataset.k === "happ"); b.querySelector(".ck").textContent = b.dataset.k === "happ" ? "✓" : ""; });
+      await P.wait(500); P.closeSheet(); await P.wait(250);
+      P.swap('[data-k="open"] .pl', "Открыть в Happ"); P.swap('[data-k="app"] .an', "Happ"); P.$('[data-k="app"] .e').innerHTML = ai("happ", 26);
+      await P.note(3); P.toast("Теперь ключ откроется в Happ"); await P.wait(2000);
+      await P.tap('[data-k="open"]'); await P.wait(1200);
+    } },
+  { k: "Вариант 2 · кнопка", h: "Кнопка с выбором «Открыть в Incy ▾»",
+    p: "Главная кнопка делится на две части: левая открывает, стрелка справа — меню приложений, как в почте «Отправить ▾».",
+    notes: [["Стрелка рядом с действием", "Выбор там же, где действие, — не надо искать настройку.", ["split button"]],
+      ["Меню над кнопкой", "Список приложений + «Скопировать ключ». Последнее выбранное отмечено.", ["контекстное меню"]],
+      ["Кнопка меняет подпись", "После выбора — «Открыть в Happ» и сразу открывает его.", ["прямое действие"]]],
+    pros: ["Компактно, ничего не добавляет на экран", "Стрелку легко не заметить, мелкая цель на телефоне"],
+    async run(P) {
+      const sp = `<div class="split" data-k="open"><span class="m"><span class="pl">Открыть в Incy</span></span><span class="c" data-k="caret">▾</span></div>`;
+      P.screen(hero(sp) + rows());
+      await P.note(0); await P.wait(1200); await P.tap('[data-k="caret"]');
+      await P.note(1);
+      const r = P.$('[data-k="open"]').getBoundingClientRect(), pr = P.ph.getBoundingClientRect();
+      const pop = document.createElement("div"); pop.className = "pop"; pop.style.top = (r.bottom - pr.top + 8) + "px";
+      pop.innerHTML = `<div class="hint">Открывать в</div>${["incy", "happ", "tun", "str"].map((id) => `<button data-k="${id}" class="${id === "incy" ? "on" : ""}">${ai(id, 30)}${APPS[id].name}<i>${id === "incy" ? "✓" : ""}</i></button>`).join("")}<div class="sep"></div><button>📋&nbsp; Скопировать ключ</button>`;
+      P.ph.appendChild(pop); await P.wait(1500);
+      await P.tap('.pop [data-k="happ"]'); await P.note(2);
+      pop.classList.add("out"); setTimeout(() => pop.remove(), 220);
+      P.swap('[data-k="open"] .pl', "Открыть в Happ"); P.toast("Открываем Happ…"); await P.wait(2200);
+    } },
+  { k: "Вариант 3 · страховка", h: "«Не то приложение?» после возврата",
+    p: "Человек нажал «Открыть в Incy», а Incy у него нет. Когда он вернулся в кабинет, мы это замечаем и предлагаем выбрать своё.",
+    notes: [["Нажал «Открыть»", "Кабинет пытается открыть Incy. Если его нет — iOS показывает ошибку или ничего не происходит.", ["реальный сценарий"]],
+      ["Вернулся через несколько секунд", "Если ключ так и не подключился, над карточкой появляется вопрос.", ["ловим проблему на лету"]],
+      ["Две понятные кнопки", "«Выбрать другое» открывает список, «Скопировать ключ» — для любого приложения.", ["восстановление после ошибки"]]],
+    pros: ["Ловит тех, кто не заметил выбор", "Срабатывает только после неудачи — сам по себе не решает"],
+    async run(P) {
+      P.screen(hero(pill("incy"), "", "ждёт") + rows());
+      await P.note(0); await P.wait(1000); await P.tap('[data-k="open"]');
+      const aw = document.createElement("div"); aw.className = "away";
+      aw.innerHTML = `<div class="ios"><b>Не удалось открыть</b><span>Приложение Incy не установлено</span><u>ОК</u></div>`;
+      P.ph.appendChild(aw); await P.wait(2200); aw.classList.add("out"); setTimeout(() => aw.remove(), 300);
+      await P.note(1); await P.wait(400);
+      P.$(".scr").insertAdjacentHTML("afterbegin", `<div class="ret"><b>🤔 Не открылось Incy?</b><span>Если у вас другое приложение для VPN — выберите его</span><div class="bs"><button data-k="pick">Выбрать другое</button><button>Скопировать ключ</button></div></div>`);
+      await P.wait(1600); await P.note(2); await P.tap('[data-k="pick"]');
+      P.sheet(`<h3>Каким приложением пользуетесь?</h3><div class="sub">Откроем ключ в нём</div>${list("incy")}`);
+      await P.wait(1200); await P.tap('.sw [data-k="happ"]'); P.closeSheet(); P.$(".ret").remove();
+      P.swap('[data-k="open"] .pl', "Открыть в Happ"); P.toast("Открываем Happ…"); await P.wait(2000);
+    } },
+  { k: "Вариант 4 · при подключении", best: true, h: "Вопрос «Уже есть приложение для VPN?»",
+    p: "На шаге установки сначала спрашиваем. «Нет» — ставим рекомендованное, как сейчас. «Да» — сетка приложений, установку пропускаем.",
+    notes: [["Один простой вопрос", "Две большие карточки вместо мелкой «Другие приложения» внизу экрана.", ["прогрессивное раскрытие"]],
+      ["«Да, уже есть» → сетка", "Крупные иконки — своё приложение узнают по картинке, а не по названию.", ["узнавание вместо вспоминания"]],
+      ["Пропускаем установку", "«Happ уже стоит — создаём ключ». Выбор запоминается для этого устройства и следующих.", ["меньше шагов", "память"]]],
+    pros: ["Решает проблему в самом начале", "Один лишний тап для тех, у кого ничего нет"],
+    async run(P) {
+      P.screen(`<section class="hc teal"><div class="ov"></div><div class="ill"><div>📲</div></div><div class="H">Приложение для VPN</div><div class="P">Через него будет работать подключение</div><div class="dots"><i class="on"></i><i class="on"></i><i></i></div></section><div class="st">У вас уже есть приложение для VPN?</div><div class="q2"><button data-k="no"><span class="e2">${ai("incy", 44)}</span><span><b>Нет, поставлю</b><span>рекомендуем Incy — бесплатно, ставится за минуту</span></span></button><button data-k="yes"><span class="e2">✅</span><span><b>Да, уже есть</b><span>Happ, V2RayTun, Streisand и другие</span></span></button></div>`);
+      await P.note(0); await P.wait(1500); await P.tap('[data-k="yes"]'); P.$('[data-k="yes"]').classList.add("on");
+      await P.wait(400); await P.note(1);
+      P.go(`<section class="hc teal compact"><div class="ov"></div><div class="H">Какое у вас?</div><div class="P">Добавим ключ прямо в него</div></section><div style="height:16px"></div><div class="grid">${["incy", "happ", "tun", "str"].map((id, i) => `<button data-k="${id}" style="animation-delay:${i * 60}ms">${ai(id, 52)}${APPS[id].name}</button>`).join("")}<button style="animation-delay:240ms"><span class="ai" style="width:52px;height:52px;background:#34373e;font-size:24px">📋</span>Другое</button></div>`);
+      await P.wait(1600); await P.tap('.grid [data-k="happ"]'); P.$('.grid [data-k="happ"]').classList.add("on");
+      await P.wait(500); await P.note(2);
+      P.go(`<section class="hc teal"><div class="ov"></div><div class="ill"><div>${ai("happ", 92)}</div></div><div class="H">Happ уже стоит</div><div class="P">Создаём ключ и добавим его в Happ</div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div><div class="acts"><button class="pill" data-k="open"><span>Подключить в Happ</span></button></div></section>`);
+      await P.wait(1500); await P.tap('[data-k="open"]'); await P.wait(1200);
+    } },
+  { k: "Вариант 5 · иконки", h: "Ряд приложений прямо в карточке",
+    p: "Вместо одной кнопки — ряд иконок «Открыть в:». Тап по любой открывает там; последнее использованное подсвечено и встаёт первым.",
+    notes: [["Все варианты на виду", "Не нужно ничего раскрывать — своё приложение видно сразу.", ["видимость"]],
+      ["Тап по иконке = открыть", "Выбор и действие — одно касание.", ["прямое действие"]],
+      ["Запоминаем последнее", "Использованное получает обводку и в следующий раз стоит первым.", ["память"]]],
+    pros: ["Самый быстрый для опытных", "Шумно: новичку непонятно, что выбирать"],
+    async run(P) {
+      const strip = (order, on) => `<div class="lab">Открыть в</div><div class="strip">${order.map((id) => `<button data-k="${id}" class="${id === on ? "on" : ""}">${ai(id, 48)}${APPS[id].name}</button>`).join("")}</div>`;
+      P.screen(`<section class="hc teal"><div class="ov"></div><div class="rb">онлайн</div><div class="ill"><div>📱</div></div><div class="H">Мой iPhone</div><div class="P">Активно · 6 ₽ в день</div><div class="sx">${strip(["incy", "happ", "tun", "str"], "incy")}</div></section>` + rows());
+      await P.note(0); await P.wait(1500); await P.note(1); await P.tap('.strip [data-k="happ"]');
+      P.toast("Открываем Happ…"); await P.wait(1500); await P.note(2);
+      const sx = P.$(".sx"); sx.innerHTML = strip(["happ", "incy", "tun", "str"], "happ"); sx.classList.add("swap");
+      await P.wait(2200);
+    } },
+];
+
+const root = document.getElementById("vars");
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+VARS.forEach((v, n) => {
+  const sec = document.createElement("section"); sec.className = "var";
+  sec.innerHTML = `<div class="phone"><div class="finger"></div><div class="toast2"></div></div><div class="vh"><span class="k ${v.best ? "best" : ""}">${v.best ? "★ " : ""}${v.k}</span><h2>${v.h}</h2><p>${v.p}</p><div class="ctl"><button class="rp">↻ Сначала</button></div><ol class="notes">${v.notes.map((x, i) => `<li><span class="i">${i + 1}</span><span><b>${x[0]}</b><span class="d">${x[1]}</span><span class="pt">${x[2].map((t) => `<em>${t}</em>`).join("")}</span></span></li>`).join("")}</ol><div class="pros"><div class="p"><b>Плюс</b>${v.pros[0]}</div><div class="m"><b>Минус</b>${v.pros[1]}</div></div></div>`;
+  root.appendChild(sec);
+  const ph = sec.querySelector(".phone"), fg = ph.querySelector(".finger"), lis = [...sec.querySelectorAll(".notes li")];
+  let gen = 0;
+  const P = {
+    ph, $: (s) => ph.querySelector(s), $$: (s) => [...ph.querySelectorAll(s)], wait: (ms) => { const g = gen; return wait(ms).then(() => { if (g !== gen) throw "stop"; }); },
+    screen(html) { ph.querySelectorAll(".scr,.sw,.pop,.away").forEach((e) => e.remove()); const s = document.createElement("div"); s.className = "scr"; s.innerHTML = html; ph.prepend(s); },
+    go(html) { const o = ph.querySelector(".scr"); const s = document.createElement("div"); s.className = "scr off"; s.innerHTML = html; ph.prepend(s); requestAnimationFrame(() => requestAnimationFrame(() => { s.classList.remove("off"); o.classList.add("back"); setTimeout(() => o.remove(), 450); })); },
+    async note(i) { lis.forEach((l, k) => { l.classList.toggle("on", k === i); l.classList.toggle("done", k < i); }); },
+    sheet(html) { const w = document.createElement("div"); w.className = "sw"; w.innerHTML = `<div class="sh"><div class="grab"></div>${html}</div>`; ph.appendChild(w); },
+    closeSheet() { const w = ph.querySelector(".sw"); if (w) { w.classList.add("out"); setTimeout(() => w.remove(), 300); } },
+    swap(sel, text) { const e = ph.querySelector(sel); if (e) { e.textContent = text; e.classList.remove("swap"); void e.offsetWidth; e.classList.add("swap"); } },
+    toast(t) { const e = ph.querySelector(".toast2"); e.textContent = t; e.classList.add("on"); setTimeout(() => e.classList.remove("on"), 2000); },
+    async tap(sel) {
+      const el = ph.querySelector(sel); if (!el) return;
+      const r = el.getBoundingClientRect(), pr = ph.getBoundingClientRect();
+      fg.classList.add("on"); fg.style.transform = `translate(${r.left - pr.left + r.width / 2 - 28}px,${r.top - pr.top + r.height / 2 - 28}px)`;
+      await P.wait(650); fg.classList.add("press"); el.classList.add("pressed"); await P.wait(180);
+      el.classList.remove("pressed"); fg.classList.remove("press"); await P.wait(150);
+    },
+  };
+  async function loop() {
+    const g = ++gen;
+    try { while (g === gen) { fg.classList.remove("on"); await v.run(P); await P.wait(800); } } catch (e) { if (e !== "stop") console.error(e); }
+  }
+  sec.querySelector(".rp").onclick = loop;
+  new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting && !sec.dataset.go) { sec.dataset.go = 1; loop(); } }), { threshold: .3 }).observe(sec);
+});
+</script>
+</body>
+</html>

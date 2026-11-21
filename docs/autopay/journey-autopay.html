@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Автопополнение — путь пользователя</title>
+<link rel="stylesheet" href="../../webapp/cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:hidden}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 24px 60px;display:grid;grid-template-columns:360px 1fr;gap:44px;align-items:start}
+.left{position:sticky;top:14px}
+@media (max-width:900px){.wrap{grid-template-columns:1fr;gap:26px;padding:16px 16px 50px}.left{position:static}.phone,.now{max-width:360px;margin-left:auto;margin-right:auto}}
+.k{font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#5ea8ff}
+h1{font-size:25px;margin:4px 0 0;font-weight:800;letter-spacing:-.3px}
+.lead{margin:8px 0 0;color:#9aa0ab;font-size:14.5px;line-height:1.5;max-width:640px}
+.ctl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.ctl button,.ctl a{padding:8px 14px;border-radius:99px;background:#1c1e23;font-size:13.5px;font-weight:600;color:#cfd5de;text-decoration:none}
+.ctl .on{background:#fff;color:#111}
+.who{margin-top:16px;background:#15171b;border-radius:18px;padding:13px 16px;font-size:13.5px;color:#9aa0ab;line-height:1.5;max-width:640px}
+.who b{color:#fff}
+/* now box */
+.now{background:#15171b;border-radius:18px;padding:11px 14px;margin-bottom:12px;min-height:74px}
+.now .d{display:flex;gap:8px;align-items:center;font-size:12px;font-weight:700;color:#8cc0ff;text-transform:uppercase;letter-spacing:.4px}
+.now .d i{font-style:normal;color:#6c7380}
+.now b{display:block;font-size:15px;margin-top:3px}
+.now span.x{display:block;font-size:13px;color:#9aa0ab;line-height:1.4;margin-top:2px}
+/* chapters */
+.chs{margin-top:22px;display:flex;flex-direction:column;gap:10px}
+.chap{background:#121418;border-radius:20px;padding:14px 16px;cursor:pointer;transition:background .3s;opacity:.7}
+.chap.done{opacity:.85}
+.chap.on{background:#16202e;opacity:1}
+.chap .hd{display:grid;grid-template-columns:34px 1fr auto;gap:12px;align-items:center}
+.chap .n{width:34px;height:34px;border-radius:99px;background:#22252c;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;transition:background .3s}
+.chap.done .n{background:#28a464}.chap.on .n{background:#3e88f7}
+.chap h3{margin:0;font-size:16.5px}
+.chap .wh{font-size:12.5px;color:#7d8491;white-space:nowrap}
+.chap .ds{margin:8px 0 0 46px;font-size:13.5px;color:#9aa0ab;line-height:1.45}
+.chap ol{list-style:none;margin:10px 0 0 46px;padding:0;display:none;flex-direction:column;gap:4px}
+.chap.on ol{display:flex}
+.chap li{padding:8px 11px;border-radius:12px;font-size:13.5px;color:#9aa0ab;line-height:1.4;transition:background .3s,color .3s}
+.chap li b{color:#cfd5de;font-weight:600}
+.chap li.on{background:#1f3350;color:#d6e4f7}.chap li.on b{color:#fff}
+.chap li.done b::before{content:"✓ ";color:#3ccf74}
+.chap .why{display:none;margin:10px 0 0 46px;gap:5px;flex-wrap:wrap}
+.chap.on .why{display:flex}
+.chap .why em{font-style:normal;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:99px;background:rgba(94,168,255,.12);color:#8cc0ff}
+@media (max-width:560px){.chap .ds,.chap ol,.chap .why{margin-left:0}.chap .wh{display:none}}
+.forks{margin-top:26px}
+.forks h2{font-size:18px;margin:0 0 10px}
+.forks .g{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.forks .f{background:#15171b;border-radius:18px;padding:13px 16px;font-size:13.5px;color:#9aa0ab;line-height:1.45}
+.forks .f b{display:block;color:#fff;font-size:14.5px;margin-bottom:3px}
+/* phone */
+.phone{width:100%;height:720px;border-radius:46px;border:9px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;background:var(--bg);isolation:isolate}
+.stage{position:absolute;inset:0}
+.phone .scr{position:absolute;inset:0;min-height:0;overflow:hidden;padding:14px 0 20px;z-index:1}
+.phone .scr.ghost{position:absolute;max-width:none;z-index:0}
+.phone .scr.ghost.leaveB{z-index:2}
+.phone .st{margin:16px 30px 9px;font-size:18px}
+.frog{width:70px;height:70px}
+.pressed{transform:scale(.95)!important;transition:transform .12s}
+.finger{position:absolute;left:0;top:0;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.9);z-index:60;opacity:0;pointer-events:none;transition:transform .6s cubic-bezier(.3,.8,.3,1),opacity .3s;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.finger.on{opacity:1}.finger.press{background:rgba(255,255,255,.6)}
+.finger::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:2px solid #fff;opacity:0}
+.finger.press::after{animation:ring .45s ease-out}
+@keyframes ring{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(2.1)}}
+@keyframes fadein{from{opacity:0}}@keyframes fadeout{to{opacity:0}}
+@keyframes sheet{from{transform:translateY(100%)}}@keyframes sheetout{to{transform:translateY(100%)}}
+.conf{position:absolute;top:-12px;width:8px;height:12px;border-radius:2px;z-index:30;animation:fall 1.6s cubic-bezier(.2,.6,.4,1) forwards}
+@keyframes fall{to{transform:translateY(770px) rotate(540deg);opacity:.2}}
+.spin{width:60px;height:60px;border-radius:50%;border:5px solid rgba(255,255,255,.25);border-top-color:#fff;animation:sp 1s linear infinite;margin:0 auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+.sw2{width:51px;height:31px;border-radius:99px;background:#3a3d45;position:relative;flex-shrink:0;transition:background .3s}
+.sw2::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3);transition:transform .3s var(--ease)}
+.sw2.on{background:var(--grn)}.sw2.on::after{transform:translateX(20px)}
+.apb{display:inline-flex;align-items:center;gap:7px;margin-top:10px;padding:7px 14px 7px 11px;border-radius:99px;background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:13.5px;font-weight:600;white-space:nowrap;transition:transform .15s}
+.bbt{display:flex;align-items:center;justify-content:center;gap:8px;height:50px;border-radius:99px;font-size:16px;font-weight:600;width:100%;margin-top:8px;color:#fff;background:#2a2d34;transition:transform .15s,background .3s}
+.bbt.pri{background:var(--blue)}.bbt.dng{background:rgba(240,104,90,.16);color:var(--red)}
+.btns{padding:10px 12px 0}
+.fine{font-size:12px;color:var(--hint);text-align:center;margin:10px 24px 0;line-height:1.4}.fine u{color:#8cc0ff;text-decoration:none}
+.hist .v{color:var(--grn)}
+.lapse{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:30;background:rgba(0,0,0,.7);border-radius:99px;padding:6px 14px;font-size:13px;font-weight:700;white-space:nowrap;animation:fadein .3s both}
+.sheetwrap{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:20;animation:fadein .35s both}
+.sheetwrap.out{animation:fadeout .3s both}.sheetwrap.out .sheet{animation:sheetout .35s both}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:26px 26px 0 0;padding:10px 18px 22px;animation:sheet .5s var(--ease) both}
+.sheet .grab{width:38px;height:5px;border-radius:9px;background:#3a3d45;margin:0 auto 14px}
+.sheet h3{margin:0;font-size:19px}.sheet .sub{font-size:14px;color:var(--hint);margin-top:4px;line-height:1.4}
+.toast2{position:absolute;left:12px;right:12px;bottom:22px;z-index:40;background:#2a2d34;border-radius:16px;padding:12px 14px;font-size:14.5px;font-weight:600;display:flex;gap:10px;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.45);animation:tin .45s var(--ease) both}
+.toast2 .u{margin-left:auto;color:#8cc0ff;font-weight:700}
+.toast2.out{animation:tout .35s both}
+@keyframes tin{from{opacity:0;transform:translateY(30px)}}@keyframes tout{to{opacity:0;transform:translateY(30px)}}
+/* telegram */
+.chat{position:absolute;inset:0;background:#0e1621;padding-top:12px;z-index:1}
+.tgbar{display:flex;align-items:center;gap:10px;padding:6px 14px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
+.tgbar .av{width:38px;height:38px;border-radius:50%;overflow:hidden}.tgbar .av img{width:38px;height:38px}
+.tgbar b{font-size:15.5px;display:block}.tgbar span{font-size:13px;color:#7d8b99}
+.feed{position:absolute;left:0;right:0;top:68px;bottom:0;padding:10px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+.day{text-align:center;margin:4px 0 10px}.day span{background:rgba(0,0,0,.35);color:#fff;font-size:12.5px;padding:3px 10px;border-radius:99px}
+.msg{animation:min .4s var(--ease) both;transform-origin:left bottom}
+@keyframes min{from{opacity:0;transform:translateY(16px) scale(.96)}}
+.bub{background:#182533;border-radius:16px 16px 16px 5px;padding:9px 12px 7px;font-size:14.5px;line-height:1.38;max-width:94%;color:#fff;transition:opacity .25s}
+.bub::after{content:"";display:block;clear:both}
+.bub .t{float:right;font-size:11.5px;color:#6d7f8f;margin:6px 0 0 10px}.bub b{font-weight:600}
+.bub .q{border-left:3px solid #5ea8ff;padding:2px 0 2px 9px;margin-top:6px;color:#c9d4de}
+.bub .q.g{border-color:#3ccf74}.bub .q.o{border-color:#f6a447}
+.kb{display:grid;gap:4px;margin:4px 0 12px;max-width:94%}
+.kb.two{grid-template-columns:1fr 1fr}.kb.three{grid-template-columns:1fr 1.2fr 1fr}.kb .w{grid-column:1/-1}
+.kb div{background:rgba(70,95,120,.35);border-radius:10px;padding:9px 6px;text-align:center;font-size:14px;font-weight:600;color:#fff;transition:transform .12s}
+.kb div.hl{background:rgba(62,136,247,.55)}.kb div.val{background:rgba(70,95,120,.18);color:#c9d4de}
+.me{margin:0 0 10px auto;background:#2b5278;border-radius:16px 16px 5px 16px;padding:7px 12px;font-size:14.5px;width:max-content;color:#fff}
+.typing{display:inline-flex;gap:4px;background:#182533;border-radius:16px;padding:12px 14px;margin-bottom:12px}
+.typing span{width:7px;height:7px;border-radius:50%;background:#7d8b99;animation:tp 1s infinite}.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
+@keyframes tp{30%{transform:translateY(-4px);opacity:1}0%,60%,100%{opacity:.4}}
+.webapp{position:absolute;left:0;right:0;bottom:0;top:40px;border-radius:16px 16px 0 0;background:var(--bg);z-index:20;animation:sheet .5s var(--ease) both;overflow:hidden}
+.webapp.out{animation:sheetout .4s both}
+.webapp .wh{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;font-weight:600;font-size:15px;border-bottom:1px solid rgba(255,255,255,.06)}
+.webapp .stage{top:44px}
+.tgalert{position:absolute;left:50%;top:40%;transform:translateX(-50%);background:rgba(30,32,38,.95);border-radius:12px;padding:10px 16px;font-size:14px;z-index:45;animation:fadein .3s both;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="left">
+    <div class="now"><div class="d"><span id="nd"></span><i id="nc"></i></div><b id="nt"></b><span class="x" id="nx"></span></div>
+    <div class="phone" id="phone"><div class="stage"></div><div class="finger"></div></div>
+  </div>
+  <div class="right">
+    <span class="k">Автопополнение · путь пользователя</span>
+    <h1>От «баланс на исходе» до «отвязать карту»</h1>
+    <p class="lead">Один человек, четыре месяца, восемь глав. Телефон проигрывает всё сам: что человек видит, куда нажимает и что получает в ответ. Главу можно открыть кликом. Это итоговый вариант дизайна; автопополнение в продукте пока выключено.</p>
+    <div class="ctl"><button id="bp">⏸ Пауза</button><button id="bs">Медленнее</button><a href="autopay-final.html">Все 19 экранов →</a></div>
+    <div class="who"><b>Кто это.</b> Клиент с одним устройством: 6 ₽ в день, пополняет по 300 ₽ картой примерно раз в полтора месяца. Про баланс вспоминает, только когда бот пишет, что он кончается.</div>
+    <div class="chs" id="chs"></div>
+    <div class="forks">
+      <h2>Развилки, которых нет в ролике</h2>
+      <div class="g">
+        <div class="f"><b>«Оплатить один раз»</b>Обычная оплата, карта не сохраняется. 30 дней автопополнение не предлагаем нигде.</div>
+        <div class="f"><b>«Пропустить этот раз»</b>В напоминании за день. Одно списание отменяется, автопополнение остаётся включённым.</div>
+        <div class="f"><b>Оплата через СБП, Stars, TON</b>Автопополнение не предлагаем: оно работает только с картой.</div>
+        <div class="f"><b>Пополняет заранее</b>Предупреждений не видит — после оплаты картой показываем тихую карточку «Пополнять так же автоматически?».</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CH = [
+  { id: "warn", t: "Баланс кончается", wh: "14 ноября · бот", d: "Обычное предупреждение, но с новой кнопкой. Это единственный момент, когда человек сам думает о балансе.", why: ["Момент нужды", "Одна новая кнопка"], steps: [
+    ["Приходит предупреждение", "Остаток 12 ₽, меньше суток. Три кнопки: пополнить, пополнить и не следить, обещанный платёж."],
+    ["Нажимает «Пополнить и больше не следить»", "Кнопка выделена цветом, но стоит второй: обычное пополнение остаётся первым."]] },
+  { id: "enable", t: "Включение", wh: "14 ноября · кабинет", d: "Кабинет открывается поверх чата. Оплата и включение — одно действие, карта запоминается этой же оплатой.", why: ["Явное согласие", "Равная кнопка отказа", "Конкретика: сумма, когда, откуда"], steps: [
+    ["Экран включения", "Сумма 300 ₽ уже выбрана. Ниже три шага: что будет сегодня, за день до списания и в день списания."],
+    ["Нажимает «Оплатить 300 ₽ и включить»", "Рядом такая же заметная «Оплатить один раз»."],
+    ["Ожидание оплаты", "Третий шаг показывает: автопополнение включится только после успешной оплаты."],
+    ["Готово", "+300 ₽ и «Автопополнение включено» на одном экране. Сразу видно дату следующего списания."]] },
+  { id: "remote", t: "Пульт в чате", wh: "14 ноября · бот", d: "После чека приходит сообщение, которым можно управлять. Кабинет открывать не нужно.", why: ["Управление там, где человек уже есть", "Редактирование на месте"], steps: [
+    ["Чек и сообщение-пульт", "Сколько пришло, до какой даты хватит, когда следующее списание."],
+    ["Пробует «+ 100»", "Сумма в тексте сообщения меняется сразу: 400 ₽."],
+    ["Возвращает «− 100»", "Снова 300 ₽. Новых сообщений бот не шлёт."]] },
+  { id: "life", t: "Обычная жизнь", wh: "ноябрь — январь · кабинет", d: "Полтора месяца ничего не происходит. Бот молчит, на главной одна плашка с датой.", why: ["Тишина", "Статус на главной"], steps: [
+    ["Главная кабинета", "Под балансом — «3 января пополним 300 ₽». Больше ничего не изменилось."],
+    ["Баланс тратится", "6 ₽ в день. Предупреждений «баланс на исходе» больше не будет."]] },
+  { id: "charge", t: "Напоминание и списание", wh: "2–3 января · бот", d: "За день предупреждаем, после списания присылаем чек. Никаких списаний без сообщения.", why: ["Предупреждение заранее", "Можно пропустить", "Чек сразу"], steps: [
+    ["Напоминание за день", "«Завтра пополним баланс»: сумма, карта, причина. Кнопки: хорошо, изменить, пропустить этот раз."],
+    ["Нажимает «Хорошо»", "Кнопки исчезают, короткое подтверждение."],
+    ["Чек", "На следующий день: +300 ₽, новый баланс и до какой даты хватит."]] },
+  { id: "pause", t: "Нужна пауза", wh: "10 января · бот", d: "Человек уезжает и не хочет списаний. Вместо «отключить насовсем» есть пауза.", why: ["Мягкий выход", "Само вернётся"], steps: [
+    ["Пишет /autopay", "Бот показывает пульт с текущим состоянием."],
+    ["Нажимает «Пауза на месяц»", "Сообщение меняется: до какой даты ничего не спишем, карта сохранена."],
+    ["Позже нажимает «Возобновить»", "Всё как было, дата следующего списания пересчитана."]] },
+  { id: "fail", t: "Карта не сработала", wh: "23–24 февраля · бот", d: "Банк отклонил списание. Человек не остаётся без VPN внезапно и знает, что делать.", why: ["Запас 2 дня", "Не списываем бесконечно", "Круг замыкается"], steps: [
+    ["Первая неудача", "Причина, сколько ещё работает VPN, завтра попробуем снова. Выходы: вручную, сменить карту, обещанный платёж."],
+    ["Вторая неудача", "Автопополнение выключено, больше не пробуем. Прямо об этом пишем."],
+    ["Включает заново с другой картой", "Тот же экран, что в главе 2. Новая оплата — новая карта."],
+    ["Снова включено", "В чате — чек и пульт с новой картой."]] },
+  { id: "leave", t: "Отключение", wh: "март · кабинет", d: "Человек решил уйти с автопополнения. Уходит так же легко, как включил.", why: ["Один тап", "Отмена вместо «вы уверены?»", "Подтверждение только у необратимого"], steps: [
+    ["Открывает управление", "Тап по плашке на главной. Состояние, пауза, сумма, карта, история."],
+    ["Выключает переключателем", "Без вопросов. Тост «Вернуть» — на случай случайного нажатия."],
+    ["Отвязывает карту", "Единственное подтверждение: это нельзя отменить. Написано, что именно произойдёт."],
+    ["Главная без автопополнения", "Плашки нет. Баланс и VPN на месте, пополнять можно вручную."]] },
+];
+
+let SPEED = 1;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * SPEED));
+const FROG = '<img class="frog" src="../../webapp/icons/frog.png" alt="">';
+const CHECK = '<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m7.5 12.5 3 3 6-6.5"/></svg>';
+const DEVICES = `<div class="st">Устройства</div><div class="cd"><div class="rw"><span class="e">📱</span><span class="tt"><b>iPhone</b><span><span class="dot"></span>Подключено · 6 ₽ в день</span></span><span class="v"><span class="cv">›</span></span></div></div>`;
+const MENU = (sub) => `<div style="height:12px"></div><div class="cd"><div class="rw"><span class="e">🎁</span>Пригласить друзей<span class="v"><span class="cv">›</span></span></div><div class="rw"><span class="e">⚙️</span>${sub ? `<span class="tt"><b>Настройки</b><span>${sub}</span></span>` : "Настройки"}<span class="v"><span class="cv">›</span></span></div></div>`;
+const bub = (h, b, t, c = "", k = "") => `<div class="bub" ${k ? `data-k="${k}"` : ""}>${h}<div class="q ${c}">${b}</div><span class="t">${t}</span></div>`;
+const remote = (amt, when) => bub("🔁 <b>Автопополнение включено</b>", `<b>${amt} ₽</b> с карты •• ${when[1]}, когда останется 2 дня.<br>Ближайшее — около ${when[0]}.`, when[2] || "10:02", "g");
+const remoteKb = (amt) => `<div data-k="minus">− 100</div><div class="val">${amt} ₽</div><div data-k="plus">+ 100</div><div class="w" data-k="pause">⏸ Пауза на месяц</div><div class="w">Отключить</div>`;
+
+const scr = {
+  setup: () => `<section class="hc blue"><div class="ov"></div><div class="H" style="font-size:17px;opacity:.9">🔁 Пополнить и включить</div><div class="N">300 ₽</div><div class="P">≈ 50 дней VPN за раз</div><div class="chp" style="margin-top:12px"><button>100</button><button class="on">300</button><button>500</button><button>1 000</button></div></section>
+    <div class="st">Что будет дальше</div><div class="cd"><div class="tl" style="padding:6px 0"><div class="n ok">✓</div><div><div class="tx">Сегодня — оплата 300 ₽</div><div class="sx">картой, она запомнится</div></div></div><div class="tl" style="padding:6px 0"><div class="n">🔔</div><div><div class="tx">За день напомним</div><div class="sx">можно пропустить</div></div></div><div class="tl" style="padding:6px 0"><div class="n">🔁</div><div><div class="tx">Пополним на 300 ₽</div><div class="sx">когда останется 2 дня</div></div></div></div>
+    <div class="btns"><div class="bbt pri" data-k="pay">Оплатить 300 ₽ и включить</div><div class="bbt">Оплатить один раз</div></div><div class="fine">Отключить — в любой момент · <u>Условия</u></div>`,
+  wait: () => `<section class="hc slate"><div class="ov"></div><div class="ill"><div><div class="spin"></div></div></div><div class="H">Ждём оплату</div><div class="P">Обычно до минуты</div></section>
+    <div class="cd" style="margin-top:14px"><div class="tl"><div class="n ok">✓</div><div><div class="tx">Счёт создан</div><div class="sx">300 ₽ · карта</div></div></div><div class="tl"><div class="n run">💳</div><div><div class="tx">Подтверждение в банке</div><div class="sx">не закрывайте страницу</div></div></div><div class="tl"><div class="n">🔁</div><div><div class="tx">Включим автопополнение</div><div class="sx">сразу после оплаты</div></div></div></div>`,
+  ok: (till, d1, d2, card) => `<section class="hc green"><div class="ov"></div><div class="ill"><div>${CHECK}</div></div><div class="N" data-k="sum">+0 ₽</div><div class="P">Хватит до ${till}</div><div class="apb">🔁 Автопополнение включено</div><div class="acts"><button type="button" class="pill" data-k="done"><span>Готово</span></button></div></section>
+    <div class="st">Следующее пополнение</div><div class="cd"><div class="rw"><span class="e">🔔</span><span class="tt"><b>${d1} напомним в боте</b><span>можно пропустить или изменить</span></span></div><div class="rw"><span class="e">🔁</span><span class="tt"><b>${d2} — 300 ₽</b><span>с карты •• ${card}</span></span></div></div>`,
+  home: (bal, sub, badge, menu) => `<section class="hc green"><div class="ov"></div><div class="rb">VPN вкл</div><div class="ill"><div>${FROG}</div></div><div class="N" data-k="bal">${bal} ₽</div><div class="P" data-k="sub">${sub}</div>${badge ? `<div class="apb" data-k="badge">🔁 ${badge} ›</div>` : ""}<div class="acts"><button type="button" class="pill"><span>Пополнить</span></button></div></section>${DEVICES}${MENU(menu)}`,
+  manage: () => `<section class="hc teal" data-k="mhc"><div class="ov"></div><div class="rb" data-k="mrb">включено</div><div class="ill"><div style="font-size:50px">🔁</div></div><div class="N">300 ₽</div><div class="P" data-k="mp">около 14 апреля · с карты •• 7781</div></section>
+    <div class="cd" style="margin-top:12px"><div class="rw"><span class="e">⚡</span><span class="tt"><b data-k="swl">Автопополнение</b><span data-k="sws">когда останется 2 дня</span></span><span class="v"><span class="sw2 on" data-k="sw"></span></span></div><div class="rw" data-k="prow"><span class="e">⏸</span>Пауза на месяц<span class="v"><span class="cv">›</span></span></div></div>
+    <div class="cd"><div class="rw"><span class="e">💰</span>Сумма<span class="v">300 ₽ <span class="cv">›</span></span></div><div class="rw"><span class="e">💳</span>Карта<span class="v">•• 7781 <span class="cv">›</span></span></div></div>
+    <div class="cd hist"><div class="rw"><span class="e">✓</span>24 февраля<span class="v">+300 ₽</span></div><div class="rw"><span class="e">✓</span>3 января · авто<span class="v">+300 ₽</span></div></div>
+    <div class="cd"><div class="rw red" data-k="unbind"><span class="e">✕</span>Отвязать карту</div></div>`,
+};
+
+class Journey {
+  constructor() {
+    this.el = document.getElementById("phone");
+    this.stage = this.el.querySelector(".stage");
+    this.f = this.el.querySelector(".finger");
+    this.token = 0; this.paused = false; this.cur = 0;
+    const chs = document.getElementById("chs");
+    CH.forEach((c, i) => {
+      const d = document.createElement("div");
+      d.className = "chap";
+      d.innerHTML = `<div class="hd"><span class="n">${i + 1}</span><h3>${c.t}</h3><span class="wh">${c.wh}</span></div><div class="ds">${c.d}</div>
+        <ol>${c.steps.map((s) => `<li><b>${s[0]}</b><br>${s[1]}</li>`).join("")}</ol><div class="why">${c.why.map((w) => `<em>${w}</em>`).join("")}</div>`;
+      d.onclick = () => this.start(i);
+      chs.appendChild(d); c.el = d; c.li = [...d.querySelectorAll("li")];
+    });
+  }
+  async w(ms) {
+    const t = this.token; await sleep(ms);
+    while (this.paused && t === this.token) await new Promise((r) => setTimeout(r, 120));
+    if (t !== this.token) throw "stop";
+  }
+  step(i) {
+    const c = CH[this.cur];
+    c.li.forEach((l, k) => { l.classList.toggle("on", k === i); l.classList.toggle("done", k < i); });
+    document.getElementById("nd").textContent = c.wh;
+    document.getElementById("nc").textContent = `глава ${this.cur + 1} из ${CH.length}`;
+    document.getElementById("nt").textContent = c.steps[i][0];
+    document.getElementById("nx").textContent = c.steps[i][1];
+  }
+  show(html, dir = "f", host = this.stage) {
+    const old = [...host.children].find((c) => c.classList.contains("scr") && !c.classList.contains("ghost"));
+    const s = document.createElement("div");
+    s.className = "scr " + (dir === "f" ? "enter" : dir === "b" ? "enterB" : "fade");
+    s.innerHTML = html;
+    if (old) { old.classList.add("ghost", dir === "b" ? "leaveB" : "leave"); setTimeout(() => old.remove(), 450); }
+    host.appendChild(s);
+    return s;
+  }
+  q(k) { const a = this.el.querySelectorAll(`[data-k="${k}"]`); return a[a.length - 1]; }
+  async tap(k) {
+    const t = typeof k === "string" ? this.q(k) : k;
+    if (!t) return;
+    const r = t.getBoundingClientRect(), p = this.el.getBoundingClientRect();
+    this.f.style.transform = `translate(${r.left - p.left + r.width / 2 - 28}px,${r.top - p.top + r.height / 2 - 28}px)`;
+    this.f.classList.add("on");
+    await this.w(750);
+    this.f.classList.add("press"); t.classList.add("pressed");
+    await this.w(240);
+    this.f.classList.remove("press"); t.classList.remove("pressed");
+    await this.w(140);
+  }
+  hideFinger() { this.f.classList.remove("on"); }
+  count(el, to) {
+    const t0 = performance.now();
+    const tick = (now) => { const k = Math.min(1, (now - t0) / (900 * SPEED)); el.textContent = "+" + Math.round(to * (1 - Math.pow(1 - k, 3))) + " ₽"; if (k < 1) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+  boom() {
+    const c = ["#ffd25e", "#5fb4ff", "#3ccf74", "#ff7a6b", "#ffffff", "#b58cff"];
+    for (let i = 0; i < 30; i++) {
+      const s = document.createElement("span");
+      s.className = "conf";
+      s.style.cssText = `left:${Math.random() * 100}%;background:${c[i % c.length]};animation-delay:${Math.random() * .35}s;animation-duration:${1.2 + Math.random() * .9}s`;
+      this.el.appendChild(s); setTimeout(() => s.remove(), 2600);
+    }
+  }
+  toast(html, ms = 1800) {
+    const t = document.createElement("div");
+    t.className = "toast2"; t.innerHTML = html;
+    this.el.appendChild(t);
+    setTimeout(() => { t.classList.add("out"); setTimeout(() => t.remove(), 350); }, ms * SPEED);
+  }
+  alert(text) {
+    this.el.insertAdjacentHTML("beforeend", `<div class="tgalert">${text}</div>`);
+    const a = this.el.querySelector(".tgalert:last-of-type");
+    setTimeout(() => a && a.remove(), 1300 * SPEED);
+  }
+  clean() {
+    this.stage.innerHTML = "";
+    this.el.querySelectorAll(".toast2,.conf,.sheetwrap,.webapp,.tgalert,.chat,.lapse").forEach((x) => x.remove());
+    this.hideFinger();
+  }
+  chat() {
+    this.el.insertAdjacentHTML("beforeend", `<div class="chat"><div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div><div class="feed"></div></div>`);
+    const feed = this.el.querySelector(".feed");
+    return (html) => { feed.insertAdjacentHTML("beforeend", `<div class="msg">${html}</div>`); return feed.lastElementChild; };
+  }
+  async typing(add, ms = 1100) { const t = add(`<div class="typing"><span></span><span></span><span></span></div>`); await this.w(ms); t.remove(); }
+  webapp() {
+    this.el.insertAdjacentHTML("beforeend", `<div class="webapp"><div class="wh"><span>✕ Закрыть</span><span>Лягушка VPN</span><span>⋯</span></div><div class="stage"></div></div>`);
+    return this.el.querySelector(".webapp");
+  }
+  async closeApp(app) { app.classList.add("out"); await this.w(400); app.remove(); }
+  async start(i = 0) {
+    this.token++; this.paused = false; document.getElementById("bp").textContent = "⏸ Пауза";
+    try {
+      for (;; i = (i + 1) % CH.length) {
+        this.cur = i;
+        CH.forEach((c, k) => { c.el.classList.toggle("on", k === i); c.el.classList.toggle("done", k < i); if (k !== i) c.li.forEach((l) => l.classList.remove("on", "done")); });
+        this.clean(); this.step(0);
+        await this[CH[i].id]();
+        await this.w(2200);
+      }
+    } catch (e) { if (e !== "stop") console.error(e); }
+  }
+  warnMsg(add) {
+    add(`<div class="day"><span>14 ноября</span></div>`);
+    add(bub("ℹ️ <b>Баланс на исходе</b>", "Остаток 12 ₽ — меньше чем на сутки. Потом VPN выключится.", "10:00", "o") + `<div class="kb"><div>Пополнить баланс</div><div class="hl" data-k="auto">🔁 Пополнить и больше не следить</div><div>🤝 Обещанный платёж</div></div>`);
+  }
+  // 1
+  async warn() {
+    const add = this.chat();
+    await this.w(500); this.warnMsg(add);
+    await this.w(2600);
+    this.step(1); await this.tap("auto"); await this.w(500);
+  }
+  async payFlow(st, till, d1, d2, card, s0) {
+    this.show(scr.setup(), "x", st);
+    await this.w(3000);
+    this.step(s0 + 1); await this.tap("pay"); this.hideFinger();
+    if (s0 === 0) this.step(2);
+    this.show(scr.wait(), "f", st);
+    await this.w(2400);
+    if (s0 === 0) this.step(3);
+    this.show(scr.ok(till, d1, d2, card), "x", st);
+    this.boom(); this.count(this.q("sum"), 300);
+    await this.w(2800);
+    await this.tap("done"); this.hideFinger();
+  }
+  // 2
+  async enable() {
+    const add = this.chat(); this.warnMsg(add);
+    await this.w(400);
+    const app = this.webapp();
+    await this.payFlow(app.querySelector(".stage"), "5 января", "2 января", "3 января", "4242", 0);
+    await this.closeApp(app);
+  }
+  // 3
+  async remote() {
+    const add = this.chat();
+    add(`<div class="day"><span>14 ноября</span></div>`);
+    add(bub("✅ <b>Баланс пополнен на 300 ₽</b>", "Теперь 312 ₽ — хватит до 5 января.", "10:02", "g") + `<div style="height:8px"></div>`);
+    await this.typing(add);
+    const m = add(remote(300, ["3 января, напомним 2-го", "4242"]) + `<div class="kb three">${remoteKb(300)}</div>`);
+    await this.w(2600);
+    const set = async (amt) => {
+      const b = m.querySelector(".bub"); b.style.opacity = ".3"; await this.w(220);
+      m.innerHTML = remote(amt, ["3 января, напомним 2-го", "4242", "изменено"]) + `<div class="kb three">${remoteKb(amt)}</div>`;
+    };
+    this.step(1); await this.tap("plus"); await set(400);
+    await this.w(1700);
+    this.step(2); await this.tap("minus"); await set(300);
+    this.hideFinger(); await this.w(1200);
+  }
+  // 4
+  async life() {
+    this.show(scr.home(312, "Хватит до 5 января", "3 января пополним 300 ₽", "Автопополнение включено"), "x");
+    await this.w(2400);
+    this.step(1);
+    this.el.insertAdjacentHTML("beforeend", `<div class="lapse">⏩ 14 ноября</div>`);
+    const l = this.el.querySelector(".lapse");
+    for (const [d, b] of [["30 ноября", 216], ["15 декабря", 126], ["31 декабря", 30], ["2 января", 18]]) {
+      await this.w(950);
+      l.textContent = "⏩ " + d; this.q("bal").textContent = b + " ₽";
+    }
+    this.q("sub").textContent = "Хватит до 5 января · осталось 2 дня";
+    await this.w(1600);
+  }
+  // 5
+  async charge() {
+    const add = this.chat();
+    add(`<div class="day"><span>2 января</span></div>`);
+    await this.w(500);
+    const m = add(bub("🔔 <b>Завтра пополним баланс</b>", "300 ₽ с карты •• 4242 — VPN осталось на 2 дня.", "12:00") + `<div class="kb two" data-k="rkb"><div data-k="okb">Хорошо</div><div>Изменить</div><div class="w">Пропустить этот раз</div></div>`);
+    await this.w(2800);
+    this.step(1); await this.tap("okb"); this.hideFinger();
+    this.q("rkb").remove(); m.insertAdjacentHTML("beforeend", `<div style="height:12px"></div>`);
+    this.alert("Хорошо, пополним завтра");
+    await this.w(1900);
+    this.step(2);
+    add(`<div class="day"><span>3 января</span></div>`);
+    add(bub("✅ <b>Автопополнение: +300 ₽</b>", "Баланс 312 ₽ — хватит до 24 февраля.<br>Карта •• 4242.", "12:00", "g") + `<div class="kb two"><div>Чек</div><div>Изменить</div></div>`);
+    await this.w(2600);
+  }
+  // 6
+  async pause() {
+    const add = this.chat();
+    add(`<div class="day"><span>10 января</span></div>`);
+    await this.w(700);
+    add(`<div class="me">/autopay</div>`);
+    await this.typing(add, 900);
+    const m = add(remote(300, ["22 февраля", "4242", "9:15"]) + `<div class="kb three">${remoteKb(300)}</div>`);
+    await this.w(2200);
+    this.step(1); await this.tap("pause");
+    m.querySelector(".bub").style.opacity = ".3"; await this.w(220);
+    m.innerHTML = bub("⏸ <b>Автопополнение на паузе</b>", "До 10 февраля ничего не спишем. Карта •• 4242 сохранена.", "изменено") + `<div class="kb two"><div data-k="resume">Возобновить</div><div>Отключить</div></div>`;
+    this.hideFinger(); await this.w(2600);
+    this.step(2);
+    await this.tap("resume");
+    m.querySelector(".bub").style.opacity = ".3"; await this.w(220);
+    m.innerHTML = remote(300, ["22 февраля, напомним 21-го", "4242", "изменено"]) + `<div class="kb three">${remoteKb(300)}</div>`;
+    this.hideFinger(); await this.w(1400);
+  }
+  // 7
+  async fail() {
+    const add = this.chat();
+    add(`<div class="day"><span>23 февраля</span></div>`);
+    await this.w(500);
+    add(bub("⚠️ <b>Не получилось пополнить</b>", "Банк отклонил списание 300 ₽ с •• 4242.<br>VPN работает ещё 2 дня. Завтра попробуем снова.", "12:00", "o") + `<div class="kb"><div>Пополнить вручную</div><div>Сменить карту</div><div>🤝 Обещанный платёж</div></div>`);
+    await this.w(3000);
+    this.step(1);
+    add(`<div class="day"><span>24 февраля</span></div>`);
+    add(bub("⏹ <b>Автопополнение выключено</b>", "Карта •• 4242 не сработала дважды. Больше списывать не пробуем.<br>Баланса хватит до завтра.", "12:00", "o") + `<div class="kb"><div class="hl" data-k="again">Пополнить и включить снова</div><div>Пополнить один раз</div></div>`);
+    await this.w(2800);
+    this.step(2); await this.tap("again"); this.hideFinger();
+    const app = this.webapp();
+    await this.payFlow(app.querySelector(".stage"), "14 апреля", "13 апреля", "14 апреля", "7781", 1);
+    await this.closeApp(app);
+    this.step(3);
+    add(bub("🔁 <b>Автопополнение включено</b>", "<b>300 ₽</b> с карты •• 7781, когда останется 2 дня.<br>Баланс 306 ₽ — хватит до 16 апреля.", "12:04", "g") + `<div class="kb three">${remoteKb(300)}</div>`);
+    await this.w(2400);
+  }
+  // 8
+  async leave() {
+    this.show(scr.home(222, "Хватит до 16 апреля", "14 апреля пополним 300 ₽", "Автопополнение включено"), "x");
+    await this.w(1800);
+    await this.tap("badge"); this.hideFinger();
+    this.show(scr.manage(), "f");
+    await this.w(2600);
+    this.step(1); await this.tap("sw"); this.hideFinger();
+    this.q("sw").classList.remove("on");
+    this.q("mhc").classList.replace("teal", "slate"); this.q("mrb").textContent = "выключено";
+    this.q("swl").textContent = "Выключено"; this.q("sws").textContent = "пополняйте вручную, когда нужно";
+    this.q("mp").textContent = "автопополнение выключено · карта сохранена";
+    this.q("prow").style.display = "none";
+    await this.w(400);
+    this.toast('<span style="font-size:20px">⏸</span>Автопополнение выключено<span class="u">Вернуть</span>', 2200);
+    await this.w(3000);
+    this.step(2); await this.tap("unbind"); this.hideFinger();
+    this.el.insertAdjacentHTML("beforeend", `<div class="sheetwrap"><div class="sheet"><div class="grab"></div><h3>Отвязать карту •• 7781?</h3><div class="sub">Данные карты удалим. Баланс 222 ₽ и VPN останутся как есть. Чтобы включить автопополнение снова, понадобится новая оплата картой.</div><div class="bbt dng" data-k="yes" style="margin-top:16px">Отвязать</div><div class="bbt">Оставить</div></div></div>`);
+    await this.w(2800);
+    await this.tap("yes"); this.hideFinger();
+    const sh = this.el.querySelector(".sheetwrap");
+    sh.classList.add("out"); setTimeout(() => sh.remove(), 400);
+    await this.w(350);
+    this.step(3);
+    this.show(scr.home(222, "Хватит до 16 апреля", "", ""), "b");
+    this.toast('<span style="font-size:20px">✓</span>Карта отвязана');
+    await this.w(2600);
+  }
+}
+
+const J = new Journey();
+const bp = document.getElementById("bp"), bs = document.getElementById("bs");
+bp.onclick = () => { J.paused = !J.paused; bp.textContent = J.paused ? "▶ Дальше" : "⏸ Пауза"; J.el.getAnimations({ subtree: true }).forEach((a) => J.paused ? a.pause() : a.play()); };
+bs.onclick = () => { SPEED = SPEED === 1 ? 1.8 : 1; bs.classList.toggle("on", SPEED !== 1); };
+J.start(+(location.hash.slice(1) || 1) - 1);
+</script>
+</body>
+</html>

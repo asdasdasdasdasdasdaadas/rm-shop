@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Выбор приложения — варианты</title>
+<link rel="stylesheet" href="cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:auto}
+.top{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:22px 28px 6px;max-width:1720px;margin:0 auto}
+.top h1{font-size:22px;margin:0;font-weight:800}
+.ptg{display:flex;background:#1c1e23;border-radius:12px;padding:3px}
+.ptg button{padding:7px 14px;border-radius:9px;font-size:14px;font-weight:600;color:#9aa0ab}
+.ptg button.on{background:#fff;color:#1d2340}
+.rep{padding:8px 16px;border-radius:12px;background:#1c1e23;font-size:14px;font-weight:600}
+.row{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;padding:18px 20px 40px}
+.col{width:min(360px,calc(100vw - 32px))}
+.cap{margin:14px 6px 0}.cap b{font-size:17px}.cap p{margin:4px 0 0;color:#9aa0ab;font-size:13.5px;line-height:1.4}
+.phone{width:min(360px,calc(100vw - 32px));height:740px;border-radius:46px;border:9px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;background:var(--bg)}
+.scrl{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none;padding-bottom:30px}.scrl::-webkit-scrollbar{display:none}
+.bar{display:flex;align-items:center;gap:10px;padding:14px 14px 12px}
+.bar .bk{font-size:24px;width:30px}.bar .nm{display:flex;align-items:center;gap:8px;background:#1c1e23;border-radius:12px;padding:6px 12px 6px 6px;font-size:14px;font-weight:600}
+.bar .nm img{width:24px;height:24px;border-radius:50%}.bar .mr{margin-left:auto;font-size:20px;letter-spacing:1px}
+.hc .H,.hc .P{transition:opacity .2s,transform .25s var(--ease)}
+.out{opacity:0!important;transform:translateY(6px)!important}
+.bgs{position:absolute;inset:0;z-index:-2}.bgs i{position:absolute;inset:0;opacity:0;transition:opacity .6s ease}.bgs i.on{opacity:1}
+.aic{width:92px;height:92px;border-radius:22px;display:block;box-shadow:0 16px 26px rgba(0,0,0,.35)}
+.flip{animation:flp .5s var(--ease)}@keyframes flp{0%{transform:rotateY(0) scale(1)}45%{transform:rotateY(90deg) scale(.85)}55%{transform:rotateY(-90deg) scale(.85)}100%{transform:none}}
+.popi{animation:pop .6s var(--ease)}
+.recb{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.22);border-radius:99px;padding:3px 10px;font-size:12.5px;font-weight:700;margin-top:10px;transition:opacity .25s,transform .25s var(--ease)}
+.recb.hide{opacity:0;transform:scale(.8)}
+/* A */
+.seg{position:relative;display:flex;background:rgba(0,0,0,.22);border-radius:99px;padding:4px;margin:-6px -6px 18px}
+.seg .kn{position:absolute;top:4px;bottom:4px;left:4px;border-radius:99px;background:#fff;transition:transform .45s cubic-bezier(.3,1.35,.45,1),width .3s;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+.seg button{flex:1;position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:7px;height:40px;font-weight:700;font-size:15px;transition:color .3s}
+.seg button img{width:22px;height:22px;border-radius:6px}.seg button.on{color:#1d2340}
+.seg button .st2{font-size:10px;opacity:.7;font-weight:600}
+/* B */
+.car{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:-4px -22px 4px;padding:10px 0 18px}.car::-webkit-scrollbar{display:none}
+.car .sl{flex:0 0 110px;scroll-snap-align:center;display:flex;justify-content:center;cursor:pointer}
+.car .pad{flex:0 0 calc(50% - 55px)}
+.car .sl img{width:92px;height:92px;border-radius:22px;box-shadow:0 14px 24px rgba(0,0,0,.35);transition:transform .12s linear,opacity .12s linear,filter .12s linear;will-change:transform}
+.cdots{display:flex;gap:6px;justify-content:center;margin-bottom:12px}.cdots i{width:7px;height:7px;border-radius:9px;background:rgba(255,255,255,.35);transition:width .35s var(--ease),background .3s}.cdots i.on{width:22px;background:#fff}
+.hint{font-size:12.5px;opacity:.7;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:6px}
+.hint .sw{display:inline-block;animation:swp 1.8s ease-in-out infinite}@keyframes swp{50%{transform:translateX(8px)}}
+/* C */
+.pk{display:flex;flex-direction:column;gap:10px;margin:0 12px}
+.pc{background:var(--card);border-radius:22px;padding:14px 16px;text-align:left;box-shadow:inset 0 0 0 2px transparent;transition:box-shadow .3s,background .3s,transform .15s;animation:up .5s var(--ease) both}
+.pc:active{transform:scale(.98)}
+.pc.on{box-shadow:inset 0 0 0 2px #3fc6b4;background:#1a2a2b}
+.pc .hd{display:flex;align-items:center;gap:14px}.pc .hd img{width:52px;height:52px;border-radius:14px}
+.pc .nm{font-size:17.5px;font-weight:700;display:flex;align-items:center;gap:8px}.pc .ds{font-size:14px;color:var(--hint);margin-top:2px}
+.pc .bd{font-size:11.5px;font-weight:700;background:#3fc6b4;color:#062a2a;border-radius:99px;padding:2px 8px}
+.rdo{margin-left:auto;width:26px;height:26px;border-radius:99px;box-shadow:inset 0 0 0 2px #444a55;display:flex;align-items:center;justify-content:center;transition:all .3s var(--ease);flex-shrink:0}
+.pc.on .rdo{background:#3fc6b4;box-shadow:inset 0 0 0 2px #3fc6b4;transform:scale(1.08)}
+.rdo svg{opacity:0;transform:scale(.4);transition:all .3s cubic-bezier(.3,1.5,.5,1)}.pc.on .rdo svg{opacity:1;transform:none}
+.ex{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s var(--ease)}.pc.on .ex{grid-template-rows:1fr}
+.ex>div{overflow:hidden}.ex ul{margin:12px 0 2px;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px}
+.ex li{font-size:14.5px;display:flex;gap:9px;align-items:center;color:#d8dbe2}.ex li::before{content:"";width:6px;height:6px;border-radius:9px;background:#3fc6b4}
+.cta{position:sticky;bottom:0;padding:16px 12px 6px;background:linear-gradient(transparent,var(--bg) 30%);margin-top:6px}
+.cta .pill{background:#3fc6b4;color:#062a2a;overflow:hidden;position:relative}
+.cta .pill span{display:inline-block;transition:transform .35s var(--ease),opacity .25s}
+.cta .sub{text-align:center;color:var(--hint);font-size:14px;margin-top:12px}
+.stack{display:flex;justify-content:center;margin-bottom:10px}.stack img{width:62px;height:62px;border-radius:16px;box-shadow:0 10px 20px rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.25)}
+.stack img+img{margin-left:-14px;transform:rotate(8deg) translateY(4px)}.stack img:first-child{transform:rotate(-8deg)}
+/* D */
+.chip{display:inline-flex;align-items:center;gap:8px;background:rgba(0,0,0,.22);border-radius:99px;padding:5px 12px 5px 5px;margin-top:12px;font-weight:700;font-size:14.5px;transition:transform .15s}
+.chip:active{transform:scale(.95)}.chip img{width:26px;height:26px;border-radius:8px}.chip .ch{opacity:.75;font-weight:600}
+.sh{position:absolute;inset:0;z-index:20;pointer-events:none}
+.sh .bk2{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;transition:opacity .3s}
+.sh .pn{position:absolute;left:0;right:0;bottom:0;background:#1c1e23;border-radius:28px 28px 0 0;padding:10px 16px 26px;transform:translateY(105%);transition:transform .45s cubic-bezier(.25,1.15,.4,1)}
+.sh.on{pointer-events:auto}.sh.on .bk2{opacity:1}.sh.on .pn{transform:none}
+.grab{width:38px;height:5px;border-radius:9px;background:#3a3d45;margin:0 auto 14px}
+.pn h3{margin:0 4px 4px;font-size:20px}.pn .sx{color:var(--hint);font-size:14px;margin:0 4px 16px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:#121317;border-radius:20px;padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:8px;position:relative;box-shadow:inset 0 0 0 2px transparent;transition:box-shadow .25s,transform .15s;opacity:0;transform:translateY(16px)}
+.sh.on .tile{animation:tin .45s var(--ease) both;animation-delay:calc(.12s + var(--i)*.07s)}@keyframes tin{to{opacity:1;transform:none}}
+.tile:active{transform:scale(.96)!important}.tile.on{box-shadow:inset 0 0 0 2px #3fc6b4}
+.tile img{width:60px;height:60px;border-radius:16px}.tile b{font-size:16px}.tile span{font-size:12.5px;color:var(--hint);text-align:center;line-height:1.3}
+.tile .bd{position:absolute;top:8px;right:8px;font-size:10.5px;font-weight:800;background:#3fc6b4;color:#062a2a;border-radius:99px;padding:2px 7px}
+/* finger */
+.fg{position:absolute;z-index:50;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:rgba(255,255,255,.35);box-shadow:0 0 0 2px rgba(255,255,255,.6);pointer-events:none;opacity:0;transition:left .55s var(--ease),top .55s var(--ease),opacity .25s}
+.fg.on{opacity:1}.fg.tap{animation:ftap .35s ease}@keyframes ftap{50%{transform:scale(.7);background:rgba(255,255,255,.6)}}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Выбор приложения</h1>
+  <div class="ptg" id="plat"><button data-p="ios" class="on">iPhone</button><button data-p="android">Android</button></div>
+  <button class="rep" id="rep">↻ Повторить демо</button>
+</div>
+<div class="row" id="row"></div>
+<script>
+const APPS = {
+  incy: { name: "Incy", icon: "icons/incy.png", short: "Проще всего", desc: "Самое простое · ключ в один тап",
+    g: "linear-gradient(165deg,#0f5f66 0%,#178f8f 55%,#3fc6b4 100%)", feats: ["Ключ добавится сам по кнопке", "Один большой переключатель VPN", "Без лишних настроек"] },
+  happ: { name: "Happ", icon: "icons/happ.png", short: "Больше настроек", desc: "Больше настроек · есть на Mac и TV",
+    g: "linear-gradient(165deg,#1f2a5c 0%,#3d4ea3 55%,#7b8fe6 100%)", feats: ["Выбор сервера и протокола", "Работает на iPhone, Mac и TV", "Ключ тоже добавится сам"] },
+  v2rayng: { name: "v2rayNG", icon: "icons/v2rayng.png", short: "Классика Android", desc: "Проверенный клиент для Android",
+    g: "linear-gradient(165deg,#0e3a73 0%,#2f6fd0 55%,#62a6ff 100%)", feats: ["Открытый код, без рекламы", "Подписка обновляется сама", "Для опытных пользователей"] },
+};
+const PLAT = { ios: { store: "App Store", apps: ["incy", "happ"] }, android: { store: "Google Play", apps: ["happ", "v2rayng"] } };
+let plat = "ios";
+const CHK = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const list = () => PLAT[plat].apps;
+const bar = '<div class="bar"><span class="bk">←</span><span class="nm"><img src="icons/frog.png">Лягушка VPN</span><span class="mr">•••</span></div>';
+const bgs = () => `<div class="bgs">${list().map((id, i) => `<i data-id="${id}" class="${i ? "" : "on"}" style="background:${APPS[id].g}"></i>`).join("")}</div>`;
+const steps = (a) => `<div class="st">Как это работает</div><div class="cd">${[
+  ["1", `Установите <b class="an">${a.name}</b>`, "займёт полминуты"], ["2", "Вернитесь сюда и нажмите ✓", "<b>создадим ключ</b> для этого устройства"],
+  ["3", "Подключите в один тап", "6 ₽ в день, пока пользуетесь"]].map((x, i) => `<div class="tl" style="--i:${i}"><div class="n">${x[0]}</div><div><div class="tx">${x[1]}</div><div class="sx">${x[2]}</div></div></div>`).join("")}</div>`;
+const other = '<div style="height:12px"></div><div class="cd"><button class="rw"><span class="e">📱</span>iPhone<span class="v">Другое устройство <span class="cv">›</span></span></button></div>';
+const acts = (a) => `<div class="acts"><button class="pill"><span class="dl">Скачать ${a.name}</span></button><button class="rnd">${CHK(26)}</button></div>`;
+const dots = '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>';
+
+function swapText(el, html) { if (!el) return; el.classList.add("out"); setTimeout(() => { el.innerHTML = html; el.classList.remove("out"); }, 180); }
+function setBg(root, id) { root.querySelectorAll(".bgs i").forEach((x) => x.classList.toggle("on", x.dataset.id === id)); }
+function common(root, id) {
+  const a = APPS[id];
+  setBg(root, id);
+  root.querySelectorAll(".an").forEach((x) => swapText(x, a.name));
+  root.querySelectorAll(".dl").forEach((x) => swapText(x, "Скачать " + a.name));
+  const r = root.querySelector(".recb"); if (r) r.classList.toggle("hide", id !== list()[0]);
+}
+
+const V = {
+  A: { t: "A · Переключатель в карточке", p: "Ползунок с иконками прямо в шапке. Иконка переворачивается, фон перетекает в цвет приложения, тексты ниже меняются на месте. Один тап, без лишнего шага.",
+    h() { const a = APPS[list()[0]], n = list().length;
+      return bar + `<section class="hc teal" style="background:none">${bgs()}<div class="seg"><span class="kn" style="width:calc((100% - 8px)/${n})"></span>${list().map((id, i) =>
+        `<button data-id="${id}" class="${i ? "" : "on"}"><img src="${APPS[id].icon}">${APPS[id].name}</button>`).join("")}</div>
+        <div class="ill"><div><img class="aic" src="${a.icon}"></div></div><div class="H">Установите <span class="an">${a.name}</span></div>
+        <div class="P">${a.desc}<br>Бесплатно в ${PLAT[plat].store}</div><div class="recb">★ рекомендуем</div>${dots}${acts(a)}</section>` + steps(a) + other; },
+    on(root) { root.querySelectorAll(".seg button").forEach((b, i) => b.onclick = () => this.pick(root, b.dataset.id, i)); },
+    pick(root, id, i) {
+      const a = APPS[id]; root.querySelector(".kn").style.transform = `translateX(${i * 100}%)`;
+      root.querySelectorAll(".seg button").forEach((b) => b.classList.toggle("on", b.dataset.id === id));
+      const img = root.querySelector(".aic"); img.classList.remove("flip"); void img.offsetWidth; img.classList.add("flip"); setTimeout(() => img.src = a.icon, 220);
+      swapText(root.querySelector(".hc .P"), `${a.desc}<br>Бесплатно в ${PLAT[plat].store}`); common(root, id); },
+    demo: [[".seg button:nth-child(3)"], [".seg button:nth-child(2)"]] },
+  B: { t: "B · Карусель иконок", p: "Иконки листаются свайпом и магнитятся к центру; выбранная крупнее, соседние уходят в тень. Удобно, когда приложений три-четыре (Android, ПК).",
+    h() { const a = APPS[list()[0]];
+      return bar + `<section class="hc teal" style="background:none">${bgs()}<div class="car"><i class="pad"></i>${list().map((id) => `<div class="sl" data-id="${id}"><img src="${APPS[id].icon}"></div>`).join("")}<i class="pad"></i></div>
+        <div class="cdots">${list().map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>
+        <div class="H"><span class="an">${a.name}</span></div><div class="P">${a.desc}</div><div class="recb">★ рекомендуем</div>
+        <div class="hint"><span class="sw">⇆</span> листайте, чтобы выбрать другое</div>${acts(a)}</section>` + steps(a) + other; },
+    on(root) {
+      const car = root.querySelector(".car"), sl = [...car.querySelectorAll(".sl")]; let cur = list()[0];
+      const upd = () => { const c = car.scrollLeft + car.clientWidth / 2; let best = 0, bd = 1e9;
+        sl.forEach((s, i) => { const d = Math.abs(s.offsetLeft + s.offsetWidth / 2 - c), k = Math.min(1, d / 120);
+          s.firstChild.style.transform = `scale(${1.18 - k * .45})`; s.firstChild.style.opacity = 1 - k * .55; s.firstChild.style.filter = `blur(${k * 1.5}px)`; if (d < bd) { bd = d; best = i; } });
+        root.querySelectorAll(".cdots i").forEach((x, i) => x.classList.toggle("on", i === best));
+        const id = sl[best].dataset.id; if (id !== cur) { cur = id; swapText(root.querySelector(".hc .P"), APPS[id].desc); common(root, id); } };
+      car.addEventListener("scroll", () => requestAnimationFrame(upd)); sl.forEach((s) => s.onclick = () => car.scrollTo({ left: s.offsetLeft + s.offsetWidth / 2 - car.clientWidth / 2, behavior: "smooth" }));
+      requestAnimationFrame(upd); },
+    demo: [[".car .sl:nth-child(3)"], [".car .sl:nth-child(2)"]] },
+  C: { t: "C · Карточки выбора", p: "Отдельный короткий шаг: две карточки, у выбранной — подсветка, галочка и раскрывающиеся плюсы. Кнопка снизу сама переименовывается. Понятнее всего тем, кто сомневается.",
+    h() { return bar + `<section class="hc teal compact"><div class="stack">${list().map((id) => `<img src="${APPS[id].icon}">`).join("")}</div>
+        <div class="H" style="font-size:24px">Выберите приложение</div><div class="P">Оба бесплатные. Ключ добавится сам</div></section><div class="st">Приложения</div>
+        <div class="pk">${list().map((id, i) => { const a = APPS[id]; return `<button class="pc ${i ? "" : "on"}" data-id="${id}" style="animation-delay:${.2 + i * .1}s"><div class="hd"><img src="${a.icon}">
+        <div><div class="nm">${a.name}${i ? "" : '<span class="bd">рекомендуем</span>'}</div><div class="ds">${a.short}</div></div><span class="rdo">${CHK(15)}</span></div>
+        <div class="ex"><div><ul>${a.feats.map((f) => `<li>${f}</li>`).join("")}</ul></div></div></button>`; }).join("")}</div>
+        <div class="cta"><button class="pill"><span class="dl">Скачать ${APPS[list()[0]].name}</span></button><div class="sub">Уже установлено? <a>Нажмите здесь ✓</a></div></div>`; },
+    on(root) { root.querySelectorAll(".pc").forEach((c) => c.onclick = () => { root.querySelectorAll(".pc").forEach((x) => x.classList.toggle("on", x === c));
+      const s = root.querySelector(".cta .dl"); s.style.transform = "translateY(-120%)"; s.style.opacity = 0;
+      setTimeout(() => { s.style.transition = "none"; s.style.transform = "translateY(120%)"; s.textContent = "Скачать " + APPS[c.dataset.id].name; void s.offsetWidth;
+        s.style.transition = ""; s.style.transform = ""; s.style.opacity = 1; }, 200); }); },
+    demo: [[".pc:nth-child(2)"], [".pc:nth-child(1)"]] },
+  D: { t: "D · Шторка «Сменить»", p: "Экран как сейчас, но под заголовком — чип с текущим приложением. Тап открывает шторку с плиткой приложений; выбор закрывает её, иконка подпрыгивает. Масштабируется на любое число приложений.",
+    h() { const a = APPS[list()[0]];
+      return bar + `<section class="hc teal" style="background:none">${bgs()}<div class="ill"><div><img class="aic" src="${a.icon}"></div></div>
+        <div class="H">Установите <span class="an">${a.name}</span></div><div class="P">Бесплатно в ${PLAT[plat].store}. Уже стоит — жмите ✓</div>
+        <button class="chip"><img src="${a.icon}"><span class="cn">${a.name}</span><span class="ch">· сменить ⌄</span></button>${dots}${acts(a)}</section>` + steps(a) + other; },
+    sheet() { return `<div class="sh"><div class="bk2"></div><div class="pn"><div class="grab"></div><h3>Какое приложение?</h3><div class="sx">Все бесплатные — ключ добавим в выбранное</div>
+        <div class="tiles">${list().map((id, i) => `<button class="tile ${i ? "" : "on"}" data-id="${id}" style="--i:${i}">${i ? "" : '<span class="bd">★</span>'}<img src="${APPS[id].icon}"><b>${APPS[id].name}</b><span>${APPS[id].short}</span></button>`).join("")}</div></div></div>`; },
+    on(root, phone) { phone.insertAdjacentHTML("beforeend", this.sheet()); const sh = phone.querySelector(".sh");
+      root.querySelector(".chip").onclick = () => sh.classList.add("on"); sh.querySelector(".bk2").onclick = () => sh.classList.remove("on");
+      sh.querySelectorAll(".tile").forEach((t) => t.onclick = () => { sh.querySelectorAll(".tile").forEach((x) => x.classList.toggle("on", x === t)); const a = APPS[t.dataset.id];
+        setTimeout(() => { sh.classList.remove("on"); const img = root.querySelector(".aic"); img.src = a.icon; img.classList.remove("popi"); void img.offsetWidth; img.classList.add("popi");
+          root.querySelector(".chip img").src = a.icon; swapText(root.querySelector(".cn"), a.name); common(root, t.dataset.id); }, 260); }); },
+    demo: [[".chip"], [".sh .tile:nth-child(2)", true], [".chip"], [".sh .tile:nth-child(1)", true]] },
+};
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function demo(phone, steps, token) {
+  const fg = phone.querySelector(".fg"); await wait(1400);
+  for (const [sel, inPhone] of steps) {
+    if (phone.dataset.tok !== token) return;
+    const el = (inPhone ? phone : phone.querySelector(".scrl")).querySelector(sel); if (!el) continue;
+    const pr = phone.getBoundingClientRect(), r = el.getBoundingClientRect();
+    fg.style.left = r.left - pr.left + r.width / 2 + "px"; fg.style.top = r.top - pr.top + r.height / 2 + "px"; fg.classList.add("on");
+    await wait(650); if (phone.dataset.tok !== token) return;
+    fg.classList.remove("tap"); void fg.offsetWidth; fg.classList.add("tap"); el.click(); await wait(1500);
+  }
+  fg.classList.remove("on");
+}
+function render() {
+  const row = document.getElementById("row"); row.innerHTML = "";
+  Object.values(V).forEach((v) => {
+    const col = document.createElement("div"); col.className = "col";
+    col.innerHTML = `<div class="phone"><div class="scrl">${v.h()}</div><div class="fg"></div></div><div class="cap"><b>${v.t}</b><p>${v.p}</p></div>`;
+    row.appendChild(col); const phone = col.querySelector(".phone"); v.on(phone.querySelector(".scrl"), phone);
+    const tok = String(Math.random()); phone.dataset.tok = tok;
+    phone.addEventListener("pointerdown", (e) => { if (e.isTrusted) { phone.dataset.tok = "user"; phone.querySelector(".fg").classList.remove("on"); } });
+    demo(phone, v.demo, tok);
+  });
+}
+document.querySelectorAll("#plat button").forEach((b) => b.onclick = () => { plat = b.dataset.p; document.querySelectorAll("#plat button").forEach((x) => x.classList.toggle("on", x === b)); render(); });
+document.getElementById("rep").onclick = render;
+render();
+</script>
+</body>
+</html>

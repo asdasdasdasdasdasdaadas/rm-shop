@@ -1,0 +1,7 @@
+<!doctype html><body style="margin:0;background:#3d4ea3"><script src="lottie-light.min.js"></script>
+<div style="display:flex;gap:10px"><div id=a style="width:315px;height:159px;outline:1px solid red"></div><div id=b style="width:315px;height:159px;outline:1px solid red"></div><div id=c style="width:315px;height:159px;outline:1px solid red;position:relative"><div id=c1 style="position:absolute;inset:0"></div><div id=c2 style="position:absolute;inset:0"></div></div></div>
+<script>
+const L=(el,p)=>lottie.loadAnimation({container:el,renderer:"svg",loop:false,autoplay:false,path:p});
+const as=[L(a,"wallet_gift_lid.json"),L(b,"wallet_gift_body.json"),L(c1,"wallet_gift_body.json"),L(c2,"wallet_gift_lid.json")];
+let n=0; as.forEach(x=>x.addEventListener("DOMLoaded",()=>{x.goToAndStop(0,true); if(++n==4){ const g=a.querySelector("svg > g"); const bb=g.getBBox(); const r=a.querySelector("svg").getBoundingClientRect(); window.BB=JSON.stringify(bb)+" "+JSON.stringify([r.width,r.height]); document.title="ready";}}));
+</script>

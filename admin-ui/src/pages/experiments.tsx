@@ -297,6 +297,12 @@ export function ExperimentsPage() {
       "Половина тех, кто подключает первое устройство, увидит «Скачать» и «Добавить в приложение» на одной карточке. Главное мерило — подключили VPN за сутки.",
     stop: "Все снова увидят шаг установки как сейчас. Результаты останутся здесь.",
   });
+  const frog = useBuiltinTest("frog-test", {
+    title: "Живая лягушка",
+    start:
+      "Половина тех, кто открывает кабинет, увидит живую лягушку на главной, остальные — как сейчас. Главное мерило — возвращаются ли в кабинет в другой день; деньги и нажатия «Пополнить» — чтобы игрушка не мешала платить.",
+    stop: "Лягушку снова решает переключатель в Настройках. Результаты останутся здесь.",
+  });
   const items: Data[] = data?.items || [];
   const busy = new Set(items.filter((i) => i.running).map((i) => i.step_id));
   const free = (data?.steps || []).filter((s: Data) => !busy.has(s.id));
@@ -389,15 +395,46 @@ export function ExperimentsPage() {
     </TestCard>
   );
 
+  const frogCard = (item: Data) => (
+    <TestCard
+      key={"f" + item.started_at}
+      title="Живая лягушка на главной: притягивает, пофиг или отталкивает"
+      item={item}
+      facts={["Кабинет", "50 / 50 открывших кабинет", `возвраты за ${frog.resource.data?.return_days || 3} дня`, `деньги за ${frog.resource.data?.window_days || 7} дней`]}
+      onStop={() => frog.run("stop")}
+    >
+      <Compare
+        arms={item.arms || []}
+        main={{
+          label: `Вернулись за ${frog.resource.data?.return_days || 3} дня`,
+          value: (r) => pct(r.return_pct),
+          share: (r) => Number(r.return_pct || 0),
+        }}
+        metrics={[
+          { label: "Людей", value: (r) => num(r.users) },
+          { label: "Вернулись, человек", value: (r) => `${num(r.returned)} из ${num(r.ret_done)}` },
+          { label: "Дней в кабинете на человека", value: (r) => String(r.days_per_user ?? 0).replace(".", ",") },
+          { label: "Играли с лягушкой", value: (r) => (r.arm === "frog" ? `${num(r.players)} · ${pct(r.play_pct)}` : "—") },
+          { label: `Играли ${5}+ раз`, value: (r) => (r.arm === "frog" ? `${num(r.fans)} · ${pct(r.fan_pct)}` : "—") },
+          { label: "Нажали «Пополнить»", value: (r) => `${num(r.topup_clickers)} · ${pct(r.topup_pct)}` },
+          { label: "Оплатили", value: (r) => `${num(r.payers)} · ${pct(r.conversion)}` },
+          { label: "₽ на человека", value: (r) => money(r.rub_per_user) },
+        ]}
+        verdicts={toVerdicts(item.verdicts)}
+      />
+    </TestCard>
+  );
+
   const all = [
+    ...frog.items.map((i) => ({ at: i.started_at, running: !!i.running, node: frogCard(i) })),
     ...install.items.map((i) => ({ at: i.started_at, running: !!i.running, node: installCard(i) })),
     ...gift.items.map((i) => ({ at: i.started_at, running: !!i.running, node: giftCard(i) })),
     ...items.map((i) => ({ at: i.started_at, running: !!i.running, node: messageCard(i) })),
   ].sort((a, b) => String(b.at).localeCompare(String(a.at)));
   const running = all.filter((t) => t.running), done = all.filter((t) => !t.running);
   const shown = view === "running" ? running : done;
-  const loading = !data || !gift.resource.data || !install.resource.data;
-  const error = resource.error || gift.resource.error || install.resource.error;
+  const loading = !data || !gift.resource.data || !install.resource.data || !frog.resource.data;
+  const error = resource.error || gift.resource.error || install.resource.error || frog.resource.error;
 
   return (
     <div className="space-y-5">
@@ -410,6 +447,9 @@ export function ExperimentsPage() {
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
+          {!frog.current && frog.resource.data && (
+            <Button variant="outline" onClick={() => frog.run("start")}>Тест живой лягушки</Button>
+          )}
           {!install.current && install.resource.data && (
             <Button variant="outline" onClick={() => install.run("start")}>Тест шага установки</Button>
           )}
@@ -427,7 +467,7 @@ export function ExperimentsPage() {
         — все, а не только после нажатия кнопки. Предупреждения о балансе и неоплаченном счёте не тестируются.
       </p>
       {error ? (
-        <Failure message={error} retry={() => { void resource.reload(); void gift.resource.reload(); void install.resource.reload(); }} />
+        <Failure message={error} retry={() => { void resource.reload(); void gift.resource.reload(); void install.resource.reload(); void frog.resource.reload(); }} />
       ) : loading ? (
         <Loading />
       ) : !shown.length ? (

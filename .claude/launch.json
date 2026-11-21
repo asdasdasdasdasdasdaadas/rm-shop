@@ -1,0 +1,57 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "picker-prototype",
+      "runtimeExecutable": "/Users/0338am/.nvm/versions/node/v24.19.0/bin/node",
+      "runtimeArgs": [
+        "/Users/0338am/Documents/rm-shop/.claude/picker-proto/serve.cjs"
+      ],
+      "port": 8765
+    },
+    {
+      "name": "autopay-cab",
+      "runtimeExecutable": "/Users/0338am/.nvm/versions/node/v24.19.0/bin/node",
+      "runtimeArgs": [
+        "/private/tmp/claude-501/-Users-0338am-Documents-rm-shop/482d4080-d277-4e67-a888-6358b24bd168/scratchpad/cab-demo/serve.cjs"
+      ],
+      "port": 8811
+    },
+    {
+      "name": "cabinet-demo",
+      "runtimeExecutable": "/Users/0338am/.nvm/versions/node/v24.19.0/bin/node",
+      "runtimeArgs": [
+        "/Users/0338am/Documents/rm-shop/.claude/cab-demo/serve.cjs"
+      ],
+      "port": 8790,
+      "url": "http://localhost:8790"
+    },
+    {
+      "name": "admin-demo",
+      "runtimeExecutable": "/Users/0338am/.nvm/versions/node/v24.19.0/bin/node",
+      "runtimeArgs": [
+        "/private/tmp/claude-501/-Users-0338am-Documents-rm-shop/512c8f3c-65d6-4961-a643-e3dfa6b14a06/scratchpad/admin-demo/serve.cjs"
+      ],
+      "port": 8795,
+      "url": "http://localhost:8795"
+    },
+    {
+      "name": "support-demo",
+      "runtimeExecutable": "/Users/0338am/.nvm/versions/node/v24.19.0/bin/node",
+      "runtimeArgs": [
+        "/private/tmp/claude-501/-Users-0338am-Documents-rm-shop/512c8f3c-65d6-4961-a643-e3dfa6b14a06/scratchpad/sd-demo/serve.cjs"
+      ],
+      "port": 8796,
+      "url": "http://localhost:8796"
+    },
+    {
+      "name": "admin-skin",
+      "runtimeExecutable": "/Users/0338am/.nvm/versions/node/v24.19.0/bin/node",
+      "runtimeArgs": [
+        "/private/tmp/claude-501/-Users-0338am-Documents-rm-shop/482d4080-d277-4e67-a888-6358b24bd168/scratchpad/admin-demo/serve.cjs"
+      ],
+      "port": 8799,
+      "url": "http://localhost:8799"
+    }
+  ]
+}

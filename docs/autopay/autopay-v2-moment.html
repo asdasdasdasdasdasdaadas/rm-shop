@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Автопополнение — вариант 2 «В нужный момент»</title>
+<link rel="stylesheet" href="../../webapp/cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:hidden}
+.top{padding:22px 20px 4px;max-width:1240px;margin:0 auto}
+.top .k{font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#5ea8ff}
+.top h1{font-size:23px;margin:4px 0 0;font-weight:800;letter-spacing:-.2px}
+.top p{margin:8px 0 0;color:#9aa0ab;font-size:14.5px;max-width:860px;line-height:1.5}
+.nav{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.nav a{padding:8px 14px;border-radius:99px;background:#1c1e23;font-size:13.5px;font-weight:600;color:#cfd5de;text-decoration:none}
+.nav a.on{background:#fff;color:#111}
+.rules{max-width:1240px;margin:18px auto 0;padding:0 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.rule{background:#15171b;border-radius:18px;padding:13px 16px;font-size:13.5px;color:#9aa0ab;line-height:1.45}
+.rule b{display:block;color:#fff;font-size:14.5px;margin-bottom:3px}
+.rule.minus b{color:#f6a447}
+.row{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;padding:22px 16px 40px}
+.col{width:min(360px,calc(100vw - 32px))}
+.cap{margin:14px 6px 0}.cap b{font-size:17px}.cap p{margin:4px 0 0;color:#9aa0ab;font-size:13.5px;line-height:1.45}
+.phone{width:100%;height:830px;border-radius:46px;border:9px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;background:var(--bg)}
+.scrl{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding:14px 0 30px}.scrl::-webkit-scrollbar{display:none}
+.phone *{animation:none!important}
+.frog{width:78px;height:78px}
+.sw2{width:51px;height:31px;border-radius:99px;background:#3a3d45;position:relative;flex-shrink:0}
+.sw2::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.sw2.on{background:var(--grn)}.sw2.on::after{transform:translateX(20px)}
+.apb{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:7px 14px 7px 11px;border-radius:99px;background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:13.5px;font-weight:600;white-space:nowrap}
+.hc .acts.col2{flex-direction:column;gap:8px}
+.hc .acts.col2 .pill{flex:none;width:100%}
+.pill.ghost{background:rgba(255,255,255,.2);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)}
+.fine{font-size:12.5px;color:var(--hint);text-align:center;margin:12px 26px 0;line-height:1.45}.fine u{color:#8cc0ff;text-decoration:none}
+.hist .v{color:var(--grn)}
+/* telegram */
+.chat{background:#0e1621;position:absolute;inset:0;padding-top:14px;display:flex;flex-direction:column}
+.tgbar{display:flex;align-items:center;gap:10px;padding:6px 14px 10px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.tgbar .av{width:38px;height:38px;border-radius:50%;overflow:hidden}.tgbar .av img{width:38px;height:38px}
+.tgbar b{font-size:15.5px;display:block}.tgbar span{font-size:13px;color:#7d8b99}
+.feed{flex:1;overflow-y:auto;scrollbar-width:none;padding:12px 10px 16px}.feed::-webkit-scrollbar{display:none}
+.day{text-align:center;margin:4px 0 10px}.day span{background:rgba(0,0,0,.35);color:#fff;font-size:12.5px;padding:3px 10px;border-radius:99px}
+.bub{background:#182533;border-radius:16px 16px 16px 5px;padding:9px 12px 7px;font-size:14.5px;line-height:1.38;max-width:94%;color:#fff}
+.bub .t{float:right;font-size:11.5px;color:#6d7f8f;margin:6px 0 0 10px}.bub b{font-weight:600}
+.bub .q{border-left:3px solid #5ea8ff;padding:2px 0 2px 9px;margin-top:6px;color:#c9d4de}
+.bub .q.g{border-color:#3ccf74}.bub .q.o{border-color:#f6a447}
+.bub::after{content:"";display:block;clear:both}
+.kb{display:grid;gap:4px;margin:4px 0 12px;max-width:94%}
+.kb.two{grid-template-columns:1fr 1fr}.kb.three{grid-template-columns:1fr 1.2fr 1fr}
+.kb .w{grid-column:1/-1}
+.kb div{background:rgba(70,95,120,.35);border-radius:10px;padding:9px 6px;text-align:center;font-size:14px;font-weight:600;color:#fff}
+.kb div.hl{background:rgba(62,136,247,.55)}
+.kb div.val{background:rgba(70,95,120,.18);color:#c9d4de}
+.me{margin:0 0 10px auto;background:#2b5278;border-radius:16px 16px 5px 16px;padding:7px 12px;font-size:14.5px;width:max-content;color:#fff}
+</style>
+</head>
+<body>
+<div class="top">
+  <span class="k">Вариант 2 · заметный, через бота</span>
+  <h1>«В нужный момент» — предлагаем, когда баланс кончается</h1>
+  <p>Автопополнение предлагаем не после оплаты, а в тот момент, когда человеку оно нужнее всего: в предупреждении «баланс на исходе». Оплата и включение — одно действие на одном экране. Управлять можно прямо в чате кнопками под сообщением, кабинет открывать не обязательно. Вместо «выключить насовсем» есть пауза и «пропустить этот раз».</p>
+  <div class="nav"><a href="autopay-best.html">Вариант 1 · после оплаты</a><a class="on" href="autopay-v2-moment.html">Вариант 2 · в нужный момент</a><a href="autopay-v3-calendar.html">Вариант 3 · раз в месяц</a></div>
+</div>
+<div class="rules">
+  <div class="rule"><b>Где предлагаем</b>В предупреждении о балансе в боте и на оранжевой карточке кабинета. После обычной оплаты ничего не всплывает.</div>
+  <div class="rule"><b>Как включается</b>Одна кнопка «Оплатить и включить». Рядом такая же заметная «Оплатить один раз». Галочек и шторок нет.</div>
+  <div class="rule"><b>Где управлять</b>В чате: сумма, пауза, отключение — кнопками под сообщением. В кабинете — тот же экран в настройках.</div>
+  <div class="rule"><b>Плюс</b>Предложение попадает в боль: человек только что чуть не остался без VPN. Меньше экранов, чем в варианте 1.</div>
+  <div class="rule minus"><b>Минус</b>В предупреждении становится три кнопки. Тем, у кого баланс никогда не кончается, предложение не покажется вовсе.</div>
+</div>
+
+<div class="row">
+
+<!-- 1 -->
+<div class="col"><div class="phone"><div class="chat">
+  <div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div>
+  <div class="feed">
+    <div class="day"><span>14 ноября</span></div>
+    <div class="bub">ℹ️ <b>Баланс на исходе</b><div class="q o">Остаток 12 ₽ — меньше чем на сутки. Потом VPN выключится.</div><span class="t">10:00</span></div>
+    <div class="kb"><div>Пополнить баланс</div><div class="hl">🔁 Пополнить и больше не следить</div><div>🤝 Обещанный платёж</div></div>
+    <div class="day"><span>если человек уже отказался</span></div>
+    <div class="bub">ℹ️ <b>Баланс на исходе</b><div class="q o">Остаток 12 ₽ — меньше чем на сутки. Потом VPN выключится.</div><span class="t">10:00</span></div>
+    <div class="kb"><div>Пополнить баланс</div><div>🤝 Обещанный платёж</div></div>
+  </div>
+</div></div>
+<div class="cap"><b>1. Предложение в боте</b><p>Вторая кнопка в привычном предупреждении. Если человек выбрал «оплатить один раз» — 30 дней предупреждения приходят без неё.</p></div></div>
+
+<!-- 2 -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc orange"><div class="ov"></div><div class="rb">мало</div>
+    <div class="ill"><div><img class="frog" src="../../webapp/icons/frog.png" alt=""></div></div>
+    <div class="N">12 ₽</div>
+    <div class="P">Хватит меньше чем на сутки</div>
+    <div class="acts col2">
+      <button type="button" class="pill"><span>Пополнить</span></button>
+      <button type="button" class="pill ghost"><span>🔁 Автопополнение</span></button>
+    </div>
+  </section>
+  <div class="st">Устройства <span style="color:var(--hint);font-weight:500">· 1 из 10</span></div>
+  <div class="cd">
+    <button class="rw"><span class="e">📱</span><span class="tt"><b>iPhone</b><span><span class="dot"></span>Подключено · 6 ₽ в день</span></span><span class="v"><span class="cv">›</span></span></button>
+    <button class="rw blue"><span class="e">＋</span>Добавить устройство</button>
+  </div>
+  <div style="height:12px"></div>
+  <div class="cd">
+    <button class="rw"><span class="e">🎁</span>Пригласить друзей<span class="v"><span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">⚙️</span>Настройки<span class="v"><span class="cv">›</span></span></button>
+  </div>
+</div></div>
+<div class="cap"><b>2. То же в кабинете</b><p>Вторая кнопка появляется только на оранжевой и красной карточке. Пока баланса хватает, главная выглядит как сейчас.</p></div></div>
+
+<!-- 3 -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc blue"><div class="ov"></div>
+    <div class="H" style="font-size:18px;opacity:.9">🔁 Пополнить и включить</div>
+    <div class="N">300 ₽</div>
+    <div class="P">≈ 50 дней VPN за раз</div>
+    <div class="chp"><button>100</button><button class="on">300</button><button>500</button><button>1 000</button></div>
+  </section>
+  <div class="st">Что будет дальше</div>
+  <div class="cd">
+    <div class="tl"><div class="n ok">✓</div><div><div class="tx">Сегодня — оплата 300 ₽</div><div class="sx">картой, она запомнится</div></div></div>
+    <div class="tl"><div class="n">🔔</div><div><div class="tx">За день напомним в боте</div><div class="sx">можно пропустить или изменить</div></div></div>
+    <div class="tl"><div class="n">🔁</div><div><div class="tx">Пополним на 300 ₽ сами</div><div class="sx">когда VPN останется на 2 дня</div></div></div>
+  </div>
+  <div style="padding:14px 12px 0;display:flex;flex-direction:column;gap:8px">
+    <button type="button" class="pill" style="width:100%;flex:none;background:var(--blue);color:#fff"><span>Оплатить 300 ₽ и включить</span></button>
+    <button type="button" class="pill" style="width:100%;flex:none;background:#2a2d34;color:#fff"><span>Оплатить один раз</span></button>
+  </div>
+  <div class="fine">Автопополнение работает с картой. Отключить — в любой момент в боте или в кабинете · <u>Условия</u></div>
+</div></div>
+<div class="cap"><b>3. Оплата и включение — один экран</b><p>Сумма, три шага «что будет» и две равные кнопки. Карта привязывается этой же оплатой, отдельного шага привязки нет.</p></div></div>
+
+<!-- 4 -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc green"><div class="ov"></div><div class="rb">VPN вкл</div>
+    <div class="ill"><div><img class="frog" src="../../webapp/icons/frog.png" alt=""></div></div>
+    <div class="N">312 ₽</div>
+    <div class="P">Хватит до 5 января</div>
+    <div class="apb">🔁 3 января пополним 300 ₽</div>
+    <div class="acts"><button type="button" class="pill"><span>Пополнить</span></button></div>
+  </section>
+  <div class="st">Устройства <span style="color:var(--hint);font-weight:500">· 1 из 10</span></div>
+  <div class="cd">
+    <button class="rw"><span class="e">📱</span><span class="tt"><b>iPhone</b><span><span class="dot"></span>Подключено · 6 ₽ в день</span></span><span class="v"><span class="cv">›</span></span></button>
+    <button class="rw blue"><span class="e">＋</span>Добавить устройство</button>
+  </div>
+  <div style="height:12px"></div>
+  <div class="cd">
+    <button class="rw"><span class="e">🎁</span>Пригласить друзей<span class="v"><span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">⚙️</span><span class="tt"><b>Настройки</b><span>Автопополнение включено</span></span><span class="v"><span class="cv">›</span></span></button>
+  </div>
+</div></div>
+<div class="cap"><b>4. Главная после включения</b><p>Под балансом — дата и сумма следующего списания. Отдельной строки в меню нет: управление лежит в настройках и в боте.</p></div></div>
+
+<!-- 5 -->
+<div class="col"><div class="phone"><div class="chat">
+  <div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div>
+  <div class="feed">
+    <div class="day"><span>14 ноября</span></div>
+    <div class="bub">✅ <b>Баланс пополнен на 300 ₽</b><div class="q g">Теперь 312 ₽ — хватит до 5 января.</div><span class="t">10:02</span></div>
+    <div style="height:8px"></div>
+    <div class="bub">🔁 <b>Автопополнение включено</b><div class="q g">300 ₽ с карты •• 4242, когда останется 2 дня.<br>Ближайшее — около 3 января, напомним 2-го.</div><span class="t">10:02</span></div>
+    <div class="kb three"><div>− 100</div><div class="val">300 ₽</div><div>+ 100</div><div class="w">⏸ Пауза на месяц</div><div class="w">Отключить</div></div>
+    <div class="me">/autopay</div>
+    <div class="bub">⏸ <b>Автопополнение на паузе</b><div class="q">До 14 декабря ничего не спишем. Карта •• 4242 сохранена.</div><span class="t">18:40</span></div>
+    <div class="kb two"><div>Возобновить</div><div>Отключить</div></div>
+  </div>
+</div></div>
+<div class="cap"><b>5. Управление в чате</b><p>Сообщение после включения — оно же пульт: сумма меняется кнопками − и +, есть пауза. Команда /autopay показывает его снова.</p></div></div>
+
+<!-- 6 -->
+<div class="col"><div class="phone"><div class="chat">
+  <div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div>
+  <div class="feed">
+    <div class="day"><span>2 января</span></div>
+    <div class="bub">🔔 <b>Завтра пополним баланс</b><div class="q">300 ₽ с карты •• 4242 — VPN осталось на 2 дня.</div><span class="t">12:00</span></div>
+    <div class="kb two"><div>Хорошо</div><div>Изменить</div><div class="w">Пропустить этот раз</div></div>
+    <div class="day"><span>3 января</span></div>
+    <div class="bub">✅ <b>Автопополнение: +300 ₽</b><div class="q g">Баланс 312 ₽ — хватит до 24 февраля.<br>Карта •• 4242.</div><span class="t">12:00</span></div>
+    <div class="kb two"><div>Чек</div><div>Изменить</div></div>
+    <div class="day"><span>если нажали «Пропустить»</span></div>
+    <div class="bub">👌 <b>В этот раз не спишем</b><div class="q o">Баланса хватит до 5 января — пополните вручную. Автопополнение остаётся включённым.</div><span class="t">12:01</span></div>
+    <div class="kb two"><div>Пополнить</div><div>Передумать</div></div>
+  </div>
+</div></div>
+<div class="cap"><b>6. Напоминание и чек</b><p>За день — предупреждение с кнопкой «Пропустить этот раз»: одно списание отменяется, автопополнение остаётся включённым.</p></div></div>
+
+<!-- 7 -->
+<div class="col"><div class="phone"><div class="chat">
+  <div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div>
+  <div class="feed">
+    <div class="day"><span>3 января</span></div>
+    <div class="bub">⚠️ <b>Не получилось пополнить 300 ₽</b><div class="q o">Банк отклонил списание с •• 4242.<br>VPN работает ещё 2 дня. Завтра попробуем снова.</div><span class="t">12:00</span></div>
+    <div class="kb"><div>Пополнить вручную</div><div>Сменить карту</div><div>🤝 Обещанный платёж</div></div>
+    <div class="day"><span>4 января</span></div>
+    <div class="bub">⏹ <b>Автопополнение выключено</b><div class="q o">Карта •• 4242 не сработала дважды. Больше списывать не пробуем.<br>Баланса хватит до 5 января.</div><span class="t">12:00</span></div>
+    <div class="kb"><div class="hl">Пополнить и включить снова</div><div>Пополнить один раз</div></div>
+  </div>
+</div></div>
+<div class="cap"><b>7. Неудачное списание</b><p>Причина, сколько ещё работает VPN и выходы. После двух неудач подряд выключаем сами и предлагаем начать заново с другой картой.</p></div></div>
+
+<!-- 8 -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc teal"><div class="ov"></div><div class="rb">включено</div>
+    <div class="ill"><div><span style="font-size:58px;line-height:1">🔁</span></div></div>
+    <div class="N">300 ₽</div>
+    <div class="P">около 3 января · с карты •• 4242</div>
+  </section>
+  <div class="cd" style="margin-top:14px">
+    <div class="rw"><span class="e">⚡</span><span class="tt"><b>Автопополнение</b><span>когда останется 2 дня</span></span><span class="v"><span class="sw2 on"></span></span></div>
+    <button class="rw"><span class="e">⏸</span>Пауза на месяц<span class="v"><span class="cv">›</span></span></button>
+  </div>
+  <div class="st">Настройки</div>
+  <div class="cd">
+    <button class="rw"><span class="e">💰</span>Сумма<span class="v">300 ₽ <span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">💳</span>Карта<span class="v">•• 4242 <span class="cv">›</span></span></button>
+  </div>
+  <div class="st">История</div>
+  <div class="cd hist">
+    <div class="rw"><span class="e">✓</span>14 ноября<span class="v">+300 ₽</span></div>
+  </div>
+  <div class="cd" style="margin-top:12px"><button class="rw red"><span class="e">✕</span>Отвязать карту</button></div>
+</div></div>
+<div class="cap"><b>8. Управление в кабинете</b><p>Настройки → Автопополнение. То же, что в чате: переключатель без «вы уверены?», пауза, сумма, карта, история. После выключения — тост «Вернуть».</p></div></div>
+
+</div>
+</body>
+</html>

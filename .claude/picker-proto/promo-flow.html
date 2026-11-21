@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Кабинет в браузере — связки</title>
+<link rel="stylesheet" href="cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:hidden}
+.top{max-width:1100px;margin:0 auto;padding:22px 20px 0}
+.top h1{font-size:23px;margin:0;font-weight:800}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.tabs button{height:38px;padding:0 14px;border-radius:99px;background:#17191e;color:#cfd5de;font-size:14px;font-weight:600}
+.tabs button.on{background:#3e88f7;color:#fff}
+.say{margin-top:14px;background:#14171c;border-radius:18px;padding:14px 16px;display:flex;gap:14px;align-items:flex-start}
+.say .tx{flex:1;font-size:15px;line-height:1.5;color:#cfd5de}.say .tx b{color:#fff}
+.say .tx small{display:block;margin-top:6px;color:#8b93a0;font-size:13px}
+.say .rs{flex:none;color:#5ea8ff;font-size:14px;font-weight:600;height:30px}
+.stage{max-width:1100px;margin:18px auto 50px;padding:0 20px;display:flex;flex-wrap:nowrap;gap:22px;justify-content:center;align-items:flex-start}
+.stage.nodesk .dw{display:none}
+.lbl{text-align:center;font-size:12px;color:#6b7280;font-weight:700;letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px}
+.phone{width:300px;height:620px;flex:none;border-radius:44px;border:9px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;background:var(--bg);isolation:isolate}
+.desk{width:540px;height:420px;flex:none;border-radius:14px;background:#1b1d22;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;isolation:isolate}
+.desk .bar{height:38px;display:flex;align-items:center;gap:7px;padding:0 12px;background:#24262c}
+.desk .bar i{width:11px;height:11px;border-radius:50%;background:#ff5f57}.desk .bar i:nth-child(2){background:#febc2e}.desk .bar i:nth-child(3){background:#28c840}
+.desk .url{margin-left:14px;flex:1;height:24px;border-radius:7px;background:#16181c;font-size:12px;color:#9aa0ab;display:flex;align-items:center;padding:0 10px}
+.desk .scr{top:38px}
+.desk .scr > .hc{max-width:380px;margin-left:auto;margin-right:auto}
+.scr{position:absolute;inset:0;min-height:0;overflow-y:auto;scrollbar-width:none;padding:16px 0 30px;background:var(--bg)}
+.scr::-webkit-scrollbar{display:none}
+.scr.in{animation:slin .4s var(--ease) both;z-index:1}.scr.out{animation:slout .4s var(--ease) both}
+@keyframes slin{from{transform:translateX(24%);opacity:0}}@keyframes slout{to{transform:translateX(-20%);opacity:0}}
+.scr.tgs{background:#0e1621;padding:0;overflow:hidden}
+.scr.web{padding-top:0}
+.sbar{position:sticky;top:0;z-index:3;height:46px;padding-top:12px;display:flex;align-items:center;justify-content:center;background:#1b1d22;font-size:13px;color:#cfd5de;margin-bottom:14px}
+.toast2{position:absolute;top:50px;left:50%;transform:translate(-50%,-20px);opacity:0;background:rgba(40,42,48,.97);padding:11px 16px;border-radius:14px;font-size:14px;font-weight:600;z-index:60;white-space:nowrap;transition:all .35s var(--ease);box-shadow:0 10px 30px rgba(0,0,0,.4);pointer-events:none}
+.toast2.on{opacity:1;transform:translate(-50%,0)}
+@keyframes rise{from{opacity:0;transform:translateY(20px) scale(.97)}}
+@keyframes popin{from{opacity:0;transform:scale(.9)}}
+.rise{animation:rise .45s var(--ease) both}
+/* hint: what to press next */
+.hint{position:relative;animation:hint 1.4s ease-in-out infinite}
+@keyframes hint{0%,100%{box-shadow:0 0 0 0 rgba(255,214,10,.0),0 0 0 2px rgba(255,214,10,.9)}50%{box-shadow:0 0 0 8px rgba(255,214,10,.18),0 0 0 2px rgba(255,214,10,.9)}}
+[data-to],[data-x],[data-sc]{cursor:pointer}
+/* login bits */
+.hc .frogi{width:72px;height:72px;border-radius:50%}
+.tgbtn{display:flex;align-items:center;justify-content:center;gap:10px;height:54px;border-radius:99px;background:#2aabee;color:#fff;font-weight:700;font-size:17px;margin:20px 0 0;width:100%;box-shadow:0 8px 24px rgba(42,171,238,.35)}
+.alt2{display:block;width:100%;text-align:center;color:rgba(255,255,255,.85);font-size:14.5px;margin-top:14px;text-decoration:underline;text-underline-offset:3px}
+.qrrow{display:flex;gap:16px;align-items:center;margin-top:14px}
+.qr{width:132px;height:132px;flex:none;background:#fff;border-radius:16px;padding:9px;position:relative}
+.qr svg{width:100%;height:100%;display:block}
+.qr .lg{position:absolute;left:50%;top:50%;width:30px;height:30px;transform:translate(-50%,-50%);border-radius:50%;background:#2aabee;border:3px solid #fff;display:flex;align-items:center;justify-content:center}
+.qr.scan::after{content:"";position:absolute;left:8px;right:8px;height:3px;border-radius:2px;background:#3ccf74;box-shadow:0 0 12px #3ccf74;top:10px;animation:scan 1.1s ease-in-out infinite alternate}
+@keyframes scan{to{top:calc(100% - 13px)}}
+.steps3{display:flex;flex-direction:column;gap:7px;font-size:13.5px;color:rgba(255,255,255,.85);text-align:left}
+.steps3 b{color:#fff}
+.wait{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;font-size:14.5px;color:rgba(255,255,255,.9)}
+.spin{width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+.okc{width:80px;height:80px;border-radius:50%;background:#3ccf74;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;animation:popin .45s var(--ease) both;box-shadow:0 0 0 12px rgba(60,207,116,.18)}
+.okc.red{background:#ff5a4f;box-shadow:0 0 0 12px rgba(255,90,79,.18)}
+.big{font-size:56px;font-weight:800;letter-spacing:6px;text-align:center;margin-top:10px;line-height:1}
+.code6{margin-top:16px;height:56px;border-radius:14px;background:rgba(0,0,0,.25);display:flex;align-items:center;padding:0 16px}
+.code6 input{flex:1;min-width:0;background:none;border:0;outline:0;font-size:26px;font-weight:800;letter-spacing:10px;color:#fff;text-align:center}
+.code6 input::placeholder{color:rgba(255,255,255,.35);letter-spacing:10px}
+.code6.bad{animation:shake .35s}.code6.ok{background:rgba(40,168,100,.6)}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+/* telegram */
+.tgh{height:56px;display:flex;align-items:center;gap:10px;padding:0 12px;background:#17212b;margin-top:24px}
+.tgh .av{width:38px;height:38px;border-radius:50%;overflow:hidden;flex:none}.tgh .av img{width:100%;height:100%}
+.tgh b{display:block;font-size:15.5px}.tgh span{font-size:12.5px;color:#7f91a4}
+.tgb{position:absolute;left:0;right:0;top:80px;bottom:52px;overflow:hidden;padding:12px 10px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;background:#0e1621}
+.msg{align-self:flex-start;max-width:92%;background:#182533;border-radius:16px 16px 16px 6px;padding:10px 12px 8px;font-size:14px;line-height:1.42;animation:rise .4s var(--ease) both}
+.msg .tm{display:block;text-align:right;font-size:11px;color:#6d7f8f;margin-top:3px}
+.msg .meta{display:grid;grid-template-columns:22px 1fr;gap:3px 6px;margin:8px 0 6px;font-size:13.5px;color:#c9d4de}
+.msg.old{animation:none;opacity:.55}
+.kb{display:grid;gap:4px;max-width:92%;width:92%;animation:rise .4s .1s var(--ease) both}
+.kb.two{grid-template-columns:1fr 1fr}.kb.three{grid-template-columns:1fr 1fr 1fr}
+.kb button{background:rgba(43,82,120,.85);border-radius:10px;padding:11px 6px;font-size:14px;font-weight:600;color:#fff}
+.kb.three button{font-size:18px;font-weight:800;letter-spacing:1px}
+.kb button.wide{grid-column:1/-1;font-size:14px;letter-spacing:0;font-weight:600}
+.kb button.g{background:rgba(46,160,90,.9)}
+.kb.dim button{opacity:.35;pointer-events:none}
+.inbar{position:absolute;left:0;right:0;bottom:0;height:52px;background:#17212b;display:flex;align-items:center;padding:0 14px;color:#6d7f8f;font-size:14px}
+.copy{font-size:22px;letter-spacing:2px;font-weight:800;background:rgba(94,168,255,.15);border-radius:8px;padding:2px 8px;display:inline-block;margin:4px 0}
+/* camera */
+.cam{position:absolute;inset:0;background:#000}
+.cam .vf{position:absolute;inset:70px 22px 140px;border-radius:18px;overflow:hidden;background:radial-gradient(circle at 50% 45%,#2a2d33,#0b0c0e 75%);display:flex;align-items:center;justify-content:center}
+.cam .vf .mini{width:110px;height:110px;background:#fff;border-radius:10px;padding:7px;transform:perspective(300px) rotateX(12deg) rotateZ(-4deg);opacity:.85}
+.cam .vf .mini svg{width:100%;height:100%}
+.cam .sh{position:absolute;bottom:44px;left:50%;width:62px;height:62px;margin-left:-31px;border-radius:50%;border:4px solid #fff}
+.cam .md{position:absolute;top:34px;width:100%;text-align:center;font-size:12px;color:#ffd60a;font-weight:700;letter-spacing:.5px}
+.cam .tip{position:absolute;bottom:118px;width:100%;text-align:center;font-size:13px;color:#fff;opacity:.8}
+.banner{position:absolute;left:12px;right:12px;top:78px;background:rgba(44,44,48,.97);border-radius:16px;padding:11px 12px;font-size:12.5px;display:flex;gap:10px;align-items:center;z-index:2;animation:rise .4s var(--ease) both;color:#cfd5de}
+.banner .ic{width:30px;height:30px;border-radius:8px;background:#2aabee;display:flex;align-items:center;justify-content:center;flex:none}
+.banner b{display:block;font-size:13.5px;color:#fff}
+/* sessions */
+.sess .cur{color:var(--grn);font-weight:600}
+.rw .v.out{color:#ff6b6b;font-weight:600}
+.endb{display:block;width:calc(100% - 24px);margin:14px 12px 0;height:50px;border-radius:16px;background:#2a1619;color:#ff6b6b;font-weight:700;font-size:15px}
+.rw.gone{animation:gone .4s var(--ease) forwards}
+@keyframes gone{to{opacity:0;transform:translateX(40px);height:0;padding-top:0;padding-bottom:0;margin:0;border:0}}
+.sheet{position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;animation:rise .25s both}
+.sheet>div{width:100%;background:#1c1e23;border-radius:24px 24px 0 0;padding:20px 16px 26px;text-align:center}
+.sheet b{font-size:17px;display:block}.sheet p{color:#9aa0ab;font-size:14px;margin:8px 0 16px;line-height:1.4}
+.sheet button{display:block;width:100%;height:48px;border-radius:14px;font-weight:700;font-size:15.5px;margin-top:8px;background:#2a2c33;color:#fff}
+.sheet button.red{background:#ff5a4f}
+html.nofx *,html.nofx *::before,html.nofx *::after{animation:none!important;transition:none!important}
+
+/* ===== the mini scene: laptop with QR, phone scans, «Да, это я», laptop opens the cabinet ===== */
+.scene{--d:5.5s;position:relative;width:200px;height:118px;flex:none}
+.scene *{box-sizing:border-box}
+.scene .lap{position:absolute;left:8px;top:6px;width:150px;height:96px}
+.scene .lap .sc{position:absolute;left:0;top:0;width:150px;height:92px;border-radius:9px;background:#1b1d22;border:3px solid #2f323a;overflow:hidden}
+.scene .lap .base{position:absolute;left:-10px;right:-10px;bottom:-6px;height:8px;border-radius:0 0 8px 8px;background:#3a3d46}
+.scene .lap .bar{height:9px;background:#26282e;display:flex;gap:3px;align-items:center;padding-left:5px}
+.scene .lap .bar i{width:4px;height:4px;border-radius:50%;background:#ff5f57}.scene .lap .bar i+i{background:#febc2e}.scene .lap .bar i+i+i{background:#28c840}
+.scene .l1,.scene .l2,.scene .l3{position:absolute;left:0;right:0;top:9px;bottom:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px}
+.scene .l1{background:linear-gradient(170deg,#6aa8ff,#3e6ff0);animation:l1 var(--d) infinite}
+.scene .qr{width:44px;height:44px;background:#fff;border-radius:6px;padding:4px;position:relative}
+.scene .qr svg{width:100%;height:100%;display:block}
+.scene .qr::after{content:"";position:absolute;left:3px;right:3px;height:2px;background:#3ccf74;box-shadow:0 0 6px #3ccf74;top:4px;opacity:0;animation:scan var(--d) infinite}
+.scene .t{font-size:7px;font-weight:700;color:#fff;opacity:.9}
+.scene .l2{background:linear-gradient(170deg,#4fd38a,#22a85c);animation:l2 var(--d) infinite}
+.scene .l2 .ok{width:30px;height:30px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center}
+.scene .l3{background:#111215;align-items:stretch;justify-content:flex-start;padding:6px;gap:4px;animation:l3 var(--d) infinite}
+.scene .l3 .h{height:30px;border-radius:7px;background:linear-gradient(160deg,#4fd38a,#22a85c);display:flex;align-items:center;padding-left:8px;font-size:10px;font-weight:800;color:#fff}
+.scene .l3 .r{height:12px;border-radius:4px;background:#1f2228}
+.scene .ph{position:absolute;right:6px;top:22px;width:46px;height:88px;border-radius:10px;border:3px solid #000;background:#0e1621;box-shadow:0 0 0 1px #34373f,0 8px 18px rgba(0,0,0,.5);overflow:hidden;animation:ph var(--d) infinite}
+.scene .ph .msg{position:absolute;left:4px;right:4px;top:12px;border-radius:5px;background:#182533;padding:4px;font-size:5.5px;line-height:1.35;color:#c9d4de}
+.scene .ph .msg b{display:block;color:#fff;font-size:6px}
+.scene .ph .yes{position:absolute;left:4px;right:4px;top:50px;height:13px;border-radius:4px;background:#2ea05a;font-size:6px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;animation:yes var(--d) infinite}
+.scene .ph .no{position:absolute;left:4px;right:4px;top:66px;height:11px;border-radius:4px;background:rgba(43,82,120,.85);font-size:5.5px;color:#fff;display:flex;align-items:center;justify-content:center}
+.scene .ph .cam{position:absolute;inset:0;background:#000;animation:cam var(--d) infinite}
+.scene .ph .cam::before{content:"";position:absolute;inset:14px 6px 22px;border:1.5px solid rgba(255,255,255,.6);border-radius:6px}
+.scene .tap{position:absolute;right:16px;top:70px;width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.55);border:1.5px solid #fff;opacity:0;animation:tap var(--d) infinite}
+/* timeline: 0–18 QR · 18–38 phone comes, camera, scan · 38–58 bot request, tap «Да» · 58–72 laptop ✓ · 72–100 cabinet */
+@keyframes ph{0%,14%{transform:translateX(70px) rotate(8deg);opacity:0}24%,70%{transform:none;opacity:1}82%,100%{transform:translateX(70px) rotate(8deg);opacity:0}}
+@keyframes cam{0%,36%{opacity:1}40%,100%{opacity:0}}
+@keyframes scan{0%,22%{opacity:0;top:4px}24%{opacity:1;top:4px}36%{opacity:1;top:36px}38%,100%{opacity:0}}
+@keyframes yes{0%,52%{transform:none;filter:none}54%{transform:scale(.9);filter:brightness(1.3)}57%,100%{transform:none;filter:none}}
+@keyframes tap{0%,46%{opacity:0;transform:scale(.6)}50%{opacity:1;transform:scale(1)}56%{opacity:1;transform:scale(.8)}60%,100%{opacity:0}}
+@keyframes l1{0%,58%{opacity:1}60%,100%{opacity:0}}
+@keyframes l2{0%,58%{opacity:0;transform:scale(.9)}61%,72%{opacity:1;transform:none}75%,100%{opacity:0}}
+@keyframes l3{0%,72%{opacity:0}76%,97%{opacity:1}100%{opacity:0}}
+/* the prototype always plays the scene (the real one shows a still frame when the system asks for less motion) */
+.scene *{animation-duration:var(--d)!important;animation-iteration-count:infinite!important}
+html.frz .scene *{animation-play-state:paused!important;animation-delay:calc(var(--at,0) * -5.5s)!important}
+
+/* cards */
+.pc{margin:12px 12px 0;border-radius:26px;background:var(--card);padding:14px 14px 14px 10px;display:flex;gap:6px;align-items:center;position:relative;animation:none}
+.pc .scene{transform:scale(.62);transform-origin:left center;width:124px;height:74px}
+.pc .tx{flex:1;min-width:0;padding-right:16px}
+.pc .tx b{display:block;font-size:15.5px;line-height:1.25}
+.pc .tx span{display:block;color:var(--hint);font-size:13px;line-height:1.35;margin-top:3px}
+.pc .tx .lnk{color:var(--link);font-weight:600;font-size:14px;margin-top:7px;display:inline-block}
+.pc .x{position:absolute;right:10px;top:8px;width:26px;height:26px;border-radius:50%;color:#6b7280;font-size:18px;line-height:26px;text-align:center}
+.bigc{margin:12px 12px 0;border-radius:26px;overflow:hidden;background:linear-gradient(165deg,#1d2a44,#1a1d24 70%)}
+.bigc .stagebox{height:150px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 60%,rgba(94,168,255,.18),transparent 70%)}
+.bigc .stagebox .scene{transform:scale(1.15)}
+.bigc .in{padding:4px 18px 16px}
+.bigc .in b{display:block;font-size:18px;line-height:1.25}
+.bigc .in>span{display:block;color:#aab3c2;font-size:13.5px;line-height:1.4;margin-top:5px}
+.bigc .row{display:flex;gap:10px;margin-top:14px;align-items:center}
+.bigc .row .pill{height:44px;flex:1;font-size:15px}
+.bigc .row .ghost{color:#8b93a0;font-size:14px;font-weight:600;padding:0 8px}
+.ok-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#3ccf74;background:rgba(60,207,116,.12);border-radius:99px;padding:3px 9px;margin-bottom:8px}
+/* sheet */
+.hsheet{position:absolute;inset:0;z-index:30;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;animation:fadein .25s both}
+.hsheet>div{width:100%;background:#1c1e23;border-radius:26px 26px 0 0;padding:16px 16px 22px;animation:up .35s var(--ease) both}
+.hsheet .grab{width:38px;height:5px;border-radius:3px;background:#3a3d45;margin:0 auto 12px}
+.hsheet h3{margin:0;font-size:19px;text-align:center}
+.hsheet .sub{color:var(--hint);font-size:13.5px;text-align:center;margin-top:4px}
+.hsheet .stagebox{height:126px;display:flex;align-items:center;justify-content:center}
+.hsheet ol{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.hsheet li{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.4;color:#d5dae2}
+.hsheet li i{flex:none;width:24px;height:24px;border-radius:50%;background:#2b2e36;font-style:normal;font-size:12.5px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.hsheet .addr{margin-top:14px;display:flex;align-items:center;gap:10px;background:#111215;border-radius:14px;padding:10px 12px}
+.hsheet .addr span{flex:1;font-size:15px;font-weight:700}
+.hsheet .addr button{color:var(--link);font-weight:700;font-size:14px}
+.hsheet .pill{margin-top:12px;width:100%;height:48px}
+@keyframes fadein{from{opacity:0}}@keyframes up{from{transform:translateY(40px);opacity:0}}
+
+/* promo-flow extras */
+.tgb{overflow-y:auto;scrollbar-width:none;justify-content:flex-start}.tgb>*{flex:none}.tgb>:first-child{margin-top:auto}
+.msg.media{padding:0;overflow:hidden}
+.msg.media .vid{height:128px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 60%,rgba(94,168,255,.22),#121a24 75%);position:relative}
+.msg.media .vid .scene{transform:scale(1.05)}
+.msg.media .vid .len{position:absolute;left:8px;top:8px;font-size:11px;background:rgba(0,0,0,.45);border-radius:6px;padding:2px 6px;color:#fff}
+.msg.media .cap{padding:9px 12px 8px}
+.msg a.l{color:#6ab3f3;font-weight:600}
+.hsheet{position:absolute}
+.ntp{position:absolute;inset:0;background:#202124;display:flex;flex-direction:column;align-items:center;padding-top:60px;gap:26px}
+.ntq{width:360px;height:42px;border-radius:21px;background:#303134;color:#9aa0a6;display:flex;align-items:center;padding:0 18px;font-size:14px}
+.tiles{display:flex;gap:18px}
+.tile{width:92px;display:flex;flex-direction:column;align-items:center;gap:8px;font-size:12.5px;color:#e8eaed;background:none;border-radius:14px;padding:10px 4px}
+.tile .ti{width:48px;height:48px;border-radius:50%;background:#303134;display:flex;align-items:center;justify-content:center;font-size:24px}
+.tile.dim{opacity:.4;pointer-events:none}
+.ntp .hintx{font-size:13px;color:#9aa0a6}
+.map{max-width:1100px;margin:16px auto 0;padding:0 20px}
+.map .row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+@media (max-width:900px){.map .row{grid-template-columns:1fr 1fr}}
+.node{background:#14171c;border-radius:16px;padding:11px 12px;text-align:left;border:1.5px solid transparent;color:#cfd5de}
+.node.on{border-color:#3e88f7;background:#16202f}
+.node b{display:block;font-size:14px;color:#fff;margin-bottom:4px}
+.node span{display:block;font-size:12px;line-height:1.4;color:#8b93a0}
+.node em{display:inline-block;margin-top:6px;font-style:normal;font-size:11px;font-weight:700;color:#8cc0ff;background:rgba(94,168,255,.12);border-radius:99px;padding:2px 8px}
+.funnel{margin-top:8px;background:#121418;border-radius:14px;padding:10px 14px;font-size:13px;color:#9aa0ab;line-height:1.5}
+.funnel b{color:#fff}
+.vpnok{margin-top:6px}
+.dl{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;justify-content:center}
+.dl button{height:40px;padding:0 16px;border-radius:99px;background:rgba(255,255,255,.18);color:#fff;font-weight:700}
+.dl button.on{background:#fff;color:#1d2340}
+
+/* design switcher */
+.dz{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px}
+.dz .dzl{font-size:13px;color:#8b93a0;font-weight:700;margin-right:4px}
+.dz button{height:34px;padding:0 13px;border-radius:99px;background:#17191e;color:#cfd5de;font-size:13.5px;font-weight:600}
+.dz button.on{background:#fff;color:#111}
+.dz .dzd{flex-basis:100%;font-size:13px;color:#8b93a0;margin-top:2px}
+/* card looks */
+.bigc.okg{background:linear-gradient(165deg,#173023,#1a1d24 70%)}
+.bigc.bright{background:linear-gradient(160deg,#6aa8ff 0%,#3e6ff0 100%)}
+.bigc.bright.okg{background:linear-gradient(160deg,#5fd896 0%,#1f9c55 100%)}
+.bigc.bright .stagebox{background:none}
+.bigc.bright .in>span{color:rgba(255,255,255,.88)}
+.bigc.bright .ghost{color:rgba(255,255,255,.85)}
+.bigc.bright .ok-badge{background:rgba(255,255,255,.22);color:#fff}
+.bigc.teal{background:linear-gradient(165deg,#15353a,#1a1d24 72%)}
+.bigc.teal .stagebox{background:radial-gradient(circle at 50% 55%,rgba(60,207,180,.18),transparent 70%)}
+.pc.okg{background:linear-gradient(120deg,#173023,#1c1e23 70%)}
+.pc .ok-badge{margin-bottom:4px}
+/* three steps */
+.st3{--d:4.5s;display:flex;align-items:flex-start;padding:0 4px}
+.st3 .s{display:flex;flex-direction:column;align-items:center;gap:7px;width:66px}
+.st3 .s span{width:52px;height:52px;border-radius:50%;background:#2a2d35;display:flex;align-items:center;justify-content:center;font-size:23px;animation:st3a var(--d) infinite}
+.st3 .s:nth-child(3) span{animation-name:st3b}.st3 .s:nth-child(5) span{animation-name:st3c}
+.st3 .s i{font-style:normal;font-size:11px;line-height:1.25;color:#c9d0db;font-weight:600;text-align:center}
+.st3 .ln{width:18px;height:3px;border-radius:2px;background:#2a2d35;margin-top:25px;overflow:hidden}
+.st3 .ln b{display:block;height:100%;width:0;background:#3ccf74;animation:ln1 var(--d) infinite}
+.st3 .ln:nth-child(4) b{animation-name:ln2}
+@keyframes st3a{0%,4%{background:#2a2d35;transform:none}10%{background:#3e88f7;transform:scale(1.12)}28%,92%{background:#2ea05a;transform:none}100%{background:#2a2d35}}
+@keyframes st3b{0%,34%{background:#2a2d35;transform:none}40%{background:#3e88f7;transform:scale(1.12)}58%,92%{background:#2ea05a;transform:none}100%{background:#2a2d35}}
+@keyframes st3c{0%,64%{background:#2a2d35;transform:none}70%{background:#3e88f7;transform:scale(1.15)}80%,92%{background:#2ea05a;transform:scale(1.06)}100%{background:#2a2d35}}
+@keyframes ln1{0%,14%{width:0}32%,92%{width:100%}100%{width:0}}
+@keyframes ln2{0%,44%{width:0}62%,92%{width:100%}100%{width:0}}
+/* the bot request with a tap */
+.cm{--d:4.5s;position:relative;width:186px}
+.cm .b{background:#182533;border-radius:12px 12px 12px 4px;padding:8px 10px;font-size:11.5px;line-height:1.45;color:#c9d4de;display:flex;flex-direction:column}
+.cm .b b{color:#fff;font-size:12.5px}
+.cm .y,.cm .n{margin-top:4px;border-radius:8px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff}
+.cm .y{background:#2ea05a;animation:cmy var(--d) infinite}
+.cm .n{background:rgba(43,82,120,.85)}
+.cm .f{position:absolute;left:50%;top:68px;width:22px;height:22px;margin-left:-11px;border-radius:50%;background:rgba(255,255,255,.55);border:2px solid #fff;opacity:0;animation:cmf var(--d) infinite}
+.cm .d{position:absolute;inset:0;border-radius:12px;background:rgba(34,168,92,.96);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:#fff;opacity:0;animation:cmd var(--d) infinite}
+@keyframes cmf{0%,22%{opacity:0;transform:translate(34px,34px)}38%{opacity:1;transform:none}46%{opacity:1;transform:scale(.8)}54%,100%{opacity:0;transform:none}}
+@keyframes cmy{0%,42%{transform:none;filter:none}46%{transform:scale(.94);filter:brightness(1.3)}52%,100%{transform:none;filter:none}}
+@keyframes cmd{0%,58%{opacity:0;transform:scale(.95)}64%,90%{opacity:1;transform:none}100%{opacity:0}}
+.st3 *,.cm *{animation-duration:var(--d)!important;animation-iteration-count:infinite!important}
+.msg.media .vid .st3,.msg.media .vid .cm{transform:scale(1.05)}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Как приводим людей ко входу в браузере — все связки</h1>
+  <div class="funnel">Четыре точки касания, и все сходятся в одно: лист <b>«Как войти»</b> → <b>«Прислать ссылку в чат»</b> → на компьютере QR → «Да, это я» → кабинет. Тем, кто уже входил в браузере, ничего из этого не показываем. Выберите связку и прокликайте — жёлтым мигает, куда нажать.</div>
+</div>
+<div class="map"><div class="row" id="nodes"></div></div>
+<div class="top" style="padding-top:0"><div class="dz"><span class="dzl">Дизайн:</span><span id="dz"></span><span class="dzd" id="dzd"></span></div><div class="say"><div class="tx" id="say"></div><button class="rs" id="rs">↻ Сначала</button></div></div>
+<div class="stage" id="stage">
+  <div class="dw"><div class="lbl">Компьютер</div><div class="desk" id="desk"><div class="bar"><i></i><i></i><i></i><span class="url">🔒 сайт кабинета</span></div><div class="toast2"></div></div></div>
+  <div><div class="lbl">Телефон</div><div class="phone" id="phone"><div class="toast2"></div></div></div>
+</div>
+<script>
+const TG = (s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="M21.5 4.3 2.9 11.5c-1.3.5-1.3 1.2-.2 1.6l4.8 1.5 1.8 5.6c.2.6.4.8.9.8.4 0 .6-.2.9-.5l2.3-2.2 4.7 3.5c.9.5 1.5.2 1.7-.8l3.1-14.6c.3-1.3-.5-1.9-1.4-1.5zM8.3 14.2l9.6-6c.5-.3.9-.1.5.2l-7.9 7.2-.3 3.4-1.9-4.8z" fill="#fff"/></svg>`;
+const CHKW = '<svg width="42" height="42" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const CHK = (c = "#22a85c", s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="${c}" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const frog = (s) => `<img class="frogi" src="icons/frog.png" style="width:${s}px;height:${s}px;border-radius:50%" alt="">`;
+const mkQR = (n, seed) => { let r = ""; let x = seed; const cell = () => { x = (x * 1103515245 + 12345) & 0x7fffffff; return (x >> 16) & 1; };
+  const e = n - 7, fin = (i, j) => (i < 7 && j < 7) || (i < 7 && j >= e) || (i >= e && j < 7);
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const on = fin(i, j) ? (() => { const a = i >= e ? i - e : i, b = j >= e ? j - e : j; return a === 0 || a === 6 || b === 0 || b === 6 || (a > 1 && a < 5 && b > 1 && b < 5); })() : cell();
+    if (on) r += `<rect x="${j}" y="${i}" width="1" height="1"/>`; }
+  return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" fill="#111">${r}</svg>`; };
+const QR = mkQR(25, 7), QRS = mkQR(21, 11);
+const ADDR = "сайт кабинета";
+
+// the mini scene: QR on a laptop → phone scans → «Да, это я» → cabinet
+const scene = () => `<div class="scene" aria-hidden="true"><div class="lap"><div class="sc"><div class="bar"><i></i><i></i><i></i></div>
+  <div class="l1"><div class="qr">${QRS}</div><div class="t">Вход в кабинет</div></div>
+  <div class="l2"><div class="ok">${CHK()}</div></div>
+  <div class="l3"><div class="h">46 ₽</div><div class="r"></div><div class="r"></div></div></div><div class="base"></div></div>
+  <div class="ph"><div class="msg"><b>🔐 Вход</b>Chrome · Windows</div><div class="yes">Да, это я</div><div class="no">Это не я</div><div class="cam"></div></div><div class="tap"></div></div>`;
+
+// building blocks
+const hero = (inner, h, p, color = "blue", noFrog) => `<section class="hc ${color}"><div class="ov"></div>${noFrog ? "" : `<div class="ill"><div>${frog(72)}</div></div>`}<div class="H">${h}</div><div class="P">${p}</div>${inner}</section>`;
+const done = (h, p) => `<section class="hc green"><div class="ov"></div><div class="okc">${CHKW}</div><div class="H">${h}</div><div class="P">${p}</div></section>`;
+const web = (html) => ({ html: `<div class="sbar">🔒 ${ADDR}</div>${html}`, cls: "web" });
+const tg = (body) => ({ html: `<div class="tgh"><span class="av"><img src="icons/frog.png" alt=""></span><span><b>Лягушка VPN</b><span>бот</span></span></div><div class="tgb">${body}</div><div class="inbar">Сообщение</div>`, cls: "tgs" });
+const bot = (t, tm = "21:40", cls = "") => `<div class="msg ${cls}">${t}<span class="tm">${tm}</span></div>`;
+const kb = (btns) => `<div class="kb">${btns.map(([t, a]) => `<button ${a}>${t}</button>`).join("")}</div>`;
+const askMsg = (dev) => `<div class="msg">🔐 <b>Вход в кабинет</b><div class="meta"><span>${dev[0]}</span><span>${dev[1]}</span><span>🕘</span><span>сегодня, 21:41 МСК</span></div>Это вы входите?<br><span style="color:#8fa2b4;font-size:13px">Если нет — нажмите «Это не я», никто не войдёт.</span><span class="tm">21:41</span></div>`;
+const yesNo = (to, dim) => `<div class="kb two ${dim ? "dim" : ""}"><button class="g" data-to="${to}">✅ Да, это я</button><button data-x="no">Это не я</button></div>`;
+const homeTop = (o = {}) => `<section class="hc ${o.color || "green"}"><div class="ov"></div><div class="rb">${o.rb || "VPN вкл"}</div><div class="ill"><div>${frog(58)}</div></div><div class="N">${o.n || "46 ₽"}</div><div class="P">${o.sub || "Хватит на 7 дней · до 20 ноября"}</div>${o.x || ""}</section>`;
+const devs = `<div class="st">Устройства · 2</div><div class="cd"><div class="rw"><span class="e">📱</span><span class="tt"><b>Мой iPhone</b><span>Подключено · 6 ₽ в день</span></span></div><div class="rw"><span class="e">💻</span><span class="tt"><b>Ноутбук</b><span>Добавлен вчера</span></span></div></div>`;
+// ---- design variants: the same journeys, a different look of the card, the sheet and the video ----
+const steps3 = () => `<div class="st3" aria-hidden="true"><div class="s"><span>📷</span><i>Камера на QR</i></div><div class="ln"><b></b></div><div class="s"><span>✅</span><i>«Да, это я»</i></div><div class="ln"><b></b></div><div class="s"><span>💻</span><i>Кабинет открыт</i></div></div>`;
+const chatMock = () => `<div class="cm" aria-hidden="true"><div class="b"><b>🔐 Вход в кабинет</b><span>💻 Chrome на Windows</span><span>🕘 сегодня, 21:41</span></div><div class="y">✅ Да, это я</div><div class="n">Это не я</div><div class="f"></div><div class="d">✓ Вы вошли</div></div>`;
+const DESIGNS = [
+  { t: "1 · Сцена", d: "Тёмная карточка, мини-сцена ноутбук + телефон. Спокойно, в стиле кабинета.", media: scene, cls: "" },
+  { t: "2 · Яркая", d: "Карточка цвета героя кабинета (синяя / зелёная), белая кнопка. Заметнее всего.", media: scene, cls: "bright" },
+  { t: "3 · Три шага", d: "Без ноутбука: три кружка «Камера → Да, это я → Кабинет» загораются по очереди. Объясняет, а не показывает.", media: steps3, cls: "" },
+  { t: "4 · Чат", d: "Показываем сам запрос из бота и нажатие «Да, это я» — «вот и весь вход».", media: chatMock, cls: "teal" },
+  { t: "5 · Компактная", d: "Небольшая строка под балансом с мини-сценой; анимация крупно — только в листе и в рассылке.", media: scene, compact: true },
+];
+let D = DESIGNS[0], bigCard, firstCard, sheet;
+const cardHtml = (o) => D.compact
+  ? `<div class="pc ${o.cls || ""}"><div class="scene-wrap">${scene()}</div><div class="tx">${o.badge || ""}<b>${o.h}</b><span>${o.short}</span><button class="lnk" data-to="how">Как войти ›</button></div><button class="x" data-x="later">×</button></div>`
+  : `<div class="bigc ${D.cls} ${o.cls || ""}"><div class="stagebox">${D.media()}</div><div class="in">${o.badge || ""}<b>${o.h}</b><span>${o.p}</span><div class="row"><button class="pill" data-to="how"><span>Как войти</span></button><button class="ghost" data-x="later">${o.later}</button></div></div></div>`;
+function applyDesign() {
+  bigCard = cardHtml({ h: "Кабинет теперь и в браузере", p: "Пополнить баланс и добавить устройство можно с компьютера — и даже когда Telegram не открывается.", short: "Даже если Telegram не грузится", later: "Не сейчас" });
+  firstCard = cardHtml({ cls: "okg", badge: `<div class="ok-badge">${CHK("#3ccf74", 14)} VPN работает</div>`, h: "Сохраните запасной вход", p: "Если Telegram вдруг не откроется — кабинет и баланс будут доступны в браузере.", short: "На случай, если Telegram не откроется", later: "Позже" });
+sheet = `<div class="hsheet"><div><div class="grab"></div><h3>Кабинет в браузере</h3><div class="sub">Пополнить баланс и управлять устройствами — без Telegram</div><div class="stagebox">${D.media()}</div>
+  <ol><li><i>1</i><span>Откройте <b>${ADDR}</b> на компьютере</span></li><li><i>2</i><span>Наведите камеру телефона на QR-код</span></li><li><i>3</i><span>Нажмите <b>«Да, это я»</b> в боте — кабинет откроется сам</span></li></ol>
+  <div class="addr"><span>🔗 ${ADDR}</span><button data-x="copy">Скопировать</button></div>
+  <button class="pill" data-to="sent"><span>Прислать ссылку в чат</span></button></div></div>`;
+}
+const cab = (html) => ({ html, cls: "" });
+const broadcast = (btn) => `<div class="msg media"><div class="vid">${D.media()}<span class="len">0:05</span></div><div class="cap">💻 <b>Кабинет теперь и в браузере</b><br>Пополняйте баланс и добавляйте устройства с компьютера — даже когда Telegram не открывается. Без ника и пароля: QR-код и «Да, это я».<span class="tm">19:00</span></div></div>` +
+  (btn === false ? "" : kb([["🌐 Открыть в браузере", 'data-to="web"'], ["Как войти", 'data-to="how"']]));
+const linkMsg = bot(`🔗 Ваш кабинет в браузере:<br><a class="l">${ADDR}</a><br><br>Откройте ссылку на компьютере и наведите камеру телефона на QR-код. Ник и пароль не нужны.`, "21:40");
+const ntp = (active) => `<div class="ntp"><div class="ntq">🔍 Поиск или адрес</div><div class="tiles"><span class="tile dim"><span class="ti">📧</span>Почта</span><button class="tile" ${active ? 'data-to="dQR"' : ""}><span class="ti">🐸</span>${ADDR}</button><span class="tile dim"><span class="ti">▶️</span>Видео</span></div><div class="hintx">${active ? "Ссылка пришла в чат — человек открывает её на компьютере" : "Компьютер пока ни при чём"}</div></div>`;
+const camera = (banner) => `<div class="cam"><div class="md">QR-КОД</div><div class="vf" ${banner ? "" : 'data-to="dScan"'}><div class="mini" style="width:110px;height:110px;background:#fff;border-radius:10px;padding:7px">${QR}</div></div><div class="tip">${banner ? "Код распознан" : "Наведите камеру на код на экране"}</div><div class="sh"></div>${banner ? `<div class="banner" data-to="dTg"><span class="ic">${TG(18)}</span><span><b>Открыть в Telegram</b>t.me/way_proxy_bot?start=lk_…</span></div>` : ""}</div>`;
+const deskLogin = hero(`<div class="qrrow"><div class="qr">${QR}<span class="lg">${TG(16)}</span></div><div class="steps3"><span>1. Откройте <b>камеру</b> на телефоне</span><span>2. Наведите на код</span><span>3. Нажмите «Да, это я» в Telegram</span></div></div><button class="tgbtn" style="height:46px;font-size:15px">${TG(18)}Войти через Telegram</button>`, "Вход в кабинет", "Отсканируйте код телефоном");
+const deskHome = homeTop({ x: "" }) + devs;
+const lowTop = (x = "") => homeTop({ color: "orange", n: "6 ₽", sub: "Хватит на 1 день · до завтра, 21:00", rb: "VPN вкл", x });
+
+// the computer part, the same for every path: open the link → QR → phone → «Да, это я» → cabinet
+const tail = (finish) => ({
+  dQR: { desk: deskLogin, phone: { html: camera(false), cls: "tgs" }, hint: ".vf",
+    say: "На компьютере открылся вход с QR-кодом. Нажмите на видоискатель камеры телефона — «наведите» её на код." },
+  dScan: { phone: { html: camera(true), cls: "tgs" }, hint: ".banner", enter: () => $d(".qr")?.classList.add("scan"), say: "Камера узнала ссылку. Нажмите <b>«Открыть в Telegram»</b>." },
+  dTg: { desk: hero(`<div class="wait"><span class="spin"></span>Ждём «Да, это я» в Telegram</div>`, "Подтвердите вход", "Запрос уже в чате с ботом"),
+    phone: tg(askMsg(["💻", "Chrome на Windows"]) + yesNo("dOk")), hint: '[data-to="dOk"]', say: "В боте запрос с устройством и временем. Нажмите <b>«Да, это я»</b>." },
+  dOk: { desk: done("Вы вошли", "Открываем кабинет…"), phone: tg(askMsg(["💻", "Chrome на Windows"]) + yesNo("", true) + bot("✅ Вход подтверждён: Chrome на Windows.<br>Вернитесь в браузер — кабинет уже открыт.", "21:41") + kb([["Это был не я — завершить сеанс", ""]])),
+    auto: [1400, "dHome"], say: "Компьютер вошёл сам." },
+  dHome: finish || { desk: deskHome, say: "<b>Готово:</b> кабинет открыт на компьютере, вход запомнен на год. Дальше человек заходит сюда сам — по закладке.<small>Метрика связки: вошёл в браузере в течение 3 дней после показа.</small>" },
+});
+
+let SC;
+const buildSC = () => ({
+  first: { t: "✅ После подключения", desk: true, steps: {
+    start: { phone: cab(`<section class="hc green"><div class="ov"></div><div class="okc">${CHKW}</div><div class="H">VPN работает</div><div class="P">Мой iPhone подключён · откройте любой сайт</div><div class="acts"><button class="pill" data-to="home"><span>Готово</span></button></div></section>`), desk: { html: ntp(false) }, hint: '[data-to="home"]',
+      say: "Человек только что впервые подключил VPN — самый тёплый момент: всё получилось, и есть что терять. Нажмите <b>«Готово»</b>." },
+    home: { phone: cab(homeTop() + firstCard + devs), hint: '[data-to="how"]',
+      say: "На главной — одна карточка: «✓ VPN работает — сохраните запасной вход». Нажмите <b>«Как войти»</b>.<small>«Позже» — спрячем, и через 2 недели покажем обычную карточку (вкладка «Карточка на главной»).</small>",
+      x: { later: (t) => { t.closest(".bigc,.pc").remove(); toast($p, "Напомним позже"); setSay("Карточка спрятана. Через 2 недели — обычная карточка на главной."); } } },
+    how: { phone: cab(homeTop() + firstCard + devs + sheet), hint: '[data-to="sent"]',
+      say: "Лист «Как войти»: 3 шага, адрес и кнопка <b>«Прислать ссылку в чат»</b> — чтобы потом открыть её на компьютере. Нажмите её.", x: { copy: () => toast($p, "Адрес скопирован") } },
+    sent: { phone: tg(bot("✅ VPN работает на «Мой iPhone».", "21:38", "old") + linkMsg), desk: { html: ntp(true) }, hint: ".tile:not(.dim)",
+      say: "Ссылка пришла в чат с ботом — её легко найти потом. Человек открывает её на компьютере: нажмите плитку <b>«${ADDR}»</b> на компьютере.".replace("${ADDR}", ADDR) },
+    ...tail(),
+  } },
+  card: { t: "🏠 Карточка на главной", desk: true, steps: {
+    start: { phone: cab(homeTop() + bigCard + devs), desk: { html: ntp(false) }, hint: '[data-to="how"]',
+      say: "Обычный заход в кабинет. Сразу под балансом — карточка с анимацией. Её видят <b>один раз</b> те, у кого VPN уже подключался, а в браузере ещё не входили. Нажмите <b>«Как войти»</b>.<small>«Не сейчас» — спрячет на 2 недели. Попробуйте.</small>",
+      x: { later: (t) => { const c = t.closest(".bigc,.pc"); c.style.transition = "opacity .3s"; c.style.opacity = "0"; setTimeout(() => c.remove(), 300); toast($p, "Напомним через 2 недели"); setSay("Спрятано на 2 недели. Второй раз «Не сейчас» — больше не показываем, остаются только подсказки в нужный момент. Нажмите «↻ Сначала»."); } } },
+    how: { phone: cab(homeTop() + bigCard + devs + sheet), hint: '[data-to="sent"]', say: "Тот же лист «Как войти». Нажмите <b>«Прислать ссылку в чат»</b>.", x: { copy: () => toast($p, "Адрес скопирован") } },
+    sent: { phone: tg(bot("Здравствуйте! Баланс: 46 ₽.", "вчера", "old") + linkMsg), desk: { html: ntp(true) }, hint: ".tile:not(.dim)", say: "Ссылка в чате. Откройте её на компьютере — нажмите плитку на компьютере." },
+    ...tail(),
+  } },
+  low: { t: "🪫 Низкий баланс", desk: true, steps: {
+    start: { phone: tg(bot("Здравствуйте! Баланс: 46 ₽.", "4 дня назад", "old") + bot("🪫 <b>Баланса осталось на 1 день</b> — 6 ₽.<br><br>Пополнить можно и с компьютера: кабинет открывается в браузере, без ника и пароля.", "10:00") + kb([["💳 Пополнить", 'data-x="pay"'], ["💻 Пополнить с компьютера", 'data-to="sent"']])), desk: { html: ntp(false) }, hint: '[data-to="sent"]',
+      say: "Это сообщение <b>заменяет нынешнее «запасная ссылка на 10 дней»</b>. Повод самый понятный: деньги заканчиваются, а с компьютера платить удобнее. Нажмите <b>«Пополнить с компьютера»</b>.<small>В кабинете в этот момент — такая же подсказка под балансом.</small>",
+      x: { pay: () => toast($p, "Обычное пополнение в кабинете") } },
+    sent: { phone: tg(bot("🪫 <b>Баланса осталось на 1 день</b> — 6 ₽.", "10:00", "old") + linkMsg), desk: { html: ntp(true) }, hint: ".tile:not(.dim)", say: "Бот прислал ссылку. Откройте её на компьютере." },
+    ...tail({ desk: lowTop(`<div class="acts"><button class="pill" data-to="topup"><span>Пополнить</span></button></div>`) + devs, hint: '[data-to="topup"]',
+      say: "Вошёл — и сразу видит, зачем пришёл: баланс на 1 день и <b>«Пополнить»</b>. Нажмите." }),
+    topup: { desk: hero(`<div class="dl"><button>100 ₽</button><button class="on">300 ₽</button><button>500 ₽</button></div><div class="acts"><button class="pill" data-to="paid"><span>Оплатить 300 ₽</span></button></div>`, "Пополнение", "Хватит на 25 дней на 2 устройства", "blue", true), hint: '[data-to="paid"]', say: "Пополнение на компьютере — как обычно. Нажмите <b>«Оплатить»</b>." },
+    paid: { desk: done("Баланс пополнен", "306 ₽ · хватит на 25 дней"), phone: tg(bot("🪫 <b>Баланса осталось на 1 день</b> — 6 ₽.", "10:00", "old") + bot("💳 Баланс пополнен: +300 ₽. Хватит на 25 дней.", "21:43")),
+      say: "<b>Готово:</b> пополнил с компьютера. И теперь у него есть кабинет в браузере на будущее.<small>Метрика связки: оплатил в течение суток после сообщения.</small>" },
+  } },
+  bcpc: { t: "📣 Рассылка → компьютер", desk: true, steps: {
+    start: { phone: tg(bot("Баланс пополнен: +300 ₽", "вчера", "old") + broadcast()), desk: { html: ntp(false) }, hint: '[data-to="how"]',
+      say: "Рассылка активным, у кого VPN подключался за 30 дней и кто ещё не входил в браузере. Видео 5 секунд, две строки, две кнопки. Нажмите <b>«Как войти»</b>.<small>Сначала 10%, в 19:00 МСК; если входы есть — остальным.</small>" },
+    how: { phone: cab(homeTop() + devs + sheet), hint: '[data-to="sent"]', say: "Кнопка открыла кабинет сразу с листом «Как войти». Нажмите <b>«Прислать ссылку в чат»</b>.", x: { copy: () => toast($p, "Адрес скопирован") } },
+    sent: { phone: tg(broadcast(false) + linkMsg), desk: { html: ntp(true) }, hint: ".tile:not(.dim)", say: "Ссылка в чате. Откройте её на компьютере." },
+    ...tail(),
+  } },
+  bcph: { t: "📱 Рассылка → телефон", steps: {
+    start: { phone: tg(bot("Баланс пополнен: +300 ₽", "вчера", "old") + broadcast()), hint: '[data-to="web"]',
+      say: "Та же рассылка, но человек жмёт <b>«🌐 Открыть в браузере»</b> прямо с телефона. Нажмите её." },
+    how: { enter: () => show("bcpc", "how") },
+    web: { phone: web(hero(`<button class="tgbtn" data-to="ptg">${TG()}Войти через Telegram</button>`, "Вход в кабинет", "Нажмите кнопку и подтвердите вход в Telegram")), hint: '[data-to="ptg"]',
+      say: "«Открыть в браузере» с телефона — тоже работает: сайт кабинета в браузере телефона. Нажмите <b>«Войти через Telegram»</b>." },
+    ptg: { phone: tg(askMsg(["📱", "Safari на iPhone"]) + yesNo("pok")), hint: '[data-to="pok"]', say: "Telegram открылся с запросом. Нажмите <b>«Да, это я»</b>." },
+    pok: { phone: tg(askMsg(["📱", "Safari на iPhone"]) + yesNo("", true) + bot("✅ Вход подтверждён: Safari на iPhone.<br>Вернитесь в браузер — кабинет уже открыт.", "21:41") + kb([["↩ Вернуться в браузер", 'data-to="pin"']])), hint: '[data-to="pin"]', say: "Нажмите <b>«Вернуться в браузер»</b>." },
+    pin: { phone: web(done("Вы вошли", "Открываем кабинет…")), auto: [1300, "phome"], say: "Браузер вошёл сам." },
+    phome: { phone: web(homeTop() + devs), say: "<b>Готово:</b> кабинет в браузере телефона. Если Telegram не откроется — сюда можно зайти по закладке." },
+  } },
+});
+applyDesign(); SC = buildSC();
+
+const NODES = [
+  ["first", "✅ После первого подключения", "Кабинет, сразу после «VPN работает»", "1 раз"],
+  ["card", "🏠 Карточка на главной", "Кабинет, под балансом; кто подключался, но не входил в браузере", "1 раз · «Не сейчас» → через 2 недели"],
+  ["low", "🪫 Низкий баланс", "Бот, вместо «запасной ссылки на 10 дней» + подсказка в кабинете", "не чаще раза в неделю"],
+  ["bcpc", "📣 Рассылка", "Бот, активным за 30 дней; 10% → остальные, 19:00 МСК", "1 раз"],
+];
+
+const desk = document.getElementById("desk"), phone = document.getElementById("phone"), stage = document.getElementById("stage");
+const $d = (s) => desk.querySelector(s), $p = (s) => phone.querySelector(s);
+const toast = (q, t) => { const e = q(".toast2"); e.textContent = t; e.classList.add("on"); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove("on"), 1800); };
+const setSay = (h) => { document.getElementById("say").innerHTML = h; };
+function put(host, v, anim) {
+  const o = host.querySelector(".scr"); const s = document.createElement("div");
+  const x = typeof v === "string" ? { html: v } : v;
+  s.className = "scr" + (x.cls ? " " + x.cls : "") + (anim ? " in" : ""); s.innerHTML = x.html;
+  host.insertBefore(s, host.querySelector(".toast2"));
+  if (o) { if (anim) { o.classList.add("out"); o.style.pointerEvents = "none"; setTimeout(() => o.remove(), 400); } else o.remove(); }
+}
+let cur = "first", st = "start", timer;
+function show(sc, step) {
+  clearTimeout(timer);
+  const fresh = sc !== cur || step === "start";
+  if (sc !== cur) { desk.querySelectorAll(".scr").forEach((e) => e.remove()); phone.querySelectorAll(".scr").forEach((e) => e.remove()); }
+  cur = sc; st = step;
+  const S = SC[sc], p = S.steps[step];
+  stage.classList.toggle("nodesk", !S.desk); fit();
+  if (p.desk) put(desk, p.desk, !fresh);
+  if (p.phone) put(phone, p.phone, !fresh);
+  document.querySelectorAll("[data-sc]").forEach((b) => b.classList.toggle("on", b.dataset.sc === sc));
+  setSay(p.say);
+  if (p.enter) p.enter();
+  document.querySelectorAll(".hint").forEach((e) => e.classList.remove("hint"));
+  if (p.hint) [desk, phone].forEach((h) => { const s = [...h.querySelectorAll(".scr:not(.out)")].pop(); s && s.querySelectorAll(p.hint).forEach((e) => e.classList.add("hint")); });
+  if (p.auto) timer = setTimeout(() => show(sc, p.auto[1]), p.auto[0]);
+}
+const fit = () => { const w = (SC[cur].desk ? 540 + 22 : 0) + 300 + 40; stage.style.zoom = Math.min(1, innerWidth / w); };
+addEventListener("resize", fit);
+document.getElementById("nodes").innerHTML = NODES.map(([k, h, w, f]) => `<button class="node" data-sc="${k}"><b>${h}</b><span>${w}</span><em>${f}</em></button>`).join("") +
+  `<button class="node" data-sc="bcph"><b>📱 Рассылка → телефон</b><span>Кнопка «Открыть в браузере» с телефона</span><em>та же рассылка</em></button>`;
+const paintDz = () => { document.getElementById("dz").innerHTML = DESIGNS.map((x, i) => `<button data-dz="${i}" class="${x === D ? "on" : ""}">${x.t}</button>`).join(""); document.getElementById("dzd").textContent = D.d; };
+paintDz();
+document.getElementById("rs").onclick = () => show(cur, "start");
+document.addEventListener("click", (e) => {
+  const z = e.target.closest("[data-dz]");
+  if (z) { D = DESIGNS[+z.dataset.dz]; applyDesign(); SC = buildSC(); paintDz(); show(cur, st); return; }
+  const t = e.target.closest("[data-to],[data-x],[data-sc]"); if (!t || t.closest(".scr.out")) return;
+  if (t.dataset.sc) return show(t.dataset.sc, "start");
+  if (t.dataset.to) return show(cur, t.dataset.to);
+  if (t.dataset.x === "no") { toast($p, "Вход отклонён — никто не вошёл"); return; }
+  const f = SC[cur].steps[st].x?.[t.dataset.x]; if (f) f(t);
+});
+if (new URLSearchParams(location.search).has("nofx")) document.documentElement.classList.add("nofx");
+show(new URLSearchParams(location.search).get("sc") || "first", "start");
+
+</script>
+</body>
+</html>

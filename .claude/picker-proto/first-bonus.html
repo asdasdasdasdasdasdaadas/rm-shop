@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Бонус за первую оплату</title>
+<link rel="stylesheet" href="/cab-bonus.css">
+<style>
+  body { background: #08090b; padding: 24px 12px 60px; }
+  .wall { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; }
+  .col { width: 375px; }
+  .lab { color: #fff; font-size: 18px; font-weight: 700; margin: 0 8px 4px; }
+  .sub { color: #9aa0ab; font-size: 13.5px; margin: 0 8px 12px; line-height: 1.4; min-height: 38px; }
+  .ph { background: var(--bg); border-radius: 34px; padding: 14px 0 26px; min-height: 600px; box-shadow: 0 0 0 1px rgba(255,255,255,.07); }
+  .ph .hc, .ph .cd, .ph .st, .ph .note, .ph .bx { animation: none; }
+  .ph .ill, .ph .ill > *, .ph .rb { animation: none; }
+  /* bonus pieces */
+  .gold-t { color: #ffd76a; }
+  .plus { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 6px 12px; border-radius: 99px;
+    background: rgba(255, 215, 106, .95); color: #4a3300; font-weight: 700; font-size: 14px; }
+  .chp button.gb { position: relative; }
+  .chp button.gb::after { content: "🎁"; position: absolute; top: -9px; right: -6px; font-size: 13px; }
+  .bx { margin: 12px 12px 0; border-radius: 22px; padding: 14px 16px; display: flex; gap: 12px; align-items: center;
+    background: linear-gradient(120deg, #3a2a05, #5a4209); box-shadow: inset 0 0 0 1px rgba(255, 215, 106, .35); }
+  .bx .e { font-size: 30px; }
+  .bx b { display: block; font-size: 16px; }
+  .bx span { display: block; color: #e9d9a8; font-size: 13.5px; margin-top: 2px; }
+  .bx .tm { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .bx .tm b { font-size: 18px; color: #ffd76a; }
+  .bar { height: 8px; border-radius: 9px; background: rgba(255, 255, 255, .22); margin: 14px 8px 0; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 50%; border-radius: 9px; background: #ffd76a; }
+  .barl { display: flex; justify-content: space-between; font-size: 13px; opacity: .85; margin: 6px 8px 0; }
+  .pill small { font-weight: 700; color: #b07a00; }
+  .done .N { font-size: 44px; }
+  .row2 { display: flex; justify-content: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .row2 .chip { margin-top: 0; }
+  .row2 .chip.g { background: rgba(255, 215, 106, .95); color: #4a3300; }
+</style></head><body>
+<div class="wall" id="wall"></div>
+<script>
+const CARD = `<svg width="86" height="62" viewBox="0 0 100 72"><rect x="2" y="2" width="96" height="68" rx="12" fill="#fff"/><rect x="2" y="16" width="96" height="12" fill="#2b3a66"/><rect x="12" y="40" width="22" height="16" rx="3" fill="#f2c14e"/><rect x="44" y="46" width="40" height="5" rx="2.5" fill="#c9cfdc"/></svg>`;
+const chips = (on, gift) => `<div class="chp">${[50, 100, 200, 500].map((v) => `<button class="${v === on ? "on" : ""} ${gift && v >= 200 ? "gb" : ""}">${v}</button>`).join("")}<button>Своя</button></div>`;
+const method = `<div class="st">Способ оплаты</div><div class="cd"><div class="rw"><span class="e">💳</span><span class="tt"><b>Банковская карта</b><span>Visa, Mastercard, Мир</span></span><span class="v">Изменить ›</span></div></div>`;
+const note = (t) => `<div class="note c">${t}</div>`;
+const hero = (inner, cls = "cardpay", extra = "") => `<section class="hc ${cls}">${extra}<div class="ill"><div>${CARD}</div></div>${inner}</section>`;
+
+const V = [
+  { t: "1. Лента на карточке", s: "Бонус прямо на экране оплаты. Срок мелким текстом снизу.",
+    h: hero(`<div class="N">200 ₽</div><div class="P">≈ 33 дня VPN <b>+ 3 дня в подарок</b></div>${chips(200, true)}<div class="acts"><button class="pill"><span>Оплатить 200 ₽</span></button></div>`,
+      "cardpay", `<div class="rb">+3 дня</div>`) + method + note("Бонус за первое пополнение от 200 ₽ — до конца подарка") },
+  { t: "2. Плашка с таймером", s: "Карточка оплаты как сейчас, под ней золотая плашка с обратным отсчётом.",
+    h: hero(`<div class="N">200 ₽</div><div class="P">≈ 33 дня VPN</div>${chips(200)}<div class="acts"><button class="pill"><span>Оплатить 200 ₽</span></button></div>`) +
+      `<div class="bx"><div class="e">🎁</div><div><b>+3 дня к первой оплате</b><span>при пополнении от 200 ₽</span></div><div class="tm"><b>1 д 14 ч</b><span>осталось</span></div></div>` + method },
+  { t: "3. Шкала до бонуса", s: "Если выбрано меньше 200 ₽ — видно, сколько не хватает. Один тап добирает до бонуса.",
+    h: hero(`<div class="N">100 ₽</div><div class="P">≈ 16 дней VPN</div><div class="bar"><i></i></div><div class="barl"><span>Ещё 100 ₽ — и <b>+3 дня</b></span><span>🎁 200 ₽</span></div>${chips(100, true)}<div class="acts"><button class="pill"><span>Оплатить 100 ₽</span></button></div><div class="plus" style="cursor:pointer">🎁 Добавить 100 ₽ и получить +3 дня</div>`) + method +
+      note("Золотая кнопка ставит 200 ₽ одним тапом") },
+  { t: "4. Главный экран", s: "Когда подарок кончается, главная карточка сама зовёт к бонусу. Ведёт на экран оплаты с 200 ₽.",
+    h: `<section class="hc gold"><div class="ill"><div style="font-size:84px">🎁</div></div><div class="H">Подарок кончается завтра</div><div class="P">Пополните от 200 ₽ до конца подарка — и получите <b>+3 дня сверху</b></div><div class="plus">⏳ осталось 1 д 14 ч</div><div class="acts"><button class="pill"><span>Пополнить 200 ₽ · +3 дня</span></button></div></section>` +
+      `<div class="st">Устройства</div><div class="cd"><div class="rw"><span class="e">📱</span><span class="tt"><b>Мой iPhone</b><span>в сети сейчас</span></span><span class="v">›</span></div></div>` },
+  { t: "5. После оплаты", s: "Экран успеха отдельно показывает подаренные дни, чтобы бонус запомнился.",
+    h: `<section class="hc green done"><div class="ill"><div style="font-size:84px">✅</div></div><div class="N">+200 ₽</div><div class="P">Баланс пополнен</div><div class="row2"><span class="chip">≈ 33 дня VPN</span><span class="chip g">🎁 +3 дня в подарок</span></div><div class="acts"><button class="pill"><span>Готово</span></button></div></section>` +
+      note("VPN работает до 21 декабря") },
+];
+document.getElementById("wall").innerHTML = V.map((v) => `<div class="col"><div class="lab">${v.t}</div><div class="sub">${v.s}</div><div class="ph">${v.h}</div></div>`).join("");
+</script>
+</body></html>

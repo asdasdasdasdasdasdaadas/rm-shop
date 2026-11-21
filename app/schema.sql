@@ -1214,3 +1214,28 @@ CREATE TABLE IF NOT EXISTS autopay (
 );
 ALTER TABLE autopay ADD COLUMN IF NOT EXISTS fails INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE autopay ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ;
+
+-- A/B test of the living frog on the cabinet's home card (app/frog_test.py): one group per person per test,
+-- and per day how often they opened the cabinet, played with the frog and pressed «Пополнить» there.
+CREATE TABLE IF NOT EXISTS frog_tests (
+    id BIGSERIAL PRIMARY KEY,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    stopped_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS frog_arms (
+    test_id BIGINT NOT NULL REFERENCES frog_tests(id) ON DELETE CASCADE,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    arm TEXT NOT NULL CHECK (arm IN ('frog','plain')),
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (test_id, telegram_id)
+);
+CREATE INDEX IF NOT EXISTS frog_arms_test_idx ON frog_arms(test_id, arm);
+CREATE TABLE IF NOT EXISTS frog_days (
+    test_id BIGINT NOT NULL REFERENCES frog_tests(id) ON DELETE CASCADE,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    day DATE NOT NULL,
+    opens INTEGER NOT NULL DEFAULT 0,
+    plays INTEGER NOT NULL DEFAULT 0,
+    topups INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (test_id, telegram_id, day)
+);

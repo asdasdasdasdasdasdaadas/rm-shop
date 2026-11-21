@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Подарки в группу</title>
+<script src="tg/lottie-light.min.js"></script>
+<style>
+.pg{margin:0;background:#08090b;color:#f2f4f7;font-family:-apple-system,"SF Pro Text",system-ui,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.pg-wrap{max-width:1000px;margin:0 auto;padding:32px 20px 80px}
+.pg-h{margin:0;font-size:28px;font-weight:800;letter-spacing:-.5px}
+.pg-lead{margin-top:8px;color:#979fab;font-size:15px;line-height:1.55;max-width:780px}
+.pg-grid{display:flex;flex-wrap:wrap;gap:44px 48px;margin-top:34px;justify-content:center}
+.pg-it{width:375px}
+.pg-t{font-size:18px;font-weight:700;margin-bottom:4px}
+.pg-d{color:#9aa1ab;font-size:13.5px;line-height:1.5;min-height:42px;margin-bottom:14px}
+.pg-rp{margin-top:12px;font-size:13px;font-weight:600;color:#7cc0ff;background:#101418;border-radius:99px;padding:8px 14px;border:0;cursor:pointer;font-family:inherit}
+
+.ph{--bg:#111215;--card:#1c1e23;--sep:rgba(255,255,255,.07);--hint:#9aa0ab;--link:#5ea8ff;--grn:#3ccf74;--red:#ff5a4f;--blue:#3e88f7;--ease:cubic-bezier(.2,.8,.2,1);
+  position:relative;width:375px;height:780px;border-radius:48px;overflow:hidden;background:var(--bg);color:#fff;box-shadow:0 0 0 8px #000,0 0 0 9px #2b2e34,0 40px 80px -24px rgba(0,0,0,.9);user-select:none;-webkit-user-select:none}
+.ph .in{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none}
+.ph .in::-webkit-scrollbar{display:none}
+.ph *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+.ph :where(button){font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.ph .tgbar{height:100px;padding:54px 14px 0;display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600}
+.ph .tgbar .bk{font-size:22px;width:28px}
+.ph .tgbar .ttl{display:flex;align-items:center;gap:8px;background:#1c1e23;border-radius:99px;padding:6px 12px 6px 6px}
+.ph .tgbar .ttl .av{width:24px;height:24px;border-radius:50%;background:#2a8a45;display:grid;place-items:center;font-size:15px}
+.ph .tgbar .mo{margin-left:auto;font-size:20px;letter-spacing:1px}
+.ph .scr{min-height:0;padding:0 0 40px;background:none}
+
+/*CAB*/
+
+/* group gifts */
+.ph .seg{display:flex;gap:4px;margin:0 12px 12px;padding:4px;border-radius:99px;background:var(--card)}
+.ph .seg button{flex:1;height:36px;border-radius:99px;font-weight:600;font-size:15px;color:var(--hint)}
+.ph .seg button.on{background:#2c2f37;color:#fff}
+.cntl{margin-top:14px;font-size:13px;font-weight:600;opacity:.7}
+.chp.cnt{margin-top:8px}
+.bar{display:inline-block;width:46px;height:6px;border-radius:9px;background:rgba(255,255,255,.12);overflow:hidden;margin-right:4px}
+.bar i{display:block;height:100%;background:#5ea8ff;border-radius:9px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.left{margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:7px;font-size:14px;opacity:.9}
+.left .bar.big{width:180px;height:8px;background:rgba(255,255,255,.22);margin:0}
+.left .bar.big i{background:#fff}
+.chat{padding:6px 10px 30px !important}
+.chat .day{text-align:center;color:var(--hint);font-size:13px;margin:6px 0 10px}
+.msg{max-width:84%;background:#22252b;border-radius:18px 18px 18px 6px;padding:9px 13px;margin:6px 0;font-size:15px;line-height:1.38}
+.msg .who{color:#8fd3a8;font-weight:600;font-size:13px;margin-bottom:2px}
+.msg .via{font-size:11.5px;color:var(--hint);margin-top:4px;text-align:right}
+.msg.r{margin-left:auto;background:var(--blue);border-radius:18px 18px 6px 18px}
+.msg.r .via{color:rgba(255,255,255,.7)}
+.mbtn{max-width:84%;text-align:center;background:rgba(255,255,255,.1);border-radius:12px;padding:10px;font-weight:600;font-size:14.5px;margin:-2px 0 10px}
+
+/* the gift scene */
+.gift-ill{position:relative;height:159px;margin:-6px -22px 14px;cursor:pointer}
+.gift-ill .box{position:absolute;left:50%;top:0;width:315px;height:159px;margin-left:-157.5px}
+.gift-ill .box .lot{position:absolute;inset:0}
+.gift-ill .box .lidl{transform-origin:157px 60px}
+.gift-ill .box .body{transform-origin:158px 140px}
+.g-glow{position:absolute;left:158px;top:56px;width:240px;height:240px;margin:-120px 0 0 -120px;border-radius:50%;background:radial-gradient(circle,rgba(255,226,170,.85),rgba(255,180,90,.35) 35%,rgba(120,140,255,0) 68%);opacity:0;pointer-events:none}
+.g-rays{position:absolute;left:158px;top:56px;width:420px;height:420px;margin:-210px 0 0 -210px;border-radius:50%;opacity:0;pointer-events:none;
+  background:repeating-conic-gradient(from 0deg,rgba(255,236,200,.38) 0 7deg,transparent 7deg 20deg);-webkit-mask:radial-gradient(circle,#000 12%,transparent 62%);mask:radial-gradient(circle,#000 12%,transparent 62%)}
+.g-beam{position:absolute;left:158px;top:-160px;width:240px;height:220px;margin-left:-120px;transform-origin:50% 100%;opacity:0;pointer-events:none}
+.g-beam i{position:absolute;display:block}
+.g-beam .wide{left:20px;right:20px;top:0;bottom:0;background:linear-gradient(to top,rgba(255,232,190,.8),rgba(255,214,160,.28) 50%,rgba(255,214,160,0) 92%);clip-path:polygon(39% 100%,61% 100%,100% 0,0 0);filter:blur(12px)}
+.g-beam .core{left:50%;width:58px;margin-left:-29px;top:18px;bottom:0;border-radius:50% 50% 0 0;background:linear-gradient(to top,#fffaf0,rgba(255,238,204,.8) 30%,rgba(255,222,170,0) 92%);filter:blur(8px)}
+.g-beam .sh{bottom:0;left:50%;width:var(--w);height:var(--h);margin-left:calc(var(--w) / -2);transform-origin:50% 100%;transform:rotate(var(--r));border-radius:50% 50% 0 0;
+  background:linear-gradient(to top,rgba(255,248,230,.9),rgba(255,236,200,.35) 55%,rgba(255,236,200,0));filter:blur(2.5px);opacity:.3;animation:shf var(--d) ease-in-out var(--dl) infinite}
+@keyframes shf{0%,100%{opacity:.18}50%{opacity:.9}}
+.g-beam .pool{bottom:-10px;left:50%;width:104px;height:24px;margin-left:-52px;border-radius:50%;background:radial-gradient(ellipse,#fffaf0 0,rgba(255,226,170,.6) 45%,rgba(255,226,170,0) 72%);filter:blur(1.5px)}
+.g-beam .mote{bottom:0;left:50%;width:3px;height:3px;border-radius:50%;background:#fff;box-shadow:0 0 6px 1px rgba(255,236,190,.9)}
+.g-beam.breathe{animation:brz 2.6s ease-in-out infinite}
+@keyframes brz{0%,100%{opacity:.88;transform:scaleX(.97)}50%{opacity:1;transform:scaleX(1.03)}}
+.g-flash{position:absolute;left:158px;top:52px;width:180px;height:180px;margin:-90px 0 0 -90px;border-radius:50%;background:radial-gradient(circle,#fff 0,rgba(255,255,255,.6) 25%,rgba(255,255,255,0) 60%);opacity:0;pointer-events:none}
+.opened .g-rays{animation:rot 16s linear infinite}
+.ill-n{top:-18px !important;z-index:4;text-shadow:0 0 26px rgba(255,214,150,.9),0 4px 14px rgba(40,30,80,.45) !important}
+.ill-n.bob{animation:fl 3s ease-in-out infinite}
+.gift-ill{margin-top:16px !important}
+.hc .N.amt{font-size:46px;margin-top:2px}
+.hc .P.days{margin-top:4px;font-size:15px;opacity:.75}
+.hc .txt .H{margin-bottom:2px}
+.hc .K{opacity:.7}
+.amscr{position:absolute;inset:0;z-index:20;background:var(--bg);animation:pin .42s var(--ease) both;display:flex;flex-direction:column}
+.amscr.leave{animation:poutB .38s var(--ease) both}
+.amscr .am{min-height:0;flex:1;padding-bottom:22px}
+.am-gift{width:190px;height:96px;margin:-30px 0 6px}
+.hc .chp button{padding:0 11px;font-size:14px}
+.g-wave{position:absolute;left:0;top:0;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;border:3px solid rgba(255,236,200,.9);box-shadow:0 0 18px rgba(255,220,160,.8),inset 0 0 12px rgba(255,220,160,.6);pointer-events:none;z-index:2}
+.g-warm{position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(circle at 50% 30%,rgba(255,200,130,.55),rgba(255,170,90,0) 70%);opacity:0}
+.amt.gold{background:linear-gradient(100deg,#fff 0%,#fff 40%,#ffe39a 50%,#fff 60%,#fff 100%);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:goldsweep 1.1s ease-out forwards}
+@keyframes goldsweep{from{background-position:100% 0}to{background-position:0 0}}
+.coin{position:absolute;left:0;top:0;z-index:5;pointer-events:none;filter:drop-shadow(0 4px 6px rgba(20,20,60,.35))}
+.coin b{display:block;width:100%;height:100%;animation:flip .5s linear infinite}
+@keyframes flip{0%{transform:scaleX(1)}25%{transform:scaleX(.15)}50%{transform:scaleX(-1)}75%{transform:scaleX(.15)}100%{transform:scaleX(1)}}
+.hc .N.amt{display:inline-block}
+.sway{transform-origin:50% 88%;animation:sway 4.2s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotate(-3deg) translateY(0)}50%{transform:rotate(3deg) translateY(-4px)}}
+.glint{animation:gl 4.2s ease-in-out infinite}
+@keyframes gl{0%,55%{transform:translateX(-60px)}80%,100%{transform:translateX(90px)}}
+.tw{position:absolute;pointer-events:none;animation:tw 2.6s ease-in-out infinite;line-height:0}
+.tw.d{animation-name:tw2}
+@keyframes tw2{0%,100%{opacity:.25;transform:scale(.5)}50%{opacity:1;transform:scale(1)}}
+.gift-ill .lid{transform-box:view-box;transform-origin:100px 90px}
+.ill-n{position:absolute;left:0;right:0;top:24px;text-align:center;font-size:52px;font-weight:800;letter-spacing:-1.5px;opacity:0;text-shadow:0 6px 20px rgba(10,16,60,.5);pointer-events:none}
+.ill-n small{font-size:20px;letter-spacing:0;margin-left:3px}
+.swap{animation:sw .45s var(--ease) both}
+@keyframes sw{from{opacity:0;transform:translateY(8px)}}
+.cf{position:absolute;left:0;top:0;pointer-events:none;z-index:3;line-height:0}
+.hc .H{font-size:27px}
+.sq{width:52px;height:52px;border-radius:99px;background:rgba(255,255,255,.18);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);display:grid;place-items:center;flex-shrink:0}
+.ph .rw .cv{margin-left:auto}
+.ph .terms{display:block;color:var(--link);font-size:13.5px;margin:12px 30px 0}
+.ph .tl .n svg{display:block}
+</style>
+</head>
+<body class="pg">
+<div class="pg-wrap">
+<h1 class="pg-h">Подарки в группу</h1>
+<div class="pg-lead">Раздача: один даритель, одна ссылка в группе, N одинаковых подарков. Каждый забирает один раз, пока не кончатся; остаток даритель может вернуть. Экраны кликабельны: чипсы суммы и количества, «Своё», «Забрать подарок».</div>
+<div class="pg-grid" id="grid"></div>
+</div>
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const STAR = (s, c = "#fff") => `<svg width="${s}" height="${s}" viewBox="0 0 20 20"><path d="M10 0c.9 5.6 4.4 9.1 10 10-5.6.9-9.1 4.4-10 10-.9-5.6-4.4-9.1-10-10C5.6 9.1 9.1 5.6 10 0z" fill="${c}"/></svg>`;
+const IC = {
+  share: '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M14 5l7 7-7 7v-4c-5 0-8.5 1.6-11 5 1-5 4-10 11-11z" fill="currentColor"/></svg>',
+  copy: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="8" y="8" width="12" height="13" rx="3"/><path d="M16 8V6a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h1"/></svg>',
+  heart: '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z" fill="#fff"/></svg>',
+  gift: '<svg width="22" height="22" viewBox="0 0 24 24" fill="#c4c9d3"><path d="M4 11h7v10H6a2 2 0 0 1-2-2zm9 0h7v8a2 2 0 0 1-2 2h-5zM3 7h8v3H3zm10 0h8v3h-8zM12 7C9 2 5 4 7 7m5 0c3-5 7-3 5 0" stroke="#c4c9d3" stroke-width="1.6" fill-rule="evenodd"/></svg>',
+};
+const hap = () => { try { if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(10); } catch (e) {} };
+let uid = 0;
+
+// ---------- the gift: a navy box in three-quarter view, orange satin ribbon, starry print ----------
+function giftSVG() {
+  const u = ++uid, ol = 'stroke="#141a36" stroke-width="3" stroke-linejoin="round"', rl = 'stroke="#7a3410" stroke-width="1.6" stroke-linejoin="round"';
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  const P = (...pts) => pts.map((p) => p.map((v) => v.toFixed(1)).join(",")).join(" ");
+  const band = (a, b, c, d, t0 = .42, t1 = .58) => P(lerp(a, b, t0), lerp(a, b, t1), lerp(d, c, t1), lerp(d, c, t0));
+  // body
+  const L = [[40, 100], [98, 120], [98, 186], [44, 166]], R = [[98, 120], [164, 98], [160, 166], [98, 186]];
+  // lid: top face A B C D and its two side strips
+  const A = [32, 92], B = [98, 113], C = [172, 89], D = [106, 70], Ad = [32, 106], Bd = [98, 128], Cd = [172, 103];
+  const dots = (pts) => pts.map(([x, y, s]) => s > 2 ? `<path transform="translate(${x} ${y}) scale(${s / 20})" d="M10 0c.9 5.6 4.4 9.1 10 10-5.6.9-9.1 4.4-10 10-.9-5.6-4.4-9.1-10-10C5.6 9.1 9.1 5.6 10 0z" fill="#fff" opacity=".9"/>` : `<circle cx="${x}" cy="${y}" r="${s}" fill="#cfe0ff" opacity=".8"/>`).join("");
+  return `<svg viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="fl${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4b62a6"/><stop offset="1" stop-color="#2b3a6e"/></linearGradient>
+    <linearGradient id="fr${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34477f"/><stop offset="1" stop-color="#1d2852"/></linearGradient>
+    <linearGradient id="ft${u}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6d86cc"/><stop offset="1" stop-color="#4a5f9f"/></linearGradient>
+    <linearGradient id="rb${u}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffc677"/><stop offset=".5" stop-color="#f6923a"/><stop offset="1" stop-color="#d3631c"/></linearGradient>
+    <linearGradient id="rd${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e57a2a"/><stop offset="1" stop-color="#a94812"/></linearGradient>
+    <linearGradient id="gl${u}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <clipPath id="cr${u}"><polygon points="${P(...R)}"/></clipPath>
+  </defs>
+  <g class="sway">
+    <ellipse cx="100" cy="182" rx="58" ry="9" fill="#0b1030" opacity=".35"/>
+    <polygon points="${P(...L)}" fill="url(#fl${u})" ${ol}/>
+    <polygon points="${P(...R)}" fill="url(#fr${u})" ${ol}/>
+    ${dots([[56, 130, 6], [74, 150, 1.6], [62, 158, 1.2], [84, 136, 1.4], [120, 128, 1.3], [138, 146, 7], [116, 160, 1.6], [150, 120, 1.2], [128, 170, 1.2]])}
+    <polygon points="${band(L[0], L[1], L[2], L[3])}" fill="url(#rd${u})" ${rl}/>
+    <polygon points="${band(R[0], R[1], R[2], R[3])}" fill="url(#rd${u})" ${rl}/>
+    <g clip-path="url(#cr${u})"><rect class="glint" x="90" y="80" width="34" height="120" fill="url(#gl${u})" transform="skewX(-18)"/></g>
+    <g class="lid">
+      <polygon points="${P(A, B, Bd, Ad)}" fill="url(#fl${u})" ${ol}/>
+      <polygon points="${P(B, C, Cd, Bd)}" fill="url(#fr${u})" ${ol}/>
+      <polygon points="${P(A, B, C, D)}" fill="url(#ft${u})" ${ol}/>
+      ${dots([[60, 88, 1.3], [128, 80, 1.4], [146, 92, 1.1], [80, 80, 5]])}
+      <polygon points="${band(A, B, Bd, Ad)}" fill="url(#rd${u})" ${rl}/>
+      <polygon points="${band(B, C, Cd, Bd)}" fill="url(#rd${u})" ${rl}/>
+      <polygon points="${band(A, D, C, B)}" fill="url(#rb${u})" ${rl}/>
+      <polygon points="${band(B, A, D, C)}" fill="url(#rb${u})" ${rl}/>
+      <g class="bow" transform="translate(102 89) scale(1.32) translate(-102 -91)">
+        <path d="M100 88C76 50 44 58 54 82c7 16 28 14 46 6z" fill="url(#rb${u})" ${rl}/>
+        <path d="M100 88C90 72 70 66 64 76c6 6 20 10 36 12z" fill="#b5531a" opacity=".55"/>
+        <path d="M104 88c22-40 56-34 48-8-6 17-28 16-48 8z" fill="url(#rb${u})" ${rl}/>
+        <path d="M104 88c10-16 30-22 38-12-6 7-20 11-38 12z" fill="#b5531a" opacity=".55"/>
+        <path d="M97 92l-18 30 9-3 3 10 14-34z" fill="url(#rd${u})" ${rl}/>
+        <path d="M107 92l16 28-9-2-3 10-11-33z" fill="url(#rd${u})" ${rl}/>
+        <ellipse cx="102" cy="89" rx="10" ry="9" fill="url(#rb${u})" ${rl}/>
+        <path d="M60 70c6-8 16-10 24-6M120 62c8-6 18-6 24 0" stroke="#ffe0b0" stroke-width="2.4" stroke-linecap="round" fill="none" opacity=".9"/>
+        <path d="M97 85c2-2 5-3 8-2" stroke="#ffe7c4" stroke-width="2" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g></svg>`;
+}
+function scene(n) {
+  const stars = [[18, 34, 14, 0, "#9fb4ff"], [272, 20, 20, .8, "#9fb4ff"], [52, 92, 10, 1.4, "#cbd7ff"], [258, 102, 12, .4, "#cbd7ff"], [86, 8, 7, 1.9, "#fff"], [236, 66, 6, 1.1, "#fff"], [30, 130, 6, 2.2, "#fff"], [290, 136, 8, .2, "#9fb4ff"]]
+    .map(([x, y, s, d, c]) => `<span class="tw d" style="left:${x}px;top:${y}px;animation-delay:${d}s">${STAR(s, c)}</span>`).join("");
+  return `<div class="gift-ill"><div class="box"><div class="g-rays"></div><div class="g-glow"></div><div class="lot body"></div><div class="g-beam"><i class="wide"></i><i class="sh" style="--w:10px;--h:210px;--r:-22deg;--d:1.9s;--dl:0s"></i><i class="sh" style="--w:6px;--h:190px;--r:-13deg;--d:1.5s;--dl:0.4s"></i><i class="sh" style="--w:14px;--h:220px;--r:-5deg;--d:2.2s;--dl:0.9s"></i><i class="sh" style="--w:8px;--h:215px;--r:3deg;--d:1.7s;--dl:0.2s"></i><i class="sh" style="--w:12px;--h:205px;--r:11deg;--d:2.0s;--dl:0.7s"></i><i class="sh" style="--w:6px;--h:185px;--r:19deg;--d:1.6s;--dl:1.1s"></i><i class="sh" style="--w:9px;--h:200px;--r:26deg;--d:2.3s;--dl:0.5s"></i><i class="core"></i><i class="pool"></i></div><div class="lot lidl"></div><div class="g-flash"></div></div>${n ? `<div class="ill-n">${n}</div>` : ""}</div>`;
+}
+
+// ---------- cab.css building blocks ----------
+const tl = (items) => `<div class="cd">${items.map((x, i) => `<div class="tl" style="--i:${i}"><div class="n ${x[3] || ""}">${x[0]}</div><div><div class="tx">${x[1]}</div>${x[2] ? `<div class="sx">${x[2]}</div>` : ""}</div></div>`).join("")}</div>`;
+const faq = (qs) => `<div class="cd">${qs.map((q) => `<button type="button" class="rw"><span>${q}</span><span class="cv">›</span></button>`).join("")}</div>`;
+const bar = `<div class="tgbar"><span class="bk">←</span><span class="ttl"><span class="av">🐸</span>Лягушка VPN</span><span class="mo">···</span></div>`;
+
+const SCREENS = [
+  { t: "1 · Раздача в группу", d: "Та же вкладка «Подарить». Второй ряд — сколько подарков. Сверху сразу видно «300 ₽ × 15» и сколько это всего. Попробуйте чипсы и «Своё».",
+    html: () => `${bar}<div class="scr"><div class="seg"><button>Пригласить</button><button class="on">Подарить</button></div><section class="hc indigo">${scene()}
+      <div class="K">Подарки в группу</div><div class="N amt">300 ₽ × 15</div><div class="P days">4 500 ₽ всего · каждому ≈ 50 дней</div>
+      <div class="chp"><button data-v="180">180 ₽</button><button class="on" data-v="300">300 ₽</button><button data-v="540">540 ₽</button><button class="own" data-own>Своя</button></div>
+      <div class="cntl">Сколько подарков</div><div class="chp cnt"><button data-n="1">1</button><button data-n="5">5</button><button class="on" data-n="15">15</button><button data-nown>Своё</button></div>
+      <div class="acts"><button type="button" class="pill">${IC.share}<span>Подарить в группу</span></button><button type="button" class="rnd" aria-label="Скопировать ссылку">${IC.copy}</button></div></section>
+      <div class="note">Баланс 5 120 ₽ · подарить можно до 4 800 ₽</div>
+      <div class="st">Ваши подарки</div><div class="cd">
+        <button class="rw"><span class="e">🎁</span><span class="tt"><b>300 ₽ × 15</b><span>забрали 8 из 15 · Сегодня</span></span><span class="v"><span class="bar"><i style="width:53%"></i></span><span class="cv">›</span></span></button>
+        <button class="rw"><span class="e">✅</span><span class="tt"><b>180 ₽</b><span>Оля · 11 ноября</span></span></button></div></div>`,
+    bind(ph) { ph._amt = 300; ph._cnt = 15; } },
+  { t: "2 · Карточка в группе", d: "Что приходит в группу через «Поделиться». Одна кнопка на всех; под ней бот не спамит — счётчик «осталось» виден уже в кабинете.",
+    html: () => `${bar}<div class="scr chat"><div class="day">Сегодня</div>
+      <div class="msg"><div class="who">Иван</div><div class="mt">🎁 Иван раздаёт <b>15 подарков по 300 ₽</b> на VPN — это ≈ 50 дней каждому.<br><br>Кто первый — того и подарок!</div><div class="via">через @way_proxy_bot · 12:40</div></div>
+      <div class="mbtn">🎁 Забрать подарок</div>
+      <div class="msg r"><div class="mt">забрала 🔥</div><div class="via">Оля · 12:41</div></div>
+      <div class="msg r"><div class="mt">спасибо!!</div><div class="via">Петя · 12:41</div></div></div>` },
+  { t: "3 · Забрать подарок", d: "Экран того, кто нажал в группе. Видно, сколько осталось. Нажмите — та же анимация, монеты летят в 300 ₽, счётчик «осталось» уменьшается.",
+    html: () => `${bar}<div class="scr"><section class="hc indigo">${scene()}
+      <div class="txt"><div class="K">Иван раздаёт подарки</div><div class="H">Подарок на VPN</div></div>
+      <div class="left"><div class="bar big"><i style="width:47%"></i></div><span>Осталось <b data-left>7</b> из 15</span></div>
+      <div class="acts"><button type="button" class="pill open-b"><span>Забрать подарок</span></button></div></section>
+      <div class="st">Как это работает</div>${tl([["1", "Заберите подарок", "Он ничего вам не стоит — подарок уже оплачен"], ["2", "Подключите VPN в один тап", "Кабинет подскажет, что установить"], [IC.gift, "Пользуйтесь 50 дней", "<b>300 ₽</b> лягут на ваш баланс"]])}</div>`,
+    bind(ph) { ph._amt = 300; ph._group = true; const go = () => openGift(ph); $(".gift-ill", ph).onclick = go; $(".open-b", ph).onclick = go; } },
+  { t: "4 · Не успели", d: "Если все 15 уже забрали. Тот, кто уже брал из этой раздачи, увидит «Вы уже забрали свой подарок» и сумму.",
+    html: () => `${bar}<div class="scr"><section class="hc indigo">${scene()}
+      <div class="txt"><div class="H">Подарки разобрали</div><div class="P">Все 15 подарков от Ивана уже забрали</div></div>
+      <div class="left"><div class="bar big"><i style="width:0%"></i></div><span>Осталось <b>0</b> из 15</span></div>
+      <div class="acts"><button type="button" class="pill"><span>Попробовать VPN</span></button></div></section>
+      <div class="note">Можно подарить VPN другу самому — «Пригласить друзей» → «Подарить».</div></div>` },
+  { t: "5 · Итог в боте", d: "Дарителю — одно сообщение, когда разобрали все (или когда он вернул остаток), а не 15 уведомлений подряд.",
+    html: () => `${bar}<div class="scr chat"><div class="day">Сегодня</div>
+      <div class="msg bot"><div class="mt">🎁 <b>Все 15 подарков разобрали!</b><br><br>Забрали: Оля, Петя, Лёша, Маша, Дима и ещё 10.<br>По 300 ₽ на баланс каждому — всего 4 500 ₽.<br><br>Спасибо, что делитесь ❤️</div><div class="via">Лягушка VPN · 13:05</div></div>
+      <div class="msg bot"><div class="mt">↩️ Вы вернули оставшиеся подарки: <b>7 × 300 ₽ = 2 100 ₽</b> снова на балансе.<br>Забрали 8 из 15.</div><div class="via">так выглядит, если вернуть остаток раньше</div></div></div>` },
+];
+
+const GIVE = [180, 300, 540];
+function paintGroup(ph) {
+  const a = ph._amt, n = ph._cnt, tot = a * n, d = Math.floor(a / PER_DAY);
+  $(".amt", ph).textContent = n > 1 ? `${fmt(a)} ₽ × ${n}` : `${fmt(a)} ₽`;
+  $(".days", ph).textContent = n > 1 ? `${fmt(tot)} ₽ всего · каждому ≈ ${d} ${pl(d, "день", "дня", "дней")}` : daysTxt(a);
+  $(".K", ph).textContent = n > 1 ? "Подарки в группу" : "Подарок другу";
+  $(".acts .pill span", ph).textContent = n > 1 ? "Подарить в группу" : "Подарить";
+  ph.querySelectorAll(".cnt button").forEach((b) => b.classList.toggle("on", b.hasAttribute("data-nown") ? ![1, 5, 15].includes(n) : +b.dataset.n === n));
+  const own = $(".cnt [data-nown]", ph); own.textContent = [1, 5, 15].includes(n) ? "Своё" : `${n} ✎`;
+}
+
+function burst(host, x0, y0) {
+  for (let i = 0; i < 18; i++) { const el = document.createElement("span"); el.className = "cf"; const s = 8 + Math.random() * 12; el.innerHTML = STAR(s, ["#fff", "#cbd7ff", "#ffd08a", "#9fb4ff"][i % 4]); host.appendChild(el);
+    const a = -Math.PI / 2 + (Math.random() - .5) * 2.8, d = 60 + Math.random() * 90, x1 = x0 + Math.cos(a) * d, y1 = y0 + Math.sin(a) * d * .8;
+    el.animate([{ transform: `translate(${x0}px,${y0}px) scale(.2)`, opacity: 1 }, { transform: `translate(${x1}px,${y1}px) scale(1) rotate(90deg)`, opacity: 1, offset: .6 }, { transform: `translate(${x1}px,${y1 + 30}px) scale(.4) rotate(140deg)`, opacity: 0 }],
+      { duration: 1100 + Math.random() * 500, easing: "cubic-bezier(.2,.7,.3,1)", fill: "forwards" }).onfinish = () => el.remove(); }
+}
+const E = { out: "cubic-bezier(.16,1,.3,1)", spring: "cubic-bezier(.34,1.56,.64,1)" };
+function confettiFrom(host, x0, y0) {
+  const cols = ["#ffb067", "#ffd9a8", "#ffffff", "#8fa4ff", "#e2733a"];
+  for (let i = 0; i < 26; i++) { const el = document.createElement("i"); el.className = "cf"; const w = 5 + Math.random() * 4;
+    el.style.cssText = `width:${w}px;height:${w * 1.8}px;border-radius:2px;background:${cols[i % cols.length]}`; host.appendChild(el);
+    const a = -Math.PI / 2 + (Math.random() - .5) * 2.2, v = 120 + Math.random() * 120, x1 = x0 + Math.cos(a) * v * .9, y1 = y0 + Math.sin(a) * v;
+    el.animate([{ transform: `translate(${x0}px,${y0}px) rotate(0)`, opacity: 1 }, { transform: `translate(${x1}px,${y1}px) rotate(${(Math.random() - .5) * 500}deg)`, opacity: 1, offset: .45 },
+      { transform: `translate(${x1 + (Math.random() - .5) * 60}px,${y1 + 260}px) rotate(${(Math.random() - .5) * 1100}deg)`, opacity: 0 }], { duration: 1500 + Math.random() * 700, easing: "cubic-bezier(.2,.6,.4,1)", fill: "forwards" }).onfinish = () => el.remove(); }
+}
+function motes(beam) {
+  const tick = () => { if (!beam.isConnected) return; const m = document.createElement("i"); m.className = "mote"; beam.appendChild(m);
+    const x0 = (Math.random() - .5) * 40, x1 = x0 * 2.6 + (Math.random() - .5) * 30, s = .5 + Math.random() * .9;
+    m.animate([{ transform: `translate(${x0}px,0) scale(${s})`, opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: .8, offset: .7 }, { transform: `translate(${x1}px,-${150 + Math.random() * 60}px) scale(${s * .6})`, opacity: 0 }],
+      { duration: 1600 + Math.random() * 1400, easing: "cubic-bezier(.3,.5,.5,1)" }).onfinish = () => m.remove();
+    setTimeout(tick, 90 + Math.random() * 120); };
+  tick();
+}
+const COIN = `<svg viewBox="0 0 40 40" width="100%" height="100%"><defs><radialGradient id="cg" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#fff3b8"/><stop offset=".45" stop-color="#ffc94a"/><stop offset="1" stop-color="#d98a12"/></radialGradient></defs>
+  <circle cx="20" cy="20" r="18.5" fill="url(#cg)" stroke="#a8620e" stroke-width="2"/><circle cx="20" cy="20" r="13.5" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.4"/>
+  <text x="20" y="26.5" text-anchor="middle" font-size="17" font-weight="800" fill="#b06a10" font-family="-apple-system,system-ui">₽</text><path d="M9 14c2-4 6-6 10-6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".8"/></svg>`;
+// coins shoot out of the box, flip in the air and land in the amount, which counts up on every hit
+function coins(h, ox, oy, getT, total, n = 12) {
+  const hr = h.getBoundingClientRect(); let got = 0;
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement("span"); el.className = "coin"; el.innerHTML = `<b>${COIN}</b>`; h.appendChild(el);
+    const sz = 26 + Math.random() * 12; el.style.width = el.style.height = sz + "px"; el.firstChild.style.animationDuration = (.35 + Math.random() * .3) + "s";
+    const side = i % 2 ? 1 : -1, ax = ox + side * (40 + Math.random() * 110), ay = Math.max(24, oy - 20 - Math.random() * 60), delay = i * 28 + Math.random() * 25;
+    const up = el.animate([{ transform: `translate(${ox - sz / 2}px,${oy - sz / 2}px) scale(.3)`, opacity: 0 }, { opacity: 1, offset: .15 }, { transform: `translate(${ax - sz / 2}px,${ay - sz / 2}px) scale(1)`, opacity: 1 }],
+      { duration: 420, delay, easing: "cubic-bezier(.2,.8,.35,1)", fill: "forwards" });
+    up.finished.then(() => {
+      const target = getT(), num = $("[data-c]", target), tr = target.getBoundingClientRect(), tx = tr.left - hr.left + tr.width / 2 + (Math.random() - .5) * 40, ty = tr.top - hr.top + tr.height / 2;
+      el.animate([{ transform: `translate(${ax - sz / 2}px,${ay - sz / 2}px) scale(1)` }, { transform: `translate(${(ax * 2 + tx) / 3 - sz / 2}px,${ay - 12 - sz / 2}px) scale(.95)`, offset: .3 },
+        { transform: `translate(${tx - sz / 2}px,${ty - sz / 2}px) scale(.45)`, opacity: .9 }], { duration: 360 + Math.random() * 100, easing: "cubic-bezier(.5,0,.75,.4)", fill: "forwards" })
+        .finished.then(() => { el.remove(); got++; num.textContent = Math.round(total * got / n); hap();
+          target.animate([{ transform: "scale(1)" }, { transform: "scale(1.09)" }, { transform: "scale(1)" }], { duration: 180, easing: "ease-out" });
+          spark(h, tx, ty, 3, 8);
+          if (got === n) { target.classList.add("gold"); const r2 = target.getBoundingClientRect(); spark(h, r2.left - hr.left + r2.width / 2, r2.top - hr.top + r2.height / 2, 10, 16); wave(h, r2.left - hr.left + r2.width / 2, r2.top - hr.top + r2.height / 2, 0, 4); }
+          if (got === n) target.animate([{ textShadow: "0 0 0 rgba(255,214,120,0)" }, { textShadow: "0 0 28px rgba(255,214,120,.9)" }, { textShadow: "0 0 0 rgba(255,214,120,0)" }], { duration: 700 }); });
+    });
+  }
+}
+function wave(h, x, y, delay = 0, size = 9) {
+  const w = document.createElement("i"); w.className = "g-wave"; h.appendChild(w);
+  w.animate([{ transform: `translate(${x}px,${y}px) scale(.2)`, opacity: 1 }, { transform: `translate(${x}px,${y}px) scale(${size})`, opacity: 0 }], { duration: 750, delay, easing: "cubic-bezier(.1,.7,.3,1)", fill: "both" }).onfinish = () => w.remove();
+}
+function spark(h, x, y, n = 5, big = 12) {
+  for (let i = 0; i < n; i++) { const el = document.createElement("span"); el.className = "cf"; const sz = 6 + Math.random() * big; el.innerHTML = STAR(sz, i % 2 ? "#fff" : "#ffe08a"); h.appendChild(el);
+    const a = Math.random() * Math.PI * 2, d = 14 + Math.random() * 26;
+    el.animate([{ transform: `translate(${x - sz / 2}px,${y - sz / 2}px) scale(.2) rotate(0)`, opacity: 1 }, { transform: `translate(${x - sz / 2 + Math.cos(a) * d}px,${y - sz / 2 + Math.sin(a) * d}px) scale(1) rotate(90deg)`, opacity: 0 }],
+      { duration: 420 + Math.random() * 200, easing: "cubic-bezier(.2,.7,.3,1)", fill: "forwards" }).onfinish = () => el.remove(); }
+}
+function shake(el) { el.animate([0, 1, 2, 3, 4, 5, 6].map((i) => ({ transform: i === 6 ? "none" : `translate(${(Math.random() - .5) * 10 * (1 - i / 6)}px,${(Math.random() - .5) * 8 * (1 - i / 6)}px)` })), { duration: 340, easing: "linear" }); }
+async function openGift(ph) {
+  const h = $(".hc", ph); if (h.classList.contains("opened")) return; h.classList.add("opened"); hap();
+  const q = (c) => $(c, h), box = q(".box"), lid = q(".lidl"), body = q(".body");
+  $(".acts .pill", h)?.classList.add("dim");
+  // 1 · it fights back: squash, then a shake that grows, light leaking out
+  q(".g-glow").animate([{ opacity: 0, transform: "scale(.5)" }, { opacity: .55, transform: "scale(.8)" }], { duration: 520, easing: "ease-in", fill: "forwards" });
+  await box.animate([{ transform: "none" }, { transform: "scale(1.06,.92) translateY(4px)", offset: .22 },
+    { transform: "rotate(-2deg) scale(1.02,.97)", offset: .4 }, { transform: "rotate(3deg)", offset: .55 }, { transform: "rotate(-4deg)", offset: .7 }, { transform: "rotate(5deg) scale(.98,1.04)", offset: .85 }, { transform: "scale(1.1,.86) translateY(6px)" }],
+    { duration: 560, easing: "ease-in-out" }).finished;
+  ph._a.pause(); hap();
+  // 2 · the lid with the bow is blown off
+  lid.animate([{ transform: "none" }, { transform: "translateY(-46px) rotate(-10deg) scale(1.04)", offset: .28 }, { transform: "translate(120px,-150px) rotate(42deg) scale(.8)", opacity: .9, offset: .8 }, { transform: "translate(150px,-190px) rotate(60deg) scale(.7)", opacity: 0 }],
+    { duration: 900, easing: "cubic-bezier(.25,.8,.35,1)", fill: "forwards" });
+  body.animate([{ transform: "scale(1.1,.86)" }, { transform: "scale(.94,1.08)", offset: .35 }, { transform: "scale(1.03,.97)", offset: .65 }, { transform: "none" }], { duration: 620, easing: "ease-out" });
+  q(".g-flash").animate([{ opacity: 0, transform: "scale(.3)" }, { opacity: 1, transform: "scale(1)", offset: .25 }, { opacity: 0, transform: "scale(1.6)" }], { duration: 520, easing: "ease-out" });
+  const beam = q(".g-beam");
+  beam.animate([{ opacity: 0, transform: "scale(.08,.15)" }, { opacity: 1, transform: "scale(.35,1.12)", offset: .3 }, { opacity: 1, transform: "scale(1.12,1.04)", offset: .65 }, { opacity: .95, transform: "scale(1)" }],
+    { duration: 900, easing: E.out }).finished.then(() => { beam.style.opacity = 1; beam.classList.add("breathe"); });
+  motes(beam);
+  q(".g-rays").animate([{ opacity: 0, scale: .4 }, { opacity: .5, scale: 1 }], { duration: 1100, easing: E.out, fill: "forwards" });
+  q(".g-glow").animate([{ opacity: .55, transform: "scale(.8)" }, { opacity: 1, transform: "scale(1.15)" }, { opacity: .75, transform: "scale(1)" }], { duration: 900, easing: E.out, fill: "forwards" });
+  const r = box.getBoundingClientRect(), hr = h.getBoundingClientRect(), ox = r.left - hr.left + 158, oy = r.top - hr.top + 52;
+  shake(h); wave(h, ox, oy); wave(h, ox, oy, 120, 6);
+  if (!q(".g-warm")) h.insertAdjacentHTML("afterbegin", '<div class="g-warm"></div>');
+  q(".g-warm").animate([{ opacity: 0 }, { opacity: 1, offset: .15 }, { opacity: .35 }], { duration: 1400, easing: "ease-out", fill: "forwards" });
+  { const t0 = performance.now(); const trail = () => { const k = (performance.now() - t0) / 620; if (k > 1) return; 
+      spark(h, ox + (k < .3 ? 0 : (k - .3) / .7 * 125), oy + 6 - (k < .3 ? k / .3 * 46 : 46 + (k - .3) / .7 * 110), 2, 9); setTimeout(trail, 45); }; trail(); }
+  burst(h, ox - 8, oy - 8); confettiFrom(h, ox, oy); coins(h, ox, oy, () => $(".amt", h), ph._amt || 180);
+  const lf = $("[data-left]", h); if (lf) setTimeout(() => { lf.textContent = +lf.textContent - 1; const bi = $(".left .bar i", h); bi.style.width = (+lf.textContent / 15 * 100) + "%"; }, 900);
+  // 3 · the amount takes the title's place and counts up
+  await sleep(200);
+  const txt = $(".txt", h); txt.innerHTML = `<div class="N amt"><span data-c>0</span> ₽</div><div class="P days">${daysTxt(ph._amt || 180)} · уже на балансе</div>`; txt.classList.add("swap");
+  $(".acts", h).outerHTML = `<div class="acts swap"><button type="button" class="pill"><span>Подключить VPN</span></button><button type="button" class="rnd" aria-label="Сказать спасибо">${IC.heart}</button></div>`;
+}
+// ---------- own amount: the same screen as top-up (cab.css .am) ----------
+const PER_DAY = 6, MIN = 60, MAX = 20000;
+const fmt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+const pl = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; };
+const daysTxt = (n) => { const d = Math.floor(n / PER_DAY); return `≈ ${d} ${pl(d, "день", "дня", "дней")} VPN`; };
+function setGift(ph, n, own) {
+  if (own && [180, 300, 540, 2160].includes(n)) own = false;
+  $(".amt", ph).textContent = fmt(n) + " ₽"; $(".days", ph).textContent = daysTxt(n);
+  ph.querySelectorAll(".hc .chp:not(.cnt) button").forEach((b) => b.classList.toggle("on", own ? b.hasAttribute("data-own") : +b.dataset.v === n));
+  $(".hc .own", ph).textContent = own ? fmt(n) + " ₽ ✎" : "Своя"; ph._amt = n; if (ph._cnt) paintGroup(ph);
+}
+function openAmount(ph) {
+  const v = { s: "", d: "", mode: "rub" };
+  const el = document.createElement("div"); el.className = "amscr";
+  el.innerHTML = `<div class="tgbar"><span class="bk" data-x>←</span><span class="ttl"><span class="av">🐸</span>Лягушка VPN</span><span class="mo">···</span></div>
+  <div class="am" id="am"><div class="am-stage zero"><div class="am-glow"></div><div class="am-gift"></div>
+    <div class="am-w"><div class="am-num"><span>0</span></div><div class="am-caret"></div><div class="am-unit">₽</div></div>
+    <button type="button" class="am-sub" data-sw><span class="am-st"></span><span class="sw">⇅</span></button><div class="am-hint">Сколько подарить?</div></div>
+    <div class="am-bottom"><div class="am-quick">${[100, 500, 1000].map((q) => `<button type="button" data-q="${q}">+${fmt(q)}</button>`).join("")}</div>
+      <button type="button" class="am-pay off"><span>Введите сумму</span></button>
+      <div class="am-padw"><div><div class="am-pad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "c", "0", "b"].map((k) => `<button type="button" data-k="${k}"${k === "c" || k === "b" ? ' class="fn"' : ""}>${k === "b" ? "⌫" : k === "c" ? "C" : k}</button>`).join("")}</div></div></div></div></div>`;
+  ph.appendChild(el);
+  const gl = lottie.loadAnimation({ container: $(".am-gift", el), renderer: "svg", loop: true, autoplay: true, path: "tg/wallet_gift.json" });
+  const num = $(".am-num", el), stage = $(".am-stage", el), w = $(".am-w", el), pay = $(".am-pay", el), sub = $(".am-sub", el);
+  const paint = (added) => {
+    const n = +v.s || 0, ok = n >= MIN && n <= MAX, days = v.mode === "days", big = days ? +v.d || 0 : n, t = big ? fmt(big) : "0";
+    $(".am-unit", el).textContent = days ? pl(big, "день", "дня", "дней") : "₽"; $(".am-unit", el).classList.toggle("days", days);
+    $(".am-hint", el).textContent = days ? "Сколько дней подарить?" : "Сколько подарить?";
+    num.className = "am-num" + (t.length >= 7 ? " l6" : t.length >= 6 ? " l5" : "");
+    num.innerHTML = [...t].map((c, i) => `<span${added && i === t.length - 1 ? ' class="add"' : ""}>${c}</span>`).join("");
+    stage.classList.toggle("zero", !n); sub.classList.toggle("bad", n > 0 && !ok);
+    $(".am-st", el).textContent = !n ? "" : n < MIN ? (days ? `Минимум ${MIN / PER_DAY} дней` : `Минимум ${MIN} ₽`) : n > MAX ? `Максимум ${fmt(MAX)} ₽` : days ? `= ${fmt(n)} ₽` : daysTxt(n);
+    pay.classList.toggle("off", !ok); $("span", pay).textContent = ok ? `Подарить ${fmt(n)} ₽` : "Введите сумму";
+  };
+  const bad = () => { w.classList.remove("shake"); void w.offsetWidth; w.classList.add("shake"); };
+  const close = () => { gl.destroy(); el.classList.add("leave"); setTimeout(() => el.remove(), 380); };
+  el.addEventListener("click", (e) => {
+    const k = e.target.closest("[data-k]"), q = e.target.closest("[data-q]");
+    if (e.target.closest("[data-x]")) return close();
+    if (k) { const c = k.dataset.k; hap();
+      const days = v.mode === "days", ed = days ? v.d : v.s, set = (x) => { if (days) { v.d = x; v.s = x ? String(+x * PER_DAY) : ""; } else v.s = x; };
+      if (c === "b") { if (!ed) return bad(); set(ed.slice(0, -1)); paint(false); }
+      else if (c === "c") { set(""); paint(false); }
+      else { const nx = (ed === "0" ? "" : ed) + c; if (nx.length > (days ? 4 : 5) || nx === "0") return bad(); set(nx); paint(true); if (+v.s > MAX) bad(); } }
+    if (e.target.closest("[data-sw]") && +v.s) { hap(); v.mode = v.mode === "rub" ? "days" : "rub"; if (v.mode === "days") { v.d = String(Math.floor(+v.s / PER_DAY)); v.s = String(+v.d * PER_DAY); }
+      const r = sub.getBoundingClientRect(), pr = ph.getBoundingClientRect(), ring = document.createElement("i"); ring.className = "am-ring"; ring.style.position = "absolute";
+      ring.style.left = r.left - pr.left + r.width / 2 + "px"; ring.style.top = r.top - pr.top + r.height / 2 + "px"; el.appendChild(ring); setTimeout(() => ring.remove(), 650);
+      num.animate([{ filter: "blur(3px)", transform: "translateY(10px)", opacity: .3 }, { filter: "none", transform: "none", opacity: 1 }], { duration: 320, easing: "cubic-bezier(.3,1.2,.4,1)" }); paint(false); }
+    if (q) { hap(); v.mode = "rub"; v.s = String(Math.min(MAX, (+v.s || 0) + +q.dataset.q)); paint(false); }
+    if (e.target.closest(".am-pay") && !pay.classList.contains("off")) { setGift(ph, +v.s, true); close(); }
+  });
+  paint(false); setTimeout(() => $("#am", el).classList.add("open"), 380);
+}
+function openCount(ph) {
+  let v = "";
+  const el = document.createElement("div"); el.className = "amscr";
+  el.innerHTML = `<div class="tgbar"><span class="bk" data-x>←</span><span class="ttl"><span class="av">🐸</span>Лягушка VPN</span><span class="mo">···</span></div>
+  <div class="am" id="am"><div class="am-stage zero"><div class="am-glow"></div><div class="am-w"><div class="am-num"><span>0</span></div><div class="am-caret"></div><div class="am-unit days">подарков</div></div>
+    <button type="button" class="am-sub"><span class="am-st"></span></button><div class="am-hint">Сколько подарков раздать?</div></div>
+    <div class="am-bottom"><div class="am-quick">${[10, 25, 50].map((q) => `<button type="button" data-q="${q}">${q}</button>`).join("")}</div>
+      <button type="button" class="am-pay off"><span>Введите количество</span></button>
+      <div class="am-padw"><div><div class="am-pad">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "c", "0", "b"].map((k) => `<button type="button" data-k="${k}"${k === "c" || k === "b" ? ' class="fn"' : ""}>${k === "b" ? "⌫" : k === "c" ? "C" : k}</button>`).join("")}</div></div></div></div></div>`;
+  ph.appendChild(el);
+  const paint = () => { const n = +v || 0, ok = n >= 2 && n <= 100, tot = n * ph._amt;
+    $(".am-num", el).innerHTML = [...(v || "0")].map((c) => `<span>${c}</span>`).join("");
+    $(".am-unit", el).textContent = pl(n, "подарок", "подарка", "подарков");
+    $(".am-stage", el).classList.toggle("zero", !n); $(".am-sub", el).classList.toggle("bad", n > 0 && !ok);
+    $(".am-st", el).textContent = !n ? "" : n < 2 ? "Минимум 2" : n > 100 ? "Максимум 100" : `по ${fmt(ph._amt)} ₽ · ${fmt(tot)} ₽ всего`;
+    const p = $(".am-pay", el); p.classList.toggle("off", !ok); $("span", p).textContent = ok ? `Раздать ${n} ${pl(n, "подарок", "подарка", "подарков")}` : "Введите количество"; };
+  const close = () => { el.classList.add("leave"); setTimeout(() => el.remove(), 380); };
+  el.addEventListener("click", (e) => { const k = e.target.closest("[data-k]"), q = e.target.closest("[data-q]");
+    if (e.target.closest("[data-x]")) return close();
+    if (k) { const c = k.dataset.k; v = c === "b" ? v.slice(0, -1) : c === "c" ? "" : (v + c).replace(/^0/, "").slice(0, 3); paint(); }
+    if (q) { v = q.dataset.q; paint(); }
+    if (e.target.closest(".am-pay") && !$(".am-pay", el).classList.contains("off")) { ph._cnt = +v; paintGroup(ph); close(); } });
+  paint(); setTimeout(() => $("#am", el).classList.add("open"), 380);
+}
+function mount(i) { const s = SCREENS[i], ph = document.getElementById("ph" + i); ph._a && ph._a.destroy(); ph.innerHTML = `<div class="in">${s.html()}</div>`;
+  const mk = (el, f) => lottie.loadAnimation({ container: el, renderer: "svg", loop: true, autoplay: false, path: "tg/" + f });
+  const A = [mk($(".body", ph), "wallet_gift_body.json"), mk($(".lidl", ph), "wallet_gift_lid.json")]; let ready = 0;
+  A.forEach((x) => x.addEventListener("DOMLoaded", () => { if (++ready === 2) A.forEach((y) => y.goToAndPlay(0, true)); }));
+  ph._a = { destroy: () => A.forEach((x) => x.destroy()), pause: () => A.forEach((x) => x.pause()) }; s.bind && s.bind(ph); }
+$("#grid").innerHTML = SCREENS.map((s, i) => `<div class="pg-it"><div class="pg-t">${s.t}</div><div class="pg-d">${s.d}</div><div class="ph" id="ph${i}"></div><button class="pg-rp" data-i="${i}">↻ Заново</button></div>`).join("");
+SCREENS.forEach((_, i) => mount(i));
+document.addEventListener("click", (e) => { const b = e.target.closest(".pg-rp"); if (b) mount(+b.dataset.i); const k = e.target.closest(".cnt button"); if (k) { const ph = k.closest(".ph"); if (k.hasAttribute("data-nown")) { openCount(ph); return; } ph._cnt = +k.dataset.n; paintGroup(ph); return; }
+  const c = e.target.closest(".chp button"); if (c) { c.parentNode.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === c));
+  const ph = c.closest(".ph"); if (c.hasAttribute("data-own")) { openAmount(ph); return; } setGift(ph, +c.dataset.v, false); } });
+</script>
+</body>
+</html>

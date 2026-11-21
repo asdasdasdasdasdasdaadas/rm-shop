@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><script src="lottie-light.min.js"></script>
+<style>
+html,body{margin:0;background:#000}
+.c{position:relative;width:1200px;height:630px;overflow:hidden;font-family:-apple-system,"SF Pro Display",system-ui,sans-serif;color:#fff;
+  background:radial-gradient(ellipse at 50% 38%,rgba(255,214,150,.38),rgba(255,214,150,0) 46%),linear-gradient(180deg,#26307a 0%,#3d4ea3 55%,#6177cc 100%)}
+.rays{position:absolute;left:600px;top:240px;width:1500px;height:1500px;margin:-750px 0 0 -750px;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,rgba(255,236,200,.13) 0 6deg,transparent 6deg 18deg);
+  -webkit-mask:radial-gradient(circle,#000 8%,transparent 55%)}
+.g{position:absolute;left:50%;top:6px;width:900px;height:454px;margin-left:-450px}
+.t{position:absolute;left:0;right:0;top:438px;text-align:center}
+.h{font-size:64px;font-weight:800;letter-spacing:-1.5px}
+.p{font-size:30px;opacity:.82;margin-top:10px}
+.b{position:absolute;left:36px;top:30px;display:flex;align-items:center;gap:14px;font-size:28px;font-weight:700;opacity:.92}
+.b img{width:52px;height:52px;border-radius:50%}
+</style></head><body><div class="c"><div class="rays"></div><div class="g" id="g"></div>
+<div class="b"><img src="../../webapp/icons/frog.png">Лягушка VPN</div>
+<div class="t"><div class="h">Вам подарок на VPN</div><div class="p">Нажмите, чтобы забрать — деньги сразу на баланс</div></div></div>
+<script>window.a=lottie.loadAnimation({container:document.getElementById('g'),renderer:'svg',loop:false,autoplay:false,path:'wallet_gift.json'});
+a.addEventListener('DOMLoaded',()=>{a.goToAndStop(40,true);window.ready=1;});</script></body></html>

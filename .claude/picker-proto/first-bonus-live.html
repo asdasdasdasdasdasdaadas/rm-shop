@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Бонус за первую оплату</title>
+<link rel="stylesheet" href="/cab-bonus.css">
+<style>
+  :root { --gold1: #ffe08a; --gold2: #f7b733; --gold3: #e08a12; }
+  body { background: radial-gradient(1200px 700px at 50% -10%, #1b2230, #08090b 60%); min-height: 100vh; padding: 28px 16px 40px; }
+  .stage { display: flex; gap: 40px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+  .side { width: 300px; color: #c9ced8; padding-top: 30px; }
+  .side h1 { color: #fff; font-size: 26px; margin: 0 0 10px; letter-spacing: -.3px; }
+  .side p { font-size: 14.5px; line-height: 1.5; margin: 0 0 18px; color: #9aa0ab; }
+  .steps { display: flex; flex-direction: column; gap: 8px; }
+  .steps button { text-align: left; padding: 12px 14px; border-radius: 16px; background: #16181d; color: #c9ced8; font-size: 15px; transition: background .25s, color .25s, transform .15s; }
+  .steps button b { display: block; color: #fff; font-size: 15.5px; margin-bottom: 2px; }
+  .steps button.on { background: #22262e; box-shadow: inset 0 0 0 1px rgba(255, 215, 106, .45); }
+  .steps button:active { transform: scale(.98); }
+  .replay { margin-top: 14px; color: var(--gold1); font-size: 14.5px; font-weight: 600; }
+
+  /* phone */
+  .phone { width: 375px; height: 790px; border-radius: 48px; background: #000; padding: 10px; box-shadow: 0 40px 90px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 255, 255, .08); position: relative; }
+  .screen { position: relative; width: 100%; height: 100%; border-radius: 38px; overflow: hidden; background: var(--bg); }
+  .tgbar { height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; color: #fff; font-size: 15px; font-weight: 600; background: #17191d; position: relative; z-index: 5; }
+  .tgbar .x { color: var(--link); font-weight: 500; }
+  .tgbar .t { position: absolute; left: 0; right: 0; text-align: center; pointer-events: none; }
+  .view { position: absolute; top: 54px; left: 0; right: 0; bottom: 0; overflow-y: auto; overflow-x: hidden; padding: 10px 0 30px; scrollbar-width: none; }
+  .view::-webkit-scrollbar { display: none; }
+  .pg { position: absolute; inset: 0; padding: 10px 0 30px; overflow-y: auto; scrollbar-width: none; background: var(--bg); will-change: transform; }
+  .pg.in { animation: pin .45s var(--ease) both; }
+  .pg.inB { animation: pinB .45s var(--ease) both; }
+  .pg.out { animation: pout .45s var(--ease) both; z-index: 0; }
+  .pg.outB { animation: poutB .45s var(--ease) both; z-index: 2; }
+  canvas.cf { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
+
+  /* ---------- gift box ---------- */
+  .gbx { position: relative; width: 132px; height: 132px; margin: 0 auto 6px; }
+  .gbx svg { position: absolute; inset: 0; overflow: visible; }
+  .gbx .glow { position: absolute; inset: -18px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 224, 138, .75), rgba(255, 224, 138, 0) 65%); opacity: 0; transform: scale(.6); transition: opacity .6s, transform .8s var(--ease); }
+  .gbx.open .glow { opacity: 1; transform: scale(1); animation: breathe 2.4s 1s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform: scale(1.12); opacity: .7; } }
+  .ring-bg { fill: none; stroke: rgba(255, 255, 255, .2); stroke-width: 6; }
+  .ring { fill: none; stroke: url(#gGold); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset .7s var(--ease); transform: rotate(-90deg); transform-origin: 66px 66px; filter: drop-shadow(0 0 4px rgba(255, 210, 100, .7)); }
+  .box { transform-origin: 66px 100px; }
+  .gbx.idle .box { animation: wig 3.2s 1.2s ease-in-out infinite; }
+  @keyframes wig { 0%, 70%, 100% { transform: rotate(0); } 74% { transform: rotate(-6deg) translateY(-2px); } 78% { transform: rotate(5deg) translateY(-3px); } 82% { transform: rotate(-3deg); } 86% { transform: rotate(0); } }
+  .lid { transform-origin: 40px 52px; transition: transform .7s cubic-bezier(.3, 1.6, .5, 1); }
+  .gbx.open .lid { transform: translate(-6px, -26px) rotate(-24deg); }
+  .gbx.open .box { animation: none; }
+  .tag { position: absolute; left: 50%; top: 34px; transform: translate(-50%, 20px) scale(.3); opacity: 0; background: linear-gradient(180deg, var(--gold1), var(--gold2)); color: #4a2f00; font-weight: 800;
+    font-size: 15px; padding: 5px 11px; border-radius: 99px; box-shadow: 0 6px 18px rgba(160, 100, 0, .45); white-space: nowrap; transition: transform .7s cubic-bezier(.3, 1.5, .5, 1) .15s, opacity .3s .15s; }
+  .gbx.open .tag { opacity: 1; transform: translate(-50%, -22px) scale(1); }
+  .spark { position: absolute; left: 66px; top: 56px; width: 10px; height: 10px; pointer-events: none; }
+  .spark svg { width: 10px; height: 10px; }
+  .spark { animation: burst .9s cubic-bezier(.15, .7, .3, 1) forwards; }
+  @keyframes burst { 0% { transform: translate(-50%, -50%) scale(.2); opacity: 1; } 100% { transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(var(--s)) rotate(var(--r)); opacity: 0; } }
+
+  /* amount & days */
+  .N { display: inline-flex; align-items: baseline; justify-content: center; }
+  .dl { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 16px; margin-top: 8px; min-height: 28px; }
+  .dl .base { opacity: .88; }
+  .plus3 { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; background: linear-gradient(180deg, var(--gold1), var(--gold2)); color: #4a2f00; font-weight: 800; font-size: 14px;
+    max-width: 0; padding-left: 0; padding-right: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: max-width .55s var(--ease), padding .55s var(--ease), opacity .3s; }
+  .on3 .plus3 { max-width: 120px; padding-left: 10px; padding-right: 10px; opacity: 1; }
+
+  .need { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; padding: 8px 14px 8px 10px; border-radius: 99px; background: rgba(0, 0, 0, .2); font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: opacity .35s, transform .35s var(--ease), max-height .45s var(--ease), margin .45s; max-height: 44px; }
+  .need i { font-style: normal; width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(180deg, var(--gold1), var(--gold2)); color: #4a2f00; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; }
+  .need:active { transform: scale(.97); }
+  .on3 .need { opacity: 0; transform: translateY(-6px) scale(.95); max-height: 0; margin-top: 0; padding-top: 0; padding-bottom: 0; pointer-events: none; }
+
+  .chp button { position: relative; }
+  .chp button.g::after { content: ""; position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(180deg, var(--gold1), var(--gold2)); box-shadow: 0 0 0 2px #2a9a5e; }
+  .chp .on.g::after { box-shadow: 0 0 0 2px #2a9a5e, 0 0 10px rgba(255, 210, 100, .9); }
+
+  .pill { position: relative; overflow: hidden; }
+  .pill .b3 { display: inline-flex; padding: 2px 8px; border-radius: 99px; background: linear-gradient(180deg, var(--gold1), var(--gold2)); color: #4a2f00; font-size: 13px; font-weight: 800; margin-left: 2px;
+    max-width: 0; padding-left: 0; padding-right: 0; overflow: hidden; opacity: 0; transition: max-width .5s var(--ease), padding .5s var(--ease), opacity .3s; }
+  .on3 .pill .b3, .pill.g .b3 { max-width: 90px; padding-left: 8px; padding-right: 8px; opacity: 1; }
+  .on3 .pill::after, .pill.g::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 214, 110, .55), transparent 70%); transform: translateX(-120%); animation: shine 2.8s .4s ease-in-out infinite; }
+  @keyframes shine { 0% { transform: translateX(-120%); } 45%, 100% { transform: translateX(120%); } }
+  .pill.busy span { opacity: 0; }
+  .pill .spin { position: absolute; width: 22px; height: 22px; border-radius: 50%; border: 3px solid rgba(29, 35, 64, .2); border-top-color: #1d2340; opacity: 0; }
+  .pill.busy .spin { opacity: 1; animation: rot .7s linear infinite; }
+
+  /* home countdown */
+  .hc.home { background: linear-gradient(160deg, #5fb4ff 0%, #2f86f0 55%, #1d63d6 100%); }
+  .cdw { display: flex; justify-content: center; gap: 6px; margin-top: 10px; }
+  .cdw .u { min-width: 54px; padding: 8px 6px 6px; border-radius: 16px; background: rgba(0, 0, 0, .18); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14); }
+  .cdw .v { height: 34px; overflow: hidden; font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 34px; position: relative; }
+  .cdw .v span { display: block; }
+  .cdw .v span.roll { animation: roll .45s var(--ease); }
+  @keyframes roll { from { transform: translateY(-100%); opacity: 0; } }
+  .cdw .l { font-size: 11.5px; opacity: .75; margin-top: 2px; font-weight: 600; letter-spacing: .02em; }
+  .offer { display: flex; align-items: center; gap: 12px; text-align: left; margin-top: 16px; padding: 12px 14px; border-radius: 18px; background: rgba(255, 255, 255, .14); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+  .offer .mini { width: 46px; height: 46px; flex-shrink: 0; animation: bob 2.6s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-4px) rotate(-4deg); } }
+  .offer b { display: block; font-size: 15.5px; }
+  .offer span { font-size: 13.5px; opacity: .85; }
+  .sp { position: absolute; z-index: -1; animation: tw 2.6s ease-in-out infinite; pointer-events: none; line-height: 0; }
+
+  /* success */
+  .hc.ok { background: linear-gradient(160deg, #5fd38d 0%, #28a464 58%, #16804a 100%); }
+  .chk { display: block; width: 92px; height: 92px; margin: 0 auto 10px; }
+  .chk circle { fill: rgba(255, 255, 255, .2); transform-origin: 46px 46px; animation: pop .6s var(--ease) both; }
+  .chk path { fill: none; stroke: #fff; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 60; stroke-dashoffset: 60; animation: draw .5s .35s var(--ease) forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .rows { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; text-align: left; }
+  .rr { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-radius: 16px; background: rgba(0, 0, 0, .16); font-size: 15px; opacity: 0; transform: translateY(10px); }
+  .rr.show { opacity: 1; transform: none; transition: opacity .4s, transform .5s var(--ease); }
+  .rr.gold { background: linear-gradient(100deg, rgba(255, 224, 138, .95), rgba(247, 183, 51, .95)); color: #4a2f00; font-weight: 700; }
+  .rr.gold.show { animation: land .7s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes land { from { transform: translateY(-30px) scale(.8); } }
+  .until { font-size: 15px; margin-top: 14px; opacity: .92; }
+  .until b { display: inline-block; }
+  .until b.flip { animation: roll .5s var(--ease); color: #fff3c4; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01s !important; animation-iteration-count: 1 !important; transition-duration: .01s !important; } }
+</style></head><body>
+<div class="stage">
+  <div class="phone"><div class="screen" id="scr">
+    <div class="tgbar"><span class="x">Закрыть</span><span class="t">Лягушка VPN</span><span class="x">⋯</span></div>
+    <div class="view" id="view"></div>
+    <canvas class="cf" id="cf"></canvas>
+  </div></div>
+  <div class="side">
+    <h1>Бонус за первую оплату</h1>
+    <p>Пополнение от 200 ₽ до конца подарка — +3 дня. Всё кликается: меняйте сумму, жмите «Оплатить».</p>
+    <div class="steps" id="steps">
+      <button data-go="home"><b>1. Главная</b>Отсчёт до конца подарка</button>
+      <button data-go="topup"><b>2. Пополнение</b>Подарок открывается на 200 ₽</button>
+      <button data-go="done"><b>3. Оплачено</b>Конфетти и +3 дня к дате</button>
+    </div>
+    <button class="replay" id="replay">↻ Сначала</button>
+  </div>
+</div>
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const DAY = 6, NEED = 200, BONUS = 3, TODAY = new Date(2026, 10, 16);
+const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const fmt = (n) => n.toLocaleString("ru-RU");
+const plural = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; };
+const dws = (n) => `${n} ${plural(n, "день", "дня", "дней")}`;
+const dateFor = (d) => { const x = new Date(TODAY); x.setDate(x.getDate() + d); return x.toLocaleDateString("ru-RU", { day: "numeric", month: "long" }); };
+const STAR = (c = "#fff") => `<svg viewBox="0 0 20 20"><path d="M10 0c.9 5.6 4.4 9.1 10 10-5.6.9-9.1 4.4-10 10-.9-5.6-4.4-9.1-10-10C5.6 9.1 9.1 5.6 10 0z" fill="${c}"/></svg>`;
+const sparks = () => [[12, 18, 14, 0], [84, 12, 10, .7], [90, 58, 12, 1.4], [8, 64, 9, 2]].map(([x, y, s, d]) =>
+  `<span class="sp" style="left:${x}%;top:${y}%;width:${s}px;height:${s}px;animation-delay:${d}s">${STAR("rgba(255,255,255,.8)")}</span>`).join("");
+const BOX = (sz = 132, ring = true) => `<svg viewBox="0 0 132 132" width="${sz}" height="${sz}">
+  <defs><linearGradient id="gGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe9a8"/><stop offset="1" stop-color="#f5a623"/></linearGradient>
+  <linearGradient id="gBox" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e3e9f2"/></linearGradient>
+  <linearGradient id="gRib" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd76a"/><stop offset="1" stop-color="#e8961a"/></linearGradient></defs>
+  ${ring ? `<circle class="ring-bg" cx="66" cy="66" r="60"/><circle class="ring" id="ring" cx="66" cy="66" r="60" stroke-dasharray="377" stroke-dashoffset="377"/>` : ""}
+  <g class="box"><rect x="36" y="62" width="60" height="42" rx="7" fill="url(#gBox)"/><rect x="61" y="62" width="10" height="42" fill="url(#gRib)"/>
+  <rect x="36" y="62" width="60" height="7" fill="rgba(0,0,0,.07)"/>
+  <g class="lid"><rect x="31" y="50" width="70" height="15" rx="6" fill="#fff"/><rect x="61" y="50" width="10" height="15" fill="url(#gRib)"/>
+  <path d="M66 50c-6-12-22-14-22-5 0 6 12 6 22 5z" fill="url(#gRib)"/><path d="M66 50c6-12 22-14 22-5 0 6-12 6-22 5z" fill="url(#gRib)"/><circle cx="66" cy="49" r="4" fill="#e8961a"/></g></g></svg>`;
+
+// ---------- navigation ----------
+const ORDER = ["home", "topup", "done"];
+let curKey = null;
+const S = {};
+function go(key, back) {
+  const view = $("#view"), old = view.querySelector(".pg:not(.out):not(.outB)");
+  const pg = document.createElement("div");
+  pg.className = "pg";
+  pg.innerHTML = S[key].h();
+  if (old && !still) {
+    old.classList.add(back ? "outB" : "out");
+    pg.classList.add(back ? "inB" : "in");
+    setTimeout(() => old.remove(), 460);
+  } else if (old) old.remove();
+  view.appendChild(pg);
+  curKey = key;
+  document.querySelectorAll("#steps button").forEach((b) => b.classList.toggle("on", b.dataset.go === key));
+  S[key].on && S[key].on(pg);
+}
+document.addEventListener("click", (e) => {
+  const g = e.target.closest("[data-go]");
+  if (g) { const k = g.dataset.go; go(k, ORDER.indexOf(k) < ORDER.indexOf(curKey)); }
+});
+$("#replay").onclick = () => { st.amount = 100; st.paid = 0; go("home", true); };
+
+// ---------- 1. home ----------
+let cdT = null, left = 38 * 3600 + 32 * 60 + 5;
+S.home = {
+  h: () => `<section class="hc home">${sparks()}
+      <div class="K">Подарок закончится через</div>
+      <div class="cdw" id="cdw">${["д", "ч", "мин", "сек"].map((l) => `<div class="u"><div class="v"><span>0</span></div><div class="l">${l}</div></div>`).join("")}</div>
+      <div class="offer"><div class="mini">${BOX(46, false)}</div><div><b>+3 дня в подарок</b><span>за первое пополнение от 200 ₽ до конца отсчёта</span></div></div>
+      <div class="acts"><button class="pill g" data-go="topup" onclick="st.amount=200"><span>Пополнить</span><span class="b3">+3 дня</span></button></div>
+    </section>
+    <div class="st">Устройства</div>
+    <div class="cd"><div class="rw"><span class="e">📱</span><span class="tt"><b>Мой iPhone</b><span>в сети сейчас</span></span><span class="v">›</span></div></div>
+    <div class="note c">Баланс 18 ₽ · подарочные дни</div>`,
+  on(pg) {
+    clearInterval(cdT);
+    const vs = [...pg.querySelectorAll(".cdw .v")];
+    const paint = (first) => {
+      const p = [Math.floor(left / 86400), Math.floor(left % 86400 / 3600), Math.floor(left % 3600 / 60), left % 60].map((n, i) => i ? String(n).padStart(2, "0") : String(n));
+      vs.forEach((v, i) => { const s = v.firstElementChild; if (s.textContent !== p[i]) { v.innerHTML = `<span class="${first ? "" : "roll"}">${p[i]}</span>`; } });
+    };
+    paint(true);
+    cdT = setInterval(() => { if (!pg.isConnected) return clearInterval(cdT); left = Math.max(0, left - 1); paint(); }, 1000);
+  },
+};
+
+// ---------- 2. top up ----------
+const st = { amount: 100, paid: 0, shown: 0, opened: false };
+const CHIPS = [50, 100, 200, 500];
+S.topup = {
+  h: () => `<section class="hc cardpay" id="tp">
+      <div class="gbx idle" id="gbx"><div class="glow"></div>${BOX()}<div class="tag">+3 дня</div></div>
+      <div class="N"><span id="amt">0</span>&nbsp;₽</div>
+      <div class="dl"><span class="base" id="days">≈ 0 дней VPN</span><span class="plus3">🎁 +3 дня</span></div>
+      <div class="need" id="need" data-act="to200"><i>+</i><span id="needT">Ещё 100 ₽ — и +3 дня в подарок</span></div>
+      <div class="chp" id="chp">${CHIPS.map((v) => `<button data-v="${v}" class="${v >= NEED ? "g" : ""}">${v}</button>`).join("")}<button data-v="own">Своя</button></div>
+      <div class="acts"><button class="pill" id="pay"><span id="payT">Оплатить</span><span class="b3">+3 дня</span><i class="spin"></i></button></div>
+    </section>
+    <div class="st">Способ оплаты</div>
+    <div class="cd"><div class="rw"><span class="e">💳</span><span class="tt"><b>Банковская карта</b><span>Visa, Mastercard, Мир</span></span><span class="v">Изменить ›</span></div></div>
+    <div class="note c">Бонус за первое пополнение от 200 ₽ · разовая оплата, автоплатежей нет</div>`,
+  on(pg) {
+    st.shown = 0; st.opened = false;
+    pg.querySelector("#chp").addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      if (b.dataset.v === "own") { const v = Number(prompt("Сумма, ₽", st.amount)); if (v >= 50) setAmount(pg, v); return; }
+      setAmount(pg, Number(b.dataset.v));
+    });
+    pg.querySelector("#need").onclick = () => setAmount(pg, NEED);
+    pg.querySelector("#pay").onclick = (e) => {
+      const b = e.currentTarget; if (b.classList.contains("busy")) return;
+      b.classList.add("busy");
+      setTimeout(() => { st.paid = st.amount; go("done"); }, 1100);
+    };
+    setTimeout(() => setAmount(pg, st.amount), 250);
+  },
+};
+let tw = null;
+function setAmount(pg, v) {
+  const from = st.shown; st.amount = v;
+  const el = pg.querySelector("#amt"), t0 = performance.now(), dur = still ? 1 : 520;
+  cancelAnimationFrame(tw);
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3), n = Math.round(from + (v - from) * e);
+    el.textContent = fmt(n); st.shown = n;
+    if (k < 1) tw = requestAnimationFrame(step);
+  };
+  tw = requestAnimationFrame(step);
+  pg.querySelectorAll("#chp button").forEach((b) => b.classList.toggle("on", Number(b.dataset.v) === v || (b.dataset.v === "own" && !CHIPS.includes(v))));
+  const own = pg.querySelector('#chp [data-v="own"]'); own.textContent = CHIPS.includes(v) ? "Своя" : `${fmt(v)} ✎`;
+  const ok = v >= NEED, tp = pg.querySelector("#tp"), gbx = pg.querySelector("#gbx");
+  pg.querySelector("#days").textContent = `≈ ${dws(Math.floor(v / DAY))} VPN`;
+  pg.querySelector("#needT").textContent = `Ещё ${fmt(NEED - v)} ₽ — и +3 дня в подарок`;
+  pg.querySelector("#payT").textContent = `Оплатить ${fmt(v)} ₽`;
+  pg.querySelector("#ring").style.strokeDashoffset = 377 * (1 - Math.min(1, v / NEED));
+  tp.classList.toggle("on3", ok);
+  if (ok && !st.opened) { st.opened = true; setTimeout(() => { gbx.classList.remove("idle"); gbx.classList.add("open"); burst(gbx); }, still ? 0 : 520); }
+  if (!ok && st.opened) { st.opened = false; gbx.classList.remove("open"); gbx.classList.add("idle"); }
+}
+function burst(host) {
+  if (still) return;
+  const C = ["#ffe08a", "#f7b733", "#fff", "#ffd76a"];
+  for (let i = 0; i < 16; i++) {
+    const a = (Math.PI * 2 * i) / 16 + Math.random() * .3, r = 60 + Math.random() * 40;
+    const s = document.createElement("span"); s.className = "spark";
+    s.style.cssText = `--x:${Math.cos(a) * r}px;--y:${Math.sin(a) * r - 10}px;--s:${.8 + Math.random() * 1.2};--r:${Math.random() * 180}deg;animation-delay:${Math.random() * .08}s`;
+    s.innerHTML = STAR(C[i % C.length]); host.appendChild(s);
+    setTimeout(() => s.remove(), 1100);
+  }
+}
+
+// ---------- 3. done ----------
+S.done = {
+  h: () => {
+    const v = st.paid || 200, base = Math.floor(v / DAY) + 1, bonus = v >= NEED;
+    return `<section class="hc ok">${sparks()}
+      <svg class="chk" viewBox="0 0 92 92"><circle cx="46" cy="46" r="46"/><path d="M27 47l13 13 25-27"/></svg>
+      <div class="N">+<span id="paid">0</span>&nbsp;₽</div>
+      <div class="P">Баланс пополнен — VPN работает</div>
+      <div class="rows">
+        <div class="rr"><span>Оплачено</span><b>≈ ${dws(Math.floor(v / DAY))}</b></div>
+        ${bonus ? `<div class="rr gold"><span>🎁 Бонус за первую оплату</span><b>+3 дня</b></div>` : ""}
+      </div>
+      <div class="until">VPN оплачен до <b id="until">${dateFor(base)}</b></div>
+      <div class="acts"><button class="pill" data-go="home"><span>Готово</span></button></div>
+    </section>`;
+  },
+  on(pg) {
+    const v = st.paid || 200, el = pg.querySelector("#paid"), t0 = performance.now();
+    const step = (t) => { const k = Math.min(1, (t - t0) / 700); el.textContent = fmt(Math.round(v * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(step); };
+    setTimeout(() => requestAnimationFrame(step), 300);
+    const rows = [...pg.querySelectorAll(".rr")];
+    rows.forEach((r, i) => setTimeout(() => r.classList.add("show"), 800 + i * 650));
+    if (v >= NEED) setTimeout(() => {
+      const u = pg.querySelector("#until"); u.textContent = dateFor(Math.floor(v / DAY) + 1 + BONUS); u.classList.remove("flip"); void u.offsetWidth; u.classList.add("flip");
+      confetti();
+    }, 1450);
+  },
+};
+
+// ---------- confetti ----------
+function confetti() {
+  if (still) return;
+  const cv = $("#cf"), scr = $("#scr"), ctx = cv.getContext("2d"), dpr = devicePixelRatio || 1;
+  cv.width = scr.clientWidth * dpr; cv.height = scr.clientHeight * dpr; ctx.scale(dpr, dpr);
+  const W = scr.clientWidth, H = scr.clientHeight, C = ["#ffe08a", "#f7b733", "#5fd38d", "#ffffff", "#5fb4ff"];
+  const ps = Array.from({ length: 140 }, () => ({ x: W / 2 + (Math.random() - .5) * 60, y: H * .32, vx: (Math.random() - .5) * 9, vy: -6 - Math.random() * 9,
+    w: 5 + Math.random() * 6, h: 8 + Math.random() * 8, r: Math.random() * 6, vr: (Math.random() - .5) * .35, c: C[Math.floor(Math.random() * C.length)] }));
+  const t0 = performance.now();
+  (function f(t) {
+    ctx.clearRect(0, 0, W, H);
+    const age = (t - t0) / 1000;
+    ps.forEach((p) => { p.vy += .32; p.vx *= .985; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.globalAlpha = Math.max(0, 1 - age / 2.8); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.scale(1, Math.cos(p.r * 2));
+      ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore(); });
+    if (age < 2.8) requestAnimationFrame(f); else ctx.clearRect(0, 0, W, H);
+  })(t0);
+}
+
+go(location.hash.slice(1) || "home");
+</script>
+</body></html>

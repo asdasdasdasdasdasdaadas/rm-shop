@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Автопополнение — вариант 3 «Раз в месяц»</title>
+<link rel="stylesheet" href="../../webapp/cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:hidden}
+.top{padding:22px 20px 4px;max-width:1240px;margin:0 auto}
+.top .k{font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#5ea8ff}
+.top h1{font-size:23px;margin:4px 0 0;font-weight:800;letter-spacing:-.2px}
+.top p{margin:8px 0 0;color:#9aa0ab;font-size:14.5px;max-width:860px;line-height:1.5}
+.nav{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.nav a{padding:8px 14px;border-radius:99px;background:#1c1e23;font-size:13.5px;font-weight:600;color:#cfd5de;text-decoration:none}
+.nav a.on{background:#fff;color:#111}
+.rules{max-width:1240px;margin:18px auto 0;padding:0 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.rule{background:#15171b;border-radius:18px;padding:13px 16px;font-size:13.5px;color:#9aa0ab;line-height:1.45}
+.rule b{display:block;color:#fff;font-size:14.5px;margin-bottom:3px}
+.rule.minus b{color:#f6a447}
+.row{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;padding:22px 16px 40px}
+.col{width:min(360px,calc(100vw - 32px))}
+.cap{margin:14px 6px 0}.cap b{font-size:17px}.cap p{margin:4px 0 0;color:#9aa0ab;font-size:13.5px;line-height:1.45}
+.phone{width:100%;height:840px;border-radius:46px;border:9px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;background:var(--bg)}
+.scrl{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding:14px 0 30px}.scrl::-webkit-scrollbar{display:none}
+.phone *{animation:none!important}
+.frog{width:78px;height:78px}
+.sw2{width:51px;height:31px;border-radius:99px;background:#3a3d45;position:relative;flex-shrink:0}
+.sw2::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.sw2.on{background:var(--grn)}.sw2.on::after{transform:translateX(20px)}
+.apb{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:7px 14px 7px 11px;border-radius:99px;background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:13.5px;font-weight:600;white-space:nowrap}
+.hc .acts.col2{flex-direction:column;gap:8px}
+.hc .acts.col2 .pill{flex:none;width:100%}
+.pill.ghost{background:rgba(255,255,255,.2);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)}
+.fine{font-size:12.5px;color:var(--hint);text-align:center;margin:12px 26px 0;line-height:1.45}.fine u{color:#8cc0ff;text-decoration:none}
+.hist .v{color:var(--grn)}
+/* telegram */
+.chat{background:#0e1621;position:absolute;inset:0;padding-top:14px;display:flex;flex-direction:column}
+.tgbar{display:flex;align-items:center;gap:10px;padding:6px 14px 10px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.tgbar .av{width:38px;height:38px;border-radius:50%;overflow:hidden}.tgbar .av img{width:38px;height:38px}
+.tgbar b{font-size:15.5px;display:block}.tgbar span{font-size:13px;color:#7d8b99}
+.feed{flex:1;overflow-y:auto;scrollbar-width:none;padding:12px 10px 16px}.feed::-webkit-scrollbar{display:none}
+.day{text-align:center;margin:4px 0 10px}.day span{background:rgba(0,0,0,.35);color:#fff;font-size:12.5px;padding:3px 10px;border-radius:99px}
+.bub{background:#182533;border-radius:16px 16px 16px 5px;padding:9px 12px 7px;font-size:14.5px;line-height:1.38;max-width:94%;color:#fff}
+.bub .t{float:right;font-size:11.5px;color:#6d7f8f;margin:6px 0 0 10px}.bub b{font-weight:600}
+.bub .q{border-left:3px solid #5ea8ff;padding:2px 0 2px 9px;margin-top:6px;color:#c9d4de}
+.bub .q.g{border-color:#3ccf74}.bub .q.o{border-color:#f6a447}
+.bub::after{content:"";display:block;clear:both}
+.kb{display:grid;gap:4px;margin:4px 0 12px;max-width:94%}
+.kb.two{grid-template-columns:1fr 1fr}.kb.three{grid-template-columns:1fr 1.2fr 1fr}
+.kb .w{grid-column:1/-1}
+.kb div{background:rgba(70,95,120,.35);border-radius:10px;padding:9px 6px;text-align:center;font-size:14px;font-weight:600;color:#fff}
+.kb div.hl{background:rgba(62,136,247,.55)}
+.kb div.val{background:rgba(70,95,120,.18);color:#c9d4de}
+.me{margin:0 0 10px auto;background:#2b5278;border-radius:16px 16px 5px 16px;padding:7px 12px;font-size:14.5px;width:max-content;color:#fff}
+/* widget */
+.wg{display:block;width:calc(100% - 24px);text-align:left;margin:12px 12px 0;background:var(--card);border-radius:26px;padding:16px 18px}
+.wg .h{display:flex;align-items:center;gap:12px}
+.wg .h .ic{width:42px;height:42px;border-radius:13px;background:linear-gradient(180deg,#3d4ea3,#6177cc);display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0}
+.wg .h b{font-size:16.5px;font-weight:600;display:block}.wg .h span.s{font-size:13.5px;color:var(--hint);display:block;margin-top:1px}
+.wg .h .v{margin-left:auto;color:var(--hint);font-size:15px;display:flex;align-items:center;gap:6px;flex-shrink:0}
+.wg.off .h .ic{background:#2a2d34}
+.wg .bar{height:6px;border-radius:9px;background:#2a2d34;margin-top:14px;overflow:hidden}.wg .bar i{display:block;height:100%;border-radius:9px;background:#6177cc}
+.wg .lg{display:flex;justify-content:space-between;font-size:12.5px;color:var(--hint);margin-top:6px}
+.wg .bt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.wg .bt span{height:40px;border-radius:13px;background:#2a2d34;display:flex;align-items:center;justify-content:center;font-size:14.5px;font-weight:600}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:12px 0 14px}
+.cal span{height:36px;border-radius:11px;background:#121317;display:flex;align-items:center;justify-content:center;font-size:14.5px;font-weight:600;color:#c4c9d3}
+.cal span.on{background:#fff;color:#111}
+.toast2{position:absolute;left:12px;right:12px;bottom:22px;z-index:40;background:#2a2d34;border-radius:16px;padding:12px 14px;font-size:14.5px;font-weight:600;display:flex;gap:10px;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+.toast2 .u{margin-left:auto;color:#8cc0ff;font-weight:700}
+</style>
+</head>
+<body>
+<div class="top">
+  <span class="k">Вариант 3 · тихий, в кабинете</span>
+  <h1>«Раз в месяц» — понятная дата и сумма, без всплывающих предложений</h1>
+  <p>Другая механика: не «когда баланс кончается», а в выбранный день месяца на сумму месяца — 180 ₽ за одно устройство. Человек заранее знает дату и сумму, как у привычной оплаты связи. Никто ничего не предлагает: на главной кабинета лежит спокойный виджет, и в него же встроено управление. Бот пишет только по делу: напоминание, чек, ошибка.</p>
+  <div class="nav"><a href="autopay-best.html">Вариант 1 · после оплаты</a><a href="autopay-v2-moment.html">Вариант 2 · в нужный момент</a><a class="on" href="autopay-v3-calendar.html">Вариант 3 · раз в месяц</a></div>
+</div>
+<div class="rules">
+  <div class="rule"><b>Где предлагаем</b>Нигде не всплывает. Виджет на главной и строка на экране пополнения — человек включает сам, когда захочет.</div>
+  <div class="rule"><b>Как включается</b>Выбор дня месяца и первая оплата картой. Сумма считается сама: 6 ₽ × 30 дней × число устройств.</div>
+  <div class="rule"><b>Где управлять</b>В виджете на главной: «Пропустить» и «Изменить». Бот только сообщает, кнопок управления в чате минимум.</div>
+  <div class="rule"><b>Плюс</b>Самый предсказуемый: «15-го числа 180 ₽». Никакого давления, ни одного лишнего сообщения в боте.</div>
+  <div class="rule minus"><b>Минус</b>Похоже на подписку, хотя баланс остаётся. Включат меньше людей, чем в вариантах 1 и 2. Сумма меняется при добавлении устройств.</div>
+</div>
+
+<div class="row">
+
+<!-- 1 -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc green"><div class="ov"></div><div class="rb">VPN вкл</div>
+    <div class="ill"><div><img class="frog" src="../../webapp/icons/frog.png" alt=""></div></div>
+    <div class="N">46 ₽</div>
+    <div class="P">Хватит на 7 дней · до 21 ноября</div>
+    <div class="acts"><button type="button" class="pill"><span>Пополнить</span></button></div>
+  </section>
+  <button class="wg off"><span class="h"><span class="ic">📅</span><span><b>Платёж раз в месяц</b><span class="s">180 ₽ в выбранный день, сами</span></span><span class="v">Выкл <span class="cv">›</span></span></span></button>
+  <div class="st">Устройства <span style="color:var(--hint);font-weight:500">· 1 из 10</span></div>
+  <div class="cd">
+    <button class="rw"><span class="e">📱</span><span class="tt"><b>iPhone</b><span><span class="dot"></span>Подключено · 6 ₽ в день</span></span><span class="v"><span class="cv">›</span></span></button>
+    <button class="rw blue"><span class="e">＋</span>Добавить устройство</button>
+  </div>
+  <div style="height:12px"></div>
+  <div class="cd">
+    <button class="rw"><span class="e">🎁</span>Пригласить друзей<span class="v"><span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">⚙️</span>Настройки<span class="v"><span class="cv">›</span></span></button>
+  </div>
+</div></div>
+<div class="cap"><b>1. Главная: тихий виджет</b><p>Серая карточка под балансом. Не шторка и не баннер: её не нужно закрывать, она не меняет цвет и не просит внимания.</p></div></div>
+
+<!-- 2 -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc cardpay"><div class="ov"></div>
+    <div class="ill"><div><span style="font-size:60px;line-height:1">💳</span></div></div>
+    <div class="N">300 ₽</div>
+    <div class="P">≈ 50 дней VPN</div>
+    <div class="chp"><button>100</button><button class="on">300</button><button>500</button><button>1 000</button><button>Своя</button></div>
+    <div class="acts"><button type="button" class="pill"><span>Оплатить 300 ₽</span></button></div>
+  </section>
+  <div class="st">Способ оплаты</div>
+  <div class="cd"><button class="rw"><span class="e">💳</span><span class="tt"><b>Банковская карта</b><span>Visa, Mastercard, МИР</span></span><span class="v">Изменить <span class="cv">›</span></span></button></div>
+  <div class="cd" style="margin-top:12px"><button class="rw"><span class="e">📅</span><span class="tt"><b>Платить раз в месяц</b><span>180 ₽ в выбранный день</span></span><span class="v">Выкл <span class="cv">›</span></span></button></div>
+  <div class="note c">Баланс 46 ₽ · это разовая оплата, карта не сохраняется.</div>
+</div></div>
+<div class="cap"><b>2. Экран пополнения</b><p>Вторая точка входа — обычная строка, не переключатель. Разовая оплата остаётся разовой: карту без согласия не запоминаем.</p></div></div>
+
+<!-- 3 -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc indigo"><div class="ov"></div>
+    <div class="H" style="font-size:18px;opacity:.9">📅 Платёж раз в месяц</div>
+    <div class="N">180 ₽</div>
+    <div class="P">1 устройство × 6 ₽ × 30 дней</div>
+  </section>
+  <div class="st">День списания</div>
+  <div class="cd">
+    <div class="cal"><span>1</span><span>5</span><span>10</span><span class="on">15</span><span>20</span><span>25</span><span>28</span></div>
+  </div>
+  <div class="cd">
+    <div class="rw"><span class="e">✓</span><span class="tt"><b>Сегодня — 180 ₽</b><span>первая оплата, карта запомнится</span></span></div>
+    <div class="rw"><span class="e">📅</span><span class="tt"><b>Дальше — 15-го числа</b><span>ближайшее 15 декабря, за 3 дня напомним</span></span></div>
+    <div class="rw"><span class="e">⏭</span><span class="tt"><b>Хватает на месяц вперёд?</b><span>тогда в этот раз не списываем</span></span></div>
+  </div>
+  <div style="padding:14px 12px 0;display:flex;flex-direction:column;gap:8px">
+    <button type="button" class="pill" style="width:100%;flex:none;background:var(--blue);color:#fff"><span>Оплатить 180 ₽ и включить</span></button>
+    <button type="button" class="pill" style="width:100%;flex:none;background:#2a2d34;color:#fff"><span>Не сейчас</span></button>
+  </div>
+  <div class="fine">Отключить можно в любой момент на главной · <u>Условия</u></div>
+</div></div>
+<div class="cap"><b>3. Включение</b><p>Один выбор — день месяца. Сумму считаем сами по числу устройств. Карта привязывается первой оплатой, «Не сейчас» такой же заметный.</p></div></div>
+
+<!-- 4 -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc green"><div class="ov"></div><div class="rb">VPN вкл</div>
+    <div class="ill"><div><img class="frog" src="../../webapp/icons/frog.png" alt=""></div></div>
+    <div class="N">226 ₽</div>
+    <div class="P">Хватит до 21 декабря</div>
+    <div class="acts"><button type="button" class="pill"><span>Пополнить</span></button></div>
+  </section>
+  <div class="wg"><div class="h"><span class="ic">📅</span><span><b>15 декабря · 180 ₽</b><span class="s">раз в месяц · карта •• 4242</span></span></div>
+    <div class="bar"><i style="width:4%"></i></div>
+    <div class="lg"><span>оплачено 14 ноября</span><span>через 31 день</span></div>
+    <div class="bt"><span>Пропустить</span><span>Изменить</span></div>
+  </div>
+  <div class="st">Устройства <span style="color:var(--hint);font-weight:500">· 1 из 10</span></div>
+  <div class="cd">
+    <button class="rw"><span class="e">📱</span><span class="tt"><b>iPhone</b><span><span class="dot"></span>Подключено · 6 ₽ в день</span></span><span class="v"><span class="cv">›</span></span></button>
+    <button class="rw blue"><span class="e">＋</span>Добавить устройство</button>
+  </div>
+  <div style="height:12px"></div>
+  <div class="cd">
+    <button class="rw"><span class="e">🎁</span>Пригласить друзей<span class="v"><span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">⚙️</span>Настройки<span class="v"><span class="cv">›</span></span></button>
+  </div>
+</div></div>
+<div class="cap"><b>4. Главная после включения</b><p>Виджет становится пультом: дата, сумма, карта, полоска до следующего платежа и две кнопки. Яркая карточка баланса не меняется.</p></div></div>
+
+<!-- 5 -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc slate"><div class="ov"></div><div class="rb">выключено</div>
+    <div class="ill"><div><span style="font-size:58px;line-height:1">📅</span></div></div>
+    <div class="N">180 ₽</div>
+    <div class="P">платёж раз в месяц выключен · карта сохранена</div>
+  </section>
+  <div class="cd" style="margin-top:14px">
+    <div class="rw"><span class="e">⚡</span><span class="tt"><b>Выключено</b><span>пополняйте вручную, когда нужно</span></span><span class="v"><span class="sw2"></span></span></div>
+  </div>
+  <div class="st">Настройки</div>
+  <div class="cd">
+    <button class="rw"><span class="e">📅</span>День<span class="v">15-го <span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">💰</span><span class="tt"><b>Сумма</b><span>по числу устройств</span></span><span class="v">180 ₽ <span class="cv">›</span></span></button>
+    <button class="rw"><span class="e">💳</span>Карта<span class="v">•• 4242 <span class="cv">›</span></span></button>
+  </div>
+  <div class="st">История</div>
+  <div class="cd hist">
+    <div class="rw"><span class="e">✓</span>14 ноября<span class="v">+180 ₽</span></div>
+  </div>
+  <div class="cd" style="margin-top:12px"><button class="rw red"><span class="e">✕</span>Отвязать карту</button></div>
+</div><div class="toast2"><span style="font-size:20px">⏸</span>Платёж выключен<span class="u">Вернуть</span></div></div>
+<div class="cap"><b>5. Управление и отключение</b><p>Открывается по «Изменить». Один переключатель без «вы уверены?», потом тост «Вернуть». Отвязать карту — отдельной строкой внизу.</p></div></div>
+
+<!-- 6 -->
+<div class="col"><div class="phone"><div class="scrl">
+  <section class="hc purple"><div class="ov"></div>
+    <div class="ill"><div><span style="font-size:58px;line-height:1">💻</span></div></div>
+    <div class="H">Добавить MacBook?</div>
+    <div class="P">+6 ₽ в день · всего 12 ₽ в день</div>
+    <div class="acts"><button type="button" class="pill"><span>Добавить</span></button></div>
+  </section>
+  <div class="st">Платёж раз в месяц</div>
+  <div class="cd">
+    <div class="rw"><span class="e">📅</span><span class="tt"><b>Сейчас</b><span>15-го числа, 1 устройство</span></span><span class="v">180 ₽</span></div>
+    <div class="rw"><span class="e">➜</span><span class="tt"><b>С 15 декабря</b><span>2 устройства</span></span><span class="v" style="color:#fff;font-weight:600">360 ₽</span></div>
+  </div>
+  <div class="note">Сегодня ничего не списываем. Баланса 226 ₽ с двумя устройствами хватит до 2 декабря — пополните вручную или перенесите день платежа.</div>
+  <div class="cd" style="margin-top:12px"><button class="rw blue"><span class="e">💰</span>Оставить 180 ₽ в месяц</button></div>
+</div></div>
+<div class="cap"><b>6. Меняется число устройств</b><p>Экран есть только в этом варианте: сумма зависит от устройств, поэтому перед добавлением показываем новый платёж и даём оставить прежний.</p></div></div>
+
+<!-- 7 -->
+<div class="col"><div class="phone"><div class="chat">
+  <div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div>
+  <div class="feed">
+    <div class="day"><span>14 ноября</span></div>
+    <div class="bub">📅 <b>Платёж раз в месяц включён</b><div class="q g">180 ₽ с карты •• 4242, 15-го числа.<br>Ближайший — 15 декабря, напомним 12-го.</div><span class="t">10:02</span></div>
+    <div class="kb"><div>Открыть кабинет</div></div>
+    <div class="day"><span>12 декабря</span></div>
+    <div class="bub">🔔 <b>15 декабря спишем 180 ₽</b><div class="q">С карты •• 4242. Баланса после этого хватит до 20 января.</div><span class="t">12:00</span></div>
+    <div class="kb two"><div>Хорошо</div><div>Пропустить месяц</div></div>
+    <div class="day"><span>15 декабря</span></div>
+    <div class="bub">✅ <b>Платёж за месяц: +180 ₽</b><div class="q g">Баланс 220 ₽ — хватит до 20 января.<br>Следующий — 15 января.</div><span class="t">12:00</span></div>
+    <div class="kb two"><div>Чек</div><div>Изменить</div></div>
+  </div>
+</div></div>
+<div class="cap"><b>7. Сообщения бота</b><p>Три сообщения на месяц: включили, напомнили за 3 дня, прислали чек. Если баланса и так хватает на месяц — вместо напоминания «в этом месяце не списываем».</p></div></div>
+
+<!-- 8 -->
+<div class="col"><div class="phone"><div class="chat">
+  <div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div>
+  <div class="feed">
+    <div class="day"><span>15 декабря</span></div>
+    <div class="bub">⚠️ <b>Не получилось списать 180 ₽</b><div class="q o">Банк отклонил платёж с •• 4242.<br>Баланса хватит до 21 декабря. Завтра попробуем ещё раз.</div><span class="t">12:00</span></div>
+    <div class="kb"><div>Пополнить вручную</div><div>Сменить карту</div></div>
+    <div class="day"><span>16 декабря</span></div>
+    <div class="bub">⏹ <b>Платёж раз в месяц выключен</b><div class="q o">Карта •• 4242 не сработала дважды. Больше списывать не пробуем.<br>VPN работает до 21 декабря.</div><span class="t">12:00</span></div>
+    <div class="kb"><div>Пополнить вручную</div><div>Включить с другой картой</div><div>🤝 Обещанный платёж</div></div>
+  </div>
+</div></div>
+<div class="cap"><b>8. Неудачное списание</b><p>Причина, до какого числа работает VPN, повтор на следующий день. После двух неудач выключаем и пишем об этом; обычные предупреждения о балансе продолжают приходить.</p></div></div>
+
+</div>
+</body>
+</html>

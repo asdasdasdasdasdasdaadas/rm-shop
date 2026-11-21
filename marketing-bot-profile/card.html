@@ -1,0 +1,34 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+*{margin:0;box-sizing:border-box}
+html,body{width:640px;height:360px;overflow:hidden}
+body{font-family:-apple-system,"SF Pro Display",system-ui,sans-serif;color:#fff;
+ background:radial-gradient(120% 90% at 78% 30%,#6fe09c 0%,#2fae6a 45%,#167a47 100%);position:relative}
+.rays{position:absolute;left:480px;top:170px;width:900px;height:900px;margin:-450px 0 0 -450px;
+ background:repeating-conic-gradient(rgba(255,255,255,.10) 0 7deg,transparent 7deg 18deg);
+ -webkit-mask:radial-gradient(circle,#000 0,transparent 62%);mask:radial-gradient(circle,#000 0,transparent 62%)}
+.glow{position:absolute;left:480px;top:170px;width:300px;height:300px;margin:-150px 0 0 -150px;border-radius:50%;
+ background:radial-gradient(circle,rgba(255,255,255,.45),transparent 65%)}
+.frog{position:absolute;left:390px;top:80px;width:180px;height:180px;filter:drop-shadow(0 14px 24px rgba(0,40,20,.45))}
+.sp{position:absolute;color:#fff;opacity:.85}
+.txt{position:absolute;left:36px;top:46px;width:330px}
+.brand{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;opacity:.92}
+.brand img{width:24px;height:24px}
+h1{margin-top:20px;font-size:40px;line-height:1.04;font-weight:800;letter-spacing:-1px;text-shadow:0 2px 14px rgba(0,50,25,.25)}
+p{margin-top:12px;font-size:16px;line-height:1.3;opacity:.92;font-weight:500}
+.chips{position:absolute;left:36px;bottom:34px;display:flex;gap:8px}
+.chip{background:rgba(255,255,255,.95);color:#13693d;font-weight:700;font-size:14px;padding:8px 13px;border-radius:99px;box-shadow:0 4px 14px rgba(0,50,25,.2)}
+.chip.d{background:rgba(255,255,255,.18);color:#fff;box-shadow:none}
+</style></head><body>
+<div class="rays"></div><div class="glow"></div>
+<svg class="sp" style="left:588px;top:58px" width="18" height="18" viewBox="0 0 20 20"><path d="M10 0c.9 5.6 4.4 9.1 10 10-5.6.9-9.1 4.4-10 10-.9-5.6-4.4-9.1-10-10C5.6 9.1 9.1 5.6 10 0z" fill="#fff"/></svg>
+<svg class="sp" style="left:395px;top:52px;opacity:.6" width="12" height="12" viewBox="0 0 20 20"><path d="M10 0c.9 5.6 4.4 9.1 10 10-5.6.9-9.1 4.4-10 10-.9-5.6-4.4-9.1-10-10C5.6 9.1 9.1 5.6 10 0z" fill="#fff"/></svg>
+<svg class="sp" style="left:582px;top:250px;opacity:.7" width="14" height="14" viewBox="0 0 20 20"><path d="M10 0c.9 5.6 4.4 9.1 10 10-5.6.9-9.1 4.4-10 10-.9-5.6-4.4-9.1-10-10C5.6 9.1 9.1 5.6 10 0z" fill="#fff"/></svg>
+<img class="frog" src="frog.png">
+<div class="txt">
+ <div class="brand"><img src="frog.png">Лягушка VPN</div>
+ <h1>VPN прямо<br>в Telegram</h1>
+ <p>Без подписки — 6 ₽ в сутки<br>за устройство</p>
+</div>
+<div class="chips"><span class="chip">🎁 3 дня бесплатно</span><span class="chip d">⚡ Подключение за минуту</span></div>
+</body></html>

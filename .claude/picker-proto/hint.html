@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Подсказка и «Как установить» — 10 вариантов</title>
+<link rel="stylesheet" href="cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:auto}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:22px 28px 6px;max-width:1720px;margin:0 auto}
+.top h1{font-size:22px;margin:0;font-weight:800}.top p{margin:0;color:#9aa0ab;font-size:14px}
+.rep{padding:8px 16px;border-radius:12px;background:#1c1e23;font-size:14px;font-weight:600}
+.row{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;padding:18px 20px 40px}
+.col{width:min(360px,calc(100vw - 32px))}
+.cap{margin:14px 6px 0}.cap b{font-size:17px}.cap p{margin:4px 0 0;color:#9aa0ab;font-size:13.5px;line-height:1.45}
+.phone{width:100%;height:760px;border-radius:46px;border:9px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;background:var(--bg)}
+.scrl{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding-bottom:30px}.scrl::-webkit-scrollbar{display:none}
+.bar{display:flex;align-items:center;gap:10px;padding:14px 14px 12px}
+.bar .bk{font-size:24px;width:30px}.bar .nm{display:flex;align-items:center;gap:8px;background:#1c1e23;border-radius:12px;padding:6px 12px 6px 6px;font-size:14px;font-weight:600}
+.bar .nm img{width:24px;height:24px;border-radius:50%}.bar .mr{margin-left:auto;font-size:20px;letter-spacing:1px}
+.H{font-size:26px}
+.big{width:92px;height:92px;border-radius:22px;display:block;box-shadow:0 16px 26px rgba(0,0,0,.35)}
+.mk{display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#4b5263,#2a2e38);color:#fff;font-weight:800}
+/* shared «ещё» row */
+.alt{margin:14px 12px 0;background:var(--card);border-radius:22px;position:relative}
+.ah{display:flex;align-items:center;gap:12px;padding:14px 18px;width:100%;text-align:left;font-size:16.5px}
+.ah .cv{margin-left:auto}
+.ava{display:flex;flex-shrink:0}.ava>*{width:30px;height:30px;border-radius:8px;border:2px solid var(--card);margin-left:-9px;font-size:11px}.ava>:first-child{margin-left:0}
+.ava.hop>*{animation:hop .5s ease-in-out 2;animation-delay:calc(1.2s + var(--i)*.1s)}@keyframes hop{40%{transform:translateY(-7px)}70%{transform:translateY(1px)}}
+.al{display:flex;flex-direction:column;min-width:0}.al b{font-weight:600}.al span{font-size:13.5px;color:var(--hint);margin-top:1px}
+/* 1 chip */
+.gch{display:inline-flex;align-items:center;gap:7px;margin-top:14px;padding:7px 14px 7px 12px;border-radius:99px;background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:14.5px;font-weight:600}
+/* 2 tooltip + text link */
+.tip{position:absolute;left:18px;right:18px;bottom:calc(100% + 10px);background:#fff;color:#1d2340;border-radius:16px;padding:10px 14px;font-size:14px;font-weight:600;box-shadow:0 12px 30px rgba(0,0,0,.4);
+  transform-origin:30% 100%;animation:tipin .5s 1.2s cubic-bezier(.3,1.4,.5,1) both, tipout .3s 6s ease forwards;display:flex;gap:10px;align-items:center;z-index:3}
+.tip::after{content:"";position:absolute;left:40px;top:100%;border:8px solid transparent;border-top-color:#fff}
+.tip .x{margin-left:auto;opacity:.5}
+@keyframes tipin{from{opacity:0;transform:scale(.6) translateY(10px)}}@keyframes tipout{to{opacity:0;transform:scale(.9);visibility:hidden}}
+.tlink{display:block;color:#fff;margin-top:14px;font-size:15px;font-weight:600;opacity:.92}.tlink u{text-decoration:none;border-bottom:1.5px solid rgba(255,255,255,.5)}
+/* 3 three buttons + inline switch */
+.sw{display:inline-flex;align-items:center;gap:8px;margin-top:12px;background:rgba(0,0,0,.22);border-radius:99px;padding:5px 12px 5px 5px;font-weight:700;font-size:14.5px}
+.sw img,.sw .mk{width:26px;height:26px;border-radius:8px;font-size:10px}.sw .c{opacity:.75;font-weight:600}
+.sw.pulse{animation:pls 1.6s 1.2s ease-out 2}@keyframes pls{0%{box-shadow:0 0 0 0 rgba(255,255,255,.55)}100%{box-shadow:0 0 0 14px rgba(255,255,255,0)}}
+.acts3{display:flex;gap:10px;margin-top:20px;align-items:flex-start}
+.acts3 .pill{flex:1}.rb2{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11.5px;font-weight:600;opacity:.95}
+.rb2 .rnd{width:52px;height:52px}
+/* 4 steps with links */
+.tl .lk{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:14.5px;font-weight:600}.tl .lk a{white-space:nowrap}.tl .lk a{color:var(--link)}
+.tl .lk a.o{color:var(--hint);font-weight:500}
+/* 5 guide card + coach mark */
+.gcard{margin:14px 12px 0;background:var(--card);border-radius:22px;padding:12px;display:flex;gap:14px;align-items:center;text-align:left}
+.thumb{position:relative;width:96px;height:64px;border-radius:14px;background:linear-gradient(160deg,#0f5f66,#3fc6b4);flex-shrink:0;overflow:hidden}
+.thumb img{position:absolute;left:10px;top:10px;width:44px;height:44px;border-radius:11px;opacity:.85}
+.thumb .pl{position:absolute;right:8px;bottom:8px;width:26px;height:26px;border-radius:99px;background:#fff;display:flex;align-items:center;justify-content:center}
+.gcard b{display:block;font-size:16px}.gcard span{font-size:13.5px;color:var(--hint)}
+.coach{position:absolute;inset:-4px;border-radius:26px;box-shadow:0 0 0 2px #3fc6b4;animation:ring 1.8s 1.2s ease-out 3;opacity:0;pointer-events:none}
+@keyframes ring{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.06)}}
+.newb{font-style:normal;font-size:11px;font-weight:800;background:#3fc6b4;color:#062a2a;border-radius:99px;padding:2px 7px;margin-left:6px;vertical-align:2px}
+/* 6 app strip in the card + corner guide */
+.v6{margin-top:16px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.v6l{font-size:13px;opacity:.8;font-weight:600}
+.v6r{display:flex;gap:10px;justify-content:center}
+.v6r>span{position:relative;display:flex;border-radius:12px;transition:transform .2s}.v6r img,.v6r .mk{width:40px;height:40px;border-radius:11px;font-size:13px}
+.v6r>span:not(.on){opacity:.6;animation:v6n .45s ease-in-out 1 backwards;animation-delay:calc(1.2s + var(--i)*.12s)}
+.v6r>span.on{box-shadow:0 0 0 2.5px #fff;opacity:1}
+.v6r>span.on::after{content:"✓";position:absolute;right:-6px;top:-6px;width:17px;height:17px;border-radius:99px;background:#fff;color:#0f5f66;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center}
+@keyframes v6n{50%{transform:translateY(-6px);opacity:1}}
+.v6g{position:absolute;z-index:3;right:12px;top:12px;display:flex;align-items:center;gap:5px;background:rgba(0,0,0,.22);border-radius:99px;padding:6px 11px 6px 9px;font-size:13px;font-weight:700}
+/* 7 inline accordion guide + bottom toast */
+.v7{margin:14px 12px 0;background:var(--card);border-radius:22px;padding:14px 18px;text-align:left}
+.v7 .hd{display:flex;align-items:center;gap:10px;font-size:16.5px;font-weight:600}.v7 .hd i{white-space:nowrap;font-style:normal;margin-left:auto;color:var(--hint);font-size:13px;font-weight:500}
+.v7 ol{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.v7 li{display:flex;gap:10px;align-items:center;font-size:14.5px;animation:v7i .4s ease both;animation-delay:calc(.5s + var(--i)*.15s)}
+.v7 li b{width:22px;height:22px;border-radius:99px;background:#3fc6b4;color:#062a2a;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+@keyframes v7i{from{opacity:0;transform:translateX(-10px)}}
+.v7t{position:absolute;left:10px;right:10px;bottom:12px;z-index:5;background:#2b2e36;border-radius:18px;padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:14px;box-shadow:0 14px 34px rgba(0,0,0,.55);
+  animation:v7u .55s 1.3s cubic-bezier(.3,1.3,.5,1) both}
+.v7t .ava>*{border-color:#2b2e36}.v7t b{color:#5fd3c3;white-space:nowrap}.v7t .x{margin-left:auto;opacity:.45}
+@keyframes v7u{from{transform:translateY(120%);opacity:0}}
+/* 8 split button + screenshot steps */
+.v8b{display:flex;gap:10px;margin-top:20px}.v8s{flex:1;display:flex;border-radius:99px;background:#fff;color:#0f5f66;font-weight:700;font-size:17px;overflow:hidden}
+.v8s span{flex:1;white-space:nowrap;display:flex;align-items:center;justify-content:center;padding:15px 0}.v8s em{white-space:nowrap;font-style:normal;display:flex;align-items:center;gap:4px;padding:0 14px;border-left:1.5px solid rgba(15,95,102,.2);font-size:13px}
+.v8s em .ava>*{width:20px;height:20px;border-radius:6px;font-size:8px;border-color:#fff;margin-left:-7px}.v8s em .ava>:first-child{margin-left:0}
+.v8g{margin:14px 12px 0;background:var(--card);border-radius:22px;padding:14px 14px 12px;text-align:left}
+.v8g .hd{display:flex;align-items:center;gap:8px;font-weight:600;font-size:16px;padding:0 4px}.v8g .hd i{font-style:normal;margin-left:auto;color:var(--link);font-size:14px}
+.v8r{display:flex;gap:8px;margin-top:10px}
+.v8r>div{flex:1;border-radius:14px;background:#24272e;padding:8px 6px;text-align:center;font-size:11.5px;color:var(--hint);animation:v8h 3.6s ease-in-out infinite;animation-delay:calc(1s + var(--i)*1.2s)}
+.v8r .sc{height:62px;border-radius:9px;margin-bottom:6px;background:#1a1c21;display:flex;align-items:center;justify-content:center;font-size:24px}
+@keyframes v8h{0%,33%{box-shadow:0 0 0 2px #3fc6b4;color:#fff}34%,100%{box-shadow:none}}
+/* 9 card deck you can swipe */
+.v9w{position:relative;margin:0 34px 0 8px}
+.v9w .hc{margin:0;z-index:2}
+.v9w .bk1,.v9w .bk2{position:absolute;top:18px;bottom:18px;left:0;right:0;border-radius:26px;z-index:1}
+.v9w .bk1{transform:translateX(16px) scale(.95);background:linear-gradient(165deg,#3a2a7a,#6a52c8);animation:v9p 2.6s 1.2s ease-in-out 2}
+.v9w .bk2{transform:translateX(30px) scale(.9);background:linear-gradient(165deg,#1f2a3d,#5c7397);top:34px;bottom:34px;z-index:0}
+.v9w .hc{animation:v9s 2.6s 1.2s ease-in-out 2}
+@keyframes v9s{20%{transform:translateX(-26px) rotate(-2deg)}40%,100%{transform:none}}
+@keyframes v9p{20%{transform:translateX(34px) scale(.97)}40%,100%{transform:translateX(16px) scale(.95)}}
+.v9h{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;color:var(--hint);font-size:14px}
+.v9h .d{display:flex;gap:5px}.v9h .d i{width:7px;height:7px;border-radius:99px;background:#3a3d45}.v9h .d i.on{background:#fff;width:18px}
+.v9v{position:absolute;left:50%;top:76px;transform:translateX(18px);display:flex;align-items:center;gap:4px;background:#fff;color:#0f5f66;border-radius:99px;padding:4px 9px 4px 6px;font-size:12px;font-weight:800;box-shadow:0 6px 16px rgba(0,0,0,.35);animation:pop .5s 1s both}
+/* 10 chips question + FAQ */
+.v10{margin:14px 12px 0;background:var(--card);border-radius:22px;padding:14px 0 14px;text-align:left}
+.v10 .q2{padding:0 18px;font-size:16.5px;font-weight:600}.v10 .q2 span{display:block;font-size:13.5px;color:var(--hint);font-weight:500;margin-top:1px}
+.v10c{display:flex;gap:8px;overflow-x:auto;padding:12px 18px 2px;scrollbar-width:none;animation:v10n 1.4s 1.2s ease-in-out 1}
+.v10c::-webkit-scrollbar{display:none}
+.v10c>span{display:flex;align-items:center;gap:7px;flex-shrink:0;padding:6px 13px 6px 6px;border-radius:99px;background:#24272e;font-size:14.5px;font-weight:600}
+.v10c>span.on{background:#3fc6b4;color:#062a2a}.v10c img,.v10c .mk{width:24px;height:24px;border-radius:7px;font-size:9px}
+@keyframes v10n{30%{transform:translateX(-34px)}60%,100%{transform:none}}
+.v10f{margin:14px 12px 0;background:var(--card);border-radius:22px;padding:14px 18px;text-align:left}
+.v10f .hd{display:flex;align-items:center;gap:10px;font-size:16.5px;font-weight:600}.v10f .hd .cv{margin-left:auto;transform:rotate(90deg);color:var(--hint)}
+.v10f p{margin:8px 0 0;color:var(--hint);font-size:14.5px;line-height:1.45;animation:fin .5s .6s both}.v10f p a{color:var(--link);font-weight:600}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Подсказка «другое приложение» + «Как установить» · 10 вариантов</h1>
+  <button class="rep" onclick="location.reload()">↻ Повторить анимации</button>
+  <p>Анимации подсказок проигрываются через ~1 секунду после открытия экрана.</p>
+</div>
+<div class="row" id="row"></div>
+<script>
+const I = { incy: "icons/incy.png", happ: "icons/happ.png" };
+const mk = (t, s) => `<span class="mk" style="width:${s}px;height:${s}px;border-radius:${Math.round(s * .26)}px;font-size:${Math.round(s * .38)}px">${t}</span>`;
+const ava = (hop) => `<span class="ava ${hop ? "hop" : ""}"><img src="${I.happ}" style="--i:0">${mk("RH", 30).replace('class="mk"', 'class="mk" style="--i:1"')}${mk("S", 30).replace('class="mk"', 'class="mk" style="--i:2"')}</span>`;
+const BOOK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>';
+const CHK = '<svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const bar = '<div class="bar"><span class="bk">←</span><span class="nm"><img src="icons/frog.png">Лягушка VPN</span><span class="mr">•••</span></div>';
+const dots = '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>';
+const acts = '<div class="acts"><button class="pill"><span>Скачать</span></button><button class="rnd">' + CHK + '</button></div>';
+const ill = '<div class="ill"><div><img class="big" src="icons/incy.png"></div></div>';
+const steps = (one = "", tx1 = "Установите Incy") => `<div class="st">Как это работает</div><div class="cd">
+  <div class="tl" style="--i:0"><div class="n">1</div><div><div class="tx">${tx1}</div><div class="sx">займёт полминуты</div>${one}</div></div>
+  <div class="tl" style="--i:1"><div class="n">2</div><div><div class="tx">Вернитесь сюда и нажмите ✓</div><div class="sx"><b>создадим ключ</b> для этого устройства</div></div></div>
+  <div class="tl" style="--i:2"><div class="n">3</div><div><div class="tx">Подключите в один тап</div><div class="sx">6 ₽ в день, пока пользуетесь</div></div></div></div>`;
+const more = (label, sub, extra = "", hop = true) => `<div class="alt">${extra}<button class="ah">${ava(hop)}<span class="al"><b>${label}</b><span>${sub}</span></span><span class="cv">›</span></button></div>`;
+
+const V = [
+  { t: "1 · Чип в карточке + «Не подходит?»", p: "Как сейчас в коде: в карточке белый чип «📖 Как установить Incy». Ниже строка-вопрос «Не подходит Incy? Ещё 4 на выбор», аватарки разово подпрыгивают волной.",
+    h: bar + `<section class="hc teal">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>
+      <button class="gch">${BOOK}<span>Как установить Incy</span></button>${dots}${acts}</section>` + more("Не подходит Incy?", "Ещё 4 приложения на выбор") + steps() },
+  { t: "2 · Всплывающая подсказка + ссылка текстом", p: "Через секунду над строкой выпрыгивает белый «пузырь»: «Можно выбрать другое приложение» — и сам прячется через 5 секунд (показываем один раз). «Как установить» — скромная подчёркнутая ссылка под кнопками.",
+    h: bar + `<section class="hc teal">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div><a class="tlink">Не знаете как? <u>Инструкция по установке ›</u></a>${dots}${acts}</section>` +
+      more("Другие приложения", "Happ, RabbitHole, Streisand и ещё 1", '<div class="tip">💡 Можно выбрать другое приложение<span class="x">✕</span></div>', false) + steps() },
+  { t: "3 · Переключатель под заголовком + третья кнопка", p: "Под заголовком чип «Incy · сменить ⌄» с пульсом — выбор приложения прямо в карточке. «Как установить» — круглая кнопка 📖 рядом с ✓, обе с подписями, чтобы было понятно, что они делают.",
+    h: bar + `<section class="hc teal">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store</div>
+      <button class="sw pulse"><img src="${I.incy}">Incy<span class="c">· сменить ⌄</span></button>${dots}
+      <div class="acts3"><button class="pill"><span>Скачать</span></button><span class="rb2"><button class="rnd">${BOOK.replace(/16/g, "24")}</button>инструкция</span><span class="rb2"><button class="rnd">${CHK}</button>установил</span></div></section>` + steps() },
+  { t: "4 · Всё внутри шагов", p: "Карточка остаётся чистой. Обе подсказки живут в шаге 1 «Как это работает»: синяя ссылка «📖 Как установить» и серая «Другое приложение ›». Минимум нового интерфейса, но подсказки ниже первого экрана.",
+    h: bar + `<section class="hc teal">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>${dots}${acts}</section>` +
+      steps('<div class="lk"><a>📖 Как установить</a><a class="o">Другое приложение ›</a></div>') },
+  { t: "5 · Карточка-инструкция с превью + обводка", p: "Под карточкой — заметный блок инструкции с превью (как у видео) и пометкой «1 минута». Строка выбора приложения подсвечивается мигающей обводкой при первом открытии — как подсказка-обучение.",
+    h: bar + `<section class="hc teal">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>${dots}${acts}</section>
+      <button class="gcard"><span class="thumb"><img src="${I.incy}"><span class="pl"><svg width="12" height="12" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="#1d2340"/></svg></span></span>
+      <span><b>Как установить Incy</b><span>Пошагово с картинками · 1 минута</span></span></button>` +
+      more('Выбрать другое приложение<i class="newb">ещё 4</i>', "Если Incy не подходит", '<i class="coach"></i>', false) + steps() },
+  { t: "6 · Ряд иконок в карточке + «?» в углу", p: "Все приложения видно сразу прямо в карточке: выбранное с белой рамкой и ✓, остальные полупрозрачные и по очереди «кивают». «Как установить» — маленькая кнопка в правом верхнем углу карточки.",
+    h: bar + `<section class="hc teal" style="padding-top:52px"><span class="v6g">${BOOK.replace(/16/g,"14")}Как установить</span>${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>
+      <div class="v6"><span class="v6l">Или выберите другое:</span><div class="v6r"><span class="on"><img src="${I.incy}"></span><span style="--i:0"><img src="${I.happ}"></span><span style="--i:1">${mk("RH",40)}</span><span style="--i:2">${mk("S",40)}</span><span style="--i:3">${mk("VT",40)}</span></div></div>${dots}${acts}</section>` + steps() },
+  { t: "7 · Инструкция раскрыта сразу + плашка снизу", p: "Под карточкой — короткая инструкция из 3 шагов, уже раскрытая (без перехода), и ссылка «Подробнее». Снизу через секунду выезжает плашка «Incy не ставится? Другое приложение» — как тост, её можно смахнуть.",
+    o: `<div class="v7t">${ava(false)}<span>Не ставится? <b>Другое приложение</b></span><span class="x">✕</span></div>`,
+    h: bar + `<section class="hc teal">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>${dots}${acts}</section>
+      <div class="v7"><div class="hd">${BOOK}Как установить<i>Подробнее ›</i></div><ol><li style="--i:0"><b>1</b>Нажмите «Скачать» — откроется App Store</li><li style="--i:1"><b>2</b>Нажмите «Загрузить», дождитесь иконки</li><li style="--i:2"><b>3</b>Вернитесь сюда и нажмите ✓</li></ol></div>` + steps() },
+  { t: "8 · Кнопка со стрелкой + инструкция в картинках", p: "Кнопка «Скачать Incy» разделена: справа «ещё 4 ⌄» — нажатие открывает выбор другого приложения. Ниже «Как установить» в 3 скриншотах, рамка по очереди бегает по шагам.",
+    h: bar + `<section class="hc teal">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>${dots}
+      <div class="v8b"><button class="v8s"><span>Скачать</span><em>ещё 4 ⌄</em></button><button class="rnd">${CHK}</button></div></section>
+      <div class="v8g"><div class="hd">${BOOK}Как установить<i>Весь гайд ›</i></div><div class="v8r"><div style="--i:0"><div class="sc">📲</div>Откройте App Store</div><div style="--i:1"><div class="sc">⬇️</div>Нажмите «Загрузить»</div><div style="--i:2"><div class="sc">✅</div>Вернитесь и жмите ✓</div></div></div>` + steps() },
+  { t: "9 · Колода карточек — листайте", p: "За карточкой Incy выглядывают карточки других приложений. При открытии карточка сама чуть отъезжает, показывая следующую, — понятно, что можно листать. «Как установить» — бейдж ▶ на иконке приложения.",
+    h: bar + `<div class="v9w"><div class="bk2"></div><div class="bk1"></div><section class="hc teal"><div class="ill" style="position:relative"><div><img class="big" src="icons/incy.png"></div></div><span class="v9v">▶ Как установить</span><div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>${acts}</section></div>
+      <div class="v9h"><span class="d"><i class="on"></i><i></i><i></i><i></i><i></i></span>листайте — ещё 4 приложения</div>` + steps() },
+  { t: "10 · Вопрос с чипами + раскрытый FAQ", p: "Под карточкой вопрос «Какое приложение поставить?» и чипы с приложениями; лента сама слегка прокручивается, намекая, что есть ещё. «Как установить Incy?» — раскрытый вопрос FAQ с коротким ответом и ссылкой.",
+    h: bar + `<section class="hc teal">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>${dots}${acts}</section>
+      <div class="v10"><div class="q2">Какое приложение поставить?<span>Подойдёт любое — ключ работает везде</span></div><div class="v10c"><span class="on"><img src="${I.incy}">Incy ✓</span><span><img src="${I.happ}">Happ</span><span>${mk("RH",24)}RabbitHole</span><span>${mk("S",24)}Streisand</span><span>${mk("VT",24)}v2RayTun</span></div></div>
+      <div class="v10f"><div class="hd">${BOOK}Как установить Incy?<span class="cv">›</span></div><p>Нажмите «Скачать», в App Store — «Загрузить». Вернитесь сюда и нажмите ✓. <a>Инструкция с картинками ›</a></p></div>` + steps() },
+];
+const row = document.getElementById("row");
+V.forEach((v) => { const c = document.createElement("div"); c.className = "col";
+  c.innerHTML = `<div class="phone"><div class="scrl">${v.h}</div>${v.o || ""}</div><div class="cap"><b>${v.t}</b><p>${v.p}</p></div>`; row.appendChild(c); });
+</script>
+</body>
+</html>

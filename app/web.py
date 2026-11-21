@@ -404,6 +404,16 @@ def balance_runway(local: dict | None, raw_devices: list[dict], balance_rub: int
     return hours_left // 24, hours_left
 
 
+async def _frog_view(telegram_id: int) -> dict:
+    """Whether the home card shows the living frog, and the A/B group while its test runs (app/frog_test.py)."""
+    try:
+        from app import frog_test
+        return await frog_test.view(telegram_id)
+    except Exception:
+        logging.getLogger(__name__).exception("Лягушка: не определили, показывать ли")
+        return {"on": False, "ab": None}
+
+
 async def _install_arm(telegram_id: int, has_devices: bool) -> str | None:
     """Which install step the cabinet shows while its A/B test runs (app/install_test.py)."""
     try:
@@ -610,6 +620,7 @@ async def api_me(request: web.Request) -> web.Response:
             "vpn_apps": public_vpn_apps(),
             "first_device_thanks_pending": bool((local or {}).get("first_device_thanks_pending")),
             "install_ab": await _install_arm(telegram_id, bool(devices)),
+            "frog": await _frog_view(telegram_id),
         }
     )
 
@@ -644,6 +655,27 @@ async def api_invitation_card_event(request: web.Request) -> web.Response:
     from app.live import web_user_action
     await web_user_action(telegram_id, action)
     return web.json_response({'ok': True})
+
+
+async def api_frog_event(request: web.Request) -> web.Response:
+    """The frog's A/B test: the cabinet reports a home open, a play with the frog, or «Пополнить» on the home card."""
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    try:
+        body = await request.json()
+    except (ValueError, TypeError):
+        return json_error("Некорректное событие", 400)
+    kind = body.get("kind") if isinstance(body, dict) else None
+    from app import frog_test
+    if not isinstance(kind, str) or kind not in frog_test.KINDS:
+        return json_error("Некорректное событие", 400)
+    try:
+        kept = await frog_test.record(telegram_id, kind)
+    except Exception:
+        logging.getLogger(__name__).exception("Лягушка: не записали событие %s", kind)
+        kept = False
+    return web.json_response({"ok": True, "kept": kept})
 
 
 async def api_onboarding_event(request: web.Request) -> web.Response:
@@ -1641,6 +1673,7 @@ def build_web_app() -> web.Application:
         app.router.add_get("/api/avatar", api_avatar)
         app.router.add_post("/api/trial", api_trial)
         app.router.add_post("/api/onboarding-event", api_onboarding_event)
+        app.router.add_post("/api/frog-event", api_frog_event)
         app.router.add_post("/api/invitation-card-event", api_invitation_card_event)
         app.router.add_post("/api/invoice", api_invoice)
         app.router.add_post("/api/autopay", api_autopay)

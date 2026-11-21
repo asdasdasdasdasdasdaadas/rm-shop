@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Выбор приложения — 6 вариантов</title>
+<link rel="stylesheet" href="cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:auto}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:22px 28px 6px;max-width:1720px;margin:0 auto}
+.top h1{font-size:22px;margin:0;font-weight:800}
+.ptg{display:flex;background:#1c1e23;border-radius:12px;padding:3px}
+.ptg button{padding:7px 14px;border-radius:9px;font-size:14px;font-weight:600;color:#9aa0ab}.ptg button.on{background:#fff;color:#1d2340}
+.rep{padding:8px 16px;border-radius:12px;background:#1c1e23;font-size:14px;font-weight:600}
+.top a{font-size:14px;margin-left:auto}
+.row{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;padding:18px 20px 40px}
+.col{width:min(360px,calc(100vw - 32px))}
+.cap{margin:14px 6px 0}.cap b{font-size:17px}.cap p{margin:4px 0 0;color:#9aa0ab;font-size:13.5px;line-height:1.4}
+.phone{width:100%;height:740px;border-radius:46px;border:9px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;background:var(--bg)}
+.scrl{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding-bottom:30px}.scrl::-webkit-scrollbar{display:none}
+.bar{display:flex;align-items:center;gap:10px;padding:14px 14px 12px}
+.bar .bk{font-size:24px;width:30px}.bar .nm{display:flex;align-items:center;gap:8px;background:#1c1e23;border-radius:12px;padding:6px 12px 6px 6px;font-size:14px;font-weight:600}
+.bar .nm img{width:24px;height:24px;border-radius:50%}.bar .mr{margin-left:auto;font-size:20px;letter-spacing:1px}
+.hc{background:none!important}
+.hc .H,.hc .P,.swp{transition:opacity .2s,transform .25s var(--ease)}
+.out{opacity:0!important;transform:translateY(6px)!important}
+.bgs{position:absolute;inset:0;z-index:-2}.bgs i{position:absolute;inset:0;opacity:0;transition:opacity .6s ease}.bgs i.on{opacity:1}
+.big{width:92px;height:92px;border-radius:22px;display:block;box-shadow:0 16px 26px rgba(0,0,0,.35)}
+.bump{animation:pop .6s var(--ease)}
+.recb{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.22);border-radius:99px;padding:3px 10px;font-size:12.5px;font-weight:700;margin-top:10px;transition:opacity .25s,transform .25s var(--ease)}
+.recb.hide{opacity:0;transform:scale(.8)}
+.H{font-size:26px}
+/* E strip */
+.strip{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:18px -22px 0;padding:4px 22px;scroll-behavior:smooth}.strip::-webkit-scrollbar{display:none}
+.lp{flex-shrink:0;display:flex;align-items:center;gap:0;height:48px;padding:4px;border-radius:99px;background:rgba(0,0,0,.2);transition:background .35s,gap .35s,padding .35s}
+.lp img{width:40px;height:40px;border-radius:12px;transition:transform .35s cubic-bezier(.3,1.5,.5,1)}
+.lp span{max-width:0;overflow:hidden;white-space:nowrap;font-weight:700;font-size:15px;color:#1d2340;transition:max-width .4s var(--ease),opacity .3s;opacity:0}
+.lp.on{background:#fff;gap:9px;padding-right:16px}.lp.on span{max-width:110px;opacity:1}.lp.on img{transform:rotate(-6deg) scale(1.05)}
+/* F grid */
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:18px;background:rgba(0,0,0,.18);border-radius:20px;padding:10px 8px}
+.gi{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;font-weight:600;opacity:.9;transition:opacity .3s}
+.gi img{width:44px;height:44px;border-radius:12px;transition:transform .2s,opacity .2s,box-shadow .3s}
+.gi.on img{box-shadow:0 0 0 2.5px #fff;opacity:.35;transform:scale(.88)}.gi.on{opacity:1}
+.fly{position:absolute;z-index:40;border-radius:12px;pointer-events:none;transition:all .55s cubic-bezier(.3,1.2,.4,1)}
+/* G wallet */
+.wal{margin:0 12px;display:flex;flex-direction:column}
+.wc{position:relative;border-radius:22px;padding:14px 16px;text-align:left;color:#fff;overflow:hidden;height:62px;margin-top:-12px;box-shadow:0 -6px 16px rgba(0,0,0,.35);transition:height .5s cubic-bezier(.3,1.2,.4,1),margin .5s var(--ease),transform .2s}
+.wc:first-child{margin-top:0}.wc:active{transform:scale(.985)}
+.wc .hd{display:flex;align-items:center;gap:12px}.wc .hd img{width:34px;height:34px;border-radius:10px;transition:all .45s var(--ease)}
+.wc b{font-size:17px}.wc .tg2{margin-left:auto;font-size:12px;font-weight:700;background:rgba(255,255,255,.25);border-radius:99px;padding:2px 8px}
+.wc .bd{opacity:0;transform:translateY(8px);transition:all .35s var(--ease);margin-top:12px;font-size:14px;line-height:1.45}
+.wc.on{height:198px;margin-top:-12px;margin-bottom:22px}.wc.on .bd{opacity:1;transform:none;transition-delay:.15s}.wc.on .hd img{width:52px;height:52px;border-radius:14px}
+.wc .gob{margin-top:12px;height:42px;border-radius:99px;background:#fff;color:#1d2340;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:15.5px}
+/* H dial */
+.dial{position:relative;height:196px;margin:-6px -22px 6px;overflow:hidden;touch-action:pan-y;cursor:grab}
+.wheel{position:absolute;left:50%;top:214px;width:0;height:0;transition:transform .6s cubic-bezier(.3,1.25,.45,1)}
+.wheel.drag{transition:none}
+.spoke{position:absolute;left:0;top:0;width:0;height:0}
+.spoke img{position:absolute;width:64px;height:64px;left:-32px;top:-162px;border-radius:17px;box-shadow:0 10px 20px rgba(0,0,0,.35);transition:transform .6s cubic-bezier(.3,1.25,.45,1),opacity .4s,filter .4s;cursor:pointer}
+.spoke.on img{width:84px;height:84px;left:-42px;top:-172px;border-radius:21px}
+.spoke:not(.on) img{opacity:.55;filter:saturate(.6)}
+.dialmark{position:absolute;left:50%;top:2px;transform:translateX(-50%);width:0;height:0;border:7px solid transparent;border-top-color:#fff;opacity:.8}
+/* I progressive */
+.alt{margin:14px 12px 0;background:var(--card);border-radius:22px;overflow:hidden;animation:up .5s .2s var(--ease) both}
+.alt .hd{display:flex;align-items:center;gap:12px;padding:14px 16px;width:100%;text-align:left;font-size:16px}
+.ava{display:flex}.ava img{width:30px;height:30px;border-radius:9px;border:2px solid var(--card);margin-left:-9px;transition:transform .35s var(--ease),opacity .3s}.ava img:first-child{margin-left:0}
+.alt .hd .cv{margin-left:auto;transition:transform .35s var(--ease)}
+.ava{max-width:220px;transition:max-width .4s var(--ease)}.alt.on .ava{max-width:0}.alt.on .ava img{transform:translateY(-6px) scale(.6);opacity:0}.alt.on .hd .cv{transform:rotate(90deg)}
+.alt .ls{display:grid;grid-template-rows:0fr;transition:grid-template-rows .45s var(--ease)}.alt.on .ls{grid-template-rows:1fr}
+.alt .ls>div{overflow:hidden;padding:0 16px}
+.ar{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 0;border-top:1px solid var(--sep);opacity:0;transform:translateX(-14px);transition:all .35s var(--ease)}
+.alt.on .ar{opacity:1;transform:none;transition-delay:calc(.08s + var(--i)*.06s)}
+.ar img{width:42px;height:42px;border-radius:12px}.ar .tt{display:flex;flex-direction:column}.ar .tt span{font-size:13.5px;color:var(--hint)}
+.ar .v{margin-left:auto;color:var(--hint);font-size:14px}
+/* J coverflow */
+.cf{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:-8px -22px 6px;padding:16px 0 22px;perspective:520px}.cf::-webkit-scrollbar{display:none}
+.cf .pad{flex:0 0 calc(50% - 50px)}
+.cf .it{flex:0 0 100px;scroll-snap-align:center;display:flex;justify-content:center;cursor:pointer;transform-style:preserve-3d}
+.cf .it img{width:92px;height:92px;border-radius:22px;box-shadow:0 14px 24px rgba(0,0,0,.4);-webkit-box-reflect:below 4px linear-gradient(transparent 60%,rgba(255,255,255,.18))}
+.cdots{display:flex;gap:6px;justify-content:center;margin:2px 0 10px}.cdots i{width:7px;height:7px;border-radius:9px;background:rgba(255,255,255,.35);transition:width .35s var(--ease),background .3s}.cdots i.on{width:22px;background:#fff}
+/* finger */
+.fg{position:absolute;z-index:60;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:rgba(255,255,255,.35);box-shadow:0 0 0 2px rgba(255,255,255,.6);pointer-events:none;opacity:0;transition:left .55s var(--ease),top .55s var(--ease),opacity .25s}
+.fg.on{opacity:1}.fg.tap{animation:ftap .35s ease}@keyframes ftap{50%{transform:scale(.7);background:rgba(255,255,255,.6)}}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Выбор приложения · 6 вариантов</h1>
+  <div class="ptg" id="plat"><button data-p="ios" class="on">iPhone · 5 приложений</button><button data-p="android">Android · 4</button></div>
+  <button class="rep" id="rep">↻ Повторить демо</button>
+  <a href="v3.html">Ещё 10 вариантов K–T →</a> <a href="old.html" style="margin-left:12px">A–D</a>
+</div>
+<div class="row" id="row"></div>
+<script>
+const ph = (txt, c1, c2) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="120" height="120" rx="28" fill="url(#g)"/><text x="60" y="76" font-family="-apple-system,Helvetica,Arial" font-size="46" font-weight="800" fill="#fff" text-anchor="middle">${txt}</text></svg>`);
+const APPS = {
+  incy: { name: "Incy", icon: "icons/incy.png", short: "Проще всего", desc: "Самое простое · ключ в один тап", g: "linear-gradient(165deg,#0f5f66 0%,#178f8f 55%,#3fc6b4 100%)" },
+  happ: { name: "Happ", icon: "icons/happ.png", short: "Больше настроек", desc: "Больше настроек · есть на Mac и TV", g: "linear-gradient(165deg,#1f2a5c 0%,#3d4ea3 55%,#7b8fe6 100%)" },
+  streisand: { name: "Streisand", icon: ph("S", "#ff8a3d", "#e0452b"), short: "Лёгкий и быстрый", desc: "Лёгкий клиент · быстро подключается", g: "linear-gradient(165deg,#6e2a10 0%,#c8562a 55%,#f39a5a 100%)" },
+  v2raytun: { name: "v2RayTun", icon: ph("V", "#3aa0ff", "#1f5fd6"), short: "Много протоколов", desc: "Много протоколов · гибкие правила", g: "linear-gradient(165deg,#0e3a73 0%,#2f6fd0 55%,#62a6ff 100%)" },
+  foxray: { name: "FoXray", icon: ph("F", "#b06bff", "#6a35d6"), short: "Для продвинутых", desc: "Для продвинутых · тонкая настройка", g: "linear-gradient(170deg,#3b1f78 0%,#6a3cc0 55%,#9a6ae6 100%)" },
+  v2rayng: { name: "v2rayNG", icon: "icons/v2rayng.png", short: "Классика Android", desc: "Проверенный клиент для Android", g: "linear-gradient(165deg,#0e3a73 0%,#2f6fd0 55%,#62a6ff 100%)" },
+  hiddify: { name: "Hiddify", icon: ph("H", "#2fd18a", "#118a5a"), short: "Всё автоматически", desc: "Сам выбирает лучший сервер", g: "linear-gradient(165deg,#0d5a3a 0%,#1f9a64 55%,#5fd38d 100%)" },
+};
+const PLAT = { ios: { store: "App Store", apps: ["incy", "happ", "streisand", "v2raytun", "foxray"] }, android: { store: "Google Play", apps: ["happ", "v2rayng", "v2raytun", "hiddify"] } };
+let plat = "ios";
+const list = () => PLAT[plat].apps;
+const A0 = () => APPS[list()[0]];
+const CHK = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const bar = '<div class="bar"><span class="bk">←</span><span class="nm"><img src="icons/frog.png">Лягушка VPN</span><span class="mr">•••</span></div>';
+const bgs = () => `<div class="bgs">${list().map((id, i) => `<i data-id="${id}" class="${i ? "" : "on"}" style="background:${APPS[id].g}"></i>`).join("")}</div>`;
+const steps = () => `<div class="st">Как это работает</div><div class="cd">${[
+  ["1", `Установите <b class="an">${A0().name}</b>`, "займёт полминуты"], ["2", "Вернитесь сюда и нажмите ✓", "<b>создадим ключ</b> для этого устройства"],
+  ["3", "Подключите в один тап", "6 ₽ в день, пока пользуетесь"]].map((x, i) => `<div class="tl" style="--i:${i}"><div class="n">${x[0]}</div><div><div class="tx">${x[1]}</div><div class="sx">${x[2]}</div></div></div>`).join("")}</div>`;
+const acts = () => `<div class="acts"><button class="pill"><span class="dl swp">Скачать ${A0().name}</span></button><button class="rnd">${CHK(26)}</button></div>`;
+const head = (big = true) => `${big ? `<div class="ill"><div><img class="big" src="${A0().icon}"></div></div>` : ""}<div class="H">Установите <span class="an swp">${A0().name}</span></div>
+  <div class="P">${A0().desc}</div><div class="recb">★ рекомендуем</div>`;
+function swapText(el, html) { if (!el) return; el.classList.add("out"); setTimeout(() => { el.innerHTML = html; el.classList.remove("out"); }, 180); }
+function common(root, id, opts = {}) {
+  const a = APPS[id];
+  root.querySelectorAll(".bgs i").forEach((x) => x.classList.toggle("on", x.dataset.id === id));
+  root.querySelectorAll(".an").forEach((x) => swapText(x, a.name));
+  root.querySelectorAll(".dl").forEach((x) => swapText(x, "Скачать " + a.name));
+  swapText(root.querySelector(".hc .P"), a.desc);
+  const r = root.querySelector(".recb"); if (r) r.classList.toggle("hide", id !== list()[0]);
+  const big = root.querySelector(".big");
+  if (big && !opts.keepBig) { big.classList.remove("bump"); void big.offsetWidth; big.src = a.icon; big.classList.add("bump"); }
+}
+const hero = (inner) => bar + `<section class="hc teal">${bgs()}${inner}${acts()}</section>`;
+
+const V = {
+  E: { t: "E · Лента-переключатель", p: "Под иконкой — лента круглых иконок. Выбранная раскрывается в белую «пилюлю» с названием, лента сама докручивается. Пять приложений помещаются без скролла страницы.",
+    h() { return hero(head() + `<div class="strip">${list().map((id, i) => `<button class="lp ${i ? "" : "on"}" data-id="${id}"><img src="${APPS[id].icon}"><span>${APPS[id].name}</span></button>`).join("")}</div>`) + steps(); },
+    on(root) { const st = root.querySelector(".strip"); root.querySelectorAll(".lp").forEach((b) => b.onclick = () => {
+      root.querySelectorAll(".lp").forEach((x) => x.classList.toggle("on", x === b)); common(root, b.dataset.id);
+      setTimeout(() => st.scrollTo({ left: b.offsetLeft - st.clientWidth / 2 + b.offsetWidth / 2, behavior: "smooth" }), 60); }); },
+    demo: [".lp:nth-child(3)", ".lp:nth-child(5)", ".lp:nth-child(1)"] },
+  F: { t: "F · Сетка-лаунчер", p: "Все приложения сеткой, как на рабочем столе. Тап — иконка «вылетает» из сетки и встаёт на место большой, фон перетекает в её цвет. Видно сразу всё.",
+    h() { return hero(head() + `<div class="grid">${list().map((id, i) => `<button class="gi ${i ? "" : "on"}" data-id="${id}"><img src="${APPS[id].icon}">${APPS[id].name}</button>`).join("")}</div>`) + steps(); },
+    on(root, phone) { root.querySelectorAll(".gi").forEach((b) => b.onclick = () => {
+      if (b.classList.contains("on")) return;
+      const big = root.querySelector(".big"), pr = phone.getBoundingClientRect(), s = b.querySelector("img").getBoundingClientRect(), d = big.getBoundingClientRect();
+      const fly = document.createElement("img"); fly.src = b.querySelector("img").src; fly.className = "fly";
+      Object.assign(fly.style, { left: s.left - pr.left + "px", top: s.top - pr.top + "px", width: s.width + "px", height: s.height + "px" }); phone.appendChild(fly);
+      big.style.transition = "opacity .2s"; big.style.opacity = 0;
+      requestAnimationFrame(() => requestAnimationFrame(() => Object.assign(fly.style, { left: d.left - pr.left + "px", top: d.top - pr.top + "px", width: d.width + "px", height: d.height + "px", borderRadius: "22px" })));
+      setTimeout(() => { big.src = fly.src; big.style.opacity = 1; fly.remove(); }, 560);
+      root.querySelectorAll(".gi").forEach((x) => x.classList.toggle("on", x === b)); common(root, b.dataset.id, { keepBig: true }); }); },
+    demo: [".gi:nth-child(4)", ".gi:nth-child(2)", ".gi:nth-child(1)"] },
+  G: { t: "G · Кошелёк карточек", p: "Приложения — цветные карточки стопкой, как в Wallet. Тап раскрывает карточку с описанием и своей кнопкой «Скачать», остальные складываются. Самый «вкусный», но длиннее.",
+    h() { return bar + `<section class="hc teal compact">${bgs()}<div class="H" style="font-size:24px">Выберите приложение</div><div class="P">Все бесплатные · ключ добавится сам</div></section>
+      <div class="st">Приложения</div><div class="wal">${list().map((id, i) => { const a = APPS[id]; return `<button class="wc ${i ? "" : "on"}" data-id="${id}" style="background:${a.g};z-index:${i + 1}">
+      <div class="hd"><img src="${a.icon}"><b>${a.name}</b>${i ? "" : '<span class="tg2">★ рекомендуем</span>'}</div>
+      <div class="bd">${a.desc}<div class="gob">Скачать ${a.name}</div></div></button>`; }).join("")}</div>
+      <div class="note c" style="margin-top:4px">Уже установлено? <a>Нажмите ✓</a></div>`; },
+    on(root) { root.querySelectorAll(".wc").forEach((c) => c.onclick = () => { root.querySelectorAll(".wc").forEach((x) => x.classList.toggle("on", x === c));
+      root.querySelectorAll(".bgs i").forEach((x) => x.classList.toggle("on", x.dataset.id === c.dataset.id)); }); },
+    demo: [".wc:nth-child(3)", ".wc:nth-child(5)", ".wc:nth-child(1)"] },
+  H: { t: "H · Колесо", p: "Иконки сидят на дуге колеса; тап или свайп поворачивает его, выбранная приезжает наверх под стрелку и увеличивается. Игровое и запоминающееся, но непривычное.",
+    h() { return hero(`<div class="dial"><div class="dialmark"></div><div class="wheel">${list().map((id, i) => `<div class="spoke ${i ? "" : "on"}" data-i="${i}" data-id="${id}"><img src="${APPS[id].icon}"></div>`).join("")}</div></div>` + head(false)) + steps(); },
+    on(root) { const n = list().length, step = 34, wh = root.querySelector(".wheel"), sp = [...root.querySelectorAll(".spoke")]; let cur = 0, ang = 0;
+      sp.forEach((s, i) => s.style.transform = `rotate(${i * step}deg)`);
+      const set = (i, snap = true) => { cur = Math.max(0, Math.min(n - 1, i)); ang = -cur * step; wh.style.transform = `rotate(${ang}deg)`;
+        sp.forEach((s, k) => { s.classList.toggle("on", k === cur); s.querySelector("img").style.transform = `rotate(${-(k * step + ang)}deg)`; }); common(root, sp[cur].dataset.id, { keepBig: true }); };
+      sp.forEach((s, i) => s.querySelector("img").onclick = () => set(i)); set(0);
+      const dial = root.querySelector(".dial"); let x0 = null, a0 = 0;
+      dial.onpointerdown = (e) => { x0 = e.clientX; a0 = ang; wh.classList.add("drag"); dial.setPointerCapture(e.pointerId); };
+      dial.onpointermove = (e) => { if (x0 == null) return; const a = a0 + (e.clientX - x0) * .35; wh.style.transform = `rotate(${a}deg)`;
+        sp.forEach((s, k) => s.querySelector("img").style.transform = `rotate(${-(k * step + a)}deg)`); };
+      dial.onpointerup = (e) => { if (x0 == null) return; wh.classList.remove("drag"); const moved = Math.abs(e.clientX - x0) > 6, a = a0 + (e.clientX - x0) * .35; x0 = null;
+        if (moved) set(Math.round(-a / step)); }; },
+    demo: [".spoke:nth-child(4) img", ".spoke:nth-child(6) img", ".spoke:nth-child(2) img"] },
+  I: { t: "I · Главное + «ещё»", p: "Сверху одно рекомендуемое — без выбора и сомнений. Ниже строка с аватарками остальных: тап раскрывает список с каскадной анимацией. Минимум шума для новичка.",
+    h() { const rest = list().slice(1); return hero(`<div class="ill"><div><img class="big" src="${A0().icon}"></div></div>` + head(false).replace('<div class="recb">', '<div class="recb">')) +
+      `<div class="alt"><button class="hd"><span class="ava">${rest.map((id) => `<img src="${APPS[id].icon}">`).join("")}</span><span class="swp ot">Другие приложения · ${rest.length}</span><span class="cv">›</span></button>
+      <div class="ls"><div>${list().map((id, i) => `<button class="ar" data-id="${id}" style="--i:${i}"><img src="${APPS[id].icon}"><span class="tt"><b>${APPS[id].name}</b><span>${APPS[id].short}</span></span><span class="v">${i ? "" : "★"}</span></button>`).join("")}</div></div></div>` + steps(); },
+    on(root) { const alt = root.querySelector(".alt"); alt.querySelector(".hd").onclick = () => alt.classList.toggle("on");
+      root.querySelectorAll(".ar").forEach((r) => r.onclick = () => { common(root, r.dataset.id); setTimeout(() => alt.classList.remove("on"), 250);
+        root.querySelectorAll(".ar .v").forEach((v) => v.textContent = ""); r.querySelector(".v").innerHTML = CHK(16).replace('stroke="#fff"', 'stroke="#3fc6b4"'); }); },
+    demo: [".alt .hd", ".ar:nth-child(3)", ".alt .hd", ".ar:nth-child(1)"] },
+  J: { t: "J · Cover Flow", p: "Объёмная карусель: соседние иконки повёрнуты в 3D и отражаются, центральная смотрит прямо. Свайп листает, иконки магнитятся. Эффектно при 4–5 приложениях.",
+    h() { return hero(`<div class="cf"><i class="pad"></i>${list().map((id) => `<div class="it" data-id="${id}"><img src="${APPS[id].icon}"></div>`).join("")}<i class="pad"></i></div>
+      <div class="cdots">${list().map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>` + head(false)) + steps(); },
+    on(root) { const cf = root.querySelector(".cf"), its = [...cf.querySelectorAll(".it")]; let cur = list()[0];
+      const upd = () => { const c = cf.scrollLeft + cf.clientWidth / 2; let best = 0, bd = 1e9;
+        its.forEach((s, i) => { const d = s.offsetLeft + s.offsetWidth / 2 - c, k = Math.max(-1, Math.min(1, d / 110));
+          s.style.transform = `translateZ(${-Math.abs(k) * 90}px) rotateY(${-k * 52}deg)`; s.style.opacity = 1 - Math.abs(k) * .3; s.style.zIndex = 10 - Math.round(Math.abs(k) * 5);
+          if (Math.abs(d) < bd) { bd = Math.abs(d); best = i; } });
+        root.querySelectorAll(".cdots i").forEach((x, i) => x.classList.toggle("on", i === best));
+        const id = its[best].dataset.id; if (id !== cur) { cur = id; common(root, id, { keepBig: true }); } };
+      cf.addEventListener("scroll", upd);
+      its.forEach((s) => s.onclick = () => cf.scrollTo({ left: s.offsetLeft + s.offsetWidth / 2 - cf.clientWidth / 2, behavior: "smooth" })); setTimeout(upd, 30); },
+    demo: [".cf .it:nth-child(4)", ".cf .it:nth-child(6)", ".cf .it:nth-child(2)"] },
+};
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function demo(phone, steps, token) {
+  const fg = phone.querySelector(".fg"); await wait(1300);
+  for (const sel of steps) {
+    if (phone.dataset.tok !== token) return;
+    const el = phone.querySelector(".scrl").querySelector(sel); if (!el) continue;
+    const pr = phone.getBoundingClientRect(), r = el.getBoundingClientRect();
+    fg.style.left = r.left - pr.left + r.width / 2 + "px"; fg.style.top = r.top - pr.top + r.height / 2 + "px"; fg.classList.add("on");
+    await wait(650); if (phone.dataset.tok !== token) return;
+    fg.classList.remove("tap"); void fg.offsetWidth; fg.classList.add("tap"); el.click(); await wait(1500);
+  }
+  fg.classList.remove("on");
+}
+function render() {
+  const row = document.getElementById("row"); row.innerHTML = "";
+  Object.values(V).forEach((v) => {
+    const col = document.createElement("div"); col.className = "col";
+    col.innerHTML = `<div class="phone"><div class="scrl">${v.h()}</div><div class="fg"></div></div><div class="cap"><b>${v.t}</b><p>${v.p}</p></div>`;
+    row.appendChild(col); const phone = col.querySelector(".phone"); v.on(phone.querySelector(".scrl"), phone);
+    const tok = String(Math.random()); phone.dataset.tok = tok;
+    phone.addEventListener("pointerdown", (e) => { if (e.isTrusted) { phone.dataset.tok = "user"; phone.querySelector(".fg").classList.remove("on"); } });
+    demo(phone, v.demo, tok);
+  });
+}
+document.querySelectorAll("#plat button").forEach((b) => b.onclick = () => { plat = b.dataset.p; document.querySelectorAll("#plat button").forEach((x) => x.classList.toggle("on", x === b)); render(); });
+document.getElementById("rep").onclick = render;
+render();
+</script>
+</body>
+</html>

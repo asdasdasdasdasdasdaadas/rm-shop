@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Кабинет и бот — макеты</title>
+<style>
+:root{--bg:#111215;--card:#1c1e23;--sep:rgba(255,255,255,.07);--hint:#9aa0ab;--link:#5ea8ff;--ok:#34c759;--gold:#f1c94c}
+*{box-sizing:border-box}body{margin:0;background:#0a0b0d;color:#fff;font:15px/1.4 -apple-system,"SF Pro Text",system-ui,Roboto,sans-serif;padding:24px}
+h1{font-size:22px;margin:0 0 4px}.sub{color:var(--hint);margin:0 0 22px}
+.wrap{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.col{width:375px}.col>h2{font-size:15px;margin:0 0 4px}.col>p{color:var(--hint);font-size:13px;margin:0 0 12px;min-height:54px}
+.ph{width:375px;height:780px;border-radius:44px;background:var(--bg);overflow:hidden;position:relative;border:8px solid #000;box-shadow:0 30px 80px #0008;display:flex;flex-direction:column}
+.scroll{flex:1;overflow:auto;padding-bottom:14px}
+.hc{margin:10px 12px 0;border-radius:30px;padding:16px 18px;position:relative;overflow:hidden}
+.green{background:linear-gradient(160deg,#2fa35f,#1d6b3e)}.slate{background:linear-gradient(160deg,#3a4252,#252a34)}
+.row{display:flex;align-items:center;gap:12px}.frog{width:46px;height:46px;border-radius:14px;background:#7bd389;display:grid;place-items:center;font-size:26px}
+.H{font-size:20px;font-weight:800}.P{font-size:13px;opacity:.85}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;background:rgba(0,0,0,.22);font-size:12px;font-weight:700;margin-top:8px}
+.dot{width:7px;height:7px;border-radius:50%;background:#9ff0b6;box-shadow:0 0 0 3px #9ff0b633}
+.chat{padding:12px 12px 0;display:flex;flex-direction:column;gap:6px}
+.day{align-self:center;font-size:12px;color:var(--hint);background:var(--card);padding:3px 10px;border-radius:99px;margin:4px 0}
+.bub{max-width:80%;padding:8px 12px 6px;border-radius:18px;font-size:14.5px;position:relative}
+.me{align-self:flex-end;background:#2b6fd6;border-bottom-right-radius:6px}
+.op{align-self:flex-start;background:var(--card);border-bottom-left-radius:6px}
+.op .who{display:block;font-size:12px;font-weight:700;color:#7bd389;margin-bottom:2px}
+.bub i{display:block;text-align:right;font-style:normal;font-size:11px;opacity:.7;margin-top:2px}
+.bub i b{color:#9fd0ff;font-weight:700;margin-left:3px}
+.shot{width:200px;height:130px;border-radius:12px;background:#f3f3f5;margin:2px 0 4px;position:relative;overflow:hidden}
+.shot::before{content:"";position:absolute;left:0;right:0;top:0;height:26px;background:#5856d6}
+.shot span{position:absolute;left:10px;top:38px;right:10px;height:28px;border-radius:8px;background:#fff;color:#e33;font-size:10px;padding:8px;font-weight:700}
+.typing{align-self:flex-start;background:var(--card);border-radius:18px;padding:10px 14px;font-size:12px;color:var(--hint)}
+.new{position:absolute;right:-6px;top:-8px;background:var(--gold);color:#3a2a00;font-size:10px;font-weight:800;padding:2px 7px;border-radius:9px}
+.topics{display:flex;gap:6px;flex-wrap:wrap;padding:10px 12px 0}
+.topics span{padding:7px 12px;border-radius:99px;background:var(--card);font-size:13px;font-weight:600}
+.files{display:flex;gap:8px;padding:8px 12px 0}
+.thumb{width:56px;height:56px;border-radius:12px;background:#f3f3f5;position:relative}
+.thumb::before{content:"";position:absolute;left:0;right:0;top:0;height:12px;border-radius:12px 12px 0 0;background:#5856d6}
+.thumb b{position:absolute;right:-6px;top:-6px;width:20px;height:20px;border-radius:50%;background:#000c;font-size:11px;display:grid;place-items:center}
+.compose{display:flex;gap:8px;align-items:flex-end;padding:8px 12px 14px;border-top:1px solid var(--sep);background:var(--bg)}
+.rnd{width:42px;height:42px;border-radius:50%;background:var(--card);display:grid;place-items:center;flex-shrink:0}
+.send{background:#2b6fd6}.ta{flex:1;min-height:42px;border-radius:21px;background:var(--card);padding:11px 14px;color:var(--hint);font-size:14px}
+.N{font-size:34px;font-weight:800;letter-spacing:-.5px}
+.bars{display:flex;gap:6px;align-items:flex-end;height:54px;margin-top:10px}.bars i{flex:1;border-radius:6px;background:rgba(255,255,255,.22)}.bars i.on{background:#fff}
+.bl{display:flex;gap:6px;margin-top:4px}.bl span{flex:1;text-align:center;font-size:10.5px;opacity:.7}
+.chips{display:flex;gap:6px;padding:12px 12px 0;overflow:auto}.chips span{padding:6px 12px;border-radius:99px;background:var(--card);font-size:13px;font-weight:600;white-space:nowrap;color:var(--hint)}
+.chips span.on{background:#fff;color:#111}
+.ST{font-size:13px;font-weight:600;color:var(--hint);margin:16px 24px 6px;text-transform:uppercase;letter-spacing:.04em;font-size:11.5px}
+.cd{background:var(--card);border-radius:22px;margin:0 12px;padding:2px 16px}
+.it{display:flex;align-items:center;gap:12px;padding:11px 0}.it+.it{border-top:1px solid var(--sep)}
+.em{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:18px;flex-shrink:0;background:#2a2d34}
+.tx{flex:1;min-width:0}.tx b{display:block;font-weight:600;font-size:14.5px}.tx small{color:var(--hint);font-size:12.5px}
+.v{font-weight:700;white-space:nowrap}.neg{color:#fff}.pos{color:var(--ok)}
+.meter{height:6px;border-radius:4px;background:#2a2d34;margin-top:6px;overflow:hidden}.meter i{display:block;height:100%;border-radius:4px;background:#5ea8ff}
+.more{color:var(--link);font-size:12.5px;font-weight:600}
+.tg{background:#0e1621;flex:1;overflow:auto;padding:14px 10px;display:flex;flex-direction:column;gap:10px}
+.tgm{align-self:flex-start;max-width:88%;background:#182533;border-radius:16px 16px 16px 6px;padding:9px 12px 7px;font-size:14px}
+.tgm small{display:block;text-align:right;color:#6d8396;font-size:11px;margin-top:3px}
+.kb{display:grid;gap:4px;margin-top:6px;max-width:88%}.kb span{background:#2b5278;border-radius:10px;padding:8px;text-align:center;font-size:13px;font-weight:600}
+.kb.two{grid-template-columns:1fr 1fr}
+.when{align-self:center;font-size:11.5px;color:#8fa6ba;background:#1c2a38;padding:3px 10px;border-radius:99px}
+.newstep{outline:2px dashed var(--gold);outline-offset:4px;border-radius:18px;padding:2px}
+.lbl{font-size:11px;font-weight:800;color:var(--gold);margin:0 0 4px 2px}
+.tghd{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#17212b;border-bottom:1px solid #0b1118}
+.tghd b{display:block;font-size:15px}.tghd small{color:#6d8396;font-size:12px}
+</style></head><body>
+<h1>Кабинет и бот — макеты</h1>
+<p class="sub">Жёлтым помечено новое. Данные выдуманы.</p>
+<div class="wrap">
+
+<div class="col"><h2>Кабинет · Поддержка</h2>
+<p>Видно, что сообщение прочитали и когда примерно ответят. Скриншот перед отправкой показывается миниатюрой, а в переписке открывается крупно, не выходя из кабинета. В пустом чате — кнопки с частыми темами.</p>
+<div class="ph"><div class="scroll">
+  <div class="hc green"><div class="row"><div class="frog">🐸</div><div><div class="H">Поддержка</div><div class="P">Обращение №1842</div></div></div>
+    <span class="pill" style="position:relative"><span class="dot"></span>Обычно отвечаем за 15 мин<span class="new">новое</span></span></div>
+  <div class="chat">
+    <span class="day">Сегодня</span>
+    <div class="bub me">Не подключается на айфоне<i>12:41 <b>✓✓</b></i></div>
+    <div class="bub me" style="position:relative"><div class="shot"><span>handshake did not complete</span></div>Вот что пишет<i>12:42 <b>✓✓ прочитано</b></i><span class="new">новое</span></div>
+    <div class="bub op"><span class="who">Поддержка</span>Здравствуйте! Обновите подписку: потяните список серверов вниз 🙂<i>12:50</i></div>
+    <div class="typing" style="position:relative">Поддержка печатает…<span class="new">новое</span></div>
+  </div>
+</div>
+  <div class="files" style="position:relative"><div class="thumb"><b>✕</b></div><span class="new" style="right:auto;left:70px;top:0">новое</span></div>
+  <div class="compose"><div class="rnd">📎</div><div class="ta">Написать</div><div class="rnd send">➤</div></div>
+</div></div>
+
+<div class="col"><h2>Кабинет · Поддержка, пустой чат</h2>
+<p>Если обращения нет, сразу видно частые темы: нажал — текст подставился, а бот приложит устройство и приложение сам.</p>
+<div class="ph"><div class="scroll">
+  <div class="hc green"><div class="row"><div class="frog">🐸</div><div><div class="H">Поддержка</div><div class="P">Ответ придёт сюда и в чат с ботом</div></div></div>
+    <span class="pill"><span class="dot"></span>Обычно отвечаем за 15 мин</span></div>
+  <div style="color:var(--hint);text-align:center;padding:26px 30px 6px;font-size:14px">Что случилось? Выберите или опишите своими словами</div>
+  <div class="topics" style="position:relative;justify-content:center"><span>🔌 Не подключается</span><span>🐢 Медленно работает</span><span>💳 Не пришли деньги</span><span>📱 Новое устройство</span><span>❓ Другое</span><span class="new" style="top:0;right:6px">новое</span></div>
+  <div class="ST" style="margin-top:24px">Частые вопросы</div>
+  <div class="cd"><div class="it"><div class="em">💡</div><div class="tx"><b>Как добавить второе устройство</b></div><span class="more">›</span></div>
+  <div class="it"><div class="em">💡</div><div class="tx"><b>Почему списываются деньги</b></div><span class="more">›</span></div></div>
+</div>
+  <div class="compose"><div class="rnd">📎</div><div class="ta">Написать</div><div class="rnd send">➤</div></div>
+</div></div>
+
+<div class="col"><h2>Кабинет · История баланса</h2>
+<p>Сверху — на сколько хватит денег. Дальше «Куда уходят деньги» по устройствам, фильтр по видам операций и итоги за месяц. Ежедневные списания за один день свёрнуты в одну строку.</p>
+<div class="ph"><div class="scroll">
+  <div class="hc slate"><div class="P">Баланс 240 ₽ · хватит на</div><div class="N">8 дней</div><div class="P">списано 140 ₽ за 7 дней · 20 ₽ в день</div>
+    <div class="bars"><i style="height:60%"></i><i style="height:60%"></i><i style="height:60%"></i><i style="height:100%"></i><i style="height:100%"></i><i style="height:100%"></i><i class="on" style="height:100%"></i></div>
+    <div class="bl"><span>ср</span><span>чт</span><span>пт</span><span>сб</span><span>вс</span><span>пн</span><span>сегодня</span></div></div>
+  <div class="ST" style="position:relative">Куда уходят деньги <span class="new" style="position:static;margin-left:6px">новое</span></div>
+  <div class="cd">
+    <div class="it"><div class="em">📱</div><div class="tx"><b>iPhone</b><small>10 ₽ в день · 70 ₽ за неделю</small><div class="meter"><i style="width:50%"></i></div></div></div>
+    <div class="it"><div class="em">💻</div><div class="tx"><b>MacBook</b><small>10 ₽ в день · 70 ₽ за неделю · с субботы</small><div class="meter"><i style="width:50%"></i></div></div></div>
+  </div>
+  <div class="chips" style="position:relative"><span class="on">Все</span><span>Списания</span><span>Пополнения</span><span>Бонусы</span></div>
+  <div class="ST">Сегодня</div>
+  <div class="cd"><div class="it"><div class="em">🔌</div><div class="tx"><b>VPN за день</b><small>2 устройства · 07:00</small></div><span class="v neg">−20 ₽</span></div>
+  <div class="it"><div class="em">🎁</div><div class="tx"><b>Награда за друга</b><small>Аня подключила VPN</small></div><span class="v pos">+50 ₽</span></div></div>
+  <div class="ST">15 ноября</div>
+  <div class="cd"><div class="it"><div class="em">💳</div><div class="tx"><b>Пополнение</b><small>СБП · 14:12</small></div><span class="v pos">+300 ₽</span></div>
+  <div class="it"><div class="em">🔌</div><div class="tx"><b>VPN за день</b><small>1 устройство · 07:00</small></div><span class="v neg">−10 ₽</span></div></div>
+  <div class="ST" style="position:relative">Ноябрь <span class="new" style="position:static;margin-left:6px">новое</span></div>
+  <div class="cd"><div class="it"><div class="tx"><b>Пополнено</b></div><span class="v pos">+600 ₽</span></div><div class="it"><div class="tx"><b>Бонусы и награды</b></div><span class="v pos">+100 ₽</span></div><div class="it"><div class="tx"><b>Списано за VPN</b></div><span class="v">−460 ₽</span></div></div>
+</div></div></div>
+
+<div class="col"><h2>Бот · Деньги кончились</h2>
+<p>Первые три сообщения уже работают. Новое — четвёртое: через 10 дней бонус к пополнению. Сколько процентов и с какой суммы, решаешь ты; бонус приходит сам вместе с пополнением.</p>
+<div class="ph" style="background:#0e1621">
+  <div class="tghd"><div class="frog" style="width:36px;height:36px;font-size:20px">🐸</div><div><b>Лягушка VPN</b><small>бот</small></div></div>
+  <div class="tg">
+    <span class="when">через 1 день · уже есть</span>
+    <div class="tgm">🔌 <b>VPN на паузе</b> — на балансе закончились деньги.<br><br>Пополните от 50 ₽, и он включится сам: заново настраивать ничего не нужно.<small>10:00</small></div>
+    <div class="kb two"><span>50 ₽</span><span>300 ₽ · месяц</span></div><div class="kb"><span>🤝 Обещанный платёж</span></div>
+    <span class="when">через 3 дня · уже есть</span>
+    <div class="tgm">VPN всё ещё выключен 👋 Пополнение займёт минуту — после него всё заработает на тех же устройствах.<small>10:00</small></div>
+    <span class="when">через 7 дней · уже есть</span>
+    <div class="tgm">Что-то не так с VPN? Если он работал плохо или не подошли условия — ответьте одной кнопкой, разберёмся.<small>10:00</small></div>
+    <span class="when" style="background:#3a3010;color:var(--gold)">через 10 дней · новое</span>
+    <div class="newstep"><div class="tgm">🎁 <b>Возвращайтесь с бонусом</b><br><br>Пополните баланс от 200 ₽ до 28 ноября — добавим <b>+20%</b> сверху. Например, 300 ₽ → <b>360 ₽</b> на балансе.<br><br>VPN включится сразу, на тех же устройствах.<small>10:00</small></div>
+    <div class="kb two" style="margin-top:6px"><span>200 ₽ → 240 ₽</span><span>300 ₽ → 360 ₽</span></div><div class="kb"><span>Пополнить другую сумму</span></div></div>
+  </div>
+</div></div>
+
+</div>
+</body></html>

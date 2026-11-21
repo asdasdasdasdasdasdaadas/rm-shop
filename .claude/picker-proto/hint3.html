@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Подсказка и «Как установить» — инструкция × 5</title>
+<link rel="stylesheet" href="cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:auto}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:22px 28px 6px;max-width:1720px;margin:0 auto}
+.top h1{font-size:22px;margin:0;font-weight:800}.top p{margin:0;color:#9aa0ab;font-size:14px}
+.rep{padding:8px 16px;border-radius:12px;background:#1c1e23;font-size:14px;font-weight:600}
+.row{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;padding:18px 20px 40px}
+.col{width:min(360px,calc(100vw - 32px))}
+.cap{margin:14px 6px 0}.cap b{font-size:17px}.cap p{margin:4px 0 0;color:#9aa0ab;font-size:13.5px;line-height:1.45}
+.phone{width:100%;height:760px;border-radius:46px;border:9px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;background:var(--bg)}
+.scrl{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding-bottom:30px}.scrl::-webkit-scrollbar{display:none}
+.bar{display:flex;align-items:center;gap:10px;padding:14px 14px 12px}
+.bar .bk{font-size:24px;width:30px}.bar .nm{display:flex;align-items:center;gap:8px;background:#1c1e23;border-radius:12px;padding:6px 12px 6px 6px;font-size:14px;font-weight:600}
+.bar .nm img{width:24px;height:24px;border-radius:50%}.bar .mr{margin-left:auto;font-size:20px;letter-spacing:1px}
+.H{font-size:26px}
+.big{width:92px;height:92px;border-radius:22px;display:block;box-shadow:0 16px 26px rgba(0,0,0,.35)}
+.mk{display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#4b5263,#2a2e38);color:#fff;font-weight:800}
+/* shared «ещё» row */
+.alt{margin:14px 12px 0;background:var(--card);border-radius:22px;position:relative}
+.ah{display:flex;align-items:center;gap:12px;padding:14px 18px;width:100%;text-align:left;font-size:16.5px}
+.ah .cv{margin-left:auto}
+.ava{display:flex;flex-shrink:0}.ava>*{width:30px;height:30px;border-radius:8px;border:2px solid var(--card);margin-left:-9px;font-size:11px}.ava>:first-child{margin-left:0}
+.ava.hop>*{animation:hop .5s ease-in-out 2;animation-delay:calc(1.2s + var(--i)*.1s)}@keyframes hop{40%{transform:translateY(-7px)}70%{transform:translateY(1px)}}
+.al{display:flex;flex-direction:column;min-width:0}.al b{font-weight:600}.al span{font-size:13.5px;color:var(--hint);margin-top:1px}
+/* 1 chip */
+.gch{display:inline-flex;align-items:center;gap:7px;margin-top:14px;padding:7px 14px 7px 12px;border-radius:99px;background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:14.5px;font-weight:600}
+/* 2 tooltip + text link */
+.tip{position:absolute;left:18px;right:18px;bottom:calc(100% + 10px);background:#fff;color:#1d2340;border-radius:16px;padding:10px 14px;font-size:14px;font-weight:600;box-shadow:0 12px 30px rgba(0,0,0,.4);
+  transform-origin:30% 100%;animation:tipin .5s 1.2s cubic-bezier(.3,1.4,.5,1) both, tipout .3s 6s ease forwards;display:flex;gap:10px;align-items:center;z-index:3}
+.tip::after{content:"";position:absolute;left:40px;top:100%;border:8px solid transparent;border-top-color:#fff}
+.tip .x{margin-left:auto;opacity:.5}
+@keyframes tipin{from{opacity:0;transform:scale(.6) translateY(10px)}}@keyframes tipout{to{opacity:0;transform:scale(.9);visibility:hidden}}
+.tlink{display:block;color:#fff;margin-top:14px;font-size:15px;font-weight:600;opacity:.92}.tlink u{text-decoration:none;border-bottom:1.5px solid rgba(255,255,255,.5)}
+/* 3 three buttons + inline switch */
+.sw{display:inline-flex;align-items:center;gap:8px;margin-top:12px;background:rgba(0,0,0,.22);border-radius:99px;padding:5px 12px 5px 5px;font-weight:700;font-size:14.5px}
+.sw img,.sw .mk{width:26px;height:26px;border-radius:8px;font-size:10px}.sw .c{opacity:.75;font-weight:600}
+.sw.pulse{animation:pls 1.6s 1.2s ease-out 2}@keyframes pls{0%{box-shadow:0 0 0 0 rgba(255,255,255,.55)}100%{box-shadow:0 0 0 14px rgba(255,255,255,0)}}
+.acts3{display:flex;gap:10px;margin-top:20px;align-items:flex-start}
+.acts3 .pill{flex:1}.rb2{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11.5px;font-weight:600;opacity:.95}
+.rb2 .rnd{width:52px;height:52px}
+/* 4 steps with links */
+.tl .lk{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:14.5px;font-weight:600}.tl .lk a{white-space:nowrap}.tl .lk a{color:var(--link)}
+.tl .lk a.o{color:var(--hint);font-weight:500}
+/* 5 guide card + coach mark */
+.gcard{margin:14px 12px 0;background:var(--card);border-radius:22px;padding:12px;display:flex;gap:14px;align-items:center;text-align:left}
+.thumb{position:relative;width:96px;height:64px;border-radius:14px;background:linear-gradient(160deg,#0f5f66,#3fc6b4);flex-shrink:0;overflow:hidden}
+.thumb img{position:absolute;left:10px;top:10px;width:44px;height:44px;border-radius:11px;opacity:.85}
+.thumb .pl{position:absolute;right:8px;bottom:8px;width:26px;height:26px;border-radius:99px;background:#fff;display:flex;align-items:center;justify-content:center}
+.gcard b{display:block;font-size:16px}.gcard span{font-size:13.5px;color:var(--hint)}
+.coach{position:absolute;inset:-4px;border-radius:26px;box-shadow:0 0 0 2px #3fc6b4;animation:ring 1.8s 1.2s ease-out 3;opacity:0;pointer-events:none}
+@keyframes ring{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.06)}}
+.newb{font-style:normal;font-size:11px;font-weight:800;background:#3fc6b4;color:#062a2a;border-radius:99px;padding:2px 7px;margin-left:6px;vertical-align:2px}
+/* 6 app strip in the card + corner guide */
+.v6{margin-top:16px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.v6l{font-size:13px;opacity:.8;font-weight:600}
+.v6r{display:flex;gap:10px;justify-content:center}
+.v6r>span{position:relative;display:flex;border-radius:12px;transition:transform .2s}.v6r img,.v6r .mk{width:40px;height:40px;border-radius:11px;font-size:13px}
+.v6r>span:not(.on){opacity:.6;animation:v6n .45s ease-in-out 1 backwards;animation-delay:calc(1.2s + var(--i)*.12s)}
+.v6r>span.on{box-shadow:0 0 0 2.5px #fff;opacity:1}
+.v6r>span.on::after{content:"✓";position:absolute;right:-6px;top:-6px;width:17px;height:17px;border-radius:99px;background:#fff;color:#0f5f66;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center}
+@keyframes v6n{50%{transform:translateY(-6px);opacity:1}}
+.v6g{position:absolute;z-index:3;right:12px;top:12px;display:flex;align-items:center;gap:5px;background:rgba(0,0,0,.22);border-radius:99px;padding:6px 11px 6px 9px;font-size:13px;font-weight:700}
+/* 7 inline accordion guide + bottom toast */
+.v7{margin:14px 12px 0;background:var(--card);border-radius:22px;padding:14px 18px;text-align:left}
+.v7 .hd{display:flex;align-items:center;gap:10px;font-size:16.5px;font-weight:600}.v7 .hd i{white-space:nowrap;font-style:normal;margin-left:auto;color:var(--hint);font-size:13px;font-weight:500}
+.v7 ol{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.v7 li{display:flex;gap:10px;align-items:center;font-size:14.5px;animation:v7i .4s ease both;animation-delay:calc(.5s + var(--i)*.15s)}
+.v7 li b{width:22px;height:22px;border-radius:99px;background:#3fc6b4;color:#062a2a;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+@keyframes v7i{from{opacity:0;transform:translateX(-10px)}}
+.v7t{position:absolute;left:10px;right:10px;bottom:12px;z-index:5;background:#2b2e36;border-radius:18px;padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:14px;box-shadow:0 14px 34px rgba(0,0,0,.55);
+  animation:v7u .55s 1.3s cubic-bezier(.3,1.3,.5,1) both}
+.v7t .ava>*{border-color:#2b2e36}.v7t b{color:#5fd3c3;white-space:nowrap}.v7t .x{margin-left:auto;opacity:.45}
+@keyframes v7u{from{transform:translateY(120%);opacity:0}}
+/* 8 split button + screenshot steps */
+.v8b{display:flex;gap:10px;margin-top:20px}.v8s{flex:1;display:flex;border-radius:99px;background:#fff;color:#0f5f66;font-weight:700;font-size:17px;overflow:hidden}
+.v8s span{flex:1;white-space:nowrap;display:flex;align-items:center;justify-content:center;padding:15px 0}.v8s em{white-space:nowrap;font-style:normal;display:flex;align-items:center;gap:4px;padding:0 14px;border-left:1.5px solid rgba(15,95,102,.2);font-size:13px}
+.v8s em .ava>*{width:20px;height:20px;border-radius:6px;font-size:8px;border-color:#fff;margin-left:-7px}.v8s em .ava>:first-child{margin-left:0}
+.v8g{margin:14px 12px 0;background:var(--card);border-radius:22px;padding:14px 14px 12px;text-align:left}
+.v8g .hd{display:flex;align-items:center;gap:8px;font-weight:600;font-size:16px;padding:0 4px}.v8g .hd i{font-style:normal;margin-left:auto;color:var(--link);font-size:14px}
+.v8r{display:flex;gap:8px;margin-top:10px}
+.v8r>div{flex:1;border-radius:14px;background:#24272e;padding:8px 6px;text-align:center;font-size:11.5px;color:var(--hint);animation:v8h 3.6s ease-in-out infinite;animation-delay:calc(1s + var(--i)*1.2s)}
+.v8r .sc{height:62px;border-radius:9px;margin-bottom:6px;background:#1a1c21;display:flex;align-items:center;justify-content:center;font-size:24px}
+@keyframes v8h{0%,33%{box-shadow:0 0 0 2px #3fc6b4;color:#fff}34%,100%{box-shadow:none}}
+/* 9 card deck you can swipe */
+.v9w{position:relative;margin:0 34px 0 8px}
+.v9w .hc{margin:0;z-index:2}
+.v9w .bk1,.v9w .bk2{position:absolute;top:18px;bottom:18px;left:0;right:0;border-radius:26px;z-index:1}
+.v9w .bk1{transform:translateX(16px) scale(.95);background:linear-gradient(165deg,#3a2a7a,#6a52c8);animation:v9p 2.6s 1.2s ease-in-out 2}
+.v9w .bk2{transform:translateX(30px) scale(.9);background:linear-gradient(165deg,#1f2a3d,#5c7397);top:34px;bottom:34px;z-index:0}
+.v9w .hc{animation:v9s 2.6s 1.2s ease-in-out 2}
+@keyframes v9s{20%{transform:translateX(-26px) rotate(-2deg)}40%,100%{transform:none}}
+@keyframes v9p{20%{transform:translateX(34px) scale(.97)}40%,100%{transform:translateX(16px) scale(.95)}}
+.v9h{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;color:var(--hint);font-size:14px}
+.v9h .d{display:flex;gap:5px}.v9h .d i{width:7px;height:7px;border-radius:99px;background:#3a3d45}.v9h .d i.on{background:#fff;width:18px}
+.v9v{position:absolute;left:50%;top:76px;transform:translateX(18px);display:flex;align-items:center;gap:4px;background:#fff;color:#0f5f66;border-radius:99px;padding:4px 9px 4px 6px;font-size:12px;font-weight:800;box-shadow:0 6px 16px rgba(0,0,0,.35);animation:pop .5s 1s both}
+/* 10 chips question + FAQ */
+.v10{margin:14px 12px 0;background:var(--card);border-radius:22px;padding:14px 0 14px;text-align:left}
+.v10 .q2{padding:0 18px;font-size:16.5px;font-weight:600}.v10 .q2 span{display:block;font-size:13.5px;color:var(--hint);font-weight:500;margin-top:1px}
+.v10c{display:flex;gap:8px;overflow-x:auto;padding:12px 18px 2px;scrollbar-width:none;animation:v10n 1.4s 1.2s ease-in-out 1}
+.v10c::-webkit-scrollbar{display:none}
+.v10c>span{display:flex;align-items:center;gap:7px;flex-shrink:0;padding:6px 13px 6px 6px;border-radius:99px;background:#24272e;font-size:14.5px;font-weight:600}
+.v10c>span.on{background:#3fc6b4;color:#062a2a}.v10c img,.v10c .mk{width:24px;height:24px;border-radius:7px;font-size:9px}
+@keyframes v10n{30%{transform:translateX(-34px)}60%,100%{transform:none}}
+.v10f{margin:14px 12px 0;background:var(--card);border-radius:22px;padding:14px 18px;text-align:left}
+.v10f .hd{display:flex;align-items:center;gap:10px;font-size:16.5px;font-weight:600}.v10f .hd .cv{margin-left:auto;transform:rotate(90deg);color:var(--hint)}
+.v10f p{margin:8px 0 0;color:var(--hint);font-size:14.5px;line-height:1.45;animation:fin .5s .6s both}.v10f p a{color:var(--link);font-weight:600}
+/* 2 family */
+.cardA{position:relative}
+.base .H{font-size:26px}
+/* a: below the row, arrow up */
+.tipB{position:absolute;left:18px;right:18px;top:calc(100% + 10px);background:#fff;color:#1d2340;border-radius:16px;padding:10px 14px;font-size:14px;font-weight:600;box-shadow:0 12px 30px rgba(0,0,0,.4);display:flex;gap:10px;align-items:center;z-index:3;
+  transform-origin:30% 0;animation:tipin2 .5s 1.2s cubic-bezier(.3,1.4,.5,1) both, tipout .3s 6s ease forwards}
+.tipB::after{content:"";position:absolute;left:40px;bottom:100%;border:8px solid transparent;border-bottom-color:#fff}.tipB .x{margin-left:auto;opacity:.5}
+@keyframes tipin2{from{opacity:0;transform:scale(.6) translateY(-10px)}}
+/* b: subtitle swaps to the hint */
+.swp{position:relative;display:block;height:19px;overflow:hidden}.swp>i{font-style:normal;position:absolute;left:0;right:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.swp .h1{color:#5fd3c3;font-weight:600;animation:sw1 6s 1.2s both}.swp .h0{animation:sw0 6s 1.2s both}
+@keyframes sw0{0%{transform:none;opacity:1}8%,85%{transform:translateY(-100%);opacity:0}93%,100%{transform:none;opacity:1}}
+@keyframes sw1{0%{transform:translateY(100%);opacity:0}8%,85%{transform:none;opacity:1}93%,100%{transform:translateY(-100%);opacity:0}}
+.glow{animation:glw 1.6s 1.2s ease-out 2}@keyframes glw{0%{box-shadow:0 0 0 0 rgba(63,198,180,.55)}100%{box-shadow:0 0 0 12px rgba(63,198,180,0)}}
+/* c: in-flow dark pill between card and row */
+.gap{display:grid;grid-template-rows:0fr;animation:gp 6s 1.2s both;margin:0 12px}
+.gap>div{overflow:hidden}.gap .pill2{display:flex;align-items:center;gap:8px;margin-top:12px;padding:9px 14px;border-radius:14px;background:#1f3b3a;color:#bff3ea;font-size:14px;font-weight:600}
+.gap .pill2 .x{margin-left:auto;opacity:.5}
+@keyframes gp{0%{grid-template-rows:0fr;opacity:0}8%,88%{grid-template-rows:1fr;opacity:1}100%{grid-template-rows:0fr;opacity:0}}
+/* d: small bubble at the right, over the chevron */
+.tipS{position:absolute;right:10px;bottom:calc(100% - 20px);background:#fff;color:#1d2340;border-radius:12px;padding:6px 10px;font-size:13px;font-weight:700;box-shadow:0 10px 24px rgba(0,0,0,.4);z-index:3;white-space:nowrap;
+  transform-origin:85% 100%;animation:tipin .45s 1.2s cubic-bezier(.3,1.4,.5,1) both, bob 1.2s 1.7s ease-in-out 3, tipout .3s 6s ease forwards}
+.tipS::after{content:"";position:absolute;right:18px;top:100%;border:6px solid transparent;border-top-color:#fff}
+@keyframes bob{50%{transform:translateY(-4px)}}
+/* e: banner glued on top of the row */
+.alt.ban{overflow:hidden}.bnr{display:flex;align-items:center;gap:8px;padding:9px 18px;background:linear-gradient(90deg,#1d4b48,#24302f);color:#bff3ea;font-size:14px;font-weight:600;border-bottom:1px solid var(--sep);position:relative;overflow:hidden}
+.bnr::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.18) 50%,transparent 70%);transform:translateX(-100%);animation:shn 1.4s 1.2s ease-in-out 2}
+@keyframes shn{to{transform:translateX(100%)}}
+/* guide takes */
+.g1{display:inline-flex;align-items:center;gap:7px;margin-top:14px;padding:7px 14px 7px 12px;border-radius:99px;background:rgba(255,255,255,.18);box-shadow:inset 0 0 0 1px rgba(255,255,255,.28);font-size:14.5px;font-weight:600;position:relative;overflow:hidden}
+.g1::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);transform:translateX(-100%);animation:shn 1.2s 1s ease-in-out 2}
+.g2{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;padding:13px 0;border-radius:99px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55);font-size:16px;font-weight:600}
+.g3{position:absolute;z-index:3;right:12px;top:12px;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);border-radius:99px;padding:6px 12px 6px 9px;font-size:13.5px;font-weight:700;animation:pop .5s .9s both}
+.hc.ft{padding-bottom:0}
+.g4{display:flex;align-items:center;gap:12px;margin:22px -22px 0;padding:12px 22px;background:rgba(0,0,0,.2);text-align:left}
+.g4 .pl{width:34px;height:34px;border-radius:99px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;animation:pls 1.6s 1.2s ease-out 2}
+.g4 b{display:block;font-size:15px}.g4 span{font-size:13px;opacity:.75}.g4 .cv{margin-left:auto;opacity:.7;font-size:20px}
+.g5{display:flex;align-items:center;gap:12px;margin:14px 12px 0;background:var(--card);border-radius:22px;padding:14px 18px;width:calc(100% - 24px);text-align:left}
+.g5 .ic{width:34px;height:34px;border-radius:10px;background:linear-gradient(160deg,#3fc6b4,#178f8f);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
+.g5 b{display:block;font-size:16.5px;font-weight:600}.g5 span{font-size:13.5px;color:var(--hint)}.g5 .cv{margin-left:auto;color:var(--hint)}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Подсказка «другое приложение» + «Как установить» · 5 вариантов ссылки «Как установить»</h1>
+  <button class="rep" onclick="location.reload()">↻ Повторить анимации</button>
+  <p>Анимации подсказок проигрываются через ~1 секунду после открытия экрана.</p>
+</div>
+<div class="row" id="row"></div>
+<script>
+const I = { incy: "icons/incy.png", happ: "icons/happ.png" };
+const mk = (t, s) => `<span class="mk" style="width:${s}px;height:${s}px;border-radius:${Math.round(s * .26)}px;font-size:${Math.round(s * .38)}px">${t}</span>`;
+const ava = (hop) => `<span class="ava ${hop ? "hop" : ""}"><img src="${I.happ}" style="--i:0">${mk("RH", 30).replace('class="mk"', 'class="mk" style="--i:1"')}${mk("S", 30).replace('class="mk"', 'class="mk" style="--i:2"')}</span>`;
+const BOOK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>';
+const CHK = '<svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const bar = '<div class="bar"><span class="bk">←</span><span class="nm"><img src="icons/frog.png">Лягушка VPN</span><span class="mr">•••</span></div>';
+const dots = '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>';
+const acts = '<div class="acts"><button class="pill"><span>Скачать</span></button><button class="rnd">' + CHK + '</button></div>';
+const ill = '<div class="ill"><div><img class="big" src="icons/incy.png"></div></div>';
+const steps = (one = "", tx1 = "Установите Incy") => `<div class="st">Как это работает</div><div class="cd">
+  <div class="tl" style="--i:0"><div class="n">1</div><div><div class="tx">${tx1}</div><div class="sx">займёт полминуты</div>${one}</div></div>
+  <div class="tl" style="--i:1"><div class="n">2</div><div><div class="tx">Вернитесь сюда и нажмите ✓</div><div class="sx"><b>создадим ключ</b> для этого устройства</div></div></div>
+  <div class="tl" style="--i:2"><div class="n">3</div><div><div class="tx">Подключите в один тап</div><div class="sx">6 ₽ в день, пока пользуетесь</div></div></div></div>`;
+const more = (label, sub, extra = "", hop = true) => `<div class="alt">${extra}<button class="ah">${ava(hop)}<span class="al"><b>${label}</b><span>${sub}</span></span><span class="cv">›</span></button></div>`;
+
+const V = [
+  { t: "И1 · Стеклянный чип под текстом", p: "Компактная полупрозрачная «таблетка» с иконкой книжки: «Как установить Incy». По ней один раз пробегает блик. Похожа на кнопку, но не спорит со «Скачать».",
+    h: bar + `<section class="hc teal">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div><button class="g1">${BOOK}<span>Как установить Incy</span></button>${dots}${acts}</section>` + `<div class="alt"><div class="tipB">💡 Можно выбрать другое приложение<span class="x">✕</span></div><button class="ah">${ava(false)}<span class="al"><b>Другие приложения</b><span>Happ, RabbitHole, Streisand и ещё 1</span></span><span class="cv">›</span></button></div>` + steps() },
+  { t: "И2 · Вторая кнопка под «Скачать»", p: "Под главной кнопкой — контурная кнопка во всю ширину «📖 Инструкция по установке». Привычная пара «главное / второстепенное», сразу видно, что это кликается.",
+    h: bar + `<section class="hc teal">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>${dots}${acts}<button class="g2">${BOOK}Инструкция по установке</button></section>` + `<div class="alt"><div class="tipB">💡 Можно выбрать другое приложение<span class="x">✕</span></div><button class="ah">${ava(false)}<span class="al"><b>Другие приложения</b><span>Happ, RabbitHole, Streisand и ещё 1</span></span><span class="cv">›</span></button></div>` + steps() },
+  { t: "И3 · Значок в углу карточки", p: "В правом верхнем углу карточки стеклянный значок «📖 Инструкция», появляется с лёгким «поп». Карточка остаётся чистой, как сейчас без ссылки.",
+    h: bar + `<section class="hc teal" style="padding-top:46px"><button class="g3">${BOOK.replace(/16/g,"14")}Инструкция</button>${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>${dots}${acts}</section>` + `<div class="alt"><div class="tipB">💡 Можно выбрать другое приложение<span class="x">✕</span></div><button class="ah">${ava(false)}<span class="al"><b>Другие приложения</b><span>Happ, RabbitHole, Streisand и ещё 1</span></span><span class="cv">›</span></button></div>` + steps() },
+  { t: "И4 · Полоска-видео внизу карточки", p: "Нижний край карточки — тёмная полоска с кнопкой ▶: «Как установить Incy · 1 минута, с картинками». Кнопка ▶ пульсирует. Выглядит как вложенный ролик.",
+    h: bar + `<section class="hc teal ft">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>${dots}${acts}<div class="g4"><span class="pl"><svg width="13" height="13" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="#0f5f66"/></svg></span><span><b>Как установить Incy</b><span>1 минута, с картинками</span></span><span class="cv">›</span></div></section>` + `<div class="alt"><div class="tipB">💡 Можно выбрать другое приложение<span class="x">✕</span></div><button class="ah">${ava(false)}<span class="al"><b>Другие приложения</b><span>Happ, RabbitHole, Streisand и ещё 1</span></span><span class="cv">›</span></button></div>` + steps() },
+  { t: "И5 · Отдельная строка как «Другие приложения»", p: "Под карточкой две одинаковые строки: «Инструкция по установке — пошагово, 1 минута» с бирюзовой иконкой и «Другие приложения». Всё в одном стиле, ничего лишнего в карточке.",
+    h: bar + `<section class="hc teal">${ill}<div class="H">Установите Incy</div><div class="P">Бесплатно в App Store. Уже стоит — жмите ✓</div>${dots}${acts}</section><button class="g5"><span class="ic">${BOOK}</span><span><b>Инструкция по установке</b><span>Пошагово, 1 минута</span></span><span class="cv">›</span></button>` + `<div class="alt"><div class="tipB">💡 Можно выбрать другое приложение<span class="x">✕</span></div><button class="ah">${ava(false)}<span class="al"><b>Другие приложения</b><span>Happ, RabbitHole, Streisand и ещё 1</span></span><span class="cv">›</span></button></div>` + steps() },
+];
+const row = document.getElementById("row");
+V.forEach((v) => { const c = document.createElement("div"); c.className = "col";
+  c.innerHTML = `<div class="phone"><div class="scrl">${v.h}</div>${v.o || ""}</div><div class="cap"><b>${v.t}</b><p>${v.p}</p></div>`; row.appendChild(c); });
+</script>
+</body>
+</html>

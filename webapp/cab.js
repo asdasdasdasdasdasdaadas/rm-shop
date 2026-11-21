@@ -402,6 +402,38 @@
     call(() => tg.BackButton.show());
   }
 
+  // ---------- the living frog on the home card (webapp/frog.js; on/off and its A/B test: app/frog_test.py) ----------
+  // me.frog = {on, ab}: on — show it; ab — the person's group while the test runs (both groups report opens and «Пополнить»).
+  let frogLib = null, frogPlayAt = 0, frogClicks = false;
+  function frogEvent(kind) {
+    if (!me || !me.frog || !me.frog.ab) return;
+    post("/api/frog-event", { kind }).catch(() => {});
+  }
+  function frogMount(el) {
+    if (!frogClicks) {
+      frogClicks = true;
+      document.addEventListener("click", (e) => {
+        if (cur && cur.key === "home" && e.target.closest && e.target.closest('.hc [data-go="topup"]')) frogEvent("topup");
+      }, true);
+    }
+    if (!me || !me.frog || !me.frog.on) return;
+    const card = el && el.querySelector(".hc.green, .hc.orange, .hc.red");
+    const ill = card && card.querySelector(".ill");
+    if (!card || !ill || card.querySelector(".pet")) return;
+    const mood = card.classList.contains("red") ? "sleep" : card.classList.contains("orange") ? "cold" : "ok";
+    frogLib = frogLib || new Promise((ok, no) => {
+      const s = document.createElement("script"); s.src = "/static/frog.js?v=1"; s.onload = ok; s.onerror = () => { frogLib = null; no(); };
+      document.head.appendChild(s);
+    });
+    frogLib.then(() => {
+      if (!card.isConnected || card.querySelector(".pet")) return;
+      // the still picture gives way to the field: same height, so nothing below jumps
+      ill.style.height = `${ill.offsetHeight}px`; ill.style.animation = "none"; ill.innerHTML = "";
+      window.petLive(card, { skin: mood === "sleep" ? 18 : mood === "cold" ? 0 : 3, mood,
+        onPlay: () => { const now = Date.now(); if (now - frogPlayAt < 2000) return; frogPlayAt = now; frogEvent("play"); } });
+    }).catch(() => {});
+  }
+
   SCR.home = {
     live: true,
     h() {
@@ -457,10 +489,12 @@
     on(el) {
       store.set("shown_bal", Number(me.balance_rub) || 0);
       track("cabinet");
+      frogEvent("open");
+      frogMount(el);
       const nb = el && el.querySelector(".nyb");
       if (nb) { gMini(nb); gConf(nb, "snow"); }
     },
-    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.has_paid_topup, me.browser_login, me.first_bonus, me.gift_season, me.autopay]),
+    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.has_paid_topup, me.browser_login, me.first_bonus, me.gift_season, me.autopay, me.frog && me.frog.on]),
   };
 
   // ---------- gift for newcomers ----------
@@ -2312,6 +2346,7 @@
     sparkle(el);
     if (!still) counts(el);
     if (s.on && cur.key !== "home") s.on(el, cur.params);
+    if (cur.key === "home") frogMount(el);
   }
   function syncBack() {
     const show = Boolean(sheetEl || (cur && cur.key !== "home" && !SCR[cur.key].bare));

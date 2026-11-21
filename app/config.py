@@ -94,6 +94,8 @@ class Settings(BaseSettings):
     cabinet_price_enabled: bool = True
     # Cards (sendWidget) in the chat; off — every card goes as an ordinary message with buttons.
     widgets_enabled: bool = True
+    # The living frog on the cabinet's home card (webapp/frog.js). While its A/B test runs (app/frog_test.py) the test decides.
+    frog_enabled: bool = False
     trust_days: int = 3
     trust_fee_rub: int = 12
     # «+35% к первому пополнению»: the first top-up from first_bonus_min_rub before the gift runs out.
@@ -338,6 +340,7 @@ SHOP_KEYS = frozenset(
         "welcome_support_enabled",
         "cabinet_price_enabled",
         "widgets_enabled",
+        "frog_enabled",
         "trust_days",
         "trust_fee_rub",
         "first_bonus_enabled",

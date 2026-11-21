@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Автопополнение — сравнение вариантов</title>
+<link rel="stylesheet" href="../../webapp/cab.css">
+<style>
+body{background:#0a0b0d;overflow-x:hidden}
+.top{padding:22px 20px 4px;max-width:1240px;margin:0 auto}
+.top .k{font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#5ea8ff}
+.top h1{font-size:23px;margin:4px 0 0;font-weight:800;letter-spacing:-.2px}
+.top p{margin:8px 0 0;color:#9aa0ab;font-size:14.5px;max-width:860px;line-height:1.5}
+.nav{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.nav a{padding:8px 14px;border-radius:99px;background:#1c1e23;font-size:13.5px;font-weight:600;color:#cfd5de;text-decoration:none}
+.nav a.on{background:#fff;color:#111}
+.rules{max-width:1240px;margin:18px auto 0;padding:0 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.rule{background:#15171b;border-radius:18px;padding:13px 16px;font-size:13.5px;color:#9aa0ab;line-height:1.45}
+.rule b{display:block;color:#fff;font-size:14.5px;margin-bottom:3px}
+.rule.minus b{color:#f6a447}
+.row{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;padding:22px 16px 40px}
+.col{width:min(360px,calc(100vw - 32px))}
+.cap{margin:14px 6px 0}.cap b{font-size:17px}.cap p{margin:4px 0 0;color:#9aa0ab;font-size:13.5px;line-height:1.45}
+.phone{width:100%;height:870px;border-radius:46px;border:9px solid #000;box-shadow:0 0 0 1.5px #2a2c33,0 30px 60px rgba(0,0,0,.5);position:relative;overflow:hidden;background:var(--bg)}
+.scrl{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding:14px 0 30px}.scrl::-webkit-scrollbar{display:none}
+.phone *{animation:none!important}
+.frog{width:78px;height:78px}
+.sw2{width:51px;height:31px;border-radius:99px;background:#3a3d45;position:relative;flex-shrink:0}
+.sw2::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.sw2.on{background:var(--grn)}.sw2.on::after{transform:translateX(20px)}
+.apb{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:7px 14px 7px 11px;border-radius:99px;background:rgba(255,255,255,.2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);font-size:13.5px;font-weight:600;white-space:nowrap}
+.hc .acts.col2{flex-direction:column;gap:8px}
+.hc .acts.col2 .pill{flex:none;width:100%}
+.pill.ghost{background:rgba(255,255,255,.2);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)}
+.fine{font-size:12.5px;color:var(--hint);text-align:center;margin:12px 26px 0;line-height:1.45}.fine u{color:#8cc0ff;text-decoration:none}
+.hist .v{color:var(--grn)}
+/* telegram */
+.chat{background:#0e1621;position:absolute;inset:0;padding-top:14px;display:flex;flex-direction:column}
+.tgbar{display:flex;align-items:center;gap:10px;padding:6px 14px 10px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0}
+.tgbar .av{width:38px;height:38px;border-radius:50%;overflow:hidden}.tgbar .av img{width:38px;height:38px}
+.tgbar b{font-size:15.5px;display:block}.tgbar span{font-size:13px;color:#7d8b99}
+.feed{flex:1;overflow-y:auto;scrollbar-width:none;padding:12px 10px 16px}.feed::-webkit-scrollbar{display:none}
+.day{text-align:center;margin:4px 0 10px}.day span{background:rgba(0,0,0,.35);color:#fff;font-size:12.5px;padding:3px 10px;border-radius:99px}
+.bub{background:#182533;border-radius:16px 16px 16px 5px;padding:9px 12px 7px;font-size:14.5px;line-height:1.38;max-width:94%;color:#fff}
+.bub .t{float:right;font-size:11.5px;color:#6d7f8f;margin:6px 0 0 10px}.bub b{font-weight:600}
+.bub .q{border-left:3px solid #5ea8ff;padding:2px 0 2px 9px;margin-top:6px;color:#c9d4de}
+.bub .q.g{border-color:#3ccf74}.bub .q.o{border-color:#f6a447}
+.bub::after{content:"";display:block;clear:both}
+.kb{display:grid;gap:4px;margin:4px 0 12px;max-width:94%}
+.kb.two{grid-template-columns:1fr 1fr}.kb.three{grid-template-columns:1fr 1.2fr 1fr}
+.kb .w{grid-column:1/-1}
+.kb div{background:rgba(70,95,120,.35);border-radius:10px;padding:9px 6px;text-align:center;font-size:14px;font-weight:600;color:#fff}
+.kb div.hl{background:rgba(62,136,247,.55)}
+.kb div.val{background:rgba(70,95,120,.18);color:#c9d4de}
+.me{margin:0 0 10px auto;background:#2b5278;border-radius:16px 16px 5px 16px;padding:7px 12px;font-size:14.5px;width:max-content;color:#fff}
+.sec{max-width:1240px;margin:34px auto 0;padding:26px 20px 0;border-top:1px solid #1d1f24}
+.sec .k{font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#5ea8ff}
+.sec h2{margin:4px 0 0;font-size:21px;font-weight:800}
+.sec p{margin:6px 0 0;color:#9aa0ab;font-size:14.5px;line-height:1.5;max-width:820px}
+.row{padding-bottom:6px}
+.toast2{position:absolute;left:12px;right:12px;bottom:22px;z-index:40;background:#2a2d34;border-radius:16px;padding:12px 14px;font-size:14.5px;font-weight:600;display:flex;gap:10px;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+.toast2 .u{margin-left:auto;color:#8cc0ff;font-weight:700}
+.sheetwrap{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:20}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-radius:26px 26px 0 0;padding:10px 18px 22px}
+.sheet .grab{width:38px;height:5px;border-radius:9px;background:#3a3d45;margin:0 auto 14px}
+.sheet h3{margin:0;font-size:19px}.sheet .sub{font-size:14px;color:var(--hint);margin-top:4px;line-height:1.4}
+.sheet .chp{justify-content:flex-start;margin-top:14px}.sheet .chp{flex-wrap:nowrap;gap:5px}.sheet .chp button{background:#2a2d34;height:38px;padding:0 11px;white-space:nowrap}.sheet .chp .on{background:#fff;color:#111}
+.bbt{text-align:center;display:flex;align-items:center;justify-content:center;height:52px;border-radius:99px;font-size:16.5px;font-weight:600;width:100%;margin-top:8px;color:#fff;background:#2a2d34}
+.bbt.pri{background:var(--blue)}.bbt.dng{background:rgba(240,104,90,.16);color:var(--red)}
+.btns{padding:14px 12px 0}
+.ask{margin:12px 12px 0;background:var(--card);border-radius:26px;padding:16px 18px}
+.ask b{font-size:16.5px;font-weight:600}.ask p{margin:6px 0 0;color:var(--hint);font-size:14px;line-height:1.42}
+.ask .two{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.ask .two span{height:42px;border-radius:13px;background:#2a2d34;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600}
+.ask .two span.p{background:var(--blue)}
+.apb.warn{background:rgba(0,0,0,.25)}
+.tbl{max-width:1240px;margin:18px auto 0;padding:0 20px}
+.tbl table{width:100%;border-collapse:collapse;background:#15171b;border-radius:18px;overflow:hidden;font-size:14px}
+.tbl th,.tbl td{text-align:left;padding:11px 14px;border-bottom:1px solid #1f2227;vertical-align:top;line-height:1.4}
+.tbl th{color:#9aa0ab;font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.4px}
+.tbl td:first-child{color:#fff;font-weight:600;width:34%}.tbl td{color:#b9bfca}
+.tbl tr:last-child td{border-bottom:0}
+.cmp{max-width:1000px;margin:0 auto;padding:0 16px}
+.rowc{margin-top:30px;padding-top:24px;border-top:1px solid #1d1f24}
+.rowc h2{margin:0;font-size:20px;font-weight:800}
+.rowc .df{margin:6px 0 0;color:#9aa0ab;font-size:14.5px;line-height:1.5;max-width:760px}
+.rowc .df b{color:#fff}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:16px;align-items:start}
+.side{min-width:0}
+.tag{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:5px 11px;border-radius:99px;margin-bottom:10px}
+.tag.a{background:#22252c;color:#cfd5de}.tag.b{background:rgba(40,164,100,.2);color:#5fd38d}
+.fit{width:100%;max-width:340px}
+.cmp .phone{width:340px;height:690px}
+.side .cp{margin:10px 2px 0;color:#9aa0ab;font-size:13px;line-height:1.45;max-width:340px}
+.sheet .hd{display:flex;gap:12px;align-items:center}
+.sheet .hd .ic{width:44px;height:44px;border-radius:14px;background:linear-gradient(160deg,#5fd38d,#16804a);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.sheet .hd span{font-size:13.5px;color:var(--hint)}
+.sheet .lbl{font-size:13px;color:var(--hint);margin:14px 0 0;font-weight:600}
+.mtl{margin-top:12px;background:#121317;border-radius:16px;padding:4px 14px}
+.mtl .r{display:flex;gap:12px;align-items:center;padding:8px 0;font-size:14px}
+.mtl .r + .r{border-top:1px solid var(--sep)}
+.mtl .r i{font-style:normal;width:26px;text-align:center;font-size:16px}.mtl .r small{display:block;color:var(--hint);font-size:12.5px;margin-top:1px}
+.later{text-align:center;color:#c4c9d3;font-size:15px;font-weight:600;margin-top:12px}
+.sum{max-width:1000px;margin:20px auto 0;padding:0 16px}
+@media (max-width:480px){.sum th,.sum td{padding:9px 8px!important;font-size:12.5px!important}.sum th{font-size:10.5px!important;letter-spacing:0!important}}
+.sum table{table-layout:fixed;overflow-wrap:break-word;hyphens:auto;width:100%;border-collapse:collapse;background:#15171b;border-radius:18px;overflow:hidden;font-size:13.5px}
+.sum th,.sum td{text-align:left;padding:10px 12px;border-bottom:1px solid #1f2227;vertical-align:top;line-height:1.4;color:#b9bfca}
+.sum th{color:#9aa0ab;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+.sum td:first-child{color:#fff;font-weight:600;width:26%}
+.sum tr:last-child td{border-bottom:0}
+</style>
+</head>
+<body>
+<div class="top" style="max-width:1000px">
+  <span class="k">Сравнение</span>
+  <h1>Ваш вариант и итоговый — рядом</h1>
+  <p>Слева то, что описано в README и в ваших прототипах. Справа — итоговый вариант. Семь мест, где видна разница; механика одна и та же: баланс, 6 ₽ в день, списание когда осталось 2 дня.</p>
+  <div class="nav"><a href="autopay-best.html">Ваш вариант целиком</a><a href="autopay-final.html">Итоговый целиком</a><a href="journey-autopay.html">Путь пользователя</a></div>
+</div>
+<div class="sum"><table>
+<tr><th></th><th>Ваш вариант</th><th>Итоговый</th></tr>
+<tr><td>Где предлагаем</td><td>после оплаты картой</td><td>когда баланс кончается; после оплаты — тихо</td></tr>
+<tr><td>Включение</td><td>оплата, потом вопрос</td><td>одна кнопка «Оплатить и включить»</td></tr>
+<tr><td>Управление</td><td>экран в кабинете</td><td>пульт в чате и экран в кабинете</td></tr>
+<tr><td>Мягкий выход</td><td>только выключить</td><td>пауза, «пропустить этот раз»</td></tr>
+<tr><td>Что одинаково</td><td colspan="2">сумма и порог 2 дня, напоминание за день, чек, отказ на 30 дней, выключение после 2 неудач, отключение в один тап</td></tr>
+</table></div>
+<div class="cmp"><div class="rowc"><h2>1. Где человек узнаёт про автопополнение</h2><p class="df"><b>Главное отличие.</b> У вас — сразу после оплаты, когда человек доволен. В итоговом — когда баланс кончается и проблема перед глазами; после оплаты остаётся только тихая карточка.</p><div class="pair"><div class="side"><span class="tag a">Ваш вариант</span><div class="fit"><div class="phone"><div class="scrl"><section class="hc green"><div class="ov"></div><div class="ill"><div><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m7.5 12.5 3 3 6-6.5"/></svg></div></div><div class="N">+300 ₽</div><div class="P">Оплата прошла · хватит до 5 января</div></section><div class="st">Устройства</div><div class="cd"><div class="rw"><span class="e">📱</span><span class="tt"><b>iPhone</b><span><span class="dot"></span>Подключено · 6 ₽ в день</span></span><span class="v"><span class="cv">›</span></span></div></div></div><div class="sheetwrap"><div class="sheet"><div class="grab"></div><div class="hd"><span class="ic">🔁</span><div><h3>Пополнять автоматически?</h3><span>VPN не выключится, следить не нужно</span></div></div>
+<div class="lbl">Сумма пополнения</div><div class="chp"><button class="on">300 ₽</button><button>500 ₽</button><button>1 000 ₽</button></div>
+<div class="mtl"><div class="r"><i>✓</i><div>Сегодня +300 ₽<small>хватит до 5 января</small></div></div><div class="r"><i>🔔</i><div>2 января напомним в боте<small>можно отменить</small></div></div><div class="r"><i>🔁</i><div>3 января спишем 300 ₽<small>с карты •• 4242</small></div></div></div>
+<div class="bbt pri" style="margin-top:14px">Включить</div><div class="later">Не сейчас</div></div></div></div></div><p class="cp">Шторка выезжает через секунду после экрана успеха. В боте — отдельное сообщение после чека.</p></div><div class="side"><span class="tag b">Итоговый</span><div class="fit"><div class="phone"><div class="chat"><div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div><div class="feed"><div class="day"><span>14 ноября</span></div><div class="bub">ℹ️ <b>Баланс на исходе</b><div class="q o">Остаток 12 ₽ — меньше чем на сутки. Потом VPN выключится.</div><span class="t">10:00</span></div><div class="kb "><div class="">Пополнить баланс</div><div class="hl">🔁 Пополнить и больше не следить</div><div class="">🤝 Обещанный платёж</div></div></div></div></div></div><p class="cp">Вторая кнопка в привычном предупреждении. То же — на оранжевой карточке кабинета.</p></div></div></div><div class="rowc"><h2>2. Как включается</h2><p class="df">У вас оплата и согласие — <b>два отдельных шага</b>: сначала заплатил, потом ответил на вопрос. В итоговом — <b>один</b>: кнопка «Оплатить и включить» рядом с «Оплатить один раз».</p><div class="pair"><div class="side"><span class="tag a">Ваш вариант</span><div class="fit"><div class="phone"><div class="chat"><div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div><div class="feed"><div class="day"><span>14 ноября</span></div><div class="bub">✅ <b>Баланс пополнен на 300 ₽</b><div class="q g">Теперь 312 ₽ — хватит до 5 января.</div><span class="t">10:02</span></div><div style="height:8px"></div><div class="bub">🔁 <b>Пополнять автоматически?</b><div class="q ">Когда останется 2 дня, спишем <b>300 ₽</b> с карты •• 4242. За день до этого напомним. Отключить — в любой момент.</div><span class="t">10:02</span></div><div class="kb two"><div class="">Включить</div><div class="">Не сейчас</div></div></div></div></div></div><p class="cp">Вопрос после чека, две равные кнопки. Согласие отделено от оплаты — юридически это чище.</p></div><div class="side"><span class="tag b">Итоговый</span><div class="fit"><div class="phone"><div class="scrl"><section class="hc blue"><div class="ov"></div><div class="H" style="font-size:17px;opacity:.9">🔁 Пополнить и включить</div><div class="N">300 ₽</div><div class="P">≈ 50 дней VPN за раз</div><div class="chp" style="margin-top:12px"><button>100</button><button class="on">300</button><button>500</button><button>1 000</button></div></section>
+<div class="cd" style="margin-top:12px"><div class="tl" style="padding:7px 0"><div class="n ok">✓</div><div><div class="tx">Сегодня — оплата 300 ₽</div><div class="sx">картой, она запомнится</div></div></div><div class="tl" style="padding:7px 0"><div class="n">🔔</div><div><div class="tx">За день напомним</div><div class="sx">можно пропустить</div></div></div><div class="tl" style="padding:7px 0"><div class="n">🔁</div><div><div class="tx">Пополним на 300 ₽</div><div class="sx">когда останется 2 дня</div></div></div></div>
+<div class="btns"><div class="bbt pri">Оплатить 300 ₽ и включить</div><div class="bbt">Оплатить один раз</div></div><div class="fine">Отключить — в любой момент · <u>Условия</u></div></div></div></div><p class="cp">Сумма, три шага «что будет дальше», две равные кнопки. Меньше шагов, но согласие и оплата в одной кнопке.</p></div></div></div><div class="rowc"><h2>3. Главная после включения</h2><p class="df">Почти одинаково: плашка с датой под балансом. У вас управление — отдельной строкой в меню, в итоговом оно спрятано в настройки, чтобы не занимать место.</p><div class="pair"><div class="side"><span class="tag a">Ваш вариант</span><div class="fit"><div class="phone"><div class="scrl"><section class="hc green"><div class="ov"></div><div class="rb">VPN вкл</div><div class="ill"><div><img class="frog" src="../../webapp/icons/frog.png" alt=""></div></div><div class="N">312 ₽</div><div class="P">Хватит до 5 января</div><div class="apb">🔁 3 января пополним 300 ₽</div><div class="acts"><button type="button" class="pill"><span>Пополнить</span></button></div></section><div class="st">Устройства</div><div class="cd"><div class="rw"><span class="e">📱</span><span class="tt"><b>iPhone</b><span><span class="dot"></span>Подключено · 6 ₽ в день</span></span><span class="v"><span class="cv">›</span></span></div></div><div style="height:12px"></div><div class="cd"><div class="rw"><span class="e">🔁</span>Автопополнение<span class="v">Вкл <span class="cv">›</span></span></div><div class="rw"><span class="e">⚙️</span>Настройки<span class="v"><span class="cv">›</span></span></div></div></div></div></div><p class="cp">Строка «Автопополнение · Вкл» всегда на виду.</p></div><div class="side"><span class="tag b">Итоговый</span><div class="fit"><div class="phone"><div class="scrl"><section class="hc green"><div class="ov"></div><div class="rb">VPN вкл</div><div class="ill"><div><img class="frog" src="../../webapp/icons/frog.png" alt=""></div></div><div class="N">312 ₽</div><div class="P">Хватит до 5 января</div><div class="apb">🔁 3 января пополним 300 ₽</div><div class="acts"><button type="button" class="pill"><span>Пополнить</span></button></div></section><div class="st">Устройства</div><div class="cd"><div class="rw"><span class="e">📱</span><span class="tt"><b>iPhone</b><span><span class="dot"></span>Подключено · 6 ₽ в день</span></span><span class="v"><span class="cv">›</span></span></div></div><div style="height:12px"></div><div class="cd"><div class="rw"><span class="e">🎁</span>Пригласить друзей<span class="v"><span class="cv">›</span></span></div><div class="rw"><span class="e">⚙️</span><span class="tt"><b>Настройки</b><span>Автопополнение включено</span></span><span class="v"><span class="cv">›</span></span></div></div></div></div></div><p class="cp">Меню не меняется, управление открывается тапом по плашке.</p></div></div></div><div class="rowc"><h2>4. Где управлять</h2><p class="df">У вас — экран в кабинете, в боте только кнопки «Изменить» и «Отключить». В итоговом сумму и паузу можно менять <b>прямо в чате</b>, экран в кабинете тоже есть.</p><div class="pair"><div class="side"><span class="tag a">Ваш вариант</span><div class="fit"><div class="phone"><div class="scrl"><section class="hc teal"><div class="ov"></div><div class="rb">включено</div><div class="ill"><div style="font-size:50px">🔁</div></div><div class="N">300 ₽</div><div class="P">когда останется 2 дня · с карты •• 4242</div></section><div class="cd" style="margin-top:12px"><div class="rw"><span class="e">⚡</span><span class="tt"><b>Включено</b><span>следующее — около 3 января</span></span><span class="v"><span class="sw2 on"></span></span></div></div><div class="cd"><div class="rw"><span class="e">💰</span>Сумма<span class="v">300 ₽ <span class="cv">›</span></span></div><div class="rw"><span class="e">💳</span>Карта<span class="v">•• 4242 <span class="cv">›</span></span></div></div><div class="cd hist"><div class="rw"><span class="e">✓</span>14 ноября<span class="v">+300 ₽</span></div></div></div></div></div><p class="cp">Сумма, карта, история, переключатель — всё на одном экране кабинета.</p></div><div class="side"><span class="tag b">Итоговый</span><div class="fit"><div class="phone"><div class="chat"><div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div><div class="feed"><div class="day"><span>14 ноября</span></div><div class="bub">🔁 <b>Автопополнение включено</b><div class="q g">300 ₽ с карты •• 4242, когда останется 2 дня.<br>Ближайшее — около 3 января, напомним 2-го.</div><span class="t">10:02</span></div><div class="kb three"><div class="">− 100</div><div class="val">300 ₽</div><div class="">+ 100</div><div class="w">⏸ Пауза на месяц</div><div class="w">Отключить</div></div></div></div></div></div><p class="cp">Сообщение-пульт: кнопки меняют текст на месте. Команда /autopay показывает его снова.</p></div></div></div><div class="rowc"><h2>5. Перед списанием</h2><p class="df">Напоминание за день и чек — одинаково. В итоговом добавлена третья кнопка: <b>«Пропустить этот раз»</b>.</p><div class="pair"><div class="side"><span class="tag a">Ваш вариант</span><div class="fit"><div class="phone"><div class="chat"><div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div><div class="feed"><div class="day"><span>2 января</span></div><div class="bub">🔔 <b>Завтра пополним баланс</b><div class="q ">300 ₽ с карты •• 4242 — VPN осталось на 2 дня.</div><span class="t">12:00</span></div><div class="kb two"><div class="">Хорошо</div><div class="">Изменить</div></div><div class="day"><span>3 января</span></div><div class="bub">✅ <b>Автопополнение: +300 ₽</b><div class="q g">Баланс 312 ₽ — хватит до 24 февраля.<br>Карта •• 4242.</div><span class="t">12:00</span></div><div class="kb two"><div class="">Чек</div><div class="">Изменить</div></div></div></div></div></div><p class="cp">Отменить одно списание можно только через «Изменить» → выключить.</p></div><div class="side"><span class="tag b">Итоговый</span><div class="fit"><div class="phone"><div class="chat"><div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div><div class="feed"><div class="day"><span>2 января</span></div><div class="bub">🔔 <b>Завтра пополним баланс</b><div class="q ">300 ₽ с карты •• 4242 — VPN осталось на 2 дня.</div><span class="t">12:00</span></div><div class="kb two"><div class="">Хорошо</div><div class="">Изменить</div><div class="w">Пропустить этот раз</div></div><div class="day"><span>3 января</span></div><div class="bub">✅ <b>Автопополнение: +300 ₽</b><div class="q g">Баланс 312 ₽ — хватит до 24 февраля.<br>Карта •• 4242.</div><span class="t">12:00</span></div><div class="kb two"><div class="">Чек</div><div class="">Изменить</div></div></div></div></div></div><p class="cp">Одно списание отменяется, автопополнение остаётся включённым.</p></div></div></div><div class="rowc"><h2>6. Если сейчас не нужно</h2><p class="df">У вас один выход — выключить (с тостом «Вернуть»). В итоговом есть ещё <b>пауза на месяц</b>, которая сама заканчивается.</p><div class="pair"><div class="side"><span class="tag a">Ваш вариант</span><div class="fit"><div class="phone"><div class="scrl"><section class="hc slate"><div class="ov"></div><div class="rb">выключено</div><div class="ill"><div style="font-size:50px">🔁</div></div><div class="N">300 ₽</div><div class="P">автопополнение на паузе · карта сохранена</div></section><div class="cd" style="margin-top:12px"><div class="rw"><span class="e">⚡</span><span class="tt"><b>Выключено</b><span>пополняйте вручную, когда нужно</span></span><span class="v"><span class="sw2"></span></span></div></div><div class="cd"><div class="rw"><span class="e">💰</span>Сумма<span class="v">300 ₽ <span class="cv">›</span></span></div><div class="rw"><span class="e">💳</span>Карта<span class="v">•• 4242 <span class="cv">›</span></span></div></div><div class="cd hist"><div class="rw"><span class="e">✓</span>14 ноября<span class="v">+300 ₽</span></div></div></div><div class="toast2"><span style="font-size:20px">⏸</span>Автопополнение выключено<span class="u">Вернуть</span></div></div></div><p class="cp">Один переключатель, без «вы уверены?». Включать обратно нужно самому.</p></div><div class="side"><span class="tag b">Итоговый</span><div class="fit"><div class="phone"><div class="chat"><div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div><div class="feed"><div class="day"><span>10 января</span></div><div class="bub">⏸ <b>Автопополнение на паузе</b><div class="q ">До 10 февраля ничего не спишем. Карта •• 4242 сохранена.</div><span class="t">изменено</span></div><div class="kb two"><div class="">Возобновить</div><div class="">Отключить</div></div></div></div></div></div><p class="cp">Пауза в чате или в кабинете. Выключение одним переключателем тоже осталось.</p></div></div></div><div class="rowc"><h2>7. Если списание не прошло</h2><p class="df">Логика одна: причина, запас 2 дня, после двух неудач выключаем. В итоговом последняя кнопка сразу ведёт на повторное включение с другой картой.</p><div class="pair"><div class="side"><span class="tag a">Ваш вариант</span><div class="fit"><div class="phone"><div class="chat"><div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div><div class="feed"><div class="day"><span>3 января</span></div><div class="bub">⚠️ <b>Не получилось пополнить 300 ₽</b><div class="q o">Банк отклонил списание с •• 4242.<br>VPN работает ещё 2 дня — успеете оплатить иначе.</div><span class="t">12:00</span></div><div class="kb "><div class="">Пополнить вручную</div></div><div class="day"><span>4 января</span></div><div class="bub">⏹ <b>Автопополнение выключено</b><div class="q o">Карта •• 4242 не сработала дважды.</div><span class="t">12:00</span></div><div class="kb "><div class="">Пополнить вручную</div></div></div></div></div></div><p class="cp">Одна кнопка «Пополнить вручную».</p></div><div class="side"><span class="tag b">Итоговый</span><div class="fit"><div class="phone"><div class="chat"><div class="tgbar"><span class="av"><img src="../../webapp/icons/frog.png" alt=""></span><div><b>Лягушка VPN</b><span>бот</span></div></div><div class="feed"><div class="day"><span>3 января</span></div><div class="bub">⚠️ <b>Не получилось пополнить</b><div class="q o">Банк отклонил списание 300 ₽ с •• 4242.<br>VPN работает ещё 2 дня. Завтра попробуем снова.</div><span class="t">12:00</span></div><div class="kb "><div class="">Пополнить вручную</div><div class="">Сменить карту</div><div class="">🤝 Обещанный платёж</div></div><div class="day"><span>4 января</span></div><div class="bub">⏹ <b>Автопополнение выключено</b><div class="q o">Карта •• 4242 не сработала дважды. Больше списывать не пробуем.</div><span class="t">12:00</span></div><div class="kb "><div class="hl">Пополнить и включить снова</div><div class="">Пополнить один раз</div></div></div></div></div></div><p class="cp">Три выхода при первой неудаче, повторное включение — при второй.</p></div></div></div><div style="height:60px"></div></div>
+<script>
+function fit(){document.querySelectorAll('.fit').forEach(function(f){var p=f.querySelector('.phone');p.style.zoom=Math.min(1,f.clientWidth/340)})}
+addEventListener('resize',fit);fit();
+</script>
+</body>
+</html>

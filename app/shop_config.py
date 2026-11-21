@@ -100,6 +100,7 @@ def validate_shop(body: dict) -> dict:
     out["cabinet_price_enabled"] = bool(body.get("cabinet_price_enabled", True))
     out["autopay_enabled"] = bool(body.get("autopay_enabled", get_settings().autopay_enabled))
     out["widgets_enabled"] = bool(body.get("widgets_enabled", get_settings().widgets_enabled))
+    out["frog_enabled"] = bool(body.get("frog_enabled", get_settings().frog_enabled))
     out["trust_days"] = _as_int(body.get("trust_days"), 1, 30, "Дни обещанного платежа")
     out["trust_fee_rub"] = _as_int(body.get("trust_fee_rub"), 0, 10000, "Комиссия обещанного платежа")
     out["first_bonus_enabled"] = bool(body.get("first_bonus_enabled", get_settings().first_bonus_enabled))
@@ -214,6 +215,7 @@ def snapshot() -> dict:
             "cabinet_price_enabled": s.cabinet_price_enabled,
             "autopay_enabled": s.autopay_enabled,
             "widgets_enabled": s.widgets_enabled,
+            "frog_enabled": s.frog_enabled,
             "trust_days": s.trust_days,
             "trust_fee_rub": s.trust_fee_rub,
             "first_bonus_enabled": s.first_bonus_enabled,
