@@ -605,6 +605,7 @@ async def api_me(request: web.Request) -> web.Response:
             "gift_granted": friend_gifts.is_granted(telegram_id, local),
             "devices": devices,
             "trust": trust,
+            "autopay": await _autopay_view(telegram_id),
             "faq": faq_items(),
             "vpn_apps": public_vpn_apps(),
             "first_device_thanks_pending": bool((local or {}).get("first_device_thanks_pending")),
@@ -1490,6 +1491,54 @@ async def _notify_payment_failed(bot: Bot, order: dict, event: dict) -> None:
             logger.warning("Сообщение об ошибке оплаты не доставлено: %s", order["order_id"], exc_info=True)
 
 
+async def _autopay_view(telegram_id: int) -> dict | None:
+    from app import autopay
+    try:
+        return await autopay.public(telegram_id)
+    except Exception:
+        logger.warning("Autopay view failed for %s", telegram_id, exc_info=True)
+        return None
+
+
+async def api_autopay(request: web.Request) -> web.Response:
+    """Turn автопополнение on: {amount} → the SBP page whose payment tops up and switches it on."""
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    from app import autopay
+    body = await request.json()
+    try:
+        out = await autopay.start(request.app.get("rp"), telegram_id, int(body.get("amount") or 0))
+    except (TypeError, ValueError) as exc:
+        return json_error(str(exc) or "Некорректная сумма")
+    except CISPayError as exc:
+        logger.warning("Autopay not started for %s: %s", telegram_id, exc)
+        return json_error("Не удалось подключить автопополнение, попробуйте позже", 502)
+    return web.json_response({"ok": True, **out})
+
+
+async def api_autopay_off(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    from app import autopay
+    try:
+        await autopay.stop(request.app.get("rp"), telegram_id)
+    except (CISPayError, ValueError) as exc:
+        logger.warning("Autopay not stopped for %s: %s", telegram_id, exc)
+        return json_error("Не удалось отключить, попробуйте позже", 502)
+    return web.json_response({"ok": True})
+
+
+async def api_autopay_later(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    from app import autopay
+    await autopay.decline(telegram_id)
+    return web.json_response({"ok": True})
+
+
 async def cispay_webhook(request: web.Request) -> web.Response:
     """CISPay status change: credit on PAID. Signature — hex HMAC-SHA256 of the raw body with CISPAY_API_KEY."""
     from app.cispay import is_cispay_payment, verify_webhook as verify_cispay
@@ -1504,6 +1553,20 @@ async def cispay_webhook(request: web.Request) -> web.Response:
     except (UnicodeDecodeError, json.JSONDecodeError):
         return web.Response(status=400, text="invalid json")
     status = str(event.get("status") or "").upper() if isinstance(event, dict) else ""
+    if isinstance(event, dict) and (event.get("event") or event.get("subscription_id")):
+        # Автопополнение: subscription events and the charges of a subscription (app/autopay.py).
+        if event.get("is_sandbox") and not settings.cispay_test:
+            return web.Response(text="OK")
+        from app import autopay
+        try:
+            if event.get("event"):
+                await autopay.on_event(event, request.app.get("rp"), request.app["bot"])
+                return web.Response(text="OK")
+            if await autopay.on_payment(event, request.app.get("rp"), request.app["rw"], request.app["bot"]):
+                return web.Response(text="OK")
+        except RemnawaveError as exc:
+            logger.exception("Autopay charge not credited: %s", exc)
+            return web.Response(status=500, text="fulfill failed")
     if not isinstance(event, dict) or event.get("event") or status not in ("PAID", "FAILED"):
         return web.Response(text="OK")  # Subscriptions, expired and pending invoices need nothing from us.
     if event.get("is_sandbox") and not settings.cispay_test:
@@ -1580,6 +1643,9 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/onboarding-event", api_onboarding_event)
         app.router.add_post("/api/invitation-card-event", api_invitation_card_event)
         app.router.add_post("/api/invoice", api_invoice)
+        app.router.add_post("/api/autopay", api_autopay)
+        app.router.add_post("/api/autopay/off", api_autopay_off)
+        app.router.add_post("/api/autopay/later", api_autopay_later)
         app.router.add_post("/api/promo", api_promo)
         app.router.add_post("/api/devices", api_add_device)
         app.router.add_post("/api/devices/{device_id}/check", api_check_connection)

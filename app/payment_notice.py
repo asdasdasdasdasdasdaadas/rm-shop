@@ -45,6 +45,8 @@ async def deliver_payment_notice(bot, receipt):
             if int(receipt.get('return_bonus_rub') or 0) > 0:
                 body += f"\n🎁 Бонус за возвращение: +{int(receipt['return_bonus_rub'])} ₽."
             body += '\nБаланс: ' + rub_text(int(local.get('balance_rub') or 0)) + '.'
+            if key.startswith('order:ap-'):
+                body += '\n🔁 Это автопополнение через СБП. Отключить: /autopay'
             if used_vpn(local, devices):
                 body += '\n\nVPN уже настроен, больше ничего делать не нужно. Если не подключается — напишите в поддержку.'
                 markup = cabinet_keyboard()

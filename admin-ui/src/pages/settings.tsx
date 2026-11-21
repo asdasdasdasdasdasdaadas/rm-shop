@@ -64,6 +64,12 @@ const groups: Group[] = [
       { key: "balance_topup_min", label: "Минимальное пополнение", unit: "₽", type: "number", min: 1 },
       { key: "balance_topup_step", label: "Шаг выбора суммы", unit: "₽", type: "number", min: 1 },
       {
+        key: "autopay_enabled",
+        label: "Автопополнение через СБП",
+        type: "switch",
+        hint: "Клиент выбирает сумму, CISPay сам списывает её, когда баланса остаётся примерно на 2 дня. Пока выключено, его видят только админы — для проверки.",
+      },
+      {
         key: "cabinet_price_enabled",
         label: "Цена под балансом в кабинете",
         type: "switch",

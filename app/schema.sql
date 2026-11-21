@@ -1194,3 +1194,21 @@ CREATE TABLE IF NOT EXISTS tg_ads (
     synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS tg_ads_link_idx ON tg_ads (ad_link_id) WHERE ad_link_id IS NOT NULL;
+
+-- Автопополнение (app/autopay.py): one CISPay subscription per person. Each charge is a pay_orders row «ap-<tx>».
+CREATE TABLE IF NOT EXISTS autopay (
+    telegram_id BIGINT PRIMARY KEY REFERENCES users (telegram_id),
+    subscription_id TEXT UNIQUE,
+    status TEXT NOT NULL DEFAULT 'none',
+    amount_rub INTEGER NOT NULL DEFAULT 0,
+    interval_days INTEGER NOT NULL DEFAULT 0,
+    pay_url TEXT,
+    next_charge_at TIMESTAMPTZ,
+    last_charge_at TIMESTAMPTZ,
+    ended_reason TEXT,
+    reminded_for TIMESTAMPTZ,
+    failed_tx TEXT,
+    declined_until TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

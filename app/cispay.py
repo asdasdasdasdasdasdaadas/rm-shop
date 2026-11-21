@@ -180,6 +180,36 @@ class CISPayClient:
     async def capabilities(self) -> dict:
         return await self._request("GET", "/store/capabilities")
 
+    # Subscriptions (автопополнение, app/autopay.py). CISPay charges them itself on its schedule, SBP only.
+    async def create_subscription(self, *, amount_rub: int, interval_days: int, customer_id: str, purpose: str) -> dict:
+        body: dict[str, Any] = {
+            "amount": int(amount_rub) * 100,
+            "currency": "RUB",
+            "interval_days": int(interval_days),
+            "payment_method": "SBP",
+            "customer_id": str(customer_id)[:40],
+            "subscription_purpose": purpose[:255],
+        }
+        redirect = bot_link()
+        if redirect:
+            body["redirect_success_url"] = redirect
+            body["redirect_fail_url"] = redirect
+        logger.info("CISPay subscription customer=%s amount=%s every %s d", customer_id, body["amount"], interval_days)
+        data = await self._request("POST", "/subscriptions", json=body)
+        if not data.get("id") or not data.get("payment_url"):
+            raise CISPayError("CISPay не вернул подписку со ссылкой на оплату")
+        return data
+
+    async def get_subscription(self, subscription_id: str) -> dict:
+        return await self._request("GET", f"/subscriptions/{subscription_id}")
+
+    async def update_subscription(self, subscription_id: str, **fields: Any) -> dict:
+        return await self._request("PATCH", f"/subscriptions/{subscription_id}",
+                                    json={k: v for k, v in fields.items() if v is not None})
+
+    async def cancel_subscription(self, subscription_id: str) -> dict:
+        return await self._request("POST", f"/subscriptions/{subscription_id}/cancel")
+
 
 def verify_webhook(body: bytes, signature: str, api_key: str) -> bool:
     """X-Signature is a hex HMAC-SHA256 of the raw body with the shop's API key."""

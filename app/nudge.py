@@ -187,6 +187,10 @@ async def send_due_trial_end_nudges(
             if promise and not any(
                     (b if isinstance(b, str) else b.get("action")) == "promise" for b in button_ids):
                 reply = with_promise(reply, True)
+        if not gift:
+            from app.autopay import offer_ok
+            from app.balance_notifications import with_autopay
+            reply = with_autopay(reply, await offer_ok(telegram_id))
         ok = await _deliver(
             bot, kind="nudge_trial_end", telegram_id=telegram_id, first_name=row.get("first_name"),
             title="Подарок заканчивается" if gift else "Баланс заканчивается", body=text, reply_markup=reply, extra=None, preserve=keep,

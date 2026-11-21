@@ -51,3 +51,15 @@ def with_promise(markup, promise: bool):
     button = InlineKeyboardButton(text='🤝 Обещанный платёж', web_app=app)
     rows = list(markup.inline_keyboard)
     return markup.model_copy(update={'inline_keyboard': rows[:1] + [[button]] + rows[1:]})
+
+
+def with_autopay(markup, on: bool):
+    """Add «🔁 Пополнять автоматически» under the top-up button (app/autopay.py decides who sees it)."""
+    if not on or markup is None:
+        return markup
+    from app.autopay import offer_button
+    button = offer_button()
+    if not button:
+        return markup
+    rows = list(markup.inline_keyboard)
+    return markup.model_copy(update={'inline_keyboard': rows[:1] + [[button]] + rows[1:]})

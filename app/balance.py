@@ -74,7 +74,8 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
     if not await db.nudge_delivery_allowed(tg_id, "low_balance"):
         return
     if await db.claim_low_balance_notice(tg_id):
-        from app.balance_notifications import balance_keyboard
+        from app.autopay import offer_ok
+        from app.balance_notifications import balance_keyboard, with_autopay
         body = notice_text("low_balance", price=rub_text(price))
         from app.trust import promise_available
         promise = await promise_available(tg_id)
@@ -83,7 +84,8 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
             body = f"{body}\n\n{notice_text('low_balance_browser')}"
         try:
             await send_reminder(bot, tg_id, body, kind="low_balance", title="Мало баланса",
-                                reply_markup=balance_keyboard(promise=promise, browser=browser), preserve=True)
+                                reply_markup=with_autopay(balance_keyboard(promise=promise, browser=browser),
+                                                         await offer_ok(tg_id)), preserve=True)
             await db.log_bot_message(
                 kind="low_balance",
                 source="auto",

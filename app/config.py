@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     cispay_api_key: str = ""
     cispay_methods: str = "sbp,crypto,card"
     cispay_test: bool = False
+    # Автопополнение через подписки CISPay (app/autopay.py). Выключено: админы видят его всегда, остальные — когда включат.
+    autopay_enabled: bool = False
 
     # Payments in TON through the chat widget (Bot API 10.4). Off until a wallet is set in the admin panel.
     ton_enabled: bool = False
@@ -378,6 +380,7 @@ SHOP_KEYS = frozenset(
         "admin_live_chat_id",
         "vpn_apps",
         "pay_methods",
+        "autopay_enabled",
         "notices",
         "faq_items",
         "ton_enabled",

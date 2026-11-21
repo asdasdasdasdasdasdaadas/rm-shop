@@ -161,6 +161,8 @@ async def main() -> None:
     dp.include_router(sharing_router)
     from app.funnel_gifts import router as funnel_gifts_router
     dp.include_router(funnel_gifts_router)
+    from app.autopay import router as autopay_router
+    dp.include_router(autopay_router)
 
     @dp.message_reaction()
     async def on_reaction(_event) -> None:
@@ -216,6 +218,8 @@ async def main() -> None:
         cleanup_task = asyncio.create_task(cleanup_loop(rw), name="panel-cleanup")
         from app.friend_nft import loop as friend_nft_loop
         friend_nft_task = asyncio.create_task(friend_nft_loop(bot), name="friend-nft")
+        from app.autopay import autopay_loop
+        autopay_task = asyncio.create_task(autopay_loop(rp, bot), name="autopay")
         try:
             await dp.start_polling(
                 bot,
@@ -238,6 +242,7 @@ async def main() -> None:
             stuck_task.cancel()
             sharing_task.cancel()
             tg_ads_task.cancel()
+            autopay_task.cancel()
             cleanup_task.cancel()
             friend_nft_task.cancel()
     finally:

@@ -438,7 +438,11 @@
       const invitee = Number(me.referral_invitee_reward_rub) || 0;
       const showInvitee = me.referral_program_enabled && me.referred && !me.has_paid_topup && invitee > 0;
       const giftLater = me.trial_available && !showOffer() ? [E("🎁") + "Попробовать бесплатно" + V(rub(me.trial_rub) + " " + CV), 'data-go="gift"'] : null;
+      const ap = me.autopay;
+      const apHome = ap && (ap.status === "active" || ap.status === "pending") ? cd([apRow()])
+        : ap && ap.offer && (alert === "low" || alert === "empty") ? cd([[E("🔁") + TT("Пополнять автоматически", "и больше не следить за балансом") + V(CV), 'data-go="autopay"']]) : "";
       return hero +
+        (apHome ? `<div style="height:12px"></div>` + apHome : "") +
         fbCard() +
         nyCard() +
         browserCard() +
@@ -459,7 +463,7 @@
       const nb = el && el.querySelector(".nyb");
       if (nb) { gMini(nb); gConf(nb, "snow"); }
     },
-    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.has_paid_topup, me.browser_login, me.first_bonus, me.gift_season]),
+    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.has_paid_topup, me.browser_login, me.first_bonus, me.gift_season, me.autopay]),
   };
 
   // ---------- gift for newcomers ----------
@@ -721,7 +725,8 @@
           payMethods().length > 1 ? 'data-go="method"' : ""]]) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
         (fb ? NOTE(fbRet() ? `🎁 Бонус за возвращение: +${fbPct()}% к пополнению от ${rub(fb.min_rub)} до ${esc(fb.until || "конца акции")}`
           : `🎁 +${fbPct()}% к первому пополнению от ${rub(fb.min_rub)} — пока не закончился подарок`, true) : "") +
-        NOTE(`Баланс ${rub(me.balance_rub)} · разовая оплата, без\u00a0автоплатежей`, true);
+        (me.autopay && (me.autopay.offer || apOn()) ? cd([apRow() || [E("🔁") + TT("Пополнять автоматически", "через СБП, когда баланс на исходе") + V(CV), 'data-go="autopay"']]) : "") +
+        NOTE(`Баланс ${rub(me.balance_rub)} · разовая оплата${me.autopay ? "" : ", без\u00a0автоплатежей"}`, true);
     },
     on(el) { fbPaint(el, true); },
   };
@@ -963,7 +968,7 @@
   SCR.method = {
     h() {
       const L = look(curMethod());
-      return hc(L.c, { ill: L.ill(64), h: "Чем оплатить?", p: pay.amount > 0 ? `${rub(pay.amount)} на баланс · без автоплатежей` : "Разовая оплата, без автоплатежей" }) +
+      return hc(L.c, { ill: L.ill(64), h: "Чем оплатить?", p: pay.amount > 0 ? `${rub(pay.amount)} на баланс · ${me.autopay ? "разовая оплата" : "без автоплатежей"}` : me.autopay ? "Разовая оплата" : "Разовая оплата, без автоплатежей" }) +
         ST("Способы") + cd(payMethods().map((m) => [E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), esc(methodSub(m))) + V(RD(m.id === pay.method)), `data-act="meth" data-v="${esc(m.id)}"`])) +
         `<div class="bot"><button type="button" class="bbtn" data-act="back">Готово</button></div>`;
     },
@@ -1861,13 +1866,14 @@
           NOTE("Без приглашений, акций и напоминаний. Сообщения о деньгах, доступе и ответы поддержки останутся.") : "") +
         ST("Ещё") +
         cd([[E("🧾") + "История операций" + V(CV), 'data-go="history"'],
+          me.autopay ? [E("🔁") + "Автопополнение" + V((apOn() ? "вкл " : me.autopay.status === "pending" ? "ждёт оплаты " : "выкл ") + CV), 'data-go="autopay"'] : null,
           me.promo_enabled ? [E("🎟️") + "Промокод" + V(CV), 'data-go="promo"'] : null,
           [E("💡") + "Частые вопросы" + V(CV), 'data-go="faq"'],
           me.cabinet_site_url && inTelegram() ? [E("💻") + "Кабинет в браузере" + V(esc(siteHost()) + " " + CV), 'data-act="browserHow"'] : null,
           me.legal && me.legal.offer ? [E("📄") + "Пользовательское соглашение" + V(CV), `data-act="link" data-v="${esc(me.legal.offer)}"`] : null,
           me.legal && me.legal.privacy ? [E("🔒") + "Политика конфиденциальности" + V(CV), `data-act="link" data-v="${esc(me.legal.privacy)}"`] : null]);
     },
-    sig: () => JSON.stringify([me.user, me.quiet_notifications, me.notification_settings_available, me.promo_enabled, me.cabinet_site_url]),
+    sig: () => JSON.stringify([me.user, me.quiet_notifications, me.notification_settings_available, me.promo_enabled, me.cabinet_site_url, me.autopay]),
   };
 
   // ---------- promo ----------
@@ -1882,6 +1888,61 @@
       const i = el.querySelector("#promoInput");
       i.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ACT.promo(); } });
     },
+  };
+
+  // ---------- автопополнение (app/autopay.py) ----------
+  const apOn = () => Boolean(me.autopay && me.autopay.status === "active");
+  const apLine = () => {
+    const a = me.autopay || {}, d = parseDate(a.next_charge_at);
+    return d ? `${dateLong(d)} пополним ${rub(a.amount)}` : `пополним ${rub(a.amount)}, когда баланса останется на ${days(a.lead_days || 2)}`;
+  };
+  function apRow() {
+    const a = me.autopay;
+    if (!a) return null;
+    if (a.status === "active") return [E("🔁") + TT("Автопополнение", esc(apLine())) + V(CV), 'data-go="autopay"'];
+    if (a.status === "pending") return [E("🔁") + TT("Автопополнение", "ждёт оплаты") + V(CV), 'data-go="autopay"'];
+    return null;
+  }
+  SCR.autopay = {
+    live: true,
+    h(p) {
+      const a = me.autopay;
+      if (!a) return hc("slate", { ill: "🔁", h: "Автопополнение", p: "Пока недоступно" });
+      const hist = (a.charges || []).length ? ST("Пополнения") + cd(a.charges.map((c) => {
+        const d = parseDate(c.at);
+        return `${E(c.ok ? "✅" : "⏳")}${TT(rub(c.amount), d ? dayLabel(d) + ", " + timeHM(d) : "")}`;
+      })) : "";
+      if (a.status === "active") {
+        return hc("green", { rb: "включено", ill: "🔁", h: "Автопополнение", p: esc(apLine()[0].toUpperCase() + apLine().slice(1)),
+          pill: "Готово", pa: 'data-act="back"' }) +
+          ST("Как это работает") +
+          tl([[CHK(22), "Включено", `${rub(a.amount)} через СБП`, "ok"],
+            ["2", "Пополняем сами", `когда баланса остаётся примерно на ${days(a.lead_days || 2)}`],
+            ["3", "Напоминаем за день", "в чате с ботом"]]) +
+          hist + `<div style="height:12px"></div>` +
+          cd([[E("⏻") + "Отключить автопополнение", 'data-act="apOff"', "red"]]) +
+          NOTE("Отключение отвязывает СБП. Чтобы включить снова, нужно будет ещё раз оплатить через СБП.");
+      }
+      if (a.status === "pending" && a.pay_url && !p.pick) {
+        return hc("blue", { rb: "ждёт оплаты", ill: "🔁", h: `Оплатите ${rub(a.amount)}`, p: "Этот платёж пополнит баланс и включит автопополнение",
+          pill: "Оплатить через СБП", pa: 'data-act="apPay"', r: "ref", rl: "Обновить", ra: 'data-act="refresh"' }) +
+          cd([[E("✏️") + "Выбрать другую сумму" + V(CV), 'data-act="apPick"']]);
+      }
+      const opts = a.options || [];
+      const pick = Number(p.amount) || a.default || 300;
+      const opt = opts.find((o) => o.amount === pick) || {};
+      return hc("green", { ill: "🔁", n: `<span>${rub(pick)}</span>`,
+        p: a.ended_reason && !p.amount ? `Автопополнение выключилось: ${esc(a.ended_reason)}` : `Хватит примерно на ${days(opt.days || 0)} · ${rub(a.day_cost)} в день`,
+        x: `<div class="chp">${opts.map((o) => `<button type="button" data-act="apAmt" data-v="${o.amount}" class="${o.amount === pick ? "on" : ""}"${o.ok ? "" : " disabled style=\"opacity:.4\""}>${fmt(o.amount)}</button>`).join("")}</div>`,
+        pill: `Оплатить ${rub(pick)} и включить`, pa: 'data-act="apStart"' }) +
+        ST("Что будет дальше") +
+        tl([["1", `Сейчас — ${rub(pick)} на баланс`, "оплата через СБП, она же включает автопополнение"],
+          ["2", `Когда баланса останется на ${days(a.lead_days || 2)}`, `пополним ещё ${rub(pick)} сами`],
+          ["3", "За день напомним", "отключить можно в любой момент"]]) +
+        (a.offer ? `<button type="button" class="lalt" data-act="apLater">Не сейчас</button>` : "") +
+        (me.legal && me.legal.offer ? `<button type="button" class="lalt" data-act="link" data-v="${esc(me.legal.offer)}">Условия</button>` : "");
+    },
+    sig: () => JSON.stringify(me.autopay || null),
   };
 
   // ---------- promised payment ----------
@@ -2216,6 +2277,45 @@
 
   // ---------- actions ----------
   const ACT = {
+    apAmt(b) {
+      if (b.disabled) return;
+      haptic("soft");
+      cur.params.amount = Number(b.dataset.v);
+      rerender(true);
+    },
+    apPick() { haptic("soft"); cur.params.pick = true; rerender(true); },
+    apPay() { const a = me.autopay || {}; if (a.pay_url) { haptic(); tg.openLink(a.pay_url); } },
+    async apStart(b) {
+      const a = me.autopay || {};
+      const amount = Number(cur.params.amount) || a.default;
+      if (!amount || b.classList.contains("dim")) return;
+      haptic();
+      b.classList.add("dim");
+      try {
+        const r = await post("/api/autopay", { amount });
+        if (r.pay_url) tg.openLink(r.pay_url);
+        await load(true);
+        cur.params.pick = false; cur.params.amount = 0;
+        rerender(true);
+      } catch (e) { showErr(e); b.classList.remove("dim"); }
+    },
+    async apOff(b) {
+      if (!(await confirmAsk("Отключить автопополнение? Баланс больше не будет пополняться сам."))) return;
+      b.classList.add("dim");
+      try {
+        await post("/api/autopay/off");
+        await load(true);
+        notify("success");
+        toast("Автопополнение выключено");
+        rerender(true);
+      } catch (e) { showErr(e); b.classList.remove("dim"); }
+    },
+    async apLater() {
+      haptic("soft");
+      post("/api/autopay/later").catch(() => {});
+      if (me.autopay) me.autopay.offer = false;
+      back();
+    },
     browserHow: () => openBrowserSheet(),
     browserHide(b) {
       haptic();
@@ -3308,6 +3408,7 @@
     if (entry === "giftsend" && me.gifts_enabled) { go("friends", { tab: "give" }); return; }
     if (entry === "friends") { go("friends", { tab: "invite" }); return; }
     if (entry === "browser") { openBrowserSheet(); return; }
+    if (entry === "autopay" && me.autopay) { go("autopay"); return; }
     if (entry === "promise") { const t = me.trust || {}; go(t.open || t.available ? "promise" : "topup"); return; }
     if (entry === "gift" && me.trial_available) { go("gift"); return; }
     if (entry === "connect" || entry === "gift") { if (phones().length) resume(); else startWizard(); return; }
@@ -3337,7 +3438,7 @@
   });
   setInterval(() => {
     if (document.visibilityState !== "visible" || !me || !cur) return;
-    if (["home", "device", "wiz3", "promise"].includes(cur.key)) load(true).catch(() => {});
+    if (["home", "device", "wiz3", "promise", "autopay"].includes(cur.key)) load(true).catch(() => {});
   }, 15000);
 
   window.__cab = { go, back, get me() { return me; }, get cur() { return cur; }, load, toast, boom };
