@@ -18,6 +18,13 @@ def used_vpn(local: dict, devices: list[dict]) -> bool:
                 or any(d.get('last_online_at') for d in devices))
 
 
+async def _repeat_autopay(uid: int) -> bool:
+    """The first charge is the payment that turned autopay on: it gets the usual receipt, then the pult."""
+    from app import autopay
+    row = await autopay.get(uid)
+    return bool(row and row.get('last_charge_at'))
+
+
 async def deliver_payment_notice(bot, receipt):
     if bot is None:
         return
@@ -37,6 +44,11 @@ async def deliver_payment_notice(bot, receipt):
         elif receipt['router_days']:
             body = 'Оплата получена. Откройте кабинет, чтобы проверить доступ.'
             markup = cabinet_keyboard()
+        elif key.startswith('order:ap-') and await _repeat_autopay(uid):
+            # Every charge after the first one: «✅ Автопополнение: +300 ₽», how long it lasts and «Изменить».
+            from app import autopay
+            body = await autopay.receipt_text(uid, int(receipt['amount']))
+            markup = autopay.receipt_keyboard()
         else:
             devices = await db.list_devices(uid)
             body = notice_text('topup_ok',amount=rub_text(receipt['amount']))
@@ -45,8 +57,6 @@ async def deliver_payment_notice(bot, receipt):
             if int(receipt.get('return_bonus_rub') or 0) > 0:
                 body += f"\n🎁 Бонус за возвращение: +{int(receipt['return_bonus_rub'])} ₽."
             body += '\nБаланс: ' + rub_text(int(local.get('balance_rub') or 0)) + '.'
-            if key.startswith('order:ap-'):
-                body += '\n🔁 Это автопополнение через СБП. Отключить: /autopay'
             if used_vpn(local, devices):
                 body += '\n\nVPN уже настроен, больше ничего делать не нужно. Если не подключается — напишите в поддержку.'
                 markup = cabinet_keyboard()

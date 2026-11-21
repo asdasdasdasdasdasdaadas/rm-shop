@@ -114,9 +114,12 @@ class AutopayPostgresTest(unittest.IsolatedAsyncioTestCase):
 
         failed = {"id": "tx-3", "status": "FAILED", "amount": 30000, "subscription_id": "sub-1"}
         self.bot.send_message.reset_mock()
-        await autopay.on_payment(failed, self.rp, None, self.bot)
-        await autopay.on_payment(failed, self.rp, None, self.bot)
+        with patch("app.trust.promise_available", AsyncMock(return_value=False)):
+            await autopay.on_payment(failed, self.rp, None, self.bot)
+            await autopay.on_payment(failed, self.rp, None, self.bot)
         self.bot.send_message.assert_awaited_once()
+        self.assertIn("Не получилось пополнить", self.bot.send_message.await_args.args[1])
+        self.assertEqual((await autopay.get(7))["fails"], 1)
 
         self.assertTrue(await autopay.stop(self.rp, 7))
         self.rp.cancel_subscription.assert_awaited_with("sub-1")
@@ -125,6 +128,30 @@ class AutopayPostgresTest(unittest.IsolatedAsyncioTestCase):
                                 "reason": "cancelled_by_merchant"}, self.rp, self.bot)
         self.bot.send_message.assert_not_awaited()  # they switched it off themselves
         self.assertTrue(await autopay.offer_ok(7))
+
+    async def test_second_decline_in_a_row_switches_it_off(self):
+        await autopay.start(self.rp, 7, 300)
+        await autopay.on_event({"event": "subscription.activated", "id": "sub-1", "status": "ACTIVE"}, self.rp, self.bot)
+        self.bot.send_message.reset_mock()
+        with patch("app.trust.promise_available", AsyncMock(return_value=False)):
+            for tx in ("tx-a", "tx-b"):
+                await autopay.on_payment({"id": tx, "status": "FAILED", "subscription_id": "sub-1"}, self.rp, None, self.bot)
+        self.rp.cancel_subscription.assert_awaited_with("sub-1")
+        row = await autopay.get(7)
+        self.assertEqual((row["status"], row["ended_reason"]), ("failed", "failed_twice"))
+        self.assertIn("не прошло дважды", self.bot.send_message.await_args.args[1])
+        view = await autopay.public(7)
+        self.assertTrue(view["failed"])
+        # CISPay's own «cancelled» after our cancel tells nothing more.
+        self.bot.send_message.reset_mock()
+        await autopay.on_event({"event": "subscription.cancelled", "id": "sub-1", "status": "CANCELLED",
+                                "reason": "cancelled_by_merchant"}, self.rp, self.bot)
+        self.bot.send_message.assert_not_awaited()
+
+    async def test_repeat_charge_gets_its_own_receipt(self):
+        await autopay.start(self.rp, 7, 300)
+        self.assertEqual(await autopay.receipt_text(7, 300),
+                         "✅ <b>Автопополнение: +300 ₽</b>\n\nБаланс 20 ₽ — хватит до " + autopay._until(3) + ".\nОплата через СБП.")
 
     async def test_bank_unbinding_is_told(self):
         await autopay.start(self.rp, 7, 300)

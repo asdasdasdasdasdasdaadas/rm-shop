@@ -1026,3 +1026,18 @@ canvas.cf { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
 /* Computers on the device card: the animated laptop instead of 💻 */
 .lapl { width: 128px; height: 128px; margin: -4px auto -12px; }
 .lapl.fb { display: flex; align-items: center; justify-content: center; font-size: 88px; margin: 0 auto; width: auto; height: auto; }
+
+/* Автопополнение (docs/autopay/autopay-final.html) */
+.pill.sec { background: rgba(255, 255, 255, .2); color: #fff; }
+.apchip { border: 0; color: inherit; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.apchip.warn { background: rgba(0, 0, 0, .22); cursor: default; }
+.apq { padding: 16px; margin-top: 14px; }
+.apq-h { font-weight: 700; font-size: 16px; }
+.apq-p { color: var(--hint); font-size: 14px; margin-top: 6px; line-height: 1.4; }
+.apq-b { display: flex; gap: 10px; margin-top: 14px; }
+.apq-b .bbtn { flex: 1; height: 46px; font-size: 15px; }
+.apq-b .bbtn.sec { background: rgba(255, 255, 255, .08); color: #fff; }
+.apq-f { color: var(--hint); font-size: 12.5px; margin-top: 10px; text-align: center; }
+.ulink { background: none; border: 0; padding: 0; color: var(--link); font: inherit; cursor: pointer; }
+.acts.two { flex-direction: column; gap: 10px; }
+.acts.two .pill { width: 100%; flex: none; height: 50px; }

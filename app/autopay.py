@@ -38,12 +38,16 @@ REMIND_HOURS = 30       # remind when the charge is closer than this
 SYNC_SECONDS = 3600
 MSK = timezone(timedelta(hours=3))
 OPEN = ("pending", "active")
+FAILS_TO_STOP = 2       # two declined charges in a row: we switch it off ourselves (CISPay would wait for three)
+FAILED_SHOWN_DAYS = 14  # the cabinet shows «Автопополнение не сработало» this long
+FAILED_REASONS = ("failed_twice", "charges_declined", "unbound_in_bank")
 REASONS = {
     "unbound_in_bank": "привязку удалили в приложении банка",
     "charges_declined": "банк трижды подряд отклонил списание",
     "first_payment_failed": "первая оплата не прошла",
     "not_activated": "первую оплату так и не провели",
     "cancelled_by_admin": "его выключила поддержка",
+    "failed_twice": "списание через СБП не прошло дважды",
 }
 
 
@@ -145,6 +149,7 @@ async def _store_remote(sub: dict) -> dict | None:
         """UPDATE autopay SET status=$2, interval_days=COALESCE($3, interval_days),
                next_charge_at=$4, last_charge_at=COALESCE($5, last_charge_at),
                ended_reason=COALESCE($6, ended_reason),
+               ended_at=CASE WHEN $2 IN ('cancelled', 'failed') THEN COALESCE(ended_at, NOW()) ELSE NULL END,
                pay_url=CASE WHEN $2='pending' THEN COALESCE($7, pay_url) ELSE NULL END, updated_at=NOW()
            WHERE subscription_id=$1""",
         str(sub["id"]), _status(sub.get("status")), sub.get("interval_days"), _ts(sub.get("next_charge_at")),
@@ -181,12 +186,12 @@ async def start(rp, telegram_id: int, amount: int) -> dict:
         purpose=f"{get_settings().brand_name}: автопополнение баланса на {amount} ₽")
     await db._pool_req().execute(
         """INSERT INTO autopay (telegram_id, subscription_id, status, amount_rub, interval_days, pay_url,
-                                next_charge_at, last_charge_at, ended_reason, reminded_for, failed_tx)
-           VALUES ($1, $2, 'pending', $3, $4, $5, NULL, NULL, NULL, NULL, NULL)
+                                next_charge_at, last_charge_at, ended_reason, reminded_for, failed_tx, fails, ended_at)
+           VALUES ($1, $2, 'pending', $3, $4, $5, NULL, NULL, NULL, NULL, NULL, 0, NULL)
            ON CONFLICT (telegram_id) DO UPDATE SET subscription_id=EXCLUDED.subscription_id, status='pending',
                amount_rub=EXCLUDED.amount_rub, interval_days=EXCLUDED.interval_days, pay_url=EXCLUDED.pay_url,
                next_charge_at=NULL, last_charge_at=NULL, ended_reason=NULL, reminded_for=NULL, failed_tx=NULL,
-               updated_at=NOW()""",
+               fails=0, ended_at=NULL, updated_at=NOW()""",
         int(telegram_id), str(sub["id"]), amount, interval, str(sub["payment_url"]))
     return {"pay_url": str(sub["payment_url"])}
 
@@ -201,7 +206,7 @@ async def stop(rp, telegram_id: int) -> bool:
     await rp.cancel_subscription(row["subscription_id"])
     await db._pool_req().execute(
         """UPDATE autopay SET status='cancelled', ended_reason='cancelled_by_user', next_charge_at=NULL,
-               pay_url=NULL, updated_at=NOW() WHERE telegram_id=$1""", int(telegram_id))
+               pay_url=NULL, ended_at=NOW(), updated_at=NOW() WHERE telegram_id=$1""", int(telegram_id))
     return True
 
 
@@ -223,7 +228,7 @@ async def credit_charge(row: dict, tx_id: str, amount_kop: int | None, rw, bot) 
         return False
     await fulfill_pay_order(order_id, rw, bot=bot)
     await db._pool_req().execute(
-        "UPDATE autopay SET last_charge_at=NOW(), failed_tx=NULL, updated_at=NOW() WHERE telegram_id=$1",
+        "UPDATE autopay SET last_charge_at=NOW(), failed_tx=NULL, fails=0, updated_at=NOW() WHERE telegram_id=$1",
         int(row["telegram_id"]))
     return True
 
@@ -239,10 +244,34 @@ async def on_payment(event: dict, rp, rw, bot) -> bool:
         await credit_charge(row, tx, event.get("amount"), rw, bot)
         await refresh(rp, row, bot)
     elif status == "FAILED" and tx and row["status"] == "active" and row.get("failed_tx") != tx:
-        await db._pool_req().execute("UPDATE autopay SET failed_tx=$2, updated_at=NOW() WHERE telegram_id=$1",
-                                     int(row["telegram_id"]), tx)
-        await _send(bot, int(row["telegram_id"]), failed_text(row), _failed_keyboard())
+        await on_declined(row, tx, rp, bot)
     return True
+
+
+async def on_declined(row: dict, tx: str, rp, bot) -> None:
+    """The first declined charge: tell and let CISPay retry. The second in a row: switch it off ourselves."""
+    uid = int(row["telegram_id"])
+    fails = int(await db._pool_req().fetchval(
+        "UPDATE autopay SET failed_tx=$2, fails=fails+1, updated_at=NOW() WHERE telegram_id=$1 RETURNING fails",
+        uid, tx) or 0)
+    if fails < FAILS_TO_STOP:
+        from app.trust import promise_available
+        try:
+            promise = await promise_available(uid)
+        except Exception:
+            promise = False
+        await _send(bot, uid, await failed_text(row), failed_keyboard(promise))
+        return
+    from app.cispay import CISPayError
+    try:
+        if rp is not None:
+            await rp.cancel_subscription(row["subscription_id"])
+    except CISPayError:
+        logger.warning("Autopay %s not cancelled after two declines", row["subscription_id"], exc_info=True)
+    await db._pool_req().execute(
+        """UPDATE autopay SET status='failed', ended_reason='failed_twice', ended_at=NOW(), next_charge_at=NULL,
+               updated_at=NOW() WHERE telegram_id=$1""", uid)
+    await _send(bot, uid, await ended_text(uid, "failed_twice"), ended_keyboard())
 
 
 async def on_event(event: dict, rp, bot) -> None:
@@ -269,7 +298,7 @@ async def _apply(sub: dict, rp, bot) -> dict | None:
         quiet = (reason == "cancelled_by_merchant" or before.get("ended_reason") == "cancelled_by_user"
                  or (before["status"] == "pending" and reason in ("not_activated", "first_payment_failed")))
         if not quiet:  # switched off by them, or they never finished turning it on
-            await _send(bot, uid, ended_text(reason), _ended_keyboard())
+            await _send(bot, uid, await ended_text(uid, reason), ended_keyboard())
     return before
 
 
@@ -308,9 +337,9 @@ async def tune(rp, row: dict | None) -> None:
                                  int(row["telegram_id"]), want)
 
 
-# ---------- texts ----------
+# ---------- texts (docs/autopay/autopay-final.html) ----------
 
-def _date(dt: datetime | None) -> str:
+def _date(dt) -> str:
     dt = _ts(dt)
     if not dt:
         return ""
@@ -319,34 +348,68 @@ def _date(dt: datetime | None) -> str:
     return f"{local.day} {MONTHS[local.month - 1]}"
 
 
+async def runway(telegram_id: int) -> tuple[int, int]:
+    """(balance, whole days it lasts) at the current devices."""
+    user = await db.get_user(telegram_id) or {}
+    balance = int(user.get("balance_rub") or 0)
+    return balance, max(0, balance) // day_cost(await db.billable_device_count(telegram_id))
+
+
+def _until(days: int) -> str:
+    return _date(datetime.now(timezone.utc) + timedelta(days=days))
+
+
+def _rub(n) -> str:
+    return f"{int(n or 0):,} ₽".replace(",", "\u00a0")
+
+
 def panel_text(row: dict | None) -> str:
+    """The pult in the chat (screens 9–10)."""
     if not row or row["status"] not in OPEN:
-        return ("🔁 <b>Автопополнение выключено</b>\n\n"
-                "Включите — и баланс будет пополняться сам через СБП, когда его останется примерно на 2 дня.")
+        return ("⏹ <b>Автопополнение выключено</b>\n\nБольше ничего не списываем. Привязку СБП удалили — "
+                "чтобы включить снова, понадобится новая оплата.")
     if row["status"] == "pending":
-        return (f"🔁 <b>Автопополнение ждёт оплаты</b>\n\nОплатите {row['amount_rub']} ₽ через СБП — "
+        return (f"🔁 <b>Автопополнение ждёт оплаты</b>\n\nОплатите {_rub(row['amount_rub'])} через СБП — "
                 "этот платёж пополнит баланс и включит автопополнение.")
-    when = _date(row.get("next_charge_at"))
-    return (f"🔁 <b>Автопополнение включено</b>\n\n"
-            f"{'Следующее пополнение — <b>' + when + '</b>' if when else 'Пополним, когда баланса останется примерно на 2 дня'}, "
-            f"{row['amount_rub']} ₽ через СБП.\nЗа день до списания напомним. Отключить можно в любой момент.")
+    nxt = _ts(row.get("next_charge_at"))
+    when = (f"\nБлижайшее — около {_date(nxt)}, напомним {_date(nxt - timedelta(days=1))}." if nxt else "")
+    return (f"🔁 <b>Автопополнение включено</b>\n\n{_rub(row['amount_rub'])} через СБП, когда останется 2 дня."
+            + when)
 
 
-def reminder_text(row: dict) -> str:
-    return (f"🔁 <b>Завтра пополним баланс на {row['amount_rub']} ₽</b>\n\n"
-            "Деньги спишутся через СБП автоматически, ничего делать не нужно.")
+async def receipt_text(telegram_id: int, amount: int) -> str:
+    """The receipt after a charge (screen 12)."""
+    balance, days = await runway(telegram_id)
+    return (f"✅ <b>Автопополнение: +{_rub(amount)}</b>\n\nБаланс {_rub(balance)}"
+            + (f" — хватит до {_until(days)}." if days else ".") + "\nОплата через СБП.")
 
 
-def failed_text(row: dict) -> str:
-    return (f"⚠️ <b>Не получилось пополнить баланс на {row['amount_rub']} ₽</b>\n\n"
-            "Банк отклонил автоматическое списание. Попробуем ещё раз; после трёх неудач подряд автопополнение "
-            "выключится. Чтобы VPN не выключился, можно пополнить вручную.")
+async def reminder_text(row: dict) -> str:
+    """The day before a charge (screen 11)."""
+    from app.texts import days_text
+    _, days = await runway(int(row["telegram_id"]))
+    left = f" — VPN осталось на {days_text(days)}" if days else ""
+    return f"🔔 <b>Завтра пополним баланс</b>\n\n{_rub(row['amount_rub'])} через СБП{left}."
 
 
-def ended_text(reason: str) -> str:
-    why = REASONS.get(reason)
-    return ("🔁 <b>Автопополнение выключено</b>" + (f": {why}." if why else ".") +
-            "\n\nБаланс больше не пополняется сам. Включить снова можно в кабинете.")
+async def failed_text(row: dict) -> str:
+    """The first declined charge (screen 13)."""
+    from app.texts import days_text
+    _, days = await runway(int(row["telegram_id"]))
+    left = f"VPN работает ещё {days_text(days)}. " if days else ""
+    return (f"⚠️ <b>Не получилось пополнить</b>\n\nБанк отклонил списание {_rub(row['amount_rub'])} через СБП.\n"
+            f"{left}Скоро попробуем снова.")
+
+
+async def ended_text(telegram_id: int, reason: str) -> str:
+    """Switched off not by the person (screen 14): two declines, the bank binding removed, support."""
+    why = {"failed_twice": "Списание через СБП не прошло дважды. Больше списывать не пробуем.",
+           "charges_declined": "Банк несколько раз подряд отклонил списание. Больше списывать не пробуем.",
+           "unbound_in_bank": "Привязку СБП удалили в приложении банка."}.get(reason) or (
+        f"Причина: {REASONS[reason]}." if reason in REASONS else "")
+    _, days = await runway(telegram_id)
+    left = f"\nБаланса хватит до {_until(days)}." if days else ""
+    return f"⏹ <b>Автопополнение выключено</b>\n\n{why}{left}".rstrip()
 
 
 def _cabinet_button(text: str, screen: str) -> InlineKeyboardButton | None:
@@ -355,41 +418,41 @@ def _cabinet_button(text: str, screen: str) -> InlineKeyboardButton | None:
     return InlineKeyboardButton(text=text, web_app=app) if app else None
 
 
+def _kb(*rows) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[b for b in row if b] for row in rows if any(row)])
+
+
 def panel_keyboard(row: dict | None) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = []
     if row and row["status"] == "active":
-        rows.append([InlineKeyboardButton(text="Отключить", callback_data="ap:off")])
-        btn = _cabinet_button("Подробнее в кабинете", "autopay")
-    elif row and row["status"] == "pending" and row.get("pay_url"):
-        rows.append([InlineKeyboardButton(text=f"Оплатить {row['amount_rub']} ₽ и включить", url=row["pay_url"])])
-        btn = _cabinet_button("Выбрать другую сумму", "autopay")
-    else:
-        btn = _cabinet_button("Включить", "autopay")
-    if btn:
-        rows.append([btn])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+        return _kb([InlineKeyboardButton(text="Отключить", callback_data="ap:off")],
+                   [_cabinet_button("Открыть кабинет", "autopay")])
+    if row and row["status"] == "pending" and row.get("pay_url"):
+        return _kb([InlineKeyboardButton(text=f"Оплатить {_rub(row['amount_rub'])} и включить", url=row["pay_url"])],
+                   [_cabinet_button("Выбрать другую сумму", "autopay")])
+    return _kb([_cabinet_button("Включить снова", "autopay")], [_cabinet_button("Открыть кабинет", "home")])
 
 
-def _reminder_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Хорошо", callback_data="ap:ok"),
-        InlineKeyboardButton(text="Отключить", callback_data="ap:off"),
-    ]])
+def reminder_keyboard() -> InlineKeyboardMarkup:
+    return _kb([InlineKeyboardButton(text="Хорошо", callback_data="ap:ok"), _cabinet_button("Изменить", "autopay")])
 
 
-def _failed_keyboard() -> InlineKeyboardMarkup:
-    btn = _cabinet_button("Пополнить вручную", "topup")
-    return InlineKeyboardMarkup(inline_keyboard=[[btn]] if btn else [])
+def receipt_keyboard() -> InlineKeyboardMarkup:
+    return _kb([_cabinet_button("Изменить", "autopay")])
 
 
-def _ended_keyboard() -> InlineKeyboardMarkup:
-    btn = _cabinet_button("Включить снова", "autopay")
-    return InlineKeyboardMarkup(inline_keyboard=[[btn]] if btn else [])
+def failed_keyboard(promise: bool = False) -> InlineKeyboardMarkup:
+    return _kb([_cabinet_button("Пополнить вручную", "topup")],
+               [_cabinet_button("🤝 Обещанный платёж", "promise") if promise else None])
+
+
+def ended_keyboard() -> InlineKeyboardMarkup:
+    return _kb([_cabinet_button("Пополнить и включить снова", "autopay")],
+               [_cabinet_button("Пополнить один раз", "topup")])
 
 
 def offer_button() -> InlineKeyboardButton | None:
-    """«Пополнять автоматически» under balance warnings."""
-    return _cabinet_button("🔁 Пополнять автоматически", "autopay")
+    """Under balance warnings (screen 1)."""
+    return _cabinet_button("🔁 Пополнить и больше не следить", "autopay")
 
 
 async def _send(bot, uid: int, text: str, markup: InlineKeyboardMarkup | None = None) -> None:
@@ -417,7 +480,7 @@ async def remind_due(bot) -> int:
     for row in map(dict, rows):
         await db._pool_req().execute("UPDATE autopay SET reminded_for=next_charge_at WHERE telegram_id=$1",
                                      int(row["telegram_id"]))
-        await _send(bot, int(row["telegram_id"]), reminder_text(row), _reminder_keyboard())
+        await _send(bot, int(row["telegram_id"]), await reminder_text(row), reminder_keyboard())
         sent += 1
     return sent
 
@@ -453,21 +516,32 @@ async def public(telegram_id: int) -> dict | None:
     charges = await db._pool_req().fetch(
         """SELECT o.created_at, o.amount_kop, o.status FROM pay_orders o
            WHERE o.telegram_id=$1 AND o.order_id LIKE 'ap-%' ORDER BY o.created_at DESC LIMIT 5""", int(telegram_id))
-    declined = await db._pool_req().fetchval(
-        "SELECT COALESCE(declined_until > NOW(), FALSE) FROM autopay WHERE telegram_id=$1", int(telegram_id))
+    flags = await db._pool_req().fetchrow(
+        """SELECT COALESCE(declined_until > NOW(), FALSE) AS declined,
+                  COALESCE(ended_at > NOW() - make_interval(days => $2), FALSE) AS recent
+           FROM autopay WHERE telegram_id=$1""", int(telegram_id), FAILED_SHOWN_DAYS) or {}
+    declined = bool(flags.get("declined"))
+    reason = str(row.get("ended_reason") or "")
+    nxt = _ts(row.get("next_charge_at"))
     return {
         "status": status,
         "amount": int(row.get("amount_rub") or 0) or None,
         "next_charge_at": _iso(row.get("next_charge_at")),
         "pay_url": row.get("pay_url") if status == "pending" else None,
-        "ended_reason": REASONS.get(str(row.get("ended_reason") or "")) if status == "off" else None,
+        "remind_at": _iso(nxt - timedelta(days=1)) if nxt else None,
+        "ended_reason": REASONS.get(reason) if status == "off" else None,
+        # Switched off by a decline or the bank, lately: «⚠️ Автопополнение не сработало» on the home card.
+        "failed": status == "off" and reason in FAILED_REASONS and bool(flags.get("recent")),
+        # Was on once: the management screen shows «выключено» with the switch instead of the offer.
+        "was_on": status == "off" and bool(row.get("last_charge_at")),
         "offer": status == "off" and not declined,
         "day_cost": daily,
         "lead_days": LEAD_DAYS,
         "options": amount_options(daily),
         "default": default_amount(daily),
         "charges": [{"at": _iso(c["created_at"]), "amount": int(c["amount_kop"] or 0) // 100,
-                     "ok": c["status"] == "granted"} for c in charges],
+                     "ok": c["status"] == "granted", "auto": i < len(charges) - 1 or len(charges) >= 5}
+                    for i, c in enumerate(charges)],
     }
 
 
@@ -502,10 +576,10 @@ async def cb_off(query: CallbackQuery, rp=None) -> None:
         await query.answer("Не получилось отключить, попробуйте позже", show_alert=True)
         return
     await query.answer("Автопополнение выключено")
-    try:
-        await query.message.edit_text(
-            "🔁 <b>Автопополнение выключено</b>\n\nСписаний больше не будет. Включить снова можно в кабинете.",
-            reply_markup=_ended_keyboard() if _ended_keyboard().inline_keyboard else None)
+    row = await get(query.from_user.id)
+    markup = panel_keyboard(row)
+    try:  # the same message changes (screen 10), no new one
+        await query.message.edit_text(panel_text(row), reply_markup=markup if markup.inline_keyboard else None)
     except Exception:
         pass
 
