@@ -38,8 +38,6 @@ const audiences: [string, string][] = [
 ];
 // Audiences of the survey templates and announcements: not in the picker, only shown as «Кому».
 const hiddenAudiences: Record<string, string> = {
-  why_nodevice: "Не пользовались VPN, устройства нет (и спящие)",
-  why_offline: "Добавили устройство, но не подключились (и спящие)",
   everyone: "Все, включая спящих",
 };
 // What each segment is for: shown under the audience picker.
@@ -79,12 +77,9 @@ const templates: [string, string][] = [
   ["referral_news", "Новая реферальная программа"],
   ["gift_ny", "Подарок на Новый год"],
   ["friend_nft", "NFT-подарки за друзей"],
-  ["whitelist", "Белые списки включены"],
   ["invite", "Пригласить друзей"],
   ["unused", "Помощь с первым подключением"],
   ["browser", "Кабинет в браузере"],
-  ["why_nodevice", "Опрос «Что помешало?»: нет устройства"],
-  ["why_offline", "Опрос «Что помешало?»: не подключились"],
 ];
 const templateIcon: Record<string, string> = {
   "": "✏️",
@@ -92,20 +87,15 @@ const templateIcon: Record<string, string> = {
   referral_news: "👥",
   gift_ny: "🎄",
   friend_nft: "💎",
-  whitelist: "📋",
   invite: "🤝",
   unused: "🛟",
   browser: "💻",
-  why_nodevice: "🤔",
-  why_offline: "🤔",
 };
 // Stored templates with an audience of their own.
 const templateAudience: Record<string, string> = {
   invite: "using",
   unused: "unused",
   browser: "no_browser",
-  why_nodevice: "why_nodevice",
-  why_offline: "why_offline",
 };
 // A photo, GIF or video goes with one's own text or with «Кабинет в браузере» (a screen recording of the login).
 const withMedia = (t: string) => !t || t === "browser";
@@ -486,7 +476,7 @@ export function BroadcastPage() {
   const data = resource.data,
     effectiveAudience =
       templateAudience[template] ??
-      (template in announce ? "everyone" : template === "whitelist" ? "all" : audience),
+      (template in announce ? "everyone" : audience),
     count = data?.audiences?.[effectiveAudience] ?? 0,
     editable = !template || template in announce,
     body = editable ? text : data?.previews?.[template] || "",

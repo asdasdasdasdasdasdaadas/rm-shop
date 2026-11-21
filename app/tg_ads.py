@@ -1,7 +1,7 @@
 """Telegram Ads statistics, tied to our ad links.
 
 Every ad in Telegram Ads promotes a URL; ours look like https://t.me/<bot>?start=ad_<slug>, the same slug as an
-ad link in «Источники трафика». Every 30 minutes (and on «Обновить») the bot reads all ads of the account
+ad link in «Рост». Every 30 minutes (and on «Обновить») the bot reads all ads of the account
 (promoteapi.telegram.org/getAdsList, token in Настройки → Telegram Ads or TG_ADS_TOKEN in .env) and stores per ad: views, clicks,
 conversions, spend in the account currency and in rubles. The links page then shows, next to who came and who paid,
 what Telegram counted and what it cost — without typing the spend by hand.

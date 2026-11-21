@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { api, date, money, useResource, type Data } from "@/lib/api";
 import {
   ActionButton,
@@ -32,63 +32,134 @@ function stepName(step: Data | null | undefined, fallback: string) {
   return step ? `${step.branch} · шаг ${step.n}` : fallback;
 }
 
-export function Results({ item, windowDays }: { item: Data; windowDays: number }) {
-  const arms: Data[] = item.arms || [];
+type Metric = { label: string; value: (r: Data) => string; share?: (r: Data) => number; hint?: string };
+type Verdict = { title: string; text: string; sure: boolean; extra?: string };
+
+/**
+ * Groups of a test side by side: the main metric big with a bar, the rest as rows; the leader is marked.
+ * Verdicts go on top, because they answer «what do I do with this test».
+ */
+function Compare({ arms, main, metrics, verdicts }: { arms: Data[]; main: Metric; metrics: Metric[]; verdicts: Verdict[] }) {
+  const best = Math.max(...arms.map((a) => main.share?.(a) ?? 0));
+  const leader = arms.length > 1 && best > 0 ? arms.find((a) => (main.share?.(a) ?? 0) === best) : undefined;
   return (
-    <div className="space-y-3">
-      <DataTable
-        rows={arms}
-        columns={[
-          { key: "label", label: "Группа" },
-          { key: "users", label: "Людей" },
-          {
-            key: "delivered",
-            label: "Получили",
-            cell: (r) => (r.arm === "control" ? "—" : r.delivered),
-          },
-          {
-            key: "clicked",
-            label: "Нажали",
-            cell: (r) => (r.arm === "control" ? "—" : r.clicked),
-          },
-          { key: "connected", label: "Подключились" },
-          {
-            key: "payers",
-            label: (
-              <span title={`Оплатили хоть раз за ${windowDays} дней после попадания в тест, нажимали кнопку или нет`}>
-                Оплатили
-              </span>
-            ),
-            cell: (r) => `${r.payers} · ${pct(r.conversion)}`,
-          },
-          { key: "rub", label: "Выручка", cell: (r) => money(r.rub) },
-          {
-            key: "rub_per_user",
-            label: "₽ на человека",
-            cell: (r) => money(r.rub_per_user),
-          },
-          {
-            key: "gift_rub",
-            label: "Подарено",
-            cell: (r) => (r.gift_rub ? money(r.gift_rub) : "—"),
-          },
-        ]}
-      />
-      {(item.comparisons || []).map((c: Data, i: number) => (
-        <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge variant={c.sure ? "default" : "secondary"}>
-            {c.arm.toUpperCase()} против {c.against === "control" ? "контроля" : c.against.toUpperCase()}
-          </Badge>
-          <span>{c.verdict}</span>
-          {c.rub_per_100 !== undefined && (
-            <span className="text-muted-foreground">
-              · {c.rub_per_100 >= 0 ? "+" : ""}
-              {money(c.rub_per_100)} на каждые 100 человек
-            </span>
-          )}
+    <div className="space-y-4">
+      {verdicts.map((v, i) => (
+        <div key={i} className={"adm-ab-verdict" + (v.sure ? " sure" : "")}>
+          <b>{v.title}</b>
+          <span>
+            {v.text}
+            {v.extra && <span className="adm-ab-muted"> · {v.extra}</span>}
+          </span>
+          <em>{v.sure ? "результат надёжный" : "пока не уверены"}</em>
         </div>
       ))}
+      <div className="adm-ab-arms" style={{ gridTemplateColumns: `repeat(${Math.max(1, arms.length)}, minmax(0, 1fr))` }}>
+        {arms.map((a) => (
+          <section key={a.arm || a.label} className={"adm-ab-arm" + (a === leader ? " lead" : "")}>
+            <header>
+              <span>{a.label}</span>
+              {a === leader && <i>впереди</i>}
+            </header>
+            <small title={main.hint}>{main.label}</small>
+            <b>{main.value(a)}</b>
+            <div className="adm-ab-bar"><i style={{ width: `${best ? ((main.share?.(a) ?? 0) / best) * 100 : 0}%` }} /></div>
+            <dl>
+              {metrics.map((m) => (
+                <div key={m.label} title={m.hint}>
+                  <dt>{m.label}</dt>
+                  <dd>{m.value(a)}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
+      </div>
     </div>
+  );
+}
+
+export function Results({ item, windowDays }: { item: Data; windowDays: number }) {
+  const control = (r: Data, v: unknown) => (r.arm === "control" ? "не получали" : String(v ?? 0));
+  return (
+    <Compare
+      arms={item.arms || []}
+      main={{
+        label: "Оплатили",
+        hint: `Оплатили хоть раз за ${windowDays} дней после попадания в тест, нажимали кнопку или нет`,
+        value: (r) => pct(r.conversion),
+        share: (r) => Number(r.conversion || 0),
+      }}
+      metrics={[
+        { label: "Людей", value: (r) => num(r.users) },
+        { label: "Получили", value: (r) => control(r, r.delivered) },
+        { label: "Нажали", value: (r) => control(r, r.clicked) },
+        { label: "Подключились", value: (r) => num(r.connected) },
+        { label: "Оплатили, человек", value: (r) => num(r.payers) },
+        { label: "Выручка", value: (r) => money(r.rub) },
+        { label: "₽ на человека", value: (r) => money(r.rub_per_user) },
+        ...((item.arms || []).some((r: Data) => r.gift_rub) ? [{ label: "Подарено", value: (r: Data) => (r.gift_rub ? money(r.gift_rub) : "—") }] : []),
+      ]}
+      verdicts={(item.comparisons || []).map((c: Data) => ({
+        title: `${String(c.arm).toUpperCase()} против ${c.against === "control" ? "контроля" : String(c.against).toUpperCase()}`,
+        text: c.verdict,
+        sure: !!c.sure,
+        extra: c.rub_per_100 !== undefined ? `${c.rub_per_100 >= 0 ? "+" : ""}${money(c.rub_per_100)} на каждые 100 человек` : undefined,
+      }))}
+    />
+  );
+}
+
+const num = (v: unknown) => Number(v || 0).toLocaleString("ru-RU");
+const toVerdicts = (list: Data[] | undefined): Verdict[] =>
+  (list || []).map((v) => ({ title: v.what, text: v.verdict, sure: !!v.sure }));
+
+/** One test, whatever its kind: status, what is compared, verdict and the groups. */
+function TestCard({
+  title,
+  item,
+  facts,
+  onStop,
+  children,
+  extra,
+}: {
+  title: string;
+  item: Data;
+  facts: string[];
+  onStop?: () => void;
+  children: ReactNode;
+  extra?: ReactNode;
+}) {
+  return (
+    <article className="adm-ab-card">
+      <header>
+        <div className="min-w-0">
+          <span className={"adm-ab-status" + (item.running ? " on" : "")}>
+            <i />
+            {item.running ? "Идёт" : "Остановлен"}
+          </span>
+          <h3>{title}</h3>
+          <p>
+            {date(item.started_at)}
+            {item.stopped_at ? ` — ${date(item.stopped_at)}` : " — сейчас"}
+          </p>
+          {facts.length > 0 && (
+            <div className="adm-ab-facts">
+              {facts.map((f) => (
+                <span key={f}>{f}</span>
+              ))}
+            </div>
+          )}
+        </div>
+        {onStop && item.running && (
+          <Button variant="outline" onClick={onStop}>
+            Остановить
+          </Button>
+        )}
+      </header>
+      {extra}
+      {children}
+    </article>
   );
 }
 
@@ -187,246 +258,195 @@ function NewTest({
   );
 }
 
-// «Подарок сразу на балансе»: half of the new people get the start gift credited at once.
-function AutoGiftTest() {
-  const resource = useResource("auto-gift");
+/** A built-in test that is switched on and off as a whole (the gift and the install step). */
+function useBuiltinTest(path: string, texts: { start: string; stop: string; title: string }) {
+  const resource = useResource(path);
   const confirm = useConfirm();
-  const data = resource.data;
-  const items: Data[] = data?.items || [];
+  const items: Data[] = resource.data?.items || [];
   const current = items.find((i) => i.running);
-  const shown = current || items[0];
   const run = (action: "start" | "stop") =>
     confirm({
-      title: action === "start" ? "Запустить тест подарка?" : "Остановить тест подарка?",
-      description:
-        action === "start"
-          ? `Половина новых пользователей получит стартовый подарок на баланс сразу, без кнопки «Забрать подарок». Дни начнут тратиться только после первого подключения. Результаты — за ${data?.window_days || 14} дней.`
-          : "Все новые снова будут забирать подарок кнопкой. Результаты останутся здесь.",
+      title: action === "start" ? `Запустить тест «${texts.title}»?` : `Остановить тест «${texts.title}»?`,
+      description: action === "start" ? texts.start : texts.stop,
       label: action === "start" ? "Запустить" : "Остановить",
       action: async () => {
-        await api("auto-gift", { action });
+        await api(path, { action });
         toast.success(action === "start" ? "Тест запущен" : "Тест остановлен");
         await resource.reload();
       },
     });
-  return (
-    <Panel
-      title="Стартовый подарок: сразу на балансе или по кнопке"
-      description={
-        shown
-          ? `${shown.running ? "Идёт" : "Остановлен"} с ${date(shown.started_at)}` +
-            (shown.stopped_at ? ` по ${date(shown.stopped_at)}` : "") +
-            ` · в тест попадают только новые пользователи · подключения и оплаты за ${data?.window_days || 14} дней`
-          : "Половина новых пользователей получает подарок на баланс сразу, половина — по кнопке, как сейчас."
-      }
-      action={
-        data ? (
-          <Button variant={current ? "outline" : "default"} onClick={() => run(current ? "stop" : "start")}>
-            {current ? "Остановить" : "Запустить тест"}
-          </Button>
-        ) : undefined
-      }
-    >
-      {resource.error ? (
-        <Failure message={resource.error} retry={resource.reload} />
-      ) : !data ? (
-        <Loading />
-      ) : !shown ? (
-        <p className="text-sm text-muted-foreground">Тест ещё не запускали.</p>
-      ) : (
-        <div className="space-y-3">
-          <DataTable
-            rows={shown.arms || []}
-            columns={[
-              { key: "label", label: "Группа" },
-              { key: "users", label: "Людей" },
-              { key: "took_gift", label: "С подарком" },
-              { key: "device", label: "Добавили устройство" },
-              { key: "connected", label: "Подключили VPN", cell: (r) => `${r.connected} · ${pct(r.connected_pct)}` },
-              { key: "payers", label: "Оплатили", cell: (r) => `${r.payers} · ${pct(r.conversion)}` },
-              { key: "rub", label: "Выручка", cell: (r) => money(r.rub) },
-              { key: "rub_per_user", label: "₽ на человека", cell: (r) => money(r.rub_per_user) },
-            ]}
-          />
-          {(shown.verdicts || []).map((v: Data, i: number) => (
-            <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
-              <Badge variant={v.sure ? "default" : "secondary"}>{v.what}</Badge>
-              <span>{v.verdict}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </Panel>
-  );
-}
-
-// The cabinet's install step: half of those adding their first device see the two-step card.
-function InstallTest() {
-  const resource = useResource("install-test");
-  const confirm = useConfirm();
-  const data = resource.data;
-  const items: Data[] = data?.items || [];
-  const current = items.find((i) => i.running);
-  const shown = current || items[0];
-  const run = (action: "start" | "stop") =>
-    confirm({
-      title: action === "start" ? "Запустить тест шага установки?" : "Остановить тест шага установки?",
-      description:
-        action === "start"
-          ? "Половина тех, кто подключает первое устройство, увидит новый шаг: «Скачать» и «Добавить в приложение» на одной карточке. Вторая половина — как сейчас. Главное мерило — подключили VPN за сутки."
-          : "Все снова увидят шаг установки как сейчас. Результаты останутся здесь.",
-      label: action === "start" ? "Запустить" : "Остановить",
-      action: async () => {
-        await api("install-test", { action });
-        toast.success(action === "start" ? "Тест запущен" : "Тест остановлен");
-        await resource.reload();
-      },
-    });
-  return (
-    <Panel
-      title="Шаг «Установите приложение»: как сейчас или два шага на одной карточке"
-      description={
-        shown
-          ? `${shown.running ? "Идёт" : "Остановлен"} с ${date(shown.started_at)}` +
-            (shown.stopped_at ? ` по ${date(shown.stopped_at)}` : "") +
-            ` · в тест попадают те, у кого ещё нет устройства · ключи и оплаты за ${data?.window_days || 7} дней`
-          : "Половина новичков видит новый шаг установки, половина — как сейчас. Сравниваем, сколько подключили VPN за сутки."
-      }
-      action={
-        data ? (
-          <Button variant={current ? "outline" : "default"} onClick={() => run(current ? "stop" : "start")}>
-            {current ? "Остановить" : "Запустить тест"}
-          </Button>
-        ) : undefined
-      }
-    >
-      {resource.error ? (
-        <Failure message={resource.error} retry={resource.reload} />
-      ) : !data ? (
-        <Loading />
-      ) : !shown ? (
-        <p className="text-sm text-muted-foreground">Тест ещё не запускали.</p>
-      ) : (
-        <div className="space-y-3">
-          <DataTable
-            rows={shown.arms || []}
-            columns={[
-              { key: "label", label: "Группа" },
-              { key: "users", label: "Людей" },
-              { key: "device", label: "Создали ключ", cell: (r) => `${r.device} · ${pct(r.device_pct)}` },
-              {
-                key: "connected_day",
-                label: "Подключили за сутки",
-                cell: (r) => `${r.connected_day} из ${r.day_done} · ${pct(r.connected_day_pct)}`,
-              },
-              { key: "connected", label: "За неделю", cell: (r) => `${r.connected} · ${pct(r.connected_pct)}` },
-              { key: "payers", label: "Оплатили", cell: (r) => `${r.payers} · ${pct(r.conversion)}` },
-              { key: "rub", label: "Выручка", cell: (r) => money(r.rub) },
-            ]}
-          />
-          {(shown.verdicts || []).map((v: Data, i: number) => (
-            <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
-              <Badge variant={v.sure ? "default" : "secondary"}>{v.what}</Badge>
-              <span>{v.verdict}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </Panel>
-  );
+  return { resource, items, current, run };
 }
 
 export function ExperimentsPage() {
   const resource = useResource("experiments"),
-    [open, setOpen] = useState(false);
+    [open, setOpen] = useState(false),
+    [view, setView] = useState<"running" | "done">("running");
   const confirm = useConfirm();
   const data = resource.data;
+  const windowDays = data?.window_days || 7;
+  const gift = useBuiltinTest("auto-gift", {
+    title: "Стартовый подарок",
+    start:
+      "Половина новых пользователей получит стартовый подарок на баланс сразу, без кнопки «Забрать подарок». Дни начнут тратиться только после первого подключения.",
+    stop: "Все новые снова будут забирать подарок кнопкой. Результаты останутся здесь.",
+  });
+  const install = useBuiltinTest("install-test", {
+    title: "Шаг установки",
+    start:
+      "Половина тех, кто подключает первое устройство, увидит «Скачать» и «Добавить в приложение» на одной карточке. Главное мерило — подключили VPN за сутки.",
+    stop: "Все снова увидят шаг установки как сейчас. Результаты останутся здесь.",
+  });
   const items: Data[] = data?.items || [];
-  const running = items.filter((i) => i.running),
-    done = items.filter((i) => !i.running);
-  const busy = new Set(running.map((i) => i.step_id));
+  const busy = new Set(items.filter((i) => i.running).map((i) => i.step_id));
   const free = (data?.steps || []).filter((s: Data) => !busy.has(s.id));
-  const card = (item: Data) => (
-    <Panel
-      key={item.id}
+
+  const messageCard = (item: Data) => (
+    <TestCard
+      key={"m" + item.id}
       title={stepName(item.step, item.step_id)}
-      description={
-        `${item.running ? "Идёт" : "Остановлен"} с ${date(item.started_at)}` +
-        (item.stopped_at ? ` по ${date(item.stopped_at)}` : "") +
-        ` · контроль ${item.holdout_pct}%` +
-        (item.b_pct ? ` · B ${item.b_pct}% остальных` : "") +
-        (item.b_gift_days ? ` · подарок B: ${item.b_gift_days} дн.` : "") +
-        (item.b_bonus_pct ? ` · бонус B: +${item.b_bonus_pct}%` : "")
+      item={item}
+      facts={[
+        "Сообщение бота",
+        `контроль ${item.holdout_pct}%`,
+        ...(item.b_pct ? [`вариант B ${item.b_pct}% остальных`] : ["A против тишины"]),
+        ...(item.b_gift_days ? [`подарок B: ${item.b_gift_days} дн.`] : []),
+        ...(item.b_bonus_pct ? [`бонус B: +${item.b_bonus_pct}%`] : []),
+        `оплаты за ${windowDays} дней`,
+      ]}
+      onStop={() =>
+        confirm({
+          title: "Остановить тест?",
+          description: "Все снова будут получать вариант A. Результаты останутся здесь.",
+          label: "Остановить",
+          action: async () => {
+            await api(`experiments/${item.id}/stop`, {});
+            toast.success("Тест остановлен");
+            await resource.reload();
+          },
+        })
       }
-      action={
-        item.running ? (
-          <Button
-            variant="outline"
-            onClick={() =>
-              confirm({
-                title: "Остановить тест?",
-                description: "Все снова будут получать вариант A. Результаты останутся здесь.",
-                label: "Остановить",
-                action: async () => {
-                  await api(`experiments/${item.id}/stop`, {});
-                  toast.success("Тест остановлен");
-                  await resource.reload();
-                },
-              })
-            }
-          >
-            Остановить
-          </Button>
+      extra={
+        item.b_text ? (
+          <details className="adm-ab-text">
+            <summary>Текст варианта B</summary>
+            <div>{item.b_text}</div>
+          </details>
         ) : undefined
       }
     >
-      <div className="space-y-3">
-        {item.b_text && (
-          <details className="text-sm">
-            <summary className="cursor-pointer text-muted-foreground">Текст варианта B</summary>
-            <div className="mt-2 rounded-md border bg-muted/40 p-3 whitespace-pre-wrap">{item.b_text}</div>
-          </details>
-        )}
-        <Results item={item} windowDays={data?.window_days || 7} />
-      </div>
-    </Panel>
+      <Results item={item} windowDays={windowDays} />
+    </TestCard>
   );
+  const giftCard = (item: Data) => (
+    <TestCard
+      key={"g" + item.started_at}
+      title="Стартовый подарок: сразу на балансе или по кнопке"
+      item={item}
+      facts={["Кабинет", "50 / 50 новых пользователей", `за ${gift.resource.data?.window_days || 14} дней`]}
+      onStop={() => gift.run("stop")}
+    >
+      <Compare
+        arms={item.arms || []}
+        main={{ label: "Оплатили", value: (r) => pct(r.conversion), share: (r) => Number(r.conversion || 0) }}
+        metrics={[
+          { label: "Людей", value: (r) => num(r.users) },
+          { label: "С подарком", value: (r) => num(r.took_gift) },
+          { label: "Добавили устройство", value: (r) => num(r.device) },
+          { label: "Подключили VPN", value: (r) => `${num(r.connected)} · ${pct(r.connected_pct)}` },
+          { label: "Выручка", value: (r) => money(r.rub) },
+          { label: "₽ на человека", value: (r) => money(r.rub_per_user) },
+        ]}
+        verdicts={toVerdicts(item.verdicts)}
+      />
+    </TestCard>
+  );
+  const installCard = (item: Data) => (
+    <TestCard
+      key={"i" + item.started_at}
+      title="Шаг «Установите приложение»: как сейчас или два шага на одной карточке"
+      item={item}
+      facts={["Кабинет", "50 / 50 без устройства", `за ${install.resource.data?.window_days || 7} дней`]}
+      onStop={() => install.run("stop")}
+    >
+      <Compare
+        arms={item.arms || []}
+        main={{
+          label: "Подключили за сутки",
+          value: (r) => pct(r.connected_day_pct),
+          share: (r) => Number(r.connected_day_pct || 0),
+        }}
+        metrics={[
+          { label: "Людей", value: (r) => num(r.users) },
+          { label: "Создали ключ", value: (r) => `${num(r.device)} · ${pct(r.device_pct)}` },
+          { label: "За сутки, человек", value: (r) => `${num(r.connected_day)} из ${num(r.day_done)}` },
+          { label: "Подключили за неделю", value: (r) => `${num(r.connected)} · ${pct(r.connected_pct)}` },
+          { label: "Оплатили", value: (r) => `${num(r.payers)} · ${pct(r.conversion)}` },
+          { label: "Выручка", value: (r) => money(r.rub) },
+        ]}
+        verdicts={toVerdicts(item.verdicts)}
+      />
+    </TestCard>
+  );
+
+  const all = [
+    ...install.items.map((i) => ({ at: i.started_at, running: !!i.running, node: installCard(i) })),
+    ...gift.items.map((i) => ({ at: i.started_at, running: !!i.running, node: giftCard(i) })),
+    ...items.map((i) => ({ at: i.started_at, running: !!i.running, node: messageCard(i) })),
+  ].sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  const running = all.filter((t) => t.running), done = all.filter((t) => !t.running);
+  const shown = view === "running" ? running : done;
+  const loading = !data || !gift.resource.data || !install.resource.data;
+  const error = resource.error || gift.resource.error || install.resource.error;
+
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground max-w-2xl">
-          Тесты автоматических сообщений бота. Каждый, кому подошло сообщение, попадает в одну группу навсегда.
-          Оплаты считаются за {data?.window_days || 7} дней после попадания в тест — все, а не только после нажатия
-          кнопки. Предупреждения о балансе и неоплаченном счёте не тестируются: они про уже заплаченные деньги.
-        </p>
-        <Button onClick={() => setOpen(true)} disabled={!data}>
-          <Plus />
-          Новый тест
-        </Button>
+      <div className="adm-ab-top">
+        <div className="adm-seg" role="group" aria-label="Какие тесты показать">
+          {([["running", "Идут", running.length], ["done", "Завершённые", done.length]] as const).map(([v, label, n]) => (
+            <button key={v} type="button" aria-pressed={view === v} className="px-4 text-sm font-medium" onClick={() => setView(v)}>
+              {label} <span className="adm-ab-muted">{n}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {!install.current && install.resource.data && (
+            <Button variant="outline" onClick={() => install.run("start")}>Тест шага установки</Button>
+          )}
+          {!gift.current && gift.resource.data && (
+            <Button variant="outline" onClick={() => gift.run("start")}>Тест стартового подарка</Button>
+          )}
+          <Button onClick={() => setOpen(true)} disabled={!data}>
+            <Plus />
+            Тест сообщения
+          </Button>
+        </div>
       </div>
-      <InstallTest />
-      <AutoGiftTest />
-      {resource.error ? (
-        <Failure message={resource.error} retry={resource.reload} />
-      ) : !data ? (
+      <p className="text-sm text-muted-foreground max-w-3xl">
+        Каждый, кто попал в тест, остаётся в своей группе навсегда. Оплаты считаются за {windowDays} дней после попадания
+        — все, а не только после нажатия кнопки. Предупреждения о балансе и неоплаченном счёте не тестируются.
+      </p>
+      {error ? (
+        <Failure message={error} retry={() => { void resource.reload(); void gift.resource.reload(); void install.resource.reload(); }} />
+      ) : loading ? (
         <Loading />
-      ) : !items.length ? (
-        <Empty
-          title="Тестов ещё не было"
-          description="Начните с контрольной группы 10% для первого сообщения после окончания подарка: станет видно, сколько денег оно приносит."
-          action={
-            <Button variant="outline" onClick={() => setOpen(true)}>
-              <FlaskConical />
-              Запустить первый тест
-            </Button>
-          }
-        />
+      ) : !shown.length ? (
+        view === "running" ? (
+          <Empty
+            title="Сейчас тестов нет"
+            description="Начните с контрольной группы 10% для первого сообщения после окончания подарка: станет видно, сколько денег оно приносит."
+            action={
+              <Button variant="outline" onClick={() => setOpen(true)}>
+                <FlaskConical />
+                Запустить тест сообщения
+              </Button>
+            }
+          />
+        ) : (
+          <Empty title="Завершённых тестов нет" description="Остановленные тесты и их результаты появятся здесь." />
+        )
       ) : (
-        <>
-          {running.map(card)}
-          {done.length > 0 && <h2 className="text-sm font-medium text-muted-foreground pt-2">Завершённые</h2>}
-          {done.map(card)}
-        </>
+        shown.map((t) => t.node)
       )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-2xl">
@@ -443,6 +463,7 @@ export function ExperimentsPage() {
               onClose={() => setOpen(false)}
               onDone={() => {
                 setOpen(false);
+                setView("running");
                 void resource.reload();
               }}
             />

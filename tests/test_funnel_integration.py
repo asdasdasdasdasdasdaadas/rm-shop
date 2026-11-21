@@ -172,19 +172,6 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         await self.pool.execute('UPDATE users SET quiet_notifications=FALSE')
         self.assertIsNotNone(await db.reserve_optional_message(1,'broadcast'))
 
-    async def test_recovery_requires_closed_ticket_not_online(self):
-        await self.pool.execute("UPDATE users SET vpn_feedback='help',vpn_feedback_at=NOW()-INTERVAL '3 days'")
-        await self.pool.execute("INSERT INTO tickets (telegram_id,status,closed_at) VALUES (1,'closed',NOW()-INTERVAL '4 days')")
-        await self.pool.execute("INSERT INTO devices (telegram_id,title,last_online_at) VALUES (1,'Phone',NOW()-INTERVAL '2 days')")
-        await db.resolve_recovered_vpn_feedback()
-        self.assertEqual(await self.pool.fetchval('SELECT vpn_feedback FROM users'),'help')
-        await self.pool.execute('UPDATE devices SET last_online_at=NOW()')
-        await db.resolve_recovered_vpn_feedback()
-        self.assertEqual(await self.pool.fetchval('SELECT vpn_feedback FROM users'),'help')
-        await self.pool.execute('UPDATE tickets SET closed_at=NOW()')
-        await db.resolve_recovered_vpn_feedback()
-        self.assertIsNone(await self.pool.fetchval('SELECT vpn_feedback FROM users'))
-
     async def test_quality_and_info_require_resolved_support_and_online(self):
         await self.pool.execute("UPDATE users SET first_online_at=NOW()-INTERVAL '5 days'")
         await self.pool.execute("INSERT INTO devices (telegram_id,title,last_online_at) VALUES (1,'Phone',NOW())")
@@ -264,7 +251,7 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row['progress_paid_no_repeat'],0)
         self.assertFalse(await db.has_funded_access(1))
 
-    async def test_payment_offer_waits_for_exhaustion_and_respects_feedback(self):
+    async def test_payment_offer_waits_for_exhaustion(self):
         from app import config, funnel_board
         await self.pool.execute("UPDATE users SET first_online_at=NOW(),balance_rub=18 WHERE telegram_id=1")
         step=funnel_board._step('unpaid-test','recover_payment',0,'Тест',['topup'])
@@ -272,8 +259,6 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await funnel_board._due(step,None,20,[]),[])
             await self.pool.execute('UPDATE users SET balance_rub=1 WHERE telegram_id=1')
             self.assertEqual(len(await funnel_board._due(step,None,20,[])),1)
-            await db.save_vpn_feedback(1,'terms')
-            self.assertEqual(await funnel_board._due(step,None,20,[]),[])
 
     async def test_recovery_segments_and_stop_on_progress(self):
         from app import config, funnel_board
@@ -293,7 +278,7 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await eligible(),['recover_online'])
             await self.pool.execute("UPDATE users SET first_online_at=NOW(),trial_waiting_connection=FALSE WHERE telegram_id=1")
             await self.pool.execute('UPDATE devices SET last_online_at=NOW()')
-            self.assertEqual(await eligible(),['recover_quality'])
+            self.assertEqual(await eligible(),[])
             await self.pool.execute("UPDATE devices SET last_billed_at=NOW()-INTERVAL '2 days'")
             await self.pool.execute('UPDATE users SET balance_rub=0 WHERE telegram_id=1')
             self.assertEqual(await eligible(),['recover_payment'])
@@ -302,8 +287,6 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
             await self.pool.execute("UPDATE users SET first_online_at=NOW()-INTERVAL '8 days',bot_started_at=NOW()-INTERVAL '9 days' WHERE telegram_id=1")
             await self.pool.execute("UPDATE devices SET last_online_at=NOW()-INTERVAL '8 days'")
             self.assertEqual(await eligible(),['recover_idle'])
-            await db.save_vpn_feedback(1,'later')
-            self.assertEqual(await eligible(),[])
 
     async def test_recovery_followup_delay_cooldown_and_quiet(self):
         from app import config, funnel_board
@@ -340,50 +323,6 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['nudge_recover_setup']['first_paid'],1)
         self.assertEqual(stats['nudge_recover_setup']['opened'],1)
         self.assertEqual(stats['nudge_recover_setup']['devices'],1)
-
-    async def test_checkout_feedback_owner_dedup_and_paid_exclusion(self):
-        from app import checkout_feedback as feedback
-        await db.track_checkout(1)
-        await self.pool.execute("UPDATE users SET checkout_nudge_at=NOW() WHERE telegram_id=1")
-        token=await self.pool.fetchval('SELECT checkout_token FROM users WHERE telegram_id=1')
-        self.assertFalse(await feedback.save(2,token,'price'))
-        self.assertFalse(await feedback.save(1,'stale','price'))
-        self.assertFalse(await feedback.save(1,token,'unknown'))
-        self.assertTrue(await feedback.save(1,token,'price'))
-        self.assertFalse(await feedback.save(1,token,'later'))
-        self.assertEqual((await feedback.stats())[0]['responses'],1)
-        await db.track_checkout(1)
-        await self.pool.execute("UPDATE users SET checkout_nudge_at=NOW() WHERE telegram_id=1")
-        token=await self.pool.fetchval('SELECT checkout_token FROM users WHERE telegram_id=1')
-        await self.credit()
-        self.assertFalse(await feedback.save(1,token,'price'))
-
-    async def test_feedback_changes_journey_without_overriding_quiet(self):
-        from app import checkout_feedback as feedback
-        await db.track_checkout(1)
-        await self.pool.execute('UPDATE users SET checkout_nudge_at=NOW(),quiet_notifications=TRUE WHERE telegram_id=1')
-        token=await self.pool.fetchval('SELECT checkout_token FROM users WHERE telegram_id=1')
-        self.assertTrue(await feedback.save(1,token,'later'))
-        self.assertIsNone(await db.reserve_optional_message(1,'broadcast'))
-        await self.credit()
-        await db.resolve_recovered_vpn_feedback()
-        user=await db.get_user(1)
-        self.assertIsNotNone(user['marketing_pause_until'])
-        self.assertTrue(user['quiet_notifications'])
-        await db.save_vpn_feedback(1,'terms')
-        await self.pool.execute("UPDATE users SET vpn_feedback_at=NOW()-INTERVAL '1 hour' WHERE telegram_id=1")
-        await db.resolve_recovered_vpn_feedback()
-        self.assertIsNone((await db.get_user(1))['vpn_feedback'])
-        self.assertTrue((await db.get_user(1))['quiet_notifications'])
-
-    async def test_broken_checkout_stops_marketing(self):
-        from app import checkout_feedback as feedback
-        await db.track_checkout(1)
-        await self.pool.execute('UPDATE users SET checkout_nudge_at=NOW() WHERE telegram_id=1')
-        token=await self.pool.fetchval('SELECT checkout_token FROM users WHERE telegram_id=1')
-        self.assertTrue(await feedback.save(1,token,'broken'))
-        self.assertEqual((await db.get_user(1))['vpn_feedback'],'help')
-        self.assertIsNone(await db.reserve_optional_message(1,'broadcast'))
 
     async def test_setup_assistance_bypasses_marketing_cooldown_but_is_bounded(self):
         from app import config, funnel_board
@@ -427,7 +366,8 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
     async def test_happy_trial_user_can_receive_referral_invite(self):
         from app import config, funnel_board
         await funnel_board._ensure_tables()
-        await self.pool.execute("UPDATE users SET first_online_at=NOW()-INTERVAL '3 days',vpn_feedback='ok',balance_rub=18 WHERE telegram_id=1")
+        await self.pool.execute("UPDATE users SET first_online_at=NOW()-INTERVAL '3 days',balance_rub=18 WHERE telegram_id=1")
+        await self.pool.execute("INSERT INTO devices (telegram_id,title,last_online_at) VALUES (1,'Phone',NOW())")
         step=funnel_board._step('invite-check','invite',48,'Invite',['share'])
         with patch.object(config,'get_settings',return_value=self.settings):
             self.assertEqual(len(await funnel_board._due(step,None,10,[])),1)
@@ -441,25 +381,6 @@ class FunnelPostgresTest(unittest.IsolatedAsyncioTestCase):
             with patch('app.keyboards.mini_app_url',return_value='https://example.test'), patch.object(config,'get_settings',return_value=settings), patch.object(funnel_board,'_gate',AsyncMock(return_value=True)), patch.object(funnel_board,'_due',AsyncMock(return_value=[{'telegram_id':1}])), patch.object(db,'reserve_optional_message',AsyncMock(return_value=1)), patch.object(db,'finish_optional_message',AsyncMock()), patch.object(db,'has_funded_access',AsyncMock(return_value=funded)), patch.object(nudge,'_deliver_unbudgeted',AsyncMock(return_value=False)) as send:
                 await funnel_board._send_step(None,step,None,[])
                 self.assertIn('screen='+destination,send.await_args.kwargs['reply_markup'].inline_keyboard[0][0].web_app.url)
-
-    async def test_complaint_queue_and_pause_survive_background_online(self):
-        await db.save_vpn_feedback(1,'help')
-        await db.save_vpn_feedback(1,'help')
-        self.assertEqual(await self.pool.fetchval('SELECT COUNT(*) FROM tickets'),1)
-        self.assertEqual(await self.pool.fetchval('SELECT COUNT(*) FROM ticket_messages'),1)
-        await self.pool.execute("UPDATE tickets SET status='pending'")
-        await db.save_vpn_feedback(1,'help')
-        self.assertEqual(await self.pool.fetchval('SELECT status FROM tickets'),'open')
-        self.assertEqual(await self.pool.fetchval('SELECT COUNT(*) FROM ticket_messages'),1)
-        await self.pool.execute("UPDATE users SET vpn_feedback_at=NOW()-INTERVAL '2 hours',marketing_pause_started_at=NOW()-INTERVAL '2 hours',marketing_pause_until=NOW()+INTERVAL '7 days'")
-        await self.pool.execute("INSERT INTO devices (telegram_id,title,last_online_at) VALUES (1,'Phone',NOW())")
-        await db.resolve_recovered_vpn_feedback()
-        user=await db.get_user(1)
-        self.assertEqual(user['vpn_feedback'],'help')
-        self.assertIsNotNone(user['marketing_pause_until'])
-        await self.pool.execute("UPDATE users SET marketing_pause_until=NOW()-INTERVAL '1 second'")
-        await db.resolve_recovered_vpn_feedback()
-        self.assertIsNone((await db.get_user(1))['marketing_pause_until'])
 
     async def test_new_device_restarts_setup_assistance(self):
         from app import funnel_board, config

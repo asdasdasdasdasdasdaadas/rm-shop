@@ -159,8 +159,6 @@ async def main() -> None:
     dp.include_router(live_router)
     from app.sharing_alert import router as sharing_router
     dp.include_router(sharing_router)
-    from app.sleepers import router as sleepers_router
-    dp.include_router(sleepers_router)
     from app.funnel_gifts import router as funnel_gifts_router
     dp.include_router(funnel_gifts_router)
 
@@ -206,8 +204,6 @@ async def main() -> None:
         nudge_task = asyncio.create_task(trial_nudge_loop(bot, rp), name="trial-nudge")
         from app.ton import ton_watch_loop
         ton_task = asyncio.create_task(ton_watch_loop(rw, bot), name="ton-watch")
-        from app.user_gifts import scan_loop as gifts_scan_loop
-        gifts_task = asyncio.create_task(gifts_scan_loop(bot), name="gifts-scan")
         from app.balance_watch import balance_watch_loop
         watch_task = asyncio.create_task(balance_watch_loop(rw, bot), name="balance-watch")
         from app.stuck_alert import stuck_alert_loop
@@ -238,7 +234,6 @@ async def main() -> None:
             dump_task.cancel()
             nudge_task.cancel()
             ton_task.cancel()
-            gifts_task.cancel()
             watch_task.cancel()
             stuck_task.cancel()
             sharing_task.cancel()

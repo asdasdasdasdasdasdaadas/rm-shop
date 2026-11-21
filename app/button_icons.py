@@ -61,11 +61,10 @@ def kind_for(button):
     callback = button.callback_data or ''
     text = button.text.casefold()
     if callback.startswith(('lk:n:', 'lk:x:', 'ticket_cancel', 'help_ticket_cancel', 'po_no:')) or any(word in text for word in ('отмен', 'отклон')): return 'cancel'
-    if callback.startswith(('lk:y:', 'ticket_finish:', 'ticket_close:', 'rpc:', 'po_ok:')) or callback in ('accept_legal', 'check_sub', 'vpn_feedback:ok', 'welcome:continue'): return 'check'
+    if callback.startswith(('lk:y:', 'ticket_finish:', 'ticket_close:', 'rpc:', 'po_ok:')) or callback in ('accept_legal', 'check_sub', 'welcome:continue'): return 'check'
     if callback.startswith('ticket_rate:'): return 'rating'
     if callback == 'try_again': return 'retry'
     if callback.startswith(('buy:', 'resume_pay:')) or callback == 'buy': return 'pay'
-    if callback.startswith(('paywhy:', 'payreason:', 'vpn_feedback:')): return 'message'
     if any(word in text for word in ('оферта', 'конфиденциальност', 'условия')): return 'document'
     if 'помощ' in text or 'проблем' in text: return 'help'
     if callback == 'profile' or 'главное меню' in text or text.strip() == 'главная': return 'home'

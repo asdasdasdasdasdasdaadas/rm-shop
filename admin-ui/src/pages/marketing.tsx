@@ -28,6 +28,42 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { RecordsPage } from "./records";
+/** The whole of «Рост» at a glance: what a person cost and what they brought so far. */
+function GrowthSummary({ items }: { items: Data[] }) {
+  const sum = (rows: Data[], k: string) => rows.reduce((a, r) => a + Number(r[k] || 0), 0);
+  const paidFor = items.filter((r) => r.spend_rub);
+  const spend = sum(paidFor, "spend_rub"), users = sum(items, "users");
+  const paidUsers = sum(paidFor, "users"), paidRevenue = sum(paidFor, "revenue");
+  const cost = paidUsers ? Math.round(spend / paidUsers) : null;
+  const ltv = users ? Math.round(sum(items, "revenue") / users) : null;
+  const paidLtv = paidUsers ? Math.round(paidRevenue / paidUsers) : null;
+  if (!items.length) return null;
+  return (
+    <div className="adm-funnel-sum adm-growth-sum">
+      <div>
+        <small>Расход</small>
+        <b>{money(spend)}</b>
+        <span>{paidFor.length ? `по ${paidFor.length} из ${items.length} ссылок` : "укажите расход у ссылок"}</span>
+      </div>
+      <div title="Расход ÷ пользователи, пришедшие по ссылкам с расходом">
+        <small>Цена пользователя</small>
+        <b>{cost != null ? money(cost) : "—"}</b>
+        <span>{paidUsers} чел. по платным ссылкам</span>
+      </div>
+      <div title="Выручка ÷ все пришедшие по рекламным ссылкам. Ниже — по ссылкам с расходом">
+        <small>LTV</small>
+        <b>{ltv != null ? money(ltv) : "—"}</b>
+        <span>{paidLtv != null ? `по платным ссылкам ${money(paidLtv)}` : `${users} чел.`}</span>
+      </div>
+      <div title="Выручка платных ссылок ÷ их расход">
+        <small>Окупаемость</small>
+        <b className={spend && paidRevenue >= spend ? "text-emerald-600" : ""}>{spend ? `${Math.round((paidRevenue / spend) * 100)}%` : "—"}</b>
+        <span>{spend ? (paidLtv != null && cost ? `LTV в ${String(Math.round((paidLtv / cost) * 10) / 10).replace(".", ",")} раза ${paidLtv >= cost ? "больше" : "меньше"} цены` : "") : "нет расходов"}</span>
+      </div>
+    </div>
+  );
+}
+
 export function AdsPage() {
   const resource = useResource("ads"),
     [open, setOpen] = useState(false),
@@ -45,6 +81,7 @@ export function AdsPage() {
           Создать рекламную ссылку
         </Button>
       </div>
+      {resource.data && <GrowthSummary items={resource.data.items || []} />}
       <TgAdsPanel onChange={resource.reload} />
       <PartnersPanel onChange={resource.reload} />
       {resource.error ? (
@@ -52,6 +89,7 @@ export function AdsPage() {
       ) : !resource.data ? (
         <Loading />
       ) : (
+        <>
         <DataTable
           rows={resource.data.items || []}
           columns={[
@@ -122,9 +160,40 @@ export function AdsPage() {
               ),
             },
             {
-              key: "payer_cost",
-              label: <span title="Расход ÷ число оплативших">Цена платящего</span>,
-              cell: (r) => (r.payer_cost != null ? money(r.payer_cost) : dash),
+              key: "user_cost",
+              label: <span title="Расход ÷ все пришедшие по ссылке. Ниже — расход ÷ оплатившие.">Цена пользователя</span>,
+              cell: (r) =>
+                r.user_cost != null ? (
+                  <span className="block whitespace-nowrap tabular-nums leading-tight">
+                    {money(r.user_cost)}
+                    <span className="block text-xs text-muted-foreground mt-0.5">
+                      {r.payer_cost != null ? `платящего ${money(r.payer_cost)}` : "платящих нет"}
+                    </span>
+                  </span>
+                ) : (
+                  dash
+                ),
+            },
+            {
+              key: "ltv",
+              label: (
+                <span title="Сколько в среднем уже заплатил один пришедший по ссылке (выручка ÷ пользователи). Ниже — на одного оплатившего. Зелёным — больше цены пользователя.">
+                  LTV
+                </span>
+              ),
+              cell: (r) =>
+                r.ltv != null && r.revenue ? (
+                  <span className="block whitespace-nowrap tabular-nums leading-tight">
+                    <span className={r.user_cost != null && r.ltv >= r.user_cost ? "text-emerald-600 font-medium" : ""}>
+                      {money(r.ltv)}
+                    </span>
+                    <span className="block text-xs text-muted-foreground mt-0.5">
+                      платящего {money(r.payer_ltv || 0)}
+                    </span>
+                  </span>
+                ) : (
+                  dash
+                ),
             },
             {
               key: "revenue",
@@ -180,6 +249,7 @@ export function AdsPage() {
             },
           ]}
         />
+        </>
       )}
       <Dialog open={!!spendOf} onOpenChange={(v) => !v && setSpendOf(null)}>
         <DialogContent>

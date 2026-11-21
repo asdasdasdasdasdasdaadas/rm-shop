@@ -27,7 +27,7 @@ from app.remnawave import (
 from app.referrals import (
     trial_is_available,
 )
-from app.cispay import CISPayClient, payment_is_paid
+from app.cispay import CISPayClient
 from app.notices import notice_text
 from app.texts import rub_text
 
@@ -197,49 +197,3 @@ async def show_about_service(callback: CallbackQuery) -> None:
         parse_mode="HTML",
         link_preview_options=LinkPreviewOptions(is_disabled=True),
     )
-
-
-@router.callback_query(F.data.startswith('paywhy:') | F.data.startswith('payreason:'))
-async def checkout_reason(callback: CallbackQuery, rp: CISPayClient | None) -> None:
-    from app import checkout_feedback
-    from app.keyboards import help_connect_reply_keyboard
-    parts = callback.data.split(':')
-    token = parts[-1]
-    row = await checkout_feedback.current(callback.from_user.id, token)
-    if not row:
-        await callback.answer('Этот счёт уже закрыт или заменён новым.', show_alert=True)
-        return
-    if row.get('checkout_payment_id'):
-        try:
-            payment = await rp.get_payment(row['checkout_payment_id']) if rp else None
-        except Exception:
-            payment = None
-        if not payment:
-            await callback.answer('Проверяем платёж. Попробуйте позже.', show_alert=True)
-            return
-        if payment_is_paid(payment) or str(payment.get('status') or '').lower() == 'refunded':
-            await callback.answer('Спасибо! Этот платёж уже обработан.', show_alert=True)
-            return
-        if str(payment.get('status') or '').lower() not in {'created','pending','processing','waiting','expired','canceled','cancelled','failed'}:
-            await callback.answer('Статус платежа уточняется. Попробуйте позже.', show_alert=True)
-            return
-    if parts[0] == 'paywhy':
-        await callback.answer()
-        from app.funnel_ui import funnel_keyboard
-        keyboard = checkout_feedback.answers(token)
-        navigation = funnel_keyboard().inline_keyboard
-        keyboard = keyboard.model_copy(update={'inline_keyboard': navigation + keyboard.inline_keyboard})
-        await answer_funnel(callback.message, 'Что остановило оплату? Ответьте одной кнопкой — это поможет нам стать лучше.', reply_markup=keyboard, preserve=True)
-        return
-    reason = parts[1] if len(parts) == 3 else ''
-    if not await checkout_feedback.save(callback.from_user.id, token, reason):
-        await callback.answer('Ответ уже учтён или счёт больше не актуален.')
-        return
-    await callback.answer('Спасибо, ответ записан')
-    messages = {
-        'broken': 'Передали обращение в поддержку. Предложения пока приостановили. Напишите, что не заработало, и на каком устройстве. Можно приложить скриншот.',
-        'price': 'Спасибо, учтём ваш ответ. Сделаем паузу в предложениях на неделю. Актуальная стоимость — в кабинете.',
-        'payment': 'Напишите, какой способ оплаты был бы удобнее. На сутки приостановили предложения. Если деньги уже списались, не платите повторно — поможем проверить платёж.',
-        'later': 'Поняли. Сделаем паузу в предложениях на неделю. Если вернётесь раньше, поможем продолжить.',
-    }
-    await answer_funnel(callback.message, messages[reason], reply_markup=help_connect_reply_keyboard() if reason in {'broken','payment'} else None)

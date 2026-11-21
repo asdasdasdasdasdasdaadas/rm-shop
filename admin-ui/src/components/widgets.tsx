@@ -7,13 +7,10 @@ import {
   CircleCheck,
   Flame,
   Hourglass,
-  LifeBuoy,
   Moon,
   Plug,
   Radio,
   Users as UsersIcon,
-  Wallet,
-  TriangleAlert,
 } from "lucide-react";
 import { money, useResource, who, type Data } from "@/lib/api";
 import { useNavigate } from "./workspace";
@@ -144,7 +141,7 @@ function RevenueWidget({ series, previous }: { series: Data[]; previous?: Data }
 function SignupsWidget({ series, users }: { series: Data[]; users: Data }) {
   const navigate = useNavigate();
   return (
-    <Widget title="Новые пользователи" icon={<UsersIcon />} tone="#3e88f7" action="Клиенты" onAction={() => navigate("users")}>
+    <Widget title="Новые пользователи" icon={<UsersIcon />} tone="#3e88f7" action="Статистика" onAction={() => navigate("statistics?tab=dynamics&chart=acquisition&days=30")}>
       <div className="adm-big">
         <CountUp value={Number(users.new_1d || 0)} />
         <span className="adm-unit">сегодня</span>
@@ -188,7 +185,7 @@ function ConversionWidget({ funnel }: { funnel: Data }) {
   const cur = funnel?.["30d"]?.current || {};
   const entered = Number(cur.entered || 0), paid = Number(cur.paid || 0), connected = Number(cur.connected || 0);
   return (
-    <Widget title="Конверсия за 30 дней" icon={<CircleCheck />} tone="#ff9500" action="Воронка" onAction={() => navigate("statistics")}>
+    <Widget title="Конверсия за 30 дней" icon={<CircleCheck />} tone="#ff9500" action="Воронка" onAction={() => navigate("statistics?tab=funnel&days=30")}>
       <div className="adm-ringrow">
         <Ring value={paid} max={entered || 1} color="#ff9f0a">
           <b><CountUp value={entered ? Math.round((paid / entered) * 100) : 0} />%</b>
@@ -200,42 +197,6 @@ function ConversionWidget({ funnel }: { funnel: Data }) {
           <div><dt>Оплатили</dt><dd><CountUp value={paid} /></dd></div>
         </dl>
       </div>
-    </Widget>
-  );
-}
-
-function QueueWidget({ s, badges }: { s: Data; badges?: Data | null }) {
-  const navigate = useNavigate();
-  const items = [
-    // Paid less than the invoice: nothing was credited, the person is waiting for an answer.
-    { n: Number(badges?.mismatch_orders || 0), label: "Оплат с несовпавшей суммой", icon: <Wallet />, tone: "#ff9500", go: "orders?status=mismatch" },
-    { n: Number(s.tickets_open || 0), label: "Открытых обращений", icon: <LifeBuoy />, tone: "#ff9500", go: "tickets" },
-    { n: Number(s.users?.payouts_pending || 0), label: "Заявок на выплату", icon: <Wallet />, tone: "#ff2d55", go: "referrals" },
-    { n: Number(s.billing_today?.errors || 0), label: "Ошибок списания сегодня", icon: <TriangleAlert />, tone: "#ef4444", go: "billing" },
-  ];
-  const busy = items.filter((i) => i.n > 0);
-  return (
-    <Widget title="Требует внимания" icon={<TriangleAlert />} tone="#ef4444">
-      {busy.length ? (
-        <ul className="adm-queue">
-          {busy.map((i) => (
-            <li key={i.label}>
-              <button type="button" onClick={() => navigate(i.go)}>
-                <span className="adm-tile" style={{ background: i.tone }}>{i.icon}</span>
-                <span className="adm-q-label">{i.label}</span>
-                <b className="adm-q-n"><CountUp value={i.n} /></b>
-                <ArrowRight className="size-4 text-muted-foreground" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="adm-calm">
-          <span>🐸</span>
-          <b>Всё спокойно</b>
-          <small>Нет обращений, выплат, ошибок и спорных оплат</small>
-        </div>
-      )}
     </Widget>
   );
 }
@@ -373,13 +334,6 @@ function ActivationWidget({ act }: { act: Data }) {
   );
 }
 
-const WHY: [string, string][] = [
-  ["setup", "Не разобрался, как подключить"],
-  ["broken", "Не заработал"],
-  ["price", "Дорого"],
-  ["later", "Пока не нужен"],
-];
-
 function Bars({ rows }: { rows: [string, number][] }) {
   const max = Math.max(1, ...rows.map(([, n]) => n));
   return (
@@ -395,11 +349,9 @@ function Bars({ rows }: { rows: [string, number][] }) {
   );
 }
 
-/** «Спящие»: never online, never paid, the bot no longer writes to them; who they are and «Что помешало?». */
+/** «Спящие»: never online, never paid, the bot no longer writes to them; who they are. */
 function SleepersWidget({ sleep }: { sleep: Data }) {
   const navigate = useNavigate();
-  const why: Data = sleep?.why || {};
-  const answered = WHY.reduce((a, [k]) => a + Number(why[k] || 0), 0);
   return (
     <Widget title="Спящие" icon={<Moon />} tone="#8e8e93" action="Рассылки" onAction={() => navigate("broadcast")} className="adm-span2">
       <div className="adm-sleep">
@@ -418,16 +370,7 @@ function SleepersWidget({ sleep }: { sleep: Data }) {
           <Bars rows={[
             ["Нет устройства", Number(sleep?.no_device || 0)],
             ["Устройство без подключения", Number(sleep?.no_online || 0)],
-            ["Сказали «Пока не нужен»", Number(sleep?.said_later || 0)],
           ]} />
-        </div>
-        <div>
-          <h4>Что помешало{answered ? ` · ${answered} ответ${answered % 10 === 1 && answered % 100 !== 11 ? "" : answered % 10 >= 2 && answered % 10 <= 4 && (answered % 100 < 10 || answered % 100 >= 20) ? "а" : "ов"}` : ""}</h4>
-          {answered ? (
-            <Bars rows={WHY.map(([k, label]) => [label, Number(why[k] || 0)] as [string, number])} />
-          ) : (
-            <p className="adm-sub">Ответов пока нет. Отправьте опрос «Что помешало?» в «Рассылках».</p>
-          )}
         </div>
       </div>
     </Widget>
@@ -449,11 +392,9 @@ export function Avatar({ row, size = 36 }: { row: Data; size?: number }) {
 /** The widget board shown on top of the overview page. */
 export function DashboardWidgets({ s }: { s: Data }) {
   const stats = useResource("statistics?days=30");
-  const badges = useResource("badges", 60000).data;
   const series: Data[] = stats.data?.series || [];
   return (
     <div className="adm-board">
-      <QueueWidget s={s} badges={badges} />
       <OnlineWidget online={s.online || {}} users={s.users || {}} />
       <ConversionWidget funnel={s.funnel || {}} />
       {series.length > 0 ? <RevenueWidget series={series} previous={stats.data?.previous} /> : <div className="adm-widget adm-span2 adm-skel" />}

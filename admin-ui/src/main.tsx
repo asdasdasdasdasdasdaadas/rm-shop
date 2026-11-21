@@ -62,6 +62,8 @@ import {
   Moon,
   Sun,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   LogOut,
   ChevronRight,
   Loader2,
@@ -159,7 +161,7 @@ const sections = [
   {
     id: "finance",
     label: "Финансы",
-    description: "Платежи, предстоящие продления и план дохода",
+    description: "Доход, предстоящие продления и план на месяц",
     group: "Финансы",
     icon: CreditCard,
   },
@@ -193,7 +195,7 @@ const sections = [
   },
   {
     id: "ads",
-    label: "Источники трафика",
+    label: "Рост",
     description: "Рекламные ссылки и конверсия привлечённых клиентов",
     group: "Привлечение и возврат",
     icon: Megaphone,
@@ -235,6 +237,16 @@ const sections = [
   },
 ];
 const groups = [...new Set(sections.map((s) => s.group))];
+// Finance is one block: a single menu item, with the four pages as tabs inside it. The routes stay
+// (other screens link to orders?q=… and billing?q=…).
+const FINANCE_TABS: { id: string; label: string; hint: string }[] = [
+  { id: "finance", label: "Сводка", hint: "Доход, продления и план" },
+  { id: "orders", label: "Платежи", hint: "Счета и оплаты" },
+  { id: "ton", label: "Оплата в TON", hint: "Кошелёк Telegram" },
+  { id: "billing", label: "Операции по балансу", hint: "Списания и начисления" },
+];
+const FINANCE_IDS = new Set(FINANCE_TABS.map((t) => t.id));
+const inMenu = (s: (typeof sections)[number]) => s.id === "finance" || !FINANCE_IDS.has(s.id);
 function readRoute() {
   const raw =
     location.hash.slice(1) ||
@@ -268,7 +280,7 @@ function Admin() {
   const [auth, setAuth] = useState<boolean | null>(null),
     [brand, setBrand] = useState("VPN"),
     [theme, setTheme] = useState<"light" | "dark">(() =>
-      localStorage.getItem("way-admin-theme") === "light" ? "light" : "dark",
+      localStorage.getItem("way-admin-theme") === "dark" ? "dark" : "light",
     ),
     [password, setPassword] = useState(""),
     [loginError, setLoginError] = useState(""),
@@ -411,6 +423,14 @@ function Workspace({
 }) {
   const [route, setRoute] = useState(readRoute),
     [mobile, setMobile] = useState(false),
+    // Desktop: the side menu can be hidden for more room; remembered in this browser.
+    [menuHidden, setMenuHidden] = useState(() => {
+      try {
+        return localStorage.getItem("way-admin-menu") === "hidden";
+      } catch {
+        return false;
+      }
+    }),
     [command, setCommand] = useState(false);
   const dirty = useRef(false),
     routeRef = useRef(route),
@@ -511,13 +531,22 @@ function Workspace({
             </p>
             <div className="space-y-1">
               {sections
-                .filter((s) => s.group === group)
-                .map((s) => (
+                .filter((s) => s.group === group && inMenu(s))
+                .map((s) => {
+                  const active = s.id === current.id || (s.id === "finance" && FINANCE_IDS.has(current.id));
+                  const count = s.id === "finance" ? badge.orders + badge.billing : badge[s.id];
+                  const hint =
+                    s.id === "finance"
+                      ? [badge.orders && `${badge.orders} ${badgeHint.orders}`, badge.billing && `${badge.billing} ${badgeHint.billing}`]
+                          .filter(Boolean)
+                          .join(", ")
+                      : `${badge[s.id]} ${badgeHint[s.id]}`;
+                  return (
                   <Button
                     key={s.id}
-                    variant={s.id === current.id ? "secondary" : "ghost"}
+                    variant={active ? "secondary" : "ghost"}
                     className="w-full justify-start h-10 px-2 text-[13px] gap-3 rounded-[12px]"
-                    aria-current={s.id === current.id ? "page" : undefined}
+                    aria-current={active ? "page" : undefined}
                     onClick={() => navigate(s.id)}
                     onPointerEnter={() => void PRELOAD[s.id]?.().catch(() => {})}
                     onFocus={() => void PRELOAD[s.id]?.().catch(() => {})}
@@ -526,17 +555,18 @@ function Workspace({
                       <s.icon />
                     </span>
                     <span className="truncate">{s.label}</span>
-                    {badge[s.id] > 0 && (
+                    {count > 0 && (
                       <span
-                        className={"adm-badge" + (s.id === "orders" || s.id === "billing" ? " adm-badge-warn" : "")}
-                        title={`${badge[s.id]} ${badgeHint[s.id]}`}
+                        className={"adm-badge" + (FINANCE_IDS.has(s.id) ? " adm-badge-warn" : "")}
+                        title={hint}
                       >
-                        {badge[s.id]}
-                        <span className="sr-only"> {badgeHint[s.id]}</span>
+                        {count}
+                        <span className="sr-only"> {hint}</span>
                       </span>
                     )}
                   </Button>
-                ))}
+                  );
+                })}
             </div>
           </div>
         ))}
@@ -612,10 +642,12 @@ function Workspace({
   }
   return (
     <Navigation.Provider value={navigate}>
-      <div className="min-h-dvh lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
-        <aside className="hidden lg:block sticky top-0 h-dvh overflow-y-auto bg-card px-3">
-          {nav}
-        </aside>
+      <div className={"min-h-dvh lg:grid " + (menuHidden ? "lg:grid-cols-[minmax(0,1fr)]" : "lg:grid-cols-[248px_minmax(0,1fr)]")}>
+        {!menuHidden && (
+          <aside className="hidden lg:block sticky top-0 h-dvh overflow-y-auto bg-card px-3">
+            {nav}
+          </aside>
+        )}
         <div className="min-w-0">
           <header className="sticky top-0 z-30 flex items-center justify-between gap-4 bg-background/80 backdrop-blur-xl px-4 sm:px-8 h-16">
             <div className="flex items-center gap-3 min-w-0">
@@ -628,12 +660,32 @@ function Workspace({
               >
                 <Menu />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hidden lg:inline-flex"
+                aria-label={menuHidden ? "Показать меню" : "Скрыть меню"}
+                aria-pressed={!menuHidden}
+                title={menuHidden ? "Показать меню" : "Скрыть меню"}
+                onClick={() =>
+                  setMenuHidden((hidden) => {
+                    try {
+                      localStorage.setItem("way-admin-menu", hidden ? "shown" : "hidden");
+                    } catch {
+                      /* the choice is only a convenience */
+                    }
+                    return !hidden;
+                  })
+                }
+              >
+                {menuHidden ? <PanelLeftOpen /> : <PanelLeftClose />}
+              </Button>
               <span className="text-sm text-muted-foreground hidden sm:block">
                 {current.group}
               </span>
               <ChevronRight className="size-4 text-muted-foreground hidden sm:block" />
               <span className="text-sm font-medium truncate">
-                {current.label}
+                {current.id === "finance" ? "Сводка" : current.label}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -663,14 +715,53 @@ function Workspace({
             id="workspace-main"
             className="max-w-[1600px] mx-auto p-4 sm:p-8 space-y-7"
           >
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-                {current.label}
-              </h1>
-              <p className="text-sm text-muted-foreground mt-2 max-w-3xl">
-                {current.description}
-              </p>
-            </div>
+            {FINANCE_IDS.has(current.id) ? (
+              <div className="adm-fin-head">
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Финансы</h1>
+                  <p className="text-sm text-muted-foreground mt-2 max-w-3xl">{current.description}</p>
+                </div>
+                <nav className="adm-fin-tabs" aria-label="Разделы финансов">
+                  {FINANCE_TABS.map((t) => {
+                    const s = sections.find((x) => x.id === t.id)!;
+                    const on = t.id === current.id;
+                    const n = badge[t.id] || 0;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        aria-current={on ? "page" : undefined}
+                        onClick={() => navigate(t.id)}
+                        onPointerEnter={() => void PRELOAD[t.id]?.().catch(() => {})}
+                      >
+                        <span className="adm-tile" style={{ background: TILE[t.id] || "#6b7280" }}>
+                          <s.icon />
+                        </span>
+                        <span className="adm-fin-tab-text">
+                          <b>{t.label}</b>
+                          <small>{t.hint}</small>
+                        </span>
+                        {n > 0 && (
+                          <span className="adm-badge adm-badge-warn" title={`${n} ${badgeHint[t.id]}`}>
+                            {n}
+                            <span className="sr-only"> {badgeHint[t.id]}</span>
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+            ) : (
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+                  {current.label}
+                </h1>
+                <p className="text-sm text-muted-foreground mt-2 max-w-3xl">
+                  {current.description}
+                </p>
+              </div>
+            )}
             <ErrorBoundary key={route}>
               <Suspense fallback={<Loading />}>
                 <div key={route}>{page}</div>

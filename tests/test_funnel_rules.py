@@ -31,12 +31,10 @@ class NightSendTest(unittest.IsolatedAsyncioTestCase):
             stack.enter_context(patch.object(funnel_board, "reminder_hours", return_value=False))
             pay = stack.enter_context(patch.object(nudge, "send_due_payment_nudges", AsyncMock(return_value=(1, [1]))))
             bal = stack.enter_context(patch.object(nudge, "send_due_trial_end_nudges", AsyncMock(return_value=(1, [2]))))
-            terms = stack.enter_context(patch.object(db, "terms_feedback_ids", AsyncMock(return_value=[])))
             sent, touched = await funnel_board.send_due(object())
         self.assertEqual((sent, touched), (2, [1, 2]))
         pay.assert_awaited_once()
         bal.assert_awaited_once()
-        terms.assert_not_awaited()  # the reminder branches never start at night
 
 
 class GiftEndingTest(unittest.IsolatedAsyncioTestCase):
@@ -132,7 +130,7 @@ class PaidEmptyTest(unittest.TestCase):
         actions = [b if isinstance(b, str) else b["action"] for st in branch["steps"] for b in st["buttons"]]
         self.assertNotIn(rf.GIFT, actions)
         self.assertIn("promise", actions)
-        self.assertEqual([st["wait_hours"] for st in branch["steps"]], [24, 48, 96, 72])
+        self.assertEqual([st["wait_hours"] for st in branch["steps"]], [24, 48, 168])
         funnel_board.validate({"branches": rf.branches()})
 
     def test_idle_branch_skips_paid_customers_out_of_money(self):

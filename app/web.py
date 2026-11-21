@@ -527,7 +527,6 @@ async def api_me(request: web.Request) -> web.Response:
             "trial_days": settings.trial_days,
             "trial_rub": trial_grant_rub(),
             "trial_waiting_connection": bool((local or {}).get("trial_waiting_connection")),
-            "vpn_feedback": (local or {}).get("vpn_feedback"),
             "trial_notice": _trial_notice(
                 local,
                 devices=devices,
@@ -1191,7 +1190,7 @@ async def api_delete_device(request: web.Request) -> web.Response:
         device_title=str(item.get("title") or ""),
         note="Устройство удалено",
     )
-    return web.json_response({"ok": True, "exit_feedback_token": removed.get("exit_feedback_token")})
+    return web.json_response({"ok": True})
 
 
 DEVICE_ICONS = ("📱", "💻", "🖥️", "📺", "🎮", "💼", "🏠", "⭐", "🧒", "👵")
@@ -1242,37 +1241,6 @@ async def api_rename_device(request: web.Request) -> web.Response:
     if not row:
         return json_error("Устройство не найдено", 404)
     return web.json_response({"ok": True, "title": row["title"], "icon": row.get("icon") or "", "client": row.get("client") or ""})
-
-
-async def api_vpn_feedback(request: web.Request) -> web.Response:
-    telegram_id, denied = await _require_tg(request)
-    if denied:
-        return denied
-    body = await request.json()
-    value = str(body.get("value") or "")
-    if value not in {"ok", "help", "terms"}:
-        return json_error("Выберите вариант ответа")
-    await db.save_vpn_feedback(telegram_id, value)
-    return web.json_response({"ok": True, "access_active": await db.has_funded_access(telegram_id)})
-
-
-async def api_exit_feedback(request: web.Request) -> web.Response:
-    telegram_id, denied = await _require_tg(request)
-    if denied:
-        return denied
-    try:
-        body = await request.json()
-        if not isinstance(body, dict):
-            return json_error("Некорректный ответ")
-        token = str(body.get("token") or "")
-        reason = str(body.get("reason") or "")
-    except (ValueError, TypeError):
-        return json_error("Некорректный ответ")
-    if not token or len(token) > 128 or reason not in db.EXIT_REASONS:
-        return json_error("Выберите причину")
-    if not await db.save_exit_feedback(telegram_id, token, reason):
-        return json_error("Опрос уже закрыт", 409)
-    return web.json_response({"ok": True})
 
 
 async def api_reissue_subscription(request: web.Request) -> web.Response:
@@ -1618,8 +1586,6 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/devices/{device_id}/reissue", api_reissue_device)
         app.router.add_delete("/api/devices/{device_id}", api_delete_device)
         app.router.add_patch("/api/devices/{device_id}", api_rename_device)
-        app.router.add_post("/api/exit-feedback", api_exit_feedback)
-        app.router.add_post("/api/vpn-feedback", api_vpn_feedback)
         app.router.add_post("/api/subscription/reissue", api_reissue_subscription)
         app.router.add_post("/api/trust", api_trust)
         app.router.add_get("/api/billing", api_billing_history)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 
 ACTION_LABELS = {'gift': 'Забрать подарок', 'connect': 'Подключить VPN', 'topup': 'Пополнить баланс'}
+# 'quality' and 'terms-offer' were survey branches: still owned, so saved boards drop them.
 OWNED_BRANCHES = {'nodevice','online','unpaid','quality','gift','idle-setup','idle-topup','idle-return','late','terms-offer'}
 GIFT = 'claim_gift'
 CONNECT = {'action': 'connect', 'text': 'Подключить VPN'}
@@ -28,25 +29,19 @@ CONDITIONS = (
   'anchor':"(SELECT MAX(d.created_at) FROM devices d WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'') <> 'router' AND d.last_online_at IS NULL)",
   'where':"EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id AND COALESCE(d.kind,'') <> 'router' AND d.last_online_at IS NULL)",
   'hint':'Устройство добавлено, реальное подключение ещё не подтверждено.'},
- {'id':'recover_quality','label':'Первая оплата: пока действует доступ','anchor':'u.first_online_at',
-  'where':f"u.first_online_at IS NOT NULL AND NOT {PAID} AND NOT {IDLE} AND NOT {{exhausted}} AND u.vpn_feedback_at IS NULL",
-  'hint':'Доступ действует, оплаты ещё не было. Спрашиваем о качестве, не требуем оплатить.'},
  {'id':'recover_payment','label':'Первая оплата: доступ закончился','anchor':f"COALESCE({EMPTY_AT},u.first_online_at)",
   'where':f"u.first_online_at IS NOT NULL AND NOT {PAID} AND NOT {IDLE} AND {{exhausted}}",
-  'hint':'Пользовался VPN, доступ закончился, первой оплаты не было. Срок считается от конца доступа. Помощь и отказ от условий исключают отправку.'},
+  'hint':'Пользовался VPN, доступ закончился, первой оплаты не было. Срок считается от конца доступа.'},
  {'id':'recover_topup','label':'Платил раньше: деньги кончились','anchor':EMPTY_AT,
   'where':f"{PAID} AND {DEVICE} AND {{exhausted}}",
   'hint':'Уже платил, устройство есть, баланс кончился и VPN выключен. Отсчёт — от момента, когда доступ закончился. '
          'Пополнение останавливает цепочку; когда деньги кончатся снова, она начнётся заново. Подарков здесь нет.'},
  {'id':'recover_idle','label':'Возврат: не пользовался неделю','anchor':SEEN,
   'where':f"u.first_online_at IS NOT NULL AND {IDLE} AND NOT ({PAID} AND {{exhausted}})",
-  'hint':'Был подтверждённый онлайн, затем не пользовался VPN неделю (кроме платившего, у которого кончились деньги — для него своя ветка). Возобновление подключения или ответ «Пока не нужен» останавливают цепочку.'},
+  'hint':'Был подтверждённый онлайн, затем не пользовался VPN неделю (кроме платившего, у которого кончились деньги — для него своя ветка). Возобновление подключения останавливает цепочку.'},
  {'id':'recover_late','label':'Возврат: не пользовался 30+ дней','anchor':SEEN,
   'where':f"u.first_online_at IS NOT NULL AND {SEEN} <= NOW() - INTERVAL '30 days'",
   'hint':'Был онлайн, потом пропал на месяц и дольше. Пауза считается от последнего появления. После возвращения цепочка начнётся заново при следующем уходе.'},
- {'id':'terms_offer','label':'Ответил «Не подошли условия»','anchor':'u.vpn_feedback_at',
-  'where':"u.vpn_feedback='terms'",
-  'hint':'Единственное сообщение, которое получают люди с ответом «Не подошли условия». После него человек снова попадает в обычную воронку.'},
 )
 KINDS = {c['id']: 'nudge_' + c['id'] for c in CONDITIONS}
 
@@ -58,9 +53,7 @@ REMOVED_STEPS = {'recovery-recover-idle-1', 'recovery-recover-idle-2', 'recovery
                # Almost every connection came from the first-hour nudge; 48 and 72 hours later gave nothing.
                'recovery-recover-online-2', 'recovery-recover-online-3',
                # The unclaimed-gift reminders 2 and 3: 124 sends, one click, no connection.
-               'recovery-recover-gift-2', 'recovery-recover-gift-3',
-               # «Как работает VPN?» survey: almost nobody answers, and it takes the daily message slot.
-               'recovery-recover-quality-1', 'recovery-recover-quality-2', 'recovery-recover-quality-3'}
+               'recovery-recover-gift-2', 'recovery-recover-gift-3'}
 
 NEW_THIRD = {
  'gift': '🎁 Подарок всё ещё ваш: бесплатный VPN на старте, без оплаты и привязки карты. '
@@ -80,9 +73,6 @@ LATE_TEXTS = (
  '🎁 Мы всё ещё на связи и VPN стал стабильнее. <b>Дарим {gift_days}</b>, чтобы проверить сами.\n\n'
  'Нажмите кнопку ниже — без оплаты, дни сразу на баланс. Действует 7 дней.',
 )
-TERMS_TEXT = ('Вы говорили, что условия не подошли. Давайте попробуем по-другому: '
-              '<b>дарим {gift_days} VPN</b> — проверьте, стоит ли он своих денег.\n\n'
-              'Нажмите кнопку ниже, дни сразу придут на баланс. Подарок действует 7 дней.')
 
 def branches():
     from app.funnel_board import _step
@@ -102,21 +92,16 @@ def branches():
        'Не получилось подключиться? Напишите нам — поможем с настройкой.',
        NEW_THIRD['online']
       ],['connect','menu','help']),
-      ('quality','recover_quality','Пробует VPN → обратная связь',20,[
-       '💬 Как работает VPN? Если сайты не открываются или связь обрывается — поможем.',
-       'Всё получилось с VPN? Можно ответить одной кнопкой 👇',
-       'Если VPN не подошёл, расскажите почему. Это поможет нам стать лучше 👇'
-      ],['cabinet','menu','feedback_ok','feedback_help','feedback_terms']),
       ('unpaid','recover_payment','Доступ закончился → первая оплата',0,[
        'Продолжим? Пополните баланс — VPN снова заработает 👇 Если были проблемы со связью, сначала поможем.',
        'Что мешает продолжить: подключение или условия? Подскажите — разберёмся 👇',
        NEW_THIRD['unpaid']
-      ],['topup','menu','feedback_help','feedback_terms']),
+      ],['topup','menu','help']),
       ('idle-return','recover_idle','Неделя без VPN → возвращение',168,[
        'Давно не пользовались VPN 👋 Что мешает вернуться?',
        'Если VPN подвёл — дайте нам помочь. Напишите, что не получилось 👇',
        NEW_THIRD['idle-return']
-      ],['connect','menu','feedback_help','feedback_terms','feedback_later']),
+      ],['connect','menu','help']),
     ]
     result = [{'id':bid,'title':title,'steps':[
       _step(f"recovery-{condition.replace('_', '-')}-{i+1}",condition,first if i==0 else 48 if i==1 else 72,
@@ -154,7 +139,6 @@ PAID_EMPTY_TEXTS = (
     '🔌 <b>VPN на паузе</b> — на балансе закончились деньги.\n\n'
     'Пополните от {min_topup}, и он включится сам: заново настраивать ничего не нужно.',
     'VPN всё ещё выключен 👋 Пополнение займёт минуту — после него всё заработает на тех же устройствах.',
-    'Что-то не так с VPN? Если он работал плохо или не подошли условия — ответьте одной кнопкой, разберёмся.',
     '🎁 <b>Возвращайтесь с бонусом</b>\n\n'
     'Пополните баланс от {bonus_min} до {bonus_until} — добавим +{bonus_pct}% сверху. '
     'VPN включится сам на тех же устройствах.',
@@ -163,14 +147,11 @@ PAID_EMPTY_TEXTS = (
 
 def paid_branches():
     from app.funnel_board import _step
-    topup = {'action': 'topup', 'text': 'Пополнить баланс'}
     return [{'id': 'paid-empty', 'title': 'Платил, деньги кончились → пополнение', 'steps': [
         _step('recovery-recover-topup-1', 'recover_topup', 24, PAID_EMPTY_TEXTS[0], ['topup_quick', 'promise', 'menu']),
         _step('recovery-recover-topup-2', 'recover_topup', 48, PAID_EMPTY_TEXTS[1], ['topup_quick', 'promise', 'help'], 'previous'),
-        _step('recovery-recover-topup-3', 'recover_topup', 96, PAID_EMPTY_TEXTS[2],
-              [topup, 'feedback_help', 'feedback_terms', 'feedback_later'], 'previous'),
-        # 10 days after the money ran out (24 + 48 + 96 + 72 hours): a bonus to come back, app/return_bonus.py.
-        _step('recovery-recover-topup-4', 'recover_topup', 72, PAID_EMPTY_TEXTS[3], ['topup_return', 'menu'], 'previous'),
+        # 10 days after the money ran out (24 + 48 + 168 hours): a bonus to come back, app/return_bonus.py.
+        _step('recovery-recover-topup-4', 'recover_topup', 168, PAID_EMPTY_TEXTS[2], ['topup_return', 'menu'], 'previous'),
     ]}]
 
 
@@ -185,11 +166,8 @@ def extra_branches():
     from app.funnel_board import _step
     return [
         {'id':'late','title':'Давно не пользовался: 30 и 60 дней','steps':[
-            _step('recovery-recover-late-1','recover_late',720,LATE_TEXTS[0],[GIFT,CONNECT,'menu','feedback_later']),
-            _step('recovery-recover-late-2','recover_late',1440,LATE_TEXTS[1],[GIFT,CONNECT,'menu','feedback_later']),
-        ]},
-        {'id':'terms-offer','title':'Не подошли условия → подарок','steps':[
-            _step('recovery-terms-offer-1','terms_offer',168,TERMS_TEXT,[GIFT,CONNECT,'menu','help']),
+            _step('recovery-recover-late-1','recover_late',720,LATE_TEXTS[0],[GIFT,CONNECT,'menu']),
+            _step('recovery-recover-late-2','recover_late',1440,LATE_TEXTS[1],[GIFT,CONNECT,'menu']),
         ]},
     ]
 

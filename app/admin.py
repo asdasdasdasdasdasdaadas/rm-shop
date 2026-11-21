@@ -5,7 +5,6 @@ import hashlib
 import hmac
 import json
 import logging
-import re
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -418,52 +417,6 @@ async def _enrich_device_network(rw: RemnawaveClient, item: dict) -> dict:
     return out
 
 
-async def api_user_gifts(request: web.Request) -> web.Response:
-    """Gifts on the user's Telegram profile and the wealth rating; ?refresh=1 asks Telegram again."""
-    denied = _need_auth(request)
-    if denied:
-        return denied
-    try:
-        telegram_id = int(request.match_info["telegram_id"])
-    except (KeyError, TypeError, ValueError):
-        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
-    if not await db.get_user(telegram_id):
-        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
-    from app.user_gifts import user_gifts
-    data = await user_gifts(request.app.get("bot"), telegram_id, refresh=request.query.get("refresh") == "1")
-    return web.json_response({"ok": True, **data})
-
-
-_GIFT_THUMBS: dict[str, tuple[bytes, str]] = {}
-_FILE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{10,200}$")
-
-
-async def api_gift_thumb(request: web.Request) -> web.Response:
-    """A gift sticker preview from Telegram, so the admin page can show it as an image."""
-    denied = _need_auth(request)
-    if denied:
-        return denied
-    file_id = request.query.get("f") or ""
-    bot = request.app.get("bot")
-    if not _FILE_ID_RE.match(file_id) or bot is None:
-        return web.json_response({"ok": False, "error": "Нет файла"}, status=404)
-    hit = _GIFT_THUMBS.get(file_id)
-    if not hit:
-        try:
-            info = await bot.get_file(file_id)
-            data = await bot.download_file(info.file_path)
-            body = data.read() if data else b""
-        except Exception:
-            logger.debug("Превью подарка не скачалось", exc_info=True)
-            return web.json_response({"ok": False, "error": "Не удалось скачать"}, status=502)
-        path = (info.file_path or "").lower()
-        kind = "image/webp" if path.endswith(".webp") else "image/png" if path.endswith(".png") else "image/jpeg"
-        if len(_GIFT_THUMBS) > 500:
-            _GIFT_THUMBS.clear()
-        hit = _GIFT_THUMBS[file_id] = (body, kind)
-    return web.Response(body=hit[0], content_type=hit[1], headers={"Cache-Control": "private, max-age=86400"})
-
-
 async def api_user_devices(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -609,6 +562,9 @@ def _ad_public(row: dict) -> dict:
         "revenue": int(row.get("revenue") or 0),
         "payer_cost": round(int(spend) / int(row["paid"])) if spend and row.get("paid") else None,
         "user_cost": round(int(spend) / int(row["users"])) if spend and row.get("users") else None,
+        # LTV so far: everything the link's people have paid, per person and per paying person.
+        "ltv": round(int(row.get("revenue") or 0) / int(row["users"])) if row.get("users") else None,
+        "payer_ltv": round(int(row.get("revenue") or 0) / int(row["paid"])) if row.get("paid") else None,
         "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
         "archived": bool(row.get("archived_at")),
     }
@@ -2046,8 +2002,7 @@ async def _deliver_broadcast(bot: Bot, telegram_id: int, body: str, markup, medi
 # Admin announcements to everyone: own buttons, no daily/weekly cap of optional messages.
 ANNOUNCE_TEMPLATES = {"gift3", "referral_news", "gift_ny", "friend_nft"}
 # Stored templates that always go to their own segment.
-TEMPLATE_AUDIENCE = {"invite": "using", "unused": "unused", "browser": "no_browser",
-                     "why_nodevice": "why_nodevice", "why_offline": "why_offline"}
+TEMPLATE_AUDIENCE = {"invite": "using", "unused": "unused", "browser": "no_browser"}
 # A photo, GIF or video can go with one's own text and with «кабинет в браузере» (a screen recording of the login).
 MEDIA_TEMPLATES = {"", "browser", "gift_ny", "friend_nft"}
 # What a template sends when the admin attaches nothing: «Кабинет в браузере» shows the QR login as a looping clip.
@@ -2110,18 +2065,12 @@ def _broadcast_title(template: str) -> str:
         return "Рассылка: подарок на Новый год"
     if template == "friend_nft":
         return "Рассылка: NFT-подарки за друзей"
-    if template == "whitelist":
-        return "Рассылка: белые списки включены"
     if template == "invite":
         return "Рассылка: пользуются VPN"
     if template == "unused":
         return "Рассылка: не подключались"
     if template == "browser":
         return "Рассылка: кабинет в браузере"
-    if template == "why_nodevice":
-        return "Опрос: что помешало (нет устройства)"
-    if template == "why_offline":
-        return "Опрос: что помешало (не подключился)"
     return "Рассылка"
 
 
@@ -2173,13 +2122,8 @@ def _broadcast_payload(
             name=escape(str(first_name or "друг")),
         )
         return body, cabinet_keyboard()
-    if template == "whitelist":
-        return text, cabinet_keyboard()
     if template == "browser":
         return notice_text("broadcast_browser"), _browser_keyboard()
-    if template in {"why_nodevice", "why_offline"}:
-        from app.sleepers import why_keyboard
-        return notice_text("broadcast_" + template), why_keyboard()
     return text, None
 
 
@@ -2265,14 +2209,10 @@ def _broadcast_template_preview(template: str) -> str:
         return ANNOUNCE_DEFAULTS[template]
     if template == "invite":
         return _broadcast_payload("invite", "", 0, "друг", settings)[0].replace("ref_0", "ref_…")
-    if template == "whitelist":
-        return notice_text("broadcast_whitelist")
     if template == "unused":
         return notice_text("broadcast_unused", name="друг")
     if template == "browser":
         return notice_text("broadcast_browser")
-    if template in {"why_nodevice", "why_offline"}:
-        return notice_text("broadcast_" + template)
     return ""
 
 
@@ -2471,7 +2411,7 @@ async def api_broadcast_results(request: web.Request) -> web.Response:
 def _check_broadcast(body: dict) -> tuple[dict | None, str | None]:
     """Normalise a broadcast request without sending; returns (spec, error)."""
     template = str(body.get("template") or "").strip()
-    if template not in {"", "whitelist", *TEMPLATE_AUDIENCE, *ANNOUNCE_TEMPLATES}:
+    if template not in {"", *TEMPLATE_AUDIENCE, *ANNOUNCE_TEMPLATES}:
         return None, "Неизвестный шаблон"
     if template == "browser":
         from app.cabinet_login import site_url
@@ -2570,8 +2510,6 @@ async def _broadcast_ids(spec: dict) -> list[int] | None:
     audience = spec["audience"]
     if spec["template"] in ANNOUNCE_TEMPLATES:
         audience = "everyone"
-    elif spec["template"] == "whitelist":
-        audience = "all"
     ids = await db.list_broadcast_ids(audience)
     if spec.get("parent"):
         got = await db.broadcast_run_recipients(int(spec["parent"]))
@@ -2702,14 +2640,11 @@ async def api_broadcast(request: web.Request) -> web.Response:
             extra["previews"] = {
                 "invite": _broadcast_template_preview("invite"),
                 "unused": _broadcast_template_preview("unused"),
-                "whitelist": _broadcast_template_preview("whitelist"),
                 "gift3": _broadcast_template_preview("gift3"),
                 "referral_news": _broadcast_template_preview("referral_news"),
                 "gift_ny": _broadcast_template_preview("gift_ny"),
                 "friend_nft": _broadcast_template_preview("friend_nft"),
                 "browser": _broadcast_template_preview("browser"),
-                "why_nodevice": _broadcast_template_preview("why_nodevice"),
-                "why_offline": _broadcast_template_preview("why_offline"),
             }
         extra["scheduled"] = await _load_scheduled()
         return web.json_response({"ok": True, **job, **extra})
@@ -3323,8 +3258,6 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/statistics", api_statistics)
     app.router.add_get("/admin/api/users", api_users)
     app.router.add_get("/admin/api/users/{telegram_id}/devices", api_user_devices)
-    app.router.add_get("/admin/api/users/{telegram_id}/gifts", api_user_gifts)
-    app.router.add_get("/admin/api/gift-thumb", api_gift_thumb)
     app.router.add_post("/admin/api/users/{telegram_id}/devices/{device_id}/reissue", api_device_reissue)
     app.router.add_post("/admin/api/users/bulk", api_users_bulk)
     app.router.add_get("/admin/api/referrals", api_referrals)

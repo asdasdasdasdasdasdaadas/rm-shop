@@ -137,7 +137,6 @@ const screenshots = fs.mkdtempSync(path.join(os.tmpdir(), "admin-ux-"));
       ]),
     ),
     reminder_results: { groups: [] },
-    exit_feedback: {},
     jobs: {},
   };
   const campaigns = {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, useResource, type Data } from "@/lib/api";
 import { saveSettingsPatchWith } from "@/lib/contracts.mjs";
 import {
@@ -19,7 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, ChevronDown, GripVertical } from "lucide-react";
+import { Plus, Save, Trash2, ChevronDown, GripVertical, Search as SearchIcon } from "lucide-react";
 type Setting = {
   key: string;
   label: string;
@@ -27,86 +27,42 @@ type Setting = {
   hint?: string;
   min?: number;
   max?: number;
+  /** Shown inside the field after the value: ₽, дней, %. */
+  unit?: string;
+  /** A switch this field belongs to: the field shows only while it is on. */
+  parent?: string;
+  /** A live example under the field, built from the current values. */
+  example?: (v: Data) => string;
 };
-const groups: {
+type Group = {
   id: string;
   title: string;
   description: string;
+  nav: string;
   fields: Setting[];
-}[] = [
-  {
-    id: "general",
-    title: "Сервис и поддержка",
-    description: "То, что клиент видит в боте и личном кабинете.",
-    fields: [
-      { key: "brand_name", label: "Название сервиса" },
-      {
-        key: "support_username",
-        label: "Telegram поддержки",
-        hint: "Username или ссылка на поддержку.",
-      },
-      { key: "legal_offer_url", label: "Ссылка на оферту", type: "url" },
-      {
-        key: "legal_privacy_url",
-        label: "Политика конфиденциальности",
-        type: "url",
-      },
-      {
-        key: "admin_live_chat_id",
-        label: "Канал обращений",
-        hint: "ID приватного канала, в котором бот является администратором.",
-      },
-      {
-        key: "welcome_sticker_file_id",
-        label: "Стикер приветствия",
-        hint: "Telegram file_id. Пустое поле отключает стикер.",
-      },
-      {
-        key: "widgets_enabled",
-        label: "Карточки-виджеты в чате",
-        type: "switch",
-        hint: "Баланс, чеки, подарки, рефералка и обращения приходят живыми карточками. Выключите, если Telegram ограничивает виджеты: всё придёт обычными сообщениями с кнопками.",
-      },
-    ],
-  },
-  {
-    id: "welcome",
-    title: "Приветствие",
-    description: "Что новый пользователь видит после /start.",
-    fields: [
-      {
-        key: "welcome_tariff_enabled",
-        label: "Тариф и условия в приветствии",
-        type: "switch",
-        hint: "Цена за день, баланс вместо подписки и минимальное пополнение во втором сообщении после /start.",
-      },
-    ],
-  },
+};
+const rub = (n: unknown) => `${Math.round(Number(n) || 0).toLocaleString("ru-RU")} ₽`;
+const bonusExample = (min: unknown, pct: unknown) =>
+  Number(min) && Number(pct) ? `Пополнит ${rub(min)} — получит ${rub(Number(min) * (1 + Number(pct) / 100))}` : "";
+const NAV = ["Деньги", "Клиенты и доступ", "Бот и кабинет", "Интеграции", "Система"];
+const groups: Group[] = [
   {
     id: "pricing",
+    nav: "Деньги",
     title: "Тарифы и пополнение",
-    description:
-      "Стоимость доступа и суммы, доступные пользователям при оплате.",
+    description: "Сколько стоит VPN и какие суммы можно пополнить.",
     fields: [
       {
         key: "vpn_day_price_rub",
-        label: "Цена суток за устройство, ₽",
+        label: "Цена суток за устройство",
+        unit: "₽",
         type: "number",
         min: 1,
         max: 10000,
+        example: (v) => (Number(v.vpn_day_price_rub) ? `Месяц на одно устройство ≈ ${rub(Number(v.vpn_day_price_rub) * 30)}` : ""),
       },
-      {
-        key: "balance_topup_min",
-        label: "Минимальное пополнение, ₽",
-        type: "number",
-        min: 1,
-      },
-      {
-        key: "balance_topup_step",
-        label: "Шаг выбора суммы, ₽",
-        type: "number",
-        min: 1,
-      },
+      { key: "balance_topup_min", label: "Минимальное пополнение", unit: "₽", type: "number", min: 1 },
+      { key: "balance_topup_step", label: "Шаг выбора суммы", unit: "₽", type: "number", min: 1 },
       {
         key: "cabinet_price_enabled",
         label: "Цена под балансом в кабинете",
@@ -116,10 +72,65 @@ const groups: {
     ],
   },
   {
+    id: "gifts",
+    nav: "Деньги",
+    title: "Бонусы и подарки",
+    description: "Пробный доступ, обещанный платёж и бонусы к пополнению.",
+    fields: [
+      { key: "trial_enabled", label: "Пробный период", type: "switch", hint: "Новый человек получает бесплатные дни, чтобы попробовать VPN." },
+      { key: "trial_days", label: "Длительность", unit: "дней", type: "number", min: 1, max: 90, parent: "trial_enabled" },
+      { key: "trust_enabled", label: "Обещанный платёж", type: "switch", hint: "Доступ в долг на несколько дней, когда деньги кончились." },
+      { key: "trust_days", label: "Срок", unit: "дней", type: "number", min: 1, max: 30, parent: "trust_enabled" },
+      { key: "trust_fee_rub", label: "Комиссия", unit: "₽", type: "number", min: 0, parent: "trust_enabled" },
+      {
+        key: "first_bonus_enabled",
+        label: "Бонус за первую оплату",
+        type: "switch",
+        hint: "Первое пополнение до конца подарка — плюс процент на баланс. Кабинет показывает отсчёт и открывающийся подарок.",
+      },
+      { key: "first_bonus_min_rub", label: "Пополнение от", unit: "₽", type: "number", min: 1, parent: "first_bonus_enabled" },
+      {
+        key: "first_bonus_percent",
+        label: "Бонус к пополнению",
+        unit: "%",
+        type: "number",
+        min: 1,
+        max: 100,
+        parent: "first_bonus_enabled",
+        example: (v) => bonusExample(v.first_bonus_min_rub, v.first_bonus_percent),
+      },
+      {
+        key: "return_bonus_enabled",
+        label: "Бонус за возвращение",
+        type: "switch",
+        hint: "Через 10 дней после того, как у платившего клиента кончились деньги, бот предлагает процент к пополнению. Начисляется сам, один раз.",
+      },
+      { key: "return_bonus_min_rub", label: "Пополнение от", unit: "₽", type: "number", min: 1, parent: "return_bonus_enabled" },
+      {
+        key: "return_bonus_percent",
+        label: "Бонус к пополнению",
+        unit: "%",
+        type: "number",
+        min: 1,
+        max: 100,
+        parent: "return_bonus_enabled",
+        example: (v) => bonusExample(v.return_bonus_min_rub, v.return_bonus_percent),
+      },
+      { key: "return_bonus_days", label: "Действует", unit: "дней", type: "number", min: 1, max: 60, parent: "return_bonus_enabled" },
+    ],
+  },
+  {
+    id: "referrals",
+    nav: "Деньги",
+    title: "Реферальная программа",
+    description: "Другу 50 ₽ сразу, как он откроет меню бота; пригласившему 50 ₽, когда друг впервые подключит VPN. Один раз за каждого нового друга.",
+    fields: [{ key: "referral_program_enabled", label: "Начислять реферальные награды", type: "switch" }],
+  },
+  {
     id: "ton",
+    nav: "Деньги",
     title: "Оплата в TON",
-    description:
-      "Пополнение из кошелька Telegram прямо в чате с ботом. Деньги приходят на ваш кошелёк, ключи на сервере не хранятся.",
+    description: "Пополнение из кошелька Telegram прямо в чате с ботом. Деньги приходят на ваш кошелёк, ключи на сервере не хранятся.",
     fields: [
       {
         key: "ton_enabled",
@@ -127,285 +138,213 @@ const groups: {
         type: "switch",
         hint: "Выключено — оплату видят только админы (команда /ton), чтобы проверить перед запуском.",
       },
-      {
-        key: "ton_wallet",
-        label: "Кошелёк для приёма",
-        hint: "Адрес TON (UQ… или EQ…). Сюда приходят все платежи.",
-      },
-      {
-        key: "ton_rate_margin_pct",
-        label: "Запас к курсу, %",
-        type: "number",
-        min: 0,
-        max: 20,
-        hint: "Защита от скачков курса за 10 минут, пока действует счёт.",
-      },
+      { key: "ton_wallet", label: "Кошелёк для приёма", hint: "Адрес TON (UQ… или EQ…). Сюда приходят все платежи." },
+      { key: "ton_rate_margin_pct", label: "Запас к курсу", unit: "%", type: "number", min: 0, max: 20, hint: "Защита от скачков курса за 10 минут, пока действует счёт." },
       {
         key: "toncenter_api_key",
         label: "Ключ Toncenter",
-        hint: "Необязательно. Без ключа проверка работает медленнее (1 запрос в секунду). Ключ выдаёт бот @tonapibot.",
-      },
-    ],
-  },
-  {
-    id: "tg_ads",
-    title: "Telegram Ads",
-    description:
-      "Статистика рекламного кабинета в «Источниках трафика»: показы, клики и расход по каждой рекламной ссылке. Обновляется раз в 30 минут.",
-    fields: [
-      {
-        key: "tg_ads_token",
-        label: "API-токен кабинета",
-        hint: "Выдаётся в кабинете ads.telegram.org в настройках аккаунта, раздел API. Пусто — статистика не загружается.",
-      },
-      {
-        key: "tg_ads_rub_rate",
-        label: "Курс, ₽ за 1 единицу валюты кабинета",
-        type: "number",
-        min: 0,
-        max: 100000,
-        hint: "0 — для кабинета в TON берётся рыночный курс. Для EUR и Stars укажите вручную, иначе расход будет только в валюте кабинета.",
+        hint: "Необязательно. Без ключа проверка медленнее (1 запрос в секунду). Ключ выдаёт бот @tonapibot.",
       },
     ],
   },
   {
     id: "access",
+    nav: "Клиенты и доступ",
     title: "Доступ и устройства",
-    description: "Ограничения подключений устройств, проверка трафика и чистка панели.",
+    description: "Сколько устройств можно подключить, проверка трафика и чистка панели.",
     fields: [
-      {
-        key: "max_devices",
-        label: "Максимум устройств",
-        type: "number",
-        min: 5,
-        max: 5,
-        hint: "5 устройств на пользователя.",
-      },
-      {
-        key: "remnawave_hwid_limit",
-        label: "Лимит HWID",
-        type: "number",
-        min: 0,
-        max: 20,
-        hint: "Количество аппаратных идентификаторов на подписку.",
-      },
+      { key: "max_devices", label: "Максимум устройств", unit: "шт.", type: "number", min: 5, max: 5, hint: "5 устройств на пользователя." },
+      { key: "remnawave_hwid_limit", label: "Лимит HWID", unit: "шт.", type: "number", min: 0, max: 20, hint: "Аппаратных идентификаторов на подписку." },
       {
         key: "no_traffic_alert_enabled",
-        label: "Уведомлять «Подключился, но трафика нет»",
+        label: "«Подключился, но трафика нет»",
         type: "switch",
-        hint: "У нового устройства (добавлено за 2 дня) VPN включился, но трафика почти нет — обычно блокировка у провайдера или не то приложение. Одно уведомление на устройство, в живой канал или админам в личку.",
+        hint: "У нового устройства VPN включился, но трафика почти нет — обычно блокировка у провайдера или не то приложение. Одно уведомление на устройство.",
       },
-      {
-        key: "no_traffic_alert_min_mb",
-        label: "Нет трафика: меньше скольких МБ",
-        type: "number",
-        min: 1,
-        max: 1000,
-      },
+      { key: "no_traffic_alert_min_mb", label: "Трафика меньше", unit: "МБ", type: "number", min: 1, max: 1000, parent: "no_traffic_alert_enabled" },
       {
         key: "no_traffic_alert_after_minutes",
-        label: "Нет трафика: проверять через, минут",
+        label: "Проверять через",
+        unit: "мин",
         type: "number",
         min: 10,
         max: 1440,
-        hint: "Сколько ждать после первого включения VPN на устройстве.",
+        parent: "no_traffic_alert_enabled",
+        hint: "После первого включения VPN на устройстве.",
       },
       {
         key: "connect_digest_enabled",
         label: "Сводка «Подключения за сутки»",
         type: "switch",
-        hint: "Каждый день в 10:00 по Москве: новые устройства по системам и приложениям — сколько заработало, сколько без трафика и сколько не включались. Сразу видно, если сломалось одно приложение или инструкция.",
+        hint: "Каждый день в 10:00 по Москве: новые устройства по системам и приложениям — сколько заработало, сколько без трафика.",
       },
       {
         key: "panel_cleanup_enabled",
-        label: "Удалять устройства, которые не подключались",
+        label: "Удалять устройства без подключения",
         type: "switch",
-        hint: "Раз в день бот удаляет из панели Remnawave и из кабинета устройства, через которые ни разу не прошёл трафик. Людей с открытым обращением не трогает. Устройство можно добавить снова за минуту.",
+        hint: "Раз в день удаляет из панели и кабинета устройства, через которые ни разу не прошёл трафик. Людей с открытым обращением не трогает.",
       },
-      {
-        key: "panel_cleanup_days",
-        label: "Удалять через, дней после добавления",
-        type: "number",
-        min: 7,
-        max: 365,
-      },
+      { key: "panel_cleanup_days", label: "Через", unit: "дней", type: "number", min: 7, max: 365, parent: "panel_cleanup_enabled", hint: "После добавления устройства." },
     ],
   },
   {
     id: "sharing",
+    nav: "Клиенты и доступ",
     title: "Шеринг подписки",
     description: "Раз в 10 минут бот берёт из панели IP каждого устройства: много IP — предупреждение, ещё больше — наказание.",
     fields: [
       {
         key: "sharing_alert_enabled",
-        label: "Уведомлять о шеринге подписки",
+        label: "Предупреждать о шеринге",
         type: "switch",
-        hint: "Раз в 10 минут бот берёт из панели IP, с которых подключено каждое устройство. Если IP слишком много — уведомление в живой канал (или админам в личку): кто, IP, трафик и кнопка «Сбросить подключения». По одному устройству не чаще раза в 3 дня.",
+        hint: "Уведомление в живой канал или админам: кто, IP, трафик и кнопка «Сбросить подключения». По одному устройству не чаще раза в 3 дня.",
       },
       {
         key: "sharing_alert_simultaneous",
-        label: "Уведомление: IP одновременно, от",
+        label: "Если IP одновременно от",
         type: "number",
         min: 2,
         max: 50,
-        hint: "Разные IP за последние 10 минут. Wi-Fi и мобильный интернет вместе — это 2, поэтому по умолчанию 3.",
+        parent: "sharing_alert_enabled",
+        hint: "За последние 10 минут. Wi-Fi и мобильный вместе — это 2.",
       },
       {
         key: "sharing_alert_daily",
-        label: "Уведомление: IP за сутки, от",
+        label: "Или IP за сутки от",
         type: "number",
         min: 2,
         max: 500,
+        parent: "sharing_alert_enabled",
         hint: "Мобильный интернет сам часто меняет IP, поэтому порог выше.",
       },
       {
         key: "sharing_block_enabled",
         label: "Блокировать за шеринг",
         type: "switch",
-        hint: "Если у устройства IP не меньше порогов ниже, бот сам выключает все ключи человека, ставит пометку «Шеринг» и блокирует в боте; что ещё — настройки ниже. Админам — сообщение с кнопкой «Разблокировать и вернуть баланс».",
+        hint: "Бот сам выключает ключи человека, ставит пометку «Шеринг» и блокирует в боте. Админам — кнопка «Разблокировать и вернуть баланс».",
       },
       {
         key: "sharing_block_simultaneous",
-        label: "Блок: IP одновременно, от",
+        label: "Если IP одновременно от",
         type: "number",
         min: 3,
         max: 50,
-        hint: "Разные IP за последние 10 минут. Выше порога уведомления, чтобы не задеть телефон с Wi-Fi и LTE.",
+        parent: "sharing_block_enabled",
+        hint: "Выше порога предупреждения, чтобы не задеть телефон с Wi-Fi и LTE.",
       },
       {
         key: "sharing_block_daily",
-        label: "Блок: IP за сутки, от",
+        label: "Или IP за сутки от",
         type: "number",
         min: 5,
         max: 500,
-        hint: "Разные IP за 24 часа. Мобильный интернет за день даёт 5–10 адресов, поэтому порог с запасом.",
+        parent: "sharing_block_enabled",
+        hint: "Мобильный интернет за день даёт 5–10 адресов.",
       },
       {
         key: "sharing_delete_device",
         label: "Удалять устройство",
         type: "switch",
-        hint: "Устройство, с которого раздавали ключ, удаляется из панели и кабинета. Остальные устройства только выключаются.",
-      },
-      {
-        key: "sharing_penalty_enabled",
-        label: "Штраф на баланс",
-        type: "switch",
-        hint: "Баланс опускается до суммы ниже. Сколько списали, запоминается: при разблокировке вернётся ровно это.",
-      },
-      {
-        key: "sharing_penalty_balance_rub",
-        label: "Баланс после штрафа, ₽",
-        type: "number",
-        min: -1000000,
-        max: 0,
-        hint: "Например −100000. Если баланс уже ниже — не трогаем.",
+        parent: "sharing_block_enabled",
+        hint: "Устройство, с которого раздавали ключ, удаляется. Остальные только выключаются.",
       },
       {
         key: "sharing_notify_user",
         label: "Сообщать человеку",
         type: "switch",
-        hint: "Бот пишет ему «Доступ ограничен» сразу. Выключено — узнает при следующем сообщении боту.",
+        parent: "sharing_block_enabled",
+        hint: "Бот сразу пишет «Доступ ограничен». Выключено — узнает при следующем сообщении боту.",
+      },
+      {
+        key: "sharing_penalty_enabled",
+        label: "Штраф на баланс",
+        type: "switch",
+        parent: "sharing_block_enabled",
+        hint: "Сколько списали, запоминается: при разблокировке вернётся ровно это.",
+      },
+      {
+        key: "sharing_penalty_balance_rub",
+        label: "Баланс после штрафа",
+        unit: "₽",
+        type: "number",
+        min: -1000000,
+        max: 0,
+        parent: "sharing_penalty_enabled",
+        hint: "Например −100000. Если баланс уже ниже — не трогаем.",
       },
     ],
   },
   {
-    id: "gifts",
-    title: "Пробный доступ и обещанный платёж",
-    description: "Условия первого подключения и временного доступа без оплаты.",
+    id: "general",
+    nav: "Бот и кабинет",
+    title: "Сервис и поддержка",
+    description: "Что клиент видит в боте и личном кабинете.",
     fields: [
-      { key: "trial_enabled", label: "Пробный период", type: "switch" },
+      { key: "brand_name", label: "Название сервиса" },
+      { key: "support_username", label: "Telegram поддержки", hint: "Username или ссылка на поддержку." },
+      { key: "legal_offer_url", label: "Ссылка на оферту", type: "url" },
+      { key: "legal_privacy_url", label: "Политика конфиденциальности", type: "url" },
+      { key: "admin_live_chat_id", label: "Канал обращений", hint: "ID приватного канала, в котором бот — администратор." },
+      { key: "welcome_sticker_file_id", label: "Стикер приветствия", hint: "Telegram file_id. Пусто — без стикера." },
       {
-        key: "trial_days",
-        label: "Длительность пробного периода, дни",
-        type: "number",
-        min: 1,
-        max: 90,
-      },
-      { key: "trust_enabled", label: "Обещанный платёж", type: "switch" },
-      {
-        key: "trust_days",
-        label: "Срок обещанного платежа, дни",
-        type: "number",
-        min: 1,
-        max: 30,
+        key: "welcome_tariff_enabled",
+        label: "Тариф и условия в приветствии",
+        type: "switch",
+        hint: "Цена за день, баланс вместо подписки и минимальное пополнение во втором сообщении после /start.",
       },
       {
-        key: "trust_fee_rub",
-        label: "Комиссия обещанного платежа, ₽",
+        key: "widgets_enabled",
+        label: "Карточки-виджеты в чате",
+        type: "switch",
+        hint: "Баланс, чеки, подарки, рефералка и обращения приходят живыми карточками. Выключите, если Telegram ограничивает виджеты.",
+      },
+    ],
+  },
+  {
+    id: "tg_ads",
+    nav: "Интеграции",
+    title: "Telegram Ads",
+    description: "Показы, клики и расход по каждой рекламной ссылке в «Росте». Обновляется раз в 30 минут.",
+    fields: [
+      {
+        key: "tg_ads_token",
+        label: "API-токен кабинета",
+        hint: "ads.telegram.org → настройки аккаунта → API. Пусто — статистика не загружается.",
+      },
+      {
+        key: "tg_ads_rub_rate",
+        label: "Курс валюты кабинета",
+        unit: "₽",
         type: "number",
         min: 0,
-      },
-      {
-        key: "first_bonus_enabled",
-        label: "Бонус за первую оплату",
-        type: "switch",
-        hint: "Первое пополнение до конца подарка от суммы ниже — плюс процент от суммы на баланс. Кабинет показывает отсчёт и открывающийся подарок.",
-      },
-      {
-        key: "first_bonus_min_rub",
-        label: "Бонус: пополнение от, ₽",
-        type: "number",
-        min: 1,
-      },
-      {
-        key: "first_bonus_percent",
-        label: "Бонус: процент к пополнению",
-        type: "number",
-        min: 1,
-        max: 100,
-      },
-      {
-        key: "return_bonus_enabled",
-        label: "Бонус за возвращение",
-        type: "switch",
-        hint: "Через 10 дней после того, как у платившего клиента кончились деньги, бот предлагает процент к пополнению. Бонус начисляется сам вместе с пополнением, один раз.",
-      },
-      {
-        key: "return_bonus_min_rub",
-        label: "Возвращение: пополнение от, ₽",
-        type: "number",
-        min: 1,
-      },
-      {
-        key: "return_bonus_percent",
-        label: "Возвращение: процент к пополнению",
-        type: "number",
-        min: 1,
-        max: 100,
-      },
-      {
-        key: "return_bonus_days",
-        label: "Возвращение: сколько дней действует",
-        type: "number",
-        min: 1,
-        max: 60,
+        max: 100000,
+        hint: "Рублей за 1 единицу. 0 — для TON берётся рыночный курс; для EUR и Stars укажите вручную.",
       },
     ],
   },
-  {
-    id: "referrals",
-    title: "Реферальная программа",
-    description:
-      "Другу 50 ₽ сразу, как он откроет меню бота; пригласившему 50 ₽, когда друг впервые подключит VPN. Один раз за каждого нового друга.",
-    fields: [
-      {
-        key: "referral_program_enabled",
-        label: "Начислять реферальные награды",
-        type: "switch",
-      },
-    ],
-  },
+];
+/** Sections that are not a list of fields: their own editors. */
+const SPECIAL: { id: string; title: string; nav: string; keys: string[] }[] = [
+  { id: "payments", title: "Способы оплаты", nav: "Деньги", keys: ["pay_methods"] },
+  { id: "notices", title: "Тексты бота", nav: "Бот и кабинет", keys: ["notices"] },
+  { id: "faq", title: "Частые вопросы", nav: "Бот и кабинет", keys: ["faq_items"] },
+  { id: "apps", title: "VPN-приложения", nav: "Бот и кабинет", keys: ["vpn_apps"] },
+  { id: "system", title: "Работа системы", nav: "Система", keys: [] },
+];
+const SECTIONS = [
+  ...groups.map((g) => ({ id: g.id, title: g.title, nav: g.nav, keys: g.fields.map((f) => f.key) })),
+  ...SPECIAL,
 ];
 export const saveSettingsPatch = (patch: Data) =>
   saveSettingsPatchWith(api, patch);
 export function SettingsPage({ initial = "general" }: { initial?: string }) {
   const resource = useResource("settings");
   const [section, setSection] = useState(
-      initial === "automation" ? "general" : initial,
+      initial === "automation" || initial === "welcome" ? "general" : SECTIONS.some((x) => x.id === initial) ? initial : "pricing",
     ),
     [patch, setPatch] = useState<Data>({}),
+    [query, setQuery] = useState(""),
     [error, setError] = useState("");
-  const confirm = useConfirm();
   const saving = useRef(false);
   const dirty = Object.keys(patch).length > 0;
   useDirty(dirty);
@@ -414,19 +353,11 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
     setPatch((p) => ({ ...p, [key]: value }));
     setError("");
   };
+  // Unsaved changes travel between sections: one save for everything.
   const changeSection = (next: string) => {
-    if (dirty)
-      confirm({
-        title: "Есть несохранённые изменения",
-        description:
-          "Сохраните изменения перед переходом или продолжите без сохранения.",
-        label: "Перейти без сохранения",
-        action: async () => {
-          setPatch({});
-          setSection(next);
-        },
-      });
-    else setSection(next);
+    setQuery("");
+    setSection(next);
+    window.scrollTo({ top: 0 });
   };
   const save = async () => {
     if (saving.current) return;
@@ -455,88 +386,99 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
     return <Failure message={resource.error} retry={resource.reload} />;
   if (!resource.data) return <Loading />;
   const group = groups.find((g) => g.id === section);
+  const changed = Object.keys(patch);
+  const q = query.trim().toLowerCase();
+  const view = q ? "" : section;
+  // A field matches by its own name or explanation, or by the switch it belongs to; it shows where it lives.
+  const owner = (g: Group, f: Setting) => g.fields.find((x) => x.key === f.parent);
+  const found = q
+    ? groups.flatMap((g) =>
+        g.fields
+          .filter((f) => (f.label + " " + (f.hint || "") + " " + (owner(g, f)?.label || "")).toLowerCase().includes(q))
+          .map((f) => ({ group: g, field: f, context: [g.title, owner(g, f)?.label].filter(Boolean).join(" → ") })),
+      )
+    : [];
+  const foundSpecial = q ? SECTIONS.filter((x) => x.title.toLowerCase().includes(q)) : [];
   return (
-    <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible">
-        {[
-          ...groups.map((g) => [g.id, g.title]),
-          ["payments", "Способы оплаты"],
-          ["apps", "VPN-приложения"],
-          ["notices", "Тексты бота"],
-          ["faq", "Частые вопросы"],
-          ["system", "Работа системы"],
-        ].map(([id, label]) => (
-          <Button
-            key={id}
-            variant={section === id ? "secondary" : "ghost"}
-            className="justify-start whitespace-normal text-left h-auto py-2.5 shrink-0"
-            onClick={() => changeSection(id)}
-          >
-            {label}
-          </Button>
+    <div className="adm-set">
+      <aside className="adm-set-nav">
+        <label className="adm-set-search">
+          <SearchIcon aria-hidden="true" />
+          <input
+            type="search"
+            aria-label="Поиск по настройкам"
+            placeholder="Поиск по настройкам"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        {NAV.map((nav) => (
+          <div key={nav} className="adm-set-navgroup">
+            <h3>{nav}</h3>
+            {SECTIONS.filter((x) => x.nav === nav).map((x) => (
+              <button
+                key={x.id}
+                type="button"
+                aria-current={section === x.id && !q ? "page" : undefined}
+                onClick={() => changeSection(x.id)}
+              >
+                {x.title}
+                {x.keys.some((k) => k in patch) && <i aria-label="есть изменения" />}
+              </button>
+            ))}
+          </div>
         ))}
       </aside>
-      <div className="min-w-0 space-y-5">
-        {group && (
-          <Panel title={group.title} description={group.description}>
-            <form
-              id="settings-section"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void save().catch(() => {});
-              }}
-            >
-              <div className="grid gap-6 sm:grid-cols-2">
-                {group.fields.map((f) => (
-                  <Field key={f.key} label={f.label} hint={f.hint}>
-                    {f.type === "switch" ? (
-                      <div className="flex gap-3 items-center">
-                        <Switch
-                          aria-label={f.label}
-                          checked={!!values[f.key]}
-                          onCheckedChange={(v) => update(f.key, v)}
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          {values[f.key] ? "Включено" : "Выключено"}
-                        </span>
-                      </div>
-                    ) : (
-                      <Input
-                        aria-label={f.label}
-                        type={f.type || "text"}
-                        min={f.min}
-                        max={f.max}
-                        step={f.type === "number" ? "1" : undefined}
-                        required={
-                          f.type === "number" ||
-                          f.type === "url" ||
-                          f.key === "brand_name" ||
-                          f.key === "support_username"
-                        }
-                        value={values[f.key] ?? ""}
-                        onChange={(e) =>
-                          update(
-                            f.key,
-                            f.type === "number"
-                              ? e.target.value === ""
-                                ? ""
-                                : Number(e.target.value)
-                              : e.target.value,
-                          )
-                        }
-                      />
-                    )}
-                  </Field>
+      <form
+        id="settings-section"
+        className="min-w-0 space-y-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save().catch(() => {});
+        }}
+      >
+        {q ? (
+          <>
+            <header className="adm-set-head">
+              <h2>Поиск: «{query.trim()}»</h2>
+              <p>{found.length || foundSpecial.length ? "Можно менять прямо здесь." : "Ничего не нашлось."}</p>
+            </header>
+            {foundSpecial.length > 0 && (
+              <div className="adm-set-card">
+                {foundSpecial.map((x) => (
+                  <button key={x.id} type="button" className="adm-set-row adm-set-jump" onClick={() => changeSection(x.id)}>
+                    <span>{x.title}</span>
+                    <span className="adm-set-muted">{x.nav} →</span>
+                  </button>
                 ))}
               </div>
-              <button type="submit" className="sr-only">
-                Сохранить настройки
-              </button>
-            </form>
-          </Panel>
+            )}
+            {found.length > 0 && (
+              <div className="adm-set-card">
+                {found.map(({ field: f, context }) => (
+                  <SettingRow key={f.key} f={f} values={values} patch={patch} update={update} context={context} />
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          group && (
+            <>
+              <header className="adm-set-head">
+                <h2>{group.title}</h2>
+                <p>{group.description}</p>
+              </header>
+              <SettingCards fields={group.fields} values={values} patch={patch} update={update} />
+            </>
+          )
         )}
-        {section === "sharing" && <SharingCheck />}
-        {section === "payments" && (
+        <button type="submit" className="sr-only">
+          Сохранить настройки
+        </button>
+      </form>
+      <div className="adm-set-rest min-w-0 space-y-5">
+        {view === "sharing" && <SharingCheck />}
+        {view === "payments" && (
           <Panel
             title="Способы оплаты"
             description="Порядок здесь соответствует порядку в кабинете."
@@ -548,7 +490,7 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
             />
           </Panel>
         )}
-        {section === "apps" && (
+        {view === "apps" && (
           <Panel
             title="VPN-приложения"
             description="Приложения и ссылки установки для каждой платформы."
@@ -561,14 +503,14 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
             />
           </Panel>
         )}
-        {section === "notices" && (
+        {view === "notices" && (
           <NoticeEditor
             fields={resource.data.notice_fields || []}
             values={values.notices || {}}
             onChange={(v) => update("notices", v)}
           />
         )}
-        {section === "faq" && (
+        {view === "faq" && (
           <Panel
             title="Частые вопросы"
             description="Вопросы и ответы для бота и личного кабинета. Обычный текст без HTML. Изменения применятся после сохранения; свои ответы нужно обновлять вручную при изменении тарифов."
@@ -677,10 +619,13 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
             </div>
           </Panel>
         )}
-        {section === "system" && <SystemSettings />}
+        {view === "system" && <SystemSettings />}
         {dirty && (
-          <div className="sticky bottom-4 z-20 bg-background border rounded-xl shadow-lg p-4 flex flex-wrap gap-3 items-center justify-between">
-            <span className="text-sm">Есть несохранённые изменения</span>
+          <div className="adm-set-bar">
+            <span className="text-sm">
+              Есть несохранённые изменения
+              <span className="adm-set-muted"> · {changed.length} {changed.length === 1 ? "настройка" : changed.length < 5 ? "настройки" : "настроек"}</span>
+            </span>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setPatch({})}>
                 Отменить
@@ -708,6 +653,100 @@ export function SettingsPage({ initial = "general" }: { initial?: string }) {
       </div>
     </div>
   );
+}
+type RowProps = {
+  values: Data;
+  patch: Data;
+  update: (key: string, value: any) => void;
+};
+/** One setting as a row: name and explanation on the left, the control on the right. */
+function SettingRow({ f, values, patch, update, context }: RowProps & { f: Setting; context?: string }) {
+  const id = "set-" + f.key;
+  const example = f.example?.(values);
+  return (
+    <div className={"adm-set-row" + (f.key in patch ? " changed" : "")}>
+      <div className="adm-set-label">
+        <label htmlFor={id}>{f.label}</label>
+        {context && <span className="adm-set-muted"> · {context}</span>}
+        {f.hint && <p id={id + "-hint"}>{f.hint}</p>}
+        {example && <p className="adm-set-example">{example}</p>}
+      </div>
+      {f.type === "switch" ? (
+        <Switch
+          id={id}
+          aria-label={f.label}
+          aria-describedby={f.hint ? id + "-hint" : undefined}
+          checked={!!values[f.key]}
+          onCheckedChange={(v) => update(f.key, v)}
+        />
+      ) : (
+        <span className={"adm-set-input" + (f.type === "number" ? " num" : "")}>
+          <input
+            id={id}
+            aria-label={f.label}
+            aria-describedby={f.hint ? id + "-hint" : undefined}
+            type={f.type || "text"}
+            min={f.min}
+            max={f.max}
+            step={f.type === "number" ? "1" : undefined}
+            required={f.type === "number" || f.type === "url" || f.key === "brand_name" || f.key === "support_username"}
+            value={values[f.key] ?? ""}
+            onChange={(e) =>
+              update(f.key, f.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)
+            }
+          />
+          {f.unit && <em>{f.unit}</em>}
+        </span>
+      )}
+    </div>
+  );
+}
+/**
+ * A section as cards: plain fields together in one card; a switch that has settings of its own becomes a card
+ * with the switch in its header and its settings below, shown only while it is on.
+ */
+function SettingCards({ fields, ...row }: RowProps & { fields: Setting[] }) {
+  const parents = new Set(fields.map((f) => f.parent).filter(Boolean));
+  const childrenOf = (key: string): Setting[] => fields.filter((f) => f.parent === key);
+  const renderChildren = (key: string): ReactNode =>
+    childrenOf(key).map((c) =>
+      parents.has(c.key) ? (
+        <div key={c.key} className="adm-set-sub">
+          <SettingRow f={c} {...row} />
+          {row.values[c.key] && <div className="adm-set-nested">{renderChildren(c.key)}</div>}
+        </div>
+      ) : (
+        <SettingRow key={c.key} f={c} {...row} />
+      ),
+    );
+  const out: ReactNode[] = [];
+  let plain: Setting[] = [];
+  const flush = () => {
+    if (plain.length)
+      out.push(
+        <div key={"plain-" + plain[0].key} className="adm-set-card">
+          {plain.map((f) => (
+            <SettingRow key={f.key} f={f} {...row} />
+          ))}
+        </div>,
+      );
+    plain = [];
+  };
+  for (const f of fields) {
+    if (f.parent) continue;
+    if (parents.has(f.key)) {
+      flush();
+      const on = !!row.values[f.key];
+      out.push(
+        <div key={f.key} className={"adm-set-card adm-set-feature" + (on ? " on" : "")}>
+          <SettingRow f={f} {...row} />
+          {on && <div className="adm-set-children">{renderChildren(f.key)}</div>}
+        </div>,
+      );
+    } else plain.push(f);
+  }
+  flush();
+  return <>{out}</>;
 }
 const PLATFORM_NAMES: [string, string][] = [
   ["ios", "iOS"],
@@ -1155,6 +1194,8 @@ function SystemSettings() {
   if (!flags.data) return <Loading />;
   return (
     <div className="space-y-5">
+      <div className="adm-set-danger">
+      <h3>Осторожно: действует сразу на весь сервис</h3>
       <Panel
         title="Технические работы"
         description="При включении бот покажет это сообщение вместо обычного пользовательского пути."
@@ -1245,6 +1286,7 @@ function SystemSettings() {
             : "Приостановить списания"}
         </Button>
       </Panel>
+      </div>
       <Panel
         title="Обновление подписок"
         description="Применение сквадов из конфигурации сервера и перевыпуск ссылок."

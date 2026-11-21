@@ -37,6 +37,7 @@ class AdSpendTest(unittest.IsolatedAsyncioTestCase):
         row = admin._ad_public({**(await db.list_ad_links())[0], "created_at": None})
         self.assertEqual((row["users"], row["connected"], row["paid"], row["revenue"]), (3, 2, 2, 1000))
         self.assertIsNone(row["payer_cost"])
+        self.assertEqual((row["ltv"], row["payer_ltv"]), (333, 500))  # 1000 ₽ over 3 people, 2 of them paid
         self.assertTrue(await db.set_ad_link_spend(link, 1500))
         row = admin._ad_public({**(await db.list_ad_links())[0], "created_at": None})
         self.assertEqual((row["spend_rub"], row["payer_cost"], row["user_cost"]), (1500, 750, 500))

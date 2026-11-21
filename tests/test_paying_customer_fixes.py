@@ -93,16 +93,5 @@ class BalanceWarningStagesTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("меньше чем на сутки", balance_details(5, 1, 6))
 
 
-class BalanceWarningsReachMutedUsersTest(unittest.IsolatedAsyncioTestCase):
-    async def test_exit_answer_mutes_reminders_but_not_balance_warnings(self):
-        pool = SimpleNamespace(fetchval=AsyncMock(side_effect=lambda sql, *a: True if "EXISTS" in sql and "device_exit_feedback" in sql else True))
-        with patch.object(db, "_pool_req", return_value=pool), patch.object(db, "notification_allowed", AsyncMock(return_value=True)):
-            await db.nudge_delivery_allowed(1, "nudge_trial_end")
-            await db.nudge_delivery_allowed(1, "low_balance")
-            self.assertFalse(any("device_exit_feedback" in c.args[0] for c in pool.fetchval.call_args_list))
-            await db.nudge_delivery_allowed(1, "nudge_idle")
-            self.assertTrue(any("device_exit_feedback" in c.args[0] for c in pool.fetchval.call_args_list))
-
-
 if __name__ == "__main__":
     unittest.main()

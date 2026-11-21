@@ -1354,17 +1354,6 @@
     sig: (p) => JSON.stringify(deviceById(p.id) || null),
   };
 
-  // ---------- after deleting the last device ----------
-  const EXIT = [["expensive", "Дорого"], ["not_working", "Не работает — нужна помощь"], ["not_needed", "Больше не нужен"], ["other", "Другое"]];
-  SCR.feedback = {
-    h(p) {
-      return hc("slate", { ill: FROG(70, true), h: "Устройство удалено", p: "Подскажите, что нам улучшить" }) +
-        ST("Почему?") + cd(EXIT.map(([v, t]) => [RD(v === p.reason) + t, `data-act="fb" data-v="${v}"`])) +
-        `<div class="bot"><button type="button" class="bbtn" data-act="sendfb">${p.reason === "not_working" ? "Написать в поддержку" : "Отправить"}</button><button type="button" class="lnk" data-act="home">Пропустить</button></div>`;
-    },
-    bot: true,
-  };
-
   // ---------- friends ----------
   SCR.friends = {
     live: true,
@@ -2047,7 +2036,6 @@
   function back() {
     haptic();
     if (sheetEl) { closeSheet(); return; }
-    if (cur && cur.key === "feedback") { go("home", {}, "x"); return; }
     const prev = stack.pop();
     if (!prev) { if (cur && cur.key !== "home") go("home", {}, "b"); return; }
     if (prev.key === "wait") { back(); return; }
@@ -2431,35 +2419,12 @@
       const d = deviceById(cur.params.id);
       if (!d || !(await confirmAsk("Устройство будет удалено, VPN на нём перестанет работать. Продолжить?"))) return;
       try {
-        const res = await api(`/api/devices/${d.id}`, { method: "DELETE" });
+        await api(`/api/devices/${d.id}`, { method: "DELETE" });
         store.set("onboard", 1);
         await load(true).catch(() => {});
         toast("Устройство удалено");
-        if (res.exit_feedback_token && !(me.devices || []).length) { stack = []; go("feedback", { token: res.exit_feedback_token, reason: "" }, "f"); stack = []; syncBack(); }
-        else home();
+        home();
       } catch (e) { showErr(e); }
-    },
-    fb(b) {
-      haptic();
-      cur.params.reason = b.dataset.v;
-      cur.el.querySelectorAll(".rd").forEach((r) => r.classList.toggle("on", r.closest("[data-v]").dataset.v === cur.params.reason));
-      const send = cur.el.querySelector('[data-act="sendfb"]');
-      if (send) send.textContent = cur.params.reason === "not_working" ? "Написать в поддержку" : "Отправить";
-    },
-    async sendfb(b) {
-      const { token, reason } = cur.params;
-      if (!reason) { toast("Выберите ответ или нажмите «Пропустить»"); return; }
-      b.disabled = true;
-      try { await post("/api/exit-feedback", { token, reason }); } catch (_e) { /* the answer is optional */ }
-      if (reason === "not_working") {
-        stack = [];
-        openSupport({ prefill: "Не удалось подключить VPN. Удалил последнее устройство. Нужна помощь с настройкой." });
-        stack = [{ key: "home", params: {} }];
-        syncBack();
-        return;
-      }
-      toast(reason === "not_needed" ? "Спасибо. Напоминания приостановлены до нового подключения" : "Спасибо! Мы прочитаем 💚");
-      setTimeout(home, 700);
     },
     share: () => shareInvite(false),
     nfsheet: (b) => nfStepSheet(Number(b.dataset.i)),

@@ -1032,7 +1032,6 @@ async def apply_panel_snapshots(panels: list[dict]) -> int:
         life,
         now,
     )
-    await resolve_exit_feedback()
     await track_reminder_connections()
     try:
         return int(str(result).split()[-1])
@@ -1103,7 +1102,6 @@ async def set_device_last_online(device_id: int, online_at) -> None:
         device_id,
         online_at,
     )
-    await resolve_exit_feedback()
     await track_reminder_connections()
 
 
@@ -2135,78 +2133,10 @@ async def rename_device(
 async def delete_device(telegram_id: int, device_id: int) -> dict | None:
     async with _pool_req().acquire() as conn:
         async with conn.transaction():
-            # Serialize deletions by account: only the last one creates a survey.
-            await conn.fetchval("SELECT telegram_id FROM users WHERE telegram_id=$1 FOR UPDATE", telegram_id)
-            await resolve_exit_feedback(conn)
             row = await conn.fetchrow(
                 "DELETE FROM devices WHERE id=$1 AND telegram_id=$2 RETURNING *", device_id, telegram_id,
             )
-            if not row:
-                return None
-            result = dict(row)
-            remaining = await conn.fetchval("SELECT COUNT(*) FROM devices WHERE telegram_id=$1", telegram_id)
-            if not remaining:
-                token = secrets.token_urlsafe(24)
-                await conn.execute("INSERT INTO device_exit_feedback (token,telegram_id) VALUES ($1,$2)", token, telegram_id)
-                result["exit_feedback_token"] = token
-            return result
-
-
-EXIT_REASONS = {"expensive": "Дорого", "not_working": "Не работает", "not_needed": "Больше не нужен", "other": "Другое"}
-
-
-_EXIT_FEEDBACK_PAUSED_SQL = """
-SELECT f.telegram_id FROM device_exit_feedback f
-WHERE f.reason IN ('not_working','not_needed') AND f.resolved_at IS NULL
-  AND NOT EXISTS (SELECT 1 FROM device_exit_feedback newer
-      WHERE newer.telegram_id=f.telegram_id AND newer.reason IS NOT NULL
-        AND (newer.created_at > f.created_at OR (newer.created_at=f.created_at AND newer.token > f.token)))
-  AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=f.telegram_id AND d.last_online_at > f.answered_at)
-"""
-
-
-async def resolve_exit_feedback(conn=None) -> None:
-    await (conn or _pool_req()).execute(
-        """UPDATE device_exit_feedback SET resolved_at=NOW()
-        WHERE resolved_at IS NULL AND reason IN ('not_working','not_needed')
-          AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=device_exit_feedback.telegram_id
-              AND d.last_online_at > device_exit_feedback.answered_at)"""
-    )
-
-
-async def exit_feedback_suppressed_ids() -> list[int]:
-    rows = await _pool_req().fetch(_EXIT_FEEDBACK_PAUSED_SQL)
-    return [int(row['telegram_id']) for row in rows]
-
-
-async def save_exit_feedback(telegram_id: int, token: str, reason: str) -> bool:
-    if reason not in EXIT_REASONS:
-        return False
-    row = await _pool_req().fetchrow(
-        """UPDATE device_exit_feedback SET reason=$3, answered_at=COALESCE(answered_at,NOW())
-        WHERE token=$1 AND telegram_id=$2 AND created_at > NOW() - INTERVAL '1 day'
-          AND (reason IS NULL OR reason=$3)
-        RETURNING token""", token, telegram_id, reason,
-    )
-    return row is not None
-
-
-async def admin_exit_feedback() -> dict:
-    pool = _pool_req()
-    counts = await pool.fetch(
-        """SELECT reason, COUNT(*)::int AS n FROM device_exit_feedback
-        WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY reason"""
-    )
-    recent = await pool.fetch(
-        """SELECT f.telegram_id, u.username, f.reason, f.answered_at
-        FROM device_exit_feedback f JOIN users u ON u.telegram_id=f.telegram_id
-        WHERE f.reason IS NOT NULL AND f.created_at >= NOW() - INTERVAL '30 days'
-        ORDER BY f.answered_at DESC LIMIT 30"""
-    )
-    by_reason = {r['reason']: int(r['n']) for r in counts}
-    return {"total": sum(by_reason.values()), "answered": sum(n for reason,n in by_reason.items() if reason),
-            "reasons": [{"key": key, "label": label, "count": by_reason.get(key,0)} for key,label in EXIT_REASONS.items()],
-            "recent": [_jsonable(dict(row)) for row in recent]}
+            return dict(row) if row else None
 
 
 async def device_count(telegram_id: int) -> int:
@@ -3150,7 +3080,6 @@ MSK_MIDNIGHT_SQL = "(date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Mo
 
 
 async def admin_stats() -> dict:
-    from app.checkout_feedback import stats as checkout_feedback_stats
     pool = _pool_req()
     users = await pool.fetchrow(
         f"""
@@ -3271,9 +3200,7 @@ async def admin_stats() -> dict:
         "onboarding_steps": await admin_onboarding_steps(),
         "cohort_outcomes": await admin_cohort_outcomes(),
         "journey_comparison": await admin_journey_comparison(),
-        "exit_feedback": await admin_exit_feedback(),
         "reminder_results": await admin_reminder_results(),
-        "checkout_feedback": await checkout_feedback_stats(),
     }
 
 
@@ -3289,7 +3216,7 @@ _ACCESS_EXHAUSTED = """(NOT u.trial_waiting_connection AND u.billing_paused_at I
 
 _FUNNEL_CTE_TEMPLATE = """
 WITH all_flags AS (
-    SELECT u.telegram_id, u.bot_started_at, u.referred_by, u.vpn_feedback,
+    SELECT u.telegram_id, u.bot_started_at, u.referred_by,
         COALESCE(u.gift_claimed_at,u.bot_started_at) AS gift_at,
         COALESCE(u.first_device_at,(SELECT MIN(d.created_at) FROM devices d WHERE d.telegram_id=u.telegram_id),u.bot_started_at) AS device_at,
         COALESCE(u.first_checkout_at,u.bot_started_at) AS checkout_at,
@@ -3347,10 +3274,6 @@ _FUNNEL_PREDICATES = {
     "progress_checkout_drop": "checkout AND NOT paid AND checkout_at > NOW() - INTERVAL '20 minutes'",
     "progress_online_no_paid": "connected AND NOT paid AND NOT access_exhausted",
     "progress_paid_no_repeat": "paid AND NOT repeat_paid AND NOT access_exhausted",
-    "unpaid_help": "connected AND NOT paid AND vpn_feedback='help'",
-    "unpaid_terms": "connected AND NOT paid AND vpn_feedback='terms'",
-    "unpaid_ok": "connected AND NOT paid AND vpn_feedback='ok'",
-    "unpaid_no_feedback": "connected AND NOT paid AND vpn_feedback IS NULL",
     "trial_transition": "trial", "device_transition": "trial AND (has_device OR connected)",
     "connected_transition": "connected",
     "checkout_transition": "connected AND (checkout OR paid)",
@@ -3456,8 +3379,6 @@ def _admin_users_order(extra: dict | None = None) -> str:
         "paid_asc": f"{_ADMIN_REAL_PAID_SQL} ASC, u.telegram_id DESC",
         "invited_desc": "invited_count DESC, u.telegram_id DESC",
         "invited_asc": "invited_count ASC, u.telegram_id DESC",
-        "wealth_desc": "COALESCE(wg.points, -1) DESC, u.telegram_id DESC",
-        "wealth_asc": "COALESCE(wg.points, 2147483647) ASC, u.telegram_id DESC",
     }.get((extra or {}).get("sort"), "u.created_at DESC, u.telegram_id DESC")
 
 
@@ -3715,11 +3636,9 @@ async def admin_list_users(
                    SELECT COALESCE(json_agg(o.plan_code), '[]'::json)
                    FROM pay_orders o
                    WHERE o.telegram_id = u.telegram_id AND o.status = 'granted'
-               ) AS paid_plan_codes,
-               wg.level AS wealth_level, wg.points AS wealth_points
+               ) AS paid_plan_codes
         FROM users u
         LEFT JOIN users ref ON ref.telegram_id = u.referred_by
-        LEFT JOIN user_gifts wg ON wg.telegram_id = u.telegram_id
         {where}
         ORDER BY {_admin_users_order(extra)}
         LIMIT ${len(args) + 1} OFFSET ${len(args) + 2}
@@ -4205,9 +4124,9 @@ async def mark_trial_end_nudge_sent(telegram_id: int) -> None:
     )
 
 
-# «Спящие»: never online and never paid, and the funnel had its three weeks — or they said «Пока не нужен».
-# A device added or a checkout started in the last week wakes them. Automatic messages skip them,
-# broadcasts too, except announcements, the «Спящие» audience and the «Что помешало?» survey.
+# «Спящие»: never online and never paid, and the funnel had its three weeks (sleep_at: an old «Пока не нужен»
+# answer from the retired survey). A device added or a checkout started in the last week wakes them.
+# Automatic messages skip them, broadcasts too, except announcements and the «Спящие» audience.
 SLEEPER = """(u.first_online_at IS NULL AND NOT COALESCE(u.has_paid_topup, FALSE)
     AND (COALESCE(u.sleep_at > NOW() - INTERVAL '90 days', FALSE)
          OR COALESCE(u.bot_started_at, u.created_at) < NOW() - INTERVAL '21 days')
@@ -4242,10 +4161,6 @@ BROADCAST_SEGMENTS = {
             AND d.last_online_at > timezone('utc', now()) - INTERVAL '30 days')
         AND NOT EXISTS (SELECT 1 FROM cabinet_tokens t WHERE t.telegram_id = u.telegram_id)""",
     "sleepers": SLEEPER,
-    # «Что помешало?»: never used VPN, sleepers included — the survey is for them.
-    "why_nodevice": """u.first_online_at IS NULL AND NOT COALESCE(u.has_paid_topup, FALSE)
-        AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)""",
-    "why_offline": f"""u.first_online_at IS NULL AND NOT COALESCE(u.has_paid_topup, FALSE) AND {_NEVER_ONLINE_DEVICE}""",
     # Announcements (big news): everyone, sleepers included.
     "everyone": "TRUE",
     "low_balance": f"""NOT u.trial_waiting_connection AND u.billing_paused_at IS NULL
@@ -4257,7 +4172,7 @@ _REACHABLE = "u.blocked_at IS NULL AND u.quiet_notifications = FALSE"
 
 
 # Segments that reach sleepers; every other one leaves them out.
-WITH_SLEEPERS = {"sleepers", "why_nodevice", "why_offline", "everyone"}
+WITH_SLEEPERS = {"sleepers", "everyone"}
 
 
 def _segment_sql(audience: str) -> str:
@@ -5407,15 +5322,9 @@ async def reward_referral_payment(invitee_id: int, payment_key: str, amount: int
 
 
 async def nudge_delivery_allowed(telegram_id: int, kind: str) -> bool:
-    """Respect exit preferences and retry limits, including direct sender calls."""
+    """Respect notification settings and retry limits, including direct sender calls."""
     if not await notification_allowed(telegram_id, kind):
         return False
-    if kind.startswith("nudge_") and kind != "nudge_trial_end":
-        paused = await _pool_req().fetchval(
-            f"SELECT EXISTS ({_EXIT_FEEDBACK_PAUSED_SQL} AND f.telegram_id=$1)", telegram_id,
-        )
-        if paused:
-            return False
     return bool(await _pool_req().fetchval(
         """SELECT COUNT(*) < 3
             AND COALESCE(MAX(created_at + GREATEST(120,
@@ -5692,21 +5601,6 @@ async def got_broadcast_recently(telegram_id: int, run_id: int | None = None) ->
              AND created_at > NOW() - ($2::int * INTERVAL '1 day')
              AND (extra->>'broadcast_id') IS DISTINCT FROM $3::text)""",
         int(telegram_id), BROADCAST_GAP_DAYS, str(run_id) if run_id else None))
-
-
-async def save_vpn_feedback(telegram_id: int, value: str) -> None:
-    if value not in {'ok', 'help', 'later', 'terms'}:
-        raise ValueError('Unknown feedback')
-    async with _pool_req().acquire() as conn:
-        async with conn.transaction():
-            await conn.fetchval('SELECT telegram_id FROM users WHERE telegram_id=$1 FOR UPDATE', telegram_id)
-            await conn.execute('''UPDATE users SET
-                vpn_feedback=CASE WHEN $2='later' THEN vpn_feedback ELSE $2 END,
-                vpn_feedback_at=CASE WHEN $2='later' THEN vpn_feedback_at ELSE NOW() END,
-                idle_snoozed_at=CASE WHEN $2='later' THEN NOW() ELSE idle_snoozed_at END
-                WHERE telegram_id=$1''', telegram_id, value)
-            if value == 'help':
-                await queue_connection_complaint(conn, telegram_id)
 
 
 async def record_onboarding_event(telegram_id: int, stage: str) -> None:
@@ -6008,18 +5902,6 @@ async def credit_invitee_bonus_once(telegram_id: int, amount: int) -> int | None
             return int(after)
 
 
-async def resolve_recovered_vpn_feedback() -> None:
-    # Connection activity is not consent and does not resolve a support complaint.
-    await _pool_req().execute("""UPDATE users u SET vpn_feedback=NULL,vpn_feedback_at=NULL
-        WHERE NOT EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
-          AND ((u.vpn_feedback='terms' AND EXISTS (SELECT 1 FROM payment_receipts p
-                WHERE p.telegram_id=u.telegram_id AND p.created_at > u.vpn_feedback_at))
-            OR (u.vpn_feedback='help' AND EXISTS (SELECT 1 FROM tickets t
-                WHERE t.telegram_id=u.telegram_id AND t.status='closed' AND t.closed_at > u.vpn_feedback_at)))""")
-    await _pool_req().execute("""UPDATE users SET marketing_pause_until=NULL,marketing_pause_started_at=NULL
-        WHERE marketing_pause_until <= NOW()""")
-
-
 async def queue_connection_complaint(conn, telegram_id: int) -> None:
     """Called with the user row locked; keep repeated complaints in one support ticket."""
     ticket_id = await conn.fetchval("SELECT id FROM tickets WHERE telegram_id=$1 AND status<>'closed' ORDER BY id DESC LIMIT 1", telegram_id)
@@ -6046,12 +5928,12 @@ async def reserve_optional_message(telegram_id: int, kind: str, *, manual: bool 
 
     manual=True is a broadcast the admin sends by hand: it goes ahead of automatic reminders. Only another
     broadcast in the last 24 hours holds it back (no weekly cap); the automatic ones wait 24 hours after it.
-    Open tickets, «нужна помощь», a marketing pause and a checkout in progress still hold it back.
+    Open tickets, a marketing pause and a checkout in progress still hold it back.
     """
     async with _pool_req().acquire() as conn:
         async with conn.transaction():
             user = await conn.fetchrow('SELECT * FROM users WHERE telegram_id=$1 FOR UPDATE', telegram_id)
-            if not user or user['quiet_notifications'] or user['blocked_at'] or user['bot_blocked_at'] or not user['bot_started_at'] or user['vpn_feedback'] == 'help' or (user['vpn_feedback'] == 'terms' and kind != 'nudge_terms_offer'):
+            if not user or user['quiet_notifications'] or user['blocked_at'] or user['bot_blocked_at'] or not user['bot_started_at']:
                 return None
             if manual:
                 allowed = await conn.fetchval('''SELECT
@@ -6098,15 +5980,10 @@ async def finish_optional_message(slot: int, sent: bool) -> None:
         await _pool_req().execute('DELETE FROM optional_message_slots WHERE id=$1 AND sent_at IS NULL',slot)
 
 
-async def terms_feedback_ids() -> list[int]:
-    rows = await _pool_req().fetch("SELECT telegram_id FROM users WHERE vpn_feedback='terms'")
-    return [int(row['telegram_id']) for row in rows]
-
-
 async def marketing_suppressed_ids() -> list[int]:
     """Filter before LIMIT so capped users cannot starve the next batch."""
     rows = await _pool_req().fetch('''SELECT u.telegram_id FROM users u WHERE
-        u.quiet_notifications OR u.vpn_feedback IN ('help','terms') OR u.marketing_pause_until > NOW()
+        u.quiet_notifications OR u.marketing_pause_until > NOW()
         OR EXISTS (SELECT 1 FROM tickets t WHERE t.telegram_id=u.telegram_id AND t.status <> 'closed')
         OR EXISTS (SELECT 1 FROM optional_message_slots s WHERE s.telegram_id=u.telegram_id
             AND (s.sent_at > NOW()-INTERVAL '24 hours' OR (s.sent_at IS NULL AND s.created_at > NOW()-INTERVAL '10 minutes')))
@@ -6205,7 +6082,6 @@ async def reserve_setup_assistance(telegram_id: int) -> int | None:
             allowed = await conn.fetchval("""SELECT EXISTS (SELECT 1 FROM users u WHERE u.telegram_id=$1
                 AND u.bot_started_at IS NOT NULL AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
                 AND NOT u.quiet_notifications AND u.billing_paused_at IS NULL
-                AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
                 AND (u.marketing_pause_until IS NULL OR u.marketing_pause_until<=NOW())
                 AND (u.checkout_started_at IS NULL OR u.checkout_started_at<=NOW()-INTERVAL '20 minutes'))
                 AND NOT EXISTS (SELECT 1 FROM tickets WHERE telegram_id=$1 AND status<>'closed')
@@ -6376,39 +6252,24 @@ async def prune_device_ips(keep_days: int = 30) -> None:
 
 
 async def admin_sleepers() -> dict:
-    """«Спящие» for the dashboard: how many, who (no device / device never online / said «Пока не нужен»),
-    since when, and the answers to «Что помешало?»."""
+    """«Спящие» for the dashboard: how many, who (no device / device never online), since when."""
     pool = _pool_req()
     row = await pool.fetchrow(
         f"""SELECT COUNT(*)::int AS total,
-               COUNT(*) FILTER (WHERE u.sleep_at IS NOT NULL)::int AS said_later,
-               COUNT(*) FILTER (WHERE u.sleep_at IS NULL AND NOT EXISTS (
+               COUNT(*) FILTER (WHERE NOT EXISTS (
                    SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id))::int AS no_device,
-               COUNT(*) FILTER (WHERE u.sleep_at IS NULL AND EXISTS (
+               COUNT(*) FILTER (WHERE EXISTS (
                    SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id))::int AS no_online,
                COUNT(*) FILTER (WHERE COALESCE(u.bot_started_at, u.created_at) > NOW() - INTERVAL '30 days')::int AS month,
                COUNT(*) FILTER (WHERE COALESCE(u.bot_started_at, u.created_at) <= NOW() - INTERVAL '30 days'
                                   AND COALESCE(u.bot_started_at, u.created_at) > NOW() - INTERVAL '90 days')::int AS quarter,
                COUNT(*) FILTER (WHERE COALESCE(u.bot_started_at, u.created_at) <= NOW() - INTERVAL '90 days')::int AS older
            FROM users u WHERE u.blocked_at IS NULL AND u.bot_blocked_at IS NULL AND {SLEEPER}""")
-    answers = await pool.fetch("SELECT answer, COUNT(*)::int AS n FROM why_answers GROUP BY answer")
-    out = {k: int((row and row[k]) or 0) for k in ("total", "said_later", "no_device", "no_online", "month", "quarter", "older")}
-    out["why"] = {r["answer"]: int(r["n"]) for r in answers}
+    out = {k: int((row and row[k]) or 0) for k in ("total", "no_device", "no_online", "month", "quarter", "older")}
     out["cleaned"] = int(await pool.fetchval(
         "SELECT COUNT(*)::int FROM billing_events WHERE kind='device_delete' AND source='cleanup' "
         "AND created_at > NOW() - INTERVAL '30 days'") or 0)
     return out
-
-
-async def save_why_answer(telegram_id: int, answer: str) -> None:
-    async with _pool_req().acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                """INSERT INTO why_answers (telegram_id, answer) VALUES ($1, $2)
-                   ON CONFLICT (telegram_id) DO UPDATE SET answer = EXCLUDED.answer, created_at = NOW()""",
-                int(telegram_id), answer)
-            await conn.execute("UPDATE users SET sleep_at = CASE WHEN $2 THEN NOW() ELSE NULL END WHERE telegram_id=$1",
-                               int(telegram_id), answer == "later")
 
 
 async def never_online_devices(days: int, limit: int = 50) -> list[dict]:

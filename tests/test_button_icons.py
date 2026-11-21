@@ -83,7 +83,7 @@ class ButtonIconsTest(unittest.IsolatedAsyncioTestCase):
     def test_missing_semantics(self):
         cases = {'lk:y:1': 'check', 'lk:n:1': 'cancel', 'accept_legal': 'check',
                  'ticket_rate:1:5': 'rating', 'ticket_close:1': 'check',
-                 'try_again': 'retry', 'buy:month': 'pay', 'payreason:later:x': 'message',
+                 'try_again': 'retry', 'buy:month': 'pay',
                  'unknown': 'action'}
         for callback, expected in cases.items():
             self.assertEqual(kind_for(Button(text='Кнопка', callback_data=callback)), expected)

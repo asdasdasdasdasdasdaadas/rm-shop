@@ -105,7 +105,7 @@ class BroadcastTest(unittest.TestCase):
             self.assertEqual(again["media"], spec["media"])
             spec, _ = admin._check_broadcast({"template": "browser", "media": "none"})
             self.assertNotIn("media", spec)
-        self.assertNotIn("media", admin._check_broadcast({"template": "whitelist"})[0])
+        self.assertNotIn("media", admin._check_broadcast({"template": "unused"})[0])
 
     def test_the_clip_ships_with_the_code(self):
         path = broadcast_media.path_of("browser-login.mp4")

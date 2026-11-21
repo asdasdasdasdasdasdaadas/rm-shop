@@ -40,10 +40,10 @@ class TextAndButtonsTest(unittest.TestCase):
         self.assertEqual(texts, [["200 ₽ → 240 ₽", "300 ₽ → 360 ₽"], ["Пополнить другую сумму"]])
         self.assertIn("amount=300", kb.inline_keyboard[0][1].web_app.url)
 
-    def test_step_is_the_fourth_in_paid_empty(self):
+    def test_step_is_the_last_in_paid_empty(self):
         from app.recovery_funnel import paid_branches
         steps = paid_branches()[0]["steps"]
-        self.assertEqual(steps[3]["id"], return_bonus.STEP_ID)
+        self.assertEqual(steps[-1]["id"], return_bonus.STEP_ID)
         self.assertEqual(sum(s["wait_hours"] for s in steps), 240)  # 10 days after the money ran out
 
 

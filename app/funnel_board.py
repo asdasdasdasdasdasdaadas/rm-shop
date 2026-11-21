@@ -27,7 +27,6 @@ AND u.bot_started_at IS NOT NULL
 AND u.billing_paused_at IS NULL
 AND NOT COALESCE(u.quiet_notifications, FALSE)
 AND (u.marketing_pause_until IS NULL OR u.marketing_pause_until <= NOW())
-AND COALESCE(u.vpn_feedback,'') NOT IN ('help','terms')
 AND NOT EXISTS (
     SELECT 1 FROM tickets t
     WHERE t.telegram_id = u.telegram_id AND t.status <> 'closed'
@@ -37,7 +36,7 @@ AND NOT EXISTS (
 OWNED_NOTICE_KEYS = frozenset({
     "paid_setup_nudge", "winback_promo", "payment_nudge", "balance_ending_nudge",
     "trial_nudge", "trial_resume_channel",
-    "invite_nudge", "info_nudge", "vpn_quality_check",
+    "invite_nudge", "info_nudge",
     "device_setup_nudge", "device_nudge_1",
     "nodevice_1", "nodevice_2", "unpaid_1", "unpaid_2",
 })
@@ -52,10 +51,6 @@ ACTIONS = (
     {"id": "help", "label": "Нужна помощь с подключением", "button": "Нужна помощь"},
     {"id": "welcome", "label": "Продолжить знакомство", "button": "Я помогу"},
     {"id": "channel", "label": "Подписка на канал", "button": "Подписаться на канал"},
-    {"id": "feedback_ok", "label": "Всё работает", "button": "Всё работает"},
-    {"id": "feedback_help", "label": "Помощь с VPN", "button": "Нужна помощь"},
-    {"id": "feedback_terms", "label": "Не подошли условия", "button": "Не подошли условия"},
-    {"id": "feedback_later", "label": "Пока не нужен", "button": "Пока не нужен"},
     {"id": "share", "label": "Поделиться ссылкой", "button": "Поделиться ссылкой"},
     {"id": "copy", "label": "Скопировать приглашение", "button": "Скопировать текст"},
     {"id": "resume_pay", "label": "Продолжить оплату счёта", "button": "Продолжить оплату"},
@@ -91,10 +86,6 @@ CONDITIONS = (
         AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id=u.telegram_id
           AND d.last_billed_at > NOW() - INTERVAL '24 hours')""",
      "hint": "Был подтверждённый онлайн, доступ закончился, оплаты ещё не было. Пока подарок действует — предложение оплаты не отправляется."},
-    {"id": "quality", "label": "Первые дни после подключения", "anchor": "u.first_online_at", "max_hours": 168,
-     "where": """u.vpn_feedback_at IS NULL
-        AND EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id)""",
-     "hint": "Спрашиваем в окне от выбранной паузы до 7 дней после первого онлайна, если человек ещё не ответил."},
     {"id": "idle_setup", "label": "Давно не заходил и не был онлайн", "anchor": LAST_SEEN,
      "where": f"u.first_online_at IS NULL AND (u.idle_snoozed_at IS NULL OR {LAST_SEEN} > u.idle_snoozed_at)",
      "hint": "Срок — сколько человек не появлялся. Шаги одной ветки идут по порядку."},
@@ -111,10 +102,10 @@ CONDITIONS = (
         AND u.gift_claimed_at IS NULL""",
      "hint": "Подарок включён, человек его не забрал и не оплачивал."},
     {"id": "invite", "label": "Можно пригласить друга", "anchor": "u.first_online_at", "gate": "referral",
-     "where": """(u.vpn_feedback = 'ok' OR EXISTS (
+     "where": """EXISTS (
             SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
             AND d.last_online_at >= u.first_online_at + INTERVAL '24 hours'
-            AND d.last_online_at >= timezone('utc', now()) - INTERVAL '7 days'))""",
+            AND d.last_online_at >= timezone('utc', now()) - INTERVAL '7 days')""",
      "hint": "Реферальная программа включена, VPN уже поработал. В тексте можно оставить {name} и {link}."},
     {"id": "info", "label": "Кабинет уже пользовали", "anchor": "u.first_online_at",
      "where": """EXISTS (SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id
@@ -130,8 +121,9 @@ CONDITIONS = CONDITIONS + RECOVERY_CONDITIONS + (REFERRAL_FOLLOWUP_CONDITION,) +
 CONDITION_IDS = {row["id"]: row for row in CONDITIONS}
 SPECIAL_ONCE = {"unpaid_invoice", "balance_low"}
 # Removed features: boards saved earlier may still name them, so they are dropped on load.
-RETIRED_CONDITIONS = {"winback", "ambassador_earn", "ambassador_active"}
-RETIRED_ACTIONS = {"ambassador"}
+# Surveys are gone: their conditions and answer buttons are dropped from any saved board.
+RETIRED_CONDITIONS = {"winback", "ambassador_earn", "ambassador_active", "quality", "recover_quality", "terms_offer"}
+RETIRED_ACTIONS = {"ambassador", "feedback_ok", "feedback_help", "feedback_terms", "feedback_later"}
 
 
 class _Safe(dict):
@@ -212,9 +204,6 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
             web_app=WebAppInfo(url=urlunsplit(parts._replace(query=urlencode(query)))),
         )
 
-    ids = {item if isinstance(item, str) else item["action"] for item in button_ids}
-    if {"feedback_ok", "feedback_help"}.issubset(ids) and "feedback_terms" not in ids:
-        button_ids = [*button_ids, "feedback_terms"]
     rows = []
     for item in button_ids:
         action_id = item if isinstance(item, str) else item["action"]
@@ -264,14 +253,6 @@ def markup(button_ids: list[str], telegram_id: int, token: str | None = None, gi
                 rows.append([press(label, item, url=url)])
             if isinstance(item, str) and get_settings().required_channel_enabled:
                 rows.append([InlineKeyboardButton(text="Проверить подписку", callback_data="check_sub")])
-        elif action_id == "feedback_ok":
-            rows.append([press(label, item, callback_data="vpn_feedback:ok")])
-        elif action_id == "feedback_help":
-            rows.append([press(label, item, callback_data="vpn_feedback:help")])
-        elif action_id == "feedback_terms":
-            rows.append([press(label, item, callback_data="vpn_feedback:terms")])
-        elif action_id == "feedback_later":
-            rows.append([press(label, item, callback_data="vpn_feedback:later")])
         elif action_id == "share":
             button = referral_share_button(int(telegram_id))
             rows.append([button.model_copy(update={
@@ -488,9 +469,6 @@ async def default_graph() -> dict:
             _step("unpaid-1", "unpaid", 48, tx("unpaid_1"), ["topup", "menu"]),
             _step("unpaid-2", "unpaid", 168, tx("unpaid_2"), ["topup", "menu"], "previous"),
         ]},
-        {"id": "quality", "title": "Как работает VPN", "steps": [
-            _step("quality-1", "quality", 20, tx("vpn_quality_check"), ["feedback_ok", "feedback_help", "feedback_terms"]),
-        ]},
     ]
     from app.referral_followup import extra_steps
     invite_second, referral_branches = extra_steps(_step)
@@ -652,8 +630,6 @@ async def _due(step: dict, prev_id: str | None, limit: int, skip: list[int], *, 
     if prev:
         args.append(prev)
     base_where = BASE_WHERE
-    if step["condition"] == "terms_offer":
-        base_where = base_where.replace("NOT IN ('help','terms')", "<> 'help'")
     rows = await _pool_req().fetch(
         f"""SELECT u.telegram_id, u.first_name
             FROM users u
@@ -791,10 +767,6 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
                VALUES ($1, $2) ON CONFLICT (telegram_id,step_id) DO UPDATE SET sent_at=NOW()""",
             uid, step["id"],
         )
-        if step["condition"] == "terms_offer":
-            # The offer answered «условия не подошли»: let the regular funnel speak to this person again.
-            await db._pool_req().execute(
-                "UPDATE users SET vpn_feedback=NULL WHERE telegram_id=$1 AND vpn_feedback='terms'", uid)
         sent += 1
         if sent >= STEP_LIMIT:
             break
@@ -846,12 +818,9 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None,
     # Reminders and offers wait for daytime in Moscow; the money warnings above go out any time.
     if not reminder_hours():
         return sent, touched
-    terms_ids = set(await db.terms_feedback_ids())
     marketing = await db.marketing_suppressed_ids()
     skip.extend(marketing)
     skip.extend(await db.nudge_suppressed_ids(hours=24))
-    # People who only answered «условия не подошли» stay reachable for the terms offer;
-    # its slot reservation still applies the daily and weekly caps.
     for branch in graph["branches"]:
         prev = None
         enabled = [step for step in branch["steps"] if step["enabled"]]
@@ -860,7 +829,7 @@ async def send_due(bot, rp=None, skip_ids: list[int] | None = None,
                 return sent, touched
             spec = CONDITION_IDS[step["condition"]]
             if not spec.get("special") and not is_setup_assist(step, prev):
-                count, ids = await _send_step(bot, step, prev, _terms_skip(skip, terms_ids, touched) if step["condition"] == "terms_offer" else skip)
+                count, ids = await _send_step(bot, step, prev, skip)
                 sent += count
                 touched.extend(ids)
                 skip.extend(ids)
@@ -878,11 +847,6 @@ def reminder_hours(now: datetime | None = None) -> bool:
     start, end = REMINDER_HOURS_MSK
     hour = (now or datetime.now(timezone.utc)).astimezone(_MSK).hour
     return start <= hour < end
-
-
-def _terms_skip(skip: list[int], terms_ids: set[int], touched: list[int]) -> list[int]:
-    done = set(touched)
-    return [uid for uid in skip if uid not in terms_ids or uid in done]
 
 
 def _first(graph: dict, condition: str) -> dict | None:

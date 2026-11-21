@@ -48,7 +48,7 @@ KEYS = {
     # Summary and jobs
     "promo_uses": "Использований промокодов", "stars_payments": "Оплат звёздами", "vpn_reports": "Жалоб на VPN",
     "tickets_open": "Открытых обращений", "broadcast_users": "Получатели рассылок",
-    "broadcast_using": "Пользуются VPN", "broadcast_unused": "Не пользуются VPN", "checkout_feedback": "Ответы после брошенной оплаты",
+    "broadcast_using": "Пользуются VPN", "broadcast_unused": "Не пользуются VPN",
     "bot_blocked": "Заблокировали бота", "bot_blocked_idle": "Заблокировали, не пользовались",
     "payouts_pending": "Выплат ожидает", "paying_users": "Платящие клиенты", "new_today": "Новых сегодня",
     "granted": "Оплачено", "plans": "Пополнения по суммам", "billing_today": "Списания сегодня", "charges": "Списаний",
@@ -57,7 +57,7 @@ KEYS = {
     "day_price_rub": "Цена дня, ₽", "day_price": "Цена дня, ₽", "low_balance": "Мало баланса", "trust": "Обещанный платёж",
     "people": "Люди", "trust_open": "Обещанный платёж открыт", "trust_amount": "Обещанный платёж, ₽",
     "due_at": "Срок", "days_left": "Дней осталось", "reason": "Причина", "reasons": "Причины",
-    "exit_feedback": "Отзывы при удалении устройства", "answered": "Ответили", "key": "Ключ", "topups": "Пополнения",
+    "answered": "Ответили", "key": "Ключ", "topups": "Пополнения",
     "last_paid_at": "Последняя оплата", "jobs": "Фоновые задачи", "billing": "Списания", "panel_sync": "Синхронизация с панелью",
     "extended": "Продлено", "disabled": "Отключено", "revived": "Включено снова", "extend_mode": "Режим продления",
     "disable_mode": "Режим отключения", "revive_mode": "Режим включения", "paused": "На паузе",
@@ -86,9 +86,7 @@ KEYS = {
     "progress_paid_empty": "Сдвинулись: платили, баланс пуст", "progress_no_gift": "Сдвинулись: без подарка",
     "progress_gift_no_online": "Сдвинулись: подарок без онлайна", "progress_device_no_online": "Сдвинулись: устройство без онлайна",
     "progress_checkout_drop": "Сдвинулись: брошенная оплата", "progress_online_no_paid": "Сдвинулись: пользуются, не платили",
-    "progress_paid_no_repeat": "Сдвинулись: платили один раз", "unpaid_help": "Не платили: нужна помощь",
-    "unpaid_terms": "Не платили: не подошли условия", "unpaid_ok": "Не платили: всё работает",
-    "unpaid_no_feedback": "Не платили: без ответа", "trial_transition": "Переход: подарок",
+    "progress_paid_no_repeat": "Сдвинулись: платили один раз", "trial_transition": "Переход: подарок",
     "device_transition": "Переход: устройство", "connected_transition": "Переход: подключили VPN",
     "checkout_transition": "Переход: открыли оплату", "paid_transition": "Переход: оплатили",
     "repeat_paid_transition": "Переход: оплатили повторно", "inv_entered": "Приглашённые: пришли",
@@ -350,11 +348,6 @@ async def buttons_sheet(days: int, kinds: dict) -> list[list]:
         SELECT CASE action WHEN 'share' THEN 'Поделиться' ELSE 'Скопировать' END AS "Кнопка",
                COUNT(*)::int AS "Нажатий", COUNT(DISTINCT telegram_id)::int AS "Людей"
         FROM invitation_card_events WHERE created_at >= {since} GROUP BY 1 ORDER BY 2 DESC"""))
-    out += _table("После брошенной оплаты: ответы", await _rows(f"""
-        SELECT CASE reason WHEN 'broken' THEN 'Не получилось оплатить' WHEN 'price' THEN 'Дорого'
-                           WHEN 'payment' THEN 'Нет удобного способа' ELSE 'Позже' END AS "Ответ",
-               COUNT(*)::int AS "Людей"
-        FROM checkout_feedback WHERE created_at >= {since} GROUP BY 1 ORDER BY 2 DESC"""))
     out += _table("Шаги знакомства (кабинет и бот)", await _rows(f"""
         SELECT stage AS "Этап", COUNT(*)::int AS "Людей"
         FROM onboarding_events WHERE created_at >= {since} GROUP BY 1 ORDER BY 2 DESC"""))

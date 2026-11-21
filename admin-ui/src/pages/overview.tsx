@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { date, money, qs, useResource, type Data } from "@/lib/api";
 import {
-  Choice,
   DataTable,
   Empty,
   Failure,
@@ -227,78 +226,39 @@ export function OverviewPage({
           </div>
         )}
         <Content value="conversion" className="space-y-5">
-          <div className="flex flex-wrap justify-between items-center gap-3">
+          <div className="flex flex-wrap justify-between items-end gap-3">
             <div>
-              <h2 className="font-semibold">
-                Путь от первого запуска до оплаты
-              </h2>
+              <h2 className="font-semibold text-lg">Путь новых клиентов</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Клиенты, впервые запустившие бота за выбранный период. Нажмите
-                на этап, чтобы открыть список.
+                Все, кто впервые запустил бота за период. Нажмите на число — откроется список людей.
               </p>
             </div>
-            <div className="w-48">
-              <Choice
-                label="Период когорты"
-                value={period}
-                options={[
-                  ["1d", "За сутки"],
-                  ["7d", "За 7 дней"],
-                  ["30d", "За 30 дней"],
-                  ["90d", "За 90 дней"],
-                  ["all", "За всё время"],
-                ]}
-                onChange={setPeriod}
-              />
+            <div className="adm-seg" role="group" aria-label="Период">
+              {[
+                ["1d", "Сутки"],
+                ["7d", "7 дней"],
+                ["30d", "30 дней"],
+                ["90d", "90 дней"],
+                ["all", "Всё время"],
+              ].map(([k, l]) => (
+                <Button key={k} variant="ghost" size="sm" aria-pressed={period === k} onClick={() => setPeriod(k)}>
+                  {l}
+                </Button>
+              ))}
             </div>
           </div>
           {!pack.current ? (
             <Empty title="Нет данных воронки" />
           ) : (
             <>
-              <div className="grid gap-5 xl:grid-cols-2">
-                <Panel
-                  title="Основная воронка"
-                  description="Процент — доля перешедших с предыдущего этапа. Подарок можно пропустить."
-                >
-                  {funnel(main, true)}
-                </Panel>
-                <Panel
-                  title="Застряли на этапе"
-                  description="Подключение ждём 24 часа, оплату счёта — 20 минут. Первую и повторную оплату считаем потерей только после окончания доступа. Группы пересекаются."
-                >
-                  {funnel(leaks)}
-                </Panel>
-                <Panel title="Ещё проходят этап" description="Срок ожидания ещё не вышел или доступ продолжает действовать. Это пока не потери.">
-                  {funnel(leaks.map(([key, label]) => [`progress_${key}`, label]))}
-                </Panel>
-                <Panel title="Подключились без оплаты: обратная связь" description="Ответы пользователей. Активный подарок сам по себе не означает отказ от оплаты.">
-                  {funnel([["unpaid_ok", "Всё работает"], ["unpaid_help", "Нужна помощь"], ["unpaid_terms", "Не подошли условия"], ["unpaid_no_feedback", "Пока не ответили"]])}
-                </Panel>
-                <Panel
-                  title="Источники клиентов"
-                  description="Доля от всей когорты; активация промокода может пересекаться с источниками."
-                >
-                  {funnel(sources)}
-                </Panel>
-                <Panel
-                  title="Приглашённые друзья"
-                  description="Результаты друзей, которых привели пользователи выбранной когорты."
-                >
-                  {funnel(invites)}
-                </Panel>
-              </div>
+              <FunnelTable cur={cur} open={clients} />
+              <Panel title="Откуда пришли" description="Доля от всех новых за период.">
+                {funnel(sources)}
+              </Panel>
             </>
           )}
         </Content>
         <Content value="retention" className="space-y-5">
-          <Panel title="Что остановило оплату" description="Ответы за 30 дней. Один ответ на счёт; это мнения ответивших, а не всех неоплативших.">
-            <DataTable rows={s.checkout_feedback || []} columns={[
-              {key: "label", label: "Причина"},
-              {key: "responses", label: "Ответы"},
-              {key: "users", label: "Пользователи"},
-            ]} />
-          </Panel>
           <Panel
             title="Результаты автоматических сообщений"
             description="Результаты по сценариям за 30 дней. Действия и оплаты относятся к последнему нажатию за 7 дней. Сумма — начисления за оплаты; это связь по времени, а не доказанный эффект сообщений."
@@ -321,48 +281,6 @@ export function OverviewPage({
                 { key: "first_paid", label: "Первая оплата" },
                 { key: "paid", label: "Всего оплативших" },
                 { key: "paid_rub", label: "Начислено за оплаты, ₽", cell: (r) => money(r.paid_rub || 0) },
-              ]}
-            />
-          </Panel>
-          <Panel
-            title="Почему уходят"
-            description={`Ответили ${s.exit_feedback?.answered || 0} из ${s.exit_feedback?.total || 0} пользователей.`}
-          >
-            <div className="flex flex-wrap gap-3 mb-5">
-              {(s.exit_feedback?.reasons || []).map((r: Data) => (
-                <span key={r.key} className="rounded-lg bg-muted p-3 text-sm">
-                  {r.label}: <strong>{r.count}</strong>
-                </span>
-              ))}
-            </div>
-            <DataTable
-              rows={s.exit_feedback?.recent || []}
-              columns={[
-                {
-                  key: "telegram_id",
-                  label: "Клиент",
-                  cell: (r) => (
-                    <Button
-                      variant="link"
-                      onClick={() => navigate("users?q=" + r.telegram_id)}
-                    >
-                      {r.username || r.telegram_id}
-                    </Button>
-                  ),
-                },
-                {
-                  key: "reason",
-                  label: "Причина",
-                  cell: (r) =>
-                    (s.exit_feedback?.reasons || []).find(
-                      (x: Data) => x.key === r.reason,
-                    )?.label || r.reason,
-                },
-                {
-                  key: "answered_at",
-                  label: "Дата · МСК",
-                  cell: (r) => date(r.answered_at),
-                },
               ]}
             />
           </Panel>
@@ -407,6 +325,116 @@ export function OverviewPage({
           </Panel>
         </Content>
       </Tabs>
+    </div>
+  );
+}
+
+/** Where people stall after each step: the leak group that ends at that step. */
+const LOSS: Record<string, string> = {
+  trial: "no_gift",
+  device: "gift_no_online",
+  connected: "device_no_online",
+  checkout: "online_no_paid",
+  paid: "checkout_drop",
+  repeat_paid: "paid_no_repeat",
+};
+const LEAK_LABEL = Object.fromEntries(leaks);
+
+/** One funnel instead of four panels: each step, its share of everyone who started, the step-to-step
+ *  conversion and how many got stuck right before it. The biggest drop is called out on top. */
+function FunnelTable({ cur, open }: { cur: Data; open: (step: string) => void }) {
+  const start = Number(cur.entered || 0);
+  const rows = main.map(([key, label], i) => {
+    const count = Number(cur[key] || 0);
+    const prev = i ? Number(cur[main[i - 1][0]] || 0) : count;
+    const passed = i ? Number(cur[key + "_transition"] ?? count) : count;
+    const conv = prev ? Math.min(100, Math.round((passed / prev) * 100)) : 0;
+    const leak = LOSS[key];
+    return {
+      key, label, count, conv, first: !i,
+      share: start ? Math.round((count / start) * 100) : 0,
+      stuck: leak ? Number(cur[leak] || 0) : 0,
+      waiting: leak ? Number(cur["progress_" + leak] || 0) : 0,
+      leak,
+    };
+  });
+  const paid = rows.find((r) => r.key === "paid")!;
+  const worst = rows.filter((r) => !r.first && r.key !== "repeat_paid").sort((a, b) => a.conv - b.conv)[0];
+  const num = (n: number) => n.toLocaleString("ru-RU");
+  return (
+    <div className="space-y-4">
+      <div className="adm-funnel-sum">
+        <div>
+          <small>Новых</small>
+          <b>{num(start)}</b>
+        </div>
+        <div>
+          <small>Оплатили</small>
+          <b>{num(paid.count)}</b>
+          <span>{paid.share}% от новых</span>
+        </div>
+        {worst && (
+          <div className="adm-funnel-worst">
+            <small>Больше всего теряем</small>
+            <b>{worst.label}</b>
+            <span>
+              доходят {worst.conv}% · не дошли {num(Math.max(0, rows[rows.indexOf(worst) - 1].count - worst.count))}
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="relative w-full overflow-auto">
+        <table className="w-full text-sm adm-funnel">
+          <thead>
+            <tr>
+              <th className="text-left px-3">Этап</th>
+              <th className="text-right px-3">Людей</th>
+              <th className="text-left px-3 w-[38%]">Доля от новых</th>
+              <th className="text-right px-3">Перешли с прошлого шага</th>
+              <th className="text-left px-3">Застряли перед этапом</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key} className={r === worst ? "worst" : undefined}>
+                <td className="px-3">{r.label}</td>
+                <td className="px-3 text-right">
+                  <button type="button" className="adm-link" onClick={() => open(r.key)}>
+                    {num(r.count)}
+                  </button>
+                </td>
+                <td className="px-3">
+                  <div className="flex items-center gap-3">
+                    <div className="adm-funnel-bar"><i style={{ width: `${Math.max(r.share, r.count ? 1 : 0)}%` }} /></div>
+                    <span className="w-10 text-right tabular-nums">{r.share}%</span>
+                  </div>
+                </td>
+                <td className="px-3 text-right tabular-nums">{r.first ? "—" : `${r.conv}%`}</td>
+                <td className="px-3">
+                  {r.leak && r.stuck > 0 ? (
+                    <button type="button" className="adm-link text-destructive" onClick={() => open(r.leak!)} title={LEAK_LABEL[r.leak]}>
+                      {num(r.stuck)}
+                    </button>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                  {r.waiting > 0 && (
+                    <span className="text-muted-foreground"> · ещё в пути {num(r.waiting)}</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {Number(cur.paid_empty || 0) > 0 && (
+        <p className="text-sm text-muted-foreground px-3">
+          Платили, но деньги кончились:{" "}
+          <button type="button" className="adm-link text-destructive" onClick={() => open("paid_empty")}>
+            {num(Number(cur.paid_empty))}
+          </button>
+        </p>
+      )}
     </div>
   );
 }

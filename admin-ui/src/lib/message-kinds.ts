@@ -5,7 +5,6 @@ export const messageKinds: Data = {
   nudge_recover_gift: "Подарок → подключение",
   nudge_recover_setup: "Подарок есть → устройство",
   nudge_recover_online: "Устройство → первый онлайн",
-  nudge_recover_quality: "Пробует VPN → обратная связь",
   nudge_recover_payment: "Доступ закончился → первая оплата",
   nudge_recover_idle: "Неделя без VPN → возвращение",
   nudge_checkout_again: "Брошенный счёт: второе напоминание",

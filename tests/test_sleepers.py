@@ -1,4 +1,4 @@
-"""«Спящие», the «Что помешало?» survey and the panel cleanup of devices that never connected."""
+"""«Спящие» and the panel cleanup of devices that never connected."""
 import asyncio
 import os
 from datetime import datetime, timedelta, timezone
@@ -13,22 +13,6 @@ from app import db, sleepers
 def settings(**kw):
     return SimpleNamespace(**{"vpn_day_price_rub": 10, "balance_topup_min": 50, "panel_cleanup_enabled": True,
                               "panel_cleanup_days": 30, **kw})
-
-
-class ReplyTest(unittest.TestCase):
-    def test_survey_buttons_and_price_reply(self):
-        kb = sleepers.why_keyboard()
-        data = [b.callback_data for row in kb.inline_keyboard for b in row]
-        self.assertEqual(data, ["why:setup", "why:broken", "why:price", "why:later"])
-        with patch.object(sleepers, "get_settings", return_value=settings()), \
-                patch("app.keyboards.mini_app_url", return_value="https://lk.example/app"):
-            text, markup = sleepers.reply_for("price")
-            self.assertIn("10 ₽ за одно устройство", text)
-            self.assertIn("от 50 ₽", text)
-            self.assertIn("screen=connect", markup.inline_keyboard[0][0].web_app.url)
-            text, markup = sleepers.reply_for("later")
-            self.assertIn("не будем беспокоить", text)
-            self.assertIsNone(markup)
 
 
 @unittest.skipUnless(os.environ.get("PGLITE_MODULE"), "Set PGLITE_MODULE to run PostgreSQL integration scenarios")
@@ -66,35 +50,14 @@ class SleepersTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(1, await self.ids("all"))
         self.assertNotIn(4, await self.ids("all"))
         self.assertIn(2, await self.ids("all"))
-        self.assertEqual(await self.ids("why_nodevice"), [1, 2])
-        self.assertEqual(await self.ids("why_offline"), [4, 5])
         self.assertIn(1, await self.ids("everyone"))
         counts = await db.broadcast_audience_counts()
-        self.assertEqual((counts["sleepers"], counts["why_nodevice"]), (2, 2))
+        self.assertEqual(counts["sleepers"], 2)
         # The funnel is over for sleepers: automatic messages get no slot; a manual broadcast still does.
         self.assertIsNone(await db.reserve_optional_message(1, "nudge_test"))
         self.assertIsNotNone(await db.reserve_optional_message(1, "broadcast", manual=True))
         stats = await db.admin_sleepers()
         self.assertEqual((stats["total"], stats["no_device"], stats["no_online"], stats["older"], stats["quarter"]), (2, 1, 1, 1, 1))
-
-    async def test_answers_and_later(self):
-        await db.save_why_answer(2, "later")  # a new person says «Пока не нужен»: asleep at once
-        self.assertIn(2, await self.ids("sleepers"))
-        await db.save_why_answer(2, "setup")  # changed the mind
-        self.assertNotIn(2, await self.ids("sleepers"))
-        await db.save_why_answer(1, "price")
-        stats = await db.admin_sleepers()
-        self.assertEqual(stats["why"], {"setup": 1, "price": 1})
-
-    async def test_broken_opens_a_ticket(self):
-        cb = SimpleNamespace(data="why:broken", from_user=SimpleNamespace(id=4, username="g", first_name="Г"),
-                             bot=object(), answer=AsyncMock(), message=SimpleNamespace(answer=AsyncMock()))
-        with patch("app.tickets.receive_user_message", AsyncMock()) as ticket:
-            await sleepers.on_answer(cb)
-        body = ticket.call_args.kwargs["body"]
-        self.assertIn("не заработал", body)
-        self.assertIn("iPhone", body)
-        self.assertEqual(await self.pool.fetchval("SELECT answer FROM why_answers WHERE telegram_id=4"), "broken")
 
     async def test_cleanup_waits_then_removes_never_online_devices(self):
         await self.pool.execute("""INSERT INTO devices (id, telegram_id, title, remnawave_id, created_at, lifetime_traffic_bytes) VALUES

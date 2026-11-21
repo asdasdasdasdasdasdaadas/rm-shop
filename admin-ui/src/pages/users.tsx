@@ -52,6 +52,14 @@ import {
   Smartphone,
   Receipt,
   Copy as CopyIcon,
+  Lock,
+  LockOpen,
+  User as UserIcon,
+  MessageSquare,
+  Ban,
+  PauseCircle,
+  Minus,
+  Plus,
 } from "lucide-react";
 import { billKinds, messageKinds } from "./records";
 import { attemptsSummary, friendsSummary, inviteTries, paymentSummary, realPaidSummary } from "@/lib/contracts.mjs";
@@ -159,22 +167,7 @@ const sort: [string, string][] = [
   ["traffic_asc", "Меньше трафика"],
   ["online_desc", "Недавно в сети"],
   ["online_asc", "Давно не заходили"],
-  ["wealth_desc", "Сначала состоятельные"],
-  ["wealth_asc", "Сначала без подарков"],
 ];
-const wealth = (u: Data) =>
-  u.wealth_level == null ? (
-    <span className="text-xs text-muted-foreground">не проверен</span>
-  ) : (
-    <span
-      className="whitespace-nowrap"
-      title={`${u.wealth_points || 0} очков по подаркам в профиле`}
-      aria-label={`${u.wealth_level} из 5`}
-    >
-      <span className="text-amber-500">{"★".repeat(Number(u.wealth_level))}</span>
-      <span className="text-muted-foreground/40">{"★".repeat(5 - Number(u.wealth_level))}</span>
-    </span>
-  );
 const traffic = (u: Data) =>
   `${(Math.max(Number(u.used_traffic_bytes) || 0, Number(u.lifetime_traffic_bytes) || 0) / 1073741824).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ГБ`;
 const identity = (u: Data) => (
@@ -640,11 +633,6 @@ export function UsersPage() {
                   cell: traffic,
                 },
                 {
-                  key: "wealth",
-                  ...sortable("wealth", "Состоятельность"),
-                  cell: wealth,
-                },
-                {
                   key: "status",
                   ...sortable("status", "Доступ"),
                   cell: (u) => (
@@ -857,6 +845,12 @@ const heroTone = (u: Data) =>
   u.tg_deleted_at || u.blocked_at ? "red" : u.billing_paused_at ? "orange" : String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "green" : "slate";
 const heroStatus = (u: Data) =>
   u.tg_deleted_at ? "Аккаунт Telegram удалён" : u.sharing_at && u.blocked_at ? "Шеринг — заблокирован" : u.blocked_at ? "Заблокирован" : u.billing_paused_at ? "Списания на паузе" : String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "Доступ активен" : "Нет доступа";
+// «онлайн» on the card: VPN carried traffic in the last 15 minutes.
+const isOnline = (u: Data) => !!u.last_online_at && Date.now() - new Date(u.last_online_at).getTime() < 15 * 60 * 1000;
+const heroAlert = (u: Data) =>
+  u.tg_deleted_at ? "Аккаунт Telegram удалён" : u.sharing_at && u.blocked_at ? "Клиент заблокирован за шеринг" : u.blocked_at ? "Клиент заблокирован" : u.billing_paused_at ? "Списания на паузе" : "";
+const accessHint = (u: Data) =>
+  String(u.panel_status || "").toUpperCase() === "ACTIVE" ? "доступ активен" : "пополните, чтобы вернуть доступ";
 function UserDetail({
   user,
   onChange,
@@ -885,11 +879,11 @@ function UserDetail({
     ),
     billing = useResource(
       tab === "history" ? `billing?q=${u.telegram_id}&limit=25` : null,
-    ),
-    gifts = useResource(`users/${u.telegram_id}/gifts`);
-  const [giftsFresh, setGiftsFresh] = useState<Data | null>(null),
-    [giftsRefreshing, setGiftsRefreshing] = useState(false);
-  const giftInfo = giftsFresh || gifts.data;
+    );
+  const copyId = async () => {
+    await navigator.clipboard.writeText(String(u.telegram_id));
+    toast.success("ID скопирован");
+  };
   const act = async (path: string, body: Data) => {
     const r = await api(`users/${u.telegram_id}/${path}`, body);
     if (r.balance_rub !== undefined)
@@ -905,142 +899,184 @@ function UserDetail({
   };
   return (
     <div className="pt-7 space-y-5">
-      <section className={"adm-chero " + heroTone(u)}>
-        <Avatar row={u} size={76} />
-        <h2>{who(u)}</h2>
-        <p className="adm-chero-id">
-          {u.username ? "@" + u.username + " · " : ""}ID {u.telegram_id}
-        </p>
-        <span className="adm-chero-st">{heroStatus(u)}</span>
-        <div className="adm-chero-bal">
-          <CountUp value={Number(u.balance_rub || 0)} format={(n) => money(Math.round(n))} />
-          <small>баланс</small>
+      <header className="adm-uc-head">
+        <span className="adm-uc-ava">
+          <Avatar row={u} size={76} />
+          {isOnline(u) && <i aria-label="в сети" />}
+        </span>
+        <div className="min-w-0">
+          <h2>{who(u)}</h2>
+          <div className="adm-uc-meta">
+            <span className={"adm-uc-pill " + heroTone(u)}><i />{heroStatus(u)}</span>
+            {isOnline(u) && <span className="adm-uc-pill green">онлайн</span>}
+            {u.username && <span>@{u.username}</span>}
+            <span>{u.telegram_id}</span>
+            <button type="button" className="adm-uc-copy" aria-label="Скопировать ID" onClick={copyId}>
+              <CopyIcon />
+            </button>
+          </div>
         </div>
-      </section>
-      <div className="adm-qa">
-        {([
-          ["Пополнить", <WalletIcon key="w" />, () => { setTab("summary"); setTimeout(() => document.getElementById("adm-amount")?.focus(), 60); }],
-          ["Сообщение", <SendIcon key="s" />, () => setTab("message")],
-          ["Устройства", <Smartphone key="d" />, () => setTab("devices")],
-          ["Платежи", <Receipt key="r" />, () => navigate("orders?q=" + u.telegram_id)],
-          ["Скопировать ID", <CopyIcon key="c" />, async () => { await navigator.clipboard.writeText(String(u.telegram_id)); toast.success("ID скопирован"); }],
-        ] as [string, ReactNode, () => void][]).map(([label, icon, fn]) => (
-          <button key={label} type="button" onClick={fn}>
-            <span>{icon}</span>
-            {label === "Скопировать ID" ? "ID" : label}
-          </button>
-        ))}
-      </div>
-      <div className="adm-ctiles">
-        <div title={realPaidSummary(u)}>
-          <p>Оплатил деньгами</p>
-          <b><CountUp value={Number(u.real_paid_rub || 0)} format={(n) => money(Math.round(n))} /></b>
+      </header>
+      {heroAlert(u) && (
+        <div className={"adm-uc-alert " + heroTone(u)}>
+          {u.billing_paused_at && !u.blocked_at && !u.tg_deleted_at ? <PauseCircle /> : <Ban />}
+          {heroAlert(u)}
         </div>
-        <div title={friendsSummary(u)}>
-          <p>Пригласил</p>
-          <b><CountUp value={Number(u.invited_count || 0)} /></b>
-        </div>
-        <div title={attemptsSummary(u)}>
-          <p>Пытался пригласить</p>
-          <b><CountUp value={inviteTries(u)} /></b>
-        </div>
-        <div>
-          <p>Устройства</p>
-          <b><CountUp value={Number(u.device_count || 0)} /></b>
-        </div>
-        <div>
-          <p>Трафик</p>
-          <b>{traffic(u)}</b>
-        </div>
+      )}
+      <div className="adm-uc-actions">
+        <button type="button" className="primary" onClick={() => { setTab("summary"); setTimeout(() => document.getElementById("adm-amount")?.focus(), 60); }}>
+          <WalletIcon />Пополнить
+        </button>
         <button
           type="button"
-          onClick={() => setTab("gifts")}
-          title="Оценка по подаркам в профиле Telegram"
+          onClick={() =>
+            confirm({
+              title: u.blocked_at ? "Разблокировать клиента?" : "Заблокировать клиента?",
+              description: "Изменится доступ пользователя к сервису.",
+              danger: !u.blocked_at,
+              action: () => act("block", { blocked: !u.blocked_at }),
+            })
+          }
         >
-          <p>Состоятельность</p>
-          <WealthStars data={giftInfo} />
+          {u.blocked_at ? <LockOpen /> : <Lock />}
+          {u.blocked_at ? "Разблокировать" : "Заблокировать"}
         </button>
+        <button type="button" onClick={() => setTab("message")}>
+          <SendIcon />Написать
+        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button"><MoreHorizontal />Ещё</button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => navigate("orders?q=" + u.telegram_id)}>Платежи клиента</DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() =>
+                confirm({
+                  title: "Сбросить пробный период?",
+                  description: "Пользователь сможет получить пробный доступ повторно.",
+                  action: () => act("trial-reset", {}),
+                })
+              }
+            >
+              Сбросить пробный период
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() =>
+                confirm({
+                  title: u.billing_paused_at ? "Включить списания?" : "Отключить списания?",
+                  description: "Изменение относится только к этому пользователю.",
+                  action: () => act("billing-pause", { paused: !u.billing_paused_at }),
+                })
+              }
+            >
+              {u.billing_paused_at ? "Включить" : "Отключить"} списания
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive"
+              onSelect={() =>
+                confirm({
+                  title: "Удалить пользователя?",
+                  description: `Будут удалены профиль, устройства и связанные данные клиента ${u.telegram_id}. Это действие нельзя отменить.`,
+                  danger: true,
+                  phrase: String(u.telegram_id),
+                  label: "Удалить",
+                  action: async () => {
+                    await act("delete", {});
+                    onClose();
+                  },
+                })
+              }
+            >
+              Удалить пользователя
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="adm-tabrow w-full justify-start">
-          <TabsTrigger value="summary">Профиль</TabsTrigger>
-          <TabsTrigger value="devices">Устройства</TabsTrigger>
-          <TabsTrigger value="history">Операции</TabsTrigger>
-          <TabsTrigger value="gifts">Подарки</TabsTrigger>
-          <TabsTrigger value="bot-messages">Сообщения бота</TabsTrigger>
-          <TabsTrigger value="message">Написать</TabsTrigger>
+        <TabsList className="adm-uc-tabs">
+          {([
+            ["summary", "Основное", <UserIcon key="u" />],
+            ["devices", "Устройства", <Smartphone key="d" />],
+            ["history", "Операции", <Receipt key="r" />],
+            ["bot-messages", "Сообщения", <MessageSquare key="m" />],
+            ["message", "Написать", <SendIcon key="s" />],
+          ] as [string, string, ReactNode][]).map(([v, label, icon]) => (
+            <TabsTrigger key={v} value={v}>
+              {icon}
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
-        <TabsContent value="summary" className="space-y-5 pt-4">
-          <dl className="adm-rows">
-            {[
-              ["Зарегистрировался", date(u.created_at)],
-              ["Был в сети", date(u.last_online_at)],
-              [
-                "Пробный период",
-                u.trial_used ? "Использован" : "Не использован",
-              ],
-              ["Пригласивший", u.referred_by || "—"],
-              ["Оплатил деньгами", realPaidSummary(u)],
-              ["Оплаты", paymentSummary(u)],
-              ["Друзья", friendsSummary(u)],
-              ["Попытки пригласить", attemptsSummary(u)],
-              ["Последняя оплата", date(u.last_paid_at)],
-              ["Срок подписки", date(u.expire_at)],
-            ].map(([k, v]) => (
-              <div key={String(k)}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
+        <TabsContent value="summary" className="space-y-4 pt-4">
+          <section className="adm-uc-card">
+            <div className="adm-uc-line">
+              <span>Баланс</span>
+              <b className="adm-uc-big"><CountUp value={Number(u.balance_rub || 0)} format={(n) => money(Math.round(n))} /></b>
+            </div>
+            <div className="adm-uc-line adm-uc-sub">
+              <span title={realPaidSummary(u)}>оплатил деньгами {money(Math.round(Number(u.real_paid_rub || 0)))}</span>
+              <span>{accessHint(u)}</span>
+            </div>
+          </section>
+          <div className="adm-uc-grid">
+            <section className="adm-uc-card">
+              <div className="adm-uc-line">
+                <span>Изменить баланс</span>
               </div>
-            ))}
-          </dl>
-          <Panel
-            title="Изменить баланс"
-            description="Положительная сумма — начисление, отрицательная — списание."
-          >
-            <div className="adm-chips">
-              {[100, 300, 500, 1000, -100].map((v) => (
-                <button key={v} type="button" onClick={() => setAmount(String(Number(amount || 0) + v))}>
-                  {v > 0 ? "+" : "−"}{Math.abs(v).toLocaleString("ru-RU")} ₽
+              <div className="adm-uc-step">
+                <div className="adm-uc-stepper">
+                  <button type="button" aria-label="Минус 100 ₽" onClick={() => setAmount(String(Number(amount || 0) - 100))}><Minus /></button>
+                  <input
+                    id="adm-amount"
+                    aria-label="Сумма изменения баланса"
+                    type="number"
+                    placeholder="0"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                  <button type="button" aria-label="Плюс 100 ₽" onClick={() => setAmount(String(Number(amount || 0) + 100))}><Plus /></button>
+                </div>
+                <button
+                  type="button"
+                  className="adm-uc-save"
+                  disabled={!Number(amount) || !Number.isInteger(Number(amount)) || Math.abs(Number(amount)) > 1000000}
+                  onClick={() =>
+                    confirm({
+                      title: "Изменить баланс",
+                      description: `${who(u)} · ${u.telegram_id}\nСейчас: ${money(u.balance_rub)}\nИзменение: ${money(amount)}\nПосле операции: ${money(Number(u.balance_rub || 0) + Number(amount))}`,
+                      label: "Применить",
+                      action: async () => {
+                        await act("balance", { amount: Number(amount) });
+                        setAmount("");
+                      },
+                    })
+                  }
+                >
+                  Применить
                 </button>
-              ))}
-            </div>
-            <div className="flex gap-3">
-              <Input
-                id="adm-amount"
-                aria-label="Сумма изменения баланса"
-                type="number"
-                placeholder="Например, 100 или −100"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-              <Button
-                disabled={
-                  !Number(amount) ||
-                  !Number.isInteger(Number(amount)) ||
-                  Math.abs(Number(amount)) > 1000000
-                }
-                onClick={() =>
-                  confirm({
-                    title: "Изменить баланс",
-                    description: `${who(u)} · ${u.telegram_id}\nСейчас: ${money(u.balance_rub)}\nИзменение: ${money(amount)}\nПосле операции: ${money(Number(u.balance_rub || 0) + Number(amount))}`,
-                    label: "Применить",
-                    action: async () => {
-                      await act("balance", { amount: Number(amount) });
-                      setAmount("");
-                    },
-                  })
-                }
-              >
-                Применить
-              </Button>
-            </div>
-          </Panel>
-          <Panel
-            title="Подарки друзьям"
-            description="С безлимитом человек дарит любые суммы, как администратор: с его баланса ничего не списывается."
-          >
-            <label className="flex items-center justify-between gap-3">
-              <span>Дарить без ограничений</span>
+              </div>
+              <p className="adm-uc-hint">плюс — начисление, минус — списание</p>
+            </section>
+            <section className="adm-uc-card">
+              <div className="adm-uc-line">
+                <span>Устройства</span>
+                <b>{Number(u.device_count || 0)}</b>
+              </div>
+              <div className="adm-uc-line adm-uc-sub">
+                <span>трафик</span>
+                <span>{traffic(u)}</span>
+              </div>
+              <button type="button" className="adm-uc-save mt-3" onClick={() => setTab("devices")}>Открыть устройства</button>
+            </section>
+          </div>
+          <section className="adm-uc-card">
+            <label className="adm-uc-line">
+              <span>
+                Дарить друзьям без ограничений
+                <small className="adm-uc-hint block">подарки за счёт сервиса, с баланса не списываются</small>
+              </span>
               <Switch
                 checked={!!u.gift_unlimited}
                 onCheckedChange={(on) =>
@@ -1055,79 +1091,28 @@ function UserDetail({
                 }
               />
             </label>
-          </Panel>
-          <div className="flex flex-wrap gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  Управление
-                  <MoreHorizontal />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onSelect={() =>
-                    confirm({
-                      title: "Сбросить пробный период?",
-                      description:
-                        "Пользователь сможет получить пробный доступ повторно.",
-                      action: () => act("trial-reset", {}),
-                    })
-                  }
-                >
-                  Сбросить пробный период
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() =>
-                    confirm({
-                      title: u.billing_paused_at
-                        ? "Включить списания?"
-                        : "Отключить списания?",
-                      description:
-                        "Изменение относится только к этому пользователю.",
-                      action: () =>
-                        act("billing-pause", { paused: !u.billing_paused_at }),
-                    })
-                  }
-                >
-                  {u.billing_paused_at ? "Включить" : "Отключить"} списания
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() =>
-                    confirm({
-                      title: u.blocked_at
-                        ? "Разблокировать клиента?"
-                        : "Заблокировать клиента?",
-                      description: "Изменится доступ пользователя к сервису.",
-                      danger: !u.blocked_at,
-                      action: () => act("block", { blocked: !u.blocked_at }),
-                    })
-                  }
-                >
-                  {u.blocked_at ? "Разблокировать" : "Заблокировать"}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onSelect={() =>
-                    confirm({
-                      title: "Удалить пользователя?",
-                      description: `Будут удалены профиль, устройства и связанные данные клиента ${u.telegram_id}. Это действие нельзя отменить.`,
-                      danger: true,
-                      phrase: String(u.telegram_id),
-                      label: "Удалить",
-                      action: async () => {
-                        await act("delete", {});
-                        onClose();
-                      },
-                    })
-                  }
-                >
-                  Удалить пользователя
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          </section>
+          <dl className="adm-uc-rows">
+            {([
+              ["Telegram ID", <span key="id" className="inline-flex items-center gap-2">{u.telegram_id}<button type="button" className="adm-uc-copy" aria-label="Скопировать ID" onClick={copyId}><CopyIcon /></button></span>],
+              ["Username", u.username ? "@" + u.username : "—"],
+              ["Зарегистрировался", date(u.created_at)],
+              ["Был в сети", date(u.last_online_at)],
+              ["Пробный период", u.trial_used ? "Использован" : "Не использован"],
+              ["Пригласивший", u.referred_by || "—"],
+              ["Оплатил деньгами", realPaidSummary(u)],
+              ["Оплаты", paymentSummary(u)],
+              ["Последняя оплата", date(u.last_paid_at)],
+              ["Друзья", friendsSummary(u)],
+              ["Попытки пригласить", attemptsSummary(u)],
+              ["Срок подписки", date(u.expire_at)],
+            ] as [string, ReactNode][]).map(([k, v]) => (
+              <div key={k}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
         </TabsContent>
         <TabsContent value="devices" className="pt-4">
           {devices.error ? (
@@ -1272,23 +1257,6 @@ function UserDetail({
             ))}
           </Accordion>
         )}
-        <TabsContent value="gifts" className="pt-4">
-          <UserGifts
-            data={giftInfo}
-            error={gifts.error}
-            refreshing={giftsRefreshing}
-            onRefresh={async () => {
-              setGiftsRefreshing(true);
-              try {
-                setGiftsFresh(await api(`users/${u.telegram_id}/gifts?refresh=1`));
-              } catch (e) {
-                toast.error((e as Error).message);
-              } finally {
-                setGiftsRefreshing(false);
-              }
-            }}
-          />
-        </TabsContent>
         <TabsContent value="bot-messages" className="pt-4">
           <UserBotMessages telegramId={u.telegram_id} />
         </TabsContent>
@@ -1369,136 +1337,6 @@ function UserDetail({
           </Button>
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-function WealthStars({ data }: { data: Data | null }) {
-  if (!data) return <p className="text-xl font-semibold mt-1">…</p>;
-  const s = data.summary || {};
-  const level = Number(s.level || 0);
-  return (
-    <>
-      <p className="text-xl font-semibold mt-1 tracking-tight" aria-label={`${level} из 5`}>
-        <span className="text-amber-500">{"★".repeat(level)}</span>
-        <span className="text-muted-foreground/40">{"★".repeat(5 - level)}</span>
-      </p>
-      <p className="text-xs text-muted-foreground mt-0.5 truncate">{s.label || "—"}</p>
-    </>
-  );
-}
-
-function giftThumb(fileId?: string) {
-  return fileId ? `/admin/api/gift-thumb?f=${encodeURIComponent(fileId)}` : "";
-}
-
-function UserGifts({
-  data,
-  error,
-  refreshing,
-  onRefresh,
-}: {
-  data: Data | null;
-  error: string;
-  refreshing: boolean;
-  onRefresh: () => Promise<void>;
-}) {
-  if (error && !data) return <Failure message={error} retry={onRefresh} />;
-  if (!data) return <Loading />;
-  const s = data.summary || {};
-  const gifts: Data[] = data.gifts || [];
-  const unique = gifts.filter((g) => g.kind === "unique");
-  const regular = gifts.filter((g) => g.kind === "regular");
-  return (
-    <div className="space-y-5">
-      <div className="rounded-lg border p-4 space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm text-muted-foreground">Рейтинг состоятельности</p>
-            <div className="flex items-baseline gap-2 mt-1">
-              <WealthStars data={data} />
-            </div>
-          </div>
-          <Button variant="outline" size="sm" disabled={refreshing} onClick={() => void onRefresh()}>
-            {refreshing ? "Обновляем…" : "Обновить"}
-          </Button>
-        </div>
-        <p className="text-sm">
-          NFT: <b>{s.unique_count || 0}</b>
-          {s.rare_count ? ` (редких ${s.rare_count})` : ""} · обычных: <b>{s.regular_count || 0}</b>
-          {s.regular_stars ? ` на ${Number(s.regular_stars).toLocaleString("ru-RU")} ⭐` : ""}
-          {s.total > gifts.length ? ` · показаны ${gifts.length} из ${s.total}` : ""}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Примерная оценка по подаркам, которые человек оставил видимыми в профиле Telegram: обычные — по цене в
-          звёздах, NFT — около 2 500 ⭐ с надбавкой за редкость модели. Скрытые подарки Telegram не показывает.
-          {data.fetched_at ? ` Обновлено ${date(new Date(data.fetched_at * 1000).toISOString())}.` : ""}
-        </p>
-        {data.error && <p className="text-xs text-destructive">{data.error}</p>}
-      </div>
-      {!gifts.length ? (
-        <p className="text-sm text-muted-foreground">В профиле нет видимых подарков.</p>
-      ) : (
-        <>
-          {unique.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">NFT-подарки</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {unique.map((g, i) => (
-                  <a
-                    key={g.slug || i}
-                    href={g.slug ? `https://t.me/nft/${g.slug}` : undefined}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-xl p-3 text-white block hover:opacity-90"
-                    style={{
-                      background: `radial-gradient(circle at 50% 35%, ${g.center || "#5f7aa8"}, ${g.edge || "#2f3d5c"})`,
-                    }}
-                  >
-                    <div className="h-20 flex items-center justify-center">
-                      {g.thumb ? (
-                        <img src={giftThumb(g.thumb)} alt="" className="h-20 w-20 object-contain" loading="lazy" />
-                      ) : (
-                        <span className="text-4xl">🎁</span>
-                      )}
-                    </div>
-                    <p className="text-sm font-semibold mt-2 truncate">{g.title}</p>
-                    <p className="text-xs opacity-85 truncate">
-                      {g.model}
-                      {g.rarity_per_mille ? ` · ${(g.rarity_per_mille / 10).toLocaleString("ru-RU")}%` : ""}
-                    </p>
-                    <p className="text-xs opacity-75 truncate">
-                      {[g.backdrop, g.symbol].filter(Boolean).join(" · ")}
-                      {g.blockchain ? " · в блокчейне" : ""}
-                    </p>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-          {regular.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Обычные подарки</p>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                {regular.map((g, i) => (
-                  <div key={i} className="rounded-lg bg-muted p-2 text-center">
-                    <div className="h-12 flex items-center justify-center">
-                      {g.thumb ? (
-                        <img src={giftThumb(g.thumb)} alt="" className="h-12 w-12 object-contain" loading="lazy" />
-                      ) : (
-                        <span className="text-3xl">{g.title}</span>
-                      )}
-                    </div>
-                    <p className="text-xs mt-1">
-                      {Number(g.stars || 0).toLocaleString("ru-RU")} ⭐{g.limited ? " · лимит." : ""}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 }

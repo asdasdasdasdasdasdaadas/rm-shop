@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import {
   Choice,
   DataTable,
+  Empty,
   Failure,
   Loading,
   Panel,
@@ -749,57 +750,14 @@ export function StatisticsPage() {
         </Panel>
         <Panel
           title="Шаги до первого подключения"
-          description="Новые пользователи после включения измерений, за последние 30 дней. Каждый человек учитывается на шаге один раз. Процент — от запустивших бота; некоторые шаги можно пропустить."
+          description="Новые пользователи за последние 30 дней: сколько дошло до каждого шага и где уходят. Каждый человек считается на шаге один раз."
         >
           {snapshot.error ? (
             <Failure message={snapshot.error} retry={snapshot.reload} />
           ) : !snapshot.data ? (
             <Loading />
           ) : (
-            <>
-              <p className="mb-4 text-sm">
-                Медианное время до первого онлайна:{" "}
-                <strong>
-                  {s.onboarding_steps?.median_minutes == null
-                    ? "пока нет данных"
-                    : `${Math.round(s.onboarding_steps.median_minutes)} мин`}
-                </strong>{" "}
-                · среди подключившихся
-              </p>
-              <DataTable
-                rows={[
-                  ["started", "Запустили бота"],
-                  ["welcome_continue", "Нажали «Я помогу»"],
-                  ["channel_passed", "Прошли проверку канала"],
-                  ["cabinet", "Открыли кабинет"],
-                  ["gift_view", "Увидели подарок"],
-                  ["gift_claimed", "Забрали подарок"],
-                  ["wizard_1", "Открыли выбор устройства"],
-                  ["wizard_2", "Открыли выбор приложения"],
-                  ["wizard_3", "Дошли до создания устройства"],
-                  ["wizard_4", "Получили инструкцию подключения"],
-                  ["connected", "Впервые вышли онлайн"],
-                ].map(([key, label]) => ({
-                  label,
-                  count:
-                    s.onboarding_steps?.[key] ??
-                    s.onboarding_steps?.stages?.[key] ??
-                    0,
-                }))}
-                columns={[
-                  { key: "label", label: "Шаг" },
-                  { key: "count", label: "Пользователи" },
-                  {
-                    key: "share",
-                    label: "Доля",
-                    cell: (r) =>
-                      s.onboarding_steps?.started
-                        ? `${Math.round((r.count * 100) / s.onboarding_steps.started)}%`
-                        : "—",
-                  },
-                ]}
-              />
-            </>
+            <OnboardingSteps data={s.onboarding_steps || {}} />
           )}
         </Panel>
       </TabsContent>
@@ -949,5 +907,125 @@ export function StatisticsPage() {
         )}
       </TabsContent>
     </Tabs>
+  );
+}
+
+const ONBOARDING: [string, [string, string][]][] = [
+  ["Знакомство", [["started", "Запустили бота"], ["welcome_continue", "Нажали «Я помогу»"], ["channel_passed", "Прошли проверку канала"]]],
+  ["Подарок", [["cabinet", "Открыли кабинет"], ["gift_view", "Увидели подарок"], ["gift_claimed", "Забрали подарок"]]],
+  ["Подключение", [
+    ["wizard_1", "Выбор устройства"],
+    ["wizard_2", "Выбор приложения"],
+    ["wizard_3", "Создание устройства"],
+    ["wizard_4", "Инструкция подключения"],
+    ["connected", "Впервые вышли онлайн"],
+  ]],
+];
+
+/** The path from /start to the first connection: who reached each step, and where people drop off. */
+function OnboardingSteps({ data }: { data: Data }) {
+  const num = (n: number) => n.toLocaleString("ru-RU");
+  const countOf = (key: string) => Number(data[key] ?? data.stages?.[key] ?? 0);
+  const start = countOf("started");
+  // A step with nobody on it while later steps have people is switched off (e.g. no channel check): skipped.
+  let prev = start;
+  let prevLabel = "";
+  const phases = ONBOARDING.map(([phase, steps]) => ({
+    phase,
+    rows: steps.map(([key, label], i) => {
+      const count = countOf(key);
+      const first = phase === "Знакомство" && i === 0;
+      const off = !first && count === 0 && start > 0;
+      const skippable = !first && !off && count > prev; // part of the people go around this step
+      const row = {
+        key, label, count, first, off, skippable,
+        share: start ? Math.round((count / start) * 100) : 0,
+        conv: first || off || skippable || !prev ? null : Math.round((count / prev) * 100),
+        lost: first || off || skippable ? 0 : Math.max(0, prev - count),
+        from: prevLabel,
+      };
+      if (!off) {
+        prev = count;
+        prevLabel = label;
+      }
+      return row;
+    }),
+  }));
+  const rows = phases.flatMap((p) => p.rows);
+  const connected = rows.find((r) => r.key === "connected")!;
+  const worst = [...rows].filter((r) => r.lost > 0).sort((a, b) => b.lost - a.lost)[0];
+  const median = data.median_minutes == null ? null : Math.round(Number(data.median_minutes));
+  const time = median == null ? "—" : median < 60 ? `${median} мин` : `${Math.floor(median / 60)} ч ${median % 60} мин`;
+  if (!start) return <Empty title="Новых пользователей пока нет" description="Шаги появятся, когда кто-нибудь запустит бота." />;
+  return (
+    <div className="space-y-4">
+      <div className="adm-funnel-sum adm-onb-sum">
+        <div>
+          <small>Запустили бота</small>
+          <b>{num(start)}</b>
+        </div>
+        <div>
+          <small>Подключились</small>
+          <b>{num(connected.count)}</b>
+          <span>{connected.share}% от запустивших</span>
+        </div>
+        <div>
+          <small>Время до подключения</small>
+          <b>{time}</b>
+          <span>медиана среди подключившихся</span>
+        </div>
+        {worst && (
+          <div className="adm-funnel-worst">
+            <small>Больше всего уходят</small>
+            <b>{worst.label}</b>
+            <span>
+              не дошли {num(worst.lost)} из {num(worst.lost + worst.count)} после «{worst.from}»
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="relative w-full overflow-auto">
+        <table className="w-full text-sm adm-funnel adm-onb">
+          <thead>
+            <tr>
+              <th className="text-left px-3">Шаг</th>
+              <th className="text-right px-3">Людей</th>
+              <th className="text-left px-3 w-[36%]">Доля от запустивших</th>
+              <th className="text-right px-3">Дошли с прошлого шага</th>
+              <th className="text-right px-3">Ушли на шаге</th>
+            </tr>
+          </thead>
+          {phases.map((p) => (
+            <tbody key={p.phase}>
+              <tr className="adm-onb-phase">
+                <th colSpan={5} className="text-left px-3">{p.phase}</th>
+              </tr>
+              {p.rows.map((r) => (
+                <tr key={r.key} className={(r === worst ? "worst " : "") + (r.off ? "off" : "")}>
+                  <td className="px-3">{r.label}</td>
+                  <td className="px-3 text-right tabular-nums">{r.off ? "—" : num(r.count)}</td>
+                  <td className="px-3">
+                    {r.off ? (
+                      <span className="text-muted-foreground">шаг выключен</span>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="adm-funnel-bar"><i style={{ width: `${Math.min(100, Math.max(r.share, r.count ? 1 : 0))}%` }} /></div>
+                        <span className="w-10 text-right tabular-nums">{r.share}%</span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 text-right tabular-nums">
+                    {r.conv != null ? `${r.conv}%` : r.skippable ? <span className="text-muted-foreground" title="Часть людей проходит мимо этого шага">можно пропустить</span> : "—"}
+                  </td>
+                  <td className="px-3 text-right tabular-nums">
+                    {r.lost > 0 ? <span className="text-destructive">−{num(r.lost)}</span> : <span className="text-muted-foreground">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          ))}
+        </table>
+      </div>
+    </div>
   );
 }

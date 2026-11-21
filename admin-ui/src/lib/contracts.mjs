@@ -54,19 +54,25 @@ export function attemptsSummary(user) {
 /** Refresh untouched fields, and use the isolated endpoint for referral settings. */
 export async function saveSettingsPatchWith(request, patch) {
   const latest = await request("settings");
-  const keys = Object.keys(patch);
-  if (keys.length && keys.every((key) => key.startsWith("referral_"))) {
+  // Referral settings have their own endpoint; one save may now carry changes from several sections.
+  const referral = Object.fromEntries(Object.entries(patch).filter(([key]) => key.startsWith("referral_")));
+  const rest = Object.fromEntries(Object.entries(patch).filter(([key]) => !key.startsWith("referral_")));
+  let result = latest;
+  if (Object.keys(rest).length || !Object.keys(referral).length) {
+    result = await request("settings", {
+      ...latest.values,
+      ...rest,
+      promo_enabled: true,
+    });
+  }
+  if (Object.keys(referral).length) {
     const fields = Object.fromEntries(
       Object.entries(latest.values).filter(([key]) =>
         key.startsWith("referral_"),
       ),
     );
-    const saved = await request("settings/referrals", { ...fields, ...patch });
-    return { ...latest, values: { ...latest.values, ...saved.values } };
+    const saved = await request("settings/referrals", { ...fields, ...referral });
+    result = { ...result, values: { ...result.values, ...saved.values } };
   }
-  return request("settings", {
-    ...latest.values,
-    ...patch,
-    promo_enabled: true,
-  });
+  return result;
 }
