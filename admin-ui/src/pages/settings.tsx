@@ -1211,6 +1211,110 @@ function NoticeEditor({
     </Panel>
   );
 }
+function RegionFilterPanel() {
+  const res = useResource("region-filter");
+  const confirm = useConfirm();
+  const [all, setAll] = useState(false);
+  const d: Data = res.data || {};
+  const cands: Data[] = d.candidates || [];
+  const recent: Data[] = d.recent || [];
+  const when = (v: string) => (v ? new Date(v).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+  const purge = () =>
+    confirm({
+      title: `Удалить ${cands.length} пользователей из Ирана?`,
+      description:
+        "Удалятся профили и устройства, в том числе в панели. Платившие сюда не попадают. Из статистики они пропадут, а бот больше не будет им отвечать.",
+      danger: true,
+      phrase: "УДАЛИТЬ",
+      label: "Удалить",
+      action: async () => {
+        const r = await api("region-filter", { action: "purge", ids: cands.map((c) => c.telegram_id) });
+        toast.success(`Удалено: ${r.deleted}`);
+        await res.reload();
+      },
+    });
+  const allow = async (id: number) => {
+    await api("region-filter", { action: "allow", telegram_id: id });
+    toast.success("Пропустили: бот снова отвечает этому человеку");
+    await res.reload();
+  };
+  return (
+    <Panel
+      title="Пользователи из Ирана"
+      description="В Иране заблокирован Telegram: оттуда приходят через поиск, берут подарок и создают устройства, но оплатить не могут, и VPN у них не работает. Новых бот узнаёт по персидскому языку Telegram или персидским буквам в имени: отвечает один раз «сервис недоступен в вашем регионе» и больше ничего — в базу и статистику они не попадают."
+    >
+      {res.error && <p className="text-sm text-destructive">{res.error}</p>}
+      {res.data && (
+        <>
+          <dl className="adm-rows mb-4">
+            {[
+              ["Фильтр", d.enabled ? "включён" : "выключен (REGION_FILTER_ENABLED=false)"],
+              ["Не пустили всего", d.rejected],
+              ["Не пустили за сутки", d.day],
+              ["Уже в базе, похожи на Иран, не платили", cands.length],
+            ].map(([k, v]) => (
+              <div key={String(k)} className="flex justify-between gap-4 py-1 text-sm">
+                <dt className="text-muted-foreground">{k}</dt>
+                <dd className="font-medium">{v}</dd>
+              </div>
+            ))}
+          </dl>
+          {!!cands.length && (
+            <>
+              <div className="text-sm border rounded-lg divide-y mb-3">
+                {(all ? cands : cands.slice(0, 8)).map((c) => (
+                  <div key={c.telegram_id} className="flex justify-between gap-3 px-3 py-2">
+                    <span className="truncate">
+                      {c.first_name || "—"}
+                      {c.username ? <span className="text-muted-foreground"> @{c.username}</span> : null}
+                    </span>
+                    <span className="text-muted-foreground shrink-0">
+                      {c.device_count ? `устройств: ${c.device_count} · ` : ""}
+                      {when(c.created_at)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {cands.length > 8 && !all && (
+                <button type="button" className="text-sm underline text-muted-foreground mb-3" onClick={() => setAll(true)}>
+                  Показать всех {cands.length}
+                </button>
+              )}
+              <div>
+                <Button variant="outline" onClick={purge}>
+                  Удалить {cands.length} из базы
+                </Button>
+              </div>
+            </>
+          )}
+          {!!recent.length && (
+            <details className="mt-4 text-sm">
+              <summary className="cursor-pointer font-medium">Кого не пустили недавно</summary>
+              <div className="border rounded-lg divide-y mt-2">
+                {recent.map((r) => (
+                  <div key={r.telegram_id} className="flex justify-between gap-3 px-3 py-2">
+                    <span className="truncate">
+                      {r.first_name || "—"}
+                      {r.username ? <span className="text-muted-foreground"> @{r.username}</span> : null}
+                      <span className="text-muted-foreground"> · {r.reason}{r.hits > 1 ? ` · писал ${r.hits} раз` : ""}</span>
+                    </span>
+                    {r.allowed_at ? (
+                      <span className="text-muted-foreground shrink-0">пропущен</span>
+                    ) : (
+                      <button type="button" className="underline text-muted-foreground shrink-0" onClick={() => allow(r.telegram_id)}>
+                        Пропустить
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
 function SystemSettings() {
   const flags = useResource("flags"),
     job = useResource("subscriptions/replace", 5000),
@@ -1409,6 +1513,7 @@ function SystemSettings() {
           </p>
         )}
       </Panel>
+      <RegionFilterPanel />
       <Panel
         title="Удалённые аккаунты Telegram"
         description="Люди, которые удалили свой аккаунт в Telegram: сообщения им больше не доходят. Бот замечает их сам, когда сообщение не доставлено, а очистка ещё и проверяет тех, кто перестал получать сообщения. Кто ни разу не платил — удаляется. Кто платил — отключается: VPN и списания останавливаются, оплаты остаются в отчётах."

@@ -1451,6 +1451,42 @@ async def api_delete_user(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def api_region_filter(request: web.Request) -> web.Response:
+    """Пользователи из Ирана. GET — who is in the base and looks Iranian, and who was turned away.
+    POST {action: "purge", ids} — delete those people with their devices (panel too) and turn them away from now on;
+    POST {action: "allow", telegram_id} — let a turned-away person in."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import region_filter
+    if request.method == "POST":
+        body = await request.json()
+        if body.get("action") == "allow":
+            if not await region_filter.allow(int(body.get("telegram_id") or 0)):
+                return web.json_response({"ok": False, "error": "Не найден"}, status=404)
+        elif body.get("action") == "purge":
+            wanted = {int(x) for x in body.get("ids") or []}
+            current = {int(c["telegram_id"]): c for c in (await region_filter.overview())["candidates"]}
+            rw: RemnawaveClient = request.app["rw"]
+            done = 0
+            for telegram_id in wanted & current.keys():   # only the ones that still match: Persian name, never paid
+                for item in await db.list_devices(telegram_id):
+                    try:
+                        if item.get("remnawave_id"):
+                            await rw.delete_panel_user(int(item["remnawave_id"]))
+                    except RemnawaveError:
+                        logger.exception("Устройство %s не удалено в панели (регион, %s)", item.get("id"), telegram_id)
+                c = current[telegram_id]
+                if await _purge_user(rw, telegram_id) == "ok":
+                    await region_filter.remember(telegram_id, c.get("first_name"), c.get("username"), "чистка в админке")
+                    done += 1
+                await asyncio.sleep(0.02)
+            return web.json_response({"ok": True, "deleted": done, **await region_filter.overview()})
+        else:
+            return web.json_response({"ok": False, "error": "Неизвестное действие"}, status=400)
+    return web.json_response({"ok": True, **await region_filter.overview()})
+
+
 async def api_purge_bot_blockers(request: web.Request) -> web.Response:
     denied = _need_auth(request)
     if denied:
@@ -3566,6 +3602,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/users/{telegram_id}/message", api_message)
     app.router.add_post("/admin/api/users/{telegram_id}/cabinet-link", api_cabinet_link)
     app.router.add_post("/admin/api/users/{telegram_id}/delete", api_delete_user)
+    app.router.add_get("/admin/api/region-filter", api_region_filter)
+    app.router.add_post("/admin/api/region-filter", api_region_filter)
     app.router.add_post("/admin/api/users/{telegram_id}/block", api_block_user)
     app.router.add_post("/admin/api/users/{telegram_id}/billing-pause", api_user_billing_pause)
     app.router.add_post("/admin/api/users/{telegram_id}/gift-unlimited", api_user_gift_unlimited)

@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     tg_ads_token: str = ""
     # Shared secret of deploy/node-logs/ship.py on the VPN nodes (app/node_logs.py); empty — node logs are off.
     node_logs_token: str = ""
+    # Newcomers with the Persian interface or Persian letters in the name are turned away (app/region_filter.py).
+    region_filter_enabled: bool = True
     tg_ads_rub_rate: int = 0
 
     balance_enabled: bool = True

@@ -150,6 +150,8 @@ async def main() -> None:
     dp["rw"] = rw
     dp["rp"] = rp
     from app.widgets import UPDATE_TYPES as WIDGET_UPDATES, WidgetQueryMiddleware
+    from app.region_filter import RegionFilterMiddleware
+    dp.update.outer_middleware(RegionFilterMiddleware())   # first: turned-away people reach nothing
     dp.update.outer_middleware(WidgetQueryMiddleware())
     dp.update.outer_middleware(MaintenanceMiddleware())
     dp.update.outer_middleware(BlockedMiddleware())

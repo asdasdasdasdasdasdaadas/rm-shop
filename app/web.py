@@ -477,6 +477,9 @@ async def api_me(request: web.Request) -> web.Response:
     bot: Bot = request.app["bot"]
     rw: RemnawaveClient = request.app["rw"]
     tg_user = parsed.user if parsed else None
+    from app.region_filter import REPLY, allow_web_user
+    if tg_user and not await allow_web_user(tg_user):
+        return web.json_response({"ok": True, "blocked": True, "notice": REPLY, "brand_name": settings.brand_name})
     if tg_user:
         await db.upsert_user(telegram_id, tg_user.username, tg_user.first_name,
                              entry="app", payload=getattr(parsed, "start_param", None) or "")

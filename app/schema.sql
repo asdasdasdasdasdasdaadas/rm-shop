@@ -1352,3 +1352,17 @@ CREATE TABLE IF NOT EXISTS node_log_watch (
     device_id BIGINT PRIMARY KEY,
     until_at TIMESTAMPTZ NOT NULL
 );
+
+-- People turned away by app/region_filter.py (Iran): never written to users, so no statistics see them.
+CREATE TABLE IF NOT EXISTS region_rejects (
+    telegram_id BIGINT PRIMARY KEY,
+    language TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    username TEXT,
+    reason TEXT NOT NULL DEFAULT '',
+    hits INTEGER NOT NULL DEFAULT 0,
+    first_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    allowed_at TIMESTAMPTZ
+);
