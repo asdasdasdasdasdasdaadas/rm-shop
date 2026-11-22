@@ -115,6 +115,9 @@
   const GP = "M66.5 11.3H33.5c-4.4 0-6.6 0-8.6.6a13.8 13.8 0 0 0-4.8 2.6c-1.6 1.3-2.8 3.2-5.2 6.9L4.4 37.8c-1.6 2.4-2.4 3.7-2.6 5a6.3 6.3 0 0 0 .4 3.4c.5 1.2 1.5 2.2 3.6 4.3l39 39c1.8 1.8 2.7 2.7 3.8 3.1.9.3 1.9.3 2.8 0 1.1-.3 2-1.3 3.8-3.1l39-39c2.1-2.1 3.1-3.1 3.6-4.3a6.3 6.3 0 0 0 .4-3.4c-.2-1.3-1-2.5-2.6-5L85.1 21.5c-2.4-3.7-3.6-5.6-5.2-6.9a13.8 13.8 0 0 0-4.8-2.6c-2-.6-4.2-.6-8.6-.6z";
   const SPK = "M60.3 24.2c.5-1.5 2.6-1.5 3.1 0l3.7 10a2.2 2.2 0 0 0 1.3 1.3l10 3.7c1.5.5 1.5 2.6 0 3.1l-10 3.7a2.2 2.2 0 0 0-1.3 1.3l-3.7 10c-.5 1.5-2.6 1.5-3.1 0l-3.7-10a2.2 2.2 0 0 0-1.3-1.3l-10-3.7c-1.5-.5-1.5-2.6 0-3.1l10-3.7a2.2 2.2 0 0 0 1.3-1.3z";
   const FROG = (s, gray) => `<span class="frogw"><img class="frog" src="/icons/frog.png" width="${s}" height="${s}" style="width:${s}px;height:${s}px${gray ? ";filter:grayscale(.85)" : ""}" alt=""></span>`;
+  // The home card's picture: when the living frog is shown (webapp/frog.js), an empty field of the same height,
+  // so the still frog never flashes before the live one walks in.
+  const HFROG = (s, gray) => (me && me.frog && me.frog.on && frogLoad() ? `<span class="frogpad" style="display:block;width:${s}px;height:${s}px"></span>` : FROG(s, gray));
   const CHK = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const IC = {
     share: '<svg width="24" height="24" viewBox="0 0 24 24"><path d="M14 5l7 6-7 6v-3.5c-5 0-8 1.5-10 5 .7-5.5 3.5-9.5 10-10.5z" fill="currentColor"/></svg>',
@@ -409,6 +412,15 @@
     if (!me || !me.frog || !me.frog.ab) return;
     post("/api/frog-event", { kind }).catch(() => {});
   }
+  // frog.js starts loading as soon as the home card is drawn with the frog's field
+  function frogLoad() {
+    frogLib = frogLib || new Promise((ok, no) => {
+      const s = document.createElement("script"); s.src = "/static/frog.js?v=1"; s.onload = ok; s.onerror = () => { frogLib = null; no(); };
+      document.head.appendChild(s);
+    });
+    frogLib.catch(() => {});
+    return frogLib;
+  }
   function frogMount(el) {
     if (!frogClicks) {
       frogClicks = true;
@@ -421,17 +433,13 @@
     const ill = card && card.querySelector(".ill");
     if (!card || !ill || card.querySelector(".pet")) return;
     const mood = card.classList.contains("red") ? "sleep" : card.classList.contains("orange") ? "cold" : "ok";
-    frogLib = frogLib || new Promise((ok, no) => {
-      const s = document.createElement("script"); s.src = "/static/frog.js?v=1"; s.onload = ok; s.onerror = () => { frogLib = null; no(); };
-      document.head.appendChild(s);
-    });
-    frogLib.then(() => {
+    frogLoad().then(() => {
       if (!card.isConnected || card.querySelector(".pet")) return;
-      // the still picture gives way to the field: same height, so nothing below jumps
+      // the field takes the picture's place: same height, so nothing below jumps
       ill.style.height = `${ill.offsetHeight}px`; ill.style.animation = "none"; ill.innerHTML = "";
       window.petLive(card, { skin: mood === "sleep" ? 18 : mood === "cold" ? 0 : 3, mood,
         onPlay: () => { const now = Date.now(); if (now - frogPlayAt < 2000) return; frogPlayAt = now; frogEvent("play"); } });
-    }).catch(() => {});
+    }).catch(() => { if (card.isConnected && ill.querySelector(".frogpad")) ill.innerHTML = `<div>${FROG(78, mood === "sleep")}</div>`; });
   }
 
   SCR.home = {
@@ -444,11 +452,11 @@
       let hero;
       const AP = apHero(alert === "empty" || alert === "low");
       if (alert === "empty") {
-        hero = hc("red", { ...AP, rb: "пауза", ill: FROG(78, true), n: N,
+        hero = hc("red", { ...AP, rb: "пауза", ill: HFROG(78, true), n: N,
           p: "VPN на паузе — пополните, и всё заработает сразу", pill: "Пополнить", pi: "plus", pa: 'data-go="topup"',
           r: trustShown() && trust.available ? "🤝" : "ref", rl: "Обещанный платёж", ra: trustShown() && trust.available ? 'data-go="promise"' : 'data-act="refresh"' });
       } else if (!devs.length) {
-        hero = hc("green", { rb: me.trial_waiting_connection ? "подарок" : "", ill: FROG(78), n: N,
+        hero = hc("green", { rb: me.trial_waiting_connection ? "подарок" : "", ill: HFROG(78), n: N,
           p: me.trial_waiting_connection ? "Подарок ждёт — начнёт расходоваться после первого подключения" : "Добавьте устройство — и VPN заработает",
           pill: "Добавить устройство", pa: 'data-act="wizard"', r: "ref", rl: "Обновить", ra: 'data-act="refresh"' }) +
           ST("Как это работает") + tl([["1", "Выберите устройство", "телефон, компьютер или ТВ"], ["2", "Установите приложение", "бесплатно"],
@@ -459,7 +467,7 @@
           pill: "Продолжить", pa: 'data-act="resume"', r: "msg", rl: "Помощь", ra: 'data-act="helpconnect"' });
       } else {
         const low = alert === "low";
-        hero = hc(low ? "orange" : "green", { ...AP, rb: me.billing_paused ? "пауза" : "VPN вкл", ill: FROG(78), n: N,
+        hero = hc(low ? "orange" : "green", { ...AP, rb: me.billing_paused ? "пауза" : "VPN вкл", ill: HFROG(78), n: N,
           p: low ? `Осталось меньше суток — пополните заранее` : (me.billing_paused ? "Списания приостановлены. VPN доступен." : runway()),
           x: AP.x || (me.cabinet_price_enabled ? `<div class="chip">${dayPrice()} ₽ в день за устройство</div>` : ""),
           pill: "Пополнить", pi: "plus", pa: 'data-go="topup"', r: "ref", rl: "Обновить", ra: 'data-act="refresh"' });
