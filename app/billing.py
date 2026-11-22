@@ -90,6 +90,10 @@ async def after_credit(receipt: dict, rw: RemnawaveClient, bot: Bot | None, *, a
         await apply_payment_effects(receipt, rw, bot)
     except Exception:
         logger.exception("Payment %s credited; effects will retry", payment_key)
+    try:
+        await grant_payment_cases(receipt, amount)
+    except Exception:
+        logger.exception("Payment %s credited; its frog case was not given", payment_key)
     from app.payment_notice import deliver_payment_notice
     try:
         await deliver_payment_notice(bot, receipt)
@@ -102,6 +106,25 @@ async def after_credit(receipt: dict, rw: RemnawaveClient, bot: Bot | None, *, a
                   title=title, repeat=not receipt['first_payment'])
     except Exception:
         logger.exception("Could not publish payment event %s", payment_key)
+
+
+async def grant_payment_cases(receipt: dict, amount: int) -> int:
+    """Кейсы с лягушкой for a payment, once per payment: a monthly subscription charge gives
+    case_subscription_count, any other top-up of at least case_topup_min_rub gives one."""
+    from app import frog_cases
+    settings = get_settings()
+    if not frog_cases.enabled() or receipt.get("router_days"):
+        return 0
+    telegram_id, key = int(receipt["telegram_id"]), str(receipt["payment_key"])
+    if key.startswith("order:ap-"):
+        count, kind = int(settings.case_subscription_count or 0), "subscription"
+    else:
+        least = int(settings.case_topup_min_rub or 0)
+        count, kind = (1 if least and int(amount) >= least else 0), "topup"
+    if count <= 0:
+        return 0
+    await frog_cases.grant(telegram_id, min(count, frog_cases.MAX_GIVE), kind, ref=key)
+    return count
 
 
 async def apply_payment_effects(receipt: dict, rw: RemnawaveClient, bot: Bot | None) -> None:

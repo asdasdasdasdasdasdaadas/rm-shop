@@ -49,6 +49,14 @@ def _json_loan(row: dict | None) -> dict | None:
     }
 
 
+async def _subscribed(telegram_id: int) -> bool:
+    try:
+        from app.autopay import subscribed
+        return await subscribed(telegram_id)
+    except Exception:
+        return False
+
+
 async def trust_info(telegram_id: int, local: dict | None, device_count: int) -> dict:
     settings = get_settings()
     day = one_device_day_rub(settings.vpn_day_price_rub)
@@ -66,6 +74,8 @@ async def trust_info(telegram_id: int, local: dict | None, device_count: int) ->
         reason = "Обещанный платёж сейчас недоступен"
     elif open_loan:
         reason = "Уже есть незакрытый обещанный платёж"
+    elif await _subscribed(telegram_id):
+        reason = "С подпиской обещанный платёж не нужен — VPN не выключится"
     elif not await db.trust_unlocked_by_topup(telegram_id):
         reason = "Следующий обещанный платёж откроется после пополнения баланса"
     elif device_count < 1:

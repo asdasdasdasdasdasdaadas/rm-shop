@@ -123,6 +123,11 @@ def validate_shop(body: dict) -> dict:
     out["widgets_enabled"] = bool(body.get("widgets_enabled", get_settings().widgets_enabled))
     out["frog_enabled"] = bool(body.get("frog_enabled", get_settings().frog_enabled))
     out["frog_user_ids"] = _as_people(body.get("frog_user_ids", get_settings().frog_user_ids), "Лягушка: кому показывать")
+    out["cases_enabled"] = bool(body.get("cases_enabled", get_settings().cases_enabled))
+    out["case_topup_min_rub"] = _as_int(body.get("case_topup_min_rub", get_settings().case_topup_min_rub), 0, 100000, "Кейс: пополнение от")
+    out["case_subscription_count"] = _as_int(body.get("case_subscription_count", get_settings().case_subscription_count), 0, 20, "Кейсов за месяц подписки")
+    out["case_dup_bonus_rub"] = _as_int(body.get("case_dup_bonus_rub", get_settings().case_dup_bonus_rub), 0, 1000, "Бонус за повтор лягушки")
+    out["autopay_grace_days"] = _as_int(body.get("autopay_grace_days", get_settings().autopay_grace_days), 0, 14, "Подписка: дней без выключения")
     out["trust_days"] = _as_int(body.get("trust_days"), 1, 30, "Дни обещанного платежа")
     out["trust_fee_rub"] = _as_int(body.get("trust_fee_rub"), 0, 10000, "Комиссия обещанного платежа")
     out["first_bonus_enabled"] = bool(body.get("first_bonus_enabled", get_settings().first_bonus_enabled))
@@ -239,6 +244,11 @@ def snapshot() -> dict:
             "widgets_enabled": s.widgets_enabled,
             "frog_enabled": s.frog_enabled,
             "frog_user_ids": s.frog_user_ids,
+            "cases_enabled": s.cases_enabled,
+            "case_topup_min_rub": s.case_topup_min_rub,
+            "case_subscription_count": s.case_subscription_count,
+            "case_dup_bonus_rub": s.case_dup_bonus_rub,
+            "autopay_grace_days": s.autopay_grace_days,
             "trust_days": s.trust_days,
             "trust_fee_rub": s.trust_fee_rub,
             "first_bonus_enabled": s.first_bonus_enabled,

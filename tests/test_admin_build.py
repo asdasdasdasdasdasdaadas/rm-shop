@@ -35,6 +35,15 @@ class AdminBuildTest(unittest.TestCase):
                     missing.append(f"{name} → {path}")
         self.assertEqual(missing, [], "Собранная админка ссылается на файлы, которых нет в git: закоммитьте admin/ui целиком")
 
+    def test_the_admin_page_asks_for_the_current_build(self):
+        # a rebuilt admin-ui.js must get a new ?v=, or browsers keep the old one and open a white screen
+        import hashlib
+        from app import admin
+        html = admin._admin_index_html()
+        for name in ("admin-ui.js", "admin-ui.css"):
+            digest = hashlib.sha1((UI / name).read_bytes()).hexdigest()[:10]
+            self.assertIn(f"/admin/static/ui/{name}?v={digest}", html)
+
 
 if __name__ == "__main__":
     unittest.main()

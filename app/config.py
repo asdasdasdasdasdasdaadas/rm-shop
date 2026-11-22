@@ -98,6 +98,14 @@ class Settings(BaseSettings):
     frog_enabled: bool = False
     # Who always sees the living frog, whatever the switch and the test say: Telegram IDs and @usernames.
     frog_user_ids: str = ""
+    # Кейсы с лягушкой (app/frog_cases.py): one for a real top-up from case_topup_min_rub (0 — none),
+    # case_subscription_count for each monthly autopay charge, case_dup_bonus_rub to the balance for a frog already owned.
+    cases_enabled: bool = True
+    case_topup_min_rub: int = 300
+    case_subscription_count: int = 3
+    case_dup_bonus_rub: int = 5
+    # «Подписка» (an active autopay): VPN stays on this many days after the balance runs out, while the next charge comes.
+    autopay_grace_days: int = 3
     trust_days: int = 3
     trust_fee_rub: int = 12
     # «+35% к первому пополнению»: the first top-up from first_bonus_min_rub before the gift runs out.
@@ -344,6 +352,11 @@ SHOP_KEYS = frozenset(
         "widgets_enabled",
         "frog_enabled",
         "frog_user_ids",
+        "cases_enabled",
+        "case_topup_min_rub",
+        "case_subscription_count",
+        "case_dup_bonus_rub",
+        "autopay_grace_days",
         "trust_days",
         "trust_fee_rub",
         "first_bonus_enabled",

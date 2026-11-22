@@ -1276,3 +1276,35 @@ CREATE TABLE IF NOT EXISTS expense_reminders (
     sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (expense_id, due_date, stage)
 );
+
+-- Кейсы с лягушкой (app/frog_cases.py): cases waiting, the frog on the home card and a gift to show once.
+CREATE TABLE IF NOT EXISTS frog_case_users (
+    telegram_id BIGINT PRIMARY KEY,
+    cases_left INTEGER NOT NULL DEFAULT 0 CHECK (cases_left >= 0),
+    skin SMALLINT,
+    gift_count INTEGER NOT NULL DEFAULT 0,
+    gift_note TEXT NOT NULL DEFAULT '',
+    gift_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- the frogs a person has, and how many times each dropped
+CREATE TABLE IF NOT EXISTS frog_case_skins (
+    telegram_id BIGINT NOT NULL,
+    skin SMALLINT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 1,
+    first_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (telegram_id, skin)
+);
+-- every case given (topup / subscription / admin) and opened (open); ref keeps a payment from giving twice
+CREATE TABLE IF NOT EXISTS frog_case_log (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL,
+    kind TEXT NOT NULL,
+    delta INTEGER NOT NULL,
+    skin SMALLINT,
+    ref TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS frog_case_log_user ON frog_case_log (telegram_id, id DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS frog_case_log_ref ON frog_case_log (kind, ref) WHERE ref <> '';

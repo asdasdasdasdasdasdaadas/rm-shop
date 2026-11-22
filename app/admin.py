@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -159,8 +160,33 @@ async def admin_redirect(_request: web.Request) -> web.Response:
     raise web.HTTPFound("/admin/")
 
 
-async def admin_index(_request: web.Request) -> web.FileResponse:
-    return web.FileResponse(ADMIN_DIR / "index.html", headers=_NO_STORE)
+_ASSET_VERSION_RE = re.compile(r"(/admin/static/ui/admin-ui\.(?:js|css))\?v=[\w-]+")
+_index_cache: tuple[tuple[float, ...], str] | None = None
+
+
+def _admin_index_html() -> str:
+    """index.html with ?v= on admin-ui.js/.css taken from the built files themselves.
+
+    A hand-kept number was easy to forget on a rebuild: browsers then kept the old admin-ui.js, which asks for
+    chunk files the new build no longer has, and the admin opened as a white screen."""
+    global _index_cache
+    files = [ADMIN_DIR / "index.html", ADMIN_DIR / "ui" / "admin-ui.js", ADMIN_DIR / "ui" / "admin-ui.css"]
+    stamp = tuple(f.stat().st_mtime if f.exists() else 0.0 for f in files)
+    if _index_cache and _index_cache[0] == stamp:
+        return _index_cache[1]
+
+    def version(match: re.Match[str]) -> str:
+        f = ADMIN_DIR / "ui" / match.group(1).rsplit("/", 1)[1]
+        digest = hashlib.sha1(f.read_bytes()).hexdigest()[:10] if f.exists() else "0"
+        return f"{match.group(1)}?v={digest}"
+
+    html = _ASSET_VERSION_RE.sub(version, files[0].read_text(encoding="utf-8"))
+    _index_cache = (stamp, html)
+    return html
+
+
+async def admin_index(_request: web.Request) -> web.Response:
+    return web.Response(text=_admin_index_html(), content_type="text/html", charset="utf-8", headers=_NO_STORE)
 
 
 async def api_admin_build(_request: web.Request) -> web.Response:
@@ -1618,6 +1644,32 @@ async def api_user_gift_unlimited(request: web.Request) -> web.Response:
         note="Админ разрешил дарить подарки без ограничений" if on else "Админ убрал безлимит подарков",
     )
     return web.json_response({"ok": True, "gift_unlimited": on})
+
+
+async def api_user_cases(request: web.Request) -> web.Response:
+    """Кейсы с лягушкой: GET — how many wait and what was dropped; POST {count, note, notify} gives cases."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import frog_cases
+    telegram_id = int(request.match_info["telegram_id"])
+    if not await db.get_user(telegram_id):
+        return web.json_response({"ok": False, "error": "Пользователь не найден"}, status=404)
+    if request.method == "GET":
+        return web.json_response({"ok": True, **await frog_cases.admin_view(telegram_id)})
+    body = await request.json()
+    notify = bool(body.get("notify", True))
+    note = str(body.get("note") or "").strip()[:300]
+    try:
+        count = int(body.get("count") or 0)
+        left = await frog_cases.grant(telegram_id, count, "admin", note=note, notify=notify)
+    except (TypeError, ValueError) as exc:
+        return web.json_response({"ok": False, "error": str(exc) or "Некорректное число"}, status=400)
+    await db.log_billing_event(telegram_id, "admin_cases", source="admin",
+                               note=f"Админ подарил {count} {frog_cases.case_word(count)} с лягушкой" + (f": {note}" if note else ""))
+    error = await frog_cases.send_gift(request.app["bot"], telegram_id, count, note) if notify else ""
+    return web.json_response({"ok": True, "left": left, "sent": notify and not error, "error_sent": error,
+                              **await frog_cases.admin_view(telegram_id)})
 
 
 BULK_MAX = 500
@@ -3455,6 +3507,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/users/{telegram_id}/block", api_block_user)
     app.router.add_post("/admin/api/users/{telegram_id}/billing-pause", api_user_billing_pause)
     app.router.add_post("/admin/api/users/{telegram_id}/gift-unlimited", api_user_gift_unlimited)
+    app.router.add_get("/admin/api/users/{telegram_id}/cases", api_user_cases)
+    app.router.add_post("/admin/api/users/{telegram_id}/cases", api_user_cases)
     app.router.add_get("/admin/api/flags", api_flags)
     app.router.add_post("/admin/api/flags", api_flags)
     app.router.add_get("/admin/api/subscriptions/replace", api_replace_subscriptions)

@@ -407,11 +407,32 @@ def balance_runway(local: dict | None, raw_devices: list[dict], balance_rub: int
 async def _frog_view(telegram_id: int) -> dict:
     """Whether the home card shows the living frog, and the A/B group while its test runs (app/frog_test.py)."""
     try:
-        from app import frog_test
-        return await frog_test.view(telegram_id)
+        from app import frog_cases, frog_test
+        view = await frog_test.view(telegram_id)
+        if not view.get("on") and await frog_cases.skin(telegram_id) is not None:
+            view = {**view, "on": True}   # a frog picked from a case stays on the home card
+        return view
     except Exception:
         logging.getLogger(__name__).exception("Лягушка: не определили, показывать ли")
         return {"on": False, "ab": None}
+
+
+def _plus_view(ap: dict | None) -> dict | None:
+    """«Подписка» is автопополнение on the monthly amount: what the cabinet's subscription screen shows."""
+    if not ap:
+        return None
+    status = ap.get("status") or "off"
+    return {"status": status, "price": int(ap.get("amount") or 0) if status != "off" and ap.get("amount") else int(ap.get("monthly") or 0),
+            "next_at": ap.get("next_charge_at"), "pay_url": ap.get("pay_url")}
+
+
+async def _cases_view(telegram_id: int) -> dict | None:
+    try:
+        from app import frog_cases
+        return await frog_cases.view(telegram_id)
+    except Exception:
+        logging.getLogger(__name__).exception("Кейсы: не загрузились")
+        return None
 
 
 async def _install_arm(telegram_id: int, has_devices: bool) -> str | None:
@@ -517,6 +538,7 @@ async def api_me(request: web.Request) -> web.Response:
         await db.ensure_referral_earned(telegram_id, earned)
     ref_view["referral_earned"] = earned
 
+    ap_view = await _autopay_view(telegram_id, request.app.get("rp"))
     return web.json_response(
         {
             "ok": True,
@@ -615,7 +637,9 @@ async def api_me(request: web.Request) -> web.Response:
             "gift_granted": friend_gifts.is_granted(telegram_id, local),
             "devices": devices,
             "trust": trust,
-            "autopay": await _autopay_view(telegram_id, request.app.get("rp")),
+            "autopay": ap_view,
+            "plus": _plus_view(ap_view),
+            "cases": await _cases_view(telegram_id),
             "faq": faq_items(),
             "vpn_apps": public_vpn_apps(),
             "first_device_thanks_pending": bool((local or {}).get("first_device_thanks_pending")),
@@ -1576,6 +1600,58 @@ async def api_autopay_later(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def api_plus(request: web.Request) -> web.Response:
+    """«Подписка»: автопополнение on the monthly amount → {pay_url}."""
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    from app import autopay
+    if not autopay.available(telegram_id):
+        return json_error("Подписка недоступна", 403)
+    amount = autopay.monthly_amount(autopay.day_cost(await db.billable_device_count(telegram_id)))
+    try:
+        out = await autopay.start(request.app.get("rp"), telegram_id, amount)
+    except (TypeError, ValueError) as exc:
+        return json_error(str(exc) or "Подписка недоступна")
+    except CISPayError as exc:
+        logger.warning("Subscription not started for %s: %s", telegram_id, exc)
+        return json_error("Не удалось подключить подписку, попробуйте позже", 502)
+    return web.json_response({"ok": True, **out})
+
+
+async def api_case_open(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    from app import frog_cases
+    try:
+        return web.json_response({"ok": True, **await frog_cases.open_case(telegram_id)})
+    except ValueError as exc:
+        return json_error(str(exc))
+
+
+async def api_case_skin(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    from app import frog_cases
+    try:
+        body = await request.json()
+        await frog_cases.set_skin(telegram_id, int(body.get("skin")))
+    except (TypeError, ValueError) as exc:
+        return json_error(str(exc) or "Такой лягушки нет")
+    return web.json_response({"ok": True})
+
+
+async def api_case_gift_seen(request: web.Request) -> web.Response:
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    from app import frog_cases
+    await frog_cases.gift_seen(telegram_id)
+    return web.json_response({"ok": True})
+
+
 async def cispay_webhook(request: web.Request) -> web.Response:
     """CISPay status change: credit on PAID. Signature — hex HMAC-SHA256 of the raw body with CISPAY_API_KEY."""
     from app.cispay import is_cispay_payment, verify_webhook as verify_cispay
@@ -1686,6 +1762,11 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/autopay", api_autopay)
         app.router.add_post("/api/autopay/off", api_autopay_off)
         app.router.add_post("/api/autopay/later", api_autopay_later)
+        app.router.add_post("/api/plus", api_plus)
+        app.router.add_post("/api/plus/off", api_autopay_off)
+        app.router.add_post("/api/case/open", api_case_open)
+        app.router.add_post("/api/case/skin", api_case_skin)
+        app.router.add_post("/api/case/gift-seen", api_case_gift_seen)
         app.router.add_post("/api/promo", api_promo)
         app.router.add_post("/api/devices", api_add_device)
         app.router.add_post("/api/devices/{device_id}/check", api_check_connection)

@@ -108,6 +108,18 @@ async def _notify_empty(bot: Bot | None, tg_id: int, price: int, warned: set[int
             )
 
 
+GRACE_NOTE = "Подписка: VPN не выключился, сутки без списания"
+
+
+async def _subscription_grace(tg_id: int) -> bool:
+    try:
+        from app.autopay import grace
+        return await grace(tg_id)
+    except Exception:
+        logger.warning("Подписка: не проверили отсрочку для %s", tg_id, exc_info=True)
+        return False
+
+
 async def _bill_due_device(
     rw: RemnawaveClient,
     bot: Bot | None,
@@ -116,6 +128,7 @@ async def _bill_due_device(
     paused: bool,
     warned: set[int],
     source: str = "cron",
+    pause_note: str = "Пауза тарификации, сутки без списания",
 ) -> str:
     tg_id = int(item["telegram_id"])
     panel_id = int(item["remnawave_id"])
@@ -140,7 +153,7 @@ async def _bill_due_device(
                 source=source,
                 device_id=device_id,
                 device_title=title,
-                note="Пауза тарификации, сутки без списания",
+                note=pause_note,
             )
             return "extended"
         except RemnawaveError:
@@ -182,6 +195,8 @@ async def _bill_due_device(
                 note="Панель не продлила, деньги вернули",
             )
             return "error"
+    if await _subscription_grace(tg_id):
+        return await _bill_due_device(rw, bot, item, price, True, warned, source=source, pause_note=GRACE_NOTE)
     try:
         await rw.disable_panel_user(panel_id)
     except RemnawaveError:
@@ -301,6 +316,7 @@ async def _commit_extends(
     paused: bool,
     source: str,
     chunk: int,
+    note: str | None = None,
 ) -> tuple[int, str]:
     if not items:
         return 0, "нет"
@@ -308,7 +324,7 @@ async def _commit_extends(
     used_bulk = False
     used_one = False
     kind = "pause" if paused else "charge"
-    note = "Пауза тарификации, сутки без списания" if paused else "Списание за сутки VPN"
+    note = note or ("Пауза тарификации, сутки без списания" if paused else "Списание за сутки VPN")
     amount = 0 if paused else -price
     for part in _chunks(items, chunk):
         pids, uuids = _panel_keys(part)
@@ -528,14 +544,19 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
             rows.sort(key=lambda x: (bool(x.get("reenable")), int(x["id"])))
         sem = asyncio.Semaphore(max(1, settings.billing_concurrency))
 
-        async def decide(tg_id: int, devices: list[dict]) -> tuple[list[dict], list[dict], bool]:
+        async def decide(tg_id: int, devices: list[dict]) -> tuple[list[dict], list[dict], bool, list[dict]]:
             async with sem:
                 user_paused = paused or any(bool(item.get("billing_paused")) for item in devices)
                 ext, dis = await _decide_user_devices(devices, price, user_paused)
-                return ext, dis, user_paused
+                kept: list[dict] = []
+                if dis and any(not item.get("reenable") for item in dis) and await _subscription_grace(tg_id):
+                    # «Подписка»: around the monthly charge the VPN stays on even when the balance is empty.
+                    kept = [item for item in dis if not item.get("reenable")]
+                    dis = [item for item in dis if item.get("reenable")]
+                return ext, dis, user_paused, kept
 
         keys = list(groups.items())
-        decided: list[tuple[list[dict], list[dict], bool]] = []
+        decided: list[tuple[list[dict], list[dict], bool, list[dict]]] = []
         for part in _chunks(keys, 400):
             decided.extend(
                 await asyncio.gather(*[decide(tg, rows) for tg, rows in part])
@@ -543,7 +564,9 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
         extend_free: list[dict] = []
         extend_pay: list[dict] = []
         disable: list[dict] = []
-        for ext, dis, user_paused in decided:
+        extend_grace: list[dict] = []
+        for ext, dis, user_paused, kept in decided:
+            extend_grace.extend(kept)
             if user_paused:
                 extend_free.extend(ext)
             else:
@@ -556,7 +579,10 @@ async def charge_due_devices(rw: RemnawaveClient, bot: Bot | None = None) -> Non
         extended_pay, pay_mode = await _commit_extends(
             rw, extend_pay, price=price, paused=False, source="cron", chunk=chunk
         )
-        extended = extended_free + extended_pay
+        extended_grace, _ = await _commit_extends(
+            rw, extend_grace, price=price, paused=True, source="cron", chunk=chunk, note=GRACE_NOTE
+        )
+        extended = extended_free + extended_pay + extended_grace
         extend_mode = free_mode if extended_free else pay_mode
         if extended_free and extended_pay:
             extend_mode = f"{free_mode}/{pay_mode}"

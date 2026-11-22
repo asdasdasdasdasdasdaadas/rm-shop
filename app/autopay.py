@@ -114,6 +114,28 @@ async def offer_ok(telegram_id: int) -> bool:
     return not row or (row["status"] not in OPEN and not row["declined"])
 
 
+async def grace(telegram_id: int) -> bool:
+    """«Подписка: VPN не выключится»: around the monthly charge (autopay_grace_days either side of it) an empty
+    balance does not switch the VPN off — the charge is late, the bank is slow, or the money is a day short."""
+    days = int(get_settings().autopay_grace_days or 0)
+    if days <= 0 or not available(telegram_id):
+        return False
+    row = await get(telegram_id)
+    nxt = _ts((row or {}).get("next_charge_at"))
+    if not row or row["status"] != "active" or nxt is None:
+        return False
+    now = datetime.now(timezone.utc)
+    return nxt - timedelta(days=days) <= now <= nxt + timedelta(days=days)
+
+
+async def subscribed(telegram_id: int) -> bool:
+    """«Подписка» is on: no «баланс на исходе» reminders and no promised payment."""
+    if not available(telegram_id):
+        return False
+    row = await get(telegram_id)
+    return bool(row and row["status"] == "active")
+
+
 async def decline(telegram_id: int) -> None:
     await db._pool_req().execute(
         """INSERT INTO autopay (telegram_id, declined_until) VALUES ($1, NOW() + make_interval(days => $2))

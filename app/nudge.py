@@ -132,6 +132,15 @@ def gift_ending_text() -> str:
     return notice_text("gift_ending_nudge", min=minimum, days=days_text(max(1, minimum // price)))
 
 
+async def _subscribed(telegram_id: int) -> bool:
+    try:
+        from app.autopay import subscribed
+        return await subscribed(telegram_id)
+    except Exception:
+        logger.warning("Подписка: не проверили для %s", telegram_id, exc_info=True)
+        return False
+
+
 async def send_due_trial_end_nudges(
     bot: Bot, skip_ids: list[int] | None = None, *,
     body: str | None = None, button_ids: list[str] | None = None,
@@ -160,6 +169,8 @@ async def send_due_trial_end_nudges(
                 if not (row.get("paid") and row.get("balance_warn3_at") is None and balance > price * count):
                     continue
                 stage = 3
+        if await _subscribed(telegram_id):
+            continue   # «Подписка»: the monthly charge tops the balance up, no «баланс на исходе»
         if not await db.nudge_delivery_allowed(telegram_id, "nudge_trial_end"):
             continue
         if not await db.claim_balance_ending_notice(telegram_id, settings.vpn_day_price_rub, stage=stage):

@@ -48,6 +48,8 @@ export const billKinds: Data = {
   trust: "Обещанный платёж",
   trust_collect: "Возврат обещанного платежа",
   device_delete: "Удаление устройства",
+  case_bonus: "Повтор из кейса",
+  admin_cases: "Кейсы подарены",
   error: "Ошибка",
 };
 import { messageKinds } from "@/lib/message-kinds";

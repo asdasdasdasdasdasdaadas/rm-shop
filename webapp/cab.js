@@ -203,6 +203,8 @@
     return Boolean(me.trial_available || kind === "claim" || kind === "start_bot");
   }
   function trustShown() {
+    // with the subscription VPN never switches off, so there is nothing to promise
+    if (plusOn()) return false;
     const t = me && me.trust;
     return Boolean(t && t.enabled !== false && (t.open || t.available || ((Number(me.days_left) || 0) < 3 && me.has_paid_topup)));
   }
@@ -415,7 +417,7 @@
   // frog.js starts loading as soon as the home card is drawn with the frog's field
   function frogLoad() {
     frogLib = frogLib || new Promise((ok, no) => {
-      const s = document.createElement("script"); s.src = "/static/frog.js?v=4"; s.onload = ok; s.onerror = () => { frogLib = null; no(); };
+      const s = document.createElement("script"); s.src = "/static/frog.js?v=5"; s.onload = ok; s.onerror = () => { frogLib = null; no(); };
       document.head.appendChild(s);
     });
     frogLib.catch(() => {});
@@ -440,7 +442,7 @@
     frogLoad().then(() => {
       if (!card.isConnected || card.querySelector(".pet")) return;
       if (ill.querySelector(".frogpad")) field();
-      window.petLive(card, { skin: mood === "sleep" ? 18 : mood === "cold" ? 0 : 3, mood,
+      window.petLive(card, { skin: me.cases && me.cases.skin != null ? me.cases.skin : mood === "sleep" ? 18 : mood === "cold" ? 0 : 3, mood,
         onPlay: () => { const now = Date.now(); if (now - frogPlayAt < 2000) return; frogPlayAt = now; frogEvent("play"); } });
     }).catch(() => { if (card.isConnected && ill.querySelector(".frogpad")) ill.innerHTML = `<div>${FROG(78, mood === "sleep")}</div>`; });
   }
@@ -448,7 +450,7 @@
   SCR.home = {
     live: true,
     h() {
-      const devs = phones(), alert = alertState(), bal = Number(me.balance_rub) || 0;
+      const devs = phones(), alert = plusOn() ? "" : alertState(), bal = Number(me.balance_rub) || 0;
       const from = Number(store.get("shown_bal"));
       const N = cnt(Math.abs(bal), " ₽", bal < 0 ? "−" : "", Number.isFinite(from) && from >= 0 ? from : 0);
       const trust = me.trust || {};
@@ -470,10 +472,18 @@
           pill: "Продолжить", pa: 'data-act="resume"', r: "msg", rl: "Помощь", ra: 'data-act="helpconnect"' });
       } else {
         const low = alert === "low";
+        const PL = plusOn() ? { rb: "Подписка", p: `VPN не выключится${parseDate(me.plus.next_at) ? " · пополнение " + dateLong(parseDate(me.plus.next_at)) : ""}`,
+          x: `<button type="button" class="chip apchip" data-go="plus">${icoPlus()} Подписка ›</button>` } : {};
         hero = hc(low ? "orange" : "green", { ...AP, rb: me.billing_paused ? "пауза" : "VPN вкл", ill: HFROG(78), n: N,
           p: low ? `Осталось меньше суток — пополните заранее` : (me.billing_paused ? "Списания приостановлены. VPN доступен." : runway()),
           x: AP.x || (me.cabinet_price_enabled ? `<div class="chip">${dayPrice()} ₽ в день за устройство</div>` : ""),
-          pill: "Пополнить", pi: "plus", pa: 'data-go="topup"', r: "ref", rl: "Обновить", ra: 'data-act="refresh"' });
+          pill: "Пополнить", pi: "plus", pa: !me.plus || me.has_paid_topup || plusOn() ? 'data-go="topup"' : 'data-go="paychoice"', r: "ref", rl: "Обновить", ra: 'data-act="refresh"', ...PL });
+      }
+      // a waiting case gets its chip; next to the subscription chip they share one even row
+      if (caseInfo().left && hero.includes('<div class="acts')) {
+        const cc = `<button type="button" class="chip apchip cs-chip" data-go="case">${icoCase()} ${plusOn() ? "Кейс ждёт" : "Кейс с лягушкой ждёт"} ›</button>`;
+        const pc = `<button type="button" class="chip apchip" data-go="plus">${icoPlus()} Подписка ›</button>`;
+        hero = hero.includes(pc) ? hero.replace(pc, `<div class="chiprow">${pc}${cc}</div>`) : hero.replace('<div class="acts', `<div class="chiprow">${cc}</div><div class="acts`);
       }
       const cap = Number(me.max_devices) || 0;
       const devRows = devs.map((d) => [E(devIcon(d)) + TT(esc(d.title || "Устройство"),
@@ -494,6 +504,8 @@
           [E("🎁") + "Пригласить друзей" + V((me.referral_program_enabled ? `+${rub(me.referral_reward_rub || 50)} ` : "") + CV), 'data-go="friends"'],
           me.gifts_enabled ? [E("💝") + "Подарить другу" + V(CV), 'data-act="gfgive"'] : null,
           trustShown() ? [E("🤝") + "Обещанный платёж" + V((trust.open ? "открыт " : "") + CV), 'data-go="promise"'] : null,
+          !plusOn() && me.plus ? [E(icoPlus()) + TT("Подписка", "VPN не выключится") + V(CV), 'data-go="plus"'] : null,
+          me.cases ? [E(icoFrogs()) + TT("Мои лягушки", `${ownedCount()} из ${SKINS.length}${caseInfo().left ? " · кейс ждёт" : ""}`) + V(CV), `data-go="${caseInfo().left ? "case" : "frogs"}"`] : null,
           [E("⚙️") + (apSettingsLine() ? TT("Настройки", apSettingsLine()) : "Настройки") + V(CV), 'data-go="settings"'],
         ]);
     },
@@ -502,10 +514,11 @@
       track("cabinet");
       frogEvent("open");
       frogMount(el);
+      setTimeout(caseGiftSheet, 600);
       const nb = el && el.querySelector(".nyb");
       if (nb) { gMini(nb); gConf(nb, "snow"); }
     },
-    sig: () => JSON.stringify([me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.has_paid_topup, me.browser_login, me.first_bonus, me.gift_season, me.autopay, me.frog && me.frog.on]),
+    sig: () => JSON.stringify([me.cases, me.plus, me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.has_paid_topup, me.browser_login, me.first_bonus, me.gift_season, me.autopay, me.frog && me.frog.on]),
   };
 
   // ---------- gift for newcomers ----------
@@ -907,6 +920,8 @@
       const d = apNext();
       return NOTE(`🔁 Автопополнение включено: +${rub(a.amount)} раз в месяц${d ? ", ближайшее " + dateLong(d) : ""}`, true);
     }
+    if (me.plus) return plusOn() ? NOTE(icoPlus("in") + " У вас подписка: VPN не выключится, даже если баланс кончится", true)
+      : `<div style="height:12px"></div>` + cd([[E(icoPlus()) + TT("Подписка вместо разовых оплат", `${rub(me.plus.price || 180)} в месяц · VPN не выключится`) + V(CV), 'data-go="plus"']]);
     if (!apTopupOk()) return "";
     return `<div style="height:12px"></div>` + cd([[E("🔁") + TT("Пополнять так каждый месяц", `<span id="apTgS">${apTgSub()}</span>`) +
       `<span class="tg${pay.ap ? "" : " off"}" id="apTg"></span>`, 'data-act="apTg"']]);
@@ -1190,6 +1205,15 @@
   // ---------- waiting for the money ----------
   SCR.wait = {
     h() {
+      if (pay.kind === "plus") {
+        return hc("sbp", { cls: "shim", rb: "ждём", ill: SBPBIG(60), n: rub(pay.amount), p: "Ждём оплату · обычно до минуты",
+          pill: "Ждём оплату…", pd: true, r: "ref", rl: "Проверить", ra: 'data-act="refresh"' }) +
+          ST("Как это работает") +
+          tl([[CHK(22), "Счёт создан", `${rub(pay.amount)} · СБП`, "ok"],
+            ["2", "Подтверждение в банке", "<b>подтвердите в приложении банка</b>", "run"],
+            [icoPlus(), "Подключим подписку", "и положим деньги на баланс"]]) +
+          NOTE("Если оплата не пройдёт, ничего не подключится.", true);
+      }
       if (pay.kind === "autopay") {
         return hc("sbp", { cls: "shim", rb: "ждём", ill: SBPBIG(60), n: rub(pay.amount), p: "Ждём оплату · обычно до минуты",
           pill: "Ждём оплату…", pd: true, r: "ref", rl: "Проверить", ra: 'data-act="refresh"' }) +
@@ -1257,6 +1281,8 @@
     boom();
     toast(`+${rub(delta)} на балансе 🎉`);
     if (pay.kind === "autopay") { apPaid(el); pay.kind = ""; return; }
+    if (pay.kind === "plus") { plusPaid(el); pay.kind = ""; T(() => caseGot(el), 300); return; }
+    T(() => caseGot(el), 300);
     T(() => { if (!apQuiet(el)) paidInvite(el); }, 1100);
   }
   // Right after a payment people are happy with the service: offer to bring a friend. Shown on the first payment,
@@ -1846,7 +1872,7 @@
   const BILL = { charge: "VPN", pause: "Пауза тарификации", disable: "Отключение", revive: "Включение", trial: "Подарок", admin_balance: "Баланс",
     admin_grant: "Начисление", trust: "Обещанный платёж", trust_collect: "Возврат обещанного", device_delete: "Удаление устройства", referral: "Бонус за друга",
     referral_payout: "Реферальная награда", referral_revoke: "Возврат за друга", story: "Награда за историю", topup: "Пополнение", router: "Роутер", promo: "Промокод",
-    first_bonus: "Бонус за первую оплату", return_bonus: "Бонус за возвращение", gift_sent: "Подарок другу", gift_received: "Подарок от друга", gift_return: "Подарок вернулся" };
+    first_bonus: "Бонус за первую оплату", return_bonus: "Бонус за возвращение", gift_sent: "Подарок другу", gift_received: "Подарок от друга", gift_return: "Подарок вернулся", case_bonus: "Повтор из кейса" };
   SCR.history = {
     h(p) {
       const data = p.data;
@@ -2120,7 +2146,7 @@
     if (a.status === "pending") return { x: chip("🔁 Автопополнение ждёт оплаты") };
     if (!alert) return {};
     if (a.failed) return { x: `<div class="chip apchip warn">⚠️ Автопополнение не сработало</div>`, s2: "Включить снова", s2a: 'data-go="autopay"' };
-    if (a.offer) return { s2: "🔁&nbsp;Пополнять каждый месяц", s2a: 'data-go="autopay"' };
+    if (a.offer) return { s2: icoPlus("in") + "&nbsp;Подписка", s2a: 'data-go="plus"' };
     return {};
   }
   const apSettingsLine = () => !me.autopay ? "" : apOn() ? "Автопополнение включено" : me.autopay.status === "pending" ? "Автопополнение ждёт оплаты" : "";
@@ -2227,6 +2253,267 @@
       cd([[E("⚙️") + "Управлять автопополнением" + V(CV), 'data-go="autopay"']]);
     const note = el.querySelector(".note");
     if (note) note.replaceWith(box); else el.appendChild(box);
+  }
+
+  // ---------- Подписка : a monthly SBP top-up whose point is that VPN never switches off ----------
+  const plusOn = () => Boolean(me && me.plus && me.plus.status === "active");
+  const PLUS_PERKS = [["🛡️", "VPN не выключится", "даже если баланс кончился или банк не провёл оплату — несколько дней всё работает, пока разберётесь"],
+    ["🔕", "Без напоминаний", "никаких «баланс на исходе»: бот пишет, только если что-то важное"],
+    () => (me.cases && me.cases.per_month ? [icoCase(), `${me.cases.per_month} ${caseWord(me.cases.per_month)} с лягушкой каждый месяц`, "в каждом одна из 48 моделей — бывают легендарные"] : null)];
+  const plusPerks = () => PLUS_PERKS.map((x) => (typeof x === "function" ? x() : x)).filter(Boolean);
+  const casesLine = () => (me.cases && me.cases.per_month ? `${me.cases.per_month} ${caseWord(me.cases.per_month)} с лягушкой` : "");
+  // the subscription hero: a row of frogs from the case, the legendary one in the middle
+  const PLUS_FROGS = () => `<span class="plus-frogs">${SKT(19, "s2")}${SKT(25, "s1")}${SKT(32, "s0", true)}${SKT(38, "s1")}${SKT(44, "s2")}</span>`;
+  SCR.plus = {
+    live: true,
+    h() {
+      const P = me.plus || {}, price = rub(P.price || 180);
+      if (P.status === "active") {
+        const d = parseDate(P.next_at);
+        return hc("green", { rb: "Подписка", ill: PLUS_FROGS(), h: "VPN не выключится",
+          p: `${price} в месяц на баланс${d ? ` · следующее пополнение ${dateLong(d)}` : ""}`,
+          x: `<button type="button" class="chip apchip cs-chip" data-go="case">${icoCase()} ${caseInfo().left ? `Кейсов ждёт: ${caseInfo().left}` : `${casesLine()} придут с пополнением`} ›</button>` }) +
+          ST("Что у вас есть") + cd(plusPerks().map((x) => `${E(x[0])}${TT(x[1], x[2])}${V(CHK(16))}`)) +
+          `<div style="height:12px"></div>` + cd([[E("🔁") + TT("Подписка", `${price} раз в месяц через СБП, на баланс`) + `<span class="tg"></span>`, 'data-act="plusOff"']]) +
+          NOTE("Деньги приходят на баланс и не сгорают. Отключить можно в любой момент.", true);
+      }
+      return hc("purple", { k: "Подписка", ill: PLUS_FROGS(), h: "VPN, который не выключается",
+        p: `${price} в месяц — они же на баланс`, x: casesLine() ? `<div class="chip plus-cases">${icoCase()} + ${casesLine()} каждый месяц</div>` : "",
+        pill: `Подключить за ${price}`, pa: 'data-act="plusStart"', s2: "Не сейчас", s2a: 'data-act="back"' }) +
+        ST("Что даёт подписка") + cd(plusPerks().map((x) => `${E(x[0])}${TT(x[1], x[2])}`)) +
+        NOTE(`${price} раз в месяц через СБП приходят на ваш баланс — это не плата сверху. Накануне напомним, отключить — в один тап` +
+          (me.legal && me.legal.offer ? ` · <button type="button" class="ulink" data-act="link" data-v="${esc(me.legal.offer)}">Условия</button>` : ""), true);
+    },
+    sig: () => JSON.stringify([me.plus || null, me.cases && me.cases.left]),
+    on(el) { skMount(el); },
+  };
+  // The first payment: what most people pick here stays with them, so the subscription is offered first.
+  SCR.paychoice = {
+    h(p) {
+      const P = me.plus || {}, sel = p.sel || "plus";
+      const opt = (id, emo, title, sub, tag) => `<button type="button" class="pch${sel === id ? " on" : ""}" data-act="pchSel" data-v="${id}">${tag ? `<em>${tag}</em>` : ""}<span class="pch-e">${emo}</span><span class="pch-t"><b>${title}</b><span>${sub}</span></span>${RD(sel === id)}</button>`;
+      return hc("slate", { ill: HFROG(64), h: "Как будете платить?", p: `VPN — ${dayPrice()} ₽ в день за устройство, деньги лежат на балансе` }) +
+        `<div class="pchs">` +
+        opt("plus", icoPlus(), "Подписка", `${rub(P.price || 180)} в месяц на баланс · VPN не выключится${casesLine() ? " · " + casesLine() : ""}`, "чаще выбирают") +
+        opt("manual", "🪙", "Пополнять вручную", "когда захотите, любой суммой · напомним, когда баланс на исходе") +
+        `</div>` +
+        `<div class="bot"><button type="button" class="bbtn" data-act="pchGo">${sel === "plus" ? `Подключить за ${rub(P.price || 180)}` : "Выбрать сумму"}</button></div>`;
+    },
+    bot: true,
+  };
+  async function plusBegin(b) {
+    if (b && b.classList.contains("dim")) return;
+    haptic();
+    if (b) b.classList.add("dim");
+    try {
+      const r = await post("/api/plus", {});
+      pay.amount = (me.plus || {}).price || 180; pay.kind = "plus"; pay.url = r.pay_url || ""; pay.base = Number(me.balance_rub) || 0; pay.fbOn = false;
+      if (r.pay_url) tg.openLink(r.pay_url);
+      go("wait");
+      load(true).catch(() => {});
+    } catch (e) { showErr(e); if (b) b.classList.remove("dim"); }
+  }
+  function plusPaid(el) {
+    const h = el.querySelector(".hc");
+    if (h) h.querySelector(".P").insertAdjacentHTML("afterend", `<div class="chip">${icoPlus()} Подписка подключена</div>`);
+    const box = document.createElement("div");
+    box.innerHTML = ST("Готово") + cd(plusPerks().map((x) => `${E(x[0])}${TT(x[1], x[2])}`)) +
+      cd([[E("🔁") + "Управлять подпиской" + V(CV), 'data-go="plus"']]);
+    const note = el.querySelector(".note");
+    if (note) note.replaceWith(box); else el.appendChild(box);
+  }
+
+  // frog models as icons: the subscription wears the crowned frog, a case is a frog in shadow with a question mark,
+  // the collection shows the frog that lives on the home card
+  function icoSk(id, cls) { return `<span class="sk ico ${cls || ""}" data-sk="${id}"></span>`; }
+  function icoPlus(cls) { return icoSk(32, cls); }
+  function icoCase(cls) { return `<span class="ico-q ${cls || ""}">${icoSk(19)}<i>?</i></span>`; }
+  // the collection is a small album card, like a tile in the collection: the home frog inside, a stripe in its rarity colour,
+  // and a second card peeking out behind it
+  function icoFrogs(cls) {
+    const id = me && me.cases && me.cases.skin != null ? me.cases.skin : 7;
+    const rc = (RAR[(SK[id] || [0, 0, "u"])[2]] || RAR.u)[1];
+    return `<span class="ico-alb ${cls || ""}" style="--rc:${rc}"><i></i><span class="alb-c">${icoSk(id)}</span></span>`;
+  }
+  // ---------- Кейс с лягушкой : a case for each top-up from 300 ₽ and each month of the subscription ----------
+  // One of 48 frog models drops, by rarity; the one picked lives on the home card.
+  const RAR = { c: ["Обычная", "#9aa3ad", 55], u: ["Необычная", "#3fb950", 27], r: ["Редкая", "#4c8dff", 12], e: ["Эпическая", "#b36bff", 5], l: ["Легендарная", "#f5a524", 1] };
+  const RAR_ORDER = ["l", "e", "r", "u", "c"];
+  const plural = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; };
+  const SKINS = [
+    [32, "Королевская", "l"], [35, "Громовая", "l"], [39, "Лотосовая", "l"], [44, "Снежная", "l"],
+    [19, "Призрачная", "e"], [20, "Сияющая", "e"], [33, "Пиратская", "e"], [38, "Звездочёт", "e"], [40, "Ядовитая", "e"], [42, "Колдовская", "e"], [43, "Рогатая", "e"], [45, "Вулканная", "e"],
+    [25, "Фея", "r"], [26, "Цветочная", "r"], [27, "Тортик", "r"], [30, "Мухомор", "r"], [31, "Земляника", "r"], [37, "Рыцарская", "r"], [41, "Пчелиная", "r"], [46, "Мороженка", "r"], [49, "Дождевая", "r"],
+    [7, "Радужная", "u"], [10, "Пятнистая", "u"], [11, "Космическая", "u"], [14, "Ягодная", "u"], [15, "Неоновая", "u"], [16, "Аметистовая", "u"], [17, "Панда", "u"], [21, "Огненная", "u"], [22, "Ледяная", "u"], [23, "Фиалковая", "u"], [28, "Мечтательная", "u"], [29, "Болотная", "u"], [34, "Апельсиновая", "u"],
+    [0, "Закатная", "c"], [1, "Сиреневая", "c"], [2, "Медовая", "c"], [3, "Мятная", "c"], [4, "Небесная", "c"], [5, "Клубничная", "c"], [6, "Лавандовая", "c"], [8, "Шоколадная", "c"], [9, "Сапфировая", "c"], [12, "Карамельная", "c"], [13, "Серебряная", "c"], [18, "Ночная", "c"], [24, "Лимонная", "c"], [36, "Глиняная", "c"]];
+  const SK = Object.fromEntries(SKINS.map((s) => [s[0], s]));
+  const caseInfo = () => (me && me.cases) || { left: 0, owned: {}, skin: null };
+  const caseWord = (n) => plural(n, "кейс", "кейса", "кейсов");
+  const caseNext = () => (caseInfo().topup_min ? `Кейсов нет — следующий за пополнение от ${rub(caseInfo().topup_min)}` : "Кейсов пока нет");
+  function caseRules() {
+    const c = caseInfo(), parts = [];
+    if (c.topup_min) parts.push(`Кейс даётся за каждое пополнение от ${rub(c.topup_min)}`);
+    if (c.per_month && me.plus) parts.push(`${parts.length ? "а с подпиской" : "С подпиской"} — ${c.per_month} ${caseWord(c.per_month)} каждый месяц`);
+    let t = parts.join(", ");
+    if (c.dup_bonus) t += `${t ? ". " : ""}Повтор — +${rub(c.dup_bonus)} на баланс.`;
+    return t || "Кейсы дарим за пополнения и в праздники.";
+  }
+  const owned = () => caseInfo().owned || {};
+  const ownedCount = () => Object.keys(owned()).length;
+  const skinFile = (id) => `/icons/frog/p${String(id).padStart(2, "0")}.json`;
+  // a still frog model (or a living one with live=true); mounted after the screen is drawn
+  const SKT = (id, cls = "", live = false) => `<span class="sk ${cls}" data-sk="${id}"${live ? ' data-live="1"' : ""}></span>`;
+  function skMount(root) {
+    const els = [...root.querySelectorAll(".sk[data-sk]:not(.on)")];
+    if (!els.length) return;
+    els.forEach((h) => h.classList.add("on"));
+    lottieLib().then((L) => els.forEach((h) => {
+      const live = h.dataset.live === "1";
+      const a = L.loadAnimation({ container: h, renderer: "svg", loop: live, autoplay: false, path: skinFile(h.dataset.sk) });
+      a.addEventListener("DOMLoaded", () => { if (live) a.playSegments([0, 180], true); else a.goToAndStop(0, true); });
+    })).catch(() => {});
+  }
+  const rollLocal = () => {
+    let x = Math.random() * 100, r = "c";
+    for (const k of RAR_ORDER) { if (x < RAR[k][2]) { r = k; break; } x -= RAR[k][2]; }
+    const pool = SKINS.filter((s) => s[2] === r);
+    return pool[Math.floor(Math.random() * pool.length)][0];
+  };
+  const cell = (id) => `<div class="cs-c" style="--rc:${RAR[SK[id][2]][1]}">${SKT(id)}</div>`;
+  const WIN_AT = 42, CELLS = 50;
+  SCR.case = {
+    h(p) {
+      const c = caseInfo(), left = Number(c.left) || 0;
+      const strip = (p.strip || (p.strip = Array.from({ length: CELLS }, rollLocal)));
+      return `<section class="cs-hero"><div class="cs-t">Кейс с лягушкой</div><div class="cs-s">${left ? `${left === 1 ? "Ждёт 1 кейс" : `Ждут кейсов: ${left}`}` : caseNext()}</div>` +
+        `<div class="cs-win"><div class="cs-strip">${strip.map(cell).join("")}</div><i class="cs-mk"></i></div>` +
+        `<div class="cs-res"></div>` +
+        `<div class="acts cs-acts"><button type="button" class="pill${left ? "" : " dim"}" data-act="caseOpen"><span>${left ? "Открыть кейс" : "Пополнить и получить"}</span></button></div></section>` +
+        ST("Шансы") + cd(RAR_ORDER.map((k) => `${E(`<i class="cs-dot" style="background:${RAR[k][1]}"></i>`)}${TT(RAR[k][0], `${SKINS.filter((s) => s[2] === k).length} ${plural(SKINS.filter((s) => s[2] === k).length, "модель", "модели", "моделей")}`)}${V(`${RAR[k][2]}%`)}`)) +
+        `<div style="height:12px"></div>` + cd([[E(icoFrogs()) + TT("Мои лягушки", `${ownedCount()} из ${SKINS.length}`) + V(CV), 'data-go="frogs"']]) +
+        NOTE(caseRules(), true);
+    },
+    on(el) { skMount(el); },
+  };
+  async function caseOpen(b) {
+    const c = caseInfo();
+    if (!(Number(c.left) > 0)) { go(me.has_paid_topup || plusOn() ? "topup" : "paychoice"); return; }
+    if (b.classList.contains("dim") || caseOpen.busy) return;
+    caseOpen.busy = true; b.classList.add("dim"); haptic();
+    const el = cur.el;
+    let r;
+    try { r = await post("/api/case/open", {}); } catch (e) { showErr(e); caseOpen.busy = false; b.classList.remove("dim"); return; }
+    const strip = el.querySelector(".cs-strip"), win = el.querySelector(".cs-win"), res = el.querySelector(".cs-res");
+    res.innerHTML = "";
+    // the won model takes its place in the strip; the rest are reshuffled so a second spin looks fresh
+    const cells = [...strip.children];
+    const ids = Array.from({ length: CELLS }, rollLocal); ids[WIN_AT] = r.skin;
+    cells.forEach((x, i) => { if (Number(x.querySelector(".sk").dataset.sk) !== ids[i]) x.outerHTML = cell(ids[i]); });
+    skMount(strip);
+    strip.style.transition = "none"; strip.style.transform = "translateX(0)"; void strip.offsetWidth;
+    const cw = strip.children[0].getBoundingClientRect().width + 8;
+    const to = WIN_AT * cw + cw / 2 - win.clientWidth / 2 + (Math.random() - .5) * cw * .6;
+    strip.style.transition = "transform 5.6s cubic-bezier(.08,.72,.16,1)";
+    strip.style.transform = `translateX(${-to}px)`;
+    let last = -1;
+    const tick = () => {
+      if (!strip.isConnected) return;
+      const m = new DOMMatrix(getComputedStyle(strip).transform), i = Math.floor((-m.m41 + win.clientWidth / 2) / cw);
+      if (i !== last) { last = i; haptic("soft"); }
+      if (caseOpen.busy) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    await new Promise((ok) => setTimeout(ok, 5700));
+    caseOpen.busy = false;
+    const s = SK[r.skin], rr = RAR[s[2]];
+    strip.children[WIN_AT].classList.add("win");
+    notify(s[2] === "c" || s[2] === "u" ? "success" : "success");
+    if (s[2] === "l" || s[2] === "e") boom();
+    res.innerHTML = `<div class="cs-got" style="--rc:${rr[1]}">${SKT(r.skin, "big", true)}<div class="cs-gr">${rr[0]}</div><div class="cs-gn">${s[1]}</div>` +
+      `<div class="cs-gs">${r.dup ? (r.bonus ? `Уже есть в коллекции · +${rub(r.bonus)} на баланс` : "Уже есть в коллекции") : "Новая в коллекции!"}</div></div>`;
+    skMount(res);
+    await load(true).catch(() => {});
+    const left = Number(caseInfo().left) || 0;
+    el.querySelector(".cs-s").textContent = left ? (left === 1 ? "Ждёт ещё 1 кейс" : `Ждут кейсов: ${left}`) : caseNext();
+    const acts = el.querySelector(".cs-acts");
+    acts.classList.add("two");
+    acts.innerHTML = `<button type="button" class="pill" data-act="caseUse" data-v="${r.skin}"><span>Поставить на главную</span></button>` +
+      `<button type="button" class="pill sec" data-act="${left ? "caseOpen" : "back"}"><span>${left ? "Ещё кейс" : "Готово"}</span></button>`;
+    const rows = el.querySelectorAll(".cd");
+    const coll = rows[rows.length - 1] && rows[rows.length - 1].querySelector(".tt span");
+    if (coll) coll.textContent = `${ownedCount()} из ${SKINS.length}`;
+  }
+  async function caseUse(id) {
+    haptic();
+    try { await post("/api/case/skin", { skin: id }); } catch (e) { showErr(e); return; }
+    me.cases = { ...caseInfo(), skin: id };
+    if (window.petKill) window.petKill();
+    toast(`${SK[id][1]} лягушка теперь на главной`);
+  }
+  // the collection's hero: the best frogs people own, floating, each glowing in its rarity colour;
+  // empty places are dark frogs with a question mark, so there is always something left to find
+  function frogShow() {
+    const o = owned(), sel = caseInfo().skin;
+    const have = SKINS.filter((s) => o[s[0]]).map((s) => s[0]);
+    const center = sel != null && o[sel] ? sel : have[0];
+    const rest = have.filter((x) => x !== center).slice(0, 4);
+    const slots = [rest[2], rest[0], center, rest[1], rest[3]];
+    const sz = ["s2", "s1", "s0", "s1", "s2"];
+    const mystery = [44, 33, 3, 20, 35];
+    return `<span class="fr-row">${slots.map((id, i) => {
+      if (id == null) return `<span class="fr-o fr-q" style="--d:${i * .35}s"><span class="ico-q">${SKT(mystery[i], sz[i])}<i>?</i></span></span>`;
+      const r = SK[id][2];
+      return `<span class="fr-o r-${r}" style="--rc:${RAR[r][1]};--d:${i * .35}s">${r === "l" || r === "e" ? '<i class="fr-ray"></i>' : ""}<i class="fr-glow"></i>${
+        SKT(id, sz[i], i === 2)}${r === "l" ? '<i class="fr-sp a"></i><i class="fr-sp b"></i><i class="fr-sp c"></i>' : ""}</span>`;
+    }).join("")}</span>`;
+  }
+  SCR.frogs = {
+    h() {
+      const o = owned(), sel = caseInfo().skin;
+      return hc("slate", { cls: "fr-hero", ill: frogShow(), h: "Мои лягушки", p: `${ownedCount()} из ${SKINS.length} · нажмите, чтобы поставить на главную`,
+        pill: "Открыть кейс", pa: 'data-go="case"' }) +
+        RAR_ORDER.map((k) => {
+          const list = SKINS.filter((s) => s[2] === k), got = list.filter((s) => o[s[0]]).length;
+          return ST(`<span style="color:${RAR[k][1]}">${RAR[k][0]}</span> <span style="color:var(--hint);font-weight:500">· ${got} из ${list.length}</span>`) +
+            `<div class="fg">${list.map((s) => o[s[0]]
+              ? `<button type="button" class="fg-i${sel === s[0] ? " sel" : ""}" style="--rc:${RAR[k][1]}" data-act="caseUse" data-v="${s[0]}">${SKT(s[0])}<b>${s[1]}</b>${o[s[0]] > 1 ? `<em>×${o[s[0]]}</em>` : ""}</button>`
+              : `<div class="fg-i lock" style="--rc:${RAR[k][1]}">${SKT(s[0])}<b>???</b></div>`).join("")}</div>`;
+        }).join("");
+    },
+    on(el) { skMount(el); },
+  };
+  // cases given from the admin: shown once, as a sheet, the next time home opens
+  function caseGiftSheet() {
+    const g = me && me.cases && me.cases.gift;
+    if (!g || sheetEl || caseGiftSheet.shown === g.at) return;
+    caseGiftSheet.shown = g.at;
+    const n = Number(g.count) || 1, word = plural(n, "кейс", "кейса", "кейсов");
+    const seen = () => post("/api/case/gift-seen").catch(() => {});
+    const el = document.createElement("div");
+    el.className = "bsheet cs-gift";
+    el.innerHTML = `<div role="dialog" aria-label="Подарок"><div class="grab"></div>` +
+      `<div class="cs-gift-ic">${icoCase("big")}${n > 1 ? `<em>×${n}</em>` : ""}</div>` +
+      `<h3>Вам подарили ${n === 1 ? "кейс" : `${n} ${word}`} с лягушкой!</h3>` +
+      (g.note ? `<div class="cs-gift-note">${esc(g.note)}</div>` : "") +
+      `<div class="sub">Внутри одна из 48 лягушек — бывают легендарные</div>` +
+      `<button type="button" class="pill" data-b="open"><span>Открыть ${n === 1 ? "кейс" : "кейсы"}</span></button></div>`;
+    el.addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-b]");
+      if (b) { seen(); closeSheet(); go("case"); return; }
+      if (ev.target === el || ev.target.classList.contains("grab")) { seen(); closeSheet(); }
+    });
+    document.body.appendChild(el);
+    sheetEl = el;
+    skMount(el);
+    notify("success");
+    boom();
+    call(() => tg.BackButton.show());
+  }
+  // after a payment: the case it brought
+  function caseGot(el) {
+    if (!(Number(caseInfo().left) > 0) || el.querySelector(".cs-paid")) return;
+    const h = el.querySelector(".hc");
+    if (h) h.insertAdjacentHTML("afterend", `<div class="cs-paid">${cd([[E(icoCase()) + TT(caseInfo().left > 1 ? `Вам ${caseInfo().left} кейса с лягушкой` : "Вам кейс с лягушкой", "внутри одна из 48 — бывают легендарные") + V("Открыть " + CV), 'data-go="case"']])}</div>`);
   }
 
   // ---------- promised payment ----------
@@ -2371,6 +2658,7 @@
       el.classList.add("fade");
     }
     r.appendChild(el);
+    skMount(el);
     window.scrollTo(0, 0);
     cur = { key, params, el, sig: SCR[key].sig && me ? SCR[key].sig(params) : "" };
     sparkle(el);
@@ -2395,6 +2683,7 @@
     if (still) el.classList.add("still");
     cur.el.replaceWith(el);
     cur.el = el;
+    skMount(el);
     sparkle(el);
     if (!still) counts(el);
     if (s.on && cur.key !== "home") s.on(el, cur.params);
@@ -2563,6 +2852,8 @@
 
   // ---------- actions ----------
   const ACT = {
+    caseOpen(b) { caseOpen(b); },
+    caseUse(b) { if (!b.dataset.v) return; caseUse(Number(b.dataset.v)).then(() => { if (cur.key === "frogs") rerender(); }); },
     apAmt(b) {
       if (b.disabled) return;
       haptic("soft");
@@ -2575,6 +2866,16 @@
       const a = me.autopay || {};
       apBegin(Number(cur.params.amount) || a.default, b);
     },
+    plusStart(b) { plusBegin(b); },
+    async plusOff() {
+      if (!(await confirmAsk("Отключить подписку? Списания прекратятся, баланс останется."))) return;
+      await post("/api/plus/off").catch(() => {});
+      await load(true);
+      toast("Подписка отключена");
+      rerender(true);
+    },
+    pchSel(b) { haptic("soft"); cur.params.sel = b.dataset.v; rerender(true); },
+    pchGo(b) { if ((cur.params.sel || "plus") === "plus") plusBegin(b); else go("topup"); },
     apTg(b) {
       haptic("soft");
       pay.ap = !pay.ap;
@@ -2862,7 +3163,7 @@
     },
     async trust(b) {
       const t = me.trust || {};
-      if (!t.available) return;
+      if (!t.available || plusOn()) return;
       const fee = Number(t.fee) || 0;
       const text = `Начислим ${rub(t.amount)} — ${days(t.days)} одного устройства.` + (fee > 0 ? ` За услугу спишется ещё ${rub(fee)}.` : "") +
         ` Через ${days(t.days)} спишем ${rub(t.repay || t.amount + fee)} с баланса, даже если он станет отрицательным.`;
@@ -3677,6 +3978,7 @@
       if (before !== after) { cur.sig = after; if (prev) rerender(); }
     }
     celebrate(prev);
+    if (cur && cur.key === "home") setTimeout(caseGiftSheet, 600);
   }
   // Money that arrived while the cabinet was open (or since the last visit) gets a small celebration.
   function celebrate(prev) {
@@ -3704,7 +4006,9 @@
     if (entry === "friends") { go("friends", { tab: "invite" }); return; }
     if (entry === "browser") { openBrowserSheet(); return; }
     if (entry === "autopay" && me.autopay) { go("autopay"); return; }
-    if (entry === "promise") { const t = me.trust || {}; go(t.open || t.available ? "promise" : "topup"); return; }
+    if ((entry === "case" || entry === "frogs") && me.cases) { go(entry); return; }
+    if (entry === "plus" && me.plus) { go("plus"); return; }
+    if (entry === "promise") { const t = me.trust || {}; go(plusOn() ? "plus" : t.open || t.available ? "promise" : "topup"); return; }
     if (entry === "gift" && me.trial_available) { go("gift"); return; }
     if (entry === "connect" || entry === "gift") { if (phones().length) resume(); else startWizard(); return; }
     if (showOffer()) { go("gift"); return; }

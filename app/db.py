@@ -4769,6 +4769,7 @@ _USER_BILLING_KINDS = (
     "first_bonus",
     "return_bonus",
     "sharing",
+    "case_bonus",
 )
 
 

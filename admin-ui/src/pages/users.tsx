@@ -1120,6 +1120,7 @@ function UserDetail({
               <button type="button" className="adm-uc-save mt-3" onClick={() => setTab("devices")}>Открыть устройства</button>
             </section>
           </div>
+          <CasesCard u={u} onChange={onChange} />
           <section className="adm-uc-card">
             <label className="adm-uc-line">
               <span>
@@ -1485,5 +1486,74 @@ function UserBotMessages({ telegramId }: { telegramId: number }) {
         </>
       )}
     </div>
+  );
+}
+
+// Кейсы с лягушкой (app/frog_cases.py): how many wait and how many frogs the person has; give some, with a message in the bot.
+const caseWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? "кейс" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "кейса" : "кейсов");
+function CasesCard({ u, onChange }: { u: Data; onChange: () => Promise<void> }) {
+  const res = useResource(`users/${u.telegram_id}/cases`);
+  const [n, setN] = useState(3), [note, setNote] = useState(""), [notify, setNotify] = useState(true);
+  const confirm = useConfirm();
+  const c: Data = res.data || {};
+  const total = Number(c.total || 48);
+  const ok = Number.isInteger(n) && n >= 1 && n <= 50;
+  const msg = `🎁 Вам ${n === 1 ? "подарили кейс" : `подарили ${n} ${caseWord(n)}`} с лягушкой!${note.trim() ? "\n\n" + note.trim() : ""}\n\nВнутри одна из 48 лягушек — бывают легендарные.`;
+  const give = async () => {
+    const r: Data = await api(`users/${u.telegram_id}/cases`, { count: n, note: note.trim(), notify });
+    await res.reload();
+    await onChange();
+    setNote("");
+    if (notify && !r.sent) toast.warning(`Выдали ${n} ${caseWord(n)}, но сообщение не дошло${r.error_sent ? `: ${r.error_sent}` : ""}`);
+    else toast.success(`Выдали ${n} ${caseWord(n)}${notify ? " · уведомление отправлено" : ""}`);
+  };
+  return (
+    <section className="adm-uc-card">
+      <div className="adm-uc-line">
+        <span>
+          Кейсы с лягушкой
+          <small className="adm-uc-hint block">
+            {res.data ? `ждут открытия: ${Number(c.left || 0)} · лягушек ${Number(c.owned_count || 0)} из ${total}${c.skin_name ? ` · на главной «${c.skin_name}»` : ""}` : "загружаем…"}
+          </small>
+        </span>
+        <b>{Number(c.left || 0)}</b>
+      </div>
+      <div className="adm-uc-step mt-3">
+        <div className="adm-uc-stepper">
+          <button type="button" aria-label="Минус кейс" onClick={() => setN(Math.max(1, n - 1))}><Minus /></button>
+          <input aria-label="Сколько кейсов" type="number" min={1} max={50} value={n} onChange={(e) => setN(Number(e.target.value))} />
+          <button type="button" aria-label="Плюс кейс" onClick={() => setN(Math.min(50, n + 1))}><Plus /></button>
+        </div>
+        <div className="flex gap-1.5">
+          {[1, 3, 5].map((x) => (
+            <button key={x} type="button" className={"adm-case-pre" + (n === x ? " on" : "")} onClick={() => setN(x)}>{x}</button>
+          ))}
+        </div>
+      </div>
+      <Textarea className="mt-3" rows={2} placeholder="Сообщение от вас (необязательно), например: Спасибо, что с нами!" value={note} onChange={(e) => setNote(e.target.value.slice(0, 300))} />
+      <label className="adm-uc-line mt-3">
+        <span>
+          Уведомить в боте
+          <small className="adm-uc-hint block">придёт сообщение с кнопкой «Открыть кейс»; в кабинете покажем подарок при входе</small>
+        </span>
+        <Switch checked={notify} onCheckedChange={setNotify} />
+      </label>
+      {notify && <pre className="adm-case-msg">{msg}<span>Открыть кейс 🎁</span></pre>}
+      <button
+        type="button"
+        className="adm-case-give mt-3"
+        disabled={!ok}
+        onClick={() =>
+          confirm({
+            title: `Выдать ${n} ${caseWord(n)}?`,
+            description: `${who(u)} · ${u.telegram_id}\nСейчас ждут: ${Number(c.left || 0)}\nПосле: ${Number(c.left || 0) + n}${notify ? "\nКлиенту придёт сообщение в бот." : "\nБез уведомления."}`,
+            label: "Выдать",
+            action: give,
+          })
+        }
+      >
+        Выдать {n} {caseWord(n)}
+      </button>
+    </section>
   );
 }
