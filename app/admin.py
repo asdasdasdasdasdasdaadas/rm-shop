@@ -576,6 +576,11 @@ def _ad_public(row: dict) -> dict:
         "trial": int(row.get("trial") or 0),
         "paid": int(row.get("paid") or 0),
         "connected": int(row.get("connected") or 0),
+        "active": int(row.get("active") or 0),
+        "paying_active": int(row.get("paying_active") or 0),
+        "matured": int(row.get("matured") or 0),
+        "retained": int(row.get("retained") or 0),
+        "retained_pct": round(int(row["retained"]) * 100 / int(row["matured"])) if row.get("matured") else None,
         # Payback: what the placement cost against what its people paid.
         "spend_rub": spend,
         "spend_manual": manual,
@@ -586,6 +591,7 @@ def _ad_public(row: dict) -> dict:
         "revenue": int(row.get("revenue") or 0),
         "payer_cost": round(int(spend) / int(row["paid"])) if spend and row.get("paid") else None,
         "user_cost": round(int(spend) / int(row["users"])) if spend and row.get("users") else None,
+        "live_payer_cost": round(int(spend) / int(row["paying_active"])) if spend and row.get("paying_active") else None,
         # LTV so far: everything the link's people have paid, per person and per paying person.
         "ltv": round(int(row.get("revenue") or 0) / int(row["users"])) if row.get("users") else None,
         "payer_ltv": round(int(row.get("revenue") or 0) / int(row["paid"])) if row.get("paid") else None,

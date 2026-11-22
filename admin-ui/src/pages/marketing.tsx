@@ -123,12 +123,50 @@ export function AdsPage() {
             {
               key: "connected",
               label: (
-                <span title="Уникальные пользователи, хотя бы раз подключившиеся к VPN">
-                  Вышли онлайн
+                <span title="Хотя бы раз подключились к VPN. Ниже — сколько из них были онлайн за последние 7 дней">
+                  Подключились
+                </span>
+              ),
+              cell: (r) => (
+                <span className="block whitespace-nowrap tabular-nums leading-tight">
+                  {Number(r.connected || 0).toLocaleString("ru-RU")}
+                  <span className="block text-xs text-muted-foreground mt-0.5">
+                    пользуются {Number(r.active || 0).toLocaleString("ru-RU")}
+                  </span>
                 </span>
               ),
             },
-            { key: "paid", label: "Оплатили" },
+            {
+              key: "retained",
+              label: (
+                <span title="Из пришедших 14+ дней назад — доля тех, кто был онлайн за последние 7 дней. Свежие ссылки сюда не попадают, пока у людей идут пробные дни.">
+                  Держатся
+                </span>
+              ),
+              cell: (r) =>
+                r.retained_pct != null ? (
+                  <span className="block whitespace-nowrap tabular-nums leading-tight">
+                    {r.retained_pct}%
+                    <span className="block text-xs text-muted-foreground mt-0.5">
+                      {Number(r.retained || 0).toLocaleString("ru-RU")} из {Number(r.matured || 0).toLocaleString("ru-RU")} · 14+ дней
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground" title="Ещё никто не пришёл 14+ дней назад">рано</span>
+                ),
+            },
+            {
+              key: "paid",
+              label: <span title="Хотя бы раз пополнили баланс. Ниже — сколько из них пользуются VPN сейчас (онлайн за 7 дней).">Оплатили</span>,
+              cell: (r) => (
+                <span className="block whitespace-nowrap tabular-nums leading-tight">
+                  {Number(r.paid || 0).toLocaleString("ru-RU")}
+                  <span className="block text-xs text-muted-foreground mt-0.5">
+                    пользуются {Number(r.paying_active || 0).toLocaleString("ru-RU")}
+                  </span>
+                </span>
+              ),
+            },
             {
               key: "spend_rub",
               label: <span title="Сколько стоило размещение. Нажмите, чтобы указать.">Расход</span>,
@@ -161,13 +199,14 @@ export function AdsPage() {
             },
             {
               key: "user_cost",
-              label: <span title="Расход ÷ все пришедшие по ссылке. Ниже — расход ÷ оплатившие.">Цена пользователя</span>,
+              label: <span title="Расход ÷ все пришедшие по ссылке. Ниже — расход ÷ оплатившие и ÷ тех, кто платил и пользуется сейчас.">Цена пользователя</span>,
               cell: (r) =>
                 r.user_cost != null ? (
                   <span className="block whitespace-nowrap tabular-nums leading-tight">
                     {money(r.user_cost)}
                     <span className="block text-xs text-muted-foreground mt-0.5">
                       {r.payer_cost != null ? `платящего ${money(r.payer_cost)}` : "платящих нет"}
+                      {r.live_payer_cost != null && <span className="block">живого платящего {money(r.live_payer_cost)}</span>}
                     </span>
                   </span>
                 ) : (

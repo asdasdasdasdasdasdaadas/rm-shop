@@ -462,6 +462,12 @@ async def tg_ads_unmatched() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+# The ads page: «пользуются» — some device online within AD_ACTIVE_DAYS; «держатся» — of those who came at least
+# AD_RETAIN_DAYS ago, the share still using it (fresh links are not flattered by people on their free days).
+AD_ACTIVE_DAYS = 7
+AD_RETAIN_DAYS = 14
+
+
 async def list_ad_links(
     *, include_archived: bool = False, kind: str = "manual", partner_id: int | None = None
 ) -> list[dict]:
@@ -480,6 +486,13 @@ async def list_ad_links(
             COUNT(u.telegram_id)::int AS users,
             COUNT(u.telegram_id) FILTER (WHERE u.trial_used)::int AS trial,
             COUNT(u.telegram_id) FILTER (WHERE u.first_online_at IS NOT NULL)::int AS connected,
+            COUNT(u.telegram_id) FILTER (WHERE EXISTS (
+                SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id AND d.last_online_at > $4::timestamptz))::int AS active,
+            COUNT(u.telegram_id) FILTER (WHERE COALESCE(u.has_paid_topup, FALSE) AND EXISTS (
+                SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id AND d.last_online_at > $4::timestamptz))::int AS paying_active,
+            COUNT(u.telegram_id) FILTER (WHERE u.created_at <= $5::timestamptz)::int AS matured,
+            COUNT(u.telegram_id) FILTER (WHERE u.created_at <= $5::timestamptz AND EXISTS (
+                SELECT 1 FROM devices d WHERE d.telegram_id = u.telegram_id AND d.last_online_at > $4::timestamptz))::int AS retained,
             COUNT(u.telegram_id) FILTER (WHERE COALESCE(u.has_paid_topup, FALSE))::int AS paid,
             l.spend_rub,
             COALESCE((SELECT SUM(r.amount) FROM payment_receipts r JOIN users x ON x.telegram_id = r.telegram_id
@@ -502,6 +515,8 @@ async def list_ad_links(
         bool(include_archived),
         str(kind or "manual"),
         int(partner_id) if partner_id else None,
+        datetime.now(timezone.utc) - timedelta(days=AD_ACTIVE_DAYS),
+        datetime.now(timezone.utc) - timedelta(days=AD_RETAIN_DAYS),
     )
     return [dict(r) for r in rows]
 
