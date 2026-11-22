@@ -147,6 +147,31 @@ class AutopayPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.rp.get_subscription.await_count, 1)
         self.assertEqual(await self.balance(), 320)
 
+    async def test_admin_sees_the_subscriptions_and_can_switch_one_off(self):
+        await autopay.start(self.rp, 7, 300)
+        paid = {"id": "tx-1", "status": "PAID", "amount": 30000, "subscription_id": "sub-1"}
+        await autopay.on_payment(paid, self.rp, None, self.bot)
+        await autopay.on_event({"event": "subscription.activated", "id": "sub-1", "status": "ACTIVE",
+                                "interval_days": 30, "next_charge_at": "2026-12-22T09:00:00+00:00"}, self.rp, self.bot)
+        view = await autopay.admin_overview()
+        self.assertEqual((view["totals"]["active"], view["totals"]["monthly_rub"], view["totals"]["charges_30"]), (1, 300, 1))
+        item = view["items"][0]
+        self.assertEqual((item["telegram_id"], item["status_label"], item["charges"], item["charged_rub"]), (7, "включено", 1, 300))
+        self.assertEqual((await autopay.admin_overview("ended"))["total"], 0)
+        with self.assertRaises(ValueError):
+            await autopay.admin_overview("hack")
+        card = await autopay.admin_user(7)
+        self.assertEqual((card["amount"], len(card["history"])), (300, 1))
+
+        self.bot.send_message.reset_mock()
+        self.assertTrue(await autopay.admin_cancel(self.rp, 7, self.bot))
+        self.rp.cancel_subscription.assert_awaited_with("sub-1")
+        self.assertIn("выключила поддержка", self.bot.send_message.await_args.args[1])
+        self.assertFalse(await autopay.admin_cancel(self.rp, 7, self.bot))
+        ended = (await autopay.admin_overview("ended"))["items"][0]
+        self.assertEqual((ended["status_label"], ended["reason"]), ("выключено", "выключили в админке"))
+        self.assertIsNone(await autopay.admin_user(8))
+
     async def test_an_old_subscription_is_moved_to_a_month(self):
         await autopay.start(self.rp, 7, 300)
         await self.pool.execute("UPDATE autopay SET interval_days=360 WHERE telegram_id=7")

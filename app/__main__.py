@@ -222,6 +222,8 @@ async def main() -> None:
         friend_nft_task = asyncio.create_task(friend_nft_loop(bot), name="friend-nft")
         from app.autopay import autopay_loop
         autopay_task = asyncio.create_task(autopay_loop(rp, bot), name="autopay")
+        from app.expenses import expenses_loop
+        expenses_task = asyncio.create_task(expenses_loop(bot), name="expenses")
         try:
             await dp.start_polling(
                 bot,
@@ -245,6 +247,7 @@ async def main() -> None:
             sharing_task.cancel()
             tg_ads_task.cancel()
             autopay_task.cancel()
+            expenses_task.cancel()
             cleanup_task.cancel()
             friend_nft_task.cancel()
     finally:

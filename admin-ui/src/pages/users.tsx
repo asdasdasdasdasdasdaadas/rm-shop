@@ -879,7 +879,15 @@ function UserDetail({
     ),
     billing = useResource(
       tab === "history" ? `billing?q=${u.telegram_id}&limit=25` : null,
-    );
+    ),
+    autopay = useResource(tab === "summary" ? `users/${u.telegram_id}/autopay` : null);
+  const ap: Data | null = autopay.data?.autopay || null;
+  const apAct = async (action: string) => {
+    await api(`users/${u.telegram_id}/autopay`, { action });
+    await autopay.reload();
+    await onChange();
+    toast.success(action === "cancel" ? "Автопополнение отключено" : "Проверили в CISPay");
+  };
   const copyId = async () => {
     await navigator.clipboard.writeText(String(u.telegram_id));
     toast.success("ID скопирован");
@@ -1020,6 +1028,47 @@ function UserDetail({
               <span>{accessHint(u)}</span>
             </div>
           </section>
+          {ap && (
+            <section className="adm-uc-card">
+              <div className="adm-uc-line">
+                <span>
+                  Автопополнение · {ap.status_label}
+                  <small className="adm-uc-hint block">
+                    {money(ap.amount)} раз в {ap.interval_days} дн. через СБП
+                    {ap.status === "active" && ap.next_charge_at ? ` · следующее ${date(ap.next_charge_at)}` : ""}
+                    {ap.fails ? ` · неудачных списаний: ${ap.fails}` : ""}
+                    {ap.reason ? ` · ${ap.reason}` : ""}
+                  </small>
+                </span>
+                <b>{ap.charges ? `${ap.charges} × · ${money(ap.charged_rub)}` : "—"}</b>
+              </div>
+              {(ap.history || []).length > 0 && (
+                <div className="adm-uc-line adm-uc-sub">
+                  <span>{(ap.history as Data[]).slice(0, 5).map((c) => `${date(c.at)} ${c.ok ? "+" + money(c.amount) : "не прошло"}`).join(" · ")}</span>
+                </div>
+              )}
+              {["active", "pending"].includes(ap.status) && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" className="adm-uc-save" onClick={() => void apAct("refresh").catch((e) => toast.error(String(e.message || e)))}>Проверить в CISPay</button>
+                  <button
+                    type="button"
+                    className="adm-uc-save"
+                    onClick={() =>
+                      confirm({
+                        title: "Отключить автопополнение?",
+                        description: `${who(u)} · ${u.telegram_id}\nПодписку отменим в CISPay, привязка СБП удалится. ${ap.status === "active" ? "Клиенту придёт сообщение. " : ""}Баланс не изменится. Включить снова сможет только сам клиент, новой оплатой.`,
+                        danger: true,
+                        label: "Отключить",
+                        action: () => apAct("cancel"),
+                      })
+                    }
+                  >
+                    Отключить
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
           <div className="adm-uc-grid">
             <section className="adm-uc-card">
               <div className="adm-uc-line">

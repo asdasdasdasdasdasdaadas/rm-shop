@@ -582,6 +582,100 @@ async def public(telegram_id: int) -> dict | None:
     }
 
 
+# ---------- the admin panel ----------
+
+ADMIN_STATUSES = {"active": "включено", "pending": "ждёт первой оплаты", "cancelled": "выключено", "failed": "не сработало"}
+ADMIN_REASONS = {**REASONS, "cancelled_by_user": "выключил клиент", "cancelled_by_merchant": "выключили через API",
+                 "cancelled_by_admin": "выключили в админке"}
+_ADMIN_FILTER = {"": "status <> 'none'", "active": "status = 'active'", "pending": "status = 'pending'",
+                 "ended": "status IN ('cancelled', 'failed')", "trouble": "status = 'active' AND fails > 0"}
+
+
+def _admin_row(r: dict) -> dict:
+    status = str(r.get("status") or "")
+    return {
+        "telegram_id": int(r["telegram_id"]), "username": r.get("username"), "first_name": r.get("first_name"),
+        "status": status, "status_label": ADMIN_STATUSES.get(status, status),
+        "amount": int(r.get("amount_rub") or 0), "interval_days": int(r.get("interval_days") or 0),
+        "next_charge_at": _iso(r.get("next_charge_at")), "last_charge_at": _iso(r.get("last_charge_at")),
+        "created_at": _iso(r.get("created_at")), "ended_at": _iso(r.get("ended_at")),
+        "fails": int(r.get("fails") or 0), "reason": ADMIN_REASONS.get(str(r.get("ended_reason") or ""), r.get("ended_reason")),
+        "charges": int(r.get("charges") or 0), "charged_rub": int(r.get("charged_rub") or 0),
+        "subscription_id": r.get("subscription_id"), "balance_rub": r.get("balance_rub"),
+    }
+
+
+_ADMIN_SELECT = """
+    SELECT a.*, u.username, u.first_name, u.balance_rub,
+        (SELECT COUNT(*) FROM pay_orders o WHERE o.telegram_id = a.telegram_id AND o.order_id LIKE 'ap-%'
+            AND o.status = 'granted') AS charges,
+        (SELECT (COALESCE(SUM(o.amount_kop), 0) / 100)::bigint FROM pay_orders o WHERE o.telegram_id = a.telegram_id
+            AND o.order_id LIKE 'ap-%' AND o.status = 'granted') AS charged_rub
+    FROM autopay a LEFT JOIN users u ON u.telegram_id = a.telegram_id"""
+
+
+async def admin_overview(status: str = "", page: int = 1, limit: int = 30) -> dict:
+    """«Финансы → Подписки»: how many are on, what they bring a month, and the list."""
+    where = _ADMIN_FILTER.get(status)
+    if where is None:
+        raise ValueError("Некорректный фильтр")
+    page = max(1, int(page))
+    pool = db._pool_req()
+    t = await pool.fetchrow(
+        """SELECT COUNT(*) FILTER (WHERE status='active') AS active,
+                  COUNT(*) FILTER (WHERE status='pending') AS pending,
+                  COUNT(*) FILTER (WHERE status='active' AND fails > 0) AS trouble,
+                  COUNT(*) FILTER (WHERE status IN ('cancelled','failed') AND ended_at > NOW() - INTERVAL '30 days') AS ended_30,
+                  COALESCE(SUM(amount_rub * 30.0 / GREATEST(interval_days, 1)) FILTER (WHERE status='active'), 0) AS monthly_rub,
+                  COUNT(*) FILTER (WHERE status <> 'none') AS ever
+           FROM autopay""")
+    c = await pool.fetchrow(
+        """SELECT COUNT(*) AS n, (COALESCE(SUM(amount_kop), 0) / 100)::bigint AS rub FROM pay_orders
+           WHERE order_id LIKE 'ap-%' AND status='granted' AND created_at > NOW() - INTERVAL '30 days'""")
+    rows = await pool.fetch(
+        f"SELECT * FROM ({_ADMIN_SELECT}) x WHERE {where}"
+        " ORDER BY (status = 'active') DESC, next_charge_at NULLS LAST, updated_at DESC LIMIT $1 OFFSET $2",
+        int(limit), (page - 1) * int(limit))
+    total = int(await pool.fetchval(f"SELECT COUNT(*) FROM autopay WHERE {where}") or 0)
+    return {
+        "totals": {"active": int(t["active"] or 0), "pending": int(t["pending"] or 0), "trouble": int(t["trouble"] or 0),
+                   "ended_30": int(t["ended_30"] or 0), "monthly_rub": int(round(float(t["monthly_rub"] or 0))),
+                   "ever": int(t["ever"] or 0), "charges_30": int(c["n"] or 0), "charged_30_rub": int(c["rub"] or 0)},
+        "items": [_admin_row(dict(r)) for r in rows], "total": total, "page": page, "limit": int(limit),
+        "enabled": bool(get_settings().autopay_enabled), "period_days": PERIOD_DAYS,
+    }
+
+
+async def admin_user(telegram_id: int) -> dict | None:
+    """The person's subscription in the user card, with the last charges."""
+    row = await db._pool_req().fetchrow(_ADMIN_SELECT + " WHERE a.telegram_id=$1", int(telegram_id))
+    if not row or str(row["status"] or "none") == "none":
+        return None
+    out = _admin_row(dict(row))
+    charges = await db._pool_req().fetch(
+        """SELECT created_at, amount_kop, status FROM pay_orders WHERE telegram_id=$1 AND order_id LIKE 'ap-%'
+           ORDER BY created_at DESC LIMIT 10""", int(telegram_id))
+    out["history"] = [{"at": _iso(c["created_at"]), "amount": int(c["amount_kop"] or 0) // 100, "ok": c["status"] == "granted"}
+                      for c in charges]
+    return out
+
+
+async def admin_cancel(rp, telegram_id: int, bot=None) -> bool:
+    """Switched off from the admin panel: cancelled at CISPay (the SBP binding goes too) and the person is told."""
+    row = await get(telegram_id)
+    if not row or row["status"] not in OPEN or not row.get("subscription_id"):
+        return False
+    if rp is None:
+        raise ValueError("Оплата не настроена")
+    await rp.cancel_subscription(row["subscription_id"])
+    await db._pool_req().execute(
+        """UPDATE autopay SET status='cancelled', ended_reason='cancelled_by_admin', next_charge_at=NULL,
+               pay_url=NULL, ended_at=NOW(), updated_at=NOW() WHERE telegram_id=$1""", int(telegram_id))
+    if row["status"] == "active":
+        await _send(bot, int(telegram_id), await ended_text(int(telegram_id), "cancelled_by_admin"), ended_keyboard())
+    return True
+
+
 # ---------- the chat ----------
 
 @router.message(Command("autopay"))

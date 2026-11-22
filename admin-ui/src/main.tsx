@@ -67,6 +67,7 @@ import {
   LogOut,
   ChevronRight,
   Loader2,
+  Wallet,
 } from "lucide-react";
 import { OverviewPage } from "@/pages/overview";
 // Every other section is its own file, fetched when first opened (or when its menu item is hovered).
@@ -103,7 +104,8 @@ const users = section(() => import("@/pages/users")),
   marketing = section(() => import("@/pages/marketing")),
   communications = section(() => import("@/pages/communications")),
   experiments = section(() => import("@/pages/experiments")),
-  support = section(() => import("@/pages/support"));
+  support = section(() => import("@/pages/support")),
+  expensesPage = section(() => import("@/pages/expenses"));
 const UsersPage = users.page("UsersPage"),
   FinancePage = finance.page("FinancePage"),
   StatisticsPage = statistics.page("StatisticsPage"),
@@ -115,11 +117,12 @@ const UsersPage = users.page("UsersPage"),
   ReferralsPage = marketing.page("ReferralsPage"),
   BroadcastPage = communications.page("BroadcastPage"),
   ExperimentsPage = experiments.page("ExperimentsPage"),
-  SupportPage = support.page("SupportPage");
+  SupportPage = support.page("SupportPage"),
+  ExpensesPage = expensesPage.page("ExpensesPage");
 const PRELOAD: Record<string, () => Promise<unknown>> = {
   statistics: statistics.get, users: users.get, finance: finance.get, settings: settingsPage.get,
   ads: marketing.get, referrals: marketing.get, broadcast: communications.get, experiments: experiments.get,
-  tickets: support.get, orders: records.get, billing: records.get, messages: records.get, ton: records.get, backups: records.get,
+  tickets: support.get, expenses: expensesPage.get, orders: records.get, billing: records.get, messages: records.get, ton: records.get, backups: records.get,
 };
 import "./theme.css";
 // Telegram-settings style: every section gets its own coloured tile.
@@ -127,7 +130,7 @@ const TILE: Record<string, string> = {
   statistics: "#3e88f7", overview: "#5856d6", users: "#2fb46a", tickets: "#ff9500",
   finance: "#22975a", orders: "#34aadc", ton: "#30a1f5", billing: "#8e8e93",
   referrals: "#ff2d55", ads: "#af52de", broadcast: "#007aff", experiments: "#32ade6",
-  messages: "#ff9f0a", settings: "#636366", backups: "#a2845e",
+  expenses: "#ff3b30", messages: "#ff9f0a", settings: "#636366", backups: "#a2845e",
 };
 const sections = [
   {
@@ -185,6 +188,13 @@ const sections = [
     description: "Списания, начисления и история изменения баланса",
     group: "Финансы",
     icon: Receipt,
+  },
+  {
+    id: "expenses",
+    label: "Затраты",
+    description: "Хостинги, домены и сервера: когда и сколько платить",
+    group: "Финансы",
+    icon: Wallet,
   },
   {
     id: "referrals",
@@ -626,6 +636,9 @@ function Workspace({
       break;
     case "tickets":
       page = <SupportPage />;
+      break;
+    case "expenses":
+      page = <ExpensesPage />;
       break;
     case "backups":
       page = <BackupsPage />;

@@ -1239,3 +1239,40 @@ CREATE TABLE IF NOT EXISTS frog_days (
     topups INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (test_id, telegram_id, day)
 );
+
+-- «Затраты» in the admin (app/expenses.py): the service's own regular bills — hosting, domains, servers.
+-- next_date is the next payment; «Оплачено» logs it in service_expense_payments and moves the date one period on.
+CREATE TABLE IF NOT EXISTS service_expenses (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    amount NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+    currency TEXT NOT NULL DEFAULT 'RUB',
+    period TEXT NOT NULL DEFAULT 'month' CHECK (period IN ('month','quarter','year','once')),
+    next_date DATE NOT NULL,
+    anchor_day SMALLINT,
+    url TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    last_paid_at TIMESTAMPTZ,
+    done_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS service_expense_payments (
+    id BIGSERIAL PRIMARY KEY,
+    expense_id BIGINT REFERENCES service_expenses(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    amount NUMERIC(14,2) NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'RUB',
+    due_date DATE,
+    paid_on DATE NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS service_expense_payments_paid_idx ON service_expense_payments(paid_on);
+-- One row per reminder sent to the channel: (bill, payment date, days before; -1 = overdue) never goes twice.
+CREATE TABLE IF NOT EXISTS expense_reminders (
+    expense_id BIGINT NOT NULL REFERENCES service_expenses(id) ON DELETE CASCADE,
+    due_date DATE NOT NULL,
+    stage SMALLINT NOT NULL,
+    sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (expense_id, due_date, stage)
+);

@@ -2335,6 +2335,115 @@ async def api_frog_test(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **await frog_test.overview()})
 
 
+async def api_expenses(request: web.Request) -> web.Response:
+    """«Затраты»: the service's regular bills (GET list and summary, POST a new one)."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import expenses
+    if request.method == "POST":
+        try:
+            await expenses.create(expenses.clean(await _expense_body(request)))
+        except ValueError as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    return web.json_response({"ok": True, **await expenses.overview()})
+
+
+async def _expense_body(request: web.Request):
+    try:
+        return await request.json()
+    except Exception:
+        return None
+
+
+async def api_expense_act(request: web.Request) -> web.Response:
+    """One bill: POST /expenses/{id} saves it, /paid marks it paid, /delete removes it."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import expenses
+    try:
+        expense_id = int(request.match_info["expense_id"])
+    except ValueError:
+        return web.json_response({"ok": False, "error": "Некорректный id"}, status=400)
+    action = request.match_info.get("action") or "save"
+    try:
+        if action == "save":
+            found = await expenses.update(expense_id, expenses.clean(await _expense_body(request)))
+        elif action == "paid":
+            await expenses.mark_paid(expense_id)
+            found = True
+        elif action == "delete":
+            found = await expenses.delete(expense_id)
+        else:
+            return web.json_response({"ok": False, "error": "Некорректный запрос"}, status=400)
+    except LookupError:
+        found = False
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    if not found:
+        return web.json_response({"ok": False, "error": "Затрата не найдена"}, status=404)
+    return web.json_response({"ok": True, **await expenses.overview()})
+
+
+async def api_expenses_notify(request: web.Request) -> web.Response:
+    """The reminder switch and days on the «Затраты» page."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import expenses
+    try:
+        await expenses.save_notify(await _expense_body(request))
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=400)
+    return web.json_response({"ok": True, **await expenses.overview()})
+
+
+async def api_autopay(request: web.Request) -> web.Response:
+    """«Финансы → Подписки»: автопополнение (CISPay subscriptions) — totals and the list."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import autopay
+    try:
+        out = await autopay.admin_overview(str(request.query.get("status") or ""), int(request.query.get("page") or 1))
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc) or "Некорректный запрос"}, status=400)
+    return web.json_response({"ok": True, **out})
+
+
+async def api_user_autopay(request: web.Request) -> web.Response:
+    """The person's subscription in the user card (GET); POST {action: refresh|cancel}."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import autopay
+    from app.cispay import CISPayError
+    try:
+        telegram_id = int(request.match_info["telegram_id"])
+    except (KeyError, ValueError):
+        return web.json_response({"ok": False, "error": "Некорректный ID"}, status=400)
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        action = body.get("action") if isinstance(body, dict) else None
+        rp = request.app.get("rp")
+        try:
+            if action == "refresh":
+                await autopay.refresh(rp, await autopay.get(telegram_id), request.app.get("bot"))
+            elif action == "cancel":
+                if not await autopay.admin_cancel(rp, telegram_id, request.app.get("bot")):
+                    return web.json_response({"ok": False, "error": "Подписка уже выключена"}, status=400)
+            else:
+                return web.json_response({"ok": False, "error": "Некорректный запрос"}, status=400)
+        except (CISPayError, ValueError) as exc:
+            logger.warning("Admin autopay %s for %s failed: %s", action, telegram_id, exc)
+            return web.json_response({"ok": False, "error": f"CISPay: {exc}"}, status=502)
+    return web.json_response({"ok": True, "autopay": await autopay.admin_user(telegram_id)})
+
+
 async def api_sharing_check(request: web.Request) -> web.Response:
     """«Проверить сейчас»: a full sharing pass right away (POST), and who has the most IPs (GET and after the pass)."""
     denied = _need_auth(request)
@@ -3365,8 +3474,16 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/sharing-check", api_sharing_check)
     app.router.add_get("/admin/api/install-test", api_install_test)
     app.router.add_post("/admin/api/install-test", api_install_test)
+    app.router.add_get("/admin/api/autopay", api_autopay)
+    app.router.add_get("/admin/api/users/{telegram_id}/autopay", api_user_autopay)
+    app.router.add_post("/admin/api/users/{telegram_id}/autopay", api_user_autopay)
     app.router.add_get("/admin/api/frog-test", api_frog_test)
     app.router.add_post("/admin/api/frog-test", api_frog_test)
+    app.router.add_get("/admin/api/expenses", api_expenses)
+    app.router.add_post("/admin/api/expenses", api_expenses)
+    app.router.add_post("/admin/api/expenses/notify", api_expenses_notify)
+    app.router.add_post(r"/admin/api/expenses/{expense_id:\d+}", api_expense_act)
+    app.router.add_post(r"/admin/api/expenses/{expense_id:\d+}/{action}", api_expense_act)
     app.router.add_get("/admin/api/friend-nft", api_friend_nft)
     app.router.add_post("/admin/api/friend-nft", api_friend_nft)
     app.router.add_get("/admin/api/broadcast", api_broadcast)
