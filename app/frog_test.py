@@ -1,6 +1,7 @@
 """The living frog on the cabinet's home card (webapp/frog.js): on/off and its A/B test.
 
 Outside a test the frog shows when «Лягушка на главной» is on in Настройки (admins always see it, to check).
+People listed in «Кому показывать всегда» (frog_user_ids: IDs and @usernames) see it in any case and stay out of the test.
 While a test runs, everyone who opens the cabinet is put in one group for good:
   frog  — the home card with the living frog;
   plain — the home card as before, with the still frog picture.
@@ -48,8 +49,31 @@ def _arm(test_id: int, telegram_id: int) -> str:
     return "frog" if bucket(int(test_id), int(telegram_id), "frog") < FROG_PCT else "plain"
 
 
+def _listed_people() -> tuple[set[int], set[str]]:
+    ids, names = set(), set()
+    for token in str(get_settings().frog_user_ids or "").replace(",", " ").split():
+        if token.isdigit():
+            ids.add(int(token))
+        elif token.startswith("@") and len(token) > 1:
+            names.add(token[1:].lower())
+    return ids, names
+
+
+async def listed(telegram_id: int) -> bool:
+    """On the owner's «always show» list, by ID or by the @username the bot knows."""
+    ids, names = _listed_people()
+    if int(telegram_id) in ids:
+        return True
+    if not names:
+        return False
+    username = await db._pool_req().fetchval("SELECT username FROM users WHERE telegram_id=$1", int(telegram_id))
+    return bool(username) and str(username).lstrip("@").lower() in names
+
+
 async def view(telegram_id: int) -> dict:
     """What the cabinet shows: {"on": bool, "ab": arm or None}. Opening the cabinet during a test puts the person in it."""
+    if await listed(telegram_id):
+        return {"on": True, "ab": None}
     test = await running()
     if test:
         arm = await db._pool_req().fetchval(

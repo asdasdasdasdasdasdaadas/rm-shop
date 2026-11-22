@@ -96,6 +96,8 @@ class Settings(BaseSettings):
     widgets_enabled: bool = True
     # The living frog on the cabinet's home card (webapp/frog.js). While its A/B test runs (app/frog_test.py) the test decides.
     frog_enabled: bool = False
+    # Who always sees the living frog, whatever the switch and the test say: Telegram IDs and @usernames.
+    frog_user_ids: str = ""
     trust_days: int = 3
     trust_fee_rub: int = 12
     # «+35% к первому пополнению»: the first top-up from first_bonus_min_rub before the gift runs out.
@@ -341,6 +343,7 @@ SHOP_KEYS = frozenset(
         "cabinet_price_enabled",
         "widgets_enabled",
         "frog_enabled",
+        "frog_user_ids",
         "trust_days",
         "trust_fee_rub",
         "first_bonus_enabled",

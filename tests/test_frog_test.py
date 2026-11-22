@@ -37,15 +37,36 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual((frog["return_pct"], frog["play_pct"], frog["fan_pct"]), (40.0, 40.0, 10.0))
 
 
+class PeopleFieldTest(unittest.TestCase):
+    def test_ids_and_usernames_are_cleaned(self):
+        from app.shop_config import _as_people
+        self.assertEqual(_as_people("123,  @Kva_Kva\nhttps://t.me/frogfan 123", "x"), "123, @kva_kva, @frogfan")
+        self.assertEqual(_as_people("", "x"), "")
+        with self.assertRaises(ValueError):
+            _as_people("лягушка", "x")
+
+
 class ViewTest(unittest.IsolatedAsyncioTestCase):
     async def test_outside_a_test_the_switch_decides_and_admins_always_see_it(self):
         with patch.object(frog_test, "running", AsyncMock(return_value=None)):
-            off = SimpleNamespace(frog_enabled=False, admin_id_set={1})
+            off = SimpleNamespace(frog_enabled=False, admin_id_set={1}, frog_user_ids="")
             with patch.object(frog_test, "get_settings", return_value=off):
                 self.assertEqual(await frog_test.view(7), {"on": False, "ab": None})
                 self.assertEqual(await frog_test.view(1), {"on": True, "ab": None})
-            with patch.object(frog_test, "get_settings", return_value=SimpleNamespace(frog_enabled=True, admin_id_set=set())):
+            with patch.object(frog_test, "get_settings", return_value=SimpleNamespace(frog_enabled=True, admin_id_set=set(), frog_user_ids="")):
                 self.assertEqual(await frog_test.view(7), {"on": True, "ab": None})
+
+    async def test_listed_people_always_see_it_and_stay_out_of_the_test(self):
+        listed = SimpleNamespace(frog_enabled=False, admin_id_set=set(), frog_user_ids="42, @Kva_Kva")
+        pool = SimpleNamespace(fetchval=AsyncMock(return_value="kva_kva"))
+        test = AsyncMock(return_value={"id": 1})
+        with patch.object(frog_test, "get_settings", return_value=listed), patch.object(frog_test, "running", test), \
+                patch.object(frog_test.db, "_pool_req", return_value=pool):
+            self.assertEqual(await frog_test.view(42), {"on": True, "ab": None})
+            self.assertEqual(await frog_test.view(7), {"on": True, "ab": None})
+            test.assert_not_awaited()
+            pool.fetchval = AsyncMock(return_value=None)
+            self.assertFalse(await frog_test.listed(8))
 
     async def test_unknown_event(self):
         with self.assertRaises(ValueError):

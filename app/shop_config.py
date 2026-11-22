@@ -48,6 +48,27 @@ def _as_url(value: Any, name: str) -> str:
     return text
 
 
+def _as_people(value: Any, name: str) -> str:
+    """Telegram IDs and @usernames, separated by commas, spaces or new lines; kept as «123, @name»."""
+    import re
+    out: list[str] = []
+    for token in re.split(r"[\s,;]+", str(value or "")):
+        token = re.sub(r"^(https?://)?t\.me/", "@", token.strip())
+        if not token:
+            continue
+        if token.isdigit():
+            item = token
+        elif re.fullmatch(r"@?[A-Za-z][A-Za-z0-9_]{3,31}", token):
+            item = "@" + token.lstrip("@").lower()
+        else:
+            raise ValueError(f"{name}: «{token[:40]}» — не ID и не @username")
+        if item not in out:
+            out.append(item)
+    if len(out) > 500:
+        raise ValueError(f"{name}: не больше 500 человек")
+    return ", ".join(out)
+
+
 def _as_live_chat(value: Any) -> str:
     from app.live import parse_live_chat_id
 
@@ -101,6 +122,7 @@ def validate_shop(body: dict) -> dict:
     out["autopay_enabled"] = bool(body.get("autopay_enabled", get_settings().autopay_enabled))
     out["widgets_enabled"] = bool(body.get("widgets_enabled", get_settings().widgets_enabled))
     out["frog_enabled"] = bool(body.get("frog_enabled", get_settings().frog_enabled))
+    out["frog_user_ids"] = _as_people(body.get("frog_user_ids", get_settings().frog_user_ids), "Лягушка: кому показывать")
     out["trust_days"] = _as_int(body.get("trust_days"), 1, 30, "Дни обещанного платежа")
     out["trust_fee_rub"] = _as_int(body.get("trust_fee_rub"), 0, 10000, "Комиссия обещанного платежа")
     out["first_bonus_enabled"] = bool(body.get("first_bonus_enabled", get_settings().first_bonus_enabled))
@@ -216,6 +238,7 @@ def snapshot() -> dict:
             "autopay_enabled": s.autopay_enabled,
             "widgets_enabled": s.widgets_enabled,
             "frog_enabled": s.frog_enabled,
+            "frog_user_ids": s.frog_user_ids,
             "trust_days": s.trust_days,
             "trust_fee_rub": s.trust_fee_rub,
             "first_bonus_enabled": s.first_bonus_enabled,
