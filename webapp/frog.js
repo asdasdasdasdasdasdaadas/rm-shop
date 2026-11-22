@@ -177,19 +177,26 @@
     let layer = hc.querySelector(".pet");
     if (!layer) { layer = document.createElement("div"); layer.className = "pet"; hc.prepend(layer); }
     let bg = hc.querySelector(".petbg"); if (!bg) { bg = document.createElement("div"); bg.className = "petbg"; hc.prepend(bg); }
-    const hb = hc.getBoundingClientRect(), rel = (b) => ({ l: b.left - hb.left, r: b.right - hb.left, t: b.top - hb.top, b: b.bottom - hb.top });
-    const n = hc.querySelector(".N"); let num = null;
-    if (n) { const r = document.createRange(); r.selectNodeContents(n); const b = rel(r.getBoundingClientRect()); num = { ...b, t: b.t + b.b * 0 + (b.b - b.t) * .16, el: n }; }
-    const btn = hc.querySelector(".acts .pill"); const bt = btn ? { ...rel(btn.getBoundingClientRect()), el: btn } : null;
-    const W = hc.clientWidth, H = hc.clientHeight;
-    const ground = num ? num.t - 12 : 80;
-    const st = { hc, layer, bg, W, H, ground, num, btn: bt, pointer: null, busy: false };
+    const st = { hc, layer, bg, pointer: null, busy: false, binds: [] };
+    measure(st);
+    // listeners on the card go through st.on, so they move with the frog to a redrawn card
+    st.on = (type, fn) => { st.binds.push([type, fn]); st.hc.addEventListener(type, fn); };
     // floors the frog can stand on: the strip above the balance, the top of the digits, the top of the button
     st.floor = (x) => {
       if (st.num && x > st.num.l + 4 && x < st.num.r - 4 && st.onNum) return st.num.t;
-      return ground;
+      return st.ground;
     };
     return st;
+  };
+  // where the balance and «Пополнить» are on the card, and the ground over the digits
+  const measure = (st) => {
+    // the card may be mid-way through its entrance (scaled a little): positions are taken in the card's own pixels
+    const hc = st.hc, hb = hc.getBoundingClientRect(), k = hb.width / (hc.offsetWidth || hb.width) || 1;
+    const rel = (b) => ({ l: (b.left - hb.left) / k, r: (b.right - hb.left) / k, t: (b.top - hb.top) / k, b: (b.bottom - hb.top) / k });
+    const n = hc.querySelector(".N"); let num = null;
+    if (n) { const r = document.createRange(); r.selectNodeContents(n); const b = rel(r.getBoundingClientRect()); num = { ...b, t: b.t + b.b * 0 + (b.b - b.t) * .16, el: n }; }
+    const btn = hc.querySelector(".acts .pill"); const bt = btn ? { ...rel(btn.getBoundingClientRect()), el: btn } : null;
+    Object.assign(st, { W: hc.clientWidth, H: hc.clientHeight, ground: num ? num.t - 12 : 80, num, btn: bt });
   };
 
   // ---------------- the frog
@@ -247,7 +254,8 @@
     loop() {
       let px = 0, py = 0;
       const tick = () => {
-        if (!this.el.isConnected) return;
+        if (this.st.dead) return;
+        if (!this.el.isConnected) { requestAnimationFrame(tick); return; }
         const p = this.st.pointer, now = performance.now();
         const tgt = this.look || (p && now - p.t < 2500 ? p : null) || this.glance;
         let tx = 0, ty = 0;
@@ -709,7 +717,7 @@
       d += ` L${w} ${hh}Z`;
       mk(cls, `top:${st.ground - off - base + 2}px;width:${w}px;height:${hh}px`).innerHTML = `<svg width="${w}" height="${hh}"><path d="${d}" fill="rgb(${hillTint})" fill-opacity="${op}"/></svg>`;
     });
-    st.hc.addEventListener("pointermove", (e) => { const b = st.hc.getBoundingClientRect(), k = (e.clientX - b.left) / b.width - .5;
+    st.on("pointermove", (e) => { const b = st.hc.getBoundingClientRect(), k = (e.clientX - b.left) / b.width - .5;
       bg.querySelector(".far").style.translate = `${(-k * 10).toFixed(1)}px 0`; bg.querySelector(".mid").style.translate = `${(-k * 5).toFixed(1)}px 0`; });
     // the hill: a gentle wave along the ground, lighter than the card, fading down behind the balance
     const W = st.W, top = st.ground - 5, h = st.H - top;
@@ -740,8 +748,8 @@
     for (let x = rnd(24, 60); x < W - 20; x += rnd(46, 90)) { if (st.pond && x > st.pond.l - 10 && x < st.pond.r + 10) continue;
       mk("flw", `left:${x}px;top:${st.ground + 2}px;background:${pick(FL)};animation-delay:${-rnd(0, 3)}s`); }
     if (ph === "night" || ph === "evening") for (let i = 0; i < (ph === "night" ? 4 : 2); i++) { const e = add(st, "ffl"); let t = rnd(0, 99); const k = rnd(.6, 1.2), cx = rnd(30, W - 30), cy = rnd(20, st.ground - 4);
-      const tick = () => { if (!st.hc.isConnected) return; t += .006 * k; at(e, cx + Math.sin(t * 2.1) * 34, cy + Math.cos(t * 1.4) * 12); e.style.opacity = String(.3 + .7 * Math.abs(Math.sin(t * 5))); requestAnimationFrame(tick); }; tick(); }
-    if (WINTER) { const t = setInterval(() => { if (!st.hc.isConnected) { clearInterval(t); return; } if (document.hidden) return; const s = add(st, "sn"), x = rnd(0, W), d = rnd(4500, 7500), sz = rnd(.5, 1.2);
+      const tick = () => { if (st.dead) return; if (!st.hc.isConnected) { requestAnimationFrame(tick); return; } t += .006 * k; at(e, cx + Math.sin(t * 2.1) * 34, cy + Math.cos(t * 1.4) * 12); e.style.opacity = String(.3 + .7 * Math.abs(Math.sin(t * 5))); requestAnimationFrame(tick); }; tick(); }
+    if (WINTER) { const t = setInterval(() => { if (st.dead) { clearInterval(t); return; } if (document.hidden || !st.hc.isConnected) return; const s = add(st, "sn"), x = rnd(0, W), d = rnd(4500, 7500), sz = rnd(.5, 1.2);
       s.animate([{ transform: `translate(${x}px,-6px) scale(${sz})` }, { transform: `translate(${x + rnd(-30, 30)}px,${st.ground + rnd(-4, 30)}px) scale(${sz})`, opacity: .8, offset: .92 }, { transform: `translate(${x + rnd(-30, 30)}px,${st.ground + 30}px) scale(${sz})`, opacity: 0 }], { duration: d, easing: "linear" }).finished.then(() => s.remove()); }, 900); }
   };
 
@@ -749,12 +757,25 @@
   window.petLive = async (hc, { skin = 3, mood = "ok", scenes = null, gap = [1500, 3500], time = null, onPlay = null } = {}) => {
     const played = () => { try { onPlay && onPlay(); } catch {} };
     await raf();
-    hc.classList.add("haspet"); const st = stage(hc); st.phase = time || PHASE; decor(st, mood); const f = new Frog(st, skin); f.skin = skin; f.mood = null; await f.ready;
+    if (window.petKill) window.petKill();
+    hc.classList.add("haspet"); const st = stage(hc);
+    // the cabinet redraws the home card on every visit: the same frog moves into the new card and carries on
+    const home = async () => { while (!st.dead && !st.hc.isConnected) await sleep(300); return !st.dead; };
+    window.petKill = () => { st.dead = true; st.layer.remove(); st.bg.remove(); window.petKill = window.petAdopt = null; };
+    window.petAdopt = (card, m) => {
+      if (st.dead || m !== mood) return false;
+      if (card === st.hc) return true;
+      const old = { W: st.W, ground: st.ground, hc: st.hc };
+      card.classList.add("haspet"); card.prepend(st.layer); card.prepend(st.bg); st.hc = card; measure(st);
+      if (Math.abs(st.W - old.W) > 2 || Math.abs(st.ground - old.ground) > 2) { st.hc = old.hc; window.petKill(); return false; }
+      for (const [type, fn] of st.binds) { old.hc.removeEventListener(type, fn); card.addEventListener(type, fn); }
+      return true;
+    }; st.phase = time || PHASE; decor(st, mood); const f = new Frog(st, skin); f.skin = skin; f.mood = null; await f.ready;
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     // your finger / cursor: the frog looks at it; a tap on the card calls it over; a tap on the frog startles it
-    hc.addEventListener("pointermove", (e) => { const b = hc.getBoundingClientRect(); st.pointer = { x: e.clientX - b.left, y: e.clientY - b.top, t: performance.now() }; });
-    hc.addEventListener("pointerdown", (e) => { const b = hc.getBoundingClientRect(); st.pointer = { x: e.clientX - b.left, y: e.clientY - b.top, t: performance.now() }; });
-    hc.addEventListener("click", (e) => { if (e.target.closest("button,a") || st.busy) return; const b = hc.getBoundingClientRect(), x = e.clientX - b.left;
+    st.on("pointermove", (e) => { const b = st.hc.getBoundingClientRect(); st.pointer = { x: e.clientX - b.left, y: e.clientY - b.top, t: performance.now() }; });
+    st.on("pointerdown", (e) => { const b = st.hc.getBoundingClientRect(); st.pointer = { x: e.clientX - b.left, y: e.clientY - b.top, t: performance.now() }; });
+    st.on("click", (e) => { if (e.target.closest("button,a") || st.busy) return; const b = st.hc.getBoundingClientRect(), x = e.clientX - b.left;
       st.call = inField(st, x); played(); });
     let taps = 0, tapAt = 0;
     f.el.addEventListener("click", async (e) => { e.stopPropagation(); if (st.noClick) { st.noClick = false; return; } navigator.vibrate?.(12); played();
@@ -764,14 +785,14 @@
       if (taps >= 3) { taps = 0; f.say("!!", { size: 11 }); st.flee = true; return; }
       f.shock(); });
     // the finger right next to it: a little flinch
-    hc.addEventListener("pointermove", () => { const p = st.pointer, now = performance.now();
+    st.on("pointermove", () => { const p = st.pointer, now = performance.now();
       if (st.busy || f.moving || now - (st.flinchAt || 0) < 2500 || Math.hypot(p.x - f.x, p.y - (f.y - SIZE * .4)) > 30) return;
       st.flinchAt = now; f.hopInPlace(7); f.bd.animate([{ transform: "none" }, { transform: `translateX(${-f.dir * 3}px) scale(.94,1.06)` }, { transform: "none" }], { duration: 260 }); });
     // grab it: drag the frog around and throw it (it flies, bounces, gets dizzy — or lands in the pond); hold still on it — it melts
     f.el.addEventListener("pointerdown", (e) => {
       if (st.busy || f.moving || f.held || still) return;
       e.preventDefault(); try { f.el.setPointerCapture(e.pointerId); } catch {}
-      const b0 = hc.getBoundingClientRect(), sx = e.clientX, sy = e.clientY, hist = []; let mode = null, done;
+      const b0 = st.hc.getBoundingClientRect(), sx = e.clientX, sy = e.clientY, hist = []; let mode = null, done;
       st.grab = new Promise((r) => { done = r; }); st.busy = true; played();
       let petOn = false;
       const petT = setTimeout(async () => { if (mode) return; mode = "pet"; petOn = true; f.play("croak", true, .5); f.say("♥");
@@ -825,20 +846,21 @@
       } else { await sleep(200); f.say(pick(["", "?"])); }
     };
     // «Пополнить»: confetti from the button, and the frog cheers
-    if (st.btn) st.btn.el.addEventListener("click", () => { const b = st.btn; confetti(st, (b.l + b.r) / 2, b.t + 6, 26); st.cheer = true; navigator.vibrate?.(15); });
+    st.on("click", (e) => { const b = st.btn; if (!b || !e.target.closest || e.target.closest(".acts .pill") !== b.el) return; confetti(st, (b.l + b.r) / 2, b.t + 6, 26); st.cheer = true; navigator.vibrate?.(15); });
     f.place(-40, st.ground);
     if (still) { f.place(st.W * .5, st.ground); return; }
     await f.go(inField(st, rnd(70, 120)), st.ground, { step: 40, h: 20 });
     if (mood === "sleep") { f.face(-1); st.busy = true;
-      while (hc.isConnected) { await S.sleep(st, f, { long: true }); f.say(pick(["м?", "…", ""])); await sleep(2400); } return; }
+      while (await home()) { await S.sleep(st, f, { long: true }); f.say(pick(["м?", "…", ""])); await sleep(2400); } return; }
     const WT = { ...(mood === "cold" ? COLD : WEIGHTS) }; if (!(st.phase === "night" || st.phase === "evening")) delete WT.firefly; if (!st.pond) { delete WT.swim; delete WT.lily; }
     const list = scenes || Object.keys(WT);
     const bag = []; list.forEach((k) => { for (let i = 0; i < (WT[k] || 1); i++) bag.push(k); });
     let last = null, i = 0;
-    while (hc.isConnected) {
+    while (await home()) {
       // idle on the spot: breathe, glance, croak, sometimes shiver «брр» when cold; come when called
       const until = performance.now() + rnd(...gap);
       while (performance.now() < until) {
+        if (!st.hc.isConnected && !(await home())) return;
         if (st.call != null) { const x = st.call; st.call = null; f.look = { x, y: st.ground - 10 }; await f.go(x + (f.x < x ? -20 : 20), st.ground, { step: 38, h: 18, ms: 260 }); f.look = null; await f.croak(1); continue; }
         if (st.grab) { await st.grab; continue; }
         if (st.cheer) { st.cheer = false; st.busy = true; const b = st.btn; f.look = { x: (b.l + b.r) / 2, y: b.t }; f.say("ква!");

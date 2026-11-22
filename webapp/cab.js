@@ -415,7 +415,7 @@
   // frog.js starts loading as soon as the home card is drawn with the frog's field
   function frogLoad() {
     frogLib = frogLib || new Promise((ok, no) => {
-      const s = document.createElement("script"); s.src = "/static/frog.js?v=2"; s.onload = ok; s.onerror = () => { frogLib = null; no(); };
+      const s = document.createElement("script"); s.src = "/static/frog.js?v=4"; s.onload = ok; s.onerror = () => { frogLib = null; no(); };
       document.head.appendChild(s);
     });
     frogLib.catch(() => {});
@@ -428,15 +428,18 @@
         if (cur && cur.key === "home" && e.target.closest && e.target.closest('.hc [data-go="topup"]')) frogEvent("topup");
       }, true);
     }
-    if (!me || !me.frog || !me.frog.on) return;
+    if (!me || !me.frog || !me.frog.on) { if (window.petKill) window.petKill(); return; }
     const card = el && el.querySelector(".hc.green, .hc.orange, .hc.red");
     const ill = card && card.querySelector(".ill");
     if (!card || !ill || card.querySelector(".pet")) return;
     const mood = card.classList.contains("red") ? "sleep" : card.classList.contains("orange") ? "cold" : "ok";
+    // the field takes the picture's place: same height, so nothing below jumps
+    const field = () => { ill.style.height = `${ill.offsetHeight}px`; ill.style.animation = "none"; ill.innerHTML = ""; };
+    // back on home (or the card redrawn): the frog that already lives here moves in and carries on where it was
+    if (window.petAdopt) { field(); if (window.petAdopt(card, mood)) return; }
     frogLoad().then(() => {
       if (!card.isConnected || card.querySelector(".pet")) return;
-      // the field takes the picture's place: same height, so nothing below jumps
-      ill.style.height = `${ill.offsetHeight}px`; ill.style.animation = "none"; ill.innerHTML = "";
+      if (ill.querySelector(".frogpad")) field();
       window.petLive(card, { skin: mood === "sleep" ? 18 : mood === "cold" ? 0 : 3, mood,
         onPlay: () => { const now = Date.now(); if (now - frogPlayAt < 2000) return; frogPlayAt = now; frogEvent("play"); } });
     }).catch(() => { if (card.isConnected && ill.querySelector(".frogpad")) ill.innerHTML = `<div>${FROG(78, mood === "sleep")}</div>`; });
