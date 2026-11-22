@@ -12,24 +12,23 @@ from app import autopay, billing, db, referrals
 from app.config import Settings
 
 
-class IntervalTest(unittest.TestCase):
-    def test_steady_interval_is_amount_over_cost_per_day(self):
-        self.assertEqual(autopay.steady_interval(300, 6), 50)
-        self.assertEqual(autopay.steady_interval(300, 12), 25)
-        self.assertEqual(autopay.steady_interval(100, 30), 7)  # CISPay minimum
-        self.assertEqual(autopay.steady_interval(100000, 6), 360)  # CISPay maximum
+class AmountTest(unittest.TestCase):
+    def test_the_suggested_amount_is_a_month_of_devices_rounded_up(self):
+        self.assertEqual(autopay.monthly_amount(6), 200)     # 180 ₽ a month
+        self.assertEqual(autopay.monthly_amount(12), 400)    # two devices: 360 ₽
+        self.assertEqual(autopay.monthly_amount(1), 100)     # never below the minimum
+        self.assertEqual(autopay.default_amount(6), 200)
 
-    def test_first_charge_comes_with_two_days_left(self):
-        # 20 ₽ on the balance + 300 ₽ now, 6 ₽ a day: 53 days, the next 300 ₽ two days before the end.
-        self.assertEqual(autopay.first_interval(300, 20, 6), 51)
-        self.assertEqual(autopay.first_interval(300, -50, 6), 48)  # a debt is not counted as money
+    def test_options_start_from_the_month_and_say_what_covers_it(self):
+        options = autopay.amount_options(6)
+        self.assertEqual([o["amount"] for o in options], [200, 300, 500, 1000])
+        self.assertTrue(options[0]["month"] and all(o["covers"] for o in options))
+        self.assertEqual([o["amount"] for o in autopay.amount_options(30)], [900, 1000])  # five devices
+        self.assertFalse(autopay.covers(300, 12))
 
-    def test_amounts_that_do_not_last_a_week_cannot_be_chosen(self):
-        options = {o["amount"]: o for o in autopay.amount_options(30)}  # five devices
-        self.assertFalse(options[100]["ok"])
-        self.assertTrue(options[300]["ok"])
-        self.assertEqual(autopay.default_amount(30), 300)
-        self.assertEqual(autopay.default_amount(50), 500)
+    def test_any_amount_in_range_can_be_chosen(self):
+        self.assertTrue(autopay.amount_ok(100) and autopay.amount_ok(750))
+        self.assertFalse(autopay.amount_ok(50) or autopay.amount_ok(20000))
 
 
 class FakeCISPay:
@@ -37,7 +36,7 @@ class FakeCISPay:
         self.create_subscription = AsyncMock(return_value={"id": "sub-1", "payment_url": "https://pay/sub-1", "status": "PENDING"})
         self.cancel_subscription = AsyncMock(return_value={"id": "sub-1", "status": "CANCELLED"})
         self.update_subscription = AsyncMock(return_value={})
-        self.remote = {"id": "sub-1", "status": "ACTIVE", "interval_days": 51, "charges": [],
+        self.remote = {"id": "sub-1", "status": "ACTIVE", "interval_days": 30, "charges": [],
                        "next_charge_at": "2026-12-20T10:00:00+00:00"}
         self.get_subscription = AsyncMock(side_effect=lambda _id: dict(self.remote))
 
@@ -84,7 +83,7 @@ class AutopayPostgresTest(unittest.IsolatedAsyncioTestCase):
         out = await autopay.start(self.rp, 7, 300)
         self.assertEqual(out["pay_url"], "https://pay/sub-1")
         kwargs = self.rp.create_subscription.await_args.kwargs
-        self.assertEqual((kwargs["amount_rub"], kwargs["interval_days"], kwargs["customer_id"]), (300, 51, "7"))
+        self.assertEqual((kwargs["amount_rub"], kwargs["interval_days"], kwargs["customer_id"]), (300, 30, "7"))
         # Asking again for the same amount reuses the page instead of a second subscription.
         await autopay.start(self.rp, 7, 300)
         self.rp.create_subscription.assert_awaited_once()
@@ -96,10 +95,10 @@ class AutopayPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.pool.fetchval("SELECT status FROM pay_orders WHERE order_id='ap-tx-1'"), "granted")
 
         await autopay.on_event({"event": "subscription.activated", "id": "sub-1", "status": "ACTIVE",
-                                "interval_days": 51}, self.rp, self.bot)
+                                "interval_days": 30}, self.rp, self.bot)
         row = await autopay.get(7)
         self.assertEqual(row["status"], "active")
-        self.rp.update_subscription.assert_awaited_with("sub-1", interval_days=50)
+        self.rp.update_subscription.assert_not_awaited()  # already 30 days: nothing to move
         self.assertIn("Автопополнение включено", self.bot.send_message.await_args.args[1])
         self.assertFalse(await autopay.offer_ok(7))
 
@@ -128,6 +127,15 @@ class AutopayPostgresTest(unittest.IsolatedAsyncioTestCase):
                                 "reason": "cancelled_by_merchant"}, self.rp, self.bot)
         self.bot.send_message.assert_not_awaited()  # they switched it off themselves
         self.assertTrue(await autopay.offer_ok(7))
+
+    async def test_an_old_subscription_is_moved_to_a_month(self):
+        await autopay.start(self.rp, 7, 300)
+        await self.pool.execute("UPDATE autopay SET interval_days=360 WHERE telegram_id=7")
+        self.rp.remote["interval_days"] = 360
+        await autopay.on_event({"event": "subscription.activated", "id": "sub-1", "status": "ACTIVE",
+                                "interval_days": 360}, self.rp, self.bot)
+        self.rp.update_subscription.assert_awaited_with("sub-1", interval_days=30)
+        self.assertEqual((await autopay.get(7))["interval_days"], 30)
 
     async def test_second_decline_in_a_row_switches_it_off(self):
         await autopay.start(self.rp, 7, 300)

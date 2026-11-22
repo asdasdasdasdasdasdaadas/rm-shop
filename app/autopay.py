@@ -1,13 +1,10 @@
 """Автопополнение: CISPay subscriptions that top up the balance by themselves.
 
-The balance and the per-day price stay as they are: the subscription only adds a fixed amount every N days.
-CISPay runs the schedule itself (SBP only, we cannot trigger or skip one charge), so we pick N so that the
-money comes when about two days of balance are left:
-
-- the first interval runs from the first payment until (balance + amount) is down to two days;
-- after activation the interval becomes amount ÷ cost per day, so the balance stays about where it was.
-
-Devices change the cost per day: the hourly pass moves the interval to match (it applies after the next charge).
+The balance and the per-day price stay as they are: the subscription only adds a fixed amount every 30 days.
+CISPay runs the schedule itself (SBP only; a charge cannot be moved, skipped or triggered), and the bank shows
+the person «N ₽ каждые 30 дн.» — so the rhythm is one everybody knows, a month, and the balance is the cushion:
+what is not spent stays on it. The suggested amount is what the person's devices cost in a month, rounded up.
+Older subscriptions with another interval are moved to 30 days by the hourly pass (it applies after their next charge).
 Every charge, the first one too, arrives as a payment webhook with `subscription_id` and becomes a pay_orders
 row «ap-<transaction>» credited like any top-up. The hourly pass also asks CISPay about open subscriptions, so
 a lost webhook only delays a charge by an hour. Off by default: `autopay_enabled` in Настройки; admins see it always.
@@ -28,11 +25,12 @@ from app.config import get_settings
 logger = logging.getLogger("rm-shop.autopay")
 router = Router(name="autopay")
 
-AMOUNTS = (100, 300, 500, 1000)
-DEFAULT_AMOUNT = 300
-LEAD_DAYS = 2           # the charge should come with about this many days of balance left
-MIN_INTERVAL = 7        # CISPay: 7–360 days unless the shop has amount changes switched on
-MAX_INTERVAL = 360
+AMOUNTS = (300, 500, 1000)
+PERIOD_DAYS = 30        # one charge a month: the bank shows it as «каждые 30 дн.»
+MIN_AMOUNT = 100
+MAX_AMOUNT = 15000
+ROUND_TO = 50           # the suggested amount: a month of the person's devices, rounded up to this
+LEAD_DAYS = 2           # kept in the cabinet's view for older clients
 OFFER_PAUSE_DAYS = 30   # after «Не сейчас» the offer does not come back for a month
 REMIND_HOURS = 30       # remind when the charge is closer than this
 SYNC_SECONDS = 3600
@@ -57,30 +55,31 @@ def day_cost(devices: int) -> int:
     return max(1, int(get_settings().vpn_day_price_rub)) * max(1, int(devices or 0))
 
 
-def _clamp(days: int) -> int:
-    return max(MIN_INTERVAL, min(MAX_INTERVAL, int(days)))
+def monthly_amount(daily: int) -> int:
+    """A month of the person's devices, rounded up: 6 ₽ a day → 200 ₽, two devices → 400 ₽."""
+    month = max(1, int(daily)) * PERIOD_DAYS
+    return max(MIN_AMOUNT, min(MAX_AMOUNT, -(-month // ROUND_TO) * ROUND_TO))
 
 
-def steady_interval(amount: int, daily: int) -> int:
-    """After activation: one charge pays for as many days as it lasts."""
-    return _clamp(int(amount) // max(1, daily))
-
-
-def first_interval(amount: int, balance: int, daily: int) -> int:
-    """From the first payment until about LEAD_DAYS of balance are left."""
-    return _clamp((max(0, int(balance)) + int(amount)) // max(1, daily) - LEAD_DAYS)
+def covers(amount: int, daily: int) -> bool:
+    """Enough for the month: the balance does not shrink between charges."""
+    return int(amount) >= max(1, int(daily)) * PERIOD_DAYS
 
 
 def amount_options(daily: int) -> list[dict]:
-    """The amounts with how long each lasts; one that does not last MIN_INTERVAL days cannot be chosen."""
-    return [{"amount": a, "days": a // max(1, daily), "ok": a // max(1, daily) >= MIN_INTERVAL} for a in AMOUNTS]
+    """The suggested monthly amount first, then the round ones above it; how many days each lasts."""
+    month = monthly_amount(daily)
+    amounts = sorted({month, *[a for a in AMOUNTS if a > month]})[:4]
+    return [{"amount": a, "days": a // max(1, daily), "ok": True, "covers": covers(a, daily), "month": a == month}
+            for a in amounts]
 
 
 def default_amount(daily: int) -> int:
-    ok = [o["amount"] for o in amount_options(daily) if o["ok"]]
-    if DEFAULT_AMOUNT in ok:
-        return DEFAULT_AMOUNT
-    return ok[0] if ok else AMOUNTS[-1]
+    return monthly_amount(daily)
+
+
+def amount_ok(amount: int) -> bool:
+    return MIN_AMOUNT <= int(amount) <= MAX_AMOUNT
 
 
 # ---------- who may use it ----------
@@ -165,10 +164,8 @@ async def start(rp, telegram_id: int, amount: int) -> dict:
     if rp is None or not available(telegram_id):
         raise ValueError("Автопополнение недоступно")
     amount = int(amount)
-    devices = await db.billable_device_count(telegram_id)
-    daily = day_cost(devices)
-    if amount not in AMOUNTS or amount // daily < MIN_INTERVAL:
-        raise ValueError("Выберите сумму, которой хватит хотя бы на неделю")
+    if not amount_ok(amount):
+        raise ValueError(f"Сумма автопополнения — от {MIN_AMOUNT} до {MAX_AMOUNT} ₽")
     row = await get(telegram_id)
     if row and row["status"] == "active":
         raise ValueError("Автопополнение уже включено")
@@ -179,11 +176,10 @@ async def start(rp, telegram_id: int, amount: int) -> dict:
             await rp.cancel_subscription(row["subscription_id"])
         except CISPayError:
             logger.warning("Old pending autopay %s not cancelled", row["subscription_id"], exc_info=True)
-    user = await db.get_user(telegram_id) or {}
-    interval = first_interval(amount, int(user.get("balance_rub") or 0), daily)
+    interval = PERIOD_DAYS
     sub = await rp.create_subscription(
         amount_rub=amount, interval_days=interval, customer_id=str(telegram_id),
-        purpose=f"{get_settings().brand_name}: автопополнение баланса на {amount} ₽")
+        purpose=f"{get_settings().brand_name}: пополнение баланса на {amount} ₽ раз в {PERIOD_DAYS} дней")
     await db._pool_req().execute(
         """INSERT INTO autopay (telegram_id, subscription_id, status, amount_rub, interval_days, pay_url,
                                 next_charge_at, last_charge_at, ended_reason, reminded_for, failed_tx, fails, ended_at)
@@ -321,10 +317,10 @@ async def refresh(rp, row: dict | None, bot=None) -> None:
 
 
 async def tune(rp, row: dict | None) -> None:
-    """Keep the interval at amount ÷ cost per day (devices change it). CISPay applies it after the next charge."""
+    """Every subscription charges once a month; older ones are moved there. CISPay applies it after the next charge."""
     if rp is None or not row or row["status"] != "active" or not row.get("subscription_id"):
         return
-    want = steady_interval(int(row["amount_rub"]), day_cost(await db.billable_device_count(int(row["telegram_id"]))))
+    want = PERIOD_DAYS
     if want == int(row.get("interval_days") or 0):
         return
     from app.cispay import CISPayError
@@ -372,9 +368,9 @@ def panel_text(row: dict | None) -> str:
         return (f"🔁 <b>Автопополнение ждёт оплаты</b>\n\nОплатите {_rub(row['amount_rub'])} через СБП — "
                 "этот платёж пополнит баланс и включит автопополнение.")
     nxt = _ts(row.get("next_charge_at"))
-    when = (f"\nБлижайшее — около {_date(nxt)}, напомним {_date(nxt - timedelta(days=1))}." if nxt else "")
-    return (f"🔁 <b>Автопополнение включено</b>\n\n{_rub(row['amount_rub'])} через СБП, когда останется 2 дня."
-            + when)
+    when = (f"\nБлижайшее — {_date(nxt)}, напомним накануне." if nxt else "")
+    return (f"🔁 <b>Автопополнение включено</b>\n\n+{_rub(row['amount_rub'])} на баланс раз в {PERIOD_DAYS} дней через СБП."
+            + when + "\nЧто не потратится, останется на балансе.")
 
 
 async def receipt_text(telegram_id: int, amount: int) -> str:
@@ -388,8 +384,9 @@ async def reminder_text(row: dict) -> str:
     """The day before a charge (screen 11)."""
     from app.texts import days_text
     _, days = await runway(int(row["telegram_id"]))
-    left = f" — VPN осталось на {days_text(days)}" if days else ""
-    return f"🔔 <b>Завтра пополним баланс</b>\n\n{_rub(row['amount_rub'])} через СБП{left}."
+    left = f"\nСейчас на балансе хватит на {days_text(days)}." if days else ""
+    return (f"🔔 <b>Завтра пополним баланс</b>\n\n+{_rub(row['amount_rub'])} через СБП, как каждый месяц.{left}\n"
+            "Не нужно — отключите, деньги на балансе останутся.")
 
 
 async def failed_text(row: dict) -> str:
@@ -433,11 +430,11 @@ def panel_keyboard(row: dict | None) -> InlineKeyboardMarkup:
 
 
 def reminder_keyboard() -> InlineKeyboardMarkup:
-    return _kb([InlineKeyboardButton(text="Хорошо", callback_data="ap:ok"), _cabinet_button("Изменить", "autopay")])
+    return _kb([InlineKeyboardButton(text="Хорошо", callback_data="ap:ok"), _cabinet_button("Управлять", "autopay")])
 
 
 def receipt_keyboard() -> InlineKeyboardMarkup:
-    return _kb([_cabinet_button("Изменить", "autopay")])
+    return _kb([_cabinet_button("Управлять", "autopay")])
 
 
 def failed_keyboard(promise: bool = False) -> InlineKeyboardMarkup:
@@ -452,7 +449,7 @@ def ended_keyboard() -> InlineKeyboardMarkup:
 
 def offer_button() -> InlineKeyboardButton | None:
     """Under balance warnings (screen 1)."""
-    return _cabinet_button("🔁 Пополнить и больше не следить", "autopay")
+    return _cabinet_button("🔁 Пополнять каждый месяц", "autopay")
 
 
 async def _send(bot, uid: int, text: str, markup: InlineKeyboardMarkup | None = None) -> None:
@@ -537,6 +534,10 @@ async def public(telegram_id: int) -> dict | None:
         "offer": status == "off" and not declined,
         "day_cost": daily,
         "lead_days": LEAD_DAYS,
+        "period_days": PERIOD_DAYS,
+        "monthly": monthly_amount(daily),
+        "min": MIN_AMOUNT,
+        "max": MAX_AMOUNT,
         "options": amount_options(daily),
         "default": default_amount(daily),
         "charges": [{"at": _iso(c["created_at"]), "amount": int(c["amount_kop"] or 0) // 100,

@@ -321,7 +321,7 @@
 
   // ---------- wizard and pay state ----------
   const wiz = { platform: "ios", client: "", url: "", deviceId: null, title: "", fromOffer: false, has: false };
-  const pay = { amount: 0, custom: false, method: "", url: "", base: 0, kind: "" };
+  const pay = { amount: 0, custom: false, method: "", url: "", base: 0, kind: "", ap: false };
   const support = { files: [], context: null, poll: 0, draft: "" };
 
   // =====================================================================
@@ -893,6 +893,24 @@
     card: ["Открыли защищённую страницу оплаты", "<b>обычно до минуты</b>"],
   };
   const daysFor = (amount) => Math.floor(amount / (dayPrice() * Math.max(1, phones().length)));
+  // «Пополнять так каждый месяц» on the top-up screen (SBP only): the same payment switches автопополнение on.
+  const apTopupOk = () => { const a = me.autopay; return Boolean(a && !["active", "pending"].includes(a.status) && (curMethod() || {}).id === "sbp"); };
+  const apWant = () => Boolean(pay.ap && apTopupOk());
+  const apAmountOk = () => { const a = me.autopay || {}; return pay.amount >= (Number(a.min) || 100) && pay.amount <= (Number(a.max) || 15000); };
+  const apTgSub = () => (apAmountOk() ? `+${rub(pay.amount)} раз в ${days((me.autopay || {}).period_days || 30)} · отключить в любой момент` : `от ${rub((me.autopay || {}).min || 100)}`);
+  const payNote = () => `Баланс ${rub(me.balance_rub)} · ${apWant() ? `дальше +${rub(pay.amount)} раз в ${days((me.autopay || {}).period_days || 30)}` : `разовая оплата${me.autopay ? "" : ", без\u00a0автоплатежей"}`}`;
+  const payLabel = () => (!curMethod() ? "Оплата недоступна" : `Оплатить ${amountOk(pay.amount) ? rub(pay.amount) : ""}${apWant() ? " и включить" : ""}`.trim());
+  function apTopupRow() {
+    const a = me.autopay;
+    if (!a) return "";
+    if (a.status === "active") {
+      const d = apNext();
+      return NOTE(`🔁 Автопополнение включено: +${rub(a.amount)} раз в месяц${d ? ", ближайшее " + dateLong(d) : ""}`, true);
+    }
+    if (!apTopupOk()) return "";
+    return `<div style="height:12px"></div>` + cd([[E("🔁") + TT("Пополнять так каждый месяц", `<span id="apTgS">${apTgSub()}</span>`) +
+      `<span class="tg${pay.ap ? "" : " off"}" id="apTg"></span>`, 'data-act="apTg"']]);
+  }
   const amountLine = () => (amountOk(pay.amount) ? `≈ ${days(daysFor(pay.amount))} VPN` : `Укажите сумму от ${rub(me.topup_min || 1)}`);
   SCR.topup = {
     h() {
@@ -910,12 +928,13 @@
         p: `<span id="amtP">${amountLine()}</span>`,
         x: need + `<div class="chp">${chips.map((v) => `<button type="button" data-act="amt" data-v="${v}" class="${inChips && v === pay.amount ? "on" : ""}${fb && v >= Number(fb.min_rub) ? " g" : ""}">${fmt(v)}</button>`).join("")}` +
           `<button type="button" data-act="amtc" class="${inChips ? "" : "on"}">${inChips ? "Своя" : fmt(pay.amount) + " ✎"}</button></div>`,
-        pill: m ? `Оплатить ${rub(pay.amount)}` : "Оплата недоступна", pd: !m || !amountOk(pay.amount), pa: 'data-act="pay" id="payB"' }) +
+        pill: payLabel(), pd: !m || !amountOk(pay.amount) || (apWant() && !apAmountOk()), pa: 'data-act="pay" id="payB"' }) +
         (m ? ST("Способ оплаты") + cd([[E(METHOD_EMO[m.id] || "💳") + TT(esc(m.title), esc(methodSub(m))) + (payMethods().length > 1 ? V("Изменить " + CV) : ""),
           payMethods().length > 1 ? 'data-go="method"' : ""]]) : NOTE("Оплата временно недоступна. Попробуйте позже или напишите в поддержку.", true)) +
+        apTopupRow() +
         (fb ? NOTE(fbRet() ? `🎁 Бонус за возвращение: +${fbPct()}% к пополнению от ${rub(fb.min_rub)} до ${esc(fb.until || "конца акции")}`
           : `🎁 +${fbPct()}% к первому пополнению от ${rub(fb.min_rub)} — пока не закончился подарок`, true) : "") +
-        NOTE(`Баланс ${rub(me.balance_rub)} · разовая оплата${me.autopay ? "" : ", без\u00a0автоплатежей"}`, true);
+        NOTE(`<span id="payNote">${payNote()}</span>`, true);
     },
     on(el) { fbPaint(el, true); },
   };
@@ -925,9 +944,13 @@
     else if (n) n.textContent = amountOk(pay.amount) ? rub(pay.amount) : "— ₽";
     el.querySelector("#amtP").textContent = amountLine();
     const b = el.querySelector("#payB");
-    const ok = amountOk(pay.amount) && curMethod();
+    const ok = amountOk(pay.amount) && curMethod() && !(apWant() && !apAmountOk());
     b.classList.toggle("dim", !ok);
-    b.querySelector("span").textContent = curMethod() ? `Оплатить ${amountOk(pay.amount) ? rub(pay.amount) : ""}`.trim() : "Оплата недоступна";
+    b.querySelector("span").textContent = payLabel();
+    const apS = el.querySelector("#apTgS");
+    if (apS) apS.textContent = apTgSub();
+    const pn = el.querySelector("#payNote");
+    if (pn) pn.textContent = payNote();
     fbPaint(el);
   }
 
@@ -1173,7 +1196,7 @@
           ST("Как это работает") +
           tl([[CHK(22), "Счёт создан", `${rub(pay.amount)} · СБП`, "ok"],
             ["2", "Подтверждение в банке", "<b>подтвердите в приложении банка</b>", "run"],
-            ["🔁", "Включим автопополнение", "сразу после оплаты"]]) +
+            ["🔁", "Включим автопополнение", `дальше раз в ${days(apPeriod())}`]]) +
           (pay.url ? `<button type="button" class="lnk" data-act="reopen">Открыть оплату ещё раз</button>` : "") +
           NOTE("Если оплата не пройдёт, ничего не включится.", true);
       }
@@ -2086,18 +2109,18 @@
   // CISPay subscriptions: SBP only, CISPay charges on its own schedule. No pause, no «skip once», no amount change.
   const apOn = () => Boolean(me.autopay && me.autopay.status === "active");
   const apNext = () => parseDate((me.autopay || {}).next_charge_at);
-  const apLead = () => days((me.autopay || {}).lead_days || 2);
-  const apOpt = (n) => ((me.autopay || {}).options || []).find((o) => o.amount === n && o.ok);
+  const apPeriod = () => Number((me.autopay || {}).period_days) || 30;
+  const apFirst = () => new Date(Date.now() + apPeriod() * 864e5);
   // Under the balance on the home card (screens 2, 8, 15): the date of the next top-up, «не сработало» or the offer.
   function apHero(alert) {
     const a = me.autopay;
     if (!a) return {};
     const chip = (t) => `<button type="button" class="chip apchip" data-go="autopay">${t} ›</button>`;
-    if (a.status === "active") return { x: chip(`🔁 ${apNext() ? dateLong(apNext()) + " пополним" : "Пополним"} ${rub(a.amount)}`) };
+    if (a.status === "active") return { x: chip(`🔁 ${apNext() ? dateLong(apNext()) + " " : ""}+${rub(a.amount)} · раз в месяц`) };
     if (a.status === "pending") return { x: chip("🔁 Автопополнение ждёт оплаты") };
     if (!alert) return {};
     if (a.failed) return { x: `<div class="chip apchip warn">⚠️ Автопополнение не сработало</div>`, s2: "Включить снова", s2a: 'data-go="autopay"' };
-    if (a.offer) return { s2: "🔁&nbsp;Автопополнение", s2a: 'data-go="autopay"' };
+    if (a.offer) return { s2: "🔁&nbsp;Пополнять каждый месяц", s2a: 'data-go="autopay"' };
     return {};
   }
   const apSettingsLine = () => !me.autopay ? "" : apOn() ? "Автопополнение включено" : me.autopay.status === "pending" ? "Автопополнение ждёт оплаты" : "";
@@ -2116,8 +2139,8 @@
       // Screen 16: on.
       if (a.status === "active" && !p.pick) {
         const d = apNext();
-        return hc("green", { rb: "включено", ill: "🔁", n: rub(a.amount), p: `${d ? "около " + dateLong(d) + " · " : ""}через СБП` }) +
-          `<div style="height:12px"></div>` + cd([[E("⚡") + TT("Автопополнение", `когда останется ${apLead()}`) + `<span class="tg"></span>`, 'data-act="apOff"']]) +
+        return hc("green", { rb: "включено", ill: "🔁", n: "+" + rub(a.amount), p: `раз в ${days(apPeriod())}${d ? " · ближайшее " + dateLong(d) : ""}` }) +
+          `<div style="height:12px"></div>` + cd([[E("⚡") + TT("Автопополнение", `через СБП, раз в ${days(apPeriod())}`) + `<span class="tg"></span>`, 'data-act="apOff"']]) +
           ST("Настройки") +
           cd([`${E("💰")}${TT("Сумма", "другая сумма — выключите и включите заново")}${V(rub(a.amount))}`,
             `${E("⚡")}${TT("Способ оплаты", "привязка СБП в вашем банке")}${V("СБП")}`]) +
@@ -2129,7 +2152,7 @@
           pill: "Оплатить через СБП", pa: 'data-act="apPay"', r: "ref", rl: "Проверить", ra: 'data-act="refresh"' }) +
           ST("Как это работает") +
           tl([[CHK(22), "Счёт создан", `${rub(a.amount)} · СБП`, "ok"], ["2", "Подтверждение в банке", "<b>подтвердите в приложении банка</b>", "run"],
-            ["3", "Включим автопополнение", "сразу после оплаты"]]) +
+            ["3", "Включим автопополнение", `дальше раз в ${days(apPeriod())}`]]) +
           NOTE("Если оплата не пройдёт, ничего не включится.", true) +
           `<button type="button" class="lalt" data-act="apPick">Выбрать другую сумму</button>`;
       }
@@ -2141,15 +2164,20 @@
           apHistory(a);
       }
       // Screen 4: turning on — the payment that tops up is the one that switches it on.
-      const pick = Number(p.amount) || a.default || 300;
-      const opt = (a.options || []).find((o) => o.amount === pick) || {};
-      return hc("green", { k: "🔁&nbsp;Пополнить и включить", n: `<span>${rub(pick)}</span>`, p: `≈ ${days(opt.days || 0)} VPN за раз`,
-        x: `<div class="chp">${(a.options || []).map((o) => `<button type="button" data-act="apAmt" data-v="${o.amount}" class="${o.amount === pick ? "on" : ""}"${o.ok ? "" : ' disabled style="opacity:.4"'}>${fmt(o.amount)}</button>`).join("")}</div>`,
+      const pick = Number(p.amount) || a.default || a.monthly || 300;
+      const daily = Number(a.day_cost) || dayPrice();
+      const opts = (a.options || []).some((o) => o.amount === pick) ? a.options || []
+        : [...(a.options || []), { amount: pick, days: Math.floor(pick / daily), ok: true, covers: pick >= daily * apPeriod() }].sort((x, y) => x.amount - y.amount);
+      const opt = opts.find((o) => o.amount === pick) || {};
+      return hc("green", { k: "🔁&nbsp;Пополнять каждый месяц", n: `<span>${rub(pick)}</span>`, p: `раз в ${days(apPeriod())} · ≈ ${days(opt.days || 0)} VPN`,
+        x: `<div class="chp">${opts.map((o) => `<button type="button" data-act="apAmt" data-v="${o.amount}" class="${o.amount === pick ? "on" : ""}">${fmt(o.amount)}</button>`).join("")}</div>`,
         pill: `Оплатить ${rub(pick)} и включить`, pa: 'data-act="apStart"', s2: "Оплатить один раз", s2a: 'data-act="apOnce"' }) +
+        (opt.covers === false ? NOTE(`Ваши устройства тратят около ${rub(daily * apPeriod())} в месяц — с этой суммой баланс будет понемногу уменьшаться.`, true) : "") +
         ST("Что будет дальше") +
-        tl([[CHK(22), `Сегодня — оплата ${rub(pick)}`, "через СБП, она запомнится", "ok"],
-          ["🔔", "За день напомним", "можно изменить или отключить"],
-          ["🔁", `Пополним на ${rub(pick)}`, `когда останется ${apLead()}`]]) +
+        tl([[CHK(22), `Сегодня — +${rub(pick)} на баланс`, "оплата через СБП, она запомнится", "ok"],
+          ["🔁", `Каждые ${apPeriod()} дней +${rub(pick)}`, `ближайшее — ${dateLong(apFirst())}`],
+          ["🔔", "Накануне напомним в боте", "не нужно — отключите в один тап"]]) +
+        NOTE("Это пополнение баланса, не плата за месяц: что не потратится, останется у вас.", true) +
         ST("Способ оплаты") +
         cd([`${E("⚡")}${TT("СБП", "для автопополнения нужна СБП")}${V(RD(true))}`,
           `<span style="opacity:.55;display:contents">${E("💳")}${TT("Карта, Stars и TON", "только разовая оплата")}</span>`]) +
@@ -2162,11 +2190,11 @@
   function apQuiet(el) {
     const a = me.autopay;
     if (!a || !a.offer || pay.kind === "autopay" || (curMethod() || {}).id !== "sbp" || !cur || cur.el !== el || el.querySelector(".apq")) return false;
-    const n = apOpt(pay.amount) ? pay.amount : a.default;
+    const n = pay.amount >= (Number(a.min) || 100) ? pay.amount : a.default;
     const box = document.createElement("div");
     box.className = "cd apq";
-    box.innerHTML = `<div class="apq-h">🔁 Пополнять так же автоматически?</div>` +
-      `<div class="apq-p">Когда останется ${apLead()}, пополним на ${rub(n)} через СБП. За день напомним в боте.</div>` +
+    box.innerHTML = `<div class="apq-h">🔁 Пополнять так каждый месяц?</div>` +
+      `<div class="apq-p">+${rub(n)} раз в ${days(apPeriod())} через СБП. Что не потратится — останется на балансе. Накануне напомним в боте.</div>` +
       `<div class="apq-b"><button type="button" class="bbtn" data-go="autopay" data-amount="${n}">Включить</button><button type="button" class="bbtn sec" data-act="apQuietNo">Не сейчас</button></div>` +
       `<div class="apq-f">Отключить — в любой момент${me.legal && me.legal.offer ? ` · <button type="button" class="ulink" data-act="link" data-v="${esc(me.legal.offer)}">Условия</button>` : ""}</div>`;
     const note = el.querySelector(".note");
@@ -2174,16 +2202,29 @@
     T(() => box.scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "nearest" }), 250);
     return true;
   }
+  // The payment that tops up and switches автопополнение on (its own screen or the switch on «Пополнить»).
+  async function apBegin(amount, b) {
+    if (!amount || (b && b.classList.contains("dim"))) return;
+    haptic();
+    if (b) b.classList.add("dim");
+    try {
+      const r = await post("/api/autopay", { amount });
+      pay.amount = amount; pay.kind = "autopay"; pay.url = r.pay_url || ""; pay.base = Number(me.balance_rub) || 0; pay.fbOn = false; pay.ap = false;
+      if (r.pay_url) tg.openLink(r.pay_url);
+      go("wait");
+      load(true).catch(() => {});
+    } catch (e) { showErr(e); if (b) b.classList.remove("dim"); }
+  }
   // Screen 6: the money came and autopay is on.
   function apPaid(el) {
-    const a = me.autopay || {}, d = apNext();
+    const a = me.autopay || {}, d = apNext() || apFirst();
     const h = el.querySelector(".hc");
     if (h) h.querySelector(".P").insertAdjacentHTML("afterend", `<div class="chip apchip">🔁 Автопополнение включено</div>`);
     const box = document.createElement("div");
     box.innerHTML = ST("Следующее пополнение") +
-      tl([["🔔", d ? `${dateLong(new Date(d.getTime() - 864e5))} напомним в боте` : "За день напомним в боте", "можно изменить или отключить"],
-        ["🔁", d ? `${dateLong(d)} — ${rub(a.amount || pay.amount)}` : `Пополним на ${rub(a.amount || pay.amount)}`, d ? "через СБП" : `когда останется ${apLead()}`]]) +
-      cd([[E("⚙️") + "Изменить или отключить" + V(CV), 'data-go="autopay"']]);
+      tl([["🔁", `${dateLong(d)} — +${rub(a.amount || pay.amount)}`, `и дальше раз в ${days(apPeriod())}`],
+        ["🔔", `${dateLong(new Date(d.getTime() - 864e5))} напомним в боте`, "не нужно — отключите в один тап"]]) +
+      cd([[E("⚙️") + "Управлять автопополнением" + V(CV), 'data-go="autopay"']]);
     const note = el.querySelector(".note");
     if (note) note.replaceWith(box); else el.appendChild(box);
   }
@@ -2465,6 +2506,7 @@
   async function startPay(btn) {
     const m = curMethod();
     if (!m || !amountOk(pay.amount)) return;
+    if (apWant()) { if (apAmountOk()) apBegin(pay.amount, btn); return; }
     haptic();
     btn.classList.add("dim");
     try {
@@ -2529,19 +2571,16 @@
     },
     apPick() { haptic("soft"); go("autopay", { pick: true }); },
     apPay() { const a = me.autopay || {}; if (a.pay_url) { haptic(); tg.openLink(a.pay_url); } },
-    async apStart(b) {
+    apStart(b) {
       const a = me.autopay || {};
-      const amount = Number(cur.params.amount) || a.default;
-      if (!amount || b.classList.contains("dim")) return;
-      haptic();
-      b.classList.add("dim");
-      try {
-        const r = await post("/api/autopay", { amount });
-        pay.amount = amount; pay.kind = "autopay"; pay.url = r.pay_url || ""; pay.base = Number(me.balance_rub) || 0; pay.fbOn = false;
-        if (r.pay_url) tg.openLink(r.pay_url);
-        go("wait");
-        load(true).catch(() => {});
-      } catch (e) { showErr(e); b.classList.remove("dim"); }
+      apBegin(Number(cur.params.amount) || a.default, b);
+    },
+    apTg(b) {
+      haptic("soft");
+      pay.ap = !pay.ap;
+      const t = b.querySelector(".tg") || cur.el.querySelector("#apTg");
+      if (t) t.classList.toggle("off", !pay.ap);
+      paintAmount(cur.el);
     },
     // «Оплатить один раз»: the same amount as a plain top-up, and no offer for 30 days.
     apOnce() {
