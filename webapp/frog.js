@@ -131,6 +131,8 @@
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const ease = (t) => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
   const raf = () => new Promise((r) => requestAnimationFrame(r));
+  // how many 60 Hz frames went by since `last` (1 at 60 Hz, ~0.43 at 140 Hz): motion keeps its speed on any screen
+  const frames = (last, now = performance.now()) => Math.min(3, Math.max(0, (now - last) / (1000 / 60)));
   const lib = () => window.lottie ? Promise.resolve(window.lottie) : new Promise((ok) => { const s = document.createElement("script"); s.src = "/icons/lottie-light.min.js"; s.onload = () => ok(window.lottie); document.head.appendChild(s); });
   const add = (st, cls, html = "") => { const e = document.createElement("div"); e.className = cls; e.innerHTML = html; st.layer.appendChild(e); return e; };
   const at = (e, x, y, extra = "") => { e.style.transform = `translate(${x}px,${y}px) ${extra}`; };
@@ -252,11 +254,11 @@
     mouth() { return [this.x + (this.dir > 0 ? 1 : -1) * (.5 - MOUTH[0]) * SIZE, this.y - this.z - FEET * SIZE + MOUTH[1] * SIZE]; }
     // --- one frame: eyes follow what matters (a scene's target, else your finger, else a glance), the pupil eases there
     loop() {
-      let px = 0, py = 0;
+      let px = 0, py = 0, last = performance.now();
       const tick = () => {
         if (this.st.dead) return;
         if (!this.el.isConnected) { requestAnimationFrame(tick); return; }
-        const p = this.st.pointer, now = performance.now();
+        const p = this.st.pointer, now = performance.now(), fk = frames(last, now); last = now;
         const tgt = this.look || (p && now - p.t < 2500 ? p : null) || this.glance;
         let tx = 0, ty = 0;
         if (!tgt) { if (now > (this.sacAt || 0)) { this.sac = Math.random() < .35 ? [0, 0] : [rnd(-9, 9), rnd(-7, 4)]; this.sacAt = now + rnd(600, 2200); } [tx, ty] = this.sac || [0, 0]; }
@@ -269,9 +271,10 @@
             this.behind = this.behind || now; if (now - this.behind > 600) { this.face(Math.sign(dx)); this.behind = 0; }
           } else this.behind = 0;
         }
-        const hy = this.held ? this.hy : this.y - this.z, vy = hy - (this.lastHy ?? hy); this.lastHy = hy;
+        const hy = this.held ? this.hy : this.y - this.z, vy = fk ? (hy - (this.lastHy ?? hy)) / fk : 0; this.lastHy = hy;
         ty = clamp(ty - vy * 1.6, -16, 16);
-        px += (tx - px) * .22; py += (ty - py) * .22;
+        const ez = 1 - Math.pow(1 - .22, fk);
+        px += (tx - px) * ez; py += (ty - py) * ez;
         if (this.pupil) this.pupil.style.translate = `${px.toFixed(1)}px ${py.toFixed(1)}px`;
         requestAnimationFrame(tick);
       };
@@ -348,12 +351,14 @@
       this.st = st; this.kind = kind; this.cx = x; this.cy = y; this.x = x; this.y = y; this.t = rnd(0, 9); this.r = kind === "fly" ? 13 : 4; this.on = true; this.n = 0;
       this.el = add(st, `bug ${kind}`, "<i></i><i></i>");
       if (kind === "bfly") this.r = 6; if (kind === "sb") this.r = 7;
-      const tick = () => { if (!this.on) return; this.t += kind === "sb" ? .02 : .05; const px = this.x, py = this.y;
+      let last = performance.now(), trail = 0;
+      const tick = () => { if (!this.on) return; const now = performance.now(), fk = frames(last, now); last = now;
+        this.t += (kind === "sb" ? .02 : .05) * fk; const px = this.x, py = this.y;
         const jit = this.still ? 0 : kind === "bfly" ? Math.sin(this.t * 3.1) * 4 : kind === "sb" ? 0 : Math.sin(this.t * 7) * 2;
         this.x = this.cx + (this.still ? 0 : Math.sin(this.t * 2.3) * this.r + Math.sin(this.t * 5.1) * this.r * .25); this.y = this.cy + (this.still ? 0 : Math.cos(this.t * 1.7) * this.r * .6) + jit;
         const ang = this.kind === "dfly" ? Math.atan2(this.y - py, this.x - px) * 180 / Math.PI * .3 : 0;
         at(this.el, this.x, this.y, `rotate(${ang}deg) scaleX(${this.x < px ? -1 : 1})`);
-        if (this.kind === "fly" && ++this.n % 7 === 0) { const b = add(st, "bz"); at(b, this.x, this.y); b.animate([{ opacity: .6 }, { opacity: 0, transform: `translate(${this.x}px,${this.y}px) scale(.3)` }], { duration: 500 }).finished.then(() => b.remove()); }
+        if (this.kind === "fly" && now - trail >= 7000 / 60) { trail = now; const b = add(st, "bz"); at(b, this.x, this.y); b.animate([{ opacity: .6 }, { opacity: 0, transform: `translate(${this.x}px,${this.y}px) scale(.3)` }], { duration: 500 }).finished.then(() => b.remove()); }
         requestAnimationFrame(tick); };
       tick();
     }
@@ -570,9 +575,9 @@
     let t0 = performance.now();
     while (true) { const t = Math.min(1, (performance.now() - t0) / 450); f.y = st.ground + 50 - 30 * ease(t); f.render(); if (t >= 1) break; await raf(); }
     ripple(st, f.x, st.ground + 2, 1.2); await f.blink(true);
-    const x0 = f.x, x1 = p.cx + side * p.w * .2; t0 = performance.now(); let n = 0;
+    const x0 = f.x, x1 = p.cx + side * p.w * .2; t0 = performance.now(); let n = t0;
     while (true) { const t = Math.min(1, (performance.now() - t0) / 1900); f.x = x0 + (x1 - x0) * t; f.y = st.ground + 20 + Math.sin(t * 14) * 1.3; f.tilt = Math.sin(t * 14) * 4; f.render();
-      if (++n % 16 === 0) ripple(st, f.x - f.dir * 10, st.ground + 2, .7); if (t >= 1) break; await raf(); }
+      if (performance.now() - n >= 16000 / 60) { n = performance.now(); ripple(st, f.x - f.dir * 10, st.ground + 2, .7); } if (t >= 1) break; await raf(); }
     f.tilt = 0; bubbles(st, f.x + f.dir * 10, st.ground, 2); f.say(""); await sleep(600);
     const out = side > 0 ? Math.min(p.r + 18, st.W - 30) : Math.max(p.l - 18, 30);
     splash(st, f.x, st.ground, 6);
@@ -656,8 +661,8 @@
     // the ghost
     const gh = add(st, "gh"); gh.appendChild(f.fc.querySelector("svg").cloneNode(true)); gh.insertAdjacentHTML("beforeend", '<i class="halo"></i>');
     if (f.dir > 0) gh.firstChild.style.transform = "scaleX(-1)";
-    const gp = { x: f.x, y: f.y }; let ghostOn = true, gt = 0;
-    const float = (async () => { while (ghostOn) { gt += .05; at(gh, gp.x + Math.sin(gt * 1.3) * 4, gp.y + Math.sin(gt * 2) * 2, `rotate(${Math.sin(gt * 1.3) * 5}deg)`); await raf(); } })();
+    const gp = { x: f.x, y: f.y }; let ghostOn = true, gt = 0, glast = performance.now();
+    const float = (async () => { while (ghostOn) { const gnow = performance.now(); gt += .05 * frames(glast, gnow); glast = gnow; at(gh, gp.x + Math.sin(gt * 1.3) * 4, gp.y + Math.sin(gt * 2) * 2, `rotate(${Math.sin(gt * 1.3) * 5}deg)`); await raf(); } })();
     const move = (x, y, ms) => { const x0 = gp.x, y0 = gp.y, t0 = performance.now(); return new Promise((ok) => { const k = () => { const t = Math.min(1, (performance.now() - t0) / ms), e = ease(t); gp.x = x0 + (x - x0) * e; gp.y = y0 + (y - y0) * e; t < 1 ? requestAnimationFrame(k) : ok(); }; k(); }); };
     gh.animate([{ opacity: 0 }, { opacity: .7 }], { duration: 700, fill: "forwards" });
     st.wake = null; let woke = false; const wake = new Promise((r) => { st.wake = () => { woke = true; r(); }; });
@@ -747,8 +752,8 @@
     const FL = ["#fff", "#ffc2dd", "#fff3a0", "#cfe3ff"];
     for (let x = rnd(24, 60); x < W - 20; x += rnd(46, 90)) { if (st.pond && x > st.pond.l - 10 && x < st.pond.r + 10) continue;
       mk("flw", `left:${x}px;top:${st.ground + 2}px;background:${pick(FL)};animation-delay:${-rnd(0, 3)}s`); }
-    if (ph === "night" || ph === "evening") for (let i = 0; i < (ph === "night" ? 4 : 2); i++) { const e = add(st, "ffl"); let t = rnd(0, 99); const k = rnd(.6, 1.2), cx = rnd(30, W - 30), cy = rnd(20, st.ground - 4);
-      const tick = () => { if (st.dead) return; if (!st.hc.isConnected) { requestAnimationFrame(tick); return; } t += .006 * k; at(e, cx + Math.sin(t * 2.1) * 34, cy + Math.cos(t * 1.4) * 12); e.style.opacity = String(.3 + .7 * Math.abs(Math.sin(t * 5))); requestAnimationFrame(tick); }; tick(); }
+    if (ph === "night" || ph === "evening") for (let i = 0; i < (ph === "night" ? 4 : 2); i++) { const e = add(st, "ffl"); let t = rnd(0, 99); const k = rnd(.6, 1.2), cx = rnd(30, W - 30), cy = rnd(20, st.ground - 4); let last = performance.now();
+      const tick = () => { if (st.dead) return; const now = performance.now(), fk = frames(last, now); last = now; if (!st.hc.isConnected) { requestAnimationFrame(tick); return; } t += .006 * k * fk; at(e, cx + Math.sin(t * 2.1) * 34, cy + Math.cos(t * 1.4) * 12); e.style.opacity = String(.3 + .7 * Math.abs(Math.sin(t * 5))); requestAnimationFrame(tick); }; tick(); }
     if (WINTER) { const t = setInterval(() => { if (st.dead) { clearInterval(t); return; } if (document.hidden || !st.hc.isConnected) return; const s = add(st, "sn"), x = rnd(0, W), d = rnd(4500, 7500), sz = rnd(.5, 1.2);
       s.animate([{ transform: `translate(${x}px,-6px) scale(${sz})` }, { transform: `translate(${x + rnd(-30, 30)}px,${st.ground + rnd(-4, 30)}px) scale(${sz})`, opacity: .8, offset: .92 }, { transform: `translate(${x + rnd(-30, 30)}px,${st.ground + 30}px) scale(${sz})`, opacity: 0 }], { duration: d, easing: "linear" }).finished.then(() => s.remove()); }, 900); }
   };

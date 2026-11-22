@@ -417,7 +417,7 @@
   // frog.js starts loading as soon as the home card is drawn with the frog's field
   function frogLoad() {
     frogLib = frogLib || new Promise((ok, no) => {
-      const s = document.createElement("script"); s.src = "/static/frog.js?v=5"; s.onload = ok; s.onerror = () => { frogLib = null; no(); };
+      const s = document.createElement("script"); s.src = "/static/frog.js?v=6"; s.onload = ok; s.onerror = () => { frogLib = null; no(); };
       document.head.appendChild(s);
     });
     frogLib.catch(() => {});
