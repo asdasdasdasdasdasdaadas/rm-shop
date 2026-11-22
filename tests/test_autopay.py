@@ -128,6 +128,25 @@ class AutopayPostgresTest(unittest.IsolatedAsyncioTestCase):
         self.bot.send_message.assert_not_awaited()  # they switched it off themselves
         self.assertTrue(await autopay.offer_ok(7))
 
+    async def test_first_payment_without_a_webhook_is_fetched_within_a_minute(self):
+        await autopay.start(self.rp, 7, 300)
+        self.rp.remote["charges"] = [{"id": "tx-1", "status": "PAID", "amount": 30000}]
+        with patch("app.runtime.rw", None), patch("app.runtime.bot", self.bot):
+            await autopay.sync_pending(self.rp, self.bot)
+        self.assertEqual(await self.balance(), 320)
+        self.assertEqual((await autopay.get(7))["status"], "active")
+        self.assertIn("Автопополнение включено", self.bot.send_message.await_args.args[1])
+
+    async def test_the_cabinet_asks_cispay_while_it_waits(self):
+        autopay._checked.clear()
+        await autopay.start(self.rp, 7, 300)
+        self.rp.remote["charges"] = [{"id": "tx-1", "status": "PAID", "amount": 30000}]
+        with patch("app.runtime.rw", None), patch("app.runtime.bot", self.bot):
+            await autopay.check_now(self.rp, 7)
+            await autopay.check_now(self.rp, 7)   # within 10 s: not asked again
+        self.assertEqual(self.rp.get_subscription.await_count, 1)
+        self.assertEqual(await self.balance(), 320)
+
     async def test_an_old_subscription_is_moved_to_a_month(self):
         await autopay.start(self.rp, 7, 300)
         await self.pool.execute("UPDATE autopay SET interval_days=360 WHERE telegram_id=7")

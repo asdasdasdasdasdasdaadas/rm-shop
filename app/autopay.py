@@ -34,6 +34,9 @@ LEAD_DAYS = 2           # kept in the cabinet's view for older clients
 OFFER_PAUSE_DAYS = 30   # after «Не сейчас» the offer does not come back for a month
 REMIND_HOURS = 30       # remind when the charge is closer than this
 SYNC_SECONDS = 3600
+PENDING_SECONDS = 60    # a subscription waiting for its first payment is asked about every minute
+PENDING_HOURS = 24      # CISPay drops one not paid within a day (not_activated)
+CHECK_SECONDS = 10      # the cabinet's «Ждём оплату» asks CISPay itself, at most this often per person
 MSK = timezone(timedelta(hours=3))
 OPEN = ("pending", "active")
 FAILS_TO_STOP = 2       # two declined charges in a row: we switch it off ourselves (CISPay would wait for three)
@@ -482,6 +485,33 @@ async def remind_due(bot) -> int:
     return sent
 
 
+async def sync_pending(rp, bot) -> None:
+    """The first payment, as soon as it is made: CISPay may not deliver the webhook (or send it without
+    subscription_id), so subscriptions still waiting for it are asked about every minute."""
+    rows = await db._pool_req().fetch(
+        """SELECT * FROM autopay WHERE status='pending' AND subscription_id IS NOT NULL
+             AND updated_at > NOW() - make_interval(hours => $1)""", PENDING_HOURS)
+    for row in map(dict, rows):
+        await refresh(rp, row, bot)
+
+
+_checked: dict[int, float] = {}
+
+
+async def check_now(rp, telegram_id: int) -> None:
+    """While the cabinet waits for the first payment: ask CISPay right away (at most every CHECK_SECONDS)."""
+    import time
+    now = time.monotonic()
+    if rp is None or now - _checked.get(int(telegram_id), 0) < CHECK_SECONDS:
+        return
+    _checked[int(telegram_id)] = now
+    if len(_checked) > 5000:
+        _checked.clear()
+    row = await get(telegram_id)
+    if row and row["status"] == "pending":
+        await refresh(rp, row)
+
+
 async def sync_once(rp, bot) -> None:
     rows = await db._pool_req().fetch("SELECT * FROM autopay WHERE status = ANY($1::text[])", list(OPEN))
     for row in map(dict, rows):
@@ -493,12 +523,18 @@ async def sync_once(rp, bot) -> None:
 async def autopay_loop(rp, bot) -> None:
     if rp is None:
         return
+    loop = asyncio.get_running_loop()
+    last_full = 0.0
     while True:
         try:
-            await sync_once(rp, bot)
+            if loop.time() - last_full >= SYNC_SECONDS:
+                last_full = loop.time()
+                await sync_once(rp, bot)
+            else:
+                await sync_pending(rp, bot)
         except Exception:
             logger.exception("Autopay pass failed")
-        await asyncio.sleep(SYNC_SECONDS)
+        await asyncio.sleep(PENDING_SECONDS)
 
 
 # ---------- the cabinet ----------

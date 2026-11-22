@@ -615,7 +615,7 @@ async def api_me(request: web.Request) -> web.Response:
             "gift_granted": friend_gifts.is_granted(telegram_id, local),
             "devices": devices,
             "trust": trust,
-            "autopay": await _autopay_view(telegram_id),
+            "autopay": await _autopay_view(telegram_id, request.app.get("rp")),
             "faq": faq_items(),
             "vpn_apps": public_vpn_apps(),
             "first_device_thanks_pending": bool((local or {}).get("first_device_thanks_pending")),
@@ -1523,8 +1523,13 @@ async def _notify_payment_failed(bot: Bot, order: dict, event: dict) -> None:
             logger.warning("Сообщение об ошибке оплаты не доставлено: %s", order["order_id"], exc_info=True)
 
 
-async def _autopay_view(telegram_id: int) -> dict | None:
+async def _autopay_view(telegram_id: int, rp=None) -> dict | None:
     from app import autopay
+    try:
+        # «Ждём оплату»: the first payment is fetched from CISPay right away, not only by its webhook.
+        await autopay.check_now(rp, telegram_id)
+    except Exception:
+        logger.warning("Autopay check failed for %s", telegram_id, exc_info=True)
     try:
         return await autopay.public(telegram_id)
     except Exception:
@@ -1659,6 +1664,8 @@ def build_web_app() -> web.Application:
     app = web.Application(client_max_size=BODY_LIMIT_ADMIN, middlewares=[body_limit_middleware])
     app.router.add_get("/health", health)
     app.router.add_post("/webhooks/cispay", cispay_webhook)
+    # The CISPay shop may still point at the address of the old cashier (RollyPay): the same handler, same signature check.
+    app.router.add_post("/webhooks/rollypay", cispay_webhook)
     if settings.webapp_enabled:
         app.router.add_get("/", index)
         app.router.add_get("/qrcode.min.js", webapp_qrcode)
