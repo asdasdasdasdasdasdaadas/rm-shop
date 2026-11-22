@@ -3167,7 +3167,9 @@ async def admin_stats() -> dict:
             COUNT(*) FILTER (
                 WHERE last_seen >= NOW() - INTERVAL '60 days'
                   AND last_seen < NOW() - INTERVAL '30 days'
-            )::int AS month_prev
+            )::int AS month_prev,
+            -- the panel counts devices (each is its own panel user), the card counts people: both are shown
+            (SELECT COUNT(*) FROM devices WHERE last_online_at >= NOW() - INTERVAL '1 day')::int AS day_devices
         FROM seen
         """
     )

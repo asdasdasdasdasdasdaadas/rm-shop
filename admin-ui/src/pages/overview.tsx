@@ -149,7 +149,9 @@ export function OverviewPage({
               [
                 "Онлайн за сутки",
                 s.online?.day || 0,
-                "Пользовались VPN за 24 часа",
+                s.online?.day_devices
+                  ? `Людей за 24 часа · устройств: ${s.online.day_devices}`
+                  : "Пользовались VPN за 24 часа",
                 "users?online=1d",
                 Number(s.online?.day || 0),
               ],
