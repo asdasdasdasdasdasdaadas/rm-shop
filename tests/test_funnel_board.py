@@ -54,7 +54,9 @@ class RecoveryNavigationTest(unittest.TestCase):
             for branch in graph['branches']:
                 for step in branch['steps']:
                     # Without an issued gift the gift button is left out, so the action button leads.
-                    shown=[b for b in step['buttons'] if b!='claim_gift']
+                    shown=[b for b in step['buttons'] if (b if isinstance(b,str) else b['action'])!='claim_gift']
+                    if not any(isinstance(b,dict) for b in shown):
+                        continue  # a gift-only step (the «страховка»): nothing else to lead with
                     buttons=markup(step['buttons'],1).inline_keyboard
                     self.assertEqual(buttons[0][0].text, ACTION_LABELS.get(shown[0]['action'], 'Личный кабинет'))
                     self.assertEqual(buttons[0][0].style,'success')
@@ -76,3 +78,22 @@ class FunnelOffersTest(unittest.TestCase):
         self.assertEqual(with_gift[0][0].callback_data,'fgift:77')
         self.assertIn('3 дня',with_gift[0][0].text)
 
+
+
+class InsuranceStepTest(unittest.TestCase):
+    def test_insurance_is_one_gift_button_living_sixty_days(self):
+        from unittest.mock import patch
+        from app.funnel_board import markup, render_text
+        from app.recovery_funnel import branches, INSURANCE_STEP, INSURANCE_VALID_DAYS
+        graph=validate({'branches':branches()})
+        step=next(s for b in graph['branches'] for s in b['steps'] if s['id']==INSURANCE_STEP)
+        self.assertEqual(step['condition'],'recover_insurance')
+        self.assertEqual(step['wait_hours'],240)
+        self.assertEqual(INSURANCE_VALID_DAYS,60)
+        with patch('app.keyboards.mini_app_url',return_value='https://example.test/'):
+            rows=markup(step['buttons'],1,gift_id=5).inline_keyboard
+        self.assertEqual(rows[0][0].callback_data,'fgift:5')
+        self.assertIn('Мой VPN сдох',rows[0][0].text)
+        self.assertIn('3 дня',rows[0][0].text)
+        self.assertIn('3 дня',render_text(step['text'],1,'Аня'))
+        self.assertNotIn(' ты ',render_text(step['text'],1,'Аня'))

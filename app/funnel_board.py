@@ -716,7 +716,10 @@ async def _send_step(bot, step: dict, prev_id: str | None, skip: list[int]) -> t
         gift_id = None
         try:
             if wants_gift:
-                gift_id = await funnel_gifts.issue(uid, step["id"], days=gift_days)
+                from app.recovery_funnel import INSURANCE_STEP, INSURANCE_VALID_DAYS
+                gift_id = await funnel_gifts.issue(
+                    uid, step["id"], days=gift_days,
+                    valid_days=INSURANCE_VALID_DAYS if step["id"] == INSURANCE_STEP else None)
                 if gift_id is None:
                     continue
             body = render_text(text, uid, row.get('first_name'), gift_days=gift_days)

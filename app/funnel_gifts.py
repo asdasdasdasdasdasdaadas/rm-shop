@@ -37,8 +37,10 @@ async def can_issue(telegram_id: int) -> bool:
     return not await db._pool_req().fetchval(_RECENT, int(telegram_id), COOLDOWN_DAYS)
 
 
-async def issue(telegram_id: int, step_id: str, *, days: int | None = None) -> int | None:
-    """days: another number of gift days for an A/B test (app/experiments.py); None is the usual GIFT_DAYS."""
+async def issue(telegram_id: int, step_id: str, *, days: int | None = None,
+                valid_days: int | None = None) -> int | None:
+    """days: another number of gift days for an A/B test (app/experiments.py); None is the usual GIFT_DAYS.
+    valid_days: how long the button works; None is the usual VALID_DAYS."""
     async with db._pool_req().acquire() as conn:
         async with conn.transaction():
             await conn.execute("SELECT 1 FROM users WHERE telegram_id=$1 FOR UPDATE", int(telegram_id))
@@ -48,7 +50,7 @@ async def issue(telegram_id: int, step_id: str, *, days: int | None = None) -> i
             return await conn.fetchval(
                 """INSERT INTO funnel_gifts (telegram_id, step_id, days, expires_at)
                    VALUES ($1, $2, $3, NOW() + ($4::int * INTERVAL '1 day')) RETURNING id""",
-                int(telegram_id), str(step_id)[:40], int(days or GIFT_DAYS), VALID_DAYS,
+                int(telegram_id), str(step_id)[:40], int(days or GIFT_DAYS), int(valid_days or VALID_DAYS),
             )
 
 

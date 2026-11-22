@@ -4,7 +4,8 @@ import copy
 
 ACTION_LABELS = {'gift': 'Забрать подарок', 'connect': 'Подключить VPN', 'topup': 'Пополнить баланс'}
 # 'quality' and 'terms-offer' were survey branches: still owned, so saved boards drop them.
-OWNED_BRANCHES = {'nodevice','online','unpaid','quality','gift','idle-setup','idle-topup','idle-return','late','terms-offer'}
+OWNED_BRANCHES = {'nodevice','online','unpaid','quality','gift','idle-setup','idle-topup','idle-return','late','terms-offer',
+                  'insurance'}
 GIFT = 'claim_gift'
 CONNECT = {'action': 'connect', 'text': 'Подключить VPN'}
 PAID = """(COALESCE(u.has_paid_topup,FALSE)
@@ -39,6 +40,10 @@ CONDITIONS = (
  {'id':'recover_idle','label':'Возврат: не пользовался неделю','anchor':SEEN,
   'where':f"u.first_online_at IS NOT NULL AND {IDLE} AND NOT ({PAID} AND {{exhausted}})",
   'hint':'Был подтверждённый онлайн, затем не пользовался VPN неделю (кроме платившего, у которого кончились деньги — для него своя ветка). Возобновление подключения останавливает цепочку.'},
+ {'id':'recover_insurance','label':'Страховка: 10 дней без VPN','anchor':SEEN,
+  'where':f"u.first_online_at IS NOT NULL AND {SEEN} <= NOW() - INTERVAL '10 days' AND NOT ({PAID} AND {{exhausted}})",
+  'hint':'Подключался, потом 10 дней не пользуется — скорее всего, сейчас у него другой VPN. Один раз на человека: '
+         'кнопка «включить 3 дня» живёт 60 дней, на случай если его VPN перестанет работать. «Пока не нужен» останавливает.'},
  {'id':'recover_late','label':'Возврат: не пользовался 30+ дней','anchor':SEEN,
   'where':f"u.first_online_at IS NOT NULL AND {SEEN} <= NOW() - INTERVAL '30 days'",
   'hint':'Был онлайн, потом пропал на месяц и дольше. Пауза считается от последнего появления. После возвращения цепочка начнётся заново при следующем уходе.'},
@@ -162,9 +167,27 @@ def third_buttons(bid, buttons):
     return [first, *buttons[1:]]
 
 
+# «Страховка»: people who probably use another VPN right now get one button that waits for the day it breaks.
+INSURANCE_STEP = 'recovery-recover-insurance-1'
+INSURANCE_VALID_DAYS = 60
+INSURANCE_TEXT = ('Если у вас сейчас работает другой VPN — это нормально 🙂\n\n'
+                  'Если он перестанет работать, мы будем ждать вас здесь. И бесплатно: нажмите кнопку — '
+                  'включим {gift_days} сразу, без оплаты. Кнопка работает 2 месяца.')
+
+
+def insurance_branch():
+    from app.funnel_board import _step
+    from app.funnel_gifts import gift_label
+    button = {'action': GIFT, 'text': f'🆘 Мой VPN сдох — включить {gift_label()}'}
+    # Once per person: the step has no cycle, so a sent mark keeps it from ever going out again.
+    return {'id': 'insurance', 'title': 'Страховка: другой VPN сломался → 3 дня', 'steps': [
+        _step(INSURANCE_STEP, 'recover_insurance', 240, INSURANCE_TEXT, [button, 'menu']),
+    ]}
+
+
 def extra_branches():
     from app.funnel_board import _step
-    return [
+    return [insurance_branch(),
         {'id':'late','title':'Давно не пользовался: 30 и 60 дней','steps':[
             _step('recovery-recover-late-1','recover_late',720,LATE_TEXTS[0],[GIFT,CONNECT,'menu']),
             _step('recovery-recover-late-2','recover_late',1440,LATE_TEXTS[1],[GIFT,CONNECT,'menu']),
