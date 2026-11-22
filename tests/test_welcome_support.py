@@ -27,6 +27,7 @@ class WelcomeOneMessageTest(unittest.IsolatedAsyncioTestCase):
             done = stack.enter_context(patch.object(welcome.db, "complete_welcome_support", AsyncMock()))
             stack.enter_context(patch.object(welcome, "trial_is_available", return_value=trial))
             stack.enter_context(patch.object(auto_gift, "grant_if_auto", AsyncMock(return_value=granted)))
+            stack.enter_context(patch.object(welcome, "_test_arm", AsyncMock(return_value=None)))
             for name in ("send_welcome_sticker", "_pause", "_log"):
                 stack.enter_context(patch.object(welcome, name, AsyncMock()))
             self.assertTrue(await welcome.send_welcome_intro(message, in_channel=True))

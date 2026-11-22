@@ -3,6 +3,7 @@ from app.funnel_ui import answer_funnel
 
 import asyncio
 import logging
+from pathlib import Path
 
 from aiogram import Bot
 from aiogram.enums import ChatAction
@@ -118,16 +119,86 @@ async def send_welcome_intro(
     if not bot or not user:
         return False
     try:
-        await send_welcome_sticker(bot, message.chat.id)
-        await _pause(bot, message.chat.id, 0.8)
+        card = await _test_arm(user.id, in_channel) == "card"
+        if not card:
+            await send_welcome_sticker(bot, message.chat.id)
+            await _pause(bot, message.chat.id, 0.8)
         await db.complete_welcome_support(user.id)
-        text = await send_welcome_continuation(message, user.id, in_channel=in_channel, first_name=user.first_name)
+        text = await send_welcome_continuation(message, user.id, in_channel=in_channel, first_name=user.first_name,
+                                               card=card)
         await _log(user.id, user.first_name, text or "", ok=True)
         return True
     except Exception as exc:
         logger.warning("Приветствие первого запуска не ушло %s", user.id, exc_info=True)
         await _log(user.id, user.first_name, "", ok=False, exc=exc)
         return False
+
+
+async def _test_arm(telegram_id: int, in_channel: bool) -> str | None:
+    """The welcome A/B group (app/welcome_test.py); only for those who go straight to connecting."""
+    if not (in_channel or not get_settings().required_channel_enabled):
+        return None
+    try:
+        from app import welcome_test
+        return await welcome_test.enter(telegram_id)
+    except Exception:
+        logger.warning("Тест приветствия: группа не определилась %s", telegram_id, exc_info=True)
+        return None
+
+
+CARD_BANNER = Path(__file__).parent / "assets" / "welcome-card.jpg"
+CARD_FILE_KV = "welcome_card_file_id"
+
+
+def _ic(key: str, fallback: str) -> str:
+    from app.button_icons import PINNED_ICONS
+    icon = PINNED_ICONS.get(key)
+    return f'<tg-emoji emoji-id="{icon}">{fallback}</tg-emoji>' if icon else fallback
+
+
+def card_text(settings, *, granted: bool, trial_on: bool, referral_bonus: bool) -> str:
+    """Variant B of the welcome: who we are in a line, three short points, and the call to the button."""
+    from html import escape
+    days = days_text(settings.trial_days)
+    devices = max(1, int(getattr(settings, "max_devices", 5) or 5))
+    lines = [f"<b>{escape(str(settings.brand_name))}</b>", "VPN прямо в Telegram — подключение за минуту", ""]
+    lines.append(f"{_ic('connect', '⚡')} Телефон, компьютер и телевизор — до {devices} устройств")
+    if getattr(settings, "welcome_tariff_enabled", True):
+        price = max(1, int(getattr(settings, "vpn_day_price_rub", 6) or 6))
+        lines.append(f"{_ic('pay', '💰')} {price} ₽ в день за устройство — без подписки, только за дни с VPN")
+    if granted:
+        lines.append(f"{_ic('gift', '🎁')} Подарок уже на балансе: {days} бесплатно")
+    elif trial_on:
+        lines.append(f"{_ic('gift', '🎁')} {days[0].upper() + days[1:]} бесплатно — подарок ждёт")
+    if referral_bonus:
+        lines += ["", "Вы пришли по ссылке друга — откройте главное меню, и мы сразу начислим вам 50 ₽."]
+    lines += ["", "Нажмите кнопку — подключение займёт минуту 👇", _legal(settings)]
+    return "\n".join(lines)
+
+
+def _legal(settings) -> str:
+    from html import escape
+    offer = escape(str(getattr(settings, "legal_offer_url", "") or ""), quote=True)
+    privacy = escape(str(getattr(settings, "legal_privacy_url", "") or ""), quote=True)
+    return f'<i>Продолжая, вы принимаете <a href="{offer}">оферту</a> и <a href="{privacy}">политику конфиденциальности</a></i>'
+
+
+async def _send_card(message: Message, caption: str, kb) -> bool:
+    """The banner with the caption; the photo is uploaded once, then sent by its Telegram id."""
+    from aiogram.types import FSInputFile
+    cached = (await db.get_kv(CARD_FILE_KV) or "").strip()
+    for source in ([cached] if cached else []) + ([FSInputFile(CARD_BANNER)] if CARD_BANNER.is_file() else []):
+        try:
+            sent = await message.answer_photo(source, caption=caption, reply_markup=kb)
+        except TelegramAPIError:
+            if source == cached:
+                await db.set_kv(CARD_FILE_KV, "")
+            logger.warning("Карточка приветствия не ушла", exc_info=True)
+            continue
+        if source != cached and sent.photo:
+            await db.set_kv(CARD_FILE_KV, sent.photo[-1].file_id)
+        return True
+    return False
 
 
 def _footer(settings, *, after_gift: bool) -> str:
@@ -145,7 +216,7 @@ def _footer(settings, *, after_gift: bool) -> str:
 
 
 async def send_welcome_continuation(message: Message, telegram_id: int, *, in_channel: bool,
-                                    first_name: str | None = None) -> str:
+                                    first_name: str | None = None, card: bool = False) -> str:
     """The one welcome message: hello and the gift (or «уже на балансе»), one small line with the price and the
     legal notice, and one button — take the gift and connect. Without the required channel, the channel step instead."""
     settings = get_settings()
@@ -182,6 +253,16 @@ async def send_welcome_continuation(message: Message, telegram_id: int, *, in_ch
             from aiogram.types import InlineKeyboardButton
             rows.append([InlineKeyboardButton(text="Главное меню", callback_data="profile")])
         kb = kb.model_copy(update={"inline_keyboard": rows})
+        if card:
+            from app.button_icons import PINNED_ICONS
+            rows[0][0] = first.model_copy(update={"text": "Подключить за минуту",
+                                                   "icon_custom_emoji_id": PINNED_ICONS.get("connect")})
+            kb = kb.model_copy(update={"inline_keyboard": rows})
+            caption = card_text(settings, granted=granted is not None, trial_on=trial_on and granted is None,
+                                referral_bonus=referral_bonus)
+            if await _send_card(message, caption, kb):
+                await db.mark_legal_notice(telegram_id)
+                return caption
     parts.append(_footer(settings, after_gift=trial_on or granted is not None))
     text = "\n\n".join(p for p in parts if p)
     await answer_funnel(message, text, reply_markup=kb, preserve=in_channel,

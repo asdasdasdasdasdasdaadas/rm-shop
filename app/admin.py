@@ -2345,6 +2345,30 @@ async def api_auto_gift(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, **await auto_gift.overview()})
 
 
+async def api_welcome_test(request: web.Request) -> web.Response:
+    """A/B test of the first message after /start: results (GET), start or stop (POST {action})."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import welcome_test
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        action = (body or {}).get("action") if isinstance(body, dict) else None
+        if action == "start":
+            try:
+                await welcome_test.start()
+            except ValueError as exc:
+                return web.json_response({"ok": False, "error": str(exc)}, status=400)
+        elif action == "stop":
+            await welcome_test.stop()
+        else:
+            return web.json_response({"ok": False, "error": "Некорректный запрос"}, status=400)
+    return web.json_response({"ok": True, **await welcome_test.overview()})
+
+
 async def api_install_test(request: web.Request) -> web.Response:
     """A/B test of the cabinet's install step: results (GET), start or stop (POST {action})."""
     denied = _need_auth(request)
@@ -3533,6 +3557,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_get("/admin/api/sharing-check", api_sharing_check)
     app.router.add_post("/admin/api/sharing-check", api_sharing_check)
     app.router.add_get("/admin/api/install-test", api_install_test)
+    app.router.add_get("/admin/api/welcome-test", api_welcome_test)
+    app.router.add_post("/admin/api/welcome-test", api_welcome_test)
     app.router.add_post("/admin/api/install-test", api_install_test)
     app.router.add_get("/admin/api/autopay", api_autopay)
     app.router.add_get("/admin/api/users/{telegram_id}/autopay", api_user_autopay)

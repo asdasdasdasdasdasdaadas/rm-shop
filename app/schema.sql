@@ -1308,3 +1308,18 @@ CREATE TABLE IF NOT EXISTS frog_case_log (
 );
 CREATE INDEX IF NOT EXISTS frog_case_log_user ON frog_case_log (telegram_id, id DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS frog_case_log_ref ON frog_case_log (kind, ref) WHERE ref <> '';
+
+-- A/B test of the first message after /start (app/welcome_test.py): sticker and text, or one card with a banner.
+CREATE TABLE IF NOT EXISTS welcome_tests (
+    id BIGSERIAL PRIMARY KEY,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    stopped_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS welcome_arms (
+    test_id BIGINT NOT NULL REFERENCES welcome_tests(id) ON DELETE CASCADE,
+    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    arm TEXT NOT NULL CHECK (arm IN ('plain','card')),
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (test_id, telegram_id)
+);
+CREATE INDEX IF NOT EXISTS welcome_arms_test_idx ON welcome_arms(test_id, arm);
