@@ -1231,6 +1231,7 @@ function UserDetail({
             />
           )}
         </TabsContent>
+        {tab === "devices" && <NodeLogs u={u} />}
         {tab === "devices" && !!devices.data?.items?.length && (
           <Accordion type="multiple" className="mt-4">
             {devices.data.items.map((d: Data, i: number) => (
@@ -1269,6 +1270,7 @@ function UserDetail({
                         key={v.ip}
                       >
                         <code className="font-mono text-sm">{v.ip}</code>
+                        {v.isp && <span>{v.isp}</span>}
                         <span className="text-muted-foreground">
                           последний раз {date(v.last_seen)} · впервые {date(v.first_seen)}
                         </span>
@@ -1555,5 +1557,162 @@ function CasesCard({ u, onChange }: { u: Data; onChange: () => Promise<void> }) 
         Выдать {n} {caseWord(n)}
       </button>
     </section>
+  );
+}
+
+// Xray logs from the nodes (app/node_logs.py): the likely reason per device and the latest lines.
+function NodeLogs({ u }: { u: Data }) {
+  const res = useResource(`users/${u.telegram_id}/node-logs`);
+  const [all, setAll] = useState(false);
+  const d: Data = res.data || {};
+  if (res.error) return <Failure message={res.error} retry={res.reload} />;
+  if (!res.data) return null;
+  const lines: Data[] = d.lines || [];
+  const devices: Data[] = d.devices || [];
+  const watch = async (id: number) => {
+    await api(`users/${u.telegram_id}/node-logs`, { device_id: id });
+    await res.reload();
+    toast.success("Собираем логи этого устройства 24 часа");
+  };
+  return (
+    <section className="adm-uc-card mt-4">
+      <div className="adm-uc-line">
+        <span>
+          Почему нет трафика
+          <small className="adm-uc-hint block">
+            {d.enabled
+              ? "по панели и по логам xray с нод за 24 часа; новые устройства и «без трафика» собираются сами"
+              : "по данным панели; логи нод выключены — как включить, ниже"}
+          </small>
+        </span>
+        <button type="button" className="adm-uc-save" onClick={() => res.reload()}>Обновить</button>
+      </div>
+      {devices.map((x: Data) => (
+        <div key={x.id} className="adm-nl-dev">
+          <div className="flex items-start justify-between gap-3">
+            <b>{x.title}{x.app ? <small className="adm-uc-hint"> · {x.app}</small> : null}</b>
+            {d.enabled && !x.watched && (
+              <button type="button" className="adm-uc-hint underline shrink-0" onClick={() => watch(x.id)}>
+                Следить 24 ч
+              </button>
+            )}
+          </div>
+          {x.panel?.verdict ? (
+            <div className="mt-1">
+              <span className="adm-uc-hint">По панели: </span>{x.panel.verdict}
+              {!!(x.panel.details || []).length && <small className="adm-uc-hint block mt-1">{x.panel.details.join(" · ")}</small>}
+            </div>
+          ) : (
+            <small className="adm-uc-hint block mt-1">Панель не ответила или устройство ещё не создано в ней</small>
+          )}
+          {x.isp && <small className="adm-uc-hint block mt-1">Провайдер: {x.isp}</small>}
+          {d.enabled && x.verdict && (
+            <div className="mt-2">
+              <span className="adm-uc-hint">Логи ноды: </span>{x.verdict}
+              {!!(x.details || []).length && <small className="adm-uc-hint block mt-1">{x.details.join(" · ")}</small>}
+            </div>
+          )}
+        </div>
+      ))}
+      {!!lines.length && (
+        <div className="adm-nl-lines">
+          {(all ? lines : lines.slice(0, 30)).map((l: Data, i: number) => (
+            <div key={i} className={"adm-nl-line k-" + l.kind} title={l.isp ? `${l.isp}\n${l.raw}` : l.raw}>
+              <span>{new Date(l.at).toLocaleTimeString("ru-RU")}</span>
+              <span>{l.label}</span>
+              <span>{l.dest || l.ip}</span>
+              <span>{l.node}{l.device ? ` · ${l.device}` : ""}</span>
+            </div>
+          ))}
+          {lines.length > 30 && !all && (
+            <button type="button" className="adm-uc-hint underline mt-2" onClick={() => setAll(true)}>
+              Показать все {lines.length}
+            </button>
+          )}
+        </div>
+      )}
+      <NodeLogsHelp enabled={!!d.enabled} botUrl={d.bot_url || ""} />
+    </section>
+  );
+}
+
+function Code({ children }: { children: string }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(children);
+      toast.success("Скопировано");
+    } catch {
+      toast.error("Не скопировалось — выделите текст вручную");
+    }
+  };
+  return (
+    <div className="adm-nl-code">
+      <pre>{children}</pre>
+      <button type="button" className="adm-uc-hint underline" onClick={copy}>Копировать</button>
+    </div>
+  );
+}
+
+function NodeLogsHelp({ enabled, botUrl }: { enabled: boolean; botUrl: string }) {
+  const url = botUrl || "https://адрес-бота";
+  return (
+    <details className="adm-nl-help" open={false}>
+      <summary>{enabled ? "Как поставить сборщик логов на новую ноду" : "Как включить логи нод"}</summary>
+      <p>
+        Панель показывает, открывали ли подписку, был ли человек на связи и жива ли нода. Логи нод говорят
+        больше: доходит ли соединение, принимает ли нода ключ, проходит ли рукопожатие. Сборщик на ноде
+        пересылает строки только по тем устройствам, за которыми бот просит следить: новые за 72 часа,
+        «без трафика» и отмеченные «Следить 24 ч».
+      </p>
+      <ol>
+        <li>
+          <b>Бот.</b> В <code>.env</code> задайте секрет и перезапустите бота (<code>./scripts/up.sh</code>).
+          {enabled ? " Уже сделано." : ""}
+          <Code>{"NODE_LOGS_TOKEN=длинная-случайная-строка"}</Code>
+        </li>
+        <li>
+          <b>Логи Xray.</b> Панель Remnawave → Config Profiles → профиль нод, блок <code>log</code>:
+          <Code>{`"log": {
+  "loglevel": "warning",
+  "access": "/var/log/remnanode/access.log",
+  "error": "/var/log/remnanode/error.log"
+}`}</Code>
+        </li>
+        <li>
+          <b>Папка логов на ноде.</b> В <code>docker-compose.yml</code> ноды, у сервиса <code>remnanode</code>, затем
+          перезапустите ноду:
+          <Code>{`    volumes:
+      - /var/log/remnanode:/var/log/remnanode`}</Code>
+        </li>
+        <li>
+          <b>Размер логов.</b> Файл <code>/etc/logrotate.d/remnanode</code>, чтобы логи не заняли диск:
+          <Code>{`/var/log/remnanode/*.log {
+    size 50M
+    rotate 3
+    missingok
+    notifempty
+    copytruncate
+}`}</Code>
+        </li>
+        <li>
+          <b>Сборщик.</b> Скопируйте <code>deploy/node-logs/ship.py</code> из репозитория в
+          <code> /opt/node-logs/ship.py</code> на ноде и запустите. <code>NODE_NAME</code> — как подписать ноду:
+          <Code>{`docker run -d --name node-logs --restart unless-stopped \
+  -v /var/log/remnanode:/var/log/remnanode:ro \
+  -v /opt/node-logs/ship.py:/ship.py:ro \
+  -e BOT_URL=${url} \
+  -e NODE_LOGS_TOKEN=тот-же-секрет \
+  -e NODE_NAME=Германия-1 \
+  python:3.12-alpine python -u /ship.py`}</Code>
+        </li>
+        <li>
+          <b>Проверка.</b> <code>docker logs node-logs</code> пустой — всё хорошо, ошибки отправки печатаются туда.
+          Через пару минут у новых устройств здесь появятся строки.
+        </li>
+      </ol>
+      <p className="adm-uc-hint">
+        Если выводов мало, поставьте <code>"loglevel": "info"</code>: строк станет больше, деталей тоже.
+      </p>
+    </details>
   );
 }

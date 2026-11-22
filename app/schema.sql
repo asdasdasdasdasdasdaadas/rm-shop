@@ -1323,3 +1323,32 @@ CREATE TABLE IF NOT EXISTS welcome_arms (
     PRIMARY KEY (test_id, telegram_id)
 );
 CREATE INDEX IF NOT EXISTS welcome_arms_test_idx ON welcome_arms(test_id, arm);
+
+-- Xray logs from the nodes for watched devices (app/node_logs.py, deploy/node-logs/ship.py); kept 72 hours.
+CREATE TABLE IF NOT EXISTS node_log_lines (
+    id BIGSERIAL PRIMARY KEY,
+    node TEXT NOT NULL,
+    at TIMESTAMPTZ NOT NULL,
+    ip TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    device_id BIGINT,
+    telegram_id BIGINT,
+    kind TEXT NOT NULL,
+    dest TEXT NOT NULL DEFAULT '',
+    raw TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS node_log_lines_device ON node_log_lines (device_id, at DESC);
+CREATE INDEX IF NOT EXISTS node_log_lines_user ON node_log_lines (telegram_id, at DESC);
+CREATE INDEX IF NOT EXISTS node_log_lines_ip ON node_log_lines (node, ip, at DESC);
+CREATE INDEX IF NOT EXISTS node_log_lines_at ON node_log_lines (at);
+-- the xray user name of a panel user (its username), looked up once
+CREATE TABLE IF NOT EXISTS node_log_names (
+    remnawave_id BIGINT PRIMARY KEY,
+    username TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS node_log_names_username ON node_log_names (username);
+-- a device watched by hand from the admin, until until_at
+CREATE TABLE IF NOT EXISTS node_log_watch (
+    device_id BIGINT PRIMARY KEY,
+    until_at TIMESTAMPTZ NOT NULL
+);

@@ -1652,6 +1652,29 @@ async def api_case_gift_seen(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def node_logs_watch(request: web.Request) -> web.Response:
+    """deploy/node-logs/ship.py: which xray users this node should send lines for."""
+    from app import node_logs
+    if not node_logs.token_ok(request.headers.get("Authorization")):
+        return web.Response(status=403, text="forbidden")
+    return web.json_response({"ok": True, "emails": await node_logs.watch_list(request.app.get("rw"))})
+
+
+async def node_logs_ingest(request: web.Request) -> web.Response:
+    """deploy/node-logs/ship.py: {node, lines: [{f: "a"|"e", line}]} — xray lines of watched users."""
+    from app import node_logs
+    if not node_logs.token_ok(request.headers.get("Authorization")):
+        return web.Response(status=403, text="forbidden")
+    try:
+        body = await request.json()
+    except Exception:
+        return web.Response(status=400, text="invalid json")
+    if not isinstance(body, dict) or not isinstance(body.get("lines"), list):
+        return web.Response(status=400, text="lines expected")
+    stored = await node_logs.ingest(str(body.get("node") or ""), body["lines"])
+    return web.json_response({"ok": True, "stored": stored})
+
+
 async def cispay_webhook(request: web.Request) -> web.Response:
     """CISPay status change: credit on PAID. Signature — hex HMAC-SHA256 of the raw body with CISPAY_API_KEY."""
     from app.cispay import is_cispay_payment, verify_webhook as verify_cispay
@@ -1740,6 +1763,8 @@ def build_web_app() -> web.Application:
     app = web.Application(client_max_size=BODY_LIMIT_ADMIN, middlewares=[body_limit_middleware])
     app.router.add_get("/health", health)
     app.router.add_post("/webhooks/cispay", cispay_webhook)
+    app.router.add_get("/webhooks/node-logs/watch", node_logs_watch)
+    app.router.add_post("/webhooks/node-logs", node_logs_ingest)
     # The CISPay shop may still point at the address of the old cashier (RollyPay): the same handler, same signature check.
     app.router.add_post("/webhooks/rollypay", cispay_webhook)
     if settings.webapp_enabled:

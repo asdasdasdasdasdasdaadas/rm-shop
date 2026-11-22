@@ -224,6 +224,8 @@ async def main() -> None:
         autopay_task = asyncio.create_task(autopay_loop(rp, bot), name="autopay")
         from app.expenses import expenses_loop
         expenses_task = asyncio.create_task(expenses_loop(bot), name="expenses")
+        from app.ip_isp import refresh_loop as isp_loop
+        isp_task = asyncio.create_task(isp_loop(), name="ip-isp")
         try:
             await dp.start_polling(
                 bot,
@@ -248,6 +250,7 @@ async def main() -> None:
             tg_ads_task.cancel()
             autopay_task.cancel()
             expenses_task.cancel()
+            isp_task.cancel()
             cleanup_task.cancel()
             friend_nft_task.cancel()
     finally:

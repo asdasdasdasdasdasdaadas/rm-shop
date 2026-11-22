@@ -481,9 +481,10 @@ async def api_user_devices(request: web.Request) -> web.Response:
     except Exception:
         logger.exception("IP устройств не загрузились для %s", telegram_id)
         ips = {}
+    from app import ip_isp
     for item in items:
         if item.get("id"):
-            item["ips"] = ips.get(int(item["id"]), [])
+            item["ips"] = [{**v, "isp": ip_isp.text(ip_isp.lookup(v["ip"]))} for v in ips.get(int(item["id"]), [])]
     return web.json_response({"ok": True, "items": items})
 
 
@@ -1650,6 +1651,37 @@ async def api_user_gift_unlimited(request: web.Request) -> web.Response:
         note="Админ разрешил дарить подарки без ограничений" if on else "Админ убрал безлимит подарков",
     )
     return web.json_response({"ok": True, "gift_unlimited": on})
+
+
+async def api_user_node_logs(request: web.Request) -> web.Response:
+    """Xray logs from the nodes: GET — verdicts and lines; POST {device_id} — watch that device for 24 hours."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import node_logs
+    telegram_id = int(request.match_info["telegram_id"])
+    if request.method == "POST":
+        body = await request.json()
+        device_id = int(body.get("device_id") or 0)
+        if not await db._pool_req().fetchval("SELECT 1 FROM devices WHERE id=$1 AND telegram_id=$2", device_id, telegram_id):
+            return web.json_response({"ok": False, "error": "Устройство не найдено"}, status=404)
+        await node_logs.watch_device(device_id, 24)
+    view = await node_logs.user_view(telegram_id)
+    if request.method == "GET":
+        from app import ip_isp, panel_diag
+        rw = request.app.get("rw")
+        sem = asyncio.Semaphore(4)
+
+        async def one(item: dict) -> None:
+            async with sem:
+                item["panel"] = await panel_diag.diagnose(rw, item["id"])
+                item["isp"] = ", ".join(ip_isp.text(x) for x in await ip_isp.device_providers(item["id"]))
+
+        await asyncio.gather(*(one(x) for x in view["devices"]))
+    from urllib.parse import urlsplit
+    public = urlsplit(str(get_settings().webapp_public_url or ""))
+    view["bot_url"] = f"{public.scheme}://{public.netloc}" if public.netloc else ""
+    return web.json_response({"ok": True, **view})
 
 
 async def api_user_cases(request: web.Request) -> web.Response:
@@ -3538,6 +3570,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/users/{telegram_id}/billing-pause", api_user_billing_pause)
     app.router.add_post("/admin/api/users/{telegram_id}/gift-unlimited", api_user_gift_unlimited)
     app.router.add_get("/admin/api/users/{telegram_id}/cases", api_user_cases)
+    app.router.add_get("/admin/api/users/{telegram_id}/node-logs", api_user_node_logs)
+    app.router.add_post("/admin/api/users/{telegram_id}/node-logs", api_user_node_logs)
     app.router.add_post("/admin/api/users/{telegram_id}/cases", api_user_cases)
     app.router.add_get("/admin/api/flags", api_flags)
     app.router.add_post("/admin/api/flags", api_flags)

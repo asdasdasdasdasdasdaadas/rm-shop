@@ -106,7 +106,56 @@ RETURNING d.id AS device_id, d.telegram_id, u.first_name, u.username, u.trial_us
 """
 
 
-def format_no_traffic(row: dict, min_mb: int) -> tuple[str, InlineKeyboardMarkup | None]:
+async def _node_logs(device_id: int) -> dict | None:
+    """What the nodes' xray logs say about this device (app/node_logs.py); None while logs are not shipped."""
+    try:
+        from app import node_logs
+        if not node_logs.shipping():
+            return None
+        await node_logs.watch_device(device_id, 24)   # keep collecting while it is being sorted out
+        return {**await node_logs.device_summary(device_id), "source": "nodes"}
+    except Exception:
+        logger.warning("Логи ноды не прочитаны для устройства %s", device_id, exc_info=True)
+        return None
+
+
+async def _providers(device_id: int) -> str:
+    """«МТС (RU), Tele2 (мобильный, RU)»: the networks the device came from, by its IPs (app/ip_isp.py)."""
+    try:
+        from app import ip_isp
+        return ", ".join(ip_isp.text(x) for x in await ip_isp.device_providers(device_id))
+    except Exception:
+        logger.debug("Провайдер устройства %s не определён", device_id, exc_info=True)
+        return ""
+
+
+async def _diagnosis(rw, device_id: int) -> dict | None:
+    """The node logs when they saw the device; otherwise what the panel knows (app/panel_diag.py)."""
+    out = await _diagnosis_only(rw, device_id)
+    isp = await _providers(device_id)
+    if isp:
+        out = {**(out or {"verdict": "", "details": []}), "isp": isp}
+    return out
+
+
+async def _diagnosis_only(rw, device_id: int) -> dict | None:
+    logs = await _node_logs(device_id)
+    if logs and logs.get("verdict") and logs.get("seen"):
+        return logs
+    try:
+        from app import panel_diag
+        panel = await panel_diag.diagnose(rw, device_id)
+    except Exception:
+        logger.warning("Диагноз по панели не получен для устройства %s", device_id, exc_info=True)
+        panel = None
+    if panel and panel.get("verdict"):
+        if logs and logs.get("verdict"):   # e.g. «с нод не приходят логи»: keep it as a hint
+            panel["details"] = [*panel.get("details", []), logs["verdict"]]
+        return {**panel, "source": "panel"}
+    return logs
+
+
+def format_no_traffic(row: dict, min_mb: int, logs: dict | None = None) -> tuple[str, InlineKeyboardMarkup | None]:
     from app.live import _who
     from app.remnawave import format_bytes
     lines = ["⚠️ <b>Подключился, но трафика нет</b>", "", _who(row), ""]
@@ -115,7 +164,15 @@ def format_no_traffic(row: dict, min_mb: int) -> tuple[str, InlineKeyboardMarkup
     from app.remnawave import parse_dt
     lines.append(f"Онлайн впервые: {_ago(parse_dt(row.get('first_online_at')))}")
     lines.append(f"Трафик: <b>{format_bytes(int(row.get('traffic') or 0))}</b> (нужно от {int(min_mb)} МБ)")
-    lines.append("Скорее всего, блокировка у провайдера или не то приложение.")
+    if logs and logs.get("verdict"):
+        label = "🔎 <b>По панели:</b>" if logs.get("source") == "panel" else "📜 <b>Логи ноды:</b>"
+        lines.append(f"{label} {escape(logs['verdict'])}")
+        if logs.get("details"):
+            lines.append("<i>" + escape(" · ".join(logs["details"])) + "</i>")
+    else:
+        lines.append("Скорее всего, блокировка у провайдера или не то приложение.")
+    if logs and logs.get("isp"):
+        lines.append(f"📶 Провайдер: {escape(logs['isp'])}")
     extra = ["Подарок забран" if row.get("trial_used") else "Подарок не забран"]
     if row.get("ticket"):
         extra.append("есть обращение в поддержку")
@@ -187,7 +244,7 @@ async def send_no_traffic(bot, rw=None) -> int:
                 continue   # the sync was behind: traffic is there
             row["traffic"] = int(traffic or 0)
         sent += 1
-        text, markup = format_no_traffic(row, min_mb)
+        text, markup = format_no_traffic(row, min_mb, await _diagnosis(rw, int(row["device_id"])))
         for chat in targets:
             try:
                 await bot.send_message(chat, text, parse_mode="HTML", reply_markup=markup)

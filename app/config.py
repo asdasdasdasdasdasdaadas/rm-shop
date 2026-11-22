@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     ton_rate_margin_pct: float = 1.0
     toncenter_api_key: str = ""
     tg_ads_token: str = ""
+    # Shared secret of deploy/node-logs/ship.py on the VPN nodes (app/node_logs.py); empty — node logs are off.
+    node_logs_token: str = ""
     tg_ads_rub_rate: int = 0
 
     balance_enabled: bool = True
