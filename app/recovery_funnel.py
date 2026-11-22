@@ -170,15 +170,15 @@ def third_buttons(bid, buttons):
 # «Страховка»: people who probably use another VPN right now get one button that waits for the day it breaks.
 INSURANCE_STEP = 'recovery-recover-insurance-1'
 INSURANCE_VALID_DAYS = 60
-INSURANCE_TEXT = ('Если у вас сейчас работает другой VPN — это нормально 🙂\n\n'
-                  'Если он перестанет работать, мы будем ждать вас здесь. И бесплатно: нажмите кнопку — '
-                  'включим {gift_days} сразу, без оплаты. Кнопка работает 2 месяца.')
+INSURANCE_TEXT = ('Вы давно не включали наш VPN — наверное, сейчас выручает другой. Ничего страшного 🙂\n\n'
+                  'Если он однажды подведёт, не ищите замену: нажмите кнопку ниже, и мы подарим {gift_days} '
+                  'доступа. Платить ничего не нужно. Кнопка останется рабочей 2 месяца.')
 
 
 def insurance_branch():
     from app.funnel_board import _step
     from app.funnel_gifts import gift_label
-    button = {'action': GIFT, 'text': f'🆘 Мой VPN сдох — включить {gift_label()}'}
+    button = {'action': GIFT, 'text': f'🛟 Другой VPN подвёл — дайте {gift_label()}'}
     # Once per person: the step has no cycle, so a sent mark keeps it from ever going out again.
     return {'id': 'insurance', 'title': 'Страховка: другой VPN сломался → 3 дня', 'steps': [
         _step(INSURANCE_STEP, 'recover_insurance', 240, INSURANCE_TEXT, [button, 'menu']),

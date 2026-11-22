@@ -93,7 +93,7 @@ class InsuranceStepTest(unittest.TestCase):
         with patch('app.keyboards.mini_app_url',return_value='https://example.test/'):
             rows=markup(step['buttons'],1,gift_id=5).inline_keyboard
         self.assertEqual(rows[0][0].callback_data,'fgift:5')
-        self.assertIn('Мой VPN сдох',rows[0][0].text)
+        self.assertIn('Другой VPN подвёл',rows[0][0].text)
         self.assertIn('3 дня',rows[0][0].text)
         self.assertIn('3 дня',render_text(step['text'],1,'Аня'))
         self.assertNotIn(' ты ',render_text(step['text'],1,'Аня'))
