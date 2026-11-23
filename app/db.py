@@ -1792,7 +1792,6 @@ async def mark_bot_blocked(telegram_id: int) -> bool:
     )
     if not row:
         return False
-    await clawback_idle_referral(int(telegram_id))
     return True
 
 
@@ -1805,7 +1804,6 @@ async def mark_tg_deleted(telegram_id: int) -> bool:
     )
     if not row:
         return False
-    await clawback_idle_referral(int(telegram_id))
     return True
 
 
@@ -1840,78 +1838,6 @@ async def list_deleted_accounts(limit: int) -> list[dict]:
             WHERE tg_deleted_at IS NOT NULL AND NOT ({_PAID_SQL} AND blocked_at IS NOT NULL)
             ORDER BY tg_deleted_at, telegram_id LIMIT $1""", int(limit))
     return [dict(r) for r in rows]
-
-
-async def clawback_idle_referral(invitee_id: int) -> dict | None:
-    settings = get_settings()
-    amount = int(settings.referral_reward_rub or 0)
-    if amount < 1:
-        return None
-    pool = _pool_req()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            invitee = await conn.fetchrow(
-                """
-                SELECT telegram_id, referred_by, trial_used, has_paid_topup,
-                       referral_rewarded, referral_clawback_at, first_name,
-                       referral_menu_bonus_at > 'epoch' AS menu_bonus
-                FROM users
-                WHERE telegram_id = $1
-                FOR UPDATE
-                """,
-                int(invitee_id),
-            )
-            if not invitee:
-                return None
-            if invitee["trial_used"] or invitee["has_paid_topup"]:
-                return None
-            if not invitee["referral_rewarded"] or invitee["referral_clawback_at"]:
-                return None
-            if invitee["menu_bonus"]:
-                return None  # The menu bonus is never taken back, even if the friend blocks the bot.
-            referrer_id = invitee["referred_by"]
-            if not referrer_id:
-                return None
-            referrer_id = int(referrer_id)
-            await conn.execute(
-                """
-                UPDATE users
-                SET referral_rewarded = FALSE,
-                    referral_clawback_at = timezone('utc', now())
-                WHERE telegram_id = $1
-                """,
-                int(invitee_id),
-            )
-            after = await conn.fetchrow(
-                """
-                UPDATE users
-                SET balance_rub = COALESCE(balance_rub, 0) - $2,
-                    referral_earned = GREATEST(0, COALESCE(referral_earned, 0) - $2)
-                WHERE telegram_id = $1
-                RETURNING balance_rub
-                """,
-                referrer_id,
-                amount,
-            )
-            if not after:
-                return None
-            balance_after = int(after["balance_rub"] or 0)
-            invitee_name = invitee["first_name"]
-    await log_billing_event(
-        referrer_id,
-        "referral_revoke",
-        source="auto",
-        amount=-amount,
-        balance_after=balance_after,
-        note=f"Возврат за друга {invitee_id}: заблокировал бота без триала",
-    )
-    return {
-        "referrer_id": referrer_id,
-        "invitee_id": int(invitee_id),
-        "amount": amount,
-        "balance_after": balance_after,
-        "invitee_name": invitee_name,
-    }
 
 
 async def list_idle_bot_blockers(limit: int) -> tuple[list[int], int]:
@@ -6431,10 +6357,6 @@ async def record_bot_block(telegram_id: int, at: datetime, *, channel_required: 
                    VALUES ($1, $2, $3, $4, $5, $6, $7)""",
                 int(telegram_id), at, user["stage"], since,
                 last["kind"] if last else None, (last["title"] if last else None) or None, last["created_at"] if last else None)
-    try:
-        await clawback_idle_referral(int(telegram_id))
-    except Exception:
-        logging.getLogger("rm-shop.db").debug("Clawback after block failed %s", telegram_id, exc_info=True)
     return True
 
 

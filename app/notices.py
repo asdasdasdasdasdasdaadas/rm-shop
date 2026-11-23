@@ -197,8 +197,6 @@ DEFAULT_NOTICES = {'paid_setup_nudge': '📱 Баланс пополнен — �
  'referral_payout_submitted': '✅ Заявка на вывод <b>{amount}</b> принята. Сообщим о результате.',
  'referral_payout_paid': '✅ Перевели вам <b>{amount}</b> реферального вознаграждения.',
  'referral_payout_rejected': 'Заявка на вывод <b>{amount}</b> отклонена. Деньги вернулись на баланс.',
- 'referral_clawback': 'Друг {name} заблокировал бота и не взял бесплатный период. С баланса списано '
-                      '<b>{amount}</b>.',
  'topup_ok': '✅ Баланс пополнен на <b>{amount}</b>.',
  'sub_reissued': '🔑 Ссылка обновлена. Старая больше не работает.\n'
                  '\n'
@@ -272,7 +270,6 @@ NOTICE_FIELDS: list[dict[str, str]] = [
     {"key": "referral_payout_submitted", "title": "Реферал: заявка на вывод", "hint": "{amount}"},
     {"key": "referral_payout_paid", "title": "Реферал: выплата прошла", "hint": "{amount}"},
     {"key": "referral_payout_rejected", "title": "Реферал: выплата отклонена", "hint": "{amount}"},
-    {"key": "referral_clawback", "title": "Реферал: возврат за блок бота", "hint": "{name} {amount}"},
     {"key": "topup_ok", "title": "Баланс пополнен", "hint": "{amount}"},
     {"key": "sub_reissued", "title": "Ссылка подписки перевыпущена", "hint": "{links}"},
     {"key": "blocked", "title": "Пользователь заблокирован", "hint": ""},
@@ -484,8 +481,6 @@ PREVIOUS_NOTICE_DEFAULTS = {'device_created_next_step': 'Устройство д
                               'по указанным реквизитам.',
  'referral_payout_paid': 'Реферальные <b>{amount}</b> выплачены.',
  'referral_payout_rejected': 'Заявку на вывод <b>{amount}</b> отклонили. Сумма вернулась на баланс.',
- 'referral_clawback': 'Друг {name} заблокировал бота и не взял бесплатный период. С баланса списано '
-                      '<b>{amount}</b>.',
  'topup_ok': 'Баланс пополнен на {amount}.',
  'sub_reissued': 'Ссылка подписки обновлена. Старая больше не работает.\n'
                  '\n'

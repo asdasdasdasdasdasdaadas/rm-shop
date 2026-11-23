@@ -1484,7 +1484,7 @@ function SystemSettings() {
       </Panel>
       <Panel
         title="Очистка неактивных клиентов"
-        description="Удаление пользователей, которые заблокировали бота и не воспользовались сервисом. За запуск — до 200 записей. Ошибочно выданные реферальные награды могут быть возвращены."
+        description="Удаление пользователей, которые заблокировали бота и не воспользовались сервисом. За запуск — до 200 записей."
       >
         <Button
           variant="outline"
@@ -1499,7 +1499,7 @@ function SystemSettings() {
               action: async () => {
                 const r = await api("users/purge-bot-blockers", {});
                 setCleanup(
-                  `Удалено: ${r.deleted}. Возвратов наград: ${r.clawed}. Пропущено: ${r.skipped}. Осталось: ${r.remaining}.`,
+                  `Удалено: ${r.deleted}. Пропущено: ${r.skipped}. Осталось: ${r.remaining}.`,
                 );
               },
             })
