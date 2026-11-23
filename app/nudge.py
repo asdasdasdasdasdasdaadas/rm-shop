@@ -214,6 +214,28 @@ async def send_due_trial_end_nudges(
     return sent, touched
 
 
+async def _first_device_message(telegram_id: int) -> tuple[str, object]:
+    """The «device added» text with the newest device's key and a link to the /connect page."""
+    from html import escape
+    from app.connect_link import connect_url
+    from app.keyboards import connect_device_keyboard, mini_app_url
+    body = notice_text("device_created_next_step")
+    try:
+        devices = [d for d in await db.list_devices(telegram_id)
+                   if d.get("subscription_url")
+                   and "router" not in {str(d.get("kind") or "").lower(), str(d.get("platform") or "").lower()}]
+    except Exception:
+        logger.debug("Ключ для письма о первом устройстве не нашли %s", telegram_id, exc_info=True)
+        devices = []
+    if not devices:
+        return body, onboarding_keyboard(has_device=True)
+    device = max(devices, key=lambda d: int(d["id"]))
+    key = str(device["subscription_url"])
+    body = f"{body.rstrip()}\n\n🔑 Ключ подписки:\n<code>{escape(key)}</code>"
+    link = connect_url(mini_app_url(), telegram_id, int(device["id"]))
+    return body, connect_device_keyboard(link, key)
+
+
 async def send_first_device_thanks(bot: Bot | None, telegram_id: int) -> bool:
     if not bot:
         return False
@@ -226,10 +248,11 @@ async def send_first_device_thanks(bot: Bot | None, telegram_id: int) -> bool:
         return False
     if not await db.take_first_device_thanks(telegram_id):
         return False
+    body, markup = await _first_device_message(telegram_id)
     ok = await _deliver(
         bot, kind="first_device_thanks", telegram_id=telegram_id,
         first_name=(user or {}).get("first_name"), title="Устройство добавлено: следующий шаг",
-        body=notice_text("device_created_next_step"), reply_markup=onboarding_keyboard(has_device=True),
+        body=body, reply_markup=markup,
     )
     if not ok:
         await db.restore_first_device_thanks(telegram_id)

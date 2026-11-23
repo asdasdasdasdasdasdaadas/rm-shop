@@ -248,6 +248,82 @@ async def webapp_open(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(WEBAPP_DIR / "open.html", headers=_NO_STORE)
 
 
+_CONNECT_HEADERS = {**_NO_STORE, "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow"}
+_CONNECT_STAGES = {"open": "connect_open", "found": "connect_found", "none": "connect_none",
+                   "store": "connect_store", "copy": "connect_copy"}
+
+
+async def webapp_connect(_request: web.Request) -> web.FileResponse:
+    return web.FileResponse(WEBAPP_DIR / "connect.html", headers=_CONNECT_HEADERS)
+
+
+def _connect_url(request: web.Request, telegram_id: int, device_id: int, app: str = "") -> str:
+    from app.connect_link import connect_url
+    try:
+        return connect_url(_public_origin(request), telegram_id, device_id, app)
+    except Exception:
+        # The link is a convenience: without it the cabinet falls back to copying the key.
+        logging.getLogger(__name__).debug("Ссылка /connect не собралась", exc_info=True)
+        return ""
+
+
+async def _connect_device(request: web.Request) -> tuple[int | None, dict | None, web.Response | None]:
+    from app.connect_link import read_token
+    denied = await _if_down()
+    if denied:
+        return None, None, denied
+    claim = read_token(request.headers.get("X-Connect-Token") or "")
+    if not claim:
+        return None, None, json_error("Ссылка недействительна или истекла. Откройте её заново из бота или кабинета.", 401)
+    telegram_id, device_id = claim
+    denied = await _if_blocked(telegram_id)
+    if denied:
+        return None, None, denied
+    device = await db.get_device(telegram_id, device_id)
+    if not device:
+        return None, None, json_error("Это устройство уже удалено. Откройте ссылку заново из бота или кабинета.", 404)
+    return telegram_id, device, None
+
+
+async def api_connect(request: web.Request) -> web.Response:
+    telegram_id, device, denied = await _connect_device(request)
+    if denied:
+        return denied
+    key = str(device.get("subscription_url") or "")
+    if not key:
+        return json_error("Ключ ещё готовится. Обновите страницу через минуту.", 409)
+    await db.record_onboarding_event(telegram_id, "connect_open")
+    settings = get_settings()
+    return web.json_response(
+        {
+            "ok": True,
+            "key": key,
+            "apps": public_vpn_apps(),
+            "device_title": str(device.get("title") or ""),
+            "platform": str(device.get("platform") or ""),
+            "client": str(device.get("client") or ""),
+            "bot_url": f"https://t.me/{settings.bot_username}",
+        },
+        headers=_CONNECT_HEADERS,
+    )
+
+
+async def api_connect_event(request: web.Request) -> web.Response:
+    telegram_id, device, denied = await _connect_device(request)
+    if denied:
+        return denied
+    try:
+        body = await request.json()
+    except (ValueError, TypeError):
+        return json_error("Некорректное событие", 400)
+    kind = body.get("kind") if isinstance(body, dict) else None
+    stage = _CONNECT_STAGES.get(kind) if isinstance(kind, str) else None
+    if not stage:
+        return json_error("Некорректное событие", 400)
+    await db.record_onboarding_event(telegram_id, stage)
+    return web.json_response({"ok": True})
+
+
 
 
 
@@ -551,6 +627,7 @@ async def api_me(request: web.Request) -> web.Response:
                 "platform": item.get("platform") or "",
                 "client": item.get("client") or "",
                 "kind": "router" if _is_router_device(item) else "",
+                "connect_url": _connect_url(request, telegram_id, item["id"]),
             }
         )
 
@@ -1187,6 +1264,7 @@ async def _api_add_device_locked(request: web.Request) -> web.Response:
             "first_device": was_first,
             "device_id": device.get("id"),
             "subscription_url": user.get("subscriptionUrl") or "",
+            "connect_url": _connect_url(request, telegram_id, device.get("id")) if device.get("id") else "",
             "title": title,
             "platform": platform or "",
         }
@@ -1829,6 +1907,9 @@ def build_web_app() -> web.Application:
         app.router.add_get("/", index)
         app.router.add_get("/qrcode.min.js", webapp_qrcode)
         app.router.add_get("/open.html", webapp_open)
+        app.router.add_get("/connect", webapp_connect)
+        app.router.add_get("/api/connect", api_connect)
+        app.router.add_post("/api/connect/event", api_connect_event)
         app.router.add_get("/story.png", webapp_story)
         app.router.add_get("/story.jpg", webapp_story)
         app.router.add_get("/stories_img.png", webapp_story)

@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#111215">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="/icons/frog.png">
+  <title>Подключение VPN</title>
+  <!-- The cabinet's own styles: the page is one more screen of it, opened in the browser. -->
+  <link rel="stylesheet" href="/static/cab.css?v=58">
+  <style>
+    :root { --st: env(safe-area-inset-top); --sb: env(safe-area-inset-bottom); }
+    .scr { padding-top: calc(var(--st) + 12px); }
+    .brand { display: flex; align-items: center; gap: 8px; margin: 0 22px 12px; color: var(--hint); font-size: 14px; font-weight: 600; animation: up .5s var(--ease) both; }
+    .brand img { width: 22px; height: 22px; border-radius: 50%; }
+    .brand .dv { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+    .brand .dv i { width: 7px; height: 7px; border-radius: 50%; background: var(--grn); box-shadow: 0 0 0 3px rgba(60, 207, 116, .2); }
+
+    /* ---------- the icon that flips through the apps ---------- */
+    .reel { position: relative; width: 104px; height: 104px; margin: 2px auto 0; }
+    .reel .ic, .reel .amk { width: 100%; height: 100%; border-radius: 24%; display: block; box-shadow: 0 16px 30px rgba(0, 0, 0, .35); overflow: hidden; }
+    .reel .amk { display: flex; font-size: 38px; }
+    .reel .ic img { width: 100%; height: 100%; display: block; }
+    .reel .face { position: absolute; inset: 0; }
+    .reel .face.in { animation: flipIn .17s var(--ease) both; }
+    .reel .face.land { animation: land .65s var(--ease) both; }
+    @keyframes flipIn { from { opacity: .1; transform: translateY(-30%) scale(.86); filter: blur(3px); } }
+    @keyframes land { 0% { transform: scale(.8); } 45% { transform: scale(1.1); } 72% { transform: scale(.97); } 100% { transform: none; } }
+    .reel .rg { position: absolute; inset: -8px; border-radius: 30%; border: 2px solid rgba(255, 255, 255, .6); opacity: 0; }
+    .looking .reel .rg { animation: ring 1.5s ease-out infinite; }
+    .looking .reel .rg + .rg { animation-delay: .75s; }
+    @keyframes ring { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.45); } }
+    .reel .bd { position: absolute; z-index: 2; right: -9px; bottom: -9px; width: 36px; height: 36px; border-radius: 50%; display: none; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 18px; border: 3px solid rgba(0, 0, 0, .12); background: #fff; color: #16804a; animation: pop .5s .2s var(--ease) both; }
+    .hc.green .reel .bd { display: flex; }
+    .hc.slate .reel .bd { display: flex; color: #3a2400; background: #ffb340; }
+    .hc .P b { font-weight: 700; }
+    .fx { animation: fx .35s var(--ease) both; }
+    @keyframes fx { from { opacity: 0; transform: translateY(5px); } }
+    .pill.sec { background: rgba(255, 255, 255, .2); color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); }
+    .acts.col { flex-direction: column; gap: 10px; }
+    .acts.col:empty { display: none; }
+    .acts.col .pill { width: 100%; flex: none; }
+    .lnkw { font-size: 15px; font-weight: 600; color: rgba(255, 255, 255, .9); padding: 4px 0 0; }
+    .rw .ic { border-radius: 9px; overflow: hidden; display: block; flex-shrink: 0; }
+    .rw .ic img { width: 32px; height: 32px; display: block; }
+    .rw .amk { width: 32px; height: 32px; border-radius: 9px; font-size: 13px; }
+    .rw .v .shop { color: var(--link); font-weight: 600; }
+    .keyrow .tt { flex: 1; }
+    .keyrow .tt > span { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; word-break: break-all; line-height: 1.45; margin-top: 4px; color: #c4c9d3; }
+    .keyrow.done .v { color: var(--grn); }
+    .qr { display: flex; justify-content: center; padding: 6px 0 16px; }
+    .qr img { background: #fff; padding: 10px; border-radius: 16px; width: 196px; height: 196px; image-rendering: pixelated; }
+    .sheet { position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-end; justify-content: center; animation: fin .25s ease both; }
+    .sheet .box { width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; background: #18191d; border-radius: 26px 26px 0 0; padding: 10px 0 calc(var(--sb) + 18px); animation: sup .35s var(--ease) both; }
+    .sheet .grab { width: 38px; height: 5px; border-radius: 9px; background: #3a3d44; margin: 0 auto 4px; }
+    .sheet .st:first-of-type { margin-top: 10px; }
+    @keyframes sup { from { transform: translateY(100%); } }
+
+    /* ---------- one screen, one action ---------- */
+    .scr { display: flex; flex-direction: column; min-height: 100vh; min-height: 100svh; padding-bottom: calc(var(--sb) + 16px); }
+    .hc.full { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 30px 22px 24px; }
+    .hc.full .reel { width: 150px; height: 150px; }
+    .hc.full .reel .bd { width: 46px; height: 46px; font-size: 22px; right: -12px; bottom: -12px; }
+    .hc.full .H { font-size: 32px; margin-top: 10px; }
+    .hc.full .acts { margin-top: 26px; }
+    .hc.swap { animation: pin .42s var(--ease) both; }
+    .more { display: flex; align-items: center; gap: 12px; margin: 12px 12px 0; padding: 14px 18px; border-radius: 22px; background: var(--card); text-align: left; animation: up .5s .2s var(--ease) both; }
+    .more .e { font-size: 22px; }
+    .more .tt { display: flex; flex-direction: column; }
+    .more .tt b { font-weight: 600; }
+    .more .tt span { font-size: 13.5px; color: var(--hint); margin-top: 1px; }
+    .more .cv { margin-left: auto; }
+
+  </style>
+</head>
+<body>
+<div id="root"><div class="scr" id="scr"></div></div>
+<div class="toast" id="toast"></div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var OS = [
+    { id: "ios", t: "iPhone и iPad", s: "iPhone", e: "📱" }, { id: "android", t: "Android", s: "Android", e: "🤖" },
+    { id: "macos", t: "Mac", s: "Mac", e: "💻" }, { id: "windows", t: "Windows", s: "Windows", e: "🖥️" }, { id: "linux", t: "Linux", s: "Linux", e: "🐧" }
+  ];
+  // Linux is not in the admin's platform list: these apps ship Linux builds on the same release pages as for Windows.
+  var LINUX = { karing: "https://github.com/KaringX/karing/releases/latest", v2rayn: "https://github.com/2dust/v2rayN/releases" };
+  var MOBILE = { ios: 1, android: 1 };
+
+  // ---------- the token sits after «#»: it never reaches a server log or a Referer ----------
+  function readHash() {
+    var out = {};
+    String(location.hash || "").replace(/^#/, "").split("&").forEach(function (kv) {
+      if (!kv) return;
+      var i = kv.indexOf("="), k = i < 0 ? kv : kv.slice(0, i), v = i < 0 ? "" : kv.slice(i + 1);
+      try { out[decodeURIComponent(k)] = decodeURIComponent(v); } catch (_e) {}
+    });
+    return out;
+  }
+  var H = readHash();
+  // Preview mode for the iPhone mock-up: sample data, no real app is opened.
+  var demo = "demo" in H;
+  if (demo && H.pt) document.documentElement.style.setProperty("--st", (+H.pt || 0) + "px");
+  if (demo && H.pb) document.documentElement.style.setProperty("--sb", (+H.pb || 0) + "px");
+  if (demo) document.documentElement.style.scrollbarWidth = "none";
+  function detectOs() {
+    var ua = navigator.userAgent || "";
+    if (/Android/i.test(ua)) return "android";
+    if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
+    if (/Windows/i.test(ua)) return "windows";
+    if (/Macintosh|Mac OS X/i.test(ua)) return "macos";
+    if (/Linux|X11|CrOS/i.test(ua)) return "linux";
+    return "";
+  }
+
+  // phase: look (opening the apps one by one) · found · none (nothing opened) · back (returned from the store) · other (another device picked by hand)
+  var S = { data: null, auto: "", os: "", app: "", phase: "", res: {}, queue: [], cur: "", timer: 0, left: false, action: "", reel: 0, ri: 0, copied: false, shown: "" };
+  var mem = {
+    get: function (k) { try { return sessionStorage.getItem("cn_" + k); } catch (_e) { return null; } },
+    set: function (k, v) { try { sessionStorage.setItem("cn_" + k, v); } catch (_e) {} }
+  };
+
+  // ---------- apps ----------
+  function appsFor(os) {
+    var list = (S.data.apps || []).map(function (a) {
+      if (os !== "linux") return (a.platforms || []).indexOf(os) >= 0 ? a : null;
+      return LINUX[a.id] ? Object.assign({}, a, { stores: { linux: LINUX[a.id] }, deep_link: a.id === "karing" ? a.deep_link : "" }) : null;
+    }).filter(Boolean);
+    var want = S.data.client;
+    list.sort(function (x, y) { return (y.id === want) - (x.id === want); });
+    return list;
+  }
+  function looks() { return appsFor(S.os).filter(function (a) { return a.deep_link; }); }
+  function byId(id) { return appsFor(S.os).filter(function (a) { return a.id === id; })[0] || null; }
+  function storeLink(a) { return ((a && a.stores) || {})[S.os] || ""; }
+  function storeName(u) { return /apps\.apple\.com/.test(u) ? "App Store" : /play\.google\.com/.test(u) ? "Google Play" : /github\.com/.test(u) ? "GitHub" : "сайте"; }
+  function deepLink(a) {
+    var tpl = (a && a.deep_link) || "", key = S.data.key;
+    if (!tpl || !key) return "";
+    var url = tpl.split("{enc}").join(encodeURIComponent(key)).split("{url}").join(key);
+    // Android Chrome: an intent with the package says «not installed» for sure — Chrome comes back to this page with «nf».
+    var pkg = (storeLink(a).match(/[?&]id=([\w.]+)/) || [])[1];
+    if (S.os === "android" && pkg && /Chrome\//.test(navigator.userAgent || "") && !demo) {
+      var m = url.match(/^([a-z][a-z0-9+.-]*):\/\/(.*)$/i);
+      if (m) {
+        var back = location.href.split("#")[0] + "#t=" + encodeURIComponent(H.t || "") + "&nf=" + a.id;
+        return "intent://" + m[2] + "#Intent;scheme=" + m[1] + ";package=" + pkg + ";S.browser_fallback_url=" + encodeURIComponent(back) + ";end";
+      }
+    }
+    return url;
+  }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function icon(a) {
+    var mark = esc(String((a && (a.mark || a.name)) || "?").slice(0, 2));
+    return a && a.icon ? '<span class="ic"><img alt="" src="' + esc(a.icon) + '" onerror="this.parentNode.outerHTML=\'<span class=&quot;amk&quot;>' + mark + '</span>\'"></span>'
+      : '<span class="amk">' + mark + "</span>";
+  }
+  function preload(list) { list.forEach(function (a) { if (a.icon) { var i = new Image(); i.src = a.icon; } }); }
+  function os(id) { return OS.filter(function (o) { return o.id === id; })[0] || { t: "устройство", s: "устройство", e: "📱" }; }
+  function onOs() { return S.os === "ios" ? "на iPhone" : S.os === "android" ? "на телефоне" : S.os === "macos" ? "на Mac" : "на компьютере"; }
+
+  // ---------- what the card says right now ----------
+  function model() {
+    var a = byId(S.app), cur = byId(S.cur), o = os(S.os);
+    var m = { phase: S.phase, a: a, cur: cur, color: "teal", h: "", p: "", acts: [] };
+    if (S.phase === "look") {
+      m.h = "Ищем приложение";
+      m.p = cur ? "Проверяем <b>" + esc(cur.name) + "</b>" + (S.os === "ios" ? ". Если iPhone спросит «Открыть?», нажмите «Открыть»" : "") : "Смотрим, что уже стоит " + onOs();
+      return m;
+    }
+    if (!a) {
+      m.color = "slate"; m.h = "Приложения пока нет"; m.p = "Для " + esc(o.s) + " скопируйте ключ и вставьте в любое VPN-приложение с подписками.";
+      return m;
+    }
+    var name = esc(a.name), sl = storeLink(a), sn = storeName(sl);
+    var get = sl ? { t: "Скачать в " + esc(sn), act: "store", href: sl, app: a.id } : null;
+    var apk = (a.direct || {})[S.os] ? { t: "Скачать APK напрямую", act: "store", href: a.direct[S.os], app: a.id, k: "lnk" } : null;
+    if (S.phase === "found") {
+      m.color = "green"; m.h = "Ключ в " + name;
+      m.p = "Откройте " + name + " и включите VPN. Если " + (MOBILE[S.os] ? "телефон" : "компьютер") + " спросит про VPN-подключение, разрешите.";
+      if (S.data.bot_url) m.acts.push({ t: "Вернуться в Telegram", act: "bot", href: S.data.bot_url });
+      m.acts.push({ t: "Ключ не появился? Добавить ещё раз", act: "open", k: "lnk" });
+    } else if (!a.deep_link) {
+      m.h = "Подключите " + name; m.p = "Скачайте приложение, скопируйте ключ и вставьте его в " + name + ".";
+      if (get) m.acts.push(get);
+    } else if (S.phase === "back") {
+      m.h = "Добавим ключ в " + name; m.p = "Нажмите — " + name + " откроется, и ключ появится в нём сам.";
+      m.acts.push({ t: "Добавить ключ в " + name, act: "open" });
+      if (apk) m.acts.push(apk);
+    } else if (S.phase === "none") {
+      m.color = "slate"; m.h = "Установите " + name; m.p = "Бесплатно в " + esc(sn) + ", это полминуты. Вернитесь сюда — ключ добавится сам.";
+      if (get) m.acts.push(get);
+      m.acts.push({ t: "Уже установлено", act: "open", k: "sec" });
+      if (apk) m.acts.push(apk);
+    } else {
+      // other: a device picked by hand — its apps cannot be opened from here.
+      m.h = name + " для " + esc(o.s); m.p = "Установите приложение на том устройстве и вставьте в него ключ.";
+      if (get) m.acts.push(get);
+    }
+    return m;
+  }
+
+  // ---------- pieces of the screen ----------
+  function actHtml(x) {
+    var d = ' data-act="' + x.act + '"' + (x.app ? ' data-app="' + esc(x.app) + '"' : "");
+    var ext = x.href ? ' href="' + esc(x.href) + '" target="_blank" rel="noopener noreferrer"' : "";
+    var tag = x.href ? "a" : "button", ty = x.href ? "" : ' type="button"';
+    if (x.k === "lnk") return "<" + tag + ty + ' class="lnkw"' + d + ext + ">" + x.t + "</" + tag + ">";
+    return "<" + tag + ty + ' class="pill' + (x.k === "sec" ? " sec" : "") + '"' + d + ext + "><span>" + x.t + "</span></" + tag + ">";
+  }
+  function heroHtml(m, cls) {
+    return '<section class="hc ' + m.color + (m.phase === "look" ? " looking" : "") + (cls ? " " + cls : "") + '"><div class="ill"><div><div class="reel"><span class="rg"></span><span class="rg"></span>' +
+      '<div class="face" data-face></div><span class="bd">' + (m.color === "green" ? "✓" : m.color === "slate" ? "!" : "") + "</span></div></div></div>" +
+      '<div class="H">' + m.h + '</div><div class="P">' + m.p + "</div>" + '<div class="acts col">' + m.acts.map(actHtml).join("") + "</div></section>";
+  }
+  function keyHtml() {
+    return '<div class="cd"><button type="button" class="rw keyrow' + (S.copied ? " done" : "") + '" data-act="copy"><span class="e">🔑</span><span class="tt"><b>Ключ подписки</b><span data-key>' + esc(S.data.key) +
+      '</span></span><span class="v">' + (S.copied ? "✓ Скопирован" : "Скопировать") + "</span></button>" +
+      (MOBILE[S.os] ? "" : '<button type="button" class="rw" data-act="qr"><span class="e">📷</span><span class="tt"><b>QR-код для телефона</b><span>отсканируйте в VPN-приложении</span></span><span class="v"><span class="cv">›</span></span></button><div class="qr" data-qr hidden></div>') +
+      "</div>";
+  }
+  var KEY_NOTE = '<div class="note">Если приложение не добавило ключ само, вставьте его вручную: обычно «+» → «Из буфера обмена».</div>';
+  function otherApps() { return appsFor(S.os).filter(function (x) { return x.id !== S.app && storeLink(x); }); }
+  function appsHtml(list) {
+    return '<div class="cd">' + list.map(function (x) {
+      return '<a class="rw" data-act="store" data-app="' + esc(x.id) + '" href="' + esc(storeLink(x)) + '" target="_blank" rel="noopener noreferrer">' + icon(x) +
+        '<span class="tt"><b>' + esc(x.name) + "</b><span>" + (x.deep_link ? "ключ добавится сам" : "ключ вставляется вручную") + "</span></span>" +
+        '<span class="v"><span class="shop">' + esc(storeName(storeLink(x))) + '</span><span class="cv">›</span></span></a>';
+    }).join("") + "</div>";
+  }
+  function footHtml() {
+    var bot = S.data.bot_url;
+    return '<div class="cd"><button type="button" class="rw" data-act="other"><span class="e">' + os(S.os).e + '</span><span class="tt"><b>Другое устройство</b><span>' +
+      (S.os === S.auto ? "если определили неверно" : "сейчас: " + os(S.os).s) + '</span></span><span class="v"><span class="cv">›</span></span></button>' +
+      (bot ? '<a class="rw" href="' + esc(bot) + '"><span class="e">↩️</span><span class="tt"><b>Вернуться в Telegram</b></span><span class="v"><span class="cv">›</span></span></a>' : "") + "</div>";
+  }
+  function brandHtml() {
+    return '<div class="brand"><img src="/icons/frog.png" alt="">Лягушка VPN<span class="dv"><i></i>' + esc(S.data.device_title || os(S.os).s) + "</span></div>";
+  }
+
+  // While looking only the text changes: no need to rebuild (and re-animate) the whole screen.
+  function patchLook(m) {
+    var hc = document.querySelector(".hc");
+    if (!hc) return;
+    var p = hc.querySelector(".P");
+    if (p.innerHTML !== m.p) { p.innerHTML = m.p; p.classList.remove("fx"); void p.offsetWidth; p.classList.add("fx"); }
+  }
+
+  // ---------- the screen: one big card, one action; the rest is behind «Другие способы» ----------
+  function view(m) {
+    var sig = [m.phase, S.app, S.os, m.h, m.acts.length].join("|");
+    if (sig === S.shown && S.phase === "look") { patchLook(m); return; }
+    if (sig === S.shown) return;
+    var swap = S.shown !== "";
+    S.shown = sig;
+    $("scr").innerHTML = brandHtml() + heroHtml(m, "full" + (swap ? " swap" : "")) +
+      '<button type="button" class="more" data-act="ways"><span class="e">🔑</span><span class="tt"><b>Другие способы</b><span>ключ вручную, другое приложение или устройство</span></span><span class="cv">›</span></button>';
+  }
+  function waysSheet() {
+    var more = otherApps();
+    sheet('<div class="st">Ключ</div>' + keyHtml() + KEY_NOTE + (more.length ? '<div class="st">Другое приложение</div>' + appsHtml(more) : "") +
+      '<div class="st">Ещё</div>' + footHtml());
+  }
+
+  // ---------- render ----------
+  function render() {
+    var m = model();
+    view(m);
+    var f = document.querySelector("[data-face]");
+    if (S.phase === "look") { if (f && !f.innerHTML) face(looks()[S.ri % Math.max(1, looks().length)], ""); reelOn(); }
+    else { reelOff(); if (f) face(m.a, "land"); }
+  }
+  function face(a, how) {
+    var f = document.querySelector("[data-face]");
+    if (!f) return;
+    f.innerHTML = a ? icon(a) : '<span class="amk">🔑</span>';
+    f.className = "face"; void f.offsetWidth;
+    if (how) f.classList.add(how);
+  }
+  // While looking, the icon flips through every app fast, again and again; the text names the one really being opened.
+  function reelOn() {
+    if (S.reel) return;
+    S.reel = setInterval(function () { var list = looks(); if (!list.length) return; S.ri = (S.ri + 1) % list.length; face(list[S.ri], "in"); }, 170);
+  }
+  function reelOff() { if (S.reel) { clearInterval(S.reel); S.reel = 0; } }
+
+  // ---------- looking for the apps ----------
+  function stopTimer() { if (S.timer) { clearTimeout(S.timer); S.timer = 0; } }
+  function look(only) {
+    var list = looks().filter(function (a) { return !only || a.id === only; });
+    if (!list.length) return;
+    stopTimer();
+    S.res = {}; S.queue = list.map(function (a) { return a.id; }); S.cur = ""; S.phase = "look"; S.action = "app";
+    mem.set("looked", "1");
+    render();
+    S.timer = setTimeout(next, 700);
+  }
+  function next() {
+    S.timer = 0;
+    if (S.phase !== "look") return;
+    if (S.cur) S.res[S.cur] = "no";
+    S.cur = S.queue.shift() || "";
+    if (!S.cur) {
+      // Nothing opened: the recommended app is the one to install.
+      S.phase = "none"; S.app = (looks().filter(function (a) { return storeLink(a); })[0] || {}).id || S.app;
+      render(); event("none", ""); return;
+    }
+    S.res[S.cur] = "try"; S.left = false;
+    render();
+    if (demo) { S.timer = setTimeout(function () { if (H.found === S.cur) return found(S.cur); next(); }, 1500); return; }
+    try { window.location.href = deepLink(byId(S.cur)); } catch (_e) {}
+    // iOS asks «Открыть в …?» first: give the person time to answer before moving on.
+    S.timer = setTimeout(next, S.os === "ios" ? 2800 : 2000);
+  }
+  function found(id) {
+    stopTimer();
+    S.res[id] = "yes"; S.app = id; S.cur = ""; S.queue = []; S.phase = "found";
+    render(); event("found", id);
+  }
+  function wentAway() { if (S.left || demo) return; S.left = true; if (S.phase === "look") stopTimer(); }
+  function cameBack() {
+    if (!S.left) return;
+    S.left = false;
+    if (S.action === "store") {
+      // Back from the store: on iPhone add the key straight away; elsewhere the browser opens apps only after a tap.
+      S.phase = "back";
+      if (S.os === "ios" && S.os === S.auto) look(S.app); else render();
+      return;
+    }
+    if (S.phase === "look" && S.cur) found(S.cur);
+  }
+  document.addEventListener("visibilitychange", function () { if (document.hidden) wentAway(); else cameBack(); });
+  window.addEventListener("pagehide", wentAway);
+  // A computer: the app takes the focus, the tab stays visible.
+  window.addEventListener("blur", function () { if (!MOBILE[S.os] && S.phase === "look") wentAway(); });
+  window.addEventListener("focus", function () { if (!MOBILE[S.os]) cameBack(); });
+  // Android Chrome came back through the intent's fallback: this app is not installed, try the next one at once.
+  window.addEventListener("hashchange", function () {
+    var h = readHash();
+    if (h.nf && S.phase === "look" && h.nf === S.cur) { stopTimer(); S.left = false; next(); }
+  });
+
+  // ---------- actions ----------
+  function toast(t) {
+    var el = $("toast"); el.textContent = t; el.classList.add("on");
+    clearTimeout(toast.t); toast.t = setTimeout(function () { el.classList.remove("on"); }, 1800);
+  }
+  function copyKey() {
+    var key = S.data.key;
+    var ok = function () {
+      toast("Ключ скопирован"); event("copy", S.app);
+      S.copied = true; rerenderKeep();
+      clearTimeout(copyKey.t); copyKey.t = setTimeout(function () { S.copied = false; rerenderKeep(); }, 2600);
+    };
+    var fallback = function () {
+      var el = document.querySelector("[data-key]");
+      if (el) { var r = document.createRange(); r.selectNodeContents(el); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+      var done = false;
+      try { done = document.execCommand("copy"); } catch (_e) {}
+      if (done) ok(); else toast("Выделили ключ — скопируйте его");
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(key).then(ok, fallback);
+    else fallback();
+  }
+  // The «copied» mark only touches the key row, never the whole screen.
+  function rerenderKeep() {
+    document.querySelectorAll(".keyrow").forEach(function (r) { r.classList.toggle("done", S.copied); r.querySelector(".v").textContent = S.copied ? "✓ Скопирован" : "Скопировать"; });
+  }
+  function showQr(btn) {
+    var box = btn.parentNode.querySelector("[data-qr]");
+    if (!box) return;
+    if (!box.hidden) { box.hidden = true; return; }
+    var draw = function () {
+      try { var q = window.qrcode(0, "M"); q.addData(S.data.key); q.make(); box.innerHTML = q.createImgTag(6, 0); box.hidden = false; }
+      catch (_e) { toast("Не получилось показать QR-код"); }
+    };
+    if (typeof window.qrcode === "function") return draw();
+    var sc = document.createElement("script"); sc.src = "/qrcode.min.js"; sc.onload = draw; sc.onerror = function () { toast("Не получилось показать QR-код"); };
+    document.head.appendChild(sc);
+  }
+  function sheet(html) {
+    var sh = document.createElement("div");
+    sh.className = "sheet";
+    sh.innerHTML = '<div class="box"><div class="grab"></div>' + html + "</div>";
+    sh.addEventListener("click", function (e) {
+      if (e.target === sh || e.target.closest("[data-os],[data-act=store],[data-act=other],a[href]:not([data-act])")) setTimeout(function () { sh.remove(); }, 0);
+    });
+    document.body.appendChild(sh);
+  }
+  // «Другое устройство»: a sheet with the systems, for the rare case the guess is wrong or the key is for another device.
+  function pickOs() {
+    sheet('<div class="st">Где включить VPN?</div><div class="cd">' + OS.map(function (o) {
+      return '<button type="button" class="rw" data-os="' + o.id + '"><span class="e">' + o.e + '</span><span class="tt"><b>' + esc(o.t) + "</b>" +
+        (o.id === S.auto ? "<span>это устройство</span>" : "") + '</span><span class="v">' + (o.id === S.os ? '<span style="color:var(--grn)">✓</span>' : '<span class="cv">›</span>') + "</span></button>";
+    }).join("") + "</div>");
+  }
+  document.addEventListener("click", function (e) {
+    var o = e.target.closest("[data-os]");
+    if (o) {
+      stopTimer(); S.os = o.dataset.os; S.res = {}; S.app = firstApp(); preload(appsFor(S.os));
+      if (S.os === S.auto) look(); else { S.phase = "other"; render(); }
+      return;
+    }
+    var t = e.target.closest("[data-act]");
+    if (!t) return;
+    var act = t.dataset.act;
+    if (act === "open") { e.preventDefault(); look(S.app); }
+    else if (act === "copy") copyKey();
+    else if (act === "qr") showQr(t);
+    else if (act === "other") { var sh = document.querySelector(".sheet"); if (sh) sh.remove(); pickOs(); }
+    else if (act === "ways") waysSheet();
+    else if (act === "store") {
+      stopTimer(); S.action = "store"; S.left = false;
+      if (t.dataset.app) S.app = t.dataset.app;
+      event("store", S.app);
+      if (demo) { e.preventDefault(); S.phase = "back"; render(); }
+    }
+  });
+  function firstApp() { var list = appsFor(S.os); return ((list.filter(function (a) { return a.id === H.a; })[0]) || list[0] || {}).id || ""; }
+
+  // ---------- events for the connection funnel ----------
+  function event(kind, app) {
+    if (demo || !H.t) return;
+    try {
+      fetch("/api/connect/event", { method: "POST", headers: { "Content-Type": "application/json", "X-Connect-Token": H.t },
+        body: JSON.stringify({ kind: kind, app: app || "", os: S.os }), keepalive: true }).catch(function () {});
+    } catch (_e) {}
+  }
+
+  // ---------- start ----------
+  function bad(text) {
+    $("scr").innerHTML = '<section class="hc slate"><div class="ill"><div>🔑</div></div><div class="H">Ссылка не открылась</div><div class="P">' + esc(text) + "</div></section>";
+  }
+  function start(data) {
+    S.data = data;
+    S.auto = demo && H.os ? H.os : detectOs();
+    S.os = S.auto || data.platform || "ios";
+    S.app = firstApp();
+    preload(appsFor(S.os));
+    if (demo && H.st) { S.phase = H.st; if (H.found) S.app = H.found; render(); return; }
+    // The search starts by itself — once per visit, so a reload does not add the key again.
+    if (looks().length && (demo || !mem.get("looked"))) look();
+    else { S.phase = looks().length ? "none" : "other"; render(); }
+  }
+
+  if (demo) {
+    var DEMO_APPS = [
+      { id: "incy", name: "Incy", icon: "/icons/incy.png", deep_link: "incy://import/{url}", platforms: ["ios", "macos"], stores: { ios: "https://apps.apple.com/app/id6756943388", macos: "https://apps.apple.com/app/id6756943388" } },
+      { id: "happ", name: "Happ", icon: "/icons/happ.png", deep_link: "happ://add/{url}", platforms: ["ios", "macos", "android", "windows"],
+        stores: { ios: "https://apps.apple.com/app/id6504287215", macos: "https://apps.apple.com/app/id6504287215", android: "https://play.google.com/store/apps/details?id=com.happproxy", windows: "https://github.com/Happ-proxy/happ-desktop/releases" },
+        direct: { android: "https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk" } },
+      { id: "rabbithole", name: "RabbitHole", icon: "/icons/rabbithole.png", deep_link: "rabbithole://add/{url}", platforms: ["ios", "macos"], stores: { ios: "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629" } },
+      { id: "karing", name: "Karing", icon: "/icons/karing.png", deep_link: "karing://install-config?url={enc}", platforms: ["ios", "macos", "windows"], stores: { ios: "https://apps.apple.com/app/id6472431552", windows: "https://github.com/KaringX/karing/releases/latest" } },
+      { id: "v2rayng", name: "v2rayNG", icon: "/icons/v2rayng.png", deep_link: "v2rayng://install-sub?url={enc}", platforms: ["android"], stores: { android: "https://play.google.com/store/apps/details?id=com.v2ray.ang" } },
+      { id: "v2rayn", name: "v2rayN", icon: "/icons/v2rayn.png", deep_link: "", platforms: ["windows"], stores: { windows: "https://github.com/2dust/v2rayN/releases" } }
+    ];
+    var titles = { ios: "Мой iPhone", android: "Мой Android", macos: "MacBook", windows: "Ноутбук", linux: "Ноутбук" };
+    start({ key: "https://sub.frogvpn.example/api/sub/Xk29fQaLm7Rt4Wp8", apps: DEMO_APPS, device_title: titles[H.os] || "Моё устройство", platform: "ios", client: "",
+      bot_url: "https://t.me/" });
+    return;
+  }
+  if (!H.t) { bad("В ссылке нет ключа. Откройте её заново из бота или кабинета."); return; }
+  fetch("/api/connect", { headers: { "X-Connect-Token": H.t }, cache: "no-store", referrerPolicy: "no-referrer" })
+    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (r) { if (!r.ok || !r.j.ok) throw new Error((r.j && r.j.error) || ""); start(r.j); })
+    .catch(function (e) { bad((e && e.message) || "Проверьте интернет и обновите страницу."); });
+})();
+</script>
+</body>
+</html>

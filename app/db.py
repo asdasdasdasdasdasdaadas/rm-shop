@@ -5574,7 +5574,8 @@ async def got_broadcast_recently(telegram_id: int, run_id: int | None = None) ->
 
 
 async def record_onboarding_event(telegram_id: int, stage: str) -> None:
-    if stage not in {'welcome_continue','channel_passed','cabinet','gift_view','wizard_1','wizard_2','wizard_3','wizard_4'}:
+    if stage not in {'welcome_continue','channel_passed','cabinet','gift_view','wizard_1','wizard_2','wizard_3','wizard_4',
+                     'connect_open','connect_found','connect_none','connect_store','connect_copy'}:
         raise ValueError('Unknown onboarding stage')
     try:
         await _pool_req().execute('''INSERT INTO onboarding_events(telegram_id,stage)

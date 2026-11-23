@@ -217,6 +217,18 @@ def onboarding_keyboard(*, gift: bool = False, has_device: bool = False) -> Inli
     ])
 
 
+def connect_device_keyboard(connect_url: str, key: str, *, has_device: bool = True) -> InlineKeyboardMarkup:
+    """The onboarding buttons plus «connect on this device» (the /connect page) and «copy the key»."""
+    rows = [list(row) for row in onboarding_keyboard(has_device=has_device).inline_keyboard]
+    extra = []
+    if connect_url:
+        extra.append([InlineKeyboardButton(text="Подключить на этом устройстве", url=connect_url)])
+    if key:
+        extra.append([InlineKeyboardButton(text="Скопировать ключ", copy_text=CopyTextButton(text=key))])
+    # Right after the main button, before «Нужна помощь».
+    return InlineKeyboardMarkup(inline_keyboard=rows[:1] + extra + rows[1:])
+
+
 def help_ticket_cancel_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[[

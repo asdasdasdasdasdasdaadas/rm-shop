@@ -280,19 +280,13 @@
     if (/Macintosh|Mac OS X/i.test(ua)) return "macos";
     return "";
   }
-  function openClient(clientId, url) {
+  // Connecting goes through /connect in the browser: it finds the installed app, offers the store and shows the key.
+  // The page's token rides in the #fragment, so the key never lands in a query string or a server log.
+  function openClient(clientId, url, connect) {
     haptic();
-    if (!url) return;
-    const a = appById(clientId);
-    const tpl = (a && a.deep_link) || "";
-    if (!tpl) { tg.openLink(url); return; }
-    const deep = tpl.split("{enc}").join(encodeURIComponent(url)).split("{url}").join(url);
-    // The bridge page shows the app, a download button if it is not installed, the key to copy and the way back.
-    const stores = (a && a.stores) || {};
-    const q = new URLSearchParams({ to: deep, n: (a && a.name) || "", i: (a && a.icon) || "",
-      s: stores[detectPlatform()] || Object.values(stores)[0] || "", d: ((a && a.direct) || {})[detectPlatform()] || "", k: url,
-      b: String((me && me.bot_start_url) || "").split("?")[0] });
-    tg.openLink(new URL("open.html", location.href).href + "?" + q.toString());
+    if (!connect) { if (url) copy(url, "Ключ скопирован"); return; }
+    const a = clientId && clientId !== "other" ? `&a=${encodeURIComponent(clientId)}` : "";
+    tg.openLink(connect + a);
   }
   function appIcon(a, size) {
     if (a && a.icon) return `<img src="${esc(a.icon)}" width="${size}" height="${size}" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * .24)}px" alt="">`;
@@ -322,7 +316,7 @@
   addEventListener("beforeunload", flushThanks);
 
   // ---------- wizard and pay state ----------
-  const wiz = { platform: "ios", client: "", url: "", deviceId: null, title: "", fromOffer: false, has: false };
+  const wiz = { platform: "ios", client: "", url: "", connect: "", deviceId: null, title: "", fromOffer: false, has: false };
   const pay = { amount: 0, custom: false, method: "", url: "", base: 0, kind: "", ap: false };
   const support = { files: [], context: null, poll: 0, draft: "" };
 
@@ -1403,10 +1397,10 @@
   SCR.wiz3 = {
     h() {
       const a = appById(wiz.client) || { name: "приложение" };
-      const short = wiz.url ? wiz.url.replace(/^https?:\/\//, "").slice(0, 28) + "…" : "";
+      const short = wiz.url ? wiz.url.replace(/^https?:\/\//, "") : "";
       if (wiz.client === "other") {
         return hc("green", { rb: "ключ", ill: "🛡️", h: "Добавьте ключ в приложение", p: "Скопируйте и вставьте его в своё приложение для VPN",
-          x: `<div class="mono">${esc(short)}</div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>`,
+          x: `<div class="mono" data-act="copykey" role="button" title="Скопировать ключ">${esc(short)}</div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>`,
           pill: "Скопировать ключ", pa: 'data-act="copykey"' }) +
           ST("Дальше") +
           tl([["1", "Скопируйте ключ", "кнопка выше"], ["2", "Вставьте в приложение", "обычно «+» → «Импорт из буфера» или «Добавить подписку»"],
@@ -1415,7 +1409,7 @@
           cd([[E("🆘") + "Не получилось — помогите" + V(CV), 'data-act="helpconnect"'], [E("🏠") + "В кабинет" + V(CV), 'data-act="home"']]);
       }
       return hc("green", { rb: "ключ", ill: "🛡️", h: "Подключите VPN", p: `Ключ добавится в ${esc(a.name)} сам`,
-        x: `<div class="mono">${esc(short)}</div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>`,
+        x: `<div class="mono" data-act="copykey" role="button" title="Скопировать ключ">${esc(short)}</div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>`,
         pill: `Добавить в ${esc(a.name)}`, pa: 'data-act="connect"', r: "copy", rl: "Скопировать ключ", ra: 'data-act="copykey"' }) +
         ST("Дальше") +
         tl([["1", `Подтвердите добавление в ${esc(a.name)}`, "кнопка выше откроет приложение"],
@@ -2758,7 +2752,7 @@
     const devs = phones();
     const d = devs.slice().sort((a, b) => b.id - a.id)[0];
     if (!d || !d.subscription_url) { startWizard(); return; }
-    Object.assign(wiz, { platform: d.platform || detectPlatform() || "ios", url: d.subscription_url, deviceId: d.id, title: d.title });
+    Object.assign(wiz, { platform: d.platform || detectPlatform() || "ios", url: d.subscription_url, connect: d.connect_url || "", deviceId: d.id, title: d.title });
     wiz.client = prefApp(wiz.platform, d.client) || "happ";
     go("wiz3");
   }
@@ -2775,12 +2769,12 @@
       for (let n = 2; taken.has(title); n++) title = `${base} ${n}`;
       const made = await post("/api/devices", { title, platform: wiz.platform, client: wiz.client });
       if (wiz.client) store.set("app_" + wiz.platform, wiz.client);
-      Object.assign(wiz, { title, url: made.subscription_url || "", deviceId: made.device_id });
+      Object.assign(wiz, { title, url: made.subscription_url || "", connect: made.connect_url || "", deviceId: made.device_id });
       if (made.first_device) thanksArmed = true;
       store.set("onboard", 1);
       await load(true).catch(() => {});
       notify("success");
-      if (opt.open) openClient(wiz.client, wiz.url);
+      if (opt.open) openClient(wiz.client, wiz.url, wiz.connect);
       stack = [];
       go("wiz3", {}, "f");
       stack = [{ key: "home", params: {} }];
@@ -3093,11 +3087,11 @@
     },
     create: () => createDevice(cur.el.querySelector("#wizOk")),
     addkey: () => createDevice(cur.el.querySelector("#wizOk"), { open: true }),
-    connect: () => openClient(wiz.client, wiz.url),
+    connect: () => openClient(wiz.client, wiz.url, wiz.connect),
     copykey: () => copy(wiz.url, "Ключ скопирован"),
     devopen() {
       const d = deviceById(cur.params.id);
-      if (d) openClient((devApp(d) || {}).id, d.subscription_url);
+      if (d) openClient((devApp(d) || {}).id, d.subscription_url, d.connect_url);
     },
     devapp() { const d = deviceById(cur.params.id); if (d) { haptic(); appSheet(d); } },
     devcopy() { const d = deviceById(cur.params.id); if (d) copy(d.subscription_url, "Ключ скопирован"); },
