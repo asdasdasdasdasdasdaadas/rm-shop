@@ -445,6 +445,41 @@ async def _install_arm(telegram_id: int, has_devices: bool) -> str | None:
         return None
 
 
+_FIRST_CHECK_SECONDS = 10.0
+_first_checked: dict[int, float] = {}
+
+
+async def _check_first_connection(rw: RemnawaveClient, telegram_id: int, devices: list[dict]) -> bool:
+    """Not connected yet: ask the panel about this person's device keys right away. The panel-wide sync runs every
+    10 minutes, so without this the home card keeps saying «Завершим подключение?» long after VPN went on.
+    At most once per 10 s per person; True when something was read from the panel."""
+    from app.live import note_first_online_from_panels
+    ids = [int(d["remnawave_id"]) for d in devices if d.get("remnawave_id")][:5]
+    now = time.monotonic()
+    if not ids or now - _first_checked.get(telegram_id, 0.0) < _FIRST_CHECK_SECONDS:
+        return False
+    _first_checked[telegram_id] = now
+    if len(_first_checked) > 5000:
+        for key in [k for k, t in _first_checked.items() if now - t > _FIRST_CHECK_SECONDS]:
+            _first_checked.pop(key, None)
+
+    async def one(panel_id: int) -> dict | None:
+        try:
+            return await asyncio.wait_for(rw.get_user_by_id(panel_id), timeout=5)
+        except Exception:
+            return None
+
+    panels = [p for p in await asyncio.gather(*(one(i) for i in ids)) if isinstance(p, dict)]
+    if not panels:
+        return False
+    try:
+        await db.apply_panel_snapshots(panels)
+        await note_first_online_from_panels(panels)
+    except Exception:
+        logger.debug("Проверка первого подключения %s", telegram_id, exc_info=True)
+    return True
+
+
 async def api_me(request: web.Request) -> web.Response:
     settings = get_settings()
     telegram_id, parsed = await _resolve_telegram_id(request)
@@ -488,9 +523,12 @@ async def api_me(request: web.Request) -> web.Response:
     await hide_legal_messages(bot, telegram_id)
     local = await db.get_user(telegram_id)
     await fetch_panel(rw, telegram_id, local=local, allow_stale=True)
+    raw_devices = await db.list_devices(telegram_id)
+    if local and not local.get("first_online_at") and await _check_first_connection(rw, telegram_id, raw_devices):
+        local = await db.get_user(telegram_id)
+        raw_devices = await db.list_devices(telegram_id)
 
     balance_rub = int((local or {}).get("balance_rub") or 0) if local else 0
-    raw_devices = await db.list_devices(telegram_id)
     devices = []
     for item in raw_devices:
         panel_dev = _device_as_panel(item)
