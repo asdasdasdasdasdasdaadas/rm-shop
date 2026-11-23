@@ -20,6 +20,7 @@
     background:radial-gradient(circle at 40% 35%,#fff,rgba(255,255,255,.75) 55%,rgba(255,220,235,.6));box-shadow:0 0 0 1px rgba(0,60,50,.25);transform:scale(0);pointer-events:none}
   :is(.pet,.petbg) .fr .mo{position:absolute;left:${MOUTH[0] * 100}%;top:${MOUTH[1] * 100}%;width:6px;height:5px;margin:-2.5px 0 0 -3px;border-radius:50%;background:#5b1030;transform:scale(0);pointer-events:none}
   :is(.pet,.petbg) .shd{position:absolute;left:0;top:0;width:30px;height:7px;margin:-4px 0 0 -15px;border-radius:50%;background:rgba(0,0,0,.22);filter:blur(1.2px);pointer-events:none;z-index:2;will-change:transform}
+  :is(.pet,.petbg) .shd:after{content:"";position:absolute;left:8px;top:2px;width:14px;height:3.5px;border-radius:50%;background:rgba(0,0,0,.2)}
   :is(.pet,.petbg) .tg{position:absolute;height:3.2px;border-radius:2px;background:linear-gradient(#ff8fb0,#ff4f80);transform-origin:0 50%;z-index:4}
   :is(.pet,.petbg) .tg:after{content:"";position:absolute;right:-3.5px;top:-2.2px;width:7.5px;height:7.5px;border-radius:50%;background:#ff4f80}
   :is(.pet,.petbg) .bug{position:absolute;left:0;top:0;z-index:4;pointer-events:none;will-change:transform}
@@ -54,9 +55,36 @@
   :is(.pet,.petbg) .sun{position:absolute;left:-60px;top:-70px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,220,.45),rgba(255,255,220,.12) 45%,rgba(255,255,220,0) 70%);animation:pf-sun 6s ease-in-out infinite}
   @keyframes pf-sun{50%{transform:scale(1.08);opacity:.8}}
   :is(.pet,.petbg) .frost{position:absolute;inset:0;background:linear-gradient(180deg,rgba(220,240,255,.28),rgba(220,240,255,0) 45%)}
-  :is(.pet,.petbg) .night{position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,10,50,.55),rgba(15,10,50,.12) 60%,rgba(15,10,50,0))}
-  :is(.pet,.petbg) .moon{position:absolute;left:26px;top:18px;width:18px;height:18px;border-radius:50%;box-shadow:5px -3px 0 0 #fff4c2;filter:drop-shadow(0 0 6px rgba(255,240,180,.7))}
+  :is(.pet,.petbg) .night{position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,8,38,.8),rgba(18,16,70,.5) 55%,rgba(20,20,70,.18))}
+  :is(.pet,.petbg) .twi{position:absolute;inset:0;background:linear-gradient(180deg,rgba(28,24,92,.66),rgba(80,56,150,.42) 50%,rgba(170,90,170,.3) 80%,rgba(200,110,170,.08))}
+  :is(.pet,.petbg) .sunset{position:absolute;inset:0;background:linear-gradient(180deg,rgba(104,46,150,.44),rgba(255,102,92,.42) 44%,rgba(255,176,88,.4) 70%,rgba(255,206,130,.12))}
+  :is(.pet,.petbg) .sdisk{position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:radial-gradient(circle,#fff7d6 0 28%,#ffc363 56%,#ff8a4c 74%,rgba(255,120,70,0) 76%);
+    box-shadow:0 0 34px 14px rgba(255,150,80,.42);animation:pf-sun 7s ease-in-out infinite}
+  :is(.pet,.petbg) .milky{position:absolute;left:-25%;top:-24px;width:150%;height:86px;transform:rotate(-14deg);background:radial-gradient(ellipse at 50% 50%,rgba(205,212,255,.16),rgba(205,212,255,.05) 45%,rgba(205,212,255,0) 70%)}
+  :is(.pet,.petbg) .mw{position:absolute;left:24px;top:14px;width:22px;height:22px;border-radius:50%;box-shadow:0 0 16px 5px rgba(255,240,190,.32)}
+  :is(.pet,.petbg) .moon{position:absolute;inset:0;border-radius:50%;overflow:hidden;
+    background:radial-gradient(circle at 32% 38%,rgba(190,175,130,.55) 0 2.2px,transparent 2.6px),radial-gradient(circle at 64% 62%,rgba(190,175,130,.45) 0 3px,transparent 3.4px),radial-gradient(circle at 60% 28%,rgba(190,175,130,.35) 0 1.5px,transparent 1.9px),radial-gradient(circle at 40% 40%,#fffbe8,#f2e3ad)}
+  :is(.pet,.petbg) .moon i{position:absolute;top:-1px;width:100%;height:calc(100% + 2px);border-radius:50%;background:rgba(14,16,54,.9)}
   :is(.pet,.petbg) .star{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;animation:pf-tw 2.4s ease-in-out infinite}
+  :is(.pet,.petbg) .star.big{box-shadow:0 0 4px 1px rgba(220,230,255,.8)}
+  :is(.pet,.petbg) .ovc{position:absolute;inset:0;background:linear-gradient(180deg,rgba(70,82,104,.3),rgba(70,82,104,.08) 70%,rgba(70,82,104,0))}
+  :is(.pet,.petbg) .ovc.wet{background:linear-gradient(180deg,rgba(40,50,72,.48),rgba(40,50,72,.2) 70%,rgba(40,50,72,.08))}
+  :is(.pet,.petbg) .haze{position:absolute;inset:0;background:linear-gradient(180deg,rgba(236,242,246,.14),rgba(236,242,246,.24) 70%,rgba(236,242,246,.1))}
+  :is(.pet,.petbg) .rn{position:absolute;left:0;top:0;width:1.2px;height:10px;border-radius:1px;background:linear-gradient(rgba(220,235,255,0),rgba(220,235,255,.8));pointer-events:none}
+  :is(.pet,.petbg) .spl{position:absolute;left:0;top:0;width:9px;height:3px;margin:-1.5px 0 0 -4.5px;border-radius:50%;border:1px solid rgba(235,245,255,.7);opacity:0;pointer-events:none}
+  :is(.pet,.petbg) .fog{position:absolute;left:-30%;width:160%;height:36px;border-radius:50%;background:radial-gradient(ellipse at 50% 50%,rgba(255,255,255,.3),rgba(255,255,255,0) 70%);pointer-events:none}
+  :is(.pet,.petbg) .brd{position:absolute;left:0;top:0;pointer-events:none}
+  :is(.pet,.petbg) .brd svg{display:block;animation:pf-flap .5s ease-in-out infinite;transform-origin:50% 60%}
+  @keyframes pf-flap{50%{transform:scaleY(.35)}}
+  :is(.pet,.petbg) .pb{position:absolute;width:7px;height:4px;margin:-2px 0 0 -3.5px;border-radius:50% 50% 45% 45%;background:rgba(255,255,255,.32);box-shadow:inset -1px -1px 0 rgba(0,0,0,.1)}
+  :is(.pet,.petbg) .msh{position:absolute;width:9px;height:9px;margin:-9px 0 0 -4.5px;pointer-events:none}
+  :is(.pet,.petbg) .msh:before{content:"";position:absolute;left:0;top:0;width:9px;height:5px;border-radius:5px 5px 1px 1px;background:radial-gradient(circle at 30% 45%,#fff 0 1px,transparent 1.3px),radial-gradient(circle at 70% 40%,#fff 0 .9px,transparent 1.2px),#e8453c}
+  :is(.pet,.petbg) .msh:after{content:"";position:absolute;left:3px;top:4.5px;width:3px;height:4.5px;border-radius:1px;background:#fff4e0}
+  .petbg.dark .gt{opacity:.28}.petbg.dark .flw,.petbg.dark .pb,.petbg.dark .msh{filter:brightness(.55)}
+  .petbg.windy .gt svg,.petbg.windy .flw,.petbg.windy .reed{animation-name:pf-sw2;animation-duration:1.1s}
+  @keyframes pf-sw2{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(17deg)}}
+  :is(.pet,.petbg) .pond.warm{background:radial-gradient(ellipse at 50% 35%,rgba(255,214,166,.72),rgba(255,150,112,.5) 55%,rgba(168,86,140,.45))}
+  :is(.pet,.petbg) .pond.dark{background:radial-gradient(ellipse at 50% 35%,rgba(130,150,210,.5),rgba(52,62,124,.52) 60%,rgba(28,30,82,.5))}
   @keyframes pf-tw{50%{opacity:.15;transform:scale(.6)}}
   :is(.pet,.petbg) .ffl{position:absolute;left:0;top:0;width:4px;height:4px;margin:-2px;border-radius:50%;background:#fff6a0;box-shadow:0 0 6px 2px rgba(255,240,120,.8);pointer-events:none;z-index:2;will-change:transform,opacity}
   :is(.pet,.petbg) .stone{position:absolute;width:26px;height:32px;overflow:hidden;pointer-events:none;z-index:2}
@@ -122,6 +150,14 @@
   :is(.pet,.petbg) .puff{position:absolute;width:7px;height:7px;margin:-3.5px;border-radius:50%;background:rgba(255,255,255,.8);pointer-events:none;z-index:2}
   :is(.pet,.petbg) .spk{position:absolute;width:9px;height:9px;margin:-4.5px;pointer-events:none;z-index:5;background:#fff;clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%)}
   :is(.pet,.petbg) .ht{position:absolute;font-size:12px;pointer-events:none;z-index:5}
+  :is(.pet,.petbg) .leaf{position:absolute;left:0;top:0;width:13px;height:8px;margin:-4px 0 0 -6.5px;border-radius:0 85% 0 85%;background:linear-gradient(135deg,#ffd45c,#ff8a3d);box-shadow:inset 0 0 0 .5px rgba(120,50,0,.25);pointer-events:none;z-index:5;will-change:transform}
+  :is(.pet,.petbg) .bal{position:absolute;left:0;top:0;width:22px;height:27px;margin:-14px 0 0 -11px;border-radius:50% 50% 48% 48%/55% 55% 45% 45%;background:radial-gradient(circle at 34% 30%,rgba(255,255,255,.7) 0 3px,rgba(255,255,255,0) 4px),var(--c,#ff5d7a);box-shadow:inset -3px -4px 0 rgba(0,0,0,.12);z-index:5;pointer-events:none;will-change:transform}
+  :is(.pet,.petbg) .bal:before{content:"";position:absolute;left:9px;bottom:-3px;width:4px;height:4px;background:var(--c,#ff5d7a);clip-path:polygon(50% 0,100% 100%,0 100%)}
+  :is(.pet,.petbg) .bal:after{content:"";position:absolute;left:10.5px;top:27px;width:1px;height:34px;background:rgba(255,255,255,.85)}
+  :is(.pet,.petbg) .ssr{position:absolute;left:0;top:0;width:46px;height:2px;margin:-1px 0 0 -46px;border-radius:2px;background:linear-gradient(90deg,rgba(255,255,255,0),#fff);box-shadow:0 0 6px rgba(255,255,230,.9);transform-origin:100% 50%;pointer-events:none;z-index:1}
+  :is(.pet,.petbg) .rbw{position:absolute;width:220px;height:110px;border-radius:110px 110px 0 0;pointer-events:none;opacity:0;
+    background:radial-gradient(circle at 50% 100%,rgba(255,255,255,0) 55%,rgba(255,90,90,.32) 56% 61%,rgba(255,200,60,.32) 61% 66%,rgba(90,220,120,.32) 66% 71%,rgba(80,160,255,.32) 71% 76%,rgba(255,255,255,0) 77%);
+    -webkit-mask:linear-gradient(#000 60%,transparent);mask:linear-gradient(#000 60%,transparent)}
   `;
   if (!document.getElementById("petcss9")) { const s = document.createElement("style"); s.id = "petcss9"; s.textContent = css; document.head.appendChild(s); }
 
@@ -172,7 +208,13 @@
     c.animate([{ transform: `translate(${x}px,${y}px) rotate(0)` }, { transform: `translate(${x + vx * .6}px,${y - up}px) rotate(${rot * .4}deg)`, offset: .35 }, { transform: `translate(${x + vx}px,${y - up + 140}px) rotate(${rot}deg)`, opacity: 0 }],
       { duration: dur, easing: "cubic-bezier(.2,.7,.4,1)" }).finished.then(() => c.remove()); } };
   const bubbles = (st, x, y, n = 4) => { for (let i = 0; i < n; i++) { const b = add(st, "bub"); b.animate([{ transform: `translate(${x + rnd(-4, 4)}px,${y}px) scale(.5)`, opacity: 0 }, { transform: `translate(${x + rnd(-6, 6)}px,${y - 6}px) scale(1)`, opacity: 1, offset: .3 }, { transform: `translate(${x + rnd(-8, 8)}px,${y - 20}px) scale(1.3)`, opacity: 0 }], { duration: 900, delay: i * 180 }).finished.then(() => b.remove()); } };
-  const PHASE = (() => { const h = new Date().getHours(); return h >= 22 || h < 6 ? "night" : h >= 18 ? "evening" : h < 10 ? "morning" : "day"; })();
+  // the light follows the real sun, roughly for central Russia: sunrise and sunset by month. sunset — the sun on the hills,
+  // evening — the blue hour after it, night — stars and the moon
+  const SUN = [[9, 16.1], [8, 17.2], [7, 18.3], [5.9, 19.6], [4.8, 20.6], [4, 21.2], [4.4, 21], [5.4, 20], [6.6, 18.7], [7.6, 17.4], [8.4, 16.2], [9, 15.9]];
+  const PHASE = (() => { const d = new Date(), h = d.getHours() + d.getMinutes() / 60, [rise, set] = SUN[d.getMonth()];
+    return h < rise - 1 || h >= set + 2 ? "night" : h < rise + 2 ? "morning" : h < set - 1 ? "day" : h < set + .7 ? "sunset" : "evening"; })();
+  // the moon's age today, 0 → 1 (new → full at .5 → new)
+  const MOON = (((Date.now() - Date.UTC(2000, 0, 6, 18, 14)) / 864e5 / 29.530589) % 1 + 1) % 1;
 
   // ---------------- the stage: the card, its floors and its props
   const stage = (hc) => {
@@ -271,24 +313,27 @@
       this.render(); an.forEach((a) => a.cancel());
     }
     place(x, y) { this.x = x; this.y = y; this.z = 0; this.render(); }
-    face(d) { if (d === this.dir) return; this.dir = d; this.el.classList.toggle("r", d > 0);
-      if (!this.moving && !this.held && !this.wet) this.tl.animate([{ transform: "none" }, { transform: "translateY(-4px)" }, { transform: "none" }], { duration: 180, easing: "ease-out" });
-      this.bd.animate([{ transform: "scaleX(.8)" }, { transform: "scaleX(1)" }], { duration: 160, easing: "cubic-bezier(.3,1.6,.5,1)" }); }
+    // turning round: the face narrows to its edge and opens the other way (a turn, not a mirror flip); standing, it blinks on the turn
+    face(d) { if (d === this.dir) return; const o = this.dir; this.dir = d; this.el.classList.toggle("r", d > 0);
+      this.fc.animate([{ transform: `scaleX(${-o})`, easing: "ease-in" }, { transform: `scaleX(${-o * .12})`, offset: .5 }, { transform: `scaleX(${-d * .12})`, offset: .5, easing: "cubic-bezier(.3,1.5,.5,1)" }, { transform: `scaleX(${-d})` }], { duration: 200 });
+      if (!this.moving && !this.held && !this.wet) { this.tl.animate([{ transform: "none" }, { transform: "translateY(-4px)" }, { transform: "none" }], { duration: 200, easing: "ease-out" }); if (this.clip === "idle") this.blink(); } }
     mouth() { return [this.x + (this.dir > 0 ? 1 : -1) * (.5 - MOUTH[0]) * SIZE, this.y - this.z - FEET * SIZE + MOUTH[1] * SIZE]; }
     // --- one frame: eyes follow what matters (a scene's target, else your finger, else a glance), the pupil eases there
     loop() {
-      let px = 0, py = 0, last = performance.now();
+      let px = 0, py = 0, pvx = 0, pvy = 0, lean = 0, last = performance.now();
       const tick = () => {
         if (this.st.dead) return;
         if (!this.el.isConnected) { requestAnimationFrame(tick); return; }
         const p = this.st.pointer, now = performance.now(), fk = frames(last, now); last = now;
         const tgt = this.look || (p && now - p.t < 2500 ? p : null) || this.glance;
-        let tx = 0, ty = 0;
+        let tx = 0, ty = 0, want = 0;
         if (!tgt) { if (now > (this.sacAt || 0)) { this.sac = Math.random() < .35 ? [0, 0] : [rnd(-9, 9), rnd(-7, 4)]; this.sacAt = now + rnd(600, 2200); } [tx, ty] = this.sac || [0, 0]; }
         if (tgt && this.clip !== "sleep" && this.clip !== "yawn") {
           const ex = this.x + (this.dir > 0 ? 1 : -1) * (.5 - EYE[0]) * -SIZE, ey = this.y - this.z - FEET * SIZE + EYE[1] * SIZE;
           let dx = tgt.x - ex, dy = tgt.y - ey; const d = Math.hypot(dx, dy) || 1, m = Math.min(15, d / 3);
           tx = dx / d * m * (this.dir > 0 ? -1 : 1); ty = dy / d * m;
+          // leans a little toward it; something high above — it leans back to look up
+          if (!this.moving && !this.held && !this.wet && this.clip !== "dead") want = clamp(dx / 50, -1, 1) * 3.5 + (dy < -50 ? -this.dir * 2 : 0);
           // something behind it for a while: it turns round
           if (!this.st.busy && !this.moving && Math.sign(dx) !== Math.sign(this.dir) && Math.abs(dx) > 40) {
             this.behind = this.behind || now; if (now - this.behind > 600) { this.face(Math.sign(dx)); this.behind = 0; }
@@ -296,9 +341,12 @@
         }
         const hy = this.held ? this.hy : this.y - this.z, vy = fk ? (hy - (this.lastHy ?? hy)) / fk : 0; this.lastHy = hy;
         ty = clamp(ty - vy * 1.6, -16, 16);
-        const ez = 1 - Math.pow(1 - .22, fk);
-        px += (tx - px) * ez; py += (ty - py) * ez;
+        for (let n = Math.max(1, Math.ceil(fk)), s = fk / n, i = 0; i < n && fk; i++) {
+          pvx += ((tx - px) * .16 - pvx * .5) * s; pvy += ((ty - py) * .16 - pvy * .5) * s; px += pvx * s; py += pvy * s; }
+        px = clamp(px, -17, 17); py = clamp(py, -17, 17);
         if (this.pupil) this.pupil.style.translate = `${px.toFixed(1)}px ${py.toFixed(1)}px`;
+        const nl = lean + (want - lean) * (1 - Math.pow(.9, fk));
+        if (Math.abs(nl - lean) > .005 || (lean && !nl)) { lean = Math.abs(nl) < .02 ? 0 : nl; this.bd.style.rotate = `${lean.toFixed(2)}deg`; }
         requestAnimationFrame(tick);
       };
       tick();
@@ -307,14 +355,17 @@
     async hop(x, y = this.st.ground, { h = 22, ms = 300, quiet = false } = {}) {
       if (Math.abs(x - this.x) > 2) this.face(x > this.x ? 1 : -1);
       this.moving = true;
-      const sp = 300 / ms; this.play("hop", false, sp);
+      const sp = 300 / ms, k = clamp(h / 30, .25, 1), sq = !this.wet; this.play("hop", false, sp);
+      const crouch = sq && this.bd.animate([{ transform: "none" }, { transform: `scale(${1 + .13 * k},${1 - .15 * k})` }], { duration: 100 / sp, easing: "ease-out", fill: "forwards" });
       await sleep(100 / sp);
+      if (crouch) { crouch.cancel(); this.bd.animate([{ transform: `scale(${1 - .1 * k},${1 + .15 * k})` }, { transform: "none", offset: .45 }, { transform: `scale(${1 - .04 * k},${1 + .07 * k})` }], { duration: ms }); }
       const x0 = this.x, y0 = this.y, dir = this.dir, lean = Math.min(1, Math.abs(x - x0) / 20);
       await this.move(ms, (t) => { this.x = x0 + (x - x0) * t; this.y = y0 + (y - y0) * t; this.z = 4 * h * t * (1 - t); this.tilt = -dir * 16 * (1 - 2 * t) * lean; });
       this.z = 0; this.tilt = 0; this.y = y; this.render();
       if (!quiet) dust(this.st, this.x, this.y, -dir, Math.abs(x - x0) > 30 ? 4 : 3);
       if (Math.abs(x - x0) > 30 && !this.wet) this.tl.animate([{ transform: "none" }, { transform: `rotate(${dir * 5}deg)` }, { transform: `rotate(${-dir * 2}deg)` }, { transform: "none" }], { duration: 380, easing: "ease-out" });
-      if (h > 26) { const k = Math.min(1, (h - 20) / 30); this.bd.animate([{ transform: "none" }, { transform: `scale(${1 + .2 * k},${1 - .2 * k})` }, { transform: `scale(${1 - .05 * k},${1 + .05 * k})` }, { transform: "none" }], { duration: 300, easing: "ease-out" }); }
+      if (sq) this.bd.animate([{ transform: `scale(${1 + .2 * k},${1 - .2 * k})` }, { transform: `scale(${1 - .06 * k},${1 + .07 * k})`, offset: .45 }, { transform: `scale(${1 + .02 * k},${1 - .02 * k})`, offset: .75 }, { transform: "none" }],
+        { duration: 240 + 140 * k, easing: "ease-out" });
       (this.st.grass || []).forEach((g) => { if (Math.abs(g.x - this.x) < 24 && Math.abs(this.y - this.st.ground) < 2) g.el.animate([{ transform: `scale(${g.s})` }, { transform: `scale(${g.s}) rotate(${g.x < this.x ? -28 : 28}deg) scaleY(.7)` }, { transform: `scale(${g.s})` }], { duration: 500, easing: "cubic-bezier(.3,1.6,.5,1)" }); });
       const pd = this.st.pond;
       if (pd && !this.wet && Math.abs(this.y - this.st.ground) < 2 && this.x > pd.l && this.x < pd.r) {
@@ -356,7 +407,31 @@
       h.animate([{ transform: `translate(${x}px,${y}px) scale(.3)`, opacity: 0 }, { transform: `translate(${x + rnd(-8, 8)}px,${y - 14}px) scale(1)`, opacity: 1, offset: .3 },
         { transform: `translate(${x + rnd(-16, 16)}px,${y - 34}px) scale(.8)`, opacity: 0 }], { duration: 1100, easing: "ease-out" }).finished.then(() => h.remove()); }, i * 180); }
     async shock() { this.say("!", { size: 14 }); const j = this.hopInPlace(16); await this.once("shock"); await j; }
-    async hopInPlace(h = 14) { await this.move(300, (t) => { this.z = 4 * h * t * (1 - t); }); this.z = 0; this.render(); }
+    async hopInPlace(h = 14) {
+      const k = clamp(h / 30, .2, 1), sq = !this.wet && !this.held;
+      if (sq) this.bd.animate([{ transform: `scale(${1 - .08 * k},${1 + .12 * k})` }, { transform: "none", offset: .45 }, { transform: `scale(${1 - .03 * k},${1 + .05 * k})` }], { duration: 300 });
+      await this.move(300, (t) => { this.z = 4 * h * t * (1 - t); }); this.z = 0; this.render();
+      if (sq) this.bd.animate([{ transform: `scale(${1 + .16 * k},${1 - .16 * k})` }, { transform: `scale(${1 - .04 * k},${1 + .05 * k})`, offset: .5 }, { transform: "none" }], { duration: 200 + 120 * k, easing: "ease-out" });
+    }
+    // a backflip (two quick taps): it turns round its middle, not its feet, so the feet are moved round that middle as it spins
+    async flip() {
+      if (this.moving || this.held || this.wet) return; this.moving = true;
+      const x0 = this.x, d = this.dir, r = (FEET - .5) * SIZE; this.play("hop", false, 1.2); await sleep(80);
+      await this.move(560, (t) => { const a = -d * ease(t) * Math.PI * 2, z = 4 * 34 * t * (1 - t);
+        this.x = x0 - r * Math.sin(a); this.z = z + r - r * Math.cos(a); this.tilt = a * 180 / Math.PI; });
+      this.x = x0; this.z = 0; this.tilt = 0; this.render(); dust(this.st, this.x, this.y, 0, 4);
+      this.bd.animate([{ transform: "scale(1.2,.82)" }, { transform: "none" }], { duration: 260, easing: "ease-out" });
+      burst(this.st, this.x, this.y - 30, 6, 20); this.moving = false; if (this.clip === "hop") this.idle();
+    }
+    // a finger rubbing back and forth over it: it giggles and squirms
+    async tickle() {
+      this.say("хи-хи"); this.play("wiggle", false, 2);
+      await this.bd.animate([{ transform: "none" }, { transform: "rotate(-8deg) scale(1.04,.96)" }, { transform: "rotate(8deg) scale(1.04,.96)" }, { transform: "rotate(-6deg)" }, { transform: "rotate(6deg)" }, { transform: "none" }], { duration: 700 }).finished;
+      this.hearts(1); if (this.clip === "wiggle") this.idle();
+    }
+    async stretch() {
+      await this.bd.animate([{ transform: "none" }, { transform: "scale(.94,1.12)", offset: .45 }, { transform: "scale(.96,1.1) rotate(3deg)", offset: .7 }, { transform: "none" }], { duration: 900, easing: "ease-in-out" }).finished;
+    }
     say(text, o = {}) { pop(this.st, this.x + this.dir * 4, this.y - this.z - SIZE * .7, text, { side: this.dir, ...o }); }
     async lookAround() { const s = this.st; for (const p of [{ x: 0, y: s.ground - 30 }, { x: s.W, y: s.ground - 40 }, { x: this.x, y: -30 }]) { this.glance = p; await sleep(rnd(450, 700)); } this.glance = null; }
   }
@@ -710,72 +785,215 @@
     f.hearts(1); f.idle();
   };
 
+  // Листик: a leaf flutters down and lands on its head; it holds still, looks up — and shakes it off
+  S.leaf = async (st, f) => {
+    const lf = add(st, "leaf"), m = new Date().getMonth(); if (m >= 2 && m <= 7) lf.style.background = "linear-gradient(135deg,#b6f27e,#3fbf5f)";
+    const x0 = clamp(f.x + rnd(-40, 40), 10, st.W - 10), o = { x: x0, y: -12 }; f.look = o;
+    const head = () => [f.x + f.dir * -2, f.y - SIZE * .74], t0 = performance.now(), ms = 2600;
+    while (true) { const t = Math.min(1, (performance.now() - t0) / ms), [hx, hy] = head();
+      o.x = x0 + (hx - x0) * ease(t) + Math.sin(t * 10) * 14 * (1 - t); o.y = -12 + (hy + 12) * t;
+      at(lf, o.x, o.y, `rotate(${Math.sin(t * 10) * 40 * (1 - t)}deg)`); if (t >= 1) break; await raf(); }
+    f.look = { x: f.x, y: -40 }; await sleep(800); f.say("?"); await f.blink(); await sleep(500);
+    const [hx, hy] = head();
+    lf.animate([{ transform: `translate(${hx}px,${hy}px)` }, { transform: `translate(${hx - f.dir * 20}px,${hy - 12}px) rotate(-60deg)`, offset: .3 }, { transform: `translate(${hx - f.dir * 46}px,${st.ground}px) rotate(200deg)`, opacity: 0 }],
+      { duration: 1000, easing: "ease-in" }).finished.then(() => lf.remove());
+    await f.bd.animate([{ transform: "rotate(0)" }, { transform: "rotate(-12deg)" }, { transform: "rotate(12deg)" }, { transform: "rotate(-6deg)" }, { transform: "rotate(0)" }], { duration: 480 }).finished;
+    f.look = null; await f.croak(1);
+  };
+  // Отражение: it hops to the pond's edge, peeks into the water, sees itself — ква? — and gets shy
+  S.mirror = async (st, f) => {
+    const p = st.pond; if (!p) return S.wander(st, f);
+    const side = f.x < p.cx ? 1 : -1, bank = side > 0 ? p.l - 12 : p.r + 12;
+    await f.go(bank, st.ground, { step: 40 }); f.face(side);
+    f.look = { x: bank + side * 22, y: st.ground + 6 }; await sleep(600);
+    await f.once("peek"); ripple(st, bank + side * 22, st.ground + 2, .8); await sleep(400);
+    f.say("ква?"); await sleep(900); bubbles(st, bank + side * 24, st.ground, 2); await sleep(500);
+    f.look = null; await f.once("blush"); f.hearts(1);
+  };
+  // Мошка (between scenes): a gnat comes close and is snapped up on the spot
+  S.gnat = async (st, f) => {
+    const side = f.dir, fl = new Bug(st, "fly", side > 0 ? st.W + 15 : -15, st.ground - 60); fl.r = 6; f.look = fl;
+    await fl.to(clamp(f.x + side * 50, 15, st.W - 15), st.ground - 38, 900); f.face(fl.x > f.x ? 1 : -1);
+    const tg = f.tongue(fl.x, fl.y, 200); await sleep(90); fl.gone(); await tg; f.look = null; await f.once("gulp", 1.5);
+  };
+  // Покормить: you tap the sky — a fly appears there; the frog comes and catches it
+  S.feed = async (st, f, x, y) => {
+    burst(st, x, y, 5, 10); const fl = new Bug(st, "fly", x, y); fl.r = 7; f.look = fl; f.say("!");
+    const tx = clamp(x, 20, st.W - 20), ty = clamp(y, st.ground - 70, st.ground - 32);
+    fl.to(tx, ty, 700); await sleep(500);
+    const side = tx > f.x ? 1 : -1; f.face(side);
+    if (Math.abs(tx - f.x) > 70) await f.go(inField(st, tx - side * 55), st.ground, { step: 40, h: 18, ms: 260 });
+    f.face(fl.x > f.x ? 1 : -1); await f.once("wiggle", 1.6);
+    const tg = f.tongue(fl.x, fl.y); await sleep(100); fl.gone(); await tg;
+    f.look = null; f.say("ням"); await f.once("gulp"); await f.lick(); f.hearts(2);
+  };
+
+  // ---- rare ones: seen now and then, not every visit
+  // Шарик: a balloon drifts in; the frog jumps for the string, floats up a little — уи! — lets go and watches it fly away
+  S.balloon = async (st, f) => {
+    const from = pick([-1, 1]), b = add(st, "bal"); b.style.setProperty("--c", pick(["#ff5d7a", "#ffb02e", "#4fb4ff", "#9b7bff"]));
+    const pos = { x: from < 0 ? -20 : st.W + 20, y: st.ground - 96 }; let held = false, live = true; const t0 = performance.now();
+    const grab = () => [f.x + f.dir * 14, f.y - f.z - SIZE * .4 - 47];   // the string's end in the frog's paw
+    const o = { get x() { return held ? grab()[0] : pos.x; }, get y() { return held ? grab()[1] : pos.y; } }; f.look = o;
+    (async () => { while (live && !st.dead) { const t = (performance.now() - t0) / 1000; at(b, o.x, o.y + (held ? 0 : Math.sin(t * 2.2) * 3), `rotate(${Math.sin(t * 1.7) * 6}deg)`); await raf(); } b.remove(); })();
+    const glide = async (x, y, ms) => { const x0 = pos.x, y0 = pos.y, s = performance.now();
+      while (true) { const k = Math.min(1, (performance.now() - s) / ms), e = ease(k); pos.x = x0 + (x - x0) * e; pos.y = y0 + (y - y0) * e; if (k >= 1) break; await raf(); } };
+    const bx = inField(st, f.x + from * rnd(20, 50));
+    await glide(bx, st.ground - 96, 2400);
+    f.say("!"); const side = bx > f.x ? 1 : -1;
+    if (Math.abs(bx - f.x) > 20) await f.go(bx - side * 14, st.ground, { step: 34, h: 12, ms: 260 });
+    f.face(side); await glide(f.x + f.dir * 14, f.y - 23 - SIZE * .4 - 47, 400); await f.once("wiggle", 1.4);
+    try {
+      f.moving = true; f.play("hop");
+      await f.move(380, (t) => { f.z = 23 * Math.sin(t * Math.PI / 2); });
+      held = true; f.play("joy"); f.say("уи!");
+      await f.move(1500, (t) => { f.z = 23 + 14 * Math.sin(t * Math.PI) + 3 * Math.sin(t * Math.PI * 4); f.tilt = Math.sin(t * Math.PI * 4) * 6; });
+      [pos.x, pos.y] = grab(); held = false;
+      glide(pos.x + rnd(-40, 40), -70, 2600).then(() => { live = false; });
+      await f.move(330, (t) => { f.z = 23 * (1 - t * t); f.tilt = 0; });
+    } finally { f.z = 0; f.tilt = 0; f.render(); f.moving = false; }
+    dust(st, f.x, f.y, 0, 4); f.idle(); f.look = o; await sleep(1500); f.look = null; f.say("…"); await sleep(600); await f.croak(1);
+  };
+  // Звезда желаний (вечером и ночью): a shooting star crosses the sky; the frog closes its eyes and makes a wish
+  S.wish = async (st, f) => {
+    if (!(st.phase === "night" || st.phase === "evening")) return S.rainbow(st, f);
+    const x0 = rnd(st.W * .55, st.W - 20), y0 = rnd(6, 20), x1 = x0 - rnd(140, 200), y1 = y0 + rnd(40, 60), ang = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI;
+    const o = { x: x0, y: y0 }; f.look = o; await sleep(300);
+    const s = add(st, "ssr"), ms = 900, t0 = performance.now();
+    s.animate([{ transform: `translate(${x0}px,${y0}px) rotate(${ang}deg) scaleX(.2)`, opacity: 0 }, { transform: `translate(${x0 + (x1 - x0) * .2}px,${y0 + (y1 - y0) * .2}px) rotate(${ang}deg) scaleX(1)`, opacity: 1, offset: .2 },
+      { transform: `translate(${x1}px,${y1}px) rotate(${ang}deg) scaleX(.6)`, opacity: 0 }], { duration: ms, easing: "ease-in" }).finished.then(() => s.remove());
+    while (performance.now() - t0 < ms) { const k = (performance.now() - t0) / ms; o.x = x0 + (x1 - x0) * k; o.y = y0 + (y1 - y0) * k; await raf(); }
+    f.say("!"); await f.hopInPlace(10); f.look = null;
+    f.play("sleep"); await sleep(700); f.say("…"); await sleep(1500);
+    f.idle(); burst(st, f.x, f.y - 36, 8, 24); f.hearts(3); await f.once("joy");
+  };
+  // Радуга (днём): a rainbow comes up over the field; the frog stares — ого — and hops for joy
+  S.rainbow = async (st, f) => {
+    const cx = inField(st, f.x + pick([-1, 1]) * rnd(60, 110)), r = document.createElement("div"); r.className = "rbw";
+    r.style.cssText = `left:${cx - 110}px;top:${st.ground - 104}px`; st.bg.appendChild(r);
+    f.look = { x: cx, y: st.ground - 90 }; f.face(cx > f.x ? 1 : -1);
+    await r.animate([{ opacity: 0, transform: "scale(.96)" }, { opacity: 1, transform: "none" }], { duration: 1600, easing: "ease-out", fill: "forwards" }).finished;
+    f.say("ого"); await f.once("joy"); await f.hopInPlace(16); f.hearts(2); await sleep(1500); f.look = null;
+    r.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 2000, fill: "forwards" }).finished.then(() => r.remove());
+    await f.croak(1);
+  };
+  const RARE = ["balloon", "wish"];
+
   const WINTER = [10, 11, 0, 1].includes(new Date().getMonth());
+  // the weather: the same for everyone within the same three hours, chosen by the season
+  const WEATHER = (() => { const d = new Date(), seed = ((d.getFullYear() * 13 + d.getMonth()) * 32 + d.getDate()) * 8 + (d.getHours() / 3 | 0);
+    let r = Math.sin(seed * 12.9898) * 43758.5453; r -= Math.floor(r);
+    const odds = WINTER ? [["clear", .35], ["clouds", .22], ["snow", .33], ["fog", .1]] : [["clear", .44], ["clouds", .22], ["rain", .14], ["fog", .07], ["wind", .13]];
+    for (const [k, p] of odds) if ((r -= p) < 0) return k; return "clear"; })();
   const WEIGHTS = { wander: 3, fly: 3, chase: 2, perch: 2, button: 2, coin: 2, rain: WINTER ? 1 : 2, dragonfly: WINTER ? 1 : 2, run: 1, sleep: 1,
-    butterfly: 2, bubble: 2, friend: 1, swim: 2, lily: 2, dance: 1, firefly: 3, ...(WINTER ? { snowflake: 2 } : {}) };
+    butterfly: 2, bubble: 2, friend: 1, swim: 2, lily: 2, dance: 1, firefly: 3, leaf: 2, mirror: 2, ...(WINTER ? { snowflake: 2 } : {}) };
   // low balance: fewer games, more cold, and the RIP drama now and then
-  const COLD = { rip: 3, wander: 2, fly: 2, coin: 2, butterfly: 1, bubble: 1, perch: 1, button: 2, lily: 1, ...(WINTER ? { snowflake: 1 } : {}) };
+  const COLD = { rip: 3, wander: 2, fly: 2, coin: 2, leaf: 1, butterfly: 1, bubble: 1, perch: 1, button: 2, lily: 1, ...(WINTER ? { snowflake: 1 } : {}) };
 
   // the field itself: a soft hill the frog stands on, grass on it, and the sky over it follows the mood
   const decor = (st, mood) => {
     const bg = st.bg, mk = (cls, css = "") => { const e = document.createElement("div"); e.className = cls; e.style.cssText = css; bg.appendChild(e); return e; };
-    bg.innerHTML = "";
-    const ph = st.phase = mood === "sleep" ? "night" : st.phase;
-    const stars = (n) => { for (let i = 0; i < n; i++) mk("star", `left:${rnd(4, 96)}%;top:${rnd(4, st.ground - 14)}px;animation-delay:${-rnd(0, 2.4)}s;animation-duration:${rnd(1.8, 3.4)}s;opacity:${rnd(.4, .9)}`); };
-    if (ph === "night") { mk("night"); mk("moon"); stars(16); }
-    else if (ph === "evening") { mk("dusk"); mk("sun low"); stars(5); }
-    else if (ph === "morning") { mk("dawn"); mk("rays"); mk("sun"); }
-    else { mk("rays"); mk("sun"); }
+    bg.innerHTML = ""; bg.className = "petbg";
+    const ph = st.phase = mood === "sleep" ? "night" : st.phase, wx = st.weather || "clear", W = st.W, G = st.ground;
+    const dark = ph === "night" || ph === "evening", grey = wx === "clouds" || wx === "rain" || wx === "snow" || wx === "fog";
+    const live = (fn, ms) => { const t = setInterval(() => { if (st.dead) { clearInterval(t); return; } if (document.hidden || !st.hc.isConnected) return; fn(); }, ms); };
+    if (dark) bg.classList.add("dark"); if (wx === "wind") bg.classList.add("windy");
+    const stars = (n) => { for (let i = 0; i < n; i++) { const z = rnd(1, 2.4); mk("star" + (z > 2.1 ? " big" : ""), `left:${rnd(2, 98)}%;top:${rnd(3, G - 18)}px;width:${z}px;height:${z}px;animation-delay:${-rnd(0, 3)}s;animation-duration:${rnd(1.8, 4)}s;opacity:${rnd(.35, .95)}`); } };
+    // the moon in today's phase: a shadow slides over the lit disc
+    const moon = (o = 1) => { const w = mk("mw", `opacity:${o}`), m = document.createElement("div"); m.className = "moon"; w.appendChild(m);
+      const off = MOON < .5 ? -Math.max(MOON, .07) / .5 : Math.max(1 - MOON, .07) / .5; m.innerHTML = `<i style="left:${(off * 100).toFixed(1)}%"></i>`; };
 
-    // clouds drifting across, slowly
-    if (ph !== "night") for (let i = 0; i < 2; i++) { const c = mk("cld"), y = rnd(8, Math.max(12, st.ground - 50)), d = rnd(38000, 60000), sc = rnd(.7, 1.1);
-      c.animate([{ transform: `translate(-70px,${y}px) scale(${sc})` }, { transform: `translate(${st.W + 20}px,${y}px) scale(${sc})` }], { duration: d, iterations: Infinity, delay: -d * (i ? .25 : .7) }); }
-    // far and near hills for depth (they drift a little with your finger)
-    const dark = ph === "night", hillTint = dark ? "10,10,40" : "255,255,255";
-    [["far", 22, 13, 61, dark ? .22 : .08], ["mid", 10, 7, 29, dark ? .16 : .1]].forEach(([cls, off, amp, wl, op], j) => {
-      const w = st.W + 24, base = amp + 2, hh = off + base + 6; let d = `M0 ${hh}`;
-      for (let x = 0; x <= w; x += 8) d += ` L${x} ${(base - amp * (.55 + .45 * Math.sin(x / wl + j * 2.1)) * (.6 + .4 * Math.sin(x / (wl * 2.7) + j))).toFixed(1)}`;
-      d += ` L${w} ${hh}Z`;
-      mk(cls, `top:${st.ground - off - base + 2}px;width:${w}px;height:${hh}px`).innerHTML = `<svg width="${w}" height="${hh}"><path d="${d}" fill="rgb(${hillTint})" fill-opacity="${op}"/></svg>`;
+    // ---- the sky
+    if (ph === "night") { mk("night"); if (!grey) mk("milky"); stars(grey ? 6 : 34); moon(grey ? .45 : 1); }
+    else if (ph === "evening") { mk("twi"); stars(grey ? 3 : 12); moon(grey ? .35 : .8); }
+    else if (ph === "sunset") { mk("sunset"); mk("sdisk", `left:${W * .46}px;top:${G - 34}px;opacity:${grey ? .45 : 1}`); mk("sun low"); }
+    else if (ph === "morning") { mk("dawn"); if (!grey) mk("rays"); mk("sun", grey ? "opacity:.4" : ""); }
+    else { if (!grey) mk("rays"); mk("sun", grey ? "opacity:.35" : ""); }
+    if (wx === "clouds" || wx === "snow") mk("ovc"); if (wx === "rain") mk("ovc wet"); if (wx === "fog") mk("haze");
+    if (wx === "snow") mk("frost");
+
+    // clouds drift across: more of them and heavier when it is grey, quicker in the wind, lit pink at sunset
+    const nc = { clear: 2, clouds: 5, rain: 6, snow: 4, fog: 2, wind: 3 }[wx] ?? 2;
+    const cc = wx === "rain" ? "rgba(214,220,232,.4)" : ph === "sunset" ? "rgba(255,186,176,.42)" : ph === "evening" ? "rgba(190,176,236,.22)" : ph === "night" ? "rgba(190,200,255,.1)" : "rgba(255,255,255,.28)";
+    for (let i = 0; i < nc; i++) { const c = mk("cld", `background:${cc}`), y = rnd(6, Math.max(12, G - 48)), d = rnd(38000, 60000) / (wx === "wind" ? 3 : 1), sc = rnd(.7, 1.1) * (grey ? 1.3 : 1);
+      c.animate([{ transform: `translate(-80px,${y}px) scale(${sc})` }, { transform: `translate(${W + 30}px,${y}px) scale(${sc})` }], { duration: d, iterations: Infinity, delay: -d * ((i + rnd(0, 1)) / nc) }); }
+    // birds over the hills at sunrise and sunset
+    if ((ph === "sunset" || ph === "morning") && wx !== "rain" && wx !== "snow") {
+      const col = ph === "sunset" ? "rgba(60,20,50,.55)" : "rgba(255,255,255,.6)", bird = `<svg width="10" height="5" viewBox="0 0 10 5"><path d="M0 1.5Q2.5 0 5 3Q7.5 0 10 1.5" fill="none" stroke="${col}" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+      [[0, 0], [12, 5], [-9, 6]].forEach(([dx, dy], i) => { const e = mk("brd"); e.innerHTML = bird; e.firstChild.style.animationDelay = `${-i * .17}s`; const y = G * .3 + dy, d = 26000;
+        e.animate([{ transform: `translate(${W + 30 + dx}px,${y}px)` }, { transform: `translate(${-40 + dx}px,${y - 14}px)` }], { duration: d, iterations: Infinity, delay: -d * .35 }); });
+    }
+    // a falling star now and then on a clear night
+    if (ph === "night" && !grey) live(() => { if (Math.random() > .3) return; const s = mk("ssr"), x0 = rnd(W * .3, W), y0 = rnd(4, G * .4), x1 = x0 - rnd(70, 120), y1 = y0 + rnd(20, 40), a = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI;
+      s.animate([{ transform: `translate(${x0}px,${y0}px) rotate(${a}deg) scaleX(.2)`, opacity: 0 }, { opacity: .9, offset: .25 }, { transform: `translate(${x1}px,${y1}px) rotate(${a}deg) scaleX(.7)`, opacity: 0 }], { duration: 700, easing: "ease-in" }).finished.then(() => s.remove()); }, 5000);
+
+    // ---- far and near hills for depth, with a tree line and bushes (they drift a little with your finger)
+    const hc = ph === "sunset" ? "72,22,74" : dark ? "10,10,40" : "255,255,255";
+    [["far", 22, 13, 61, ph === "sunset" ? .42 : dark ? .24 : .08], ["mid", 10, 7, 29, ph === "sunset" ? .3 : dark ? .17 : .1]].forEach(([cls, off, amp, wl, op], j) => {
+      const w = W + 24, base = amp + 2, hh = off + base + 6, up = 14, ry = (x) => base - amp * (.55 + .45 * Math.sin(x / wl + j * 2.1)) * (.6 + .4 * Math.sin(x / (wl * 2.7) + j));
+      let d = `M0 ${hh}`; for (let x = 0; x <= w; x += 8) d += ` L${x} ${ry(x).toFixed(1)}`; d += ` L${w} ${hh}Z`;
+      let deco = "";
+      if (j === 0) for (let x = rnd(10, 40); x < w - 10; x += rnd(22, 60)) { const y = ry(x) + 2, k = rnd(.7, 1.2);
+        deco += Math.random() < .6 ? `<path d="M${x} ${(y - 11 * k).toFixed(1)}L${(x + 4.5 * k).toFixed(1)} ${y}H${(x - 4.5 * k).toFixed(1)}Z"/>` : `<circle cx="${x}" cy="${(y - 5 * k).toFixed(1)}" r="${(4.5 * k).toFixed(1)}"/><rect x="${x - .7}" y="${(y - 2).toFixed(1)}" width="1.4" height="3"/>`; }
+      else for (let x = rnd(30, 80); x < w - 20; x += rnd(70, 140)) { const y = ry(x) + 2; deco += `<circle cx="${x}" cy="${y - 2}" r="4"/><circle cx="${x + 5}" cy="${y - 3.5}" r="5"/><circle cx="${x + 10}" cy="${y - 1.5}" r="3.6"/>`; }
+      mk(cls, `top:${G - off - base + 2 - up}px;width:${w}px;height:${hh + up}px`).innerHTML = `<svg width="${w}" height="${hh + up}"><g transform="translate(0 ${up})" fill="rgb(${hc})" fill-opacity="${op}"><path d="${d}"/>${deco}</g></svg>`;
     });
     st.on("pointermove", (e) => { const b = st.hc.getBoundingClientRect(), k = (e.clientX - b.left) / b.width - .5;
       bg.querySelector(".far").style.translate = `${(-k * 10).toFixed(1)}px 0`; bg.querySelector(".mid").style.translate = `${(-k * 5).toFixed(1)}px 0`; });
-    // the hill: a gentle wave along the ground, lighter than the card, fading down behind the balance
-    const W = st.W, top = st.ground - 5, h = st.H - top;
+    // the hill: a gentle wave along the ground, lighter than the card, fading down behind the balance (snow lies on it in winter)
+    const top = G - 5, h = st.H - top, snowy = wx === "snow" || (WINTER && new Date().getMonth() !== 10);
     let d = `M0 ${5 + Math.sin(0) * 1.5}`; for (let x = 0; x <= W + 20; x += 20) d += ` L${x} ${(5 + Math.sin(x / 37) * 1.6 + Math.sin(x / 13) * .5).toFixed(1)}`;
-    const id = "hg" + Math.random().toString(36).slice(2, 7), tint = "255,255,255";
+    const id = "hg" + Math.random().toString(36).slice(2, 7), tint = ph === "sunset" ? "255,222,196" : dark ? "190,200,255" : "255,255,255", a0 = snowy ? .4 : dark ? .12 : .18;
     mk("hill", `top:${top}px;width:${W}px;height:${h}px`).innerHTML = `<svg width="${W}" height="${h}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="rgb(${tint})" stop-opacity=".18"/><stop offset=".5" stop-color="rgb(${tint})" stop-opacity="0"/></linearGradient></defs>
-      <path d="${d} L${W + 20} ${h} L0 ${h}Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="rgb(${tint})" stroke-opacity=".35" stroke-width="1.5"/></svg>`;
+      <stop offset="0" stop-color="rgb(${tint})" stop-opacity="${a0}"/><stop offset="${snowy ? .25 : .5}" stop-color="rgb(${tint})" stop-opacity="0"/></linearGradient></defs>
+      <path d="${d} L${W + 20} ${h} L0 ${h}Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="rgb(${tint})" stroke-opacity="${snowy ? .75 : .35}" stroke-width="${snowy ? 2.6 : 1.5}"/></svg>`;
     // the pond with a lily pad and reeds, on the right side of the field
     if (W >= 300) {
       const pw = 96, cx = W - 60 - pw / 2, p = st.pond = { l: cx - pw / 2, r: cx + pw / 2, cx, w: pw };
-      mk("pond", `left:${p.l}px;top:${st.ground - 5}px;width:${pw}px`);
-      [[p.l + 3, 24, 0], [p.l + 9, 17, -.8], [p.r - 5, 21, -1.6]].forEach(([x, h, dl]) => mk("reed", `left:${x}px;top:${st.ground - h + 3}px;height:${h}px;animation-delay:${dl}s`));
-      const le = add(st, "lily", "<i></i>"), lx = cx + 10; le.style.left = `${lx}px`; le.style.top = `${st.ground + 1}px`;
+      mk("pond" + (ph === "sunset" ? " warm" : dark ? " dark" : ""), `left:${p.l}px;top:${G - 5}px;width:${pw}px`);
+      [[p.l + 3, 24, 0], [p.l + 9, 17, -.8], [p.r - 5, 21, -1.6]].forEach(([x, h, dl]) => mk("reed", `left:${x}px;top:${G - h + 3}px;height:${h}px;animation-delay:${dl}s`));
+      const le = add(st, "lily", "<i></i>"), lx = cx + 10; le.style.left = `${lx}px`; le.style.top = `${G + 1}px`;
       le.animate([{ transform: "translateY(0) rotate(0)" }, { transform: "translateY(1px) rotate(2deg)" }, { transform: "translateY(0) rotate(0)" }], { duration: 3200, iterations: Infinity, easing: "ease-in-out" });
-      p.lily = { x: lx, el: le, dip: () => { le.animate([{ translate: "0 0" }, { translate: "0 3px" }, { translate: "0 -1px" }, { translate: "0 0" }], { duration: 600, easing: "ease-out" }); ripple(st, lx, st.ground + 2, 1.2); } };
+      p.lily = { x: lx, el: le, dip: () => { le.animate([{ translate: "0 0" }, { translate: "0 3px" }, { translate: "0 -1px" }, { translate: "0 0" }], { duration: 600, easing: "ease-out" }); ripple(st, lx, G + 2, 1.2); } };
     }
-    mk("mist", `top:${st.ground + 4}px`);
+    mk("mist", `top:${G + 4}px`);
+    const inPond = (x, m) => st.pond && x > st.pond.l - m && x < st.pond.r + m;
+    // pebbles, and in autumn a mushroom or two
+    for (let x = rnd(40, 90); x < W - 20; x += rnd(80, 150)) if (!inPond(x, 10)) mk("pb", `left:${x}px;top:${G + rnd(4, 9)}px;transform:scale(${rnd(.7, 1.2).toFixed(2)})`);
+    if ([7, 8, 9].includes(new Date().getMonth())) for (let i = 0; i < 2; i++) { const x = rnd(20, W - 30); if (!inPond(x, 12)) mk("msh", `left:${x}px;top:${G + 4}px;transform:scale(${rnd(.8, 1.1).toFixed(2)})`); }
     st.grass = [];
     const blade = `<svg viewBox="0 0 16 10" width="16" height="10"><path d="M3 10C3 6 1.5 3 0 1c2.5 1.5 4 4.5 4.5 9M8 10c0-4 .5-7 1.5-10 1 3 .5 7 0 10M12 10c.5-3 2-5.5 4-7-1.5 2-2.5 4.5-2.8 7" fill="#fff"/></svg>`;
     for (let x = rnd(14, 30); x < W - 14; x += rnd(30, 54)) {
-      if (st.pond && x > st.pond.l - 8 && x < st.pond.r + 8) continue;
-      const s = +rnd(.7, 1.15).toFixed(2), el = mk("gt", `left:${x}px;top:${st.ground + 2}px;transform:scale(${s})`); el.innerHTML = blade;
+      if (inPond(x, 8)) continue;
+      const s = +rnd(.7, 1.15).toFixed(2), el = mk("gt", `left:${x}px;top:${G + 2}px;transform:scale(${s})`); el.innerHTML = blade;
       el.firstChild.style.animationDelay = `${-rnd(0, 3)}s`; st.grass.push({ x, el, s });
     }
-    // little flowers in the grass
+    // little flowers in the grass (not under snow)
     const FL = ["#fff", "#ffc2dd", "#fff3a0", "#cfe3ff"];
-    for (let x = rnd(24, 60); x < W - 20; x += rnd(46, 90)) { if (st.pond && x > st.pond.l - 10 && x < st.pond.r + 10) continue;
-      mk("flw", `left:${x}px;top:${st.ground + 2}px;background:${pick(FL)};animation-delay:${-rnd(0, 3)}s`); }
-    if (ph === "night" || ph === "evening") for (let i = 0; i < (ph === "night" ? 4 : 2); i++) { const e = add(st, "ffl"); let t = rnd(0, 99); const k = rnd(.6, 1.2), cx = rnd(30, W - 30), cy = rnd(20, st.ground - 4); let last = performance.now();
+    if (!snowy) for (let x = rnd(24, 60); x < W - 20; x += rnd(46, 90)) { if (inPond(x, 10)) continue;
+      mk("flw", `left:${x}px;top:${G + 2}px;background:${pick(FL)};animation-delay:${-rnd(0, 3)}s`); }
+
+    // ---- the weather on the field
+    if (wx === "rain") {
+      // rain: streaks falling all the time (compositor loops), splashes on the ground, rings on the pond
+      for (let i = 0; i < 26; i++) { const e = mk("rn"), x = rnd(-10, W + 10), d = rnd(520, 760), y1 = G + rnd(0, 14);
+        e.animate([{ transform: `translate(${x}px,-14px) rotate(12deg)`, opacity: .9 }, { transform: `translate(${x - 9}px,${y1}px) rotate(12deg)`, opacity: .6 }], { duration: d, iterations: Infinity, delay: -rnd(0, d), easing: "linear" }); }
+      for (let i = 0; i < 9; i++) { const e = mk("spl"), x = rnd(10, W - 10); if (inPond(x, 0)) continue; const d = rnd(700, 1100);
+        e.animate([{ transform: `translate(${x}px,${G + 3}px) scale(.3)`, opacity: .9 }, { transform: `translate(${x}px,${G + 3}px) scale(1.4)`, opacity: 0, offset: .5 }, { transform: `translate(${x}px,${G + 3}px) scale(1.4)`, opacity: 0 }], { duration: d, iterations: Infinity, delay: -rnd(0, d) }); }
+      if (st.pond) live(() => ripple(st, rnd(st.pond.l + 10, st.pond.r - 10), G + 2, .55), 650);
+    }
+    if (wx === "fog") [[G - 26, 16000, 0], [G - 6, 21000, 1], [G - 52, 26000, 2]].forEach(([y, d, i]) => { const e = mk("fog");
+      e.animate([{ transform: `translate(-30px,${y}px)` }, { transform: `translate(30px,${y}px)` }], { duration: d, iterations: Infinity, direction: "alternate", easing: "ease-in-out", delay: -i * 5000 }); });
+    if (wx === "wind") live(() => { const l = mk("leaf"), y0 = rnd(10, G - 6), d = rnd(2600, 3800), m = new Date().getMonth(); if (m >= 2 && m <= 7) l.style.background = "linear-gradient(135deg,#b6f27e,#3fbf5f)";
+      l.animate([{ transform: `translate(-20px,${y0}px) rotate(0)` }, { transform: `translate(${W * .5}px,${y0 + rnd(-24, 18)}px) rotate(300deg)`, offset: .5 }, { transform: `translate(${W + 20}px,${y0 + rnd(-10, 30)}px) rotate(640deg)` }], { duration: d, easing: "linear" }).finished.then(() => l.remove()); }, 1700);
+    if (dark && wx !== "rain") for (let i = 0; i < (ph === "night" ? 4 : 2); i++) { const e = add(st, "ffl"); let t = rnd(0, 99); const k = rnd(.6, 1.2), cx = rnd(30, W - 30), cy = rnd(20, G - 4); let last = performance.now();
       const tick = () => { if (st.dead) return; const now = performance.now(), fk = frames(last, now); last = now; if (!st.hc.isConnected) { requestAnimationFrame(tick); return; } t += .006 * k * fk; at(e, cx + Math.sin(t * 2.1) * 34, cy + Math.cos(t * 1.4) * 12); e.style.opacity = String(.3 + .7 * Math.abs(Math.sin(t * 5))); requestAnimationFrame(tick); }; tick(); }
-    if (WINTER) { const t = setInterval(() => { if (st.dead) { clearInterval(t); return; } if (document.hidden || !st.hc.isConnected) return; const s = add(st, "sn"), x = rnd(0, W), d = rnd(4500, 7500), sz = rnd(.5, 1.2);
-      s.animate([{ transform: `translate(${x}px,-6px) scale(${sz})` }, { transform: `translate(${x + rnd(-30, 30)}px,${st.ground + rnd(-4, 30)}px) scale(${sz})`, opacity: .8, offset: .92 }, { transform: `translate(${x + rnd(-30, 30)}px,${st.ground + 30}px) scale(${sz})`, opacity: 0 }], { duration: d, easing: "linear" }).finished.then(() => s.remove()); }, 900); }
+    if (wx === "snow") live(() => { const s = add(st, "sn"), x = rnd(0, W), d = rnd(4500, 7500), sz = rnd(.5, 1.2);
+      s.animate([{ transform: `translate(${x}px,-6px) scale(${sz})` }, { transform: `translate(${x + rnd(-30, 30)}px,${G + rnd(-4, 30)}px) scale(${sz})`, opacity: .8, offset: .92 }, { transform: `translate(${x + rnd(-30, 30)}px,${G + 30}px) scale(${sz})`, opacity: 0 }], { duration: d, easing: "linear" }).finished.then(() => s.remove()); }, 450);
   };
 
   // a frog living on this card. mood: "ok" (everything), "cold" (low balance: shivers, says «брр»), "sleep" (paused: sleeps)
-  window.petLive = async (hc, { skin = 3, mood = "ok", scenes = null, gap = [1500, 3500], time = null, onPlay = null } = {}) => {
+  window.petLive = async (hc, { skin = 3, mood = "ok", scenes = null, gap = [1500, 3500], time = null, weather = null, onPlay = null } = {}) => {
     const played = () => { try { onPlay && onPlay(); } catch {} };
     await raf();
     if (window.petKill) window.petKill();
@@ -791,24 +1009,38 @@
       if (Math.abs(st.W - old.W) > 2 || Math.abs(st.ground - old.ground) > 2) { st.hc = old.hc; window.petKill(); return false; }
       for (const [type, fn] of st.binds) { old.hc.removeEventListener(type, fn); card.addEventListener(type, fn); }
       return true;
-    }; st.phase = time || PHASE; decor(st, mood); const f = new Frog(st, skin); f.skin = skin; f.mood = null; await f.ready;
+    }; st.phase = time || PHASE; st.weather = weather || WEATHER; decor(st, mood); const f = new Frog(st, skin); f.skin = skin; f.mood = null; await f.ready;
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     // your finger / cursor: the frog looks at it; a tap on the card calls it over; a tap on the frog startles it
     st.on("pointermove", (e) => { const b = st.hc.getBoundingClientRect(); st.pointer = { x: e.clientX - b.left, y: e.clientY - b.top, t: performance.now() }; });
     st.on("pointerdown", (e) => { const b = st.hc.getBoundingClientRect(); st.pointer = { x: e.clientX - b.left, y: e.clientY - b.top, t: performance.now() }; });
-    st.on("click", (e) => { if (e.target.closest("button,a") || st.busy) return; const b = st.hc.getBoundingClientRect(), x = e.clientX - b.left;
+    // a tap on the pond: rings on the water, the frog glances there; a tap in the sky: a fly for the frog (once in a while)
+    st.on("click", (e) => { if (e.target.closest("button,a")) return; const b = st.hc.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top, p = st.pond;
+      if (p && x > p.l && x < p.r && Math.abs(y - st.ground) < 12) { ripple(st, x, st.ground + 2, 1); const g = f.glance = { x, y: st.ground }; setTimeout(() => { if (f.glance === g) f.glance = null; }, 1200); played(); return; }
+      if (st.busy) return;
+      const now = performance.now();
+      if (y < st.ground - 34 && now - (st.feedAt || 0) > 6000) { st.feedAt = now; st.feed = { x: clamp(x, 20, st.W - 20), y: Math.max(y, 12) }; played(); return; }
       st.call = inField(st, x); played(); });
     let taps = 0, tapAt = 0;
     f.el.addEventListener("click", async (e) => { e.stopPropagation(); if (st.noClick) { st.noClick = false; return; } navigator.vibrate?.(12); played();
       if (st.wake) { st.wake(); st.wake = null; return; }
-      if (f.moving) return;
       const now = performance.now(); taps = now - tapAt < 900 ? taps + 1 : 1; tapAt = now;
       if (taps >= 3) { taps = 0; f.say("!!", { size: 11 }); st.flee = true; return; }
+      if (f.moving) return;
+      if (taps === 2 && !st.busy) { f.flip(); return; }
       f.shock(); });
     // the finger right next to it: a little flinch
     st.on("pointermove", () => { const p = st.pointer, now = performance.now();
       if (st.busy || f.moving || now - (st.flinchAt || 0) < 2500 || Math.hypot(p.x - f.x, p.y - (f.y - SIZE * .4)) > 30) return;
       st.flinchAt = now; f.hopInPlace(7); f.bd.animate([{ transform: "none" }, { transform: `translateX(${-f.dir * 3}px) scale(.94,1.06)` }, { transform: "none" }], { duration: 260 }); });
+    // tickle: the finger goes back and forth over the frog (4 turns within a second)
+    const tk = { x: null, dir: 0, rev: [] };
+    st.on("pointermove", () => { const p = st.pointer;
+      if (!p || Math.hypot(p.x - f.x, p.y - (f.y - f.z - SIZE * .4)) > 34) { tk.x = null; tk.dir = 0; return; }
+      if (tk.x == null) tk.x = p.x;
+      else if (Math.abs(p.x - tk.x) > 3) { const d = Math.sign(p.x - tk.x); if (tk.dir && d !== tk.dir) tk.rev.push(p.t); tk.dir = d; tk.x = p.x; }
+      tk.rev = tk.rev.filter((t) => p.t - t < 1000);
+      if (tk.rev.length >= 4 && !st.busy && !f.moving && !f.held && p.t - (st.tickleAt || 0) > 3000) { st.tickleAt = p.t; tk.rev = []; played(); f.tickle(); } });
     // grab it: drag the frog around and throw it (it flies, bounces, gets dizzy — or lands in the pond); hold still on it — it melts
     f.el.addEventListener("pointerdown", (e) => {
       if (st.busy || f.moving || f.held || still) return;
@@ -873,7 +1105,9 @@
     await f.go(inField(st, rnd(70, 120)), st.ground, { step: 40, h: 20 });
     if (mood === "sleep") { f.face(-1); st.busy = true;
       while (await home()) { await S.sleep(st, f, { long: true }); f.say(pick(["м?", "…", ""])); await sleep(2400); } return; }
-    const WT = { ...(mood === "cold" ? COLD : WEIGHTS) }; if (!(st.phase === "night" || st.phase === "evening")) delete WT.firefly; if (!st.pond) { delete WT.swim; delete WT.lily; }
+    const WT = { ...(mood === "cold" ? COLD : WEIGHTS) }; if (!(st.phase === "night" || st.phase === "evening")) delete WT.firefly; if (!st.pond) { delete WT.swim; delete WT.lily; delete WT.mirror; }
+    if (st.weather === "rain") { delete WT.rain; delete WT.butterfly; delete WT.dragonfly; delete WT.bubble; delete WT.firefly; if (WT.swim) WT.swim += 1; }
+    if (st.weather === "snow" && WT.snowflake) WT.snowflake += 2;
     const list = scenes || Object.keys(WT);
     const bag = []; list.forEach((k) => { for (let i = 0; i < (WT[k] || 1); i++) bag.push(k); });
     let last = null, i = 0;
@@ -884,6 +1118,7 @@
         if (!st.hc.isConnected && !(await home())) return;
         if (st.call != null) { const x = st.call; st.call = null; f.look = { x, y: st.ground - 10 }; await f.go(x + (f.x < x ? -20 : 20), st.ground, { step: 38, h: 18, ms: 260 }); f.look = null; await f.croak(1); continue; }
         if (st.grab) { await st.grab; continue; }
+        if (st.feed) { const q = st.feed; st.feed = null; st.busy = true; try { await S.feed(st, f, q.x, q.y); } finally { st.busy = false; f.look = null; } continue; }
         if (st.cheer) { st.cheer = false; st.busy = true; const b = st.btn; f.look = { x: (b.l + b.r) / 2, y: b.t }; f.say("ква!");
           for (let i = 0; i < 3; i++) { f.play("joy"); await f.hopInPlace(18 + i * 8); burst(st, f.x, f.y - 30, 6, 22); } f.look = null; f.hearts(3); await f.once("blush"); st.busy = false; continue; }
         if (st.flee) { st.flee = false; st.busy = true; await S.run(st, f); st.busy = false; continue; }
@@ -897,10 +1132,13 @@
         else if (r < .58 && st.pointer && performance.now() - st.pointer.t < 2000) { f.face(st.pointer.x > f.x ? 1 : -1); await f.once("peek"); }
         else if (r < .6) await f.lookAround();
         else if (r < .64) { await f.once("yawn", 1.5); await f.blink(); }
+        else if (r < .67) { await f.stretch(); await f.blink(); }
+        else if (r < .69) { st.busy = true; try { await S.gnat(st, f); } finally { st.busy = false; f.look = null; } }
         else await sleep(rnd(500, 900));
       }
       if (st.grab) { await st.grab; continue; }
       let k = scenes ? list[i++ % list.length] : pick(bag); if (!scenes) while (k === last) k = pick(bag);
+      if (!scenes && mood === "ok" && Math.random() < .07) k = pick(RARE);
       if (!scenes && mood === "cold" && !last) k = "rip";   // the drama first, so it is seen
       last = k;
       st.busy = true; const log = (window.petLog ||= []); log.push([k, Math.round(performance.now())]); if (log.length > 40) log.shift();
