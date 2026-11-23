@@ -833,12 +833,7 @@ async def api_onboarding_event(request: web.Request) -> web.Response:
     if not isinstance(stage, str) or stage not in {"cabinet", "gift_view", "wizard_1", "wizard_2", "wizard_3", "wizard_4"}:
         return json_error("Некорректное событие", 400)
     await db.record_onboarding_event(telegram_id, stage)
-    if stage == "wizard_2":
-        try:
-            from app import install_test
-            await install_test.enter(telegram_id)
-        except Exception:
-            logging.getLogger(__name__).exception("Тест шага установки: не записали группу %s", telegram_id)
+    # wizard_2 no longer enters the install-step A/B test: the step has no app to install, /connect finds it.
     if stage in {"cabinet", "gift_view"}:
         from app.live import web_user_action
         await web_user_action(telegram_id, stage)

@@ -1306,118 +1306,32 @@
     },
     on() { track("wizard_1"); },
   };
-  SCR.wizhave = {
-    h() {
-      const list = appsFor(wiz.platform);
-      return hc("teal", { cls: "compact", h: "Какое у вас?", p: "Добавим ключ прямо в него" }) +
-        `<div class="agrid">${list.map((a, i) => `<button type="button" data-act="haveapp" data-v="${esc(a.id)}" style="--i:${i}">${appIcon(a, 54)}<b>${esc(a.name)}</b></button>`).join("")}` +
-        `<button type="button" data-act="haveapp" data-v="other" style="--i:${list.length}"><span class="aio">📋</span><b>Другое</b></button></div>` +
-        NOTE("Нет в списке — выберите «Другое»: скопируем ключ, а вы вставите его в своё приложение.");
-    },
-  };
+  // One step, no app to pick: /connect in the browser finds the installed app itself, or offers the one to download.
   SCR.wiz2 = {
     h() {
-      const list = appsFor(wiz.platform);
-      if (wiz.has && (wiz.client === "other" || list.some((a) => a.id === wiz.client))) {
-        const own = appById(wiz.client), other = wiz.client === "other";
-        // The app is a guess from another device (or the user's own pick): ask, and make «install» just as easy.
-        return hc("teal", { ill: other ? "📋" : appIcon(own, 92), h: other ? "Своё приложение" : `${esc(own.name)} уже есть?`,
-          p: other ? "Создадим ключ — вы вставите его в своё приложение" : `Если ${esc(own.name)} стоит на этом устройстве, сразу добавим в него ключ`,
-          x: '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>',
-          pill: other ? "Создать ключ" : "Да, создать ключ", pa: 'data-act="create" id="wizOk"' }) +
-          (other ? "" : cd([[E("⬇️") + TT(`Нет, установить ${esc(own.name)}`, "бесплатно, займёт полминуты") + V(CV), 'data-act="hasnot"']])) +
-          ST("Как это работает") +
-          tl([["1", "Нажмите «Создать ключ»", "отдельный ключ для этого устройства"],
-            ["2", other ? "Скопируйте ключ и вставьте в приложение" : `Подтвердите добавление в ${esc(own.name)}`, other ? "обычно «+» → «Импорт из буфера»" : "кнопка откроет приложение"],
-            ["3", "Включите VPN", `${dayPrice()} ₽ в день, пока пользуетесь`]]) +
-          cd([[E("🔄") + "Выбрать другое приложение" + V(CV), 'data-act="hasyes"'],
-          ]);
-      }
-      if (!list.some((a) => a.id === wiz.client)) wiz.client = prefApp(wiz.platform);
-      const a = appById(wiz.client);
-      if (!a) {
-        return hc("teal", { ill: PLAT_EMO[wiz.platform] || "📱", h: "Пока нет инструкции", p: `Для ${esc(platTitle(wiz.platform))} напишите в поддержку — поможем`,
-          pill: "Написать в поддержку", pa: 'data-act="support"' });
-      }
-      const dl = (a.stores || {})[wiz.platform];
-      if (dl && me && me.install_ab === "new") {
-        // A/B test (app/install_test.py), group B. Two steps on one card: install, then add the key. «Добавить» works from the start (the app may already be
-        // there); after «Скачать» step 1 is ticked and step 2 lights up, so coming back from the store shows what to press.
-        const went = Boolean(wiz.went), sn = storeName(wiz.platform, a);
-        const steps = `<div class="wsteps"><div class="wst ${went ? "ok" : "cur"}"><span class="wn">${went ? CHK(14) : "1"}</span>
-          <span class="wt"><b>Установите ${esc(a.name)}</b><span>${went ? `Открыли ${esc(sn)}` : "бесплатно, полминуты"}</span></span>
-          <button type="button" class="wsb${went ? " ghost" : ""}" data-act="store">${went ? "Ещё раз" : "Скачать"}</button></div>
-          <div class="wst${went ? " cur" : ""}"><span class="wn">2</span><span class="wt"><b>Добавьте ключ в ${esc(a.name)}</b>
-          <span>${went ? "Установили? Жмите кнопку ниже" : "Если уже стоит — жмите сразу"}</span></span></div></div>`;
-        return hc("teal", { cls: "wiz2s" + (went ? " went" : ""), ill: appIcon(a, 64), h: "Подключим за 2 шага", p: `${esc(a.name)} — бесплатно в ${esc(sn)}`, x: steps,
-          pill: `Добавить в ${esc(a.name)}`, pa: 'data-act="addkey" id="wizOk"' }) +
-          apkRow(a) + guideRow(a) + appMore(list, a) +
-          cd([[E(PLAT_EMO[wiz.platform] || "📱") + esc(platTitle(wiz.platform)) + V("Другое устройство " + CV), 'data-act="replat"']]);
-      }
-      return hc("teal", { ill: appIcon(a, 92), h: `Установите ${esc(a.name)}`, p: `Бесплатно в ${storeName(wiz.platform, a)}. Уже стоит — жмите ✓`,
+      return hc("teal", { ill: PLAT_EMO[wiz.platform] || "📱", h: "Подключим VPN", p: `Создадим ключ для ${esc(platTitle(wiz.platform))} и сами найдём приложение для VPN`,
         x: '<div class="dots"><i class="on"></i><i class="on"></i><i></i></div>',
-        pill: dl ? "Скачать" : "Готово, установлено", pa: dl ? 'data-act="store"' : 'data-act="create"', r: "chk", rl: "Приложение установлено", ra: 'data-act="create" id="wizOk"' }) +
-        apkRow(a) + guideRow(a) + appMore(list, a) +
+        pill: "Подключить", pa: 'data-act="addkey" id="wizOk"' }) +
         ST("Как это работает") +
-        tl([["1", `Установите ${esc(a.name)}`, "займёт полминуты"], ["2", "Вернитесь сюда и нажмите ✓", "создадим ключ для этого устройства"],
-          ["3", "Подключите в один тап", `${dayPrice()} ₽ в день, пока пользуетесь`]]) +
+        tl([["1", "Нажмите «Подключить»", "создадим отдельный ключ для этого устройства"],
+          ["2", "Откроется страница подключения", "найдёт ваше приложение и добавит ключ, а если его нет — подскажет, какое скачать"],
+          ["3", "Включите VPN", `${dayPrice()} ₽ в день, пока пользуетесь`]]) +
         cd([[E(PLAT_EMO[wiz.platform] || "📱") + esc(platTitle(wiz.platform)) + V("Другое устройство " + CV), 'data-act="replat"']]);
     },
-    on() {
-      track("wizard_2");
-      // «Можно выбрать другое приложение» shows once per user, under the apps row.
-      if (cur && cur.el.querySelector(".atip")) store.set("alt_tip", 1);
-    },
+    on() { track("wizard_2"); },
   };
-  // «Скачать APK напрямую»: the app's file straight from its site, for Android without Google Play
-  // or where the store does not open. Only when the app has a direct link for this platform.
-  function apkRow(a) {
-    const url = a && (a.direct || {})[wiz.platform];
-    return url ? `<button type="button" class="gde apk" data-act="apk"><span class="gi">${APK_IC}</span>
-      <span class="al"><b>Скачать APK напрямую</b><span>Если Google Play нет или не работает</span></span>${CV}</button>` : "";
-  }
-  const APK_IC = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>';
-  // «Как установить»: the app's guide (article or video) from the admin settings; nothing when it is not set.
-  function guideRow(a) {
-    return a && a.guide ? `<button type="button" class="gde" data-act="guide" data-v="${esc(a.id)}"><span class="gi">${GUIDE_IC}</span>
-      <span class="al"><b>Инструкция по установке</b><span>Пошагово, как поставить ${esc(a.name)}</span></span>${CV}</button>` : "";
-  }
-  const GUIDE_IC = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>';
-  // The recommended app stays in the card; the rest fold into «Другие приложения · N» and open as a list.
-  function appMore(list, a) {
-    if (list.length < 2) return "";
-    const others = list.filter((x) => x.id !== a.id);
-    const rows = list.map((x, i) => `<button type="button" class="ar" data-act="client" data-v="${esc(x.id)}" style="--i:${i}">${appIcon(x, 42)}<span class="at"><b>${esc(x.name)}</b>
-      <span>${i ? "" : "★ рекомендуем · "}${x.deep_link ? "ключ добавится сам" : "ключ вставляется вручную"}</span></span><span class="ak">${x.id === a.id ? CHK(18) : ""}</span></button>`).join("");
-    const names = others.slice(0, 3).map((x) => esc(x.name)).join(", ") + (others.length > 3 ? ` и ещё ${others.length - 3}` : "");
-    const tip = store.get("alt_tip") ? "" : '<div class="atip">💡 Можно выбрать другое приложение<button type="button" class="x" data-act="tipx" aria-label="Закрыть">✕</button></div>';
-    return `<div class="altw"><div class="alt"><button type="button" class="ah" data-act="appmore" aria-expanded="false"><span class="ava">${others.slice(0, 3).map((x) => appIcon(x, 30)).join("")}</span>
-      <span class="al"><b>Другие приложения</b><span>${names}</span></span>${CV}</button><div class="als"><div>${rows}</div></div></div>${tip}</div>`;
-  }
   SCR.wiz3 = {
     h() {
-      const a = appById(wiz.client) || { name: "приложение" };
       const short = wiz.url ? wiz.url.replace(/^https?:\/\//, "") : "";
-      if (wiz.client === "other") {
-        return hc("green", { rb: "ключ", ill: "🛡️", h: "Добавьте ключ в приложение", p: "Скопируйте и вставьте его в своё приложение для VPN",
-          x: `<div class="mono" data-act="copykey" role="button" title="Скопировать ключ">${esc(short)}</div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>`,
-          pill: "Скопировать ключ", pa: 'data-act="copykey"' }) +
-          ST("Дальше") +
-          tl([["1", "Скопируйте ключ", "кнопка выше"], ["2", "Вставьте в приложение", "обычно «+» → «Импорт из буфера» или «Добавить подписку»"],
-            ["3", "Включите VPN", `<b>${dayPrice()} ₽ в день</b>, пока устройство добавлено`]]) +
-          `<div style="height:12px"></div>` +
-          cd([[E("🆘") + "Не получилось — помогите" + V(CV), 'data-act="helpconnect"'], [E("🏠") + "В кабинет" + V(CV), 'data-act="home"']]);
-      }
-      return hc("green", { rb: "ключ", ill: "🛡️", h: "Подключите VPN", p: `Ключ добавится в ${esc(a.name)} сам`,
+      return hc("green", { rb: "ключ", ill: "🛡️", h: "Ключ готов", p: "Страница подключения найдёт приложение и добавит в него ключ",
         x: `<div class="mono" data-act="copykey" role="button" title="Скопировать ключ">${esc(short)}</div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>`,
-        pill: `Добавить в ${esc(a.name)}`, pa: 'data-act="connect"', r: "copy", rl: "Скопировать ключ", ra: 'data-act="copykey"' }) +
+        pill: "Подключить", pa: 'data-act="connect"', r: "copy", rl: "Скопировать ключ", ra: 'data-act="copykey"' }) +
         ST("Дальше") +
-        tl([["1", `Подтвердите добавление в ${esc(a.name)}`, "кнопка выше откроет приложение"],
+        tl([["1", "Добавьте ключ в приложение", "кнопка выше откроет страницу подключения"],
           ["2", "Включите VPN в приложении", "разрешите VPN-подключение, если спросит"],
           ["3", "Готово — VPN работает", `<b>${dayPrice()} ₽ в день</b>, пока устройство добавлено`]]) +
         `<div style="height:12px"></div>` +
-        cd([a.guide && [E("📖") + `Как подключить в ${esc(a.name)}` + V(CV), `data-act="guide" data-v="${esc(a.id)}"`],
-          [E("🆘") + "Не получилось — помогите" + V(CV), 'data-act="helpconnect"'], [E("🏠") + "В кабинет" + V(CV), 'data-act="home"']]);
+        cd([[E("🆘") + "Не получилось — помогите" + V(CV), 'data-act="helpconnect"'], [E("🏠") + "В кабинет" + V(CV), 'data-act="home"']]);
     },
     on() { track("wizard_4"); },
   };
@@ -3023,67 +2937,12 @@
     },
     reopen: () => pay.url && tg.openLink(pay.url),
     plat(b) { haptic(); wiz.platform = b.dataset.v; pickApp(wiz.platform); go("wiz2"); },
-    // «X уже стоит» was a guess from another device: show the download screen for this one.
-    hasnot() { haptic(); wiz.has = false; rerender(false); },
-    hasyes() { haptic(); go("wizhave"); },
-    haveapp(b) {
-      notify("success");
-      wiz.client = b.dataset.v;
-      wiz.has = true;
-      store.set("app_" + wiz.platform, wiz.client);
-      go("wiz2");
-    },
     replat: () => go("wiz1"),
     guide(b) {
       const a = appById(b.dataset.v);
       if (!a || !a.guide) return;
       haptic();
       tg.openLink ? tg.openLink(a.guide) : window.open(a.guide, "_blank", "noopener");
-    },
-    tipx(b) { const t = b.closest(".atip"); if (t) t.remove(); },
-    appmore(b) {
-      haptic();
-      const tip = cur && cur.el.querySelector(".atip");
-      if (tip) tip.remove();
-      const alt = b.closest(".alt"), on = alt.classList.toggle("on");
-      b.setAttribute("aria-expanded", String(on));
-    },
-    client(b) {
-      haptic();
-      wiz.client = b.dataset.v;
-      wiz.went = false;
-      const el = cur.el, alt = el.querySelector(".alt");
-      if (alt) alt.classList.remove("on");
-      // Swap the card in place: the icon pops in, texts fade, the list folds back with the new app checked.
-      T(() => {
-        if (!cur || cur.el !== el) return;
-        const tmp = document.createElement("div");
-        tmp.innerHTML = SCR.wiz2.h();
-        const swap = (o, n, still) => { if (o && n) { if (still) n.classList.add("still"); o.replaceWith(n); } };
-        swap(el.querySelector(".hc .ill"), tmp.querySelector(".hc .ill"));
-        ["H", "P"].forEach((c) => { const n = tmp.querySelector(`.hc .${c}`); if (n) n.classList.add("fx"); swap(el.querySelector(`.hc .${c}`), n); });
-        swap(el.querySelector(".hc .acts"), tmp.querySelector(".hc .acts"));
-        swap(el.querySelector(".hc .wsteps"), tmp.querySelector(".hc .wsteps"), true);
-        [".gde.apk", ".gde:not(.apk)"].forEach((sel) => {
-          const g = el.querySelector(sel), ng = tmp.querySelector(sel);
-          if (ng) ng.classList.add("still");
-          if (g && ng) swap(g, ng); else if (g) g.remove(); else if (ng) { const w = el.querySelector(sel === ".gde.apk" ? ".gde:not(.apk), .altw" : ".altw"); if (w) w.before(ng); }
-        });
-        swap(el.querySelector(".alt"), tmp.querySelector(".alt"), true);
-        const tl = el.querySelector(".tl"), ntl = tmp.querySelector(".tl");
-        swap(tl && tl.parentNode, ntl && ntl.parentNode, true);
-      }, alt ? 280 : 0);
-    },
-    apk() {
-      const a = appById(wiz.client);
-      const url = a && (a.direct || {})[wiz.platform];
-      if (url) { haptic(); tg.openLink(url); }
-    },
-    store() {
-      const a = appById(wiz.client);
-      const url = a && (a.stores || {})[wiz.platform];
-      if (url && !wiz.went) { wiz.went = true; T(() => rerender(), 400); }
-      if (url) { haptic(); tg.openLink(url); }
     },
     create: () => createDevice(cur.el.querySelector("#wizOk")),
     addkey: () => createDevice(cur.el.querySelector("#wizOk"), { open: true }),
