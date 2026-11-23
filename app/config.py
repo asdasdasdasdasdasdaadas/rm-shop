@@ -98,9 +98,8 @@ class Settings(BaseSettings):
     cabinet_price_enabled: bool = True
     # Cards (sendWidget) in the chat; off — every card goes as an ordinary message with buttons.
     widgets_enabled: bool = True
-    # The living frog on the cabinet's home card (webapp/frog.js). While its A/B test runs (app/frog_test.py) the test decides.
-    frog_enabled: bool = False
-    # Who always sees the living frog, whatever the switch and the test say: Telegram IDs and @usernames.
+    # The living frog on the cabinet's home card (webapp/frog.js) is the default; only its A/B test (app/frog_test.py) holds it back.
+    # Who always sees it and stays out of that test: Telegram IDs and @usernames.
     frog_user_ids: str = ""
     # Кейсы с лягушкой (app/frog_cases.py): one for a real top-up from case_topup_min_rub (0 — none),
     # case_subscription_count for each monthly autopay charge, case_dup_bonus_rub to the balance for a frog already owned.
@@ -354,7 +353,6 @@ SHOP_KEYS = frozenset(
         "welcome_support_enabled",
         "cabinet_price_enabled",
         "widgets_enabled",
-        "frog_enabled",
         "frog_user_ids",
         "cases_enabled",
         "case_topup_min_rub",

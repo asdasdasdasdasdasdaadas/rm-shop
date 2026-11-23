@@ -11,7 +11,7 @@ class RouterOfferTest(unittest.IsolatedAsyncioTestCase):
     async def load(self, store):
         async def get(key): return store.get(key, '')
         async def put(key, value): store[key] = value
-        with patch.object(db, 'get_kv', side_effect=get), patch.object(db, 'set_kv', side_effect=put), patch.object(db, 'migrate_legacy_promo_codes', AsyncMock()), patch.object(shop_config, 'set_shop_overlay') as apply:
+        with patch.object(db, 'get_kv', side_effect=get), patch.object(db, 'set_kv', side_effect=put), patch.object(db, 'migrate_legacy_promo_codes', AsyncMock()), patch('app.frog_test.stop', AsyncMock()), patch.object(shop_config, 'set_shop_overlay') as apply:
             await shop_config.load_shop_overlay()
         return apply.call_args.args[0]
 

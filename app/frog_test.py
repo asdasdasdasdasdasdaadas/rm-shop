@@ -1,6 +1,6 @@
 """The living frog on the cabinet's home card (webapp/frog.js): on/off and its A/B test.
 
-Outside a test the frog shows when «Лягушка на главной» is on in Настройки (admins always see it, to check).
+Outside a test everyone sees the frog: it is the default home card.
 People listed in «Кому показывать всегда» (frog_user_ids: IDs and @usernames) see it in any case and stay out of the test.
 While a test runs, everyone who opens the cabinet is put in one group for good:
   frog  — the home card with the living frog;
@@ -81,8 +81,7 @@ async def view(telegram_id: int) -> dict:
                ON CONFLICT (test_id, telegram_id) DO UPDATE SET arm = frog_arms.arm RETURNING arm""",
             int(test["id"]), int(telegram_id), _arm(test["id"], telegram_id))
         return {"on": arm == "frog", "ab": str(arm)}
-    s = get_settings()
-    return {"on": bool(s.frog_enabled) or int(telegram_id) in s.admin_id_set, "ab": None}
+    return {"on": True, "ab": None}
 
 
 async def record(telegram_id: int, kind: str) -> bool:
@@ -210,5 +209,4 @@ async def overview() -> dict:
 
     items = [{"id": t["id"], "running": t["stopped_at"] is None, "started_at": iso(t["started_at"]),
               "stopped_at": iso(t["stopped_at"]), **summarize(by[t["id"]])} for t in tests]
-    return {"items": items, "window_days": WINDOW_DAYS, "return_days": RETURN_DAYS, "frog_pct": FROG_PCT,
-            "enabled": bool(get_settings().frog_enabled)}
+    return {"items": items, "window_days": WINDOW_DAYS, "return_days": RETURN_DAYS, "frog_pct": FROG_PCT}

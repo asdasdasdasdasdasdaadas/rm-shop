@@ -121,7 +121,6 @@ def validate_shop(body: dict) -> dict:
     out["cabinet_price_enabled"] = bool(body.get("cabinet_price_enabled", True))
     out["autopay_enabled"] = bool(body.get("autopay_enabled", get_settings().autopay_enabled))
     out["widgets_enabled"] = bool(body.get("widgets_enabled", get_settings().widgets_enabled))
-    out["frog_enabled"] = bool(body.get("frog_enabled", get_settings().frog_enabled))
     out["frog_user_ids"] = _as_people(body.get("frog_user_ids", get_settings().frog_user_ids), "Лягушка: кому показывать")
     out["cases_enabled"] = bool(body.get("cases_enabled", get_settings().cases_enabled))
     out["case_topup_min_rub"] = _as_int(body.get("case_topup_min_rub", get_settings().case_topup_min_rub), 0, 100000, "Кейс: пополнение от")
@@ -242,7 +241,6 @@ def snapshot() -> dict:
             "cabinet_price_enabled": s.cabinet_price_enabled,
             "autopay_enabled": s.autopay_enabled,
             "widgets_enabled": s.widgets_enabled,
-            "frog_enabled": s.frog_enabled,
             "frog_user_ids": s.frog_user_ids,
             "cases_enabled": s.cases_enabled,
             "case_topup_min_rub": s.case_topup_min_rub,
@@ -332,6 +330,14 @@ async def load_shop_overlay() -> None:
     if max_n != 100000:
         data["balance_topup_max"] = 100000
         await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
+    # The living frog is the default for everyone now: the old on/off switch goes, and a frog A/B test still running
+    # is stopped once, since it would hold half the people on the still picture.
+    if data.pop("frog_enabled", None) is not None:
+        await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
+    if not await db.get_kv("frog_for_all_v1"):
+        from app import frog_test
+        await frog_test.stop()
+        await db.set_kv("frog_for_all_v1", "1")
     # Karing in a saved list: Mac from the App Store, not GitHub; not offered on Android at all.
     if not await db.get_kv("karing_stores_v2"):
         for app in data.get("vpn_apps") or []:

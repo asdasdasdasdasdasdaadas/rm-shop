@@ -78,7 +78,8 @@ class KaringStoresOnce(unittest.IsolatedAsyncioTestCase):
         async def set_kv(k, v):
             kv[k] = v
         with patch.object(shop_config.db, "get_kv", get_kv), patch.object(shop_config.db, "set_kv", set_kv), \
-                patch.object(shop_config.db, "migrate_legacy_promo_codes", AsyncMock()):
+                patch.object(shop_config.db, "migrate_legacy_promo_codes", AsyncMock()), \
+                patch("app.frog_test.stop", AsyncMock()):
             await shop_config.load_shop_overlay()
             karing = vpn_apps.public_vpn_apps()[0]
             self.assertEqual(karing["id"], "karing")
