@@ -2650,6 +2650,8 @@ async def api_tg_cabinet(request: web.Request) -> web.Response:
                 return _tg_json(await tg_cabinet.places())
             if what == "targets":
                 return _tg_json(await tg_cabinet.targets())
+            if what == "results":
+                return _tg_json(await tg_cabinet.results())
             return _tg_json({"ok": False, "error": "Неизвестный раздел"}, 404)
         try:
             body = await request.json()
@@ -2661,6 +2663,8 @@ async def api_tg_cabinet(request: web.Request) -> web.Response:
             return _tg_json(await tg_cabinet.check_place(str(body.get("username") or "")))
         if what == "create":
             return _tg_json(await tg_cabinet.create(body))
+        if what == "target":
+            return _tg_json(await tg_cabinet.set_target(bool(body.get("auto")), body.get("rub")))
         if what == "greeting":
             return _tg_json(await tg_cabinet.set_greeting(int(body.get("link_id") or 0), str(body.get("text") or ""),
                                                           body["followup"] if "followup" in body else ...))

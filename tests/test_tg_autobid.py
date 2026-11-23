@@ -389,12 +389,91 @@ class CabinetDb(unittest.IsolatedAsyncioTestCase):
         kw = deliver.await_args.kwargs
         self.assertEqual((kw["telegram_id"], kw["body"], kw["kind"]), (40, "Аня, соцсети всё ещё не грузятся?", "nudge_ad_followup"))
 
+    async def test_cabinet_target_is_used_by_the_autobid(self):
+        t = await tg_cabinet.set_target(False, 1)
+        self.assertEqual((t["auto"], t["effective"]), (False, 1))
+        with patch("app.tg_ads.call", AsyncMock(return_value={})):
+            await tg_cabinet.set_autobid(23, True, 4)          # no own target
+        for i in range(2):
+            await self.pool.execute(
+                "INSERT INTO users (telegram_id, username, first_name, ad_link_id) VALUES ($1, 'x', 'X', $2)", 60 + i, self.link)
+        await db.set_job_report("tg_ads", {"rate": 100})
+        # 30 views, 3 people → 100 per 1000; 1 ₽ at 100 ₽/TON → cap 1 TON: down from 2.5.
+        with patch("app.tg_ads.call", AsyncMock(return_value={"ad_id": 23, "cpm": 1, "status": "active"})) as call:
+            await tg_autobid.run_autobid(datetime.now(timezone.utc))
+        call.assert_awaited_once_with("editAd", ad_id=23, cpm=1.0)
+        cab = await tg_cabinet.cabinet("7d")
+        self.assertEqual(cab["target"]["effective"], 1)
+        self.assertEqual(cab["ads"][0]["link"]["verdict"]["code"], "early")
+
+    async def test_results_by_place_and_mixed(self):
+        await self.pool.execute("UPDATE tg_ads SET spent_rub = 40")
+        await self.pool.execute(
+            """INSERT INTO payment_receipts (payment_key, telegram_id, plan_code, amount, first_payment, referral_enabled)
+               VALUES ('r1', 7, 'm1', 100, TRUE, FALSE)""")
+        r = await tg_cabinet.results()
+        self.assertEqual(r["total"], {"spent_rub": 40, "revenue": 100, "profit": 60, "roi": 250})
+        self.assertEqual([(p["username"], p["profit"]) for p in r["places"]], [("hitvpnbot", 60)])
+        self.assertEqual(r["mixed"], [])
+        await self.pool.execute("""UPDATE tg_ads SET target = '{"type":"bots","bots":[{"username":"a_bot"},{"username":"b_bot"}]}'""")
+        r = await tg_cabinet.results()
+        self.assertEqual((r["places"], len(r["mixed"])), ([], 1))
+
+    async def test_schedule_offer_sent_on_monday_and_applied(self):
+        from app import tg_schedule
+        offer = {"off": [2, 3], "views": 40, "spent": 0.1, "currency": "TON", "ads": [{"ad_id": 23, "title": "Боты"}]}
+        bot = SimpleNamespace(send_message=AsyncMock())
+        monday = datetime(2026, 11, 23, 8, 0, tzinfo=timezone.utc)   # 11:00 in Moscow
+        with patch.object(tg_schedule, "current_offer", AsyncMock(return_value=offer)), \
+                patch.object(tg_autobid, "_targets", AsyncMock(return_value=[1])):
+            self.assertFalse(await tg_schedule.run_offer(bot, monday - timedelta(days=1)))
+            self.assertTrue(await tg_schedule.run_offer(bot, monday))
+            self.assertFalse(await tg_schedule.run_offer(bot, monday + timedelta(hours=2)))   # once a week
+        self.assertIn("2:00–4:00", bot.send_message.await_args.args[1])
+        self.assertIsNone(await tg_schedule.current_offer())   # the queries run; 1 person is far from 30
+        with patch("app.tg_ads.call", AsyncMock(return_value={"status": "active"})) as call:
+            self.assertIn("у 1 объявлений", await tg_schedule.apply_offer())
+            self.assertEqual(await tg_schedule.apply_offer(), "Уже применено")
+        call.assert_awaited_once_with("editAd", ad_id=23, schedule={"week_hours_mask": tg_schedule.mask_without([2, 3]),
+                                                                     "timezone": 10800})
+
     async def test_greeting_and_followup_saved_together(self):
         await tg_cabinet.set_greeting(self.link, "Привет", "Дожим")
         row = await self.pool.fetchrow("SELECT greeting, followup FROM ad_links WHERE id = $1", self.link)
         self.assertEqual((row["greeting"], row["followup"]), ("Привет", "Дожим"))
         await tg_cabinet.set_greeting(self.link, "Привет 2")       # followup untouched when not given
         self.assertEqual(await self.pool.fetchval("SELECT followup FROM ad_links WHERE id = $1", self.link), "Дожим")
+
+
+class MoneyRulesTest(unittest.TestCase):
+    def test_auto_target_is_a_third_of_what_a_person_pays(self):
+        self.assertEqual(tg_cabinet.auto_target({30: {"users": 10, "revenue": 1500}})[0], 50)
+        self.assertEqual(tg_cabinet.auto_target({30: {"users": 2, "revenue": 900}, 14: {"users": 6, "revenue": 600}})[0], 33)
+        self.assertIsNone(tg_cabinet.auto_target({14: {"users": 4, "revenue": 600}})[0])
+
+    def test_verdict(self):
+        def ltv(n14, per14, n30=0, per30=None):
+            return [{"days": 7, "users": n14, "per_user": per14}, {"days": 14, "users": n14, "per_user": per14},
+                    {"days": 30, "users": n30, "per_user": per30}]
+        self.assertEqual(tg_cabinet.verdict(ltv(6, 160), 10, 1000)["code"], "scale")   # 100 ₽ a person, pays 160
+        self.assertEqual(tg_cabinet.verdict(ltv(6, 110), 10, 1000)["code"], "hold")
+        self.assertEqual(tg_cabinet.verdict(ltv(6, 40), 10, 1000)["code"], "stop")
+        self.assertEqual(tg_cabinet.verdict(ltv(6, 40, 5, 200), 10, 1000)["code"], "scale")   # 30 days wins when known
+        self.assertEqual(tg_cabinet.verdict(ltv(3, 900), 10, 1000)["code"], "early")
+        self.assertEqual(tg_cabinet.verdict(ltv(6, 40), 10, 0)["code"], "none")
+
+
+class ScheduleOfferTest(unittest.TestCase):
+    def test_offer_hours_with_views_and_nobody(self):
+        from app import tg_schedule
+        views = [50 if h < 7 else 100 for h in range(24)]
+        people = [0 if h in (2, 3, 4) else 2 for h in range(24)]
+        o = tg_schedule.offer_from(views, people, [0.1] * 24)
+        self.assertEqual((o["off"], o["views"], o["spent"]), ([2, 3, 4], 150, 0.3))
+        self.assertIsNone(tg_schedule.offer_from(views, [0 if h in (2, 3) else 1 for h in range(24)], [0] * 24))  # < 30
+        self.assertIsNone(tg_schedule.offer_from(views, [5 if h < 6 else 0 for h in range(24)], [0] * 24))  # < 8 h left
+        self.assertEqual(tg_schedule.mask_without([0, 1])[0], (1 << 24) - 1 - 3)
+        self.assertEqual(tg_schedule.ranges([2, 3, 4, 7, 23]), "2:00–5:00, 7:00–8:00, 23:00–24:00")
 
 
 class AlertButtonsTest(unittest.IsolatedAsyncioTestCase):

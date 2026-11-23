@@ -9,7 +9,8 @@ Autobid keeps an ad on the lowest CPM at which it is still shown:
     The CPM goes back to the last one that worked (or the one it started from) and stays there: raising more
     would only cost money once the place comes back;
   * «человек не дороже N ₽»: once an ad has brought a few people, the CPM is kept at or below
-    N ÷ rate × people per 1000 views, so a person from it costs no more than N.
+    N ÷ rate × people per 1000 views, so a person from it costs no more than N. N is the ad's own target, else
+    the cabinet's (by default a third of what a person from the ads pays within 30 days, tg_cabinet.target).
 Budgets are never added to. The only money that moves is «Вернуть остаток», pressed by hand: the ad is paused and
 ten minutes later (the API's rule) its remaining budget goes back to the account.
 
@@ -252,6 +253,8 @@ async def run_autobid(now: datetime | None = None) -> int:
     views = await _recent_views()
     people = await _people(now)
     rate = ((await db.get_job_report("tg_ads")) or {}).get("rate")
+    from app import tg_cabinet
+    default_target = (await tg_cabinet.target())["effective"] if rows else None
     changed = 0
     for r in rows:
         ab, ad = dict(r), {"cpm": r["cpm"], "status": r["status"], "is_paused": r["is_paused"], "remaining": r["remaining"]}
@@ -263,7 +266,7 @@ async def run_autobid(now: datetime | None = None) -> int:
             ab["max_cpm"] = ceiling(ab, _d(r["cpm"]))
             await pool.execute("UPDATE tg_ad_autobid SET max_cpm = $2 WHERE ad_id = $1", r["ad_id"], ab["max_cpm"])
         seen_views, came = people.get(int(r["ad_id"]), (0, 0))
-        cap, cap_note = person_cap(ab.get("max_user_rub"), rate, seen_views, came)
+        cap, cap_note = person_cap(ab.get("max_user_rub") or default_target, rate, seen_views, came)
         step = decide(ab, ad, views.get(int(r["ad_id"]), []), now, cap, cap_note)
         if step["action"] == "set" and step["cpm"] != _d(r["cpm"]):
             try:
@@ -532,8 +535,9 @@ async def tick() -> None:
     bot = getattr(runtime, "bot", None)
     if bot is None:
         return
-    from app import ad_followup
-    for name, step in (("тревоги", run_alerts), ("сводка", run_digest), ("дожим с рекламы", ad_followup.send_due)):
+    from app import ad_followup, tg_schedule
+    for name, step in (("тревоги", run_alerts), ("сводка", run_digest), ("дожим с рекламы", ad_followup.send_due),
+                       ("часы показа", tg_schedule.run_offer)):
         try:
             await step(bot)
         except Exception:

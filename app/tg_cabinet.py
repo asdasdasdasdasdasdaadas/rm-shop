@@ -160,6 +160,71 @@ def ltv_view(ltv: dict, users: int, spent_rub) -> list[dict]:
     return out
 
 
+TARGET_SHARE = 3      # the automatic target: a person may cost a third of what people pay within 30 (or 14) days
+MIN_COHORT = 5        # people who had the time to pay, before anything is concluded from them
+SCALE_AT = 1.5        # people paid this many times what they cost → «масштабировать»
+
+
+def merge_cohorts(links: dict) -> dict[int, dict]:
+    merged: dict[int, dict] = {}
+    for x in links.values():
+        for days, c in (x.get("ltv") or {}).items():
+            m = merged.setdefault(int(days), {"users": 0, "revenue": 0})
+            m["users"] += c["users"]
+            m["revenue"] += c["revenue"]
+    return merged
+
+
+def auto_target(merged: dict) -> tuple[int | None, str]:
+    """A third of what one person from the ads pays within 30 days (14 while too few had 30 days)."""
+    for days in (30, 14):
+        c = merged.get(days) or {}
+        if int(c.get("users") or 0) >= MIN_COHORT:
+            per = c["revenue"] / c["users"]
+            return max(1, int(per / TARGET_SHARE)), f"треть от {round(per)} ₽, что человек с рекламы платит за {days} дней"
+    return None, "мало данных: нужно хотя бы 5 человек, пришедших 14+ дней назад"
+
+
+async def target(links: dict | None = None) -> dict:
+    """The cabinet-wide «человек не дороже»: automatic (from LTV) or fixed. Autobid uses it for every ad whose
+    own target is empty."""
+    saved = await db.get_job_report("tg_ads_target") or {}
+    auto_rub, basis = auto_target(merge_cohorts(links if links is not None else await _links()))
+    is_auto = saved.get("auto", True)
+    rub = saved.get("rub")
+    return {"auto": is_auto, "rub": rub, "auto_rub": auto_rub, "basis": basis,
+            "effective": auto_rub if is_auto else (int(rub) if rub else None)}
+
+
+async def set_target(auto: bool, rub=None) -> dict:
+    value = int(Decimal(str(rub))) if rub not in (None, "", 0, "0") else None
+    if not auto and value is not None and value <= 0:
+        raise ValueError("Цена человека должна быть больше нуля")
+    await db.set_job_report("tg_ads_target", {"auto": bool(auto), "rub": value})
+    return {"ok": True, **(await target())}
+
+
+def verdict(ltv: list[dict], users: int, spent_rub) -> dict:
+    """What to do with an ad by money: масштабировать / держать / выключить, or рано while < MIN_COHORT people
+    had 14 days. ltv is ltv_view()."""
+    if not spent_rub or not users:
+        return {"code": "none", "text": "нет расхода в ₽" if users else "никто не пришёл"}
+    cost = spent_rub / users
+    by = {x["days"]: x for x in ltv}
+    best = next((by[d] for d in (30, 14) if by.get(d) and by[d]["users"] >= MIN_COHORT), None)
+    if not best:
+        n = by.get(14, {}).get("users", 0)
+        return {"code": "early", "text": f"рано: 14 дней прожили {n} из {MIN_COHORT} нужных человек"}
+    per = best["per_user"] or 0
+    times = per / cost if cost else 0
+    head = f"человек стоит {round(cost)} ₽, за {best['days']} дней платит {round(per)} ₽"
+    if times >= SCALE_AT:
+        return {"code": "scale", "text": f"{head} — можно добавлять бюджет"}
+    if times >= 1:
+        return {"code": "hold", "text": f"{head} — окупается, но без запаса"}
+    return {"code": "stop", "text": f"{head} — не окупается"}
+
+
 async def _links() -> dict[int, dict]:
     """Per ad link tied to Telegram Ads: who came, connected, paid, revenue, spend in ₽ and the payback day."""
     pool = db._pool_req()
@@ -256,6 +321,8 @@ async def cabinet(period: str = "7d", now: datetime | None = None) -> dict:
                       "users": link["users"], "connected": link["connected"], "paid": link["paid"],
                       "revenue": link["revenue"], "spent_rub": link["spent_rub"], "payback_days": link["payback_days"],
                       "ltv": ltv_view(link["ltv"], link["users"], link["spent_rub"]),
+                      "verdict": verdict(ltv_view(link["ltv"], link["users"], link["spent_rub"]), link["users"],
+                                         link["spent_rub"]),
                       "shared": shared.get(link["id"], 1) > 1,
                       "per_1000": round(link["users"] * 1000 / views, 1) if views and shared.get(link["id"], 1) == 1 else None}
                      if link else None),
@@ -263,12 +330,7 @@ async def cabinet(period: str = "7d", now: datetime | None = None) -> dict:
     log = await pool.fetch(
         """SELECT l.*, a.title FROM tg_ad_log l LEFT JOIN tg_ads a ON a.ad_id = l.ad_id ORDER BY l.at DESC LIMIT 60""")
     every = {"users": sum(x["users"] for x in links.values()), "spent_rub": sum(x["spent_rub"] or 0 for x in links.values())}
-    merged: dict[int, dict] = {}
-    for x in links.values():
-        for days, c in (x["ltv"] or {}).items():
-            m = merged.setdefault(int(days), {"users": 0, "revenue": 0})
-            m["users"] += c["users"]
-            m["revenue"] += c["revenue"]
+    merged = merge_cohorts(links)
     tot, prev_tot = cur["tot"], before["tot"]
     spent_rub = None
     if report.get("rate"):
@@ -284,6 +346,7 @@ async def cabinet(period: str = "7d", now: datetime | None = None) -> dict:
                   "per_user": tot["spent"] / tot["users"] if tot["users"] else None,
                   "per_paid": tot["spent"] / tot["paid"] if tot["paid"] else None},
         "ltv": ltv_view(merged, every["users"], every["spent_rub"]),
+        "target": await target(links),
         "person_rub": round(every["spent_rub"] / every["users"], 1) if every["users"] and every["spent_rub"] else None,
         "rate": rate,
         "hard_max_cpm": float(tg_autobid.HARD_MAX_CPM),
@@ -293,6 +356,61 @@ async def cabinet(period: str = "7d", now: datetime | None = None) -> dict:
         "bot": get_settings().bot_username,
         "brand": getattr(get_settings(), "brand_name", "") or "VPN",
     }
+
+
+async def results() -> dict:
+    """«Итог»: money in and out per ad link, and per place where a link's ads target that one place only — there the
+    people and payments are the place's own. Links whose ads target several places are listed apart: their money
+    cannot be split by place."""
+    pool = db._pool_req()
+    links = await _links()
+    ads = await pool.fetch(
+        """SELECT ad_id, title, status, ad_link_id, target, spent, currency, gone_at FROM tg_ads
+           WHERE ad_link_id IS NOT NULL ORDER BY ad_id""")
+    by_link: dict[int, dict] = {}
+    for a in ads:
+        link = links.get(int(a["ad_link_id"]))
+        if not link:
+            continue
+        e = by_link.setdefault(int(a["ad_link_id"]), {
+            "link_id": link["id"], "slug": link["slug"], "title": link["title"], "ads": [], "places": {},
+            "users": link["users"], "paid": link["paid"], "revenue": link["revenue"], "spent_rub": link["spent_rub"],
+            "verdict": verdict(ltv_view(link["ltv"], link["users"], link["spent_rub"]), link["users"], link["spent_rub"])})
+        e["ads"].append({"ad_id": int(a["ad_id"]), "title": a["title"], "status": a["status"], "gone": bool(a["gone_at"])})
+        summary = target_summary(a["target"])
+        for p in summary["places"]:
+            key = (p["username"] or p["title"]).lower()
+            if key:
+                e["places"][key] = {"username": p["username"], "title": p["title"], "kind": p["kind"]}
+        if not summary["places"] and summary["text"]:
+            e["places"]["~" + summary["text"]] = {"username": "", "title": summary["text"], "kind": "channel"}
+    rows = []
+    for e in by_link.values():
+        e["profit"] = e["revenue"] - (e["spent_rub"] or 0)
+        e["roi"] = round(e["revenue"] * 100 / e["spent_rub"]) if e["spent_rub"] else None
+        e["places"] = list(e["places"].values())
+        e["mixed"] = len(e["places"]) > 1
+        rows.append(e)
+    rows.sort(key=lambda e: -e["profit"])
+    places: dict[str, dict] = {}
+    for e in rows:
+        if e["mixed"] or not e["places"]:
+            continue
+        p = e["places"][0]
+        key = (p["username"] or p["title"]).lower()
+        x = places.setdefault(key, {**p, "users": 0, "paid": 0, "revenue": 0, "spent_rub": 0, "links": []})
+        for k in ("users", "paid", "revenue"):
+            x[k] += e[k]
+        x["spent_rub"] += e["spent_rub"] or 0
+        x["links"].append(e["title"])
+    place_rows = sorted(({**x, "profit": x["revenue"] - x["spent_rub"],
+                          "roi": round(x["revenue"] * 100 / x["spent_rub"]) if x["spent_rub"] else None}
+                         for x in places.values()), key=lambda x: -x["profit"])
+    spent = sum(e["spent_rub"] or 0 for e in rows)
+    revenue = sum(e["revenue"] for e in rows)
+    return {"ok": True, "total": {"spent_rub": spent, "revenue": revenue, "profit": revenue - spent,
+                                  "roi": round(revenue * 100 / spent) if spent else None},
+            "links": rows, "places": place_rows, "mixed": [e for e in rows if e["mixed"]]}
 
 
 SILENT_AFTER = timedelta(hours=3)

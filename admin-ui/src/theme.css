@@ -987,3 +987,12 @@ tbody tr:nth-child(odd) .adm-funnel-bar { background: var(--background); }
   .adm-cards td[data-label]::before { content: attr(data-label); display: block; font-size: 10.5px; text-transform: uppercase;
     letter-spacing: .03em; color: var(--muted-foreground); margin-bottom: 1px; }
 }
+.tga-verdict { display: inline-block; margin-top: 3px; font-size: 10.5px; padding: 1px 7px; }
+.tga-verdict-line { display: flex; gap: 8px; align-items: baseline; font-size: 13px; line-height: 1.45; }
+.tga-target { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.tga-target .tga-card-title b { color: var(--tga-accent); font-weight: 600; }
+.tga-target .tga-hint { margin: 2px 0 0; }
+.tga-plus { color: var(--tga-ok); font-weight: 500; } .tga-minus { color: var(--tga-bad); font-weight: 500; }
+.tga-mixed { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: 1px solid var(--tga-line); font-size: 13px; }
+.tga-mixed b { font-weight: 500; }
+.tga-mixed-places { display: flex; flex-wrap: wrap; gap: 4px 12px; }

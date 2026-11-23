@@ -1,4 +1,4 @@
-"""Buttons under the Telegram Ads alerts: «На паузу» and «Вернуть остаток» (admins only)."""
+"""Buttons under the Telegram Ads alerts: «На паузу», «Вернуть остаток» and the weekly hours offer (admins only)."""
 from __future__ import annotations
 
 import logging
@@ -57,3 +57,15 @@ async def tg_ads_action(callback: CallbackQuery) -> None:
     else:
         await callback.answer("На паузе")
         await _done(callback, "⏸ Поставлено на паузу")
+
+
+@router.callback_query(F.data.startswith("tga_sched:"))
+async def tg_ads_schedule(callback: CallbackQuery) -> None:
+    from app import tg_schedule
+    if callback.from_user.id not in get_settings().admin_id_set:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    apply = callback.data == "tga_sched:apply"
+    text = await (tg_schedule.apply_offer() if apply else tg_schedule.skip_offer())
+    await callback.answer(text[:190])
+    await _done(callback, ("🕒 " if apply else "") + text)

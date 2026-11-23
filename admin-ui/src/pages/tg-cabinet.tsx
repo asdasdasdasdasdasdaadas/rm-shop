@@ -92,12 +92,16 @@ const autobidToast = (got: Data, ok: string) => {
   else toast.success(`${ok}${got.max_cpm ? `: потолок ${price(got.max_cpm)}` : ""}${got.daily_limit ? `, лимит в день ${price(got.daily_limit)}` : ""}`);
   if (got.limit_error) toast.error(got.limit_error);
 };
+const VERDICT_AD: Record<string, [string, string]> = {
+  scale: ["масштабировать", "ok"], hold: ["держать", "wait"], stop: ["выключить", "bad"], early: ["рано", "muted"],
+};
 const days = (v: number | null | undefined) =>
   v == null ? null : v < 1 ? `~${Math.max(1, Math.round(v * 24))} ч` : `~${String(Math.round(v * 10) / 10).replace(".", ",")} дн`;
 
 const BRAND = { name: "VPN" };   // the bot's name, from the cabinet response
 
-type Tab = "overview" | "ads" | "hours" | "places" | "log";
+type Tab = "overview" | "ads" | "results" | "hours" | "places" | "log";
+const TABS: Record<Tab, string> = { overview: "Обзор", ads: "Объявления", results: "Итог", hours: "Часы", places: "Площадки", log: "Журнал" };
 
 export function TgCabinet({ onChange }: { onChange: () => void }) {
   const [tab, setTab] = useState<Tab>("overview"),
@@ -131,7 +135,7 @@ export function TgCabinet({ onChange }: { onChange: () => void }) {
           <span className="tga-logo">📣</span>
           <b>Telegram Ads</b>
           <span className="tga-sep">/</span>
-          <span>{{ overview: "Обзор", ads: "Объявления", hours: "Часы", places: "Площадки", log: "Журнал" }[tab]}</span>
+          <span>{TABS[tab]}</span>
         </div>
         <div className="tga-head-right">
           <span className="tga-balance">
@@ -156,9 +160,9 @@ export function TgCabinet({ onChange }: { onChange: () => void }) {
         </div>
       </div>
       <nav className="tga-tabs">
-        {(["overview", "ads", "hours", "places", "log"] as Tab[]).map((t) => (
+        {(Object.keys(TABS) as Tab[]).map((t) => (
           <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
-            {{ overview: "Обзор", ads: "Объявления", hours: "Часы", places: "Площадки", log: "Журнал" }[t]}
+            {TABS[t]}
           </button>
         ))}
         {(tab === "overview" || tab === "ads") && (
@@ -174,9 +178,11 @@ export function TgCabinet({ onChange }: { onChange: () => void }) {
       ) : !d ? (
         <Loading />
       ) : tab === "overview" ? (
-        <Overview d={d} unmatched={head.data?.unmatched || []} onAds={() => setTab("ads")} />
+        <Overview d={d} unmatched={head.data?.unmatched || []} onAds={() => setTab("ads")} reload={reload} />
       ) : tab === "ads" ? (
         <AdsTable d={d} reload={reload} onSchedule={(id) => { setScheduleFor(id); setTab("hours"); }} />
+      ) : tab === "results" ? (
+        <Results onLaunch={(kind, places) => setCreating({ kind, places })} />
       ) : tab === "hours" ? (
         <Hours ads={d.ads || []} initial={scheduleFor} reload={reload} />
       ) : tab === "places" ? (
@@ -191,7 +197,7 @@ export function TgCabinet({ onChange }: { onChange: () => void }) {
 
 // ------------------------------------------------------------------------------------------------ overview
 
-function Overview({ d, unmatched, onAds }: { d: Data; unmatched: Data[]; onAds: () => void }) {
+function Overview({ d, unmatched, onAds, reload }: { d: Data; unmatched: Data[]; onAds: () => void; reload: () => Promise<void> }) {
   const t = d.tiles || {}, x = d.extra || {}, cur = d.currency;
   const tiles: [string, string, Data, ReactNode][] = [
     ["views", "Просмотры", t.views || {}, x.ctr != null ? `CTR ${String(x.ctr).replace(".", ",")}%` : "по данным Telegram"],
@@ -229,6 +235,8 @@ function Overview({ d, unmatched, onAds }: { d: Data; unmatched: Data[]; onAds: 
           Без показов за последний час: {silent.map((a) => a.title).join(", ")} — откройте «Объявления», там видно, что делает автоставка.
         </button>
       )}
+      <TargetCard t={d.target || {}} reload={reload} />
+      <Verdicts ads={ads} onAds={onAds} />
       {(d.ltv || []).some((v: Data) => v.users) && (
         <div className="tga-card">
           <div className="tga-card-title">Сколько платит человек с рекламы</div>
@@ -263,6 +271,86 @@ function Overview({ d, unmatched, onAds }: { d: Data; unmatched: Data[]; onAds: 
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** The cabinet-wide «человек не дороже»: automatic (a third of what a person pays) or fixed. */
+function TargetCard({ t, reload }: { t: Data; reload: () => Promise<void> }) {
+  const [edit, setEdit] = useState(false), [rub, setRub] = useState("");
+  const save = async (auto: boolean) => {
+    await api("tg-ads/target", { auto, rub: auto ? null : rub });
+    toast.success(auto ? "Цель считается сама" : `Цель: человек не дороже ${rub} ₽`);
+    setEdit(false);
+    await reload();
+  };
+  return (
+    <div className="tga-card tga-target">
+      <div>
+        <div className="tga-card-title">Цель: человек не дороже {t.effective != null ? <b>{num(t.effective)} ₽</b> : "—"}</div>
+        <p className="tga-hint">
+          {t.auto ? `Сама: ${t.basis}.` : `Задана вручную. Сама было бы ${t.auto_rub != null ? `${num(t.auto_rub)} ₽` : "— мало данных"}.`}{" "}
+          Автоставка держит её у каждого объявления, где своя цель не указана.
+        </p>
+      </div>
+      {edit ? (
+        <div className="tga-inline">
+          <Input value={rub} onChange={(e) => setRub(e.target.value.replace(/\D/g, ""))} placeholder="₽" inputMode="numeric" className="w-24" />
+          <ActionButton disabled={!rub} onAction={() => save(false)}>Сохранить</ActionButton>
+          {!t.auto && <ActionButton variant="ghost" onAction={() => save(true)}>Считать саму</ActionButton>}
+        </div>
+      ) : (
+        <Button variant="outline" onClick={() => { setRub(String(t.rub ?? t.effective ?? "")); setEdit(true); }}>Изменить</Button>
+      )}
+    </div>
+  );
+}
+
+/** Which ads to give more money, keep, or switch off — by what people from them paid. */
+function Verdicts({ ads, onAds }: { ads: Data[]; onAds: () => void }) {
+  const live = ads.filter((a) => a.status === "active" || a.status === "on_hold");
+  // A silent ad paid off on places that stopped showing it: money added there would only sit.
+  const by = (code: string) => live.filter((a) => a.link?.verdict?.code === code && (code === "stop" || !a.silence));
+  const silentGood = live.filter((a) => a.silence && ["scale", "hold"].includes(a.link?.verdict?.code));
+  const groups: [string, string, Data[]][] = [
+    ["scale", "Можно добавлять бюджет", by("scale")],
+    ["hold", "Окупаются без запаса — держать", by("hold")],
+    ["stop", "Не окупаются — на паузу и вернуть остаток", by("stop")],
+  ];
+  const early = by("early");
+  if (!groups.some((g) => g[2].length) && !early.length && !silentGood.length) return null;
+  const empty = live.filter((a) => a.link && !a.link.shared && (!a.link.greeting || !a.link.followup));
+  return (
+    <div className="tga-card">
+      <div className="tga-card-title">Что делать с деньгами</div>
+      {groups.filter((g) => g[2].length).map(([code, label, list]) => (
+        <div key={code} className="tga-verdict-line">
+          <span className={"tga-chip " + VERDICT_AD[code][1]}>{VERDICT_AD[code][0]}</span>
+          <span>{label}: {list.map((a) => a.title).join(", ")}</span>
+        </div>
+      ))}
+      {silentGood.length > 0 && (
+        <div className="tga-verdict-line">
+          <span className="tga-chip bad">молчит</span>
+          <span>Окупались, но площадки перестали показывать — бюджет не добавлять: {silentGood.map((a) => a.title).join(", ")}</span>
+        </div>
+      )}
+      {early.length > 0 && (
+        <div className="tga-verdict-line">
+          <span className="tga-chip muted">рано</span>
+          <span>Пока не судить, держите на 1 TON: {early.map((a) => a.title).join(", ")}</span>
+        </div>
+      )}
+      {empty.length > 0 && (
+        <button className="tga-note warn" onClick={onAds}>
+          Без приветствия или дожима: {empty.map((a) => a.title).join(", ")} — это бесплатно поднимает долю подключившихся.
+          Откройте объявление → «Приветствие и дожим».
+        </button>
+      )}
+      <p className="tga-hint">
+        Решаем по деньгам, а не по кликам: только когда 5+ человек прожили 14 дней. Новую площадку пробуйте на 1 TON и
+        добавляйте бюджет, только когда она окупилась в полтора раза.
+      </p>
     </div>
   );
 }
@@ -358,6 +446,11 @@ function AdsTable({ d, reload, onSchedule }: { d: Data; reload: () => Promise<vo
                           {a.is_paused && a.status === "active" ? "Paused" : st[0]}
                           {a.silence && <em className="tga-silent" title={a.silence.text}> · молчит {a.silence.hours} ч</em>}
                         </span>
+                        {VERDICT_AD[a.link?.verdict?.code] && !(a.silence && a.link.verdict.code !== "stop") && (
+                          <span className={"tga-chip tga-verdict " + VERDICT_AD[a.link.verdict.code][1]} title={a.link.verdict.text}>
+                            {VERDICT_AD[a.link.verdict.code][0]}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td data-label="Показы">
@@ -556,6 +649,12 @@ function AdDetail({ a, cur, reload, onGreeting }: { a: Data; cur: string; reload
           <p className="tga-hint">У объявления нет нашей ссылки ad_… — оплаты не посчитать.</p>
         )}
         {l && <LtvRow ltv={l.ltv} cost={l.users && l.spent_rub ? l.spent_rub / l.users : null} />}
+        {l?.verdict && VERDICT_AD[l.verdict.code] && (
+          <p className="tga-ab-note">
+            <span className={"tga-chip " + VERDICT_AD[l.verdict.code][1]}>{VERDICT_AD[l.verdict.code][0]}</span> {l.verdict.text}
+            {a.silence && l.verdict.code !== "stop" && " — но сейчас объявление молчит, бюджет не добавлять"}
+          </p>
+        )}
         {l && (
           <button className="tga-link small" onClick={onGreeting}>
             {l.greeting || l.followup
@@ -670,7 +769,19 @@ function GreetingDialog({ ad, onClose, reload }: { ad: Data | null; onClose: () 
             {later.length} / 700 · один раз, с кнопкой «Подключить VPN» · {"{name}"} — имя · не чаще общего лимита напоминаний · пусто — без дожима
           </em>
         </label>
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-between gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              const s = draftFromAd(ad?.text);
+              if (!text.trim()) setText(s.greeting);
+              if (!later.trim()) setLater(s.followup);
+            }}
+            disabled={!!text.trim() && !!later.trim()}
+          >
+            Подставить по тексту объявления
+          </Button>
+          <div className="flex gap-2">
           <Button variant="ghost" onClick={onClose}>Отмена</Button>
           <ActionButton
             onAction={async () => {
@@ -682,10 +793,21 @@ function GreetingDialog({ ad, onClose, reload }: { ad: Data | null; onClose: () 
           >
             Сохранить
           </ActionButton>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
   );
+}
+
+/** A first draft of the greeting and the follow-up from the ad's own first sentence — to edit, not to send as is. */
+export function draftFromAd(text?: string) {
+  const plain = String(text || "").replace(/!\[([^\]]*)\]\(tg:\/\/emoji\?id=\d+\)/g, "").replace(/^[^\p{L}\d]+/u, "");
+  const hook = (plain.match(/^[^.!?]*[.!?]?/)?.[0] || "").trim();
+  return {
+    greeting: `${hook ? hook + " " : ""}🐸 Нажмите «Подключить VPN» — займёт минуту.`,
+    followup: "{name}, VPN ещё не подключён — это одна кнопка ниже, займёт минуту 🐸",
+  };
 }
 
 // ------------------------------------------------------------------------------------------------ hours
@@ -889,6 +1011,113 @@ function Places({ onLaunch }: { onLaunch: (kind: string, places: string) => void
   );
 }
 
+// ------------------------------------------------------------------------------------------------ results
+
+const rub = (v: unknown) => `${num(v)} ₽`;
+const Profit = ({ v }: { v: number }) => <b className={v > 0 ? "tga-plus" : v < 0 ? "tga-minus" : ""}>{v > 0 ? "+" : ""}{rub(v)}</b>;
+
+function Results({ onLaunch }: { onLaunch: (kind: string, places: string) => void }) {
+  const res = useResource("tg-ads/results");
+  if (res.error) return <Failure message={res.error} retry={res.reload} />;
+  if (!res.data) return <Loading />;
+  const t = res.data.total || {}, places: Data[] = res.data.places || [], links: Data[] = res.data.links || [];
+  const mixed: Data[] = res.data.mixed || [];
+  return (
+    <div className="tga-body">
+      <div className="tga-facts">
+        <Fact label="Потрачено" value={rub(t.spent_rub)} />
+        <Fact label="Принесли люди с рекламы" value={rub(t.revenue)} />
+        <Fact label="Итог" value={<Profit v={t.profit || 0} />} />
+        <Fact label="Окупаемость" value={t.roi != null ? `${t.roi}%` : "—"} />
+      </div>
+      <p className="tga-hint">
+        Все пополнения людей, пришедших по рекламным ссылкам, минус расход в рублях по курсу синхронизации. Свежие объявления
+        выглядят хуже — их люди ещё не успели заплатить; решение — по отметке «масштабировать / держать / выключить».
+      </p>
+      <div className="tga-card-title">По площадкам</div>
+      {places.length ? (
+        <div className="tga-table-wrap">
+          <table className="tga-table tga-cards">
+            <thead><tr><th>Площадка</th><th>Пришли</th><th>Оплатили</th><th>Потрачено</th><th>Принесли</th><th>Итог</th></tr></thead>
+            <tbody>
+              {places.map((p) => (
+                <tr key={p.username || p.title} className="static">
+                  <td className="tga-title-cell">
+                    <span className="tga-kind">{p.kind === "channel" ? "📢" : "🤖"}</span>
+                    <div><b>{p.title || "@" + p.username}</b>{p.username && <small>@{p.username}</small>}</div>
+                  </td>
+                  <td data-label="Пришли">{num(p.users)}</td>
+                  <td data-label="Оплатили">{num(p.paid)}</td>
+                  <td data-label="Потрачено">{rub(p.spent_rub)}</td>
+                  <td data-label="Принесли">{rub(p.revenue)}</td>
+                  <td data-label="Итог"><Profit v={p.profit} />{p.roi != null && <small className="tga-muted">{p.roi}%</small>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="tga-hint">Здесь будут площадки, у которых своё объявление: только так деньги можно приписать площадке.</p>
+      )}
+      {mixed.length > 0 && (
+        <div className="tga-card">
+          <div className="tga-card-title">Объявления на несколько площадок — какая из них приносит, не видно</div>
+          {mixed.map((e) => (
+            <div key={e.link_id} className="tga-mixed">
+              <div>
+                <b>{e.ads.map((a: Data) => a.title).join(", ")}</b>
+                <span className="tga-muted"> · {rub(e.spent_rub)} → {rub(e.revenue)} · </span>
+                <Profit v={e.profit} />
+              </div>
+              <div className="tga-mixed-places">
+                {e.places.map((p: Data) =>
+                  p.username ? (
+                    <button key={p.username} className="tga-link small" onClick={() => onLaunch(p.kind === "channel" ? "channels" : "bots", "@" + p.username)}>
+                      + отдельно @{p.username}
+                    </button>
+                  ) : (
+                    <span key={p.title} className="tga-muted text-xs">{p.title}</span>
+                  ),
+                )}
+              </div>
+            </div>
+          ))}
+          <p className="tga-hint">
+            Запустите по объявлению на каждую площадку (по 1 TON на пробу) — у каждого будет своя ссылка, и через 14 дней
+            станет видно, какая площадка окупается. Старое объявление можно поставить на паузу и вернуть остаток.
+          </p>
+        </div>
+      )}
+      <div className="tga-card-title">По объявлениям</div>
+      <div className="tga-table-wrap">
+        <table className="tga-table tga-cards">
+          <thead><tr><th>Ссылка</th><th>Пришли</th><th>Потрачено</th><th>Принесли</th><th>Итог</th><th>Что делать</th></tr></thead>
+          <tbody>
+            {links.map((e) => (
+              <tr key={e.link_id} className="static">
+                <td className="tga-title-cell">
+                  <div><b>{e.ads.map((a: Data) => a.title).join(", ")}</b><small>ad_{e.slug}</small></div>
+                </td>
+                <td data-label="Пришли">{num(e.users)}<small className="tga-muted">оплатили {num(e.paid)}</small></td>
+                <td data-label="Потрачено">{rub(e.spent_rub)}</td>
+                <td data-label="Принесли">{rub(e.revenue)}</td>
+                <td data-label="Итог"><Profit v={e.profit} />{e.roi != null && <small className="tga-muted">{e.roi}%</small>}</td>
+                <td data-label="Что делать">
+                  {VERDICT_AD[e.verdict?.code] ? (
+                    <span className={"tga-chip " + VERDICT_AD[e.verdict.code][1]} title={e.verdict.text}>{VERDICT_AD[e.verdict.code][0]}</span>
+                  ) : (
+                    <span className="tga-muted">{e.verdict?.text}</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------------------------------------ log
 
 const ACTION: Record<string, string> = {
@@ -944,7 +1173,7 @@ function CreateAd({ open, preset, onClose, balance, currency, bot, reload }: { o
   const submit = () =>
     confirm({
       title: "Создать объявление?",
-      description: `С баланса кабинета на объявление уйдёт ${price(f.budget)} ${currency || "TON"} (сейчас на балансе ${price(balance)}). Ставка ${price(f.cpm)}${f.autobid ? `, автоставка до ${f.max_cpm ? price(f.max_cpm) : autoTop(f.cpm)}${!Number(f.daily_limit) && Number(f.budget) > 0 ? `, лимит в день ${price(Math.min(Number(f.budget), Math.max(0.5, Number(f.budget) / 2)))}` : ""}` : ""}. После создания — модерация Telegram.`,
+      description: `${Number(f.budget) > 1 ? "Бюджет больше 1 TON: если эти площадки ещё не окупались, лучше начать с 1 TON и добавить, когда объявление получит «масштабировать». " : ""}С баланса кабинета на объявление уйдёт ${price(f.budget)} ${currency || "TON"} (сейчас на балансе ${price(balance)}). Ставка ${price(f.cpm)}${f.autobid ? `, автоставка до ${f.max_cpm ? price(f.max_cpm) : autoTop(f.cpm)}${!Number(f.daily_limit) && Number(f.budget) > 0 ? `, лимит в день ${price(Math.min(Number(f.budget), Math.max(0.5, Number(f.budget) / 2)))}` : ""}` : ""}. После создания — модерация Telegram.`,
       label: "Создать",
       action: async () => {
         const got = await api("tg-ads/create", {
@@ -1036,7 +1265,7 @@ function CreateAd({ open, preset, onClose, balance, currency, bot, reload }: { o
                 <div className="tga-input-gem"><Gem /><Input value={f.cpm} onChange={(e) => set("cpm", e.target.value.replace(",", "."))} inputMode="decimal" /></div>
               </label>
               <label className="tga-field">
-                <span>Бюджет</span>
+                <span title="Новую площадку — на 1 TON, добавлять, когда окупится">Бюджет · на пробу 1</span>
                 <div className="tga-input-gem"><Gem /><Input value={f.budget} onChange={(e) => set("budget", e.target.value.replace(",", "."))} inputMode="decimal" /></div>
               </label>
               <label className="tga-field">
