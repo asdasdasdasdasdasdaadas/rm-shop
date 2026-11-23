@@ -4039,6 +4039,10 @@
     if (document.visibilityState !== "visible" || !me || !cur) return;
     if (["home", "device", "wiz3", "promise", "autopay"].includes(cur.key)) load(true).catch(() => {});
   }, 15000);
+  // time spent in the cabinet (the overview in the admin): a ping every 30 s while it is on screen
+  setInterval(() => {
+    if (document.visibilityState === "visible" && me) post("/api/cabinet-ping", {}).catch(() => {});
+  }, 30000);
 
   window.__cab = { go, back, get me() { return me; }, get cur() { return cur; }, load, toast, boom };
   go("boot", {}, "x");

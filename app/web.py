@@ -522,6 +522,7 @@ async def api_me(request: web.Request) -> web.Response:
     from app.legal_notice import hide_legal_messages
     await hide_legal_messages(bot, telegram_id)
     local = await db.get_user(telegram_id)
+    await _note_cabinet(telegram_id)
     await fetch_panel(rw, telegram_id, local=local, allow_stale=True)
     raw_devices = await db.list_devices(telegram_id)
     if local and not local.get("first_online_at") and await _check_first_connection(rw, telegram_id, raw_devices):
@@ -1519,6 +1520,22 @@ async def api_ticket_file(request: web.Request) -> web.StreamResponse:
     return http_file_response(row)
 
 
+async def _note_cabinet(telegram_id: int) -> None:
+    try:
+        await db.note_cabinet_seen(telegram_id)
+    except Exception:
+        logger.debug("Визит в кабинет не записан %s", telegram_id, exc_info=True)
+
+
+async def api_cabinet_ping(request: web.Request) -> web.Response:
+    """The cabinet is still on screen (every 30 s while visible): counts toward the time spent in it."""
+    telegram_id, denied = await _require_tg(request)
+    if denied:
+        return denied
+    await _note_cabinet(telegram_id)
+    return web.json_response({"ok": True})
+
+
 async def api_cabinet_leave(request: web.Request) -> web.Response:
     telegram_id, denied = await _require_tickets(request)
     if denied:
@@ -1849,6 +1866,7 @@ def build_web_app() -> web.Application:
         app.router.add_post("/api/tickets/{ticket_id}/action", api_ticket_action)
         app.router.add_get("/api/tickets/files/{att_id}", api_ticket_file)
         app.router.add_post("/api/cabinet-leave", api_cabinet_leave)
+        app.router.add_post("/api/cabinet-ping", api_cabinet_ping)
         app.router.add_post("/api/story-share", api_story_share)
         app.router.add_post("/api/browser-link", api_browser_link)
         app.router.add_post("/api/referral-payout", api_referral_payout)

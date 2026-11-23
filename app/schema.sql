@@ -1439,3 +1439,14 @@ ALTER TABLE ad_links ADD COLUMN IF NOT EXISTS followup TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_followup_at TIMESTAMPTZ;
 -- The ad's status at the last alert pass: «прошло модерацию» is in_review → active.
 ALTER TABLE tg_ad_autobid ADD COLUMN IF NOT EXISTS last_status TEXT;
+
+-- Cabinet visits (app/web.py): opening the cabinet starts a visit, the cabinet's ping every 30 s while it is on screen
+-- moves seen_at; a gap of more than 3 minutes starts a new one. The overview counts opens and hours from here.
+CREATE TABLE IF NOT EXISTS cabinet_visits (
+    id BIGSERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS cabinet_visits_user ON cabinet_visits (telegram_id, id DESC);
+CREATE INDEX IF NOT EXISTS cabinet_visits_started ON cabinet_visits (started_at);

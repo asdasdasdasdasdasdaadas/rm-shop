@@ -3159,7 +3159,10 @@ async def admin_stats() -> dict:
             **await admin_pay_soon_counts(get_settings().vpn_day_price_rub),
             "people": await admin_list_pay_soon(get_settings().vpn_day_price_rub),
         },
-        "daily_users": await admin_daily_users(),
+        "daily_users": await admin_daily_users(limit=500),
+        "referrals": await admin_referrals(),
+        "frog_cases": await admin_frog_cases(),
+        "cabinet": await admin_cabinet_visits(),
         "sleepers": await admin_sleepers(),
         "activation": await admin_activation(),
         "funnel": await admin_funnel(),
@@ -6216,6 +6219,114 @@ async def clear_device_ips(telegram_id: int) -> None:
 
 async def prune_device_ips(keep_days: int = 30) -> None:
     await _pool_req().execute("DELETE FROM device_ips WHERE last_seen < NOW() - ($1::int * INTERVAL '1 day')", int(keep_days))
+
+
+CABINET_VISIT_GAP_MINUTES = 3
+
+
+async def note_cabinet_seen(telegram_id: int) -> None:
+    """The cabinet is on screen: extend the current visit, or start a new one after a gap of more than 3 minutes."""
+    async with _pool_req().acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtext('cabinet_visit'), $1::int)", int(telegram_id) % 2147483647)
+            done = await conn.fetchval(
+                f"""UPDATE cabinet_visits SET seen_at=NOW()
+                    WHERE id=(SELECT id FROM cabinet_visits WHERE telegram_id=$1 ORDER BY id DESC LIMIT 1)
+                      AND seen_at > NOW() - INTERVAL '{CABINET_VISIT_GAP_MINUTES} minutes'
+                    RETURNING id""", int(telegram_id))
+            if not done:
+                await conn.execute("INSERT INTO cabinet_visits (telegram_id) VALUES ($1)", int(telegram_id))
+
+
+_MSK_DAY = "(timezone('Europe/Moscow', now()))::date"
+
+
+async def admin_cabinet_visits(days: int = 14) -> dict:
+    """Cabinet opens and time spent in it: per Moscow day for the chart, and today / 7 / 30 days."""
+    pool = _pool_req()
+    rows = await pool.fetch(
+        f"""SELECT g.day::date AS day, COUNT(v.id)::int AS opens, COUNT(DISTINCT v.telegram_id)::int AS people,
+                   COALESCE(SUM(EXTRACT(EPOCH FROM v.seen_at - v.started_at)), 0)::float AS seconds
+            FROM generate_series({_MSK_DAY} - ($1::int - 1), {_MSK_DAY}, INTERVAL '1 day') g(day)
+            LEFT JOIN cabinet_visits v ON (timezone('Europe/Moscow', v.started_at))::date = g.day::date
+            GROUP BY g.day ORDER BY g.day""", max(1, int(days)))
+
+    async def total(span: str) -> dict:
+        row = await pool.fetchrow(
+            f"""SELECT COUNT(*)::int AS opens, COUNT(DISTINCT telegram_id)::int AS people,
+                       COALESCE(SUM(EXTRACT(EPOCH FROM seen_at - started_at)), 0)::float AS seconds
+                FROM cabinet_visits WHERE {span}""")
+        return {"opens": int(row["opens"]), "people": int(row["people"]), "hours": round(float(row["seconds"]) / 3600, 1)}
+
+    since = await pool.fetchval("SELECT MIN(started_at) FROM cabinet_visits")
+    return {
+        "today": await total(f"started_at >= ({_MSK_DAY})::timestamp AT TIME ZONE 'Europe/Moscow'"),
+        "week": await total("started_at > NOW() - INTERVAL '7 days'"),
+        "month": await total("started_at > NOW() - INTERVAL '30 days'"),
+        "days": [{"day": r["day"].isoformat(), "opens": int(r["opens"]), "people": int(r["people"]),
+                  "hours": round(float(r["seconds"]) / 3600, 1)} for r in rows],
+        "since": since.isoformat() if since else None,
+    }
+
+
+async def admin_referrals(top: int = 5) -> dict:
+    """Friends who came by someone's link over 30 days and how far they got, the bonuses paid out, the best inviters."""
+    pool = _pool_req()
+    invited = "u.referred_by IS NOT NULL AND u.referred_by <> u.telegram_id"
+    row = await pool.fetchrow(
+        f"""SELECT COUNT(*) FILTER (WHERE u.created_at > NOW() - INTERVAL '7 days')::int AS week,
+                   COUNT(*) FILTER (WHERE u.created_at > NOW() - INTERVAL '30 days')::int AS month,
+                   COUNT(*) FILTER (WHERE u.created_at > NOW() - INTERVAL '30 days'
+                       AND (u.referral_menu_bonus_at IS NOT NULL OR u.referral_invitee_bonus_at IS NOT NULL))::int AS menu,
+                   COUNT(*) FILTER (WHERE u.created_at > NOW() - INTERVAL '30 days' AND u.first_online_at IS NOT NULL)::int AS connected,
+                   COUNT(*) FILTER (WHERE u.created_at > NOW() - INTERVAL '30 days' AND COALESCE(u.has_paid_topup, FALSE))::int AS paid,
+                   COUNT(*)::int AS total
+            FROM users u WHERE {invited}""")
+    paid_out = await pool.fetchval(
+        "SELECT COALESCE(SUM(amount), 0)::int FROM billing_events WHERE kind='referral' AND amount > 0 "
+        "AND created_at > NOW() - INTERVAL '30 days'")
+    people = await pool.fetch(
+        f"""SELECT r.telegram_id, COALESCE(r.username, '') AS username, COALESCE(r.first_name, '') AS first_name,
+                   COUNT(*)::int AS friends,
+                   COUNT(*) FILTER (WHERE u.first_online_at IS NOT NULL)::int AS connected,
+                   COUNT(*) FILTER (WHERE COALESCE(u.has_paid_topup, FALSE))::int AS paid
+            FROM users u JOIN users r ON r.telegram_id = u.referred_by
+            WHERE {invited} AND u.created_at > NOW() - INTERVAL '30 days'
+            GROUP BY r.telegram_id, r.username, r.first_name
+            ORDER BY friends DESC, connected DESC, r.telegram_id LIMIT $1""", max(1, int(top)))
+    return {**{k: int(row[k]) for k in ("week", "month", "menu", "connected", "paid", "total")},
+            "paid_out_rub": int(paid_out or 0), "people": [dict(p) for p in people]}
+
+
+async def admin_frog_cases(recent: int = 6) -> dict:
+    """Кейсы с лягушкой: opened today / 7 / 30 days, given over 7 days by source, still unopened, the latest openings."""
+    pool = _pool_req()
+    row = await pool.fetchrow(
+        f"""SELECT COUNT(*) FILTER (WHERE kind='open' AND created_at >= ({_MSK_DAY})::timestamp AT TIME ZONE 'Europe/Moscow')::int AS today,
+                   COUNT(*) FILTER (WHERE kind='open' AND created_at > NOW() - INTERVAL '7 days')::int AS week,
+                   COUNT(*) FILTER (WHERE kind='open' AND created_at > NOW() - INTERVAL '30 days')::int AS month,
+                   COUNT(DISTINCT telegram_id) FILTER (WHERE kind='open' AND created_at > NOW() - INTERVAL '7 days')::int AS people_week,
+                   COALESCE(SUM(delta) FILTER (WHERE kind<>'open' AND delta > 0 AND created_at > NOW() - INTERVAL '7 days'), 0)::int AS given_week
+            FROM frog_case_log""")
+    given = await pool.fetch(
+        "SELECT kind, SUM(delta)::int AS n FROM frog_case_log WHERE kind<>'open' AND delta > 0 "
+        "AND created_at > NOW() - INTERVAL '7 days' GROUP BY kind")
+    waiting = await pool.fetchrow(
+        "SELECT COALESCE(SUM(cases_left), 0)::int AS cases, COUNT(*) FILTER (WHERE cases_left > 0)::int AS people FROM frog_case_users")
+    opens = await pool.fetch(
+        """SELECT l.telegram_id, l.skin, l.created_at, COALESCE(u.username, '') AS username, COALESCE(u.first_name, '') AS first_name
+           FROM frog_case_log l LEFT JOIN users u ON u.telegram_id = l.telegram_id
+           WHERE l.kind='open' ORDER BY l.id DESC LIMIT $1""", max(1, int(recent)))
+    from app.frog_cases import RARITY, SKINS
+    items = []
+    for o in opens:
+        name, rarity = SKINS.get(int(o["skin"]) if o["skin"] is not None else -1, ("Лягушка", "c"))
+        items.append({"telegram_id": int(o["telegram_id"]), "username": o["username"], "first_name": o["first_name"],
+                      "skin": o["skin"], "frog": name, "rarity": rarity, "rarity_label": RARITY[rarity][0],
+                      "at": o["created_at"].isoformat()})
+    return {**{k: int(row[k]) for k in ("today", "week", "month", "people_week", "given_week")},
+            "given": {g["kind"]: int(g["n"]) for g in given},
+            "waiting": int(waiting["cases"]), "waiting_people": int(waiting["people"]), "recent": items}
 
 
 async def admin_sleepers() -> dict:

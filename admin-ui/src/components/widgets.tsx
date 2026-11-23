@@ -2,14 +2,18 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import {
+  AppWindow,
   ArrowRight,
   BadgeRussianRuble,
+  ChevronDown,
   CircleCheck,
   Flame,
+  Gift,
   Hourglass,
   Moon,
   Plug,
   Radio,
+  UserPlus,
   Users as UsersIcon,
 } from "lucide-react";
 import { money, useResource, who, type Data } from "@/lib/api";
@@ -249,9 +253,13 @@ export const ago = (v: unknown) => {
 const WD = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
 
 /** People who really use the VPN every day (online_days): the week as seven dots, streak and balance. */
+const DAILY_SHOWN = 6;
+
 function DailyUsersWidget({ daily }: { daily: Data }) {
   const navigate = useNavigate();
-  const people: Data[] = daily?.people || [];
+  const all: Data[] = daily?.people || [];
+  const [open, setOpen] = useState(false);
+  const people = open ? all : all.slice(0, DAILY_SHOWN);
   const labels = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setUTCDate(d.getUTCDate() - (6 - i));
@@ -295,7 +303,134 @@ function DailyUsersWidget({ daily }: { daily: Data }) {
       ) : (
         <div className="adm-calm"><span>🌱</span><b>Пока никого</b><small>Здесь появятся те, кто включает VPN 5 дней из 7 и чаще</small></div>
       )}
+      {all.length > DAILY_SHOWN && (
+        <button type="button" className="adm-more" onClick={() => setOpen(!open)} aria-expanded={open}>
+          {open ? "Свернуть" : `Показать всех · ${all.length.toLocaleString("ru-RU")}`}
+          <ChevronDown className={"size-4" + (open ? " rotate-180" : "")} />
+        </button>
+      )}
     </Widget>
+  );
+}
+
+const hours = (h: number) => (h < 10 ? h.toLocaleString("ru-RU", { maximumFractionDigits: 1 }) : Math.round(h).toLocaleString("ru-RU")) + " ч";
+
+/** Friends who came by someone's link over 30 days: how far they got, bonuses paid out, the best inviters. */
+function ReferralsWidget({ refs }: { refs: Data }) {
+  const navigate = useNavigate();
+  const people: Data[] = refs?.people || [];
+  const month = Number(refs?.month || 0);
+  return (
+    <Widget title="Рефералы за 30 дней" icon={<UserPlus />} tone="#34c759">
+      <div className="adm-big">
+        <CountUp value={month} />
+        <span className="adm-unit">друзей пришло</span>
+      </div>
+      <p className="adm-sub">{Number(refs?.week || 0).toLocaleString("ru-RU")} за неделю · {Number(refs?.total || 0).toLocaleString("ru-RU")} за всё время · выплачено бонусов {money(Number(refs?.paid_out_rub || 0))}</p>
+      <dl className="adm-steps">
+        <div><dt>Дошли до меню</dt><dd><CountUp value={Number(refs?.menu || 0)} /></dd></div>
+        <div><dt>Подключили VPN</dt><dd><CountUp value={Number(refs?.connected || 0)} /></dd></div>
+        <div><dt>Оплатили</dt><dd><CountUp value={Number(refs?.paid || 0)} /></dd></div>
+      </dl>
+      {people.length > 0 && (
+        <ul className="adm-people adm-feed mt-2">
+          {people.map((p) => (
+            <li key={p.telegram_id}>
+              <button type="button" onClick={() => navigate("users?q=" + p.telegram_id)}>
+                <Avatar row={p} />
+                <span className="adm-p-name">
+                  <b>{who(p)}</b>
+                  <small>подключили {p.connected} · оплатили {p.paid}</small>
+                </span>
+                <span className="adm-p-val"><b>{p.friends}</b><small>друзей</small></span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Widget>
+  );
+}
+
+const RARITY_TONE: Record<string, string> = { l: "#ff9500", e: "#af52de", r: "#3e88f7", u: "#2fb46a", c: "var(--muted-foreground)" };
+
+/** Кейсы с лягушкой: opened today / week / month, given and still waiting, the latest openings. */
+function FrogCasesWidget({ cases }: { cases: Data }) {
+  const navigate = useNavigate();
+  const recent: Data[] = cases?.recent || [];
+  const given: Data = cases?.given || {};
+  const src = [["topup", "за пополнения"], ["subscription", "за подписку"], ["admin", "вручную"]]
+    .filter(([k]) => Number(given[k] || 0) > 0).map(([k, l]) => `${given[k]} ${l}`);
+  return (
+    <Widget title="Кейсы с лягушкой" icon={<Gift />} tone="#2fb46a">
+      <div className="adm-daily-k">
+        <div><b><CountUp value={Number(cases?.today || 0)} /></b><small>открыли<br />сегодня</small></div>
+        <div><b><CountUp value={Number(cases?.week || 0)} /></b><small>за 7 дней,<br />людей {Number(cases?.people_week || 0)}</small></div>
+        <div><b><CountUp value={Number(cases?.month || 0)} /></b><small>за 30<br />дней</small></div>
+      </div>
+      <p className="adm-sub">
+        Выдано за неделю {Number(cases?.given_week || 0).toLocaleString("ru-RU")}{src.length ? ` (${src.join(", ")})` : ""} · ждут открытия {Number(cases?.waiting || 0).toLocaleString("ru-RU")} у {Number(cases?.waiting_people || 0).toLocaleString("ru-RU")} чел.
+      </p>
+      {recent.length ? (
+        <ul className="adm-people adm-feed mt-2">
+          {recent.map((o, i) => (
+            <li key={i}>
+              <button type="button" onClick={() => navigate("users?q=" + o.telegram_id)}>
+                <Avatar row={o} />
+                <span className="adm-p-name">
+                  <b>{who(o)}</b>
+                  <small>{ago(o.at)}</small>
+                </span>
+                <span className="adm-p-val">
+                  <b>{o.frog}</b>
+                  <small style={{ color: RARITY_TONE[o.rarity] }}>{o.rarity_label}</small>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="adm-calm"><span>🐸</span><b>Пока не открывали</b><small>Здесь появятся последние открытые кейсы</small></div>
+      )}
+    </Widget>
+  );
+}
+
+/** Cabinet opens and the hours people spent in it, per day for two weeks. */
+function CabinetWidget({ cab }: { cab: Data }) {
+  const days: Data[] = cab?.days || [];
+  const today: Data = cab?.today || {}, week: Data = cab?.week || {}, month: Data = cab?.month || {};
+  const since = cab?.since ? new Date(cab.since).toLocaleDateString("ru-RU", { day: "numeric", month: "long" }) : null;
+  return (
+    <Widget title="Личный кабинет" icon={<AppWindow />} tone="#5ac8fa">
+      <div className="adm-daily-k">
+        <div><b><CountUp value={Number(today.opens || 0)} /></b><small>открытий сегодня,<br />людей {Number(today.people || 0)}</small></div>
+        <div><b><CountUp value={Number(week.opens || 0)} /></b><small>за 7 дней,<br />людей {Number(week.people || 0)}</small></div>
+        <div><b><CountUp value={Number(week.hours || 0)} format={(n) => hours(n)} /></b><small>провели в нём<br />за 7 дней</small></div>
+      </div>
+      <p className="adm-sub">Сегодня {hours(Number(today.hours || 0))} · за 30 дней {Number(month.opens || 0).toLocaleString("ru-RU")} открытий и {hours(Number(month.hours || 0))}{since ? ` · считаем с ${since}` : " · считаем с выкладки"}</p>
+      <div className="adm-chart">
+        <ResponsiveContainer width="100%" height={110}>
+          <BarChart data={days} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
+            <XAxis dataKey="day" hide />
+            <Tooltip content={<CabinetTip />} cursor={{ fill: "var(--secondary)", radius: 6 } as any} />
+            <Bar dataKey="opens" fill="#5ac8fa" radius={[6, 6, 6, 6]} animationDuration={900} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </Widget>
+  );
+}
+
+function CabinetTip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const d: Data = payload[0].payload || {};
+  return (
+    <div className="adm-tip">
+      <small>{dayLabel(label)}</small>
+      <b>{Number(d.opens || 0).toLocaleString("ru-RU")} открытий</b>
+      <small>людей {Number(d.people || 0)} · {hours(Number(d.hours || 0))}</small>
+    </div>
   );
 }
 
@@ -402,6 +537,9 @@ export function DashboardWidgets({ s }: { s: Data }) {
       <PaySoonWidget pay={s.pay_soon || {}} />
       <DailyUsersWidget daily={s.daily_users || {}} />
       <ActivationWidget act={s.activation || {}} />
+      <CabinetWidget cab={s.cabinet || {}} />
+      <ReferralsWidget refs={s.referrals || {}} />
+      <FrogCasesWidget cases={s.frog_cases || {}} />
       <SleepersWidget sleep={s.sleepers || {}} />
     </div>
   );

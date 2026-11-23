@@ -211,6 +211,13 @@ tbody tr { border-color: var(--border); transition: background-color .15s; }
 .adm-daily-w { display: flex; gap: 4px; flex-shrink: 0; }
 .adm-daily-w i { width: 10px; height: 10px; border-radius: 3px; background: var(--secondary); }
 .adm-daily-w i.on { background: #ff9500; }
+.adm-more { width: 100%; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px; border-radius: 12px; font-size: 13px; font-weight: 600; color: var(--primary); background: var(--secondary); transition: filter .15s; }
+.adm-more:hover { filter: brightness(.96); }
+.adm-more svg { transition: transform .2s; }
+.adm-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 0; }
+.adm-steps > div { background: var(--secondary); border-radius: 12px; padding: 8px 10px; }
+.adm-steps dt { font-size: 12px; color: var(--muted-foreground); }
+.adm-steps dd { margin: 2px 0 0; font-size: 18px; font-weight: 800; }
 .adm-pay-sum { font-weight: 800; font-size: 15px; color: #1d7a45; white-space: nowrap; }
 :root[data-theme="dark"] .adm-pay-sum { color: var(--primary); }
 .adm-feed li { animation: admIn .45s cubic-bezier(.2,.8,.2,1) both; }
