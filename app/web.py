@@ -292,13 +292,14 @@ async def api_connect(request: web.Request) -> web.Response:
     key = str(device.get("subscription_url") or "")
     if not key:
         return json_error("Ключ ещё готовится. Обновите страницу через минуту.", 409)
+    from app import store_check
     await db.record_onboarding_event(telegram_id, "connect_open")
     settings = get_settings()
     return web.json_response(
         {
             "ok": True,
             "key": key,
-            "apps": public_vpn_apps(),
+            "apps": store_check.mark(public_vpn_apps(), await store_check.status()),
             "device_title": str(device.get("title") or ""),
             "platform": str(device.get("platform") or ""),
             "client": str(device.get("client") or ""),

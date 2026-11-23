@@ -137,14 +137,17 @@
   }
   function looks() { return appsFor(S.os).filter(function (a) { return a.deep_link; }); }
   function byId(id) { return appsFor(S.os).filter(function (a) { return a.id === id; })[0] || null; }
-  function storeLink(a) { return ((a && a.stores) || {})[S.os] || ""; }
+  // The store link only while the app is still there: the server checks the Russian App Store and Google Play in advance.
+  function rawStore(a) { return ((a && a.stores) || {})[S.os] || ""; }
+  function storeLink(a) { return a && (a.unavailable || []).indexOf(S.os) >= 0 ? "" : rawStore(a); }
+  function gettable(a) { return Boolean(storeLink(a) || ((a && a.direct) || {})[S.os]); }
   function storeName(u) { return /apps\.apple\.com/.test(u) ? "App Store" : /play\.google\.com/.test(u) ? "Google Play" : /github\.com/.test(u) ? "GitHub" : "сайте"; }
   function deepLink(a) {
     var tpl = (a && a.deep_link) || "", key = S.data.key;
     if (!tpl || !key) return "";
     var url = tpl.split("{enc}").join(encodeURIComponent(key)).split("{url}").join(key);
     // Android Chrome: an intent with the package says «not installed» for sure — Chrome comes back to this page with «nf».
-    var pkg = (storeLink(a).match(/[?&]id=([\w.]+)/) || [])[1];
+    var pkg = (rawStore(a).match(/[?&]id=([\w.]+)/) || [])[1];
     if (S.os === "android" && pkg && /Chrome\//.test(navigator.userAgent || "") && !demo) {
       var m = url.match(/^([a-z][a-z0-9+.-]*):\/\/(.*)$/i);
       if (m) {
@@ -193,7 +196,11 @@
       m.acts.push({ t: "Добавить ключ в " + name, act: "open" });
       if (apk) m.acts.push(apk);
     } else if (S.phase === "none") {
-      m.color = "slate"; m.h = "Установите " + name; m.p = "Бесплатно в " + esc(sn) + ", это полминуты. Вернитесь сюда — ключ добавится сам.";
+      m.color = "slate"; m.h = "Установите " + name;
+      // Gone from the store but a direct file is there: the file becomes the main button.
+      if (!get && apk) { get = Object.assign({}, apk, { t: "Скачать " + name, k: "" }); apk = null; }
+      m.p = get && sl ? "Бесплатно в " + esc(sn) + ", это полминуты. Вернитесь сюда — ключ добавится сам."
+        : "Скачайте файл и установите, это полминуты. Вернитесь сюда — ключ добавится сам.";
       if (get) m.acts.push(get);
       m.acts.push({ t: "Уже установлено", act: "open", k: "sec" });
       if (apk) m.acts.push(apk);
@@ -306,8 +313,9 @@
     if (S.cur) S.res[S.cur] = "no";
     S.cur = S.queue.shift() || "";
     if (!S.cur) {
-      // Nothing opened: the recommended app is the one to install.
-      S.phase = "none"; S.app = (looks().filter(function (a) { return storeLink(a); })[0] || {}).id || S.app;
+      // Nothing opened: recommend an app that can really be downloaded now — in the store first, then a direct file.
+      var can = looks().filter(function (a) { return storeLink(a); })[0] || looks().filter(gettable)[0];
+      S.phase = "none"; S.app = (can || {}).id || S.app;
       render(); event("none", ""); return;
     }
     S.res[S.cur] = "try"; S.left = false;
@@ -450,13 +458,13 @@
 
   if (demo) {
     var DEMO_APPS = [
-      { id: "incy", name: "Incy", icon: "/icons/incy.png", deep_link: "incy://import/{url}", platforms: ["ios", "macos"], stores: { ios: "https://apps.apple.com/app/id6756943388", macos: "https://apps.apple.com/app/id6756943388" } },
-      { id: "happ", name: "Happ", icon: "/icons/happ.png", deep_link: "happ://add/{url}", platforms: ["ios", "macos", "android", "windows"],
+      { id: "incy", name: "Incy", icon: "/icons/incy.png", deep_link: "incy://import/{url}", platforms: ["ios", "macos"], unavailable: ["ios", "macos"], stores: { ios: "https://apps.apple.com/app/id6756943388", macos: "https://apps.apple.com/app/id6756943388" } },
+      { id: "happ", name: "Happ", icon: "/icons/happ.png", deep_link: "happ://add/{url}", platforms: ["ios", "macos", "android", "windows"], unavailable: ["ios", "macos", "android"],
         stores: { ios: "https://apps.apple.com/app/id6504287215", macos: "https://apps.apple.com/app/id6504287215", android: "https://play.google.com/store/apps/details?id=com.happproxy", windows: "https://github.com/Happ-proxy/happ-desktop/releases" },
         direct: { android: "https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk" } },
       { id: "rabbithole", name: "RabbitHole", icon: "/icons/rabbithole.png", deep_link: "rabbithole://add/{url}", platforms: ["ios", "macos"], stores: { ios: "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629" } },
       { id: "karing", name: "Karing", icon: "/icons/karing.png", deep_link: "karing://install-config?url={enc}", platforms: ["ios", "macos", "windows"], stores: { ios: "https://apps.apple.com/app/id6472431552", windows: "https://github.com/KaringX/karing/releases/latest" } },
-      { id: "v2rayng", name: "v2rayNG", icon: "/icons/v2rayng.png", deep_link: "v2rayng://install-sub?url={enc}", platforms: ["android"], stores: { android: "https://play.google.com/store/apps/details?id=com.v2ray.ang" } },
+      { id: "v2rayng", name: "v2rayNG", icon: "/icons/v2rayng.png", deep_link: "v2rayng://install-sub?url={enc}", platforms: ["android"], unavailable: ["android"], stores: { android: "https://play.google.com/store/apps/details?id=com.v2ray.ang" } },
       { id: "v2rayn", name: "v2rayN", icon: "/icons/v2rayn.png", deep_link: "", platforms: ["windows"], stores: { windows: "https://github.com/2dust/v2rayN/releases" } }
     ];
     var titles = { ios: "Мой iPhone", android: "Мой Android", macos: "MacBook", windows: "Ноутбук", linux: "Ноутбук" };
