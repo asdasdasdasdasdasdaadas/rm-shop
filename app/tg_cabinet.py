@@ -164,7 +164,7 @@ async def _links() -> dict[int, dict]:
     """Per ad link tied to Telegram Ads: who came, connected, paid, revenue, spend in ₽ and the payback day."""
     pool = db._pool_req()
     rows = await pool.fetch(
-        """SELECT l.id, l.slug, l.title, l.greeting,
+        """SELECT l.id, l.slug, l.title, l.greeting, l.followup,
                   (SELECT COUNT(*) FROM users u WHERE u.ad_link_id = l.id)::int AS users,
                   (SELECT COUNT(*) FROM users u WHERE u.ad_link_id = l.id AND u.first_online_at IS NOT NULL)::int AS connected,
                   (SELECT COUNT(*) FROM users u WHERE u.ad_link_id = l.id AND COALESCE(u.has_paid_topup, FALSE))::int AS paid,
@@ -244,13 +244,15 @@ async def cabinet(period: str = "7d", now: datetime | None = None) -> dict:
             "spent_period": _f(a["spent_period"]), "last_view_at": a["last_view_at"], "spark": list(a["spark"] or []),
             "day_spent": _f(a["day_spent"]), "days_left": tg_autobid.days_left(a["remaining"], a["day_spent"]),
             "silence": silent_why.get(int(a["ad_id"])), "person_rub": person_rub,
-            "autobid": {"enabled": bool(a["ab_enabled"]), "max_cpm": _f(a["max_cpm"]) or None,
+            "autobid": {"enabled": bool(a["ab_enabled"]),
+                        "max_cpm": min(_f(a["max_cpm"]), float(tg_autobid.HARD_MAX_CPM)) if a["max_cpm"] else None,
                         "good_cpm": _f(a["good_cpm"]) or None,
                         "floor_cpm": _f(a["floor_cpm"]) if a["floor_until"] and a["floor_until"] > now else None,
                         "state": state, "state_text": tg_autobid.STATE_TEXT.get(state, state), "note": a["ab_note"] or "",
                         "refund_at": a["refund_at"], "changed_at": a["changed_at"], "max_user_rub": a["max_user_rub"],
                         "base_cpm": _f(a["base_cpm"]) or None},
             "link": ({"id": link["id"], "slug": link["slug"], "title": link["title"], "greeting": link["greeting"] or "",
+                      "followup": link["followup"] or "",
                       "users": link["users"], "connected": link["connected"], "paid": link["paid"],
                       "revenue": link["revenue"], "spent_rub": link["spent_rub"], "payback_days": link["payback_days"],
                       "ltv": ltv_view(link["ltv"], link["users"], link["spent_rub"]),
@@ -284,6 +286,7 @@ async def cabinet(period: str = "7d", now: datetime | None = None) -> dict:
         "ltv": ltv_view(merged, every["users"], every["spent_rub"]),
         "person_rub": round(every["spent_rub"] / every["users"], 1) if every["users"] and every["spent_rub"] else None,
         "rate": rate,
+        "hard_max_cpm": float(tg_autobid.HARD_MAX_CPM),
         "step_hours": step.total_seconds() / 3600, "start": start,
         "ads": rows,
         "log": [dict(r) for r in log],
@@ -507,6 +510,8 @@ async def set_autobid(ad_id: int, enabled: bool, max_cpm=None, max_user_rub=...)
     top = Decimal(str(max_cpm)) if max_cpm not in (None, "") else None
     if top is not None and top <= 0:
         raise ValueError("Потолок должен быть больше нуля")
+    if top is not None and top > tg_autobid.HARD_MAX_CPM:
+        raise ValueError(f"Потолок автоставки — не выше {tg_autobid.HARD_MAX_CPM}")
     person = row.get("max_user_rub")
     if max_user_rub is not ...:
         person = int(Decimal(str(max_user_rub))) if max_user_rub not in (None, "", 0, "0") else None
@@ -524,7 +529,17 @@ async def set_autobid(ad_id: int, enabled: bool, max_cpm=None, max_user_rub=...)
            WHERE ad_id = $1""", int(ad_id), bool(enabled), top, Decimal(str(ad["cpm"] or 0)) or None, person)
     note = f"потолок {top}" + (f", человек не дороже {person} ₽" if person else "") if enabled else ""
     await tg_autobid.log(ad_id, "autobid_on" if enabled else "autobid_off", who="admin", new=top, note=note)
-    return {"ok": True}
+    out = {"ok": True, "max_cpm": float(top) if top is not None else None}
+    limit = tg_autobid.suggested_limit(ad["remaining"])
+    if enabled and not _f(ad.get("daily_limit")) and limit:
+        # Autobid on an ad without a daily limit: cap a day at half of what is left.
+        try:
+            edited = await tg_ads.call("editAd", ad_id=int(ad_id), daily_budget_limit=float(limit)) or {}
+            await tg_autobid.log(ad_id, "daily_limit", who="admin", new=limit, note="поставлен вместе с автоставкой")
+            out.update(await _after_edit(ad_id, edited), daily_limit=float(limit))
+        except tg_ads.TgAdsError as exc:
+            out["limit_error"] = f"Дневной лимит не поставился: {exc}"
+    return out
 
 
 async def set_daily_limit(ad_id: int, limit) -> dict:
@@ -576,12 +591,17 @@ async def set_schedule(ad_id: int, mask) -> dict:
     return await _after_edit(ad_id, ad or {})
 
 
-async def set_greeting(link_id: int, text: str) -> dict:
+async def set_greeting(link_id: int, text: str, followup=...) -> dict:
+    """The link's greeting and, when given, its «дожим» (app/ad_followup.py)."""
     value = str(text or "").strip()
     if len(value) > 700:
         raise ValueError("Приветствие длиннее 700 знаков")
+    later = None if followup is ... else str(followup or "").strip()
+    if later is not None and len(later) > 700:
+        raise ValueError("Дожим длиннее 700 знаков")
     done = await db._pool_req().fetchval(
-        "UPDATE ad_links SET greeting = $2 WHERE id = $1 RETURNING id", int(link_id), value or None)
+        """UPDATE ad_links SET greeting = $2, followup = CASE WHEN $3 THEN $4 ELSE followup END
+           WHERE id = $1 RETURNING id""", int(link_id), value or None, later is not None, later or None)
     if not done:
         raise ValueError("Ссылка не найдена")
     return {"ok": True}
@@ -613,6 +633,11 @@ async def create(body: dict) -> dict:
         raise ValueError("Укажите ставку CPM")
     if budget < 0:
         raise ValueError("Бюджет не может быть отрицательным")
+    if body.get("autobid") and body.get("max_cpm") not in (None, "") and Decimal(str(body["max_cpm"])) > tg_autobid.HARD_MAX_CPM:
+        raise ValueError(f"Потолок автоставки — не выше {tg_autobid.HARD_MAX_CPM}")
+    daily = Decimal(str(body.get("daily_limit") or 0))
+    if body.get("autobid") and not daily and budget > 0:
+        daily = tg_autobid.suggested_limit(budget) or Decimal(0)
     kind = str(body.get("kind") or "bots")
     if kind == "bots":
         names = [username_of(x) for x in body.get("places") or []]
@@ -639,13 +664,14 @@ async def create(body: dict) -> dict:
     link = await db._pool_req().fetchrow("SELECT * FROM ad_links WHERE slug = $1", slug) if slug else None
     if link is None:
         link = await db.create_ad_link(str(body.get("link_title") or title)[:80], slug)
-    if body.get("greeting"):
-        await set_greeting(int(link["id"]), str(body["greeting"]))
+    if body.get("greeting") or body.get("followup"):
+        await set_greeting(int(link["id"]), str(body.get("greeting") or link.get("greeting") or ""),
+                           str(body.get("followup") or "") or ...)
     url = f"https://t.me/{get_settings().bot_username}?start=ad_{link['slug']}"
     ad = await tg_ads.call(
         "createAd", title=title[:128], text=text, promote_url=url, cpm=float(cpm), placement=placement, target=target,
         initial_budget=float(budget), is_paused=bool(body.get("paused")),
-        daily_budget_limit=float(Decimal(str(body.get("daily_limit") or 0))),
+        daily_budget_limit=float(daily),
         idempotency_key=f"rmshop-{link['slug']}-{abs(hash((title, text, float(cpm)))) % 10**12}") or {}
     ad_id = int(ad.get("ad_id") or 0)
     if ad_id:
@@ -653,8 +679,8 @@ async def create(body: dict) -> dict:
         if body.get("autobid"):
             await tg_autobid.ensure_row(ad_id)
             await db._pool_req().execute(
-                "UPDATE tg_ad_autobid SET enabled = TRUE, max_cpm = $2, state = 'watching' WHERE ad_id = $1",
-                ad_id, Decimal(str(body.get("max_cpm") or 0)) or cpm * 2)
+                "UPDATE tg_ad_autobid SET enabled = TRUE, max_cpm = $2, base_cpm = $3, state = 'watching' WHERE ad_id = $1",
+                ad_id, tg_autobid.ceiling({"max_cpm": body.get("max_cpm")}, cpm), cpm)
     try:
         await tg_ads.sync_locked()
     except Exception:

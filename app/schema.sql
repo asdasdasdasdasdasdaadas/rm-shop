@@ -1434,3 +1434,8 @@ CREATE TABLE IF NOT EXISTS tg_ad_places (
 
 -- The first words a newcomer from this link sees in the bot, before the usual welcome.
 ALTER TABLE ad_links ADD COLUMN IF NOT EXISTS greeting TEXT;
+-- «Дожим»: one message an hour after coming from this link, to whoever has not connected yet (app/ad_followup.py).
+ALTER TABLE ad_links ADD COLUMN IF NOT EXISTS followup TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_followup_at TIMESTAMPTZ;
+-- The ad's status at the last alert pass: «прошло модерацию» is in_review → active.
+ALTER TABLE tg_ad_autobid ADD COLUMN IF NOT EXISTS last_status TEXT;

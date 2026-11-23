@@ -1,7 +1,8 @@
 """Telegram Ads autobid and watch, run after every sync (app/tg_ads.py, every 10 minutes).
 
 Autobid keeps an ad on the lowest CPM at which it is still shown:
-  * no views for QUIET after the last change → CPM up by STEP_UP, never above the ceiling (max_cpm);
+  * no views for QUIET after the last change → CPM up by STEP_UP, never above the ceiling: max_cpm, by default
+    the starting CPM + 30%, and never above HARD_MAX_CPM whatever is set; a CPM above the ceiling is brought down;
   * views flowing for PROBE_EVERY → try STEP_DOWN lower;
   * the views stopped after lowering → back to the last CPM that worked, and that CPM is the floor for a day;
   * at the ceiling with no views for DEAD → «не крутится», with an alert: the place is dead, not the price.
@@ -12,7 +13,8 @@ Autobid keeps an ad on the lowest CPM at which it is still shown:
 Budgets are never added to. The only money that moves is «Вернуть остаток», pressed by hand: the ad is paused and
 ten minutes later (the API's rule) its remaining budget goes back to the account.
 
-The same pass sends alerts (ad declined, dead at the ceiling, budget almost spent) and the morning digest.
+The same pass sends alerts (ad declined, passed moderation, the first 100 views, dead at the ceiling, budget almost
+spent, people from it pay less than they cost — with «На паузу» / «Вернуть остаток» buttons) and the morning digest.
 """
 from __future__ import annotations
 
@@ -37,6 +39,8 @@ STEP_DOWN = Decimal("0.93")
 MIN_STEP = Decimal("0.05")
 MIN_CPM = Decimal("0.1")
 REFUND_AFTER = timedelta(minutes=11)
+CEILING_STEP = Decimal("1.3")         # the default ceiling: the CPM the autobid started from + 30%
+HARD_MAX_CPM = Decimal("5")           # the autobid never sets a CPM above this, whatever ceiling is given
 PERSON_WINDOW = timedelta(days=14)    # people per 1000 views are counted over this
 PERSON_MIN_USERS = 3                  # fewer people than this — too early to judge the price of one
 PERSON_DRY_VIEWS = 5000               # this many views and nobody came → do not raise the CPM
@@ -68,9 +72,18 @@ def _round(v: Decimal) -> Decimal:
 
 
 def ceiling(ab: dict, cpm: Decimal) -> Decimal:
-    """The highest CPM the autobid may set: as given, else twice the CPM it started from."""
+    """The highest CPM the autobid may set: as given, else the CPM it started from + 30%; never above HARD_MAX_CPM."""
     given = _d(ab.get("max_cpm"))
-    return given if given > 0 else _round(max(cpm, MIN_CPM) * 2)
+    top = given if given > 0 else _round(max(cpm, MIN_CPM) * CEILING_STEP)
+    return min(top, HARD_MAX_CPM)
+
+
+def suggested_limit(remaining) -> Decimal | None:
+    """A daily limit for an ad that has none: half of what is left, so the budget lasts at least two days."""
+    rest = _d(remaining)
+    if rest <= 0:
+        return None
+    return min(rest, max(Decimal("0.5"), _round(rest / 2)))
 
 
 def person_cap(max_user_rub, rate, views: int, users: int) -> tuple[Decimal | None, str]:
@@ -115,6 +128,8 @@ def decide(ab: dict, ad: dict, views: list[tuple[datetime, int]], now: datetime,
         return {**out, "state": out["state"] if out["state"] in {"searching", "probing", "dead", "expensive"} else "watching",
                 "note": (ab.get("note") or "") if out["state"] in {"dead", "expensive"} else "ждёт, как Telegram отреагирует на новую ставку"}
     top = ceiling(ab, cpm)
+    if cpm > top:
+        return {"action": "set", "cpm": top, "state": "searching", "note": f"ставка {cpm} выше потолка {top} — опускаю"}
     if cap is not None:
         if cap > 0 and cpm > cap:
             new = max(cap, MIN_CPM)
@@ -302,10 +317,43 @@ async def run_refunds(now: datetime | None = None) -> int:
 
 # ---------------------------------------------------------------------------------------------------- alerts
 
-def alerts_for(ad: dict, ab: dict, day_spent: Decimal) -> dict[str, str]:
-    """Which alerts hold now for one ad: key → text. A key alerts once and again only after it went away."""
+LOSS_MIN_PEOPLE = 5      # people who came 14+ days ago before «не окупается» is said
+LOSS_DAYS = 14
+FIRST_VIEWS = 100
+REVIEW = {"in_review", "ready_for_review"}
+
+
+def loss_of(link: dict | None) -> dict | None:
+    """{cost, paid, people}: one person from the link costs more than people who came LOSS_DAYS+ ago paid in that
+    time. None while the link is shared, has no spend in ₽ or too few people had the time."""
+    if not link or link.get("shared") or not link.get("spent_rub") or not link.get("users"):
+        return None
+    c = (link.get("ltv") or {}).get(LOSS_DAYS) or (link.get("ltv") or {}).get(str(LOSS_DAYS)) or {}
+    people = int(c.get("users") or 0)
+    if people < LOSS_MIN_PEOPLE:
+        return None
+    cost = link["spent_rub"] / link["users"]
+    paid = (c.get("revenue") or 0) / people
+    return {"cost": round(cost), "paid": round(paid), "people": people} if paid < cost else None
+
+
+def alerts_for(ad: dict, ab: dict, day_spent: Decimal, link: dict | None = None) -> dict[str, str]:
+    """Which alerts hold now for one ad: key → text. A key alerts once and again only after it went away;
+    keys starting with «once:» alert once for the ad's whole life."""
     title = ad.get("title") or f"Объявление {ad['ad_id']}"
     out: dict[str, str] = {}
+    live = ad.get("status") == "active" and not ad.get("is_paused")
+    loss = loss_of(link) if live else None
+    if loss:
+        out["loss"] = (f"📉 <b>{title}</b> не окупается: человек с него стоит {loss['cost']} ₽, а за {LOSS_DAYS} дней"
+                       f" приносит {loss['paid']} ₽ (по {loss['people']} пришедшим). Поставить на паузу?")
+    if int(ad.get("views") or 0) >= FIRST_VIEWS:
+        views, clicks = int(ad.get("views") or 0), int(ad.get("clicks") or 0)
+        people = (link or {}).get("since_ad")
+        ctr = f"{clicks * 100 / views:.1f}".replace(".", ",")
+        out["once:first100"] = (f"👀 <b>{title}</b>: первые {views} показов — {clicks} кликов (CTR {ctr}%)"
+                                + (f", пришли в бота {people}" if people is not None else "")
+                                + f", потрачено {_round(_d(ad.get('spent')))} {ad.get('currency') or ''}")
     if ad.get("status") == "declined":
         reason = ad.get("decline_reason") or "без причины"
         out["declined"] = f"⛔️ <b>{title}</b> отклонено модерацией: {reason}"
@@ -324,32 +372,61 @@ async def _targets() -> list:
     return await targets()
 
 
+def alert_buttons(key: str, ad_id: int):
+    """«На паузу» and «Вернуть остаток» under the alerts where the next move is to stop the ad."""
+    if key not in {"loss", "dead"}:
+        return None
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="⏸ На паузу", callback_data=f"tga_pause:{ad_id}"),
+        InlineKeyboardButton(text="↩️ Вернуть остаток", callback_data=f"tga_refund:{ad_id}"),
+    ]])
+
+
+async def _send(bot, text: str, markup=None) -> None:
+    for chat in await _targets():
+        try:
+            await bot.send_message(chat, text, parse_mode="HTML", reply_markup=markup)
+        except Exception:
+            logger.warning("Тревога Telegram Ads не ушла в %s", chat, exc_info=True)
+
+
 async def run_alerts(bot) -> int:
+    from app import tg_cabinet
     pool = db._pool_req()
     ads = await pool.fetch(
         """SELECT a.*, COALESCE((SELECT SUM(s.spent) FROM tg_ad_stats s WHERE s.ad_id = a.ad_id
-                                  AND s.ts >= NOW() - INTERVAL '1 day'), 0) AS day_spent
+                                  AND s.ts >= NOW() - INTERVAL '1 day'), 0) AS day_spent,
+                  (SELECT COUNT(*) FROM users u WHERE u.ad_link_id = a.ad_link_id AND u.created_at >= a.created_at)::int AS since_ad,
+                  (SELECT COUNT(*) FROM tg_ads o WHERE o.ad_link_id = a.ad_link_id AND o.gone_at IS NULL)::int AS link_ads
            FROM tg_ads a WHERE a.gone_at IS NULL AND a.created_at >= NOW() - INTERVAL '60 days'""")
+    links = await tg_cabinet._links() if ads else {}
     sent = 0
     for a in ads:
         ab = await ensure_row(a["ad_id"])
         sent_before = ab.get("alerted") or {}
         if isinstance(sent_before, str):
             sent_before = json.loads(sent_before or "{}")
-        now_alerts = alerts_for(dict(a), ab, _d(a["day_spent"]))
+        link = links.get(a["ad_link_id"]) if a["ad_link_id"] else None
+        if link is not None:
+            link = {**link, "shared": a["link_ads"] > 1, "since_ad": a["since_ad"] if a["link_ads"] == 1 else None}
+        now_alerts = alerts_for(dict(a), ab, _d(a["day_spent"]), link)
+        first_look = ab.get("last_status") is None
+        if first_look:
+            # The first pass after a deploy: what already happened is not news.
+            sent_before = {**sent_before, **{k: "seen" for k in now_alerts if k.startswith("once:")}}
+        elif ab.get("last_status") in REVIEW and a["status"] == "active":
+            await _send(bot, f"✅ <b>{a['title'] or a['ad_id']}</b> прошло модерацию и пошло в показ")
+            sent += 1
         fresh = {k: v for k, v in now_alerts.items() if k not in sent_before}
-        keep = {k: sent_before[k] for k in sent_before if k in now_alerts}
+        keep = {k: sent_before[k] for k in sent_before if k in now_alerts or k.startswith("once:")}
         for key, text in fresh.items():
-            for chat in await _targets():
-                try:
-                    await bot.send_message(chat, text, parse_mode="HTML")
-                except Exception:
-                    logger.warning("Тревога Telegram Ads не ушла в %s", chat, exc_info=True)
+            await _send(bot, text, alert_buttons(key, int(a["ad_id"])))
             keep[key] = datetime.now(timezone.utc).isoformat()
             sent += 1
-        if keep != sent_before:
-            await pool.execute("UPDATE tg_ad_autobid SET alerted = $2::jsonb WHERE ad_id = $1", a["ad_id"],
-                               json.dumps(keep))
+        if keep != sent_before or first_look or ab.get("last_status") != a["status"]:
+            await pool.execute("UPDATE tg_ad_autobid SET alerted = $2::jsonb, last_status = $3 WHERE ad_id = $1",
+                               a["ad_id"], json.dumps(keep), a["status"])
     return sent
 
 
@@ -455,7 +532,8 @@ async def tick() -> None:
     bot = getattr(runtime, "bot", None)
     if bot is None:
         return
-    for name, step in (("тревоги", run_alerts), ("сводка", run_digest)):
+    from app import ad_followup
+    for name, step in (("тревоги", run_alerts), ("сводка", run_digest), ("дожим с рекламы", ad_followup.send_due)):
         try:
             await step(bot)
         except Exception:

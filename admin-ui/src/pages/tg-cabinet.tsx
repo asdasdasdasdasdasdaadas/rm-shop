@@ -84,6 +84,14 @@ const AB: Record<string, string> = {
   idle: "muted", watching: "wait", searching: "wait", probing: "wait", holding: "ok", ceiling: "warn",
   dead: "bad", review: "bad", paused: "muted", empty: "muted", expensive: "warn",
 };
+const HARD = { max: 5 };   // the autobid's hard ceiling, from the cabinet response
+const autoTop = (cpm: unknown) => price(Math.min(Number(cpm || 0) * 1.3, HARD.max));
+/** What the server said after turning the autobid on: the ceiling it took and the daily limit it set. */
+const autobidToast = (got: Data, ok: string) => {
+  if (got.review) toast.warning("Telegram отправил объявление на модерацию после этой правки");
+  else toast.success(`${ok}${got.max_cpm ? `: потолок ${price(got.max_cpm)}` : ""}${got.daily_limit ? `, лимит в день ${price(got.daily_limit)}` : ""}`);
+  if (got.limit_error) toast.error(got.limit_error);
+};
 const days = (v: number | null | undefined) =>
   v == null ? null : v < 1 ? `~${Math.max(1, Math.round(v * 24))} ч` : `~${String(Math.round(v * 10) / 10).replace(".", ",")} дн`;
 
@@ -101,6 +109,7 @@ export function TgCabinet({ onChange }: { onChange: () => void }) {
   const report: Data = head.data?.report || {};
   const d = cab.data;
   if (d?.brand) BRAND.name = d.brand;
+  if (d?.hard_max_cpm) HARD.max = d.hard_max_cpm;
   if (head.data && !head.data.configured)
     return (
       <section className="tga">
@@ -312,7 +321,8 @@ function AdsTable({ d, reload, onSchedule }: { d: Data; reload: () => Promise<vo
   const visible = showGone ? ads : ads.filter((a) => a.status !== "declined" || a.remaining > 0);
   const act = async (body: Data, ok: string) => {
     const got = await api("tg-ads/ad", body);
-    if (got.review) toast.warning("Telegram отправил объявление на модерацию после этой правки");
+    if (body.action === "autobid" && body.enabled) autobidToast(got, ok);
+    else if (got.review) toast.warning("Telegram отправил объявление на модерацию после этой правки");
     else toast.success(ok);
     await reload();
   };
@@ -404,7 +414,7 @@ function AdsTable({ d, reload, onSchedule }: { d: Data; reload: () => Promise<vo
                           </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => setLimitOf(a)}>Дневной лимит</DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => onSchedule(a.ad_id)}>Расписание по часам</DropdownMenuItem>
-                          {a.link && <DropdownMenuItem onSelect={() => setGreetOf(a)}>Приветствие в боте</DropdownMenuItem>}
+                          {a.link && <DropdownMenuItem onSelect={() => setGreetOf(a)}>Приветствие и дожим</DropdownMenuItem>}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive"
@@ -548,7 +558,9 @@ function AdDetail({ a, cur, reload, onGreeting }: { a: Data; cur: string; reload
         {l && <LtvRow ltv={l.ltv} cost={l.users && l.spent_rub ? l.spent_rub / l.users : null} />}
         {l && (
           <button className="tga-link small" onClick={onGreeting}>
-            {l.greeting ? "Приветствие: " + l.greeting.slice(0, 60) + (l.greeting.length > 60 ? "…" : "") : "+ Добавить приветствие для пришедших с этого объявления"}
+            {l.greeting || l.followup
+              ? [l.greeting && "приветствие", l.followup && "дожим через час"].filter(Boolean).join(" и ").replace(/^./, (c: string) => c.toUpperCase()) + ": изменить"
+              : "+ Приветствие и дожим для пришедших с этого объявления"}
           </button>
         )}
       </div>
@@ -567,7 +579,7 @@ function AdDetail({ a, cur, reload, onGreeting }: { a: Data; cur: string; reload
         <div className="tga-ab-form">
           <label className="tga-field">
             <span>Потолок ставки</span>
-            <div className="tga-input-gem"><Gem /><Input value={max} onChange={(e) => setMax(e.target.value.replace(",", "."))} placeholder={price(a.cpm * 2)} inputMode="decimal" /></div>
+            <div className="tga-input-gem"><Gem /><Input value={max} onChange={(e) => setMax(e.target.value.replace(",", "."))} placeholder={autoTop(a.cpm)} inputMode="decimal" /></div>
           </label>
           <label className="tga-field">
             <span>Человек не дороже, ₽</span>
@@ -576,8 +588,8 @@ function AdDetail({ a, cur, reload, onGreeting }: { a: Data; cur: string; reload
           <ActionButton
             variant="outline"
             onAction={async () => {
-              await api("tg-ads/ad", { ad_id: a.ad_id, action: "autobid", enabled: true, max_cpm: max || null, max_user_rub: person || null });
-              toast.success(ab.enabled ? "Автоставка сохранена" : "Автоставка включена");
+              const got = await api("tg-ads/ad", { ad_id: a.ad_id, action: "autobid", enabled: true, max_cpm: max || null, max_user_rub: person || null });
+              autobidToast(got, ab.enabled ? "Автоставка сохранена" : "Автоставка включена");
               await reload();
             }}
           >
@@ -585,6 +597,8 @@ function AdDetail({ a, cur, reload, onGreeting }: { a: Data; cur: string; reload
           </ActionButton>
         </div>
         <p className="tga-hint">
+          Потолок по умолчанию — ставка при включении +30%, и никогда не выше {price(HARD.max)}, что бы ни было указано.
+          Если у объявления нет дневного лимита, при включении ставится половина остатка — бюджета хватит минимум на 2 дня.
           Каждые 10 минут: нет показов 40 минут — ставка +15%, не выше потолка; показы идут 2 часа — пробует на 7% дешевле.
           На потолке 3 часа без показов — возвращает последнюю рабочую ставку и больше не поднимает: дело не в цене.
           С целью по цене человека держит ставку так, чтобы пришедший стоил не дороже — считает по людям на 1000 показов за 14
@@ -632,33 +646,42 @@ function NumberDialog({ ad, title, hint, value, onClose, onSave }: { ad: Data | 
 }
 
 function GreetingDialog({ ad, onClose, reload }: { ad: Data | null; onClose: () => void; reload: () => Promise<void> }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(""),
+    [later, setLater] = useState("");
   return (
     <Dialog open={!!ad} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="tga-modal" onOpenAutoFocus={() => setText(ad?.link?.greeting || "")}>
+      <DialogContent className="tga-modal" onOpenAutoFocus={() => { setText(ad?.link?.greeting || ""); setLater(ad?.link?.followup || ""); }}>
         <DialogHeader>
-          <DialogTitle>Приветствие для пришедших с объявления</DialogTitle>
+          <DialogTitle>Приветствие и дожим</DialogTitle>
           <DialogDescription>
-            Новичок по ссылке ad_{ad?.link?.slug} увидит это первым сообщением, перед обычным приветствием. Продолжает мысль
-            объявления: пришёл с «соцсети не грузятся» — сразу про соцсети.
+            Для новичков по ссылке ad_{ad?.link?.slug}. Оба продолжают мысль объявления: пришёл с «соцсети не грузятся» —
+            сразу про соцсети.
           </DialogDescription>
         </DialogHeader>
-        <Textarea rows={5} value={text} onChange={(e) => setText(e.target.value)} placeholder="Соцсети заработают через минуту 🐸 Нажмите «Подключить» — первые 3 дня бесплатно." />
-        <div className="flex justify-between gap-2">
-          <span className="tga-muted text-xs self-center">{text.length} / 700 · пусто — без приветствия</span>
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={onClose}>Отмена</Button>
-            <ActionButton
-              onAction={async () => {
-                await api("tg-ads/greeting", { link_id: ad!.link.id, text });
-                toast.success(text.trim() ? "Приветствие сохранено" : "Приветствие убрано");
-                onClose();
-                await reload();
-              }}
-            >
-              Сохранить
-            </ActionButton>
-          </div>
+        <label className="tga-field">
+          <span>Приветствие — первым сообщением, перед обычным</span>
+          <Textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Соцсети заработают через минуту 🐸 Нажмите «Подключить» — первые 3 дня бесплатно." />
+          <em className="tga-muted text-xs not-italic">{text.length} / 700 · пусто — без приветствия</em>
+        </label>
+        <label className="tga-field">
+          <span>Дожим — через час, если человек так и не подключился</span>
+          <Textarea rows={4} value={later} onChange={(e) => setLater(e.target.value)} placeholder="{name}, соцсети всё ещё не грузятся? Подключение — одна кнопка, первые 3 дня бесплатно 🐸" />
+          <em className="tga-muted text-xs not-italic">
+            {later.length} / 700 · один раз, с кнопкой «Подключить VPN» · {"{name}"} — имя · не чаще общего лимита напоминаний · пусто — без дожима
+          </em>
+        </label>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <ActionButton
+            onAction={async () => {
+              await api("tg-ads/greeting", { link_id: ad!.link.id, text, followup: later });
+              toast.success("Сохранено");
+              onClose();
+              await reload();
+            }}
+          >
+            Сохранить
+          </ActionButton>
         </div>
       </DialogContent>
     </Dialog>
@@ -906,7 +929,7 @@ function Log({ items }: { items: Data[] }) {
 // ------------------------------------------------------------------------------------------------ create
 
 function CreateAd({ open, preset, onClose, balance, currency, bot, reload }: { open: boolean; preset?: { kind: string; places: string }; onClose: () => void; balance: unknown; currency?: string; bot?: string; reload: () => Promise<void> }) {
-  const empty = { title: "", text: "", kind: "bots", places: "", language: "ru", topics: [] as number[], cpm: "3", budget: "1", daily_limit: "", slug: "", greeting: "", autobid: true, max_cpm: "", paused: false };
+  const empty = { title: "", text: "", kind: "bots", places: "", language: "ru", topics: [] as number[], cpm: "3", budget: "1", daily_limit: "", slug: "", greeting: "", followup: "", autobid: true, max_cpm: "", paused: false };
   const [f, setF] = useState(empty);
   const [topicsOpen, setTopicsOpen] = useState(false);
   const [seen, setSeen] = useState<typeof preset>(undefined);
@@ -921,7 +944,7 @@ function CreateAd({ open, preset, onClose, balance, currency, bot, reload }: { o
   const submit = () =>
     confirm({
       title: "Создать объявление?",
-      description: `С баланса кабинета на объявление уйдёт ${price(f.budget)} ${currency || "TON"} (сейчас на балансе ${price(balance)}). Ставка ${price(f.cpm)}${f.autobid ? `, автоставка до ${price(f.max_cpm || Number(f.cpm) * 2)}` : ""}. После создания — модерация Telegram.`,
+      description: `С баланса кабинета на объявление уйдёт ${price(f.budget)} ${currency || "TON"} (сейчас на балансе ${price(balance)}). Ставка ${price(f.cpm)}${f.autobid ? `, автоставка до ${f.max_cpm ? price(f.max_cpm) : autoTop(f.cpm)}${!Number(f.daily_limit) && Number(f.budget) > 0 ? `, лимит в день ${price(Math.min(Number(f.budget), Math.max(0.5, Number(f.budget) / 2)))}` : ""}` : ""}. После создания — модерация Telegram.`,
       label: "Создать",
       action: async () => {
         const got = await api("tg-ads/create", {
@@ -1018,7 +1041,7 @@ function CreateAd({ open, preset, onClose, balance, currency, bot, reload }: { o
               </label>
               <label className="tga-field">
                 <span>Лимит в день</span>
-                <div className="tga-input-gem"><Gem /><Input value={f.daily_limit} onChange={(e) => set("daily_limit", e.target.value.replace(",", "."))} placeholder="без лимита" inputMode="decimal" /></div>
+                <div className="tga-input-gem"><Gem /><Input value={f.daily_limit} onChange={(e) => set("daily_limit", e.target.value.replace(",", "."))} placeholder={f.autobid ? "½ бюджета" : "без лимита"} inputMode="decimal" /></div>
               </label>
               <label className="tga-field">
                 <span>Код ссылки</span>
@@ -1029,7 +1052,7 @@ function CreateAd({ open, preset, onClose, balance, currency, bot, reload }: { o
             <label className="tga-switch-row">
               <Switch checked={f.autobid} onCheckedChange={(v) => set("autobid", v)} />
               <span>Автоставка, потолок</span>
-              <div className="tga-input-gem small"><Gem /><Input value={f.max_cpm} onChange={(e) => set("max_cpm", e.target.value.replace(",", "."))} placeholder={price(Number(f.cpm || 0) * 2)} disabled={!f.autobid} /></div>
+              <div className="tga-input-gem small"><Gem /><Input value={f.max_cpm} onChange={(e) => set("max_cpm", e.target.value.replace(",", "."))} placeholder={autoTop(f.cpm)} disabled={!f.autobid} /></div>
             </label>
             <label className="tga-switch-row">
               <Switch checked={f.paused} onCheckedChange={(v) => set("paused", v)} />
@@ -1038,6 +1061,10 @@ function CreateAd({ open, preset, onClose, balance, currency, bot, reload }: { o
             <label className="tga-field">
               <span>Приветствие в боте для пришедших (необязательно)</span>
               <Textarea rows={2} value={f.greeting} onChange={(e) => set("greeting", e.target.value)} />
+            </label>
+            <label className="tga-field">
+              <span>Дожим через час, если не подключился (необязательно)</span>
+              <Textarea rows={2} value={f.followup} onChange={(e) => set("followup", e.target.value)} placeholder="{name}, соцсети всё ещё не грузятся? Подключение — одна кнопка 🐸" />
             </label>
           </div>
         </div>

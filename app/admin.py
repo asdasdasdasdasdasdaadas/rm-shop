@@ -2662,7 +2662,8 @@ async def api_tg_cabinet(request: web.Request) -> web.Response:
         if what == "create":
             return _tg_json(await tg_cabinet.create(body))
         if what == "greeting":
-            return _tg_json(await tg_cabinet.set_greeting(int(body.get("link_id") or 0), str(body.get("text") or "")))
+            return _tg_json(await tg_cabinet.set_greeting(int(body.get("link_id") or 0), str(body.get("text") or ""),
+                                                          body["followup"] if "followup" in body else ...))
         if what == "ad":
             ad_id, action = int(body.get("ad_id") or 0), str(body.get("action") or "")
             if action == "cpm":

@@ -15,6 +15,11 @@ NOW = datetime(2026, 11, 23, 12, 0, tzinfo=timezone.utc)
 ACTIVE = {"cpm": "2.00", "status": "active", "is_paused": False, "remaining": "1"}
 
 
+def tg_ads_error():
+    from app.tg_ads import TgAdsError
+    return TgAdsError("DAILY_BUDGET_LIMIT_INVALID")
+
+
 def views(*pairs):
     """(minutes ago, views) → the 5-minute buckets decide() reads."""
     return [(NOW - timedelta(minutes=m), v) for m, v in pairs]
@@ -95,9 +100,21 @@ class DecideTest(unittest.TestCase):
             got = decide({"max_cpm": "3"}, ad, [], NOW)
             self.assertEqual((got["action"], got["state"]), ("none", state))
 
-    def test_ceiling_defaults_to_twice_the_start(self):
-        self.assertEqual(tg_autobid.ceiling({}, Decimal("1.5")), Decimal("3.00"))
+    def test_ceiling_defaults_to_the_start_plus_30_and_never_above_the_hard_max(self):
+        self.assertEqual(tg_autobid.ceiling({}, Decimal("1.5")), Decimal("1.95"))
         self.assertEqual(tg_autobid.ceiling({"max_cpm": "4"}, Decimal("1.5")), Decimal("4"))
+        self.assertEqual(tg_autobid.ceiling({}, Decimal("10")), Decimal("5"))
+        self.assertEqual(tg_autobid.ceiling({"max_cpm": "20"}, Decimal("10")), Decimal("5"))
+
+    def test_a_bid_above_the_ceiling_comes_down(self):
+        got = decide({"max_cpm": "20", "changed_at": NOW - timedelta(hours=1)}, {**ACTIVE, "cpm": "10"}, views((20, 3)), NOW)
+        self.assertEqual((got["action"], got["cpm"]), ("set", Decimal("5")))
+
+    def test_suggested_limit(self):
+        self.assertEqual(tg_autobid.suggested_limit("4"), Decimal("2.00"))
+        self.assertEqual(tg_autobid.suggested_limit("0.6"), Decimal("0.5"))
+        self.assertEqual(tg_autobid.suggested_limit("0.3"), Decimal("0.3"))
+        self.assertIsNone(tg_autobid.suggested_limit("0"))
 
 
 class AlertsTest(unittest.TestCase):
@@ -215,7 +232,11 @@ class CabinetDb(unittest.IsolatedAsyncioTestCase):
 
     async def test_autobid_raises_a_silent_ad_and_logs(self):
         await self.pool.execute("DELETE FROM tg_ad_stats")
-        await tg_cabinet.set_autobid(23, True, 3)
+        with patch("app.tg_ads.call", AsyncMock(return_value={"ad_id": 23, "status": "active", "daily_budget_limit": 0.55})) as call:
+            out = await tg_cabinet.set_autobid(23, True, 3)
+        # No daily limit on the ad: half of what is left (1.1) is set with the autobid.
+        call.assert_awaited_once_with("editAd", ad_id=23, daily_budget_limit=0.55)
+        self.assertEqual((out["max_cpm"], out["daily_limit"]), (3.0, 0.55))
         edited = {"ad_id": 23, "cpm": 2.88, "status": "active"}
         with patch("app.tg_ads.call", AsyncMock(return_value=edited)) as call:
             self.assertEqual(await tg_autobid.run_autobid(datetime.now(timezone.utc)), 1)
@@ -223,11 +244,13 @@ class CabinetDb(unittest.IsolatedAsyncioTestCase):
         row = await self.pool.fetchrow("SELECT state, enabled FROM tg_ad_autobid WHERE ad_id = 23")
         self.assertEqual((row["state"], row["enabled"]), ("searching", True))
         log = await self.pool.fetch("SELECT who, action FROM tg_ad_log WHERE ad_id = 23 ORDER BY id")
-        self.assertEqual([(r["who"], r["action"]) for r in log], [("admin", "autobid_on"), ("bot", "cpm")])
+        self.assertEqual([(r["who"], r["action"]) for r in log], [("admin", "autobid_on"), ("admin", "daily_limit"), ("bot", "cpm")])
 
     async def test_price_change_sent_to_review_turns_the_autobid_off(self):
         await self.pool.execute("DELETE FROM tg_ad_stats")
-        await tg_cabinet.set_autobid(23, True, 3)
+        with patch("app.tg_ads.call", AsyncMock(side_effect=tg_ads_error())):
+            out = await tg_cabinet.set_autobid(23, True, 3)
+        self.assertIn("Дневной лимит не поставился", out["limit_error"])   # the autobid is on all the same
         with patch("app.tg_ads.call", AsyncMock(return_value={"ad_id": 23, "cpm": 2.88, "status": "in_review"})):
             await tg_autobid.run_autobid(datetime.now(timezone.utc))
         row = await self.pool.fetchrow("SELECT state, enabled FROM tg_ad_autobid WHERE ad_id = 23")
@@ -292,7 +315,10 @@ class CabinetDb(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((row["audience"], row["prev_audience"]), (0, 40000))
 
     async def test_autobid_keeps_a_person_under_the_target(self):
-        await tg_cabinet.set_autobid(23, True, 4, 20)
+        with self.assertRaises(ValueError):
+            await tg_cabinet.set_autobid(23, True, 6)
+        with patch("app.tg_ads.call", AsyncMock(return_value={})):
+            await tg_cabinet.set_autobid(23, True, 4, 20)
         row = await self.pool.fetchrow("SELECT max_user_rub, base_cpm FROM tg_ad_autobid WHERE ad_id = 23")
         self.assertEqual(row["max_user_rub"], 20)
         self.assertEqual(Decimal(str(row["base_cpm"])), Decimal("2.5"))
@@ -310,3 +336,86 @@ class CabinetDb(unittest.IsolatedAsyncioTestCase):
             await tg_autobid.run_autobid(datetime.now(timezone.utc))
         call.assert_awaited_once_with("editAd", ad_id=23, cpm=1.0)
         self.assertEqual(await self.pool.fetchval("SELECT state FROM tg_ad_autobid WHERE ad_id = 23"), "expensive")
+
+    async def _alert_bot(self):
+        bot = SimpleNamespace(send_message=AsyncMock())
+        patcher = patch.object(tg_autobid, "_targets", AsyncMock(return_value=[1]))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return bot
+
+    async def test_alerts_first_look_is_quiet_then_moderation_and_first_100(self):
+        bot = await self._alert_bot()
+        await self.pool.execute("UPDATE tg_ads SET views = 160")
+        await tg_autobid.run_alerts(bot)
+        bot.send_message.assert_not_awaited()     # 160 views before the deploy: not news
+        await self.pool.execute("UPDATE tg_ad_autobid SET last_status = 'in_review', alerted = '{}'::jsonb")
+        await tg_autobid.run_alerts(bot)
+        texts = [c.args[1] for c in bot.send_message.await_args_list]
+        self.assertTrue(any("прошло модерацию" in t for t in texts))
+        self.assertTrue(any("первые 160 показов — 9 кликов (CTR 5,6%), пришли в бота 1" in t for t in texts))
+        bot.send_message.reset_mock()
+        await tg_autobid.run_alerts(bot)
+        bot.send_message.assert_not_awaited()     # once
+
+    async def test_loss_alert_has_pause_and_refund_buttons(self):
+        bot = await self._alert_bot()
+        await tg_autobid.run_alerts(bot)          # first look
+        old = datetime.now(timezone.utc) - timedelta(days=20)
+        for i in range(6):
+            await self.pool.execute(
+                "INSERT INTO users (telegram_id, username, first_name, ad_link_id, created_at) VALUES ($1, 'x', 'X', $2, $3)",
+                100 + i, self.link, old)
+        await self.pool.execute("UPDATE tg_ads SET spent_rub = 700")   # 7 people → 100 ₽ a person, they paid nothing
+        await tg_autobid.run_alerts(bot)
+        call = next(c for c in bot.send_message.await_args_list if "не окупается" in c.args[1])
+        self.assertIn("стоит 100 ₽, а за 14 дней приносит 0 ₽ (по 6 пришедшим)", call.args[1])
+        buttons = [b.callback_data for b in call.kwargs["reply_markup"].inline_keyboard[0]]
+        self.assertEqual(buttons, ["tga_pause:23", "tga_refund:23"])
+
+    async def test_followup_once_to_who_has_not_connected(self):
+        from app import ad_followup
+        await self.pool.execute("UPDATE ad_links SET followup = '{name}, соцсети всё ещё не грузятся?' WHERE id = $1", self.link)
+        now = datetime.now(timezone.utc)
+        for tid, ago in ((40, 2), (41, 10), (42, 2)):
+            await self.pool.execute(
+                "INSERT INTO users (telegram_id, username, first_name, ad_link_id, created_at) VALUES ($1, 'x', 'Аня', $2, $3)",
+                tid, self.link, now - timedelta(hours=ago))
+        await self.pool.execute("UPDATE users SET first_online_at = NOW() WHERE telegram_id = 42")
+        deliver = AsyncMock(return_value=True)
+        with patch("app.nudge._deliver", deliver):
+            self.assertEqual(await ad_followup.send_due(None), 1)
+            self.assertEqual(await ad_followup.send_due(None), 0)
+        kw = deliver.await_args.kwargs
+        self.assertEqual((kw["telegram_id"], kw["body"], kw["kind"]), (40, "Аня, соцсети всё ещё не грузятся?", "nudge_ad_followup"))
+
+    async def test_greeting_and_followup_saved_together(self):
+        await tg_cabinet.set_greeting(self.link, "Привет", "Дожим")
+        row = await self.pool.fetchrow("SELECT greeting, followup FROM ad_links WHERE id = $1", self.link)
+        self.assertEqual((row["greeting"], row["followup"]), ("Привет", "Дожим"))
+        await tg_cabinet.set_greeting(self.link, "Привет 2")       # followup untouched when not given
+        self.assertEqual(await self.pool.fetchval("SELECT followup FROM ad_links WHERE id = $1", self.link), "Дожим")
+
+
+class AlertButtonsTest(unittest.IsolatedAsyncioTestCase):
+    def test_loss_of(self):
+        link = {"spent_rub": 700, "users": 7, "ltv": {14: {"users": 6, "revenue": 120}}}
+        self.assertEqual(tg_autobid.loss_of(link), {"cost": 100, "paid": 20, "people": 6})
+        self.assertIsNone(tg_autobid.loss_of({**link, "ltv": {14: {"users": 6, "revenue": 900}}}))
+        self.assertIsNone(tg_autobid.loss_of({**link, "ltv": {14: {"users": 4, "revenue": 0}}}))
+        self.assertIsNone(tg_autobid.loss_of({**link, "shared": True}))
+
+    async def test_pause_button_admin_only(self):
+        from app.handlers import tg_ads_mod
+        s = SimpleNamespace(admin_id_set={5})
+        msg = SimpleNamespace(html_text="📉 Боты", edit_text=AsyncMock())
+        cb = SimpleNamespace(data="tga_pause:23", from_user=SimpleNamespace(id=6, first_name="Кто-то"),
+                             answer=AsyncMock(), message=msg)
+        with patch.object(tg_ads_mod, "get_settings", return_value=s), \
+                patch("app.tg_cabinet.set_paused", AsyncMock()) as pause:
+            await tg_ads_mod.tg_ads_action(cb)
+            pause.assert_not_awaited()
+            cb.from_user = SimpleNamespace(id=5, first_name="Админ")
+            await tg_ads_mod.tg_ads_action(cb)
+        pause.assert_awaited_once_with(23, True)
+        self.assertIn("⏸ Поставлено на паузу — Админ", msg.edit_text.await_args.args[0])
