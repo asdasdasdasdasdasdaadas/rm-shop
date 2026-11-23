@@ -1366,3 +1366,71 @@ CREATE TABLE IF NOT EXISTS region_rejects (
     last_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     allowed_at TIMESTAMPTZ
 );
+
+-- Telegram Ads cabinet in «Рост» (app/tg_ads.py, app/tg_autobid.py).
+ALTER TABLE tg_ads ADD COLUMN IF NOT EXISTS ad_text TEXT NOT NULL DEFAULT '';
+ALTER TABLE tg_ads ADD COLUMN IF NOT EXISTS remaining NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE tg_ads ADD COLUMN IF NOT EXISTS daily_limit NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE tg_ads ADD COLUMN IF NOT EXISTS is_paused BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE tg_ads ADD COLUMN IF NOT EXISTS placement TEXT NOT NULL DEFAULT '';
+ALTER TABLE tg_ads ADD COLUMN IF NOT EXISTS target JSONB;
+ALTER TABLE tg_ads ADD COLUMN IF NOT EXISTS schedule JSONB;
+ALTER TABLE tg_ads ADD COLUMN IF NOT EXISTS decline_reason TEXT;
+ALTER TABLE tg_ads ADD COLUMN IF NOT EXISTS gone_at TIMESTAMPTZ;   -- no longer in the cabinet (deleted there)
+
+-- Views, clicks and spend per 5 minutes (getAdStats): the tiles, the hours map and the autobid read these.
+CREATE TABLE IF NOT EXISTS tg_ad_stats (
+    ad_id BIGINT NOT NULL,
+    ts TIMESTAMPTZ NOT NULL,
+    views INTEGER NOT NULL DEFAULT 0,
+    clicks INTEGER NOT NULL DEFAULT 0,
+    actions INTEGER NOT NULL DEFAULT 0,
+    spent NUMERIC NOT NULL DEFAULT 0,
+    PRIMARY KEY (ad_id, ts)
+);
+CREATE INDEX IF NOT EXISTS tg_ad_stats_ts_idx ON tg_ad_stats (ts);
+
+-- The autobid of one ad: the lowest CPM at which it is still shown, never above max_cpm. Budgets are never touched.
+CREATE TABLE IF NOT EXISTS tg_ad_autobid (
+    ad_id BIGINT PRIMARY KEY,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    max_cpm NUMERIC,
+    good_cpm NUMERIC,              -- the last CPM that had views
+    floor_cpm NUMERIC,             -- lowering below it made the views stop; kept until floor_until
+    floor_until TIMESTAMPTZ,
+    base_cpm NUMERIC,              -- the CPM the autobid started from: where it goes back when raising did not help
+    max_user_rub INTEGER,          -- «человек не дороже»: the bid is kept so one person from the ad costs at most this
+    state TEXT NOT NULL DEFAULT 'idle',
+    note TEXT NOT NULL DEFAULT '',
+    changed_at TIMESTAMPTZ,
+    refund_at TIMESTAMPTZ,         -- «Вернуть остаток»: paused, the rest goes back to the account after 10 minutes
+    alerted JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tg_ad_log (
+    id BIGSERIAL PRIMARY KEY,
+    ad_id BIGINT NOT NULL,
+    at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    who TEXT NOT NULL DEFAULT 'bot',
+    action TEXT NOT NULL,
+    old_value NUMERIC,
+    new_value NUMERIC,
+    note TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS tg_ad_log_at_idx ON tg_ad_log (at DESC);
+CREATE INDEX IF NOT EXISTS tg_ad_log_ad_idx ON tg_ad_log (ad_id, at DESC);
+
+-- Bots and channels checked in «Разведка площадок» (getTargetBot / getTargetChannel).
+CREATE TABLE IF NOT EXISTS tg_ad_places (
+    username TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    audience INTEGER,
+    prev_audience INTEGER,         -- the audience before the last change, to see a place losing its people
+    raw JSONB,
+    checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- The first words a newcomer from this link sees in the bot, before the usual welcome.
+ALTER TABLE ad_links ADD COLUMN IF NOT EXISTS greeting TEXT;

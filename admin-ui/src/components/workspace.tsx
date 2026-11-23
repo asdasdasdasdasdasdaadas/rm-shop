@@ -202,6 +202,8 @@ export type Column = {
   sortDirection?: "ascending" | "descending" | "none";
   key: string;
   label: ReactNode;
+  /** The label shown above the value when the table turns into cards on a phone (tableClass "adm-cards"). */
+  name?: string;
   cell?: (row: Data) => ReactNode;
   className?: string;
 };
@@ -210,14 +212,16 @@ export function DataTable({
   columns,
   empty,
   loading = false,
+  tableClass = "",
 }: {
   rows: Data[];
   columns: Column[];
   empty?: ReactNode;
   loading?: boolean;
+  tableClass?: string;
 }) {
   return (
-    <div className="rounded-lg border overflow-hidden" aria-busy={loading}>
+    <div className={"rounded-lg border overflow-hidden " + tableClass} aria-busy={loading}>
       <Table>
         <TableHeader>
           <TableRow>
@@ -236,7 +240,11 @@ export function DataTable({
           {rows.map((r, i) => (
             <TableRow key={r.id || r.order_id || r.telegram_id || i}>
               {columns.map((c) => (
-                <TableCell key={c.key} className={c.className}>
+                <TableCell
+                  key={c.key}
+                  className={c.className}
+                  data-label={c.name ?? (typeof c.label === "string" ? c.label : undefined)}
+                >
                   {c.cell ? c.cell(r) : String(r[c.key] ?? "—")}
                 </TableCell>
               ))}

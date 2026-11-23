@@ -427,32 +427,55 @@ async def save_tg_ads(ads: list[dict], currency: str, rate, slug_of) -> int:
     from decimal import Decimal
     pool = _pool_req()
     links = {r["slug"]: int(r["id"]) for r in await pool.fetch("SELECT id, slug FROM ad_links")}
-    matched = 0
+    matched, seen = 0, []
+    jdump = lambda v: json.dumps(v, ensure_ascii=False) if v else None  # noqa: E731
     for ad in ads:
         try:
             ad_id = int(ad.get("ad_id"))
         except (TypeError, ValueError):
             continue
+        seen.append(ad_id)
         slug = slug_of(ad.get("promote_url"))
         link_id = links.get(slug) if slug else None
         matched += link_id is not None
         spent = Decimal(str(ad.get("spent_budget") or 0))
         created = ad.get("created_date")
+        decline = ad.get("decline_reason") or {}
         await pool.execute(
             """INSERT INTO tg_ads (ad_id, title, promote_url, slug, ad_link_id, status, currency, cpm, spent, spent_rub,
-                                    views, clicks, actions, created_at, synced_at)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
+                                    views, clicks, actions, created_at, synced_at, ad_text, remaining, daily_limit,
+                                    is_paused, placement, target, schedule, decline_reason, gone_at)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW(),$15,$16,$17,$18,$19,
+                       $20::jsonb,$21::jsonb,$22,NULL)
                ON CONFLICT (ad_id) DO UPDATE SET title=EXCLUDED.title, promote_url=EXCLUDED.promote_url,
                    slug=EXCLUDED.slug, ad_link_id=EXCLUDED.ad_link_id, status=EXCLUDED.status,
                    currency=EXCLUDED.currency, cpm=EXCLUDED.cpm, spent=EXCLUDED.spent,
                    spent_rub=COALESCE(EXCLUDED.spent_rub, tg_ads.spent_rub), views=EXCLUDED.views,
-                   clicks=EXCLUDED.clicks, actions=EXCLUDED.actions, created_at=EXCLUDED.created_at, synced_at=NOW()""",
+                   clicks=EXCLUDED.clicks, actions=EXCLUDED.actions, created_at=EXCLUDED.created_at, synced_at=NOW(),
+                   ad_text=EXCLUDED.ad_text, remaining=EXCLUDED.remaining, daily_limit=EXCLUDED.daily_limit,
+                   is_paused=EXCLUDED.is_paused, placement=EXCLUDED.placement,
+                   target=COALESCE(EXCLUDED.target, tg_ads.target), schedule=EXCLUDED.schedule,
+                   decline_reason=EXCLUDED.decline_reason, gone_at=NULL""",
             ad_id, str(ad.get("title") or "")[:256], str(ad.get("promote_url") or "")[:512], slug, link_id,
             str(ad.get("status") or ""), str(ad.get("currency") or currency), Decimal(str(ad.get("cpm") or 0)), spent,
             int(round(spent * Decimal(rate))) if rate else None,
             int(ad.get("views") or 0), int(ad.get("clicks") or 0), int(ad.get("actions") or ad.get("joins") or 0),
-            datetime.fromtimestamp(int(created), timezone.utc) if str(created or "").isdigit() else None)
+            datetime.fromtimestamp(int(created), timezone.utc) if str(created or "").isdigit() else None,
+            str(ad.get("text") or "")[:400], Decimal(str(ad.get("remaining_budget") or 0)),
+            Decimal(str(ad.get("daily_budget_limit") or 0)), bool(ad.get("is_paused")),
+            str(ad.get("placement") or ""), jdump(ad.get("target")), jdump(ad.get("schedule")),
+            str(decline.get("text") or "")[:300] or None)
+    if seen:
+        await pool.execute("UPDATE tg_ads SET gone_at = NOW() WHERE gone_at IS NULL AND NOT (ad_id = ANY($1::bigint[]))",
+                           seen)
     return matched
+
+
+async def ad_link_greeting(link_id: int, telegram_id: int) -> str:
+    """The link's greeting, only for a person this link brought (an old user tapping the ad gets none)."""
+    return str(await _pool_req().fetchval(
+        """SELECT l.greeting FROM ad_links l JOIN users u ON u.ad_link_id = l.id
+           WHERE l.id = $1 AND u.telegram_id = $2""", int(link_id), int(telegram_id)) or "").strip()
 
 
 async def tg_ads_unmatched() -> list[dict]:

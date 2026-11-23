@@ -143,6 +143,19 @@ async def gate_or_continue(event: Message | CallbackQuery) -> bool:
     return True
 
 
+async def _ad_greeting(message: Message, ad_id: int | None) -> None:
+    """A newcomer from an ad link with its own greeting (Рост → Telegram Ads) reads it before the usual welcome."""
+    if not ad_id or not message.from_user:
+        return
+    text = await db.ad_link_greeting(ad_id, message.from_user.id)
+    if not text:
+        return
+    try:
+        await message.answer(text, link_preview_options=LinkPreviewOptions(is_disabled=True))
+    except TelegramBadRequest:
+        await message.answer(text, parse_mode=None, link_preview_options=LinkPreviewOptions(is_disabled=True))
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObject) -> None:
     payload = command.args or message.text
@@ -176,6 +189,7 @@ async def cmd_start(message: Message, rw: RemnawaveClient, command: CommandObjec
         await friend_gifts.send_gift_card(message, gift_code)
     in_channel = await is_channel_member(message.bot, message.from_user.id)
     if await db.claim_welcome_intro(message.from_user.id):
+        await _ad_greeting(message, ad_id)
         ok = await send_welcome_intro(
             message,
             in_channel=in_channel,

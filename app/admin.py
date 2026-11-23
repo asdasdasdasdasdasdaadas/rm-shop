@@ -8,6 +8,7 @@ import logging
 import re
 import time
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 
 from html import escape
 
@@ -2622,6 +2623,69 @@ async def api_tg_ads(request: web.Request) -> web.Response:
     return web.json_response(out, dumps=lambda o: json.dumps(o, default=str), status=200 if out.get("ok") else 502)
 
 
+def _tg_json(out: dict, status: int = 200) -> web.Response:
+    def default(o):
+        if isinstance(o, Decimal):
+            return float(o)
+        if hasattr(o, "isoformat"):
+            return o.isoformat()
+        return str(o)
+    return web.json_response(out, dumps=lambda o: json.dumps(o, default=default, ensure_ascii=False), status=status)
+
+
+async def api_tg_cabinet(request: web.Request) -> web.Response:
+    """The Telegram Ads cabinet in «Рост»: GET cabinet / hours / places / targets; POST actions on ads and links."""
+    denied = _need_auth(request)
+    if denied:
+        return denied
+    from app import tg_ads, tg_cabinet
+    what = request.match_info.get("what", "")
+    try:
+        if request.method == "GET":
+            if what == "cabinet":
+                return _tg_json(await tg_cabinet.cabinet(str(request.query.get("period") or "7d")))
+            if what == "hours":
+                return _tg_json(await tg_cabinet.hours())
+            if what == "places":
+                return _tg_json(await tg_cabinet.places())
+            if what == "targets":
+                return _tg_json(await tg_cabinet.targets())
+            return _tg_json({"ok": False, "error": "Неизвестный раздел"}, 404)
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if what == "places":
+            if isinstance(body.get("usernames"), list):
+                return _tg_json(await tg_cabinet.check_places(body["usernames"]))
+            return _tg_json(await tg_cabinet.check_place(str(body.get("username") or "")))
+        if what == "create":
+            return _tg_json(await tg_cabinet.create(body))
+        if what == "greeting":
+            return _tg_json(await tg_cabinet.set_greeting(int(body.get("link_id") or 0), str(body.get("text") or "")))
+        if what == "ad":
+            ad_id, action = int(body.get("ad_id") or 0), str(body.get("action") or "")
+            if action == "cpm":
+                return _tg_json(await tg_cabinet.set_cpm(ad_id, body.get("cpm")))
+            if action == "autobid":
+                return _tg_json(await tg_cabinet.set_autobid(
+                    ad_id, bool(body.get("enabled")), body.get("max_cpm"),
+                    body["max_user_rub"] if "max_user_rub" in body else ...))
+            if action == "limit":
+                return _tg_json(await tg_cabinet.set_daily_limit(ad_id, body.get("limit")))
+            if action == "pause":
+                return _tg_json(await tg_cabinet.set_paused(ad_id, bool(body.get("paused"))))
+            if action == "refund":
+                return _tg_json(await tg_cabinet.refund(ad_id))
+            if action == "schedule":
+                return _tg_json(await tg_cabinet.set_schedule(ad_id, body.get("mask")))
+        return _tg_json({"ok": False, "error": "Неизвестное действие"}, 400)
+    except (ValueError, InvalidOperation) as exc:
+        return _tg_json({"ok": False, "error": str(exc) or "Неверное значение"}, 400)
+    except tg_ads.TgAdsError as exc:
+        return _tg_json({"ok": False, "error": f"Telegram Ads: {exc}"}, 502)
+
+
 async def api_friend_nft(request: web.Request) -> web.Response:
     """«NFT-подарки за друзей»: config, issue queue and friend checks (GET); actions (POST {action})."""
     denied = _need_auth(request)
@@ -3626,6 +3690,8 @@ def mount_admin(app: web.Application) -> None:
     app.router.add_post("/admin/api/auto-gift", api_auto_gift)
     app.router.add_get("/admin/api/tg-ads", api_tg_ads)
     app.router.add_post("/admin/api/tg-ads", api_tg_ads)
+    app.router.add_get("/admin/api/tg-ads/{what}", api_tg_cabinet)
+    app.router.add_post("/admin/api/tg-ads/{what}", api_tg_cabinet)
     app.router.add_get("/admin/api/sharing-check", api_sharing_check)
     app.router.add_post("/admin/api/sharing-check", api_sharing_check)
     app.router.add_get("/admin/api/install-test", api_install_test)

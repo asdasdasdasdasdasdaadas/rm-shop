@@ -27,7 +27,7 @@ from app.config import get_settings
 logger = logging.getLogger("rm-shop.tg-ads")
 
 API = "https://promoteapi.telegram.org"
-SYNC_SECONDS = 1800
+SYNC_SECONDS = 600         # the autobid needs fresh views: every 10 minutes
 SLUG_RE = re.compile(r"[a-z0-9]+(?:_[a-z0-9]+)*")
 
 
@@ -89,7 +89,8 @@ async def sync(client: httpx.AsyncClient | None = None) -> dict:
         currency = str(account.get("currency") or "TON")
         ads, offset = [], None
         for _ in range(50):
-            page = await _call(client, token, "getAdsList", limit=100, **({"offset": offset} if offset else {})) or {}
+            page = await _call(client, token, "getAdsList", limit=100, return_target=True,
+                               **({"offset": offset} if offset else {})) or {}
             ads += page.get("ads") or []
             offset = page.get("next_offset")
             if not offset:
@@ -103,11 +104,68 @@ async def sync(client: httpx.AsyncClient | None = None) -> dict:
             await client.aclose()
     rate = await _rate(currency)
     matched = await db.save_tg_ads(ads, currency, rate, slug_from_url)
+    try:
+        await sync_stats(ads)
+    except Exception:
+        logger.warning("Статистика объявлений по 5 минут не обновилась", exc_info=True)
     report = {"ok": True, "at": datetime.now(timezone.utc).isoformat(), "ads": len(ads), "matched": matched,
               "currency": currency, "rate": float(rate) if rate else None,
               "remaining": account.get("remaining_budget"), "spent": account.get("spent_budget")}
     await db.set_job_report("tg_ads", report)
     return report
+
+
+def token() -> str:
+    return (get_settings().tg_ads_token or "").strip()
+
+
+async def call(method: str, **params):
+    """One Ads API call with the token from the settings; TgAdsError when it fails or there is no token."""
+    tok = token()
+    if not tok:
+        raise TgAdsError("Не задан токен: Настройки → Telegram Ads")
+    async with httpx.AsyncClient(timeout=30) as client:
+        try:
+            return await _call(client, tok, method, **params)
+        except httpx.HTTPError as exc:
+            raise TgAdsError(f"{method}: {exc}") from exc
+
+
+STAT_STEP = 300
+BACKFILL = 3 * 86400       # 1000 intervals of 5 minutes is the API limit; three days are enough for the cabinet
+
+
+async def sync_stats(ads: list[dict], now: int | None = None) -> int:
+    """Views, clicks and spend per 5 minutes of every ad that can still move: from the last stored interval
+    (the last one is re-read, it was still filling up) or three days back for a new ad."""
+    pool = db._pool_req()
+    now = int(now or datetime.now(timezone.utc).timestamp())
+    last = {int(r["ad_id"]): int(r["ts"].timestamp()) for r in await pool.fetch(
+        "SELECT ad_id, MAX(ts) AS ts FROM tg_ad_stats GROUP BY ad_id")}
+    stored = 0
+    for ad in ads:
+        try:
+            ad_id = int(ad.get("ad_id"))
+        except (TypeError, ValueError):
+            continue
+        status = str(ad.get("status") or "")
+        if ad_id in last and status not in {"active", "on_hold"} and now - last[ad_id] > 2 * 3600:
+            continue   # stopped, declined or in review for a while: nothing new to read
+        start = last.get(ad_id, now - BACKFILL)
+        start = max(start - start % STAT_STEP, now - BACKFILL)
+        items = await call("getAdStats", ad_id=ad_id, from_time=start, to_time=now + STAT_STEP, interval=STAT_STEP) or []
+        rows = [(ad_id, datetime.fromtimestamp(int(i["from_time"]), timezone.utc), int(i.get("views") or 0),
+                 int(i.get("clicks") or 0), int(i.get("actions") or i.get("joins") or 0),
+                 Decimal(str(i.get("spent_budget") or 0))) for i in items if str(i.get("from_time") or "").isdigit()]
+        if rows:
+            await pool.executemany(
+                """INSERT INTO tg_ad_stats (ad_id, ts, views, clicks, actions, spent) VALUES ($1,$2,$3,$4,$5,$6)
+                   ON CONFLICT (ad_id, ts) DO UPDATE SET views=EXCLUDED.views, clicks=EXCLUDED.clicks,
+                       actions=EXCLUDED.actions, spent=EXCLUDED.spent""", rows)
+            stored += len(rows)
+        await asyncio.sleep(0.2)
+    await pool.execute("DELETE FROM tg_ad_stats WHERE ts < NOW() - INTERVAL '120 days'")
+    return stored
 
 
 _lock = asyncio.Lock()
@@ -126,6 +184,9 @@ async def tg_ads_loop() -> None:
                 report = await sync_locked()
                 if not report.get("ok"):
                     logger.warning("Telegram Ads: %s", report.get("error"))
+                else:
+                    from app import tg_autobid
+                    await tg_autobid.tick()
         except asyncio.CancelledError:
             raise
         except Exception:

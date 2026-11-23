@@ -25,9 +25,12 @@ import {
 import {
   Plus,
   Copy,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { RecordsPage } from "./records";
+const num = (v: unknown) => Number(v || 0).toLocaleString("ru-RU");
+import { TgCabinet } from "./tg-cabinet";
 /** The whole of «Рост» at a glance: what a person cost and what they brought so far. */
 function GrowthSummary({ items }: { items: Data[] }) {
   const sum = (rows: Data[], k: string) => rows.reduce((a, r) => a + Number(r[k] || 0), 0);
@@ -82,7 +85,7 @@ export function AdsPage() {
         </Button>
       </div>
       {resource.data && <GrowthSummary items={resource.data.items || []} />}
-      <TgAdsPanel onChange={resource.reload} />
+      <TgCabinet onChange={resource.reload} />
       <PartnersPanel onChange={resource.reload} />
       {resource.error ? (
         <Failure message={resource.error} retry={resource.reload} />
@@ -91,84 +94,84 @@ export function AdsPage() {
       ) : (
         <>
         <DataTable
+          tableClass="adm-cards"
           rows={resource.data.items || []}
           columns={[
-            { key: "title", label: "Источник", cell: (r) => <span className="block min-w-40 leading-snug">{r.title}</span> },
             {
-              key: "partner",
-              label: "Рекламодатель",
-              cell: (r) => r.partner || <span className="text-muted-foreground">—</span>,
-            },
-            {
-              key: "tg",
-              label: (
-                <span title="Из Telegram Ads по объявлениям с этой ссылкой: показы, клики и CTR">Telegram Ads</span>
+              key: "title",
+              label: "Источник",
+              className: "adm-card-title",
+              cell: (r) => (
+                <span className="block min-w-32 max-w-56 leading-snug">
+                  {r.title}
+                  {r.partner && <span className="block text-xs text-muted-foreground mt-0.5">{r.partner}</span>}
+                </span>
               ),
-              cell: (r) =>
-                r.tg ? (
-                  <span className="block whitespace-nowrap tabular-nums leading-tight">
-                    {Number(r.tg.views).toLocaleString("ru-RU")} показов
-                    <span className="block text-xs text-muted-foreground mt-0.5">
-                      {Number(r.tg.clicks).toLocaleString("ru-RU")} кликов
-                      {r.tg.ctr != null ? ` · CTR ${String(r.tg.ctr).replace(".", ",")}%` : ""}
-                    </span>
-                  </span>
-                ) : (
-                  dash
-                ),
             },
-            { key: "clicks", label: "Переходы" },
-            { key: "users", label: "Пользователи" },
-            { key: "trial", label: "Пробный доступ" },
+            {
+              key: "clicks",
+              name: "Переходы",
+              label: (
+                <span title="Переходы по ссылке. Ниже — показы и CTR из Telegram Ads, если ссылка стоит в объявлениях">Переходы</span>
+              ),
+              cell: (r) => (
+                <span className="block tabular-nums leading-tight">
+                  {num(r.clicks)}
+                  {r.tg && (
+                    <span className="block text-xs text-muted-foreground mt-0.5">
+                      <span className="block whitespace-nowrap">{num(r.tg.views)} показов</span>
+                      {r.tg.ctr != null && <span className="block whitespace-nowrap">CTR {String(r.tg.ctr).replace(".", ",")}%</span>}
+                    </span>
+                  )}
+                </span>
+              ),
+            },
+            {
+              key: "users",
+              name: "Пришли",
+              label: <span title="Пришли в бота по ссылке. Ниже — сколько взяли пробный доступ">Пришли</span>,
+              cell: (r) => (
+                <span className="block tabular-nums leading-tight">
+                  {num(r.users)}
+                  <span className="block whitespace-nowrap text-xs text-muted-foreground mt-0.5">пробный {num(r.trial)}</span>
+                </span>
+              ),
+            },
             {
               key: "connected",
+              name: "Подключились",
               label: (
-                <span title="Хотя бы раз подключились к VPN. Ниже — сколько из них были онлайн за последние 7 дней">
+                <span title="Хотя бы раз подключились к VPN. Ниже — сколько онлайн за 7 дней и доля державшихся из пришедших 14+ дней назад">
                   Подключились
                 </span>
               ),
               cell: (r) => (
-                <span className="block whitespace-nowrap tabular-nums leading-tight">
-                  {Number(r.connected || 0).toLocaleString("ru-RU")}
-                  <span className="block text-xs text-muted-foreground mt-0.5">
-                    пользуются {Number(r.active || 0).toLocaleString("ru-RU")}
+                <span className="block tabular-nums leading-tight">
+                  {num(r.connected)}
+                  <span className="block whitespace-nowrap text-xs text-muted-foreground mt-0.5">пользуются {num(r.active)}</span>
+                  <span
+                    className="block whitespace-nowrap text-xs text-muted-foreground"
+                    title={r.retained_pct != null ? `${num(r.retained)} из ${num(r.matured)} пришедших 14+ дней назад были онлайн за 7 дней` : "Ещё никто не пришёл 14+ дней назад"}
+                  >
+                    {r.retained_pct != null ? `держатся ${r.retained_pct}%` : "держатся: рано"}
                   </span>
                 </span>
               ),
-            },
-            {
-              key: "retained",
-              label: (
-                <span title="Из пришедших 14+ дней назад — доля тех, кто был онлайн за последние 7 дней. Свежие ссылки сюда не попадают, пока у людей идут пробные дни.">
-                  Держатся
-                </span>
-              ),
-              cell: (r) =>
-                r.retained_pct != null ? (
-                  <span className="block whitespace-nowrap tabular-nums leading-tight">
-                    {r.retained_pct}%
-                    <span className="block text-xs text-muted-foreground mt-0.5">
-                      {Number(r.retained || 0).toLocaleString("ru-RU")} из {Number(r.matured || 0).toLocaleString("ru-RU")} · 14+ дней
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground" title="Ещё никто не пришёл 14+ дней назад">рано</span>
-                ),
             },
             {
               key: "paid",
+              name: "Оплатили",
               label: <span title="Хотя бы раз пополнили баланс. Ниже — сколько из них пользуются VPN сейчас (онлайн за 7 дней).">Оплатили</span>,
               cell: (r) => (
-                <span className="block whitespace-nowrap tabular-nums leading-tight">
-                  {Number(r.paid || 0).toLocaleString("ru-RU")}
-                  <span className="block text-xs text-muted-foreground mt-0.5">
-                    пользуются {Number(r.paying_active || 0).toLocaleString("ru-RU")}
-                  </span>
+                <span className="block tabular-nums leading-tight">
+                  {num(r.paid)}
+                  <span className="block whitespace-nowrap text-xs text-muted-foreground mt-0.5">пользуются {num(r.paying_active)}</span>
                 </span>
               ),
             },
             {
               key: "spend_rub",
+              name: "Расход",
               label: <span title="Сколько стоило размещение. Нажмите, чтобы указать.">Расход</span>,
               cell: (r) => (
                 <button
@@ -199,35 +202,15 @@ export function AdsPage() {
             },
             {
               key: "user_cost",
-              label: <span title="Расход ÷ все пришедшие по ссылке. Ниже — расход ÷ оплатившие и ÷ тех, кто платил и пользуется сейчас.">Цена пользователя</span>,
+              name: "Цена",
+              label: <span title="Расход ÷ все пришедшие по ссылке. Ниже — расход ÷ оплатившие и ÷ тех, кто платил и пользуется сейчас.">Цена</span>,
               cell: (r) =>
                 r.user_cost != null ? (
                   <span className="block whitespace-nowrap tabular-nums leading-tight">
                     {money(r.user_cost)}
                     <span className="block text-xs text-muted-foreground mt-0.5">
                       {r.payer_cost != null ? `платящего ${money(r.payer_cost)}` : "платящих нет"}
-                      {r.live_payer_cost != null && <span className="block">живого платящего {money(r.live_payer_cost)}</span>}
-                    </span>
-                  </span>
-                ) : (
-                  dash
-                ),
-            },
-            {
-              key: "ltv",
-              label: (
-                <span title="Сколько в среднем уже заплатил один пришедший по ссылке (выручка ÷ пользователи). Ниже — на одного оплатившего. Зелёным — больше цены пользователя.">
-                  LTV
-                </span>
-              ),
-              cell: (r) =>
-                r.ltv != null && r.revenue ? (
-                  <span className="block whitespace-nowrap tabular-nums leading-tight">
-                    <span className={r.user_cost != null && r.ltv >= r.user_cost ? "text-emerald-600 font-medium" : ""}>
-                      {money(r.ltv)}
-                    </span>
-                    <span className="block text-xs text-muted-foreground mt-0.5">
-                      платящего {money(r.payer_ltv || 0)}
+                      {r.live_payer_cost != null && <span className="block">живого {money(r.live_payer_cost)}</span>}
                     </span>
                   </span>
                 ) : (
@@ -236,16 +219,26 @@ export function AdsPage() {
             },
             {
               key: "revenue",
+              name: "Выручка",
               label: (
-                <span title="Все пополнения людей, пришедших по ссылке, и сколько это от расхода. Зелёным — уже окупилась.">
+                <span title="Все пополнения пришедших по ссылке и сколько это от расхода. Ниже — LTV: выручка на одного пришедшего и на одного оплатившего. Зелёным — уже окупилась.">
                   Выручка
                 </span>
               ),
               cell: (r) =>
                 r.revenue ? (
-                  <span className={r.spend_rub && r.revenue >= r.spend_rub ? "text-emerald-600 font-medium" : ""}>
-                    {money(r.revenue)}
-                    {r.spend_rub ? ` · ${Math.round((r.revenue / r.spend_rub) * 100)}%` : ""}
+                  <span className="block whitespace-nowrap tabular-nums leading-tight">
+                    <span className={r.spend_rub && r.revenue >= r.spend_rub ? "text-emerald-600 font-medium" : ""}>
+                      {money(r.revenue)}
+                      {r.spend_rub ? ` · ${Math.round((r.revenue / r.spend_rub) * 100)}%` : ""}
+                    </span>
+                    {r.ltv != null && (
+                      <span className="block text-xs text-muted-foreground mt-0.5">
+                        LTV{" "}
+                        <span className={r.user_cost != null && r.ltv >= r.user_cost ? "text-emerald-600" : ""}>{money(r.ltv)}</span>
+                        {r.payer_ltv ? <span className="block">платящего {money(r.payer_ltv)}</span> : null}
+                      </span>
+                    )}
                   </span>
                 ) : (
                   dash
@@ -254,21 +247,26 @@ export function AdsPage() {
             {
               key: "actions",
               label: "",
+              className: "adm-card-menu",
               cell: (r) => (
-                <div className="flex gap-2">
+                <div className="flex gap-1">
                   <ActionButton
-                    variant="outline"
+                    variant="ghost"
+                    className="size-8 p-0"
+                    aria-label="Скопировать ссылку"
                     onAction={async () => {
                       await navigator.clipboard.writeText(r.url);
                       toast.success("Ссылка скопирована");
                     }}
                   >
                     <Copy />
-                    Ссылка
                   </ActionButton>
                   <Button
                     variant="ghost"
                     size="sm"
+                    className="size-8 p-0"
+                    aria-label="Скрыть источник"
+                    title="Скрыть источник"
                     onClick={() =>
                       confirm({
                         title: "Скрыть источник?",
@@ -281,7 +279,7 @@ export function AdsPage() {
                       })
                     }
                   >
-                    Скрыть
+                    <EyeOff />
                   </Button>
                 </div>
               ),
@@ -362,82 +360,6 @@ export function AdsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-// Telegram Ads: the account's ads, synced every 30 minutes; ads are tied to links by start=ad_<code>.
-function TgAdsPanel({ onChange }: { onChange: () => void }) {
-  const resource = useResource("tg-ads");
-  const d = resource.data;
-  if (!d) return null;
-  const r: Data = d.report || {};
-  const unmatched: Data[] = d.unmatched || [];
-  const num = (v: unknown) => Number(v || 0).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
-  return (
-    <Panel
-      title="Telegram Ads"
-      description={
-        d.configured
-          ? "Объявления кабинета подтягиваются раз в 30 минут и привязываются к ссылкам ниже по коду start=ad_… — расход, показы и клики видны рядом с оплатами."
-          : "Чтобы подтянуть статистику, вставьте API-токен кабинета в Настройки → Telegram Ads. Токен выдаётся на ads.telegram.org в настройках аккаунта, раздел API."
-      }
-    >
-      {d.configured && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-            {r.ok ? (
-              <>
-                <span>
-                  Объявлений: <b>{r.ads ?? 0}</b> · привязано к ссылкам: <b>{r.matched ?? 0}</b>
-                </span>
-                {r.remaining != null && (
-                  <span>
-                    Остаток: <b>{num(r.remaining)} {r.currency}</b>
-                  </span>
-                )}
-                <span className="text-muted-foreground">
-                  {r.rate ? `курс ${Math.round(r.rate)} ₽ за 1 ${r.currency}` : "без курса — расход только в валюте кабинета (курс задаётся в Настройках → Telegram Ads)"}
-                </span>
-              </>
-            ) : r.error ? (
-              <span className="text-destructive">Ошибка: {r.error}</span>
-            ) : (
-              <span className="text-muted-foreground">Ещё не обновлялось</span>
-            )}
-            {r.at && <span className="text-muted-foreground">обновлено {new Date(r.at).toLocaleString("ru-RU")}</span>}
-            <ActionButton
-              variant="outline"
-              onAction={async () => {
-                const got = (await api("tg-ads", {})) as Data;
-                resource.setData(got);
-                onChange();
-                toast.success(`Telegram Ads: объявлений ${got.ads ?? 0}, привязано ${got.matched ?? 0}`);
-              }}
-            >
-              Обновить
-            </ActionButton>
-          </div>
-          {unmatched.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Объявления без нашей ссылки — оплаты по ним не посчитать</div>
-              <div className="rounded-md border divide-y text-sm">
-                {unmatched.map((a) => (
-                  <div key={a.ad_id} className="flex flex-wrap gap-x-3 gap-y-1 px-3 py-2">
-                    <span className="font-medium">{a.title || `Объявление ${a.ad_id}`}</span>
-                    <span className="text-muted-foreground break-all">{a.promote_url}</span>
-                    <span className="ml-auto tabular-nums whitespace-nowrap">
-                      {num(a.views)} показов · {num(a.spent)} {a.currency}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Создайте рекламную ссылку и поставьте её в объявление вместо этой — со следующего обновления оно привяжется.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-    </Panel>
   );
 }
 export function ReferralsPage() {
