@@ -10,7 +10,7 @@
   const css = `
   .pet{position:absolute;inset:0;pointer-events:none;z-index:3;overflow:hidden;border-radius:inherit}
   .hc.haspet > .N,.hc.haspet > .P,.hc.haspet > .acts,.hc.haspet > .K{position:relative;z-index:2}
-  :is(.pet,.petbg) .fr{position:absolute;left:0;top:0;width:${SIZE}px;height:${SIZE}px;margin:-${Math.round(SIZE * FEET)}px 0 0 -${SIZE / 2}px;pointer-events:auto;cursor:pointer;-webkit-tap-highlight-color:transparent;z-index:3;will-change:transform}
+  :is(.pet,.petbg) .fr{position:absolute;left:0;top:0;width:${SIZE}px;height:${SIZE}px;margin:-${Math.round(SIZE * FEET)}px 0 0 -${SIZE / 2}px;pointer-events:auto;cursor:pointer;-webkit-tap-highlight-color:transparent;z-index:3;will-change:transform;transform-origin:50% ${FEET * 100}%}
   :is(.pet,.petbg) .fr .tl{position:absolute;inset:0;transform-origin:50% ${FEET * 100}%}
   :is(.pet,.petbg) .fr .bd{position:absolute;inset:0;transform-origin:50% ${FEET * 100}%}
   :is(.pet,.petbg) .fr .fc{position:absolute;inset:0}
@@ -58,14 +58,14 @@
   :is(.pet,.petbg) .moon{position:absolute;left:26px;top:18px;width:18px;height:18px;border-radius:50%;box-shadow:5px -3px 0 0 #fff4c2;filter:drop-shadow(0 0 6px rgba(255,240,180,.7))}
   :is(.pet,.petbg) .star{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;animation:pf-tw 2.4s ease-in-out infinite}
   @keyframes pf-tw{50%{opacity:.15;transform:scale(.6)}}
-  :is(.pet,.petbg) .ffl{position:absolute;left:0;top:0;width:4px;height:4px;margin:-2px;border-radius:50%;background:#fff6a0;box-shadow:0 0 6px 2px rgba(255,240,120,.8);pointer-events:none;z-index:2}
+  :is(.pet,.petbg) .ffl{position:absolute;left:0;top:0;width:4px;height:4px;margin:-2px;border-radius:50%;background:#fff6a0;box-shadow:0 0 6px 2px rgba(255,240,120,.8);pointer-events:none;z-index:2;will-change:transform,opacity}
   :is(.pet,.petbg) .stone{position:absolute;width:26px;height:32px;overflow:hidden;pointer-events:none;z-index:2}
   :is(.pet,.petbg) .stone b{position:absolute;left:0;bottom:0;width:26px;height:30px;border-radius:13px 13px 3px 3px;background:linear-gradient(160deg,#dfe3ea,#9aa3b2);box-shadow:inset -3px -3px 0 rgba(0,0,0,.12);
     font:900 8px/1 system-ui;color:#5d6575;display:flex;align-items:center;justify-content:center;letter-spacing:.3px;transform:translateY(32px)}
   :is(.pet,.petbg) .xe{position:absolute;font:900 11px/1 system-ui;color:#3a1720;margin:-6px 0 0 -4px;pointer-events:none;display:none}
   :is(.pet,.petbg) .tng{position:absolute;left:${MOUTH[0] * 100 + 3}%;top:${MOUTH[1] * 100 + 2}%;width:5px;height:7px;border-radius:0 0 3px 3px;background:#ff6f91;pointer-events:none;display:none}
   :is(.pet,.petbg) .fr.dead .xe,:is(.pet,.petbg) .fr.dead .tng{display:block}
-  :is(.pet,.petbg) .gh{position:absolute;left:0;top:0;width:${SIZE}px;height:${SIZE}px;margin:-${Math.round(SIZE * FEET)}px 0 0 -${SIZE / 2}px;pointer-events:none;z-index:4;opacity:0;filter:grayscale(1) brightness(1.7) drop-shadow(0 0 5px rgba(255,255,255,.9))}
+  :is(.pet,.petbg) .gh{position:absolute;left:0;top:0;width:${SIZE}px;height:${SIZE}px;margin:-${Math.round(SIZE * FEET)}px 0 0 -${SIZE / 2}px;pointer-events:none;z-index:4;opacity:0;filter:grayscale(1) brightness(1.7) drop-shadow(0 0 5px rgba(255,255,255,.9));will-change:transform,opacity}
   :is(.pet,.petbg) .gh svg{overflow:visible}
   .petbg:after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 0 0 1px rgba(255,255,255,.06),inset 0 -30px 60px -30px rgba(0,0,0,.18)}
   :is(.pet,.petbg) .far,:is(.pet,.petbg) .mid{position:absolute;left:-12px;transition:translate .6s cubic-bezier(.2,.8,.3,1);-webkit-mask:linear-gradient(#000 45%,transparent 92%);mask:linear-gradient(#000 45%,transparent 92%)}
@@ -237,15 +237,38 @@
     }
     async once(name, speed = 1) { await this.play(name, false, speed); if (this.clip === name) this.idle(); }
     // --- where it is: x on the card, y the floor it stands on, z how high above it
+    // the lean is the `rotate` property, so the clips' own transform animations on .tl stack on it instead of fighting it
     render() {
-      if (this.held) { at(this.el, this.hx, this.hy, ""); this.tl.style.transform = `rotate(${this.tilt}deg)`; const k = 1 / (1 + Math.max(0, this.st.ground - this.hy) / 36);
+      if (this.held) { at(this.el, this.hx, this.hy, ""); this.tl.style.rotate = `${this.tilt}deg`; const k = 1 / (1 + Math.max(0, this.st.ground - this.hy) / 36);
         at(this.sh, this.hx, this.st.ground + 1, `scale(${k})`); this.sh.style.opacity = String(.3 * k + .1); this.el.style.clipPath = ""; return; }
       at(this.el, this.x, this.y - this.z, "");
       const under = this.y - this.z - this.st.ground + (1 - FEET) * SIZE;
       this.el.style.clipPath = this.wet && under > 0 ? `inset(-40px -40px ${under.toFixed(1)}px -40px)` : "";
-      this.tl.style.transform = `rotate(${this.tilt}deg)`;
+      this.tl.style.rotate = `${this.tilt}deg`;
       const k = 1 / (1 + this.z / 36);
       at(this.sh, this.x, this.y + 1, `scale(${k})`); this.sh.style.opacity = this.wet ? "0" : String(.35 + .65 * k);
+    }
+    // a move along a path: path(t) sets .x .y .z .tilt for t 0→1. The compositor draws it from keyframes, so it runs at the
+    // screen's own rate (120 Hz on ProMotion) even where WebKit holds requestAnimationFrame at 60 Hz — or 30 Hz in Low Power
+    // Mode — and the main thread is busy with the puppet. .x .y .z .tilt still follow it every frame, for the eyes and the scenes.
+    // The lean rides in the same keyframes (.fr turns round the feet, like .tl), so nothing else animating .tl takes it off
+    // the compositor. In the pond (a moving waterline clip) or in the hand it is drawn frame by frame as before.
+    async move(ms, path) {
+      if (this.wet || this.held || !this.el.animate) {
+        const t0 = performance.now();
+        while (true) { const t = Math.min(1, (performance.now() - t0) / ms); path(t); this.render(); if (t >= 1) break; await raf(); }
+        return;
+      }
+      const n = clamp(Math.round(ms / 16), 8, 40), fr = [], sh = [];
+      for (let i = 0; i <= n; i++) {
+        path(i / n); const k = 1 / (1 + this.z / 36);
+        fr.push({ transform: `translate(${this.x}px,${this.y - this.z}px) rotate(${this.tilt}deg)` });
+        sh.push({ transform: `translate(${this.x}px,${this.y + 1}px) scale(${k})`, opacity: .35 + .65 * k });
+      }
+      path(0); this.tl.style.rotate = "0deg";
+      const o = { duration: ms, easing: "linear", fill: "forwards" }, an = [this.el.animate(fr, o), this.sh.animate(sh, o)];
+      while (true) { await raf(); const t = an[0].playState === "finished" ? 1 : Math.min(1, (an[0].currentTime || 0) / ms); path(t); if (t >= 1) break; }
+      this.render(); an.forEach((a) => a.cancel());
     }
     place(x, y) { this.x = x; this.y = y; this.z = 0; this.render(); }
     face(d) { if (d === this.dir) return; this.dir = d; this.el.classList.toggle("r", d > 0);
@@ -286,15 +309,8 @@
       this.moving = true;
       const sp = 300 / ms; this.play("hop", false, sp);
       await sleep(100 / sp);
-      const x0 = this.x, y0 = this.y, t0 = performance.now(), dir = this.dir;
-      while (true) {
-        const t = Math.min(1, (performance.now() - t0) / ms);
-        this.x = x0 + (x - x0) * t; this.y = y0 + (y - y0) * t; this.z = 4 * h * t * (1 - t);
-        this.tilt = -dir * 16 * (1 - 2 * t) * Math.min(1, Math.abs(x - x0) / 20);
-        this.render();
-        if (t >= 1) break;
-        await raf();
-      }
+      const x0 = this.x, y0 = this.y, dir = this.dir, lean = Math.min(1, Math.abs(x - x0) / 20);
+      await this.move(ms, (t) => { this.x = x0 + (x - x0) * t; this.y = y0 + (y - y0) * t; this.z = 4 * h * t * (1 - t); this.tilt = -dir * 16 * (1 - 2 * t) * lean; });
       this.z = 0; this.tilt = 0; this.y = y; this.render();
       if (!quiet) dust(this.st, this.x, this.y, -dir, Math.abs(x - x0) > 30 ? 4 : 3);
       if (Math.abs(x - x0) > 30 && !this.wet) this.tl.animate([{ transform: "none" }, { transform: `rotate(${dir * 5}deg)` }, { transform: `rotate(${-dir * 2}deg)` }, { transform: "none" }], { duration: 380, easing: "ease-out" });
@@ -340,7 +356,7 @@
       h.animate([{ transform: `translate(${x}px,${y}px) scale(.3)`, opacity: 0 }, { transform: `translate(${x + rnd(-8, 8)}px,${y - 14}px) scale(1)`, opacity: 1, offset: .3 },
         { transform: `translate(${x + rnd(-16, 16)}px,${y - 34}px) scale(.8)`, opacity: 0 }], { duration: 1100, easing: "ease-out" }).finished.then(() => h.remove()); }, i * 180); }
     async shock() { this.say("!", { size: 14 }); const j = this.hopInPlace(16); await this.once("shock"); await j; }
-    async hopInPlace(h = 14) { const t0 = performance.now(), ms = 300; while (true) { const t = Math.min(1, (performance.now() - t0) / ms); this.z = 4 * h * t * (1 - t); this.render(); if (t >= 1) break; await raf(); } this.z = 0; this.render(); }
+    async hopInPlace(h = 14) { await this.move(300, (t) => { this.z = 4 * h * t * (1 - t); }); this.z = 0; this.render(); }
     say(text, o = {}) { pop(this.st, this.x + this.dir * 4, this.y - this.z - SIZE * .7, text, { side: this.dir, ...o }); }
     async lookAround() { const s = this.st; for (const p of [{ x: 0, y: s.ground - 30 }, { x: s.W, y: s.ground - 40 }, { x: this.x, y: -30 }]) { this.glance = p; await sleep(rnd(450, 700)); } this.glance = null; }
   }
@@ -550,7 +566,7 @@
   };
   // Снежинка (зимой): a big flake drifts down; the frog catches it on the tongue — холодно! — a happy shiver
   S.snowflake = async (st, f) => {
-    const x = inField(st, f.x + f.dir * rnd(40, 80)), fl = add(st, "fx plain"); fl.textContent = "❄"; fl.style.fontSize = "14px";
+    const x = inField(st, f.x + f.dir * rnd(40, 80)), fl = add(st, "fx plain"); fl.textContent = "❄"; fl.style.fontSize = "14px"; fl.style.willChange = "transform";
     const o = { x, y: -10 }; f.look = o; const t0 = performance.now(), ms = 2600;
     let live = true; (async () => { while (live) { const k = Math.min(1, (performance.now() - t0) / ms); o.y = -10 + (st.ground - 70) * k; o.x = x + Math.sin(k * 9) * 12;
       at(fl, o.x - 7, o.y - 7, `rotate(${k * 360}deg)`); if (k >= 1) break; await raf(); } })();
