@@ -753,18 +753,18 @@ function GreetingDialog({ ad, onClose, reload }: { ad: Data | null; onClose: () 
         <DialogHeader>
           <DialogTitle>Приветствие и дожим</DialogTitle>
           <DialogDescription>
-            Для новичков по ссылке ad_{ad?.link?.slug}. Оба продолжают мысль объявления: пришёл с «соцсети не грузятся» —
-            сразу про соцсети.
+            Для новичков по ссылке ad_{ad?.link?.slug}. Оба продолжают мысль объявления: пришёл с «6 ₽ в день» —
+            сразу про цену. Без названий сервисов и «не грузится».
           </DialogDescription>
         </DialogHeader>
         <label className="tga-field">
           <span>Приветствие — первым сообщением, перед обычным</span>
-          <Textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Соцсети заработают через минуту 🐸 Нажмите «Подключить» — первые 3 дня бесплатно." />
+          <Textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder="Привет! 🐸 Ключ придёт сразу после кнопки «Подключить» — первые 3 дня бесплатно." />
           <em className="tga-muted text-xs not-italic">{text.length} / 700 · пусто — без приветствия</em>
         </label>
         <label className="tga-field">
           <span>Дожим — через час, если человек так и не подключился</span>
-          <Textarea rows={4} value={later} onChange={(e) => setLater(e.target.value)} placeholder="{name}, соцсети всё ещё не грузятся? Подключение — одна кнопка, первые 3 дня бесплатно 🐸" />
+          <Textarea rows={4} value={later} onChange={(e) => setLater(e.target.value)} placeholder="{name}, ключ всё ещё ждёт 🐸 Подключение — одна кнопка, первые 3 дня бесплатно." />
           <em className="tga-muted text-xs not-italic">
             {later.length} / 700 · один раз, с кнопкой «Подключить VPN» · {"{name}"} — имя · не чаще общего лимита напоминаний · пусто — без дожима
           </em>
@@ -1205,7 +1205,7 @@ function CreateAd({ open, preset, onClose, balance, currency, bot, reload }: { o
             </label>
             <label className="tga-field">
               <span>Текст <em className={f.text.length > 160 ? "text-destructive" : ""}>{f.text.length}/160</em></span>
-              <Textarea rows={4} value={f.text} onChange={(e) => set("text", e.target.value)} placeholder="Соцсети и видео не грузятся? Лягушка VPN включается за минуту прямо в Telegram." />
+              <Textarea rows={4} value={f.text} onChange={(e) => set("text", e.target.value)} placeholder="Лягушка VPN прямо в Telegram: ключ за минуту, 6 ₽ в день без подписки. 3 дня бесплатно." />
             </label>
             <div className="tga-seg">
               {[["bots", "В ботах"], ["channels", "В каналах"]].map(([k, l]) => (
@@ -1293,7 +1293,7 @@ function CreateAd({ open, preset, onClose, balance, currency, bot, reload }: { o
             </label>
             <label className="tga-field">
               <span>Дожим через час, если не подключился (необязательно)</span>
-              <Textarea rows={2} value={f.followup} onChange={(e) => set("followup", e.target.value)} placeholder="{name}, соцсети всё ещё не грузятся? Подключение — одна кнопка 🐸" />
+              <Textarea rows={2} value={f.followup} onChange={(e) => set("followup", e.target.value)} placeholder="{name}, ключ всё ещё ждёт 🐸 Подключение — одна кнопка." />
             </label>
           </div>
         </div>

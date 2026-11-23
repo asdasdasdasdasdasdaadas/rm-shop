@@ -1,7 +1,7 @@
 """«Дожим с рекламы»: one message to a newcomer from a Telegram Ads link who has not connected an hour later.
 
 The text is per ad link (Рост → Telegram Ads → объявление → «Приветствие и дожим»), so it carries on the ad's own
-promise: whoever came from «соцсети не грузятся» reads about social networks. A link without the text sends nothing.
+promise: whoever came from «6 ₽ в день» reads about the price. A link without the text sends nothing.
 Only people who came between one and six hours ago are taken, so a deploy does not write to old ones; each person
 gets it at most once. It goes through the same daily budget of optional messages as the other reminders.
 """
