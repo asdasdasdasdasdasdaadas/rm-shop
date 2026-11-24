@@ -152,6 +152,7 @@ tbody tr { border-color: var(--border); transition: background-color .15s; }
 .adm-link:hover { background: color-mix(in srgb, var(--primary) 12%, transparent); }
 .adm-big { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
 .adm-unit { font-size: 15px; font-weight: 600; color: var(--muted-foreground); letter-spacing: 0; }
+.adm-plus { color: #1f9d55; } :root[data-theme="dark"] .adm-plus { color: #5fd38d; }
 .adm-sub { font-size: 13px; color: var(--muted-foreground); margin-top: 6px; }
 .adm-chart { margin: 12px -6px -8px; }
 .adm-delta { display: inline-flex; align-items: center; font-size: 12px; font-weight: 700; letter-spacing: 0; padding: 3px 8px; border-radius: 99px; vertical-align: middle; }

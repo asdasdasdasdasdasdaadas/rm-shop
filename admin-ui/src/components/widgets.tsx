@@ -142,21 +142,34 @@ function RevenueWidget({ series, previous }: { series: Data[]; previous?: Data }
   );
 }
 
-function SignupsWidget({ series, users }: { series: Data[]; users: Data }) {
+const hourLabel = (h: number) => String(h).padStart(2, "0") + ":00";
+
+function HourTip({ active, payload }: any) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload || {};
+  return (
+    <div className="adm-tip">
+      <b>{hourLabel(Number(row.hour || 0))} — {Number(row.registered || 0).toLocaleString("ru-RU")}</b>
+    </div>
+  );
+}
+
+/** «Сегодня» is since midnight in Moscow, so the bars are today's Moscow hours, 00:00 up to the current one. */
+function SignupsWidget({ hourly, users }: { hourly: Data[]; users: Data }) {
   const navigate = useNavigate();
   return (
     <Widget title="Новые пользователи" icon={<UsersIcon />} tone="#3e88f7" action="Статистика" onAction={() => navigate("statistics?tab=dynamics&chart=acquisition&days=30")}>
       <div className="adm-big">
-        <CountUp value={Number(users.new_1d || 0)} />
+        <span className="adm-plus"><CountUp value={Number(users.new_1d || 0)} format={(n) => "+" + Math.round(n).toLocaleString("ru-RU")} /></span>
         <span className="adm-unit">сегодня</span>
       </div>
       <p className="adm-sub">{Number(users.new_7d || 0).toLocaleString("ru-RU")} за неделю · {Number(users.new_30d || 0).toLocaleString("ru-RU")} за месяц</p>
       <div className="adm-chart">
         <ResponsiveContainer width="100%" height={110}>
-          <BarChart data={series.slice(-14)} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
-            <XAxis dataKey="day" hide />
-            <Tooltip content={<ChartTip unit="" />} cursor={{ fill: "var(--secondary)", radius: 6 } as any} />
-            <Bar dataKey="registered" fill="#3e88f7" radius={[6, 6, 6, 6]} animationDuration={900} />
+          <BarChart data={hourly} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
+            <XAxis dataKey="hour" hide />
+            <Tooltip content={<HourTip />} cursor={{ fill: "var(--secondary)", radius: 6 } as any} />
+            <Bar dataKey="registered" fill="#3e88f7" radius={[4, 4, 4, 4]} minPointSize={2} animationDuration={900} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -591,7 +604,7 @@ export function DashboardWidgets({ s }: { s: Data }) {
       <OnlineWidget online={s.online || {}} users={s.users || {}} />
       <ConversionWidget funnel={s.funnel || {}} />
       {series.length > 0 ? <RevenueWidget series={series} previous={stats.data?.previous} /> : <div className="adm-widget adm-span2 adm-skel" />}
-      {series.length > 0 ? <SignupsWidget series={series} users={s.users || {}} /> : <div className="adm-widget adm-skel" />}
+      <SignupsWidget hourly={s.signups_hourly || []} users={s.users || {}} />
       <PaySoonWidget pay={s.pay_soon || {}} />
       <TrialEndingWidget trial={s.trial_ending || {}} />
       <DailyUsersWidget daily={s.daily_users || {}} />

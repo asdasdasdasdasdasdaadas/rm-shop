@@ -3110,6 +3110,24 @@ async def admin_badges() -> dict:
 MSK_MIDNIGHT_SQL = "(date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow') AT TIME ZONE 'Europe/Moscow')"
 
 
+async def admin_signups_today_hourly() -> list[dict]:
+    """New users today by Moscow hour, from 00:00 to the current hour (empty hours are zeros): the card's bars."""
+    rows = await _pool_req().fetch(
+        f"""
+        WITH h AS (
+            SELECT generate_series(0, EXTRACT(HOUR FROM CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::int) AS hour
+        ), today AS (
+            SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Europe/Moscow')::int AS hour
+            FROM users WHERE created_at >= {MSK_MIDNIGHT_SQL}
+        )
+        SELECT h.hour, COUNT(today.hour)::int AS registered
+        FROM h LEFT JOIN today ON today.hour = h.hour
+        GROUP BY h.hour ORDER BY h.hour
+        """
+    )
+    return [{"hour": int(r["hour"]), "registered": int(r["registered"])} for r in rows]
+
+
 async def admin_stats() -> dict:
     pool = _pool_req()
     users = await pool.fetchrow(
@@ -3208,6 +3226,7 @@ async def admin_stats() -> dict:
     )
     return {
         "users": dict(users) if users else {},
+        "signups_hourly": await admin_signups_today_hourly(),
         "paying_users": await admin_paying_users(),
         "orders": {r["status"]: r["n"] for r in orders},
         "plans": {r["plan_code"]: r["n"] for r in plans},
