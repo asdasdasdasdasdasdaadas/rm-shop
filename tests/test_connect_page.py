@@ -1,4 +1,5 @@
 """The /connect page: a signed one-device token in the #fragment, the key over a header, the bot's links."""
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -35,7 +36,10 @@ class ApiTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.patches = [patch.object(db, "flag_on", AsyncMock(return_value=False)),
                         patch.object(db, "user_is_blocked", AsyncMock(return_value=False)),
-                        patch.object(db, "record_onboarding_event", AsyncMock())]
+                        patch.object(db, "record_onboarding_event", AsyncMock()),
+                        patch.object(db, "get_kv", AsyncMock(return_value='{"android": "incy", "tv": "x"}')),
+                        patch.object(db, "set_kv", AsyncMock()),
+                        patch.object(db, "rename_device", AsyncMock())]
         for p in self.patches:
             p.start()
 
@@ -51,6 +55,7 @@ class ApiTest(unittest.IsolatedAsyncioTestCase):
         get.assert_awaited_once_with(5, 7)
         self.assertEqual(resp.status, 200)
         self.assertIn(b'"key": "https://sub.example/abc"', resp.body)
+        self.assertIn(b'"found": {"android": "incy"}', resp.body)
         self.assertEqual(resp.headers["Referrer-Policy"], "no-referrer")
         self.assertIn("no-store", resp.headers["Cache-Control"])
 
@@ -73,6 +78,16 @@ class ApiTest(unittest.IsolatedAsyncioTestCase):
             bad = await web.api_connect_event(_req(connect_link.make_token(5, 7), {"kind": "wizard_1"}))
         self.assertEqual((ok.status, bad.status), (200, 400))
         db.record_onboarding_event.assert_awaited_once_with(5, "connect_copy")
+
+    async def test_found_app_is_remembered_per_system(self):
+        device = {"id": 7, "subscription_url": "k", "client": "karing"}
+        with patch.object(db, "get_device", AsyncMock(return_value=device)):
+            await web.api_connect_event(_req(connect_link.make_token(5, 7), {"kind": "found", "app": "happ", "os": "ios"}))
+            await web.api_connect_event(_req(connect_link.make_token(5, 7), {"kind": "found", "app": "nope", "os": "ios"}))
+        saved = {c.args[0]: c.args[1] for c in db.set_kv.await_args_list}
+        self.assertEqual(set(saved), {"connect_found:5", "connect_found_at:5"})
+        self.assertEqual(json.loads(saved["connect_found:5"]), {"android": "incy", "ios": "happ"})
+        db.rename_device.assert_awaited_once_with(5, 7, None, None, "happ")
 
     async def test_connect_stages_are_allowed_in_the_db(self):
         pool = SimpleNamespace(execute=AsyncMock())

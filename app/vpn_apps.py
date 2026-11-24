@@ -30,19 +30,31 @@ def _clean_icon(value: Any, app_id: str) -> str:
         return text
     raise ValueError(f"{app_id}: иконка — http(s) или путь /icons/имя.png")
 
+INCY_APPLE = "https://apps.apple.com/app/id6756943388"
+INCY_PLAY = "https://play.google.com/store/apps/details?id=llc.itdev.incy"
+INCY_APK = "https://github.com/INCY-DEV/incy-platforms/releases/download/latest/Incy.apk"
+HAPP_APPLE = "https://apps.apple.com/app/id6504287215"
+HAPP_TV = "https://apps.apple.com/app/id6748297274"
+HAPP_APK = "https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk"
+
 DEFAULT_VPN_APPS: list[dict[str, Any]] = [
     {
         "id": "incy",
         "name": "Incy",
         "mark": "IN",
         "icon": "/icons/incy.png",
+        # docs.incy.cc/en/deep-links: ://import/{data} on every platform, Android included.
         "deep_link": "incy://import/{url}",
-        "platforms": ["ios", "macos", "appletv"],
+        "platforms": ["ios", "macos", "appletv", "android", "androidtv"],
+        # Google Play and the APK as github.com/INCY-DEV/incy-platforms lists them (checked 2026-11-24).
         "stores": {
-            "ios": "https://apps.apple.com/app/id6756943388",
-            "macos": "https://apps.apple.com/app/id6756943388",
-            "appletv": "https://apps.apple.com/app/id6756943388",
+            "ios": INCY_APPLE,
+            "macos": INCY_APPLE,
+            "appletv": INCY_APPLE,
+            "android": INCY_PLAY,
+            "androidtv": INCY_PLAY,
         },
+        "direct": {"android": INCY_APK},
     },
     {
         "id": "happ",
@@ -52,15 +64,16 @@ DEFAULT_VPN_APPS: list[dict[str, Any]] = [
         "deep_link": "happ://add/{url}",
         "platforms": ["ios", "macos", "appletv", "android", "androidtv", "windows"],
         "stores": {
-            "ios": "https://apps.apple.com/app/id6504287215",
-            "macos": "https://apps.apple.com/app/id6504287215",
-            "appletv": "https://apps.apple.com/app/id6504287215",
+            # Apple TV has its own Happ app (happ.su); the Russian-store listing happ.su also links is gone everywhere.
+            "ios": HAPP_APPLE,
+            "macos": HAPP_APPLE,
+            "appletv": HAPP_TV,
             "android": "https://play.google.com/store/apps/details?id=com.happproxy",
             "androidtv": "https://play.google.com/store/apps/details?id=com.happproxy",
             "windows": "https://github.com/Happ-proxy/happ-desktop/releases",
         },
         # The APK straight from Happ's GitHub releases: for phones without Google Play or where it does not open.
-        "direct": {"android": "https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk"},
+        "direct": {"android": HAPP_APK},
     },
     {
         "id": "rabbithole",
@@ -241,3 +254,34 @@ def admin_vpn_apps() -> list[dict[str, Any]]:
 def public_vpn_apps() -> list[dict[str, Any]]:
     """What the cabinet offers: the admin's list without the hidden apps."""
     return [a for a in admin_vpn_apps() if not a.get("hidden")]
+
+
+# Fixes for lists saved before 2026-11-24, checked against the apps' own sites: Happ on Apple TV is
+# a separate app, and Incy has Android (Google Play and an APK). Only the exact old value is replaced,
+# so a link the admin set by hand stays.
+
+
+def fix_saved_links(apps: list) -> bool:
+    """Bring a saved list's known-wrong links up to date; True when something changed."""
+    changed = False
+    for app in apps if isinstance(apps, list) else []:
+        if not isinstance(app, dict):
+            continue
+        aid = app.get("id")
+        stores = app.get("stores") if isinstance(app.get("stores"), dict) else None
+        if stores is None:
+            continue
+        for plat, url in list(stores.items()):
+            new = HAPP_TV if (aid, plat, url) == ("happ", "appletv", HAPP_APPLE) else None
+            if new and new != url:
+                stores[plat] = new
+                changed = True
+        if aid == "incy" and isinstance(app.get("platforms"), list) and "android" not in app["platforms"]:
+            app["platforms"] += ["android", "androidtv"]
+            stores.setdefault("android", INCY_PLAY)
+            stores.setdefault("androidtv", INCY_PLAY)
+            direct = app.get("direct") if isinstance(app.get("direct"), dict) else {}
+            direct.setdefault("android", INCY_APK)
+            app["direct"] = direct
+            changed = True
+    return changed

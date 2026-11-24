@@ -460,7 +460,8 @@
           pill: "Добавить устройство", pa: 'data-act="wizard"', r: "ref", rl: "Обновить", ra: 'data-act="refresh"' }) +
           ST("Как это работает") + tl([["1", "Выберите устройство", "телефон, компьютер или ТВ"], ["2", "Установите приложение", "бесплатно"],
             ["3", "Подключите в один тап", `<b>${dayPrice()} ₽ в день</b>, пока пользуетесь`]]);
-      } else if (!me.first_online_at) {
+      } else if (!me.first_online_at && !me.connect_found_at) {
+        // Until the first traffic — unless the connect page already put the key into an app: then the living frog.
         hero = hc("teal", { rb: "почти", ill: "🛡️", h: "Завершим подключение?",
           p: me.trial_waiting_connection ? "Подарок сохранён — он начнёт расходоваться после первого подключения VPN." : "Добавьте ключ в приложение и включите VPN.",
           pill: "Продолжить", pa: 'data-act="resume"', r: "msg", rl: "Помощь", ra: 'data-act="helpconnect"' });
@@ -512,7 +513,7 @@
       const nb = el && el.querySelector(".nyb");
       if (nb) { gMini(nb); gConf(nb, "snow"); }
     },
-    sig: () => JSON.stringify([me.cases, me.plus, me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.trust, me.trial_available, me.has_paid_topup, me.browser_login, me.first_bonus, me.gift_season, me.autopay, me.frog && me.frog.on]),
+    sig: () => JSON.stringify([me.cases, me.plus, me.balance_rub, me.hours_left, me.billing_paused, me.devices, me.first_online_at, me.connect_found_at, me.trust, me.trial_available, me.has_paid_topup, me.browser_login, me.first_bonus, me.gift_season, me.autopay, me.frog && me.frog.on]),
   };
 
   // ---------- gift for newcomers ----------
@@ -3831,6 +3832,8 @@
       if (before !== after) { cur.sig = after; if (prev) rerender(); }
     }
     celebrate(prev);
+    // Back from the connect page with the key in an app: «Ключ готов» has nothing left to say — home, to the frog.
+    if (prev && cur && cur.key === "wiz3" && me.connect_found_at && me.connect_found_at !== prev.connect_found_at) { first(); return; }
     if (cur && cur.key === "home") setTimeout(caseGiftSheet, 600);
   }
   // Money that arrived while the cabinet was open (or since the last visit) gets a small celebration.
@@ -3880,7 +3883,8 @@
     tg.onEvent("fullscreenChanged", applyViewport);
     tg.onEvent("safeAreaChanged", applyViewport);
     tg.onEvent("contentSafeAreaChanged", applyViewport);
-    tg.onEvent("activated", () => { call(() => tg.expand()); fullscreen(); applyViewport(); });
+    // Back in Telegram (say, from the connect page in the browser): fresh data at once, so the screen shows what changed.
+    tg.onEvent("activated", () => { call(() => tg.expand()); fullscreen(); applyViewport(); if (me) load(true).catch(() => {}); });
   }
   let visTimer = 0;
   document.addEventListener("visibilitychange", () => {

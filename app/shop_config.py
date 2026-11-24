@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from app.faq import validate_faq, default_faq_items
 
 import json
@@ -353,6 +356,12 @@ async def load_shop_overlay() -> None:
                 app["platforms"] = kept or ["ios"]
         await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
         await db.set_kv("karing_stores_v2", "1")
+    # Store links checked against the apps' own sites on 2026-11-24 (app/vpn_apps.py fix_saved_links).
+    if not await db.get_kv("vpn_links_v3"):
+        from app.vpn_apps import fix_saved_links
+        if fix_saved_links(data.get("vpn_apps")):
+            await db.set_kv(KV_KEY, json.dumps(data, ensure_ascii=False))
+        await db.set_kv("vpn_links_v3", "1")
     set_shop_overlay(data)
     await db.migrate_legacy_promo_codes()
 
@@ -365,7 +374,29 @@ async def save_shop_overlay(body: dict) -> dict:
     await db.set_kv(KV_KEY, json.dumps(cleaned, ensure_ascii=False))
     await db.set_welcome_sticker_file_id(str(cleaned.get("welcome_sticker_file_id") or ""))
     set_shop_overlay(cleaned)
+    _recheck_stores()
     return snapshot()
+
+
+_store_task = None
+
+
+def _recheck_stores() -> None:
+    """New or changed app links are checked right away, not at the next 6-hour round."""
+    global _store_task
+    if _store_task and not _store_task.done():
+        return
+    from app import store_check
+
+    async def run() -> None:
+        try:
+            await store_check.refresh()
+        except Exception:
+            logging.getLogger(__name__).exception("Проверка магазинов после сохранения не прошла")
+    try:
+        _store_task = asyncio.get_running_loop().create_task(run(), name="store-check-now")
+    except RuntimeError:
+        pass
 
 
 async def save_referral_settings(body: dict) -> dict:

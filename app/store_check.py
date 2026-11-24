@@ -1,10 +1,11 @@
 """Can the VPN app still be downloaded? Checked in advance, so /connect never sends people to a removed app.
 
-Apps vanish from the Russian App Store and from Google Play often. Every few hours each store link of
-the cabinet's apps is asked:
+Apps vanish from the Russian App Store and from Google Play often. Every few hours every link of
+the cabinet's apps — store and direct download — is asked:
   App Store — the iTunes lookup for the Russian storefront (country=ru): no result means not in RU;
-  Google Play — the app page: 404 means the app is gone.
-Other links (GitHub, sites) are not checked. A failed request keeps the last known answer.
+  Google Play — the app page: 404 means gone (Google answers for the country the server is in);
+  anything else (GitHub releases, an APK, a site) — the link itself: 404/410 means gone.
+A failed request keeps the last known answer.
 """
 from __future__ import annotations
 
@@ -38,12 +39,19 @@ def parse(url: str) -> tuple[str, str] | None:
 
 
 async def check(http: aiohttp.ClientSession, url: str) -> bool | None:
-    """True — downloadable, False — gone, None — not a store we check, or the store did not answer."""
-    kind = parse(url)
-    if not kind:
+    """True — downloadable, False — gone, None — not a web link, or nobody answered."""
+    url = str(url or "")
+    if not url.startswith(("https://", "http://")):
         return None
-    store, ident = kind
+    kind = parse(url)
     try:
+        if not kind:
+            # One byte is enough: an APK link should not download the whole file.
+            async with http.get(url, headers={"Range": "bytes=0-0"}, allow_redirects=True) as r:
+                if r.status in (404, 410):
+                    return False
+                return True if r.status in (200, 206) else None
+        store, ident = kind
         if store == "appstore":
             async with http.get("https://itunes.apple.com/lookup", params={"id": ident, "country": "ru"}) as r:
                 if r.status != 200:
@@ -59,8 +67,9 @@ async def check(http: aiohttp.ClientSession, url: str) -> bool | None:
         return None
 
 
-def _store_urls(apps: list[dict]) -> set[str]:
-    return {u for a in apps for u in (a.get("stores") or {}).values() if parse(u)}
+def _all_urls(apps: list[dict]) -> set[str]:
+    return {u for a in apps for key in ("stores", "direct") for u in (a.get(key) or {}).values()
+            if str(u or "").startswith(("https://", "http://"))}
 
 
 async def status() -> dict[str, dict]:
@@ -77,7 +86,7 @@ async def status() -> dict[str, dict]:
 async def refresh(http: aiohttp.ClientSession | None = None) -> dict[str, dict]:
     from app.vpn_apps import public_vpn_apps
     known = await status()
-    urls = _store_urls(public_vpn_apps())
+    urls = _all_urls(public_vpn_apps())
     own = http is None
     if own:
         http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20), headers={"User-Agent": "Mozilla/5.0"})
@@ -100,11 +109,17 @@ async def refresh(http: aiohttp.ClientSession | None = None) -> dict[str, dict]:
 
 
 def mark(apps: list[dict], checked: dict[str, dict]) -> list[dict]:
-    """Each app gets `unavailable`: the platforms whose store link was found gone (absent when all are fine)."""
+    """Each app gets `unavailable`: the platforms whose store link was found gone; a dead direct link is dropped."""
+    dead = lambda u: (checked.get(u) or {}).get("ok") is False  # noqa: E731
     out = []
     for a in apps:
-        gone = sorted(p for p, u in (a.get("stores") or {}).items() if (checked.get(u) or {}).get("ok") is False)
-        out.append({**a, "unavailable": gone} if gone else a)
+        b = dict(a)
+        gone = sorted(p for p, u in (a.get("stores") or {}).items() if dead(u))
+        if gone:
+            b["unavailable"] = gone
+        if a.get("direct") and any(dead(u) for u in a["direct"].values()):
+            b["direct"] = {p: u for p, u in a["direct"].items() if not dead(u)}
+        out.append(b)
     return out
 
 

@@ -253,6 +253,45 @@ _CONNECT_STAGES = {"open": "connect_open", "found": "connect_found", "none": "co
                    "store": "connect_store", "copy": "connect_copy"}
 
 
+_CONNECT_OS = {"ios", "android", "macos", "windows", "linux"}
+
+
+def _found_kv(telegram_id: int) -> str:
+    return f"connect_found:{int(telegram_id)}"
+
+
+async def _found_apps(telegram_id: int) -> dict[str, str]:
+    """{system: app} the connect page found at this person's before — tried first next time."""
+    try:
+        got = json.loads(await db.get_kv(_found_kv(telegram_id)) or "{}")
+    except (ValueError, TypeError):
+        return {}
+    return {k: v for k, v in got.items() if k in _CONNECT_OS and isinstance(v, str)} if isinstance(got, dict) else {}
+
+
+async def _remember_found(telegram_id: int, device: dict, app_id: object, os_id: object) -> None:
+    known = {a.get("id") for a in public_vpn_apps()}
+    if not isinstance(app_id, str) or app_id not in known:
+        return
+    # The cabinet hides «Завершим подключение?» from this moment: the key is in the app.
+    await db.set_kv(f"connect_found_at:{int(telegram_id)}", datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    if isinstance(os_id, str) and os_id in _CONNECT_OS:
+        found = await _found_apps(telegram_id)
+        if found.get(os_id) != app_id:
+            found[os_id] = app_id
+            await db.set_kv(_found_kv(telegram_id), json.dumps(found))
+    if device.get("client") != app_id:
+        await db.rename_device(telegram_id, int(device["id"]), None, None, app_id)
+
+
+async def _connect_found_at(telegram_id: int) -> str | None:
+    try:
+        return await db.get_kv(f"connect_found_at:{int(telegram_id)}") or None
+    except Exception:
+        logger.debug("connect_found_at не прочитали", exc_info=True)
+        return None
+
+
 async def webapp_connect(_request: web.Request) -> web.FileResponse:
     return web.FileResponse(WEBAPP_DIR / "connect.html", headers=_CONNECT_HEADERS)
 
@@ -303,6 +342,7 @@ async def api_connect(request: web.Request) -> web.Response:
             "device_title": str(device.get("title") or ""),
             "platform": str(device.get("platform") or ""),
             "client": str(device.get("client") or ""),
+            "found": await _found_apps(telegram_id),
             "bot_url": f"https://t.me/{settings.bot_username}",
         },
         headers=_CONNECT_HEADERS,
@@ -322,6 +362,11 @@ async def api_connect_event(request: web.Request) -> web.Response:
     if not stage:
         return json_error("Некорректное событие", 400)
     await db.record_onboarding_event(telegram_id, stage)
+    if kind == "found":
+        try:
+            await _remember_found(telegram_id, device, body.get("app"), body.get("os"))
+        except Exception:
+            logger.warning("Не запомнили найденное приложение", exc_info=True)
     return web.json_response({"ok": True})
 
 
@@ -720,6 +765,7 @@ async def api_me(request: web.Request) -> web.Response:
             "friend_nft": await friend_nft.user_view(telegram_id),
             **ref_view,
             "has_paid_topup": bool((local or {}).get("has_paid_topup")),
+            "connect_found_at": await _connect_found_at(telegram_id),
             "first_bonus": first_bonus.offer(local, balance_rub=balance_rub, hours_left=hours_left) or await _return_offer(telegram_id, local),
             "first_online_at": (
                 local.get("first_online_at").isoformat()

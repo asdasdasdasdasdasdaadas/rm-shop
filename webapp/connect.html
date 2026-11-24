@@ -43,6 +43,13 @@
     .pill.sec { background: rgba(255, 255, 255, .2); color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); }
     .acts.col { flex-direction: column; gap: 10px; }
     .acts.col:empty { display: none; }
+    .pick { margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, .18); }
+    .pick .pt { font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, .85); margin-bottom: 12px; }
+    .pick .pg { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 12px 8px; }
+    .pick button { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: #fff; text-align: center; -webkit-tap-highlight-color: transparent; }
+    .pick button:active { transform: scale(.94); }
+    .pick .ic, .pick .amk { width: 52px; height: 52px; border-radius: 13px; overflow: hidden; display: grid; place-items: center; background: rgba(0, 0, 0, .25); box-shadow: 0 4px 14px rgba(0, 0, 0, .25); }
+    .pick .ic img { width: 100%; height: 100%; display: block; }
     .acts.col .pill { width: 100%; flex: none; }
     .lnkw { font-size: 15px; font-weight: 600; color: rgba(255, 255, 255, .9); padding: 4px 0 0; }
     .rw .ic { border-radius: 9px; overflow: hidden; display: block; flex-shrink: 0; }
@@ -91,6 +98,7 @@
   // Linux is not in the admin's platform list: these apps ship Linux builds on the same release pages as for Windows.
   var LINUX = { karing: "https://github.com/KaringX/karing/releases/latest", v2rayn: "https://github.com/2dust/v2rayN/releases" };
   var MOBILE = { ios: 1, android: 1 };
+  var PRIORITY = ["happ", "incy", "rabbithole", "karing"];
 
   // ---------- the token sits after «#»: it never reaches a server log or a Referer ----------
   function readHash() {
@@ -131,11 +139,16 @@
       if (os !== "linux") return (a.platforms || []).indexOf(os) >= 0 ? a : null;
       return LINUX[a.id] ? Object.assign({}, a, { stores: { linux: LINUX[a.id] }, deep_link: a.id === "karing" ? a.deep_link : "" }) : null;
     }).filter(Boolean);
-    var want = S.data.client;
-    list.sort(function (x, y) { return (y.id === want) - (x.id === want); });
-    return list;
+    // The search order: the app found at this person's on this system before, then Happ, Incy, RabbitHole, Karing,
+    // then the rest in the cabinet's order.
+    var mine = (S.data.found || {})[os];
+    var rank = function (a) { if (a.id === mine) return -1; var i = PRIORITY.indexOf(a.id); return i < 0 ? PRIORITY.length : i; };
+    return list.map(function (a, i) { return [a, i]; })
+      .sort(function (x, y) { return rank(x[0]) - rank(y[0]) || x[1] - y[1]; })
+      .map(function (x) { return x[0]; });
   }
   function looks() { return appsFor(S.os).filter(function (a) { return a.deep_link; }); }
+  function unchecked() { return looks().filter(function (a) { return !S.res[a.id]; }); }
   function byId(id) { return appsFor(S.os).filter(function (a) { return a.id === id; })[0] || null; }
   // The store link only while the app is still there: the server checks the Russian App Store and Google Play in advance.
   function rawStore(a) { return ((a && a.stores) || {})[S.os] || ""; }
@@ -173,7 +186,25 @@
     var m = { phase: S.phase, a: a, cur: cur, color: "teal", h: "", p: "", acts: [] };
     if (S.phase === "look") {
       m.h = "Ищем приложение";
-      m.p = cur ? "Проверяем <b>" + esc(cur.name) + "</b>" + (S.os === "ios" ? ". Если iPhone спросит «Открыть?», нажмите «Открыть»" : "") : "Смотрим, что уже стоит " + onOs();
+      m.p = cur ? "Проверяем <b>" + esc(cur.name) + "</b>" + (S.of ? " · " + S.at + " из " + S.of : "") : "Смотрим, что уже стоит " + onOs();
+      return m;
+    }
+    if (S.phase === "ask") {
+      m.h = "Нажмите «Открыть»"; m.p = "Нашли <b>" + esc(a.name) + "</b>. iPhone спрашивает, открыть ли его, — нажмите «Открыть», и ключ добавится сам.";
+      return m;
+    }
+    if (S.phase === "declined") {
+      m.h = "Добавить ключ в " + esc(a.name) + "?"; m.p = esc(a.name) + " стоит на этом iPhone. Нажмите — он откроется, и ключ появится в нём сам.";
+      m.acts.push({ t: "Добавить ключ в " + esc(a.name), act: "open" });
+      m.acts.push({ t: "Искать другие приложения", act: "more", k: "lnk" });
+      return m;
+    }
+    if (S.phase === "next") {
+      var nx = unchecked()[0], ms = byId(S.missed);
+      m.a = nx; m.h = ms ? esc(ms.name) + " не нашли" : "Проверим приложения";
+      m.p = "Нажмите — проверим <b>" + esc(nx.name) + "</b>. Если он есть, откроется, и ключ добавится сам.";
+      m.acts.push({ t: "Проверить " + esc(nx.name), act: "try", app: nx.id });
+      m.acts.push({ t: "Нет VPN-приложения — установить", act: "noapp", k: "lnk" });
       return m;
     }
     if (!a) {
@@ -202,8 +233,8 @@
       m.p = get && sl ? "Бесплатно в " + esc(sn) + ", это полминуты. Вернитесь сюда — ключ добавится сам."
         : "Скачайте файл и установите, это полминуты. Вернитесь сюда — ключ добавится сам.";
       if (get) m.acts.push(get);
-      m.acts.push({ t: "Уже установлено", act: "open", k: "sec" });
       if (apk) m.acts.push(apk);
+      m.pick = looks().filter(function (x) { return S.res[x.id] !== "no"; });
     } else {
       // other: a device picked by hand — its apps cannot be opened from here.
       m.h = name + " для " + esc(o.s); m.p = "Установите приложение на том устройстве и вставьте в него ключ.";
@@ -223,7 +254,14 @@
   function heroHtml(m, cls) {
     return '<section class="hc ' + m.color + (m.phase === "look" ? " looking" : "") + (cls ? " " + cls : "") + '"><div class="ill"><div><div class="reel"><span class="rg"></span><span class="rg"></span>' +
       '<div class="face" data-face></div><span class="bd">' + (m.color === "green" ? "✓" : m.color === "slate" ? "!" : "") + "</span></div></div></div>" +
-      '<div class="H">' + m.h + '</div><div class="P">' + m.p + "</div>" + '<div class="acts col">' + m.acts.map(actHtml).join("") + "</div></section>";
+      '<div class="H">' + m.h + '</div><div class="P">' + m.p + "</div>" + '<div class="acts col">' + m.acts.map(actHtml).join("") + "</div>" + pickHtml(m.pick) + "</section>";
+  }
+  // «Уже есть приложение?»: every app that takes the key by a link, store or no store — a tap opens it right away.
+  function pickHtml(list) {
+    if (!list || !list.length) return "";
+    return '<div class="pick"><div class="pt">Уже есть приложение? Нажмите на него</div><div class="pg">' + list.map(function (x) {
+      return '<button type="button" data-act="try" data-app="' + esc(x.id) + '">' + icon(x) + "<span>" + esc(x.name) + "</span></button>";
+    }).join("") + "</div></div>";
   }
   function keyHtml() {
     return '<div class="cd"><button type="button" class="rw keyrow' + (S.copied ? " done" : "") + '" data-act="copy"><span class="e">🔑</span><span class="tt"><b>Ключ подписки</b><span data-key>' + esc(S.data.key) +
@@ -232,9 +270,15 @@
       "</div>";
   }
   var KEY_NOTE = '<div class="note">Если приложение не добавило ключ само, вставьте его вручную: обычно «+» → «Из буфера обмена».</div>';
-  function otherApps() { return appsFor(S.os).filter(function (x) { return x.id !== S.app && storeLink(x); }); }
+  function otherApps() { return appsFor(S.os).filter(function (x) { return x.id !== S.app && (storeLink(x) || x.deep_link); }); }
   function appsHtml(list) {
     return '<div class="cd">' + list.map(function (x) {
+      if (!storeLink(x)) {
+        // Gone from the store here, but may be installed already: add the key straight into it.
+        return '<button type="button" class="rw" data-act="try" data-app="' + esc(x.id) + '">' + icon(x) +
+          '<span class="tt"><b>' + esc(x.name) + "</b><span>если уже установлено</span></span>" +
+          '<span class="v"><span class="shop">Добавить ключ</span><span class="cv">›</span></span></button>';
+      }
       return '<a class="rw" data-act="store" data-app="' + esc(x.id) + '" href="' + esc(storeLink(x)) + '" target="_blank" rel="noopener noreferrer">' + icon(x) +
         '<span class="tt"><b>' + esc(x.name) + "</b><span>" + (x.deep_link ? "ключ добавится сам" : "ключ вставляется вручную") + "</span></span>" +
         '<span class="v"><span class="shop">' + esc(storeName(storeLink(x))) + '</span><span class="cv">›</span></span></a>';
@@ -303,34 +347,117 @@
     if (!list.length) return;
     stopTimer();
     S.res = {}; S.queue = list.map(function (a) { return a.id; }); S.cur = ""; S.phase = "look"; S.action = "app";
+    // Android Chrome opens an app from a page only once per tap (or once right after the page came from another
+    // app): every next try falls back without asking. So it tries the first app only; the rest are a tap each.
+    if (S.os === "android" && !demo) S.queue = S.queue.slice(0, 1);
     mem.set("looked", "1");
+    if (chain()) { scan.save({ q: S.queue, n: S.queue.length, at: Date.now() }); step(); return; }
     render();
     S.timer = setTimeout(next, 700);
+  }
+
+  // ---------- iPhone: one app per page load ----------
+  // Safari lets a page try one link of a missing app silently; every next try on the same page shows
+  // «адрес недействителен» and blocks the rest. So each app is tried on a fresh load: no window in 1.2 s means
+  // not installed — the page reloads and tries the next one. An installed app makes iPhone ask «Открыть?»,
+  // and that window takes the focus away from the page at once: that is how we know it is there.
+  function chain() { return !demo && S.os === "ios" && S.os === S.auto; }
+  var scan = {
+    get: function () { try { var v = JSON.parse(mem.get("scan") || "null"); return v && Date.now() - v.at < 120000 ? v : null; } catch (_e) { return null; } },
+    save: function (v) { mem.set("scan", JSON.stringify(v)); },
+    drop: function () { mem.set("scan", ""); }
+  };
+  function step() {
+    var v = scan.get();
+    if (!v || !v.q.length) { scan.drop(); S.cur = ""; S.queue = []; S.phase = "look"; return next(); }
+    var a = byId(v.q[0]);
+    if (!a) { v.q.shift(); scan.save(v); return step(); }
+    S.cur = a.id; S.queue = []; S.phase = "look"; S.action = "app"; S.left = false; S.asked = false;
+    S.of = v.n; S.at = v.n - v.q.length + 1;
+    render();
+    S.timer = setTimeout(function () {
+      try { window.location.href = deepLink(a); } catch (_e) {}
+      S.timer = setTimeout(function () {
+        if (S.asked || S.left) return;
+        v.q.shift(); v.at = Date.now(); scan.save(v);
+        location.reload();
+      }, 1200);
+    }, 250);
+  }
+  // iPhone shows «Открыть в …?»: the page lost the focus while trying this app.
+  function asked() {
+    if (!chain() || S.phase !== "look" || !S.cur || S.asked) return;
+    S.asked = true; stopTimer();
+    var v = scan.get() || { q: [S.cur], n: 1 }; v.pending = S.cur; v.at = Date.now(); scan.save(v);
+    S.app = S.cur; S.phase = "ask"; render();
+  }
+  // «Отменить»: the app is there, but the person said no — offer it on a tap, or look further.
+  // «Открыть» also gives the focus back for a moment — iPhone switches apps up to a second later. So wait a
+  // little, and if the page still goes away within 3 s of the window closing, it was «Открыть».
+  function declined() {
+    if (S.phase !== "ask" || S.left) return;
+    S.closedAt = Date.now();
+    setTimeout(function () {
+      if (S.phase !== "ask" || S.left || document.hidden) return;
+      var v = scan.get(); if (v) { delete v.pending; scan.save(v); }
+      S.phase = "declined"; render();
+    }, 1500);
+  }
+  function lookFurther() {
+    var v = scan.get();
+    if (!v) { S.phase = "none"; return render(); }
+    v.q.shift(); delete v.pending; v.at = Date.now(); scan.save(v);
+    location.reload();
+  }
+  // One app, opened inside the tap itself: iPhone lets a page open an app reliably only on a tap.
+  function tryNow(id) {
+    var a = byId(id);
+    if (!a || !a.deep_link) return;
+    stopTimer();
+    S.queue = []; S.cur = id; S.res[id] = "try"; S.app = id; S.phase = "look"; S.action = "app"; S.left = false; S.tapped = id;
+    render();
+    if (demo) { S.timer = setTimeout(function () { if (H.found === id) return found(id); next(); }, 1500); return; }
+    try { window.location.href = deepLink(a); } catch (_e) {}
+    S.timer = setTimeout(next, S.os === "ios" ? 4000 : 2500);
   }
   function next() {
     S.timer = 0;
     if (S.phase !== "look") return;
+    var last = S.cur;
     if (S.cur) S.res[S.cur] = "no";
     S.cur = S.queue.shift() || "";
+    if (!S.cur && S.os === "android" && !demo && unchecked().length) {
+      // Android: the next app is checked on a tap — one tap each, a missing one answers at once.
+      S.phase = "next"; S.missed = last; S.tapped = ""; render(); return;
+    }
     if (!S.cur) {
       // Nothing opened: recommend an app that can really be downloaded now — in the store first, then a direct file.
       var can = looks().filter(function (a) { return storeLink(a); })[0] || looks().filter(gettable)[0];
       S.phase = "none"; S.app = (can || {}).id || S.app;
-      render(); event("none", ""); return;
+      render(); event("none", "");
+      var t = byId(S.tapped); S.tapped = "";
+      if (t && S.res[t.id] === "no") toast(t.name + " на этом телефоне нет");
+      return;
     }
     S.res[S.cur] = "try"; S.left = false;
     render();
     if (demo) { S.timer = setTimeout(function () { if (H.found === S.cur) return found(S.cur); next(); }, 1500); return; }
     try { window.location.href = deepLink(byId(S.cur)); } catch (_e) {}
-    // iOS asks «Открыть в …?» first: give the person time to answer before moving on.
-    S.timer = setTimeout(next, S.os === "ios" ? 2800 : 2000);
+    // iOS asks «Открыть в …?» first; a computer's browser may take ~3 s to ask «Открыть приложение?» after a few misses.
+    S.timer = setTimeout(next, S.os === "ios" ? 2800 : MOBILE[S.os] ? 2000 : 4000);
   }
   function found(id) {
     stopTimer();
+    scan.drop();
     S.res[id] = "yes"; S.app = id; S.cur = ""; S.queue = []; S.phase = "found";
     render(); event("found", id);
   }
-  function wentAway() { if (S.left || demo) return; S.left = true; if (S.phase === "look") stopTimer(); }
+  function wentAway() {
+    if (S.left || demo) return;
+    S.left = true;
+    if (S.phase === "look") stopTimer();
+    S.opened = (S.phase === "ask" || S.phase === "declined") && Date.now() - (S.closedAt || 0) < 3000;
+  }
   function cameBack() {
     if (!S.left) return;
     S.left = false;
@@ -340,13 +467,14 @@
       if (S.os === "ios" && S.os === S.auto) look(S.app); else render();
       return;
     }
-    if (S.phase === "look" && S.cur) found(S.cur);
+    if ((S.phase === "look" || S.phase === "ask" || S.opened) && S.cur) found(S.cur);
   }
   document.addEventListener("visibilitychange", function () { if (document.hidden) wentAway(); else cameBack(); });
   window.addEventListener("pagehide", wentAway);
   // A computer: the app takes the focus, the tab stays visible.
   window.addEventListener("blur", function () { if (!MOBILE[S.os] && S.phase === "look") wentAway(); });
-  window.addEventListener("focus", function () { if (!MOBILE[S.os]) cameBack(); });
+  window.addEventListener("focus", function () { if (!MOBILE[S.os]) cameBack(); else declined(); });
+  window.addEventListener("blur", function () { if (MOBILE[S.os]) asked(); });
   // Android Chrome came back through the intent's fallback: this app is not installed, try the next one at once.
   window.addEventListener("hashchange", function () {
     var h = readHash();
@@ -417,7 +545,13 @@
     var t = e.target.closest("[data-act]");
     if (!t) return;
     var act = t.dataset.act;
-    if (act === "open") { e.preventDefault(); look(S.app); }
+    if (act === "open" || act === "try") {
+      e.preventDefault();
+      var sh2 = document.querySelector(".sheet"); if (sh2) sh2.remove();
+      tryNow(t.dataset.app || S.app);
+    }
+    else if (act === "more") lookFurther();
+    else if (act === "noapp") { S.queue = []; S.cur = ""; looks().forEach(function (x) { if (!S.res[x.id]) S.res[x.id] = "skip"; }); S.phase = "look"; next(); }
     else if (act === "copy") copyKey();
     else if (act === "qr") showQr(t);
     else if (act === "other") { var sh = document.querySelector(".sheet"); if (sh) sh.remove(); pickOs(); }
@@ -451,6 +585,12 @@
     S.app = firstApp();
     preload(appsFor(S.os));
     if (demo && H.st) { S.phase = H.st; if (H.found) S.app = H.found; render(); return; }
+    // iPhone, in the middle of the search: this load tries the next app (or the app it just opened).
+    var v = chain() && scan.get();
+    if (v) {
+      if (v.pending) { S.cur = v.pending; return found(v.pending); }
+      return step();
+    }
     // The search starts by itself — once per visit, so a reload does not add the key again.
     if (looks().length && (demo || !mem.get("looked"))) look();
     else { S.phase = looks().length ? "none" : "other"; render(); }
