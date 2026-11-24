@@ -2925,6 +2925,73 @@ async def admin_pay_soon_counts(day_price: int) -> dict:
     }
 
 
+TRIAL_ENDED_DAYS = 7
+
+
+async def admin_trial_ending(day_price: int, limit: int = 30) -> dict:
+    """The gift (trial) of people who connected but never paid: whose ends within PAY_SOON_DAYS days,
+    and whose already ended within TRIAL_ENDED_DAYS days with no payment yet («ждём оплату»).
+    The end is an estimate: balance ÷ (day price × devices on), or the last charge + 24 h once it ran out."""
+    from app.recovery_funnel import PAID
+    price = max(1, int(day_price or 1))
+    rows = await _pool_req().fetch(
+        f"""
+        SELECT * FROM (
+            SELECT u.telegram_id, COALESCE(u.username, '') AS username, COALESCE(u.first_name, '') AS first_name,
+                   COALESCE(u.balance_rub, 0)::int AS balance_rub, dev.n AS active, dev.last_billed,
+                   COALESCE(u.checkout_started_at > timezone('utc', now()) - INTERVAL '3 days', FALSE) AS checkout
+            FROM users u
+            CROSS JOIN LATERAL (
+                SELECT COUNT(*) FILTER (WHERE d.last_billed_at > timezone('utc', now()) - INTERVAL '24 hours'
+                                          AND UPPER(COALESCE(d.panel_status, '')) <> 'DISABLED')::int AS n,
+                       MAX(d.last_billed_at) AS last_billed
+                FROM devices d
+                WHERE d.telegram_id = u.telegram_id AND COALESCE(d.kind, '') <> 'router'
+            ) dev
+            WHERE NOT {PAID}
+              AND u.first_online_at IS NOT NULL
+              AND u.blocked_at IS NULL AND u.bot_blocked_at IS NULL
+              AND u.billing_paused_at IS NULL
+              AND dev.last_billed IS NOT NULL
+        ) s
+        WHERE (s.active > 0 AND s.balance_rub <= $1::int * s.active)
+           OR (s.active = 0 AND s.balance_rub < $2::int
+               AND s.last_billed > timezone('utc', now()) - INTERVAL '{TRIAL_ENDED_DAYS + 1} days')
+        """,
+        PAY_SOON_DAYS * price, price,
+    )
+    now = datetime.now(timezone.utc)
+    people = []
+    for row in rows:
+        active, balance = int(row["active"] or 0), int(row["balance_rub"] or 0)
+        last = row["last_billed"]
+        if last is not None and last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        if active:
+            ends = now + timedelta(days=balance / (price * active))
+        else:
+            ends = (last or now) + timedelta(hours=24)
+        if not active and ends < now - timedelta(days=TRIAL_ENDED_DAYS):
+            continue
+        people.append({
+            "telegram_id": row["telegram_id"], "username": row["username"], "first_name": row["first_name"],
+            "balance_rub": balance, "devices": active, "ended": not active,
+            "checkout": bool(row["checkout"]), "ends_at": ends.isoformat(),
+        })
+    # Already waiting for a payment first (most recent first), then the ones ending soonest.
+    people.sort(key=lambda p: (not p["ended"], -_ts(p["ends_at"]) if p["ended"] else _ts(p["ends_at"])))
+    return {
+        "days": PAY_SOON_DAYS, "ended_days": TRIAL_ENDED_DAYS,
+        "ending": sum(1 for p in people if not p["ended"]),
+        "waiting": sum(1 for p in people if p["ended"]),
+        "people": people[:limit],
+    }
+
+
+def _ts(value: str) -> float:
+    return datetime.fromisoformat(value).timestamp()
+
+
 async def admin_daily_users(limit: int = 6) -> dict:
     """Who really uses the VPN every day, from online_days: 7 of the last 7 days, 5–6 of 7, online today,
     and the steadiest people with their week, streak of days in a row and balance."""
@@ -3159,6 +3226,7 @@ async def admin_stats() -> dict:
             **await admin_pay_soon_counts(get_settings().vpn_day_price_rub),
             "people": await admin_list_pay_soon(get_settings().vpn_day_price_rub),
         },
+        "trial_ending": await admin_trial_ending(get_settings().vpn_day_price_rub),
         "daily_users": await admin_daily_users(limit=500),
         "referrals": await admin_referrals(),
         "frog_cases": await admin_frog_cases(),

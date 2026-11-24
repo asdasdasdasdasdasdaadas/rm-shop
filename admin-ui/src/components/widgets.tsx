@@ -239,6 +239,64 @@ function PaySoonWidget({ pay }: { pay: Data }) {
   );
 }
 
+/** When the gift ends, in plain words: «через 5 ч», «завтра», «через 2 дн.», or «кончился 3 ч назад». */
+function trialWhen(p: Data): string {
+  const t = Date.parse(String(p.ends_at || ""));
+  if (isNaN(t)) return "—";
+  const h = Math.round((t - Date.now()) / 3600000);
+  if (p.ended || h <= 0) {
+    const ago = Math.max(0, -h);
+    return ago < 1 ? "только что" : ago < 24 ? `${ago} ч назад` : `${Math.round(ago / 24)} дн. назад`;
+  }
+  if (h < 24) return `через ${h} ч`;
+  const d = Math.round(h / 24);
+  return d === 1 ? "через сутки" : `через ${d} дн.`;
+}
+
+const TRIAL_SHOWN = 5;
+
+function TrialEndingWidget({ trial }: { trial: Data }) {
+  const navigate = useNavigate();
+  const all: Data[] = trial?.people || [];
+  const [open, setOpen] = useState(false);
+  const people = open ? all : all.slice(0, TRIAL_SHOWN);
+  const ending = Number(trial?.ending || 0), waiting = Number(trial?.waiting || 0);
+  return (
+    <Widget title="Заканчивается подарок" icon={<Gift />} tone="#ff2d55">
+      <p className="adm-sub">
+        Ни разу не платили · ждём оплату <b>{waiting}</b> · кончится за {Number(trial?.days || 3)} дн. <b>{ending}</b>
+      </p>
+      {people.length ? (
+        <ul className="adm-people mt-2">
+          {people.map((p) => (
+            <li key={p.telegram_id}>
+              <button type="button" onClick={() => navigate("users?q=" + p.telegram_id)}>
+                <Avatar row={p} />
+                <span className="adm-p-name">
+                  <b>{who(p)}</b>
+                  <small>{p.ended ? (p.checkout ? "Открывал оплату" : "Ждём оплату") : p.checkout ? "Открывал оплату" : `Осталось ${money(p.balance_rub)}`}</small>
+                </span>
+                <span className="adm-p-val">
+                  <b>{trialWhen(p)}</b>
+                  <small>{p.ended ? "кончился" : "кончится"}</small>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="adm-calm"><span>✨</span><b>Никого</b><small>Ни у кого подарок не кончается в ближайшие дни и никто не ждёт оплаты</small></div>
+      )}
+      {all.length > TRIAL_SHOWN && (
+        <button type="button" className="adm-more" onClick={() => setOpen(!open)} aria-expanded={open}>
+          {open ? "Свернуть" : `Показать всех · ${all.length}`}
+          <ChevronDown className={"size-4" + (open ? " rotate-180" : "")} />
+        </button>
+      )}
+    </Widget>
+  );
+}
+
 export const ago = (v: unknown) => {
   const t = Date.parse(String(v || ""));
   if (isNaN(t)) return "—";
@@ -535,6 +593,7 @@ export function DashboardWidgets({ s }: { s: Data }) {
       {series.length > 0 ? <RevenueWidget series={series} previous={stats.data?.previous} /> : <div className="adm-widget adm-span2 adm-skel" />}
       {series.length > 0 ? <SignupsWidget series={series} users={s.users || {}} /> : <div className="adm-widget adm-skel" />}
       <PaySoonWidget pay={s.pay_soon || {}} />
+      <TrialEndingWidget trial={s.trial_ending || {}} />
       <DailyUsersWidget daily={s.daily_users || {}} />
       <ActivationWidget act={s.activation || {}} />
       <CabinetWidget cab={s.cabinet || {}} />
