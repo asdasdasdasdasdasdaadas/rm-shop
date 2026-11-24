@@ -26,12 +26,37 @@
     .reel .ic img { width: 100%; height: 100%; display: block; }
     .reel .face { position: absolute; inset: 0; }
     .reel .face.in { animation: flipIn .17s var(--ease) both; }
+    /* searching: the apps go by like a tape — the last one slides away to the left, the next waits on the right,
+       and a scanner line runs down the one being checked */
+    .reel .cv { position: absolute; inset: 0; }
+    .reel .cv.prev { transform: translateX(-96%) scale(.46); opacity: .22; filter: grayscale(1); }
+    .reel .cv.nxt { transform: translateX(96%) scale(.46); opacity: .4; }
+    .reel .cv .ic, .reel .cv .amk { box-shadow: 0 10px 24px rgba(0, 0, 0, .3); }
+    .reel .go .cv.cur { animation: cvIn .6s var(--ease) both; }
+    .reel .go .cv.prev { animation: cvOut .6s var(--ease) both; }
+    .reel .go .cv.nxt { animation: cvNext .6s .08s var(--ease) both; }
+    @keyframes cvIn { from { transform: translateX(96%) scale(.46); opacity: .4; } }
+    @keyframes cvOut { from { transform: none; opacity: 1; filter: none; } }
+    @keyframes cvNext { from { transform: translateX(150%) scale(.3); opacity: 0; } }
+    .reel .cv.cur { z-index: 1; }
+    .reel .cv.cur::before { content: ""; position: absolute; z-index: -1; inset: -22%; border-radius: 50%; pointer-events: none;
+      background: radial-gradient(closest-side, rgba(255, 255, 255, .3), rgba(255, 255, 255, 0)); animation: glow 2.2s ease-in-out infinite; animation-delay: var(--d2, 0ms); }
+    @keyframes glow { 50% { opacity: .35; transform: scale(.9); } }
+    .reel .sc { position: absolute; inset: 0; border-radius: 24%; overflow: hidden; pointer-events: none; }
+    .reel .sc::after { content: ""; position: absolute; left: 6%; right: 6%; top: 0; height: 2px; border-radius: 2px; background: #fff;
+      box-shadow: 0 0 10px 2px rgba(255, 255, 255, .75), 0 0 28px 6px rgba(255, 255, 255, .25);
+      animation: scan 2.4s ease-in-out infinite; animation-delay: var(--d, 0ms); }
+    @keyframes scan { 0%, 100% { transform: translateY(10px); } 50% { transform: translateY(calc(var(--h, 150px) - 12px)); } }
+    /* progress: one dot per app, the one checked now is a wide bar */
+    .trail { display: flex; justify-content: center; gap: 6px; margin-top: 20px; }
+    .trail .t { width: 6px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .28); transition: width .4s var(--ease), background .4s; }
+    .trail .t.done { background: rgba(255, 255, 255, .6); }
+    .trail .t.cur { width: 22px; background: #fff; }
     .reel .face.land { animation: land .65s var(--ease) both; }
     @keyframes flipIn { from { opacity: .1; transform: translateY(-30%) scale(.86); filter: blur(3px); } }
     @keyframes land { 0% { transform: scale(.8); } 45% { transform: scale(1.1); } 72% { transform: scale(.97); } 100% { transform: none; } }
     .reel .rg { position: absolute; inset: -8px; border-radius: 30%; border: 2px solid rgba(255, 255, 255, .6); opacity: 0; }
-    .looking .reel .rg { animation: ring 1.5s ease-out infinite; }
-    .looking .reel .rg + .rg { animation-delay: .75s; }
+
     @keyframes ring { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.45); } }
     .reel .bd { position: absolute; z-index: 2; right: -9px; bottom: -9px; width: 36px; height: 36px; border-radius: 50%; display: none; align-items: center; justify-content: center;
       font-weight: 900; font-size: 18px; border: 3px solid rgba(0, 0, 0, .12); background: #fff; color: #16804a; animation: pop .5s .2s var(--ease) both; }
@@ -147,6 +172,15 @@
       .sort(function (x, y) { return rank(x[0]) - rank(y[0]) || x[1] - y[1]; })
       .map(function (x) { return x[0]; });
   }
+  // The apps of this search in the order they are tried, each done, being checked now, or still ahead.
+  function trail() {
+    var ids = S.order && S.order.length ? S.order : looks().map(function (a) { return a.id; });
+    var at = ids.indexOf(S.cur);
+    return ids.map(byId).filter(Boolean).map(function (a, i) {
+      var st = a.id === S.cur ? "cur" : (S.res[a.id] === "no" || (at >= 0 && i < at && S.of)) ? "done" : "";
+      return { a: a, st: st };
+    });
+  }
   function looks() { return appsFor(S.os).filter(function (a) { return a.deep_link; }); }
   function unchecked() { return looks().filter(function (a) { return !S.res[a.id]; }); }
   function byId(id) { return appsFor(S.os).filter(function (a) { return a.id === id; })[0] || null; }
@@ -187,6 +221,11 @@
     if (S.phase === "look") {
       m.h = "Ищем приложение";
       m.p = cur ? "Проверяем <b>" + esc(cur.name) + "</b>" + (S.of ? " · " + S.at + " из " + S.of : "") : "Смотрим, что уже стоит " + onOs();
+      m.trail = trail();
+      return m;
+    }
+    if (S.phase === "ask" && S.closedAt) {
+      m.h = "Ищем другое приложение"; m.p = "Пропускаем <b>" + esc(a.name) + "</b> и проверяем остальные " + onOs();
       return m;
     }
     if (S.phase === "ask") {
@@ -254,7 +293,13 @@
   function heroHtml(m, cls) {
     return '<section class="hc ' + m.color + (m.phase === "look" ? " looking" : "") + (cls ? " " + cls : "") + '"><div class="ill"><div><div class="reel"><span class="rg"></span><span class="rg"></span>' +
       '<div class="face" data-face></div><span class="bd">' + (m.color === "green" ? "✓" : m.color === "slate" ? "!" : "") + "</span></div></div></div>" +
-      '<div class="H">' + m.h + '</div><div class="P">' + m.p + "</div>" + '<div class="acts col">' + m.acts.map(actHtml).join("") + "</div>" + pickHtml(m.pick) + "</section>";
+      '<div class="H">' + m.h + '</div><div class="P">' + m.p + "</div>" + trailHtml(m.trail) + '<div class="acts col">' + m.acts.map(actHtml).join("") + "</div>" + pickHtml(m.pick) + "</section>";
+  }
+  function trailHtml(list) {
+    if (!list || list.length < 2) return "";
+    return '<div class="trail">' + list.map(function (x) {
+      return '<i class="t ' + x.st + '" data-t="' + esc(x.a.id) + '"></i>';
+    }).join("") + "</div>";
   }
   // «Уже есть приложение?»: every app that takes the key by a link, store or no store — a tap opens it right away.
   function pickHtml(list) {
@@ -300,6 +345,10 @@
     if (!hc) return;
     var p = hc.querySelector(".P");
     if (p.innerHTML !== m.p) { p.innerHTML = m.p; p.classList.remove("fx"); void p.offsetWidth; p.classList.add("fx"); }
+    (m.trail || []).forEach(function (x) {
+      var t = hc.querySelector('[data-t="' + x.a.id + '"]');
+      if (t && t.className !== "t " + x.st) t.className = "t " + x.st;
+    });
   }
 
   // ---------- the screen: one big card, one action; the rest is behind «Другие способы» ----------
@@ -323,8 +372,30 @@
     var m = model();
     view(m);
     var f = document.querySelector("[data-face]");
-    if (S.phase === "look") { if (f && !f.innerHTML) face(looks()[S.ri % Math.max(1, looks().length)], ""); reelOn(); }
-    else { reelOff(); if (f) face(m.a, "land"); }
+    if (S.phase === "look") {
+      sync();
+      var c = byId(S.cur) || (!S.cur && S.order && S.order.length ? byId(S.order[0]) : null);
+      if (c) { reelOff(); if (f && f.getAttribute("data-id") !== c.id) { tape(f, c, !!f.getAttribute("data-id") || S.at > 1); f.setAttribute("data-id", c.id); } }
+      else { if (f && !f.innerHTML) face(looks()[S.ri % Math.max(1, looks().length)], ""); reelOn(); }
+    }
+    else { reelOff(); if (f) { f.removeAttribute("data-id"); face(m.a, "land"); } }
+  }
+  // The scanner line and the glow run on the wall clock: the iPhone reloads the page for every app, and it goes on where it was.
+  function sync() {
+    var t = Date.now();
+    document.querySelectorAll(".reel").forEach(function (e) {
+      e.style.setProperty("--d", -(t % 2400) + "ms"); e.style.setProperty("--d2", -(t % 2200) + "ms"); e.style.setProperty("--h", e.offsetHeight + "px");
+    });
+  }
+  // The tape: the app checked before, the one checked now (with the scanner line), the one after it.
+  function tape(f, c, move) {
+    var ids = S.order && S.order.length ? S.order : looks().map(function (a) { return a.id; });
+    var i = ids.indexOf(c.id), pv = i > 0 ? byId(ids[i - 1]) : null, nx = i >= 0 ? byId(ids[i + 1]) : null;
+    f.className = "face";
+    f.innerHTML = (pv ? '<span class="cv prev">' + icon(pv) + "</span>" : "") + '<span class="cv cur">' + icon(c) + '<span class="sc"></span></span>' +
+      (nx ? '<span class="cv nxt">' + icon(nx) + "</span>" : "");
+    void f.offsetWidth;
+    if (move) f.classList.add("go");
   }
   function face(a, how) {
     var f = document.querySelector("[data-face]");
@@ -336,7 +407,7 @@
   // While looking, the icon flips through every app fast, again and again; the text names the one really being opened.
   function reelOn() {
     if (S.reel) return;
-    S.reel = setInterval(function () { var list = looks(); if (!list.length) return; S.ri = (S.ri + 1) % list.length; face(list[S.ri], "in"); }, 170);
+    S.reel = setInterval(function () { var list = looks(); if (!list.length) return; S.ri = (S.ri + 1) % list.length; face(list[S.ri], "in"); }, 260);
   }
   function reelOff() { if (S.reel) { clearInterval(S.reel); S.reel = 0; } }
 
@@ -346,12 +417,12 @@
     var list = looks().filter(function (a) { return !only || a.id === only; });
     if (!list.length) return;
     stopTimer();
-    S.res = {}; S.queue = list.map(function (a) { return a.id; }); S.cur = ""; S.phase = "look"; S.action = "app";
+    S.res = {}; S.queue = list.map(function (a) { return a.id; }); S.order = S.queue.slice(); S.cur = ""; S.phase = "look"; S.action = "app";
     // Android Chrome opens an app from a page only once per tap (or once right after the page came from another
     // app): every next try falls back without asking. So it tries the first app only; the rest are a tap each.
     if (S.os === "android" && !demo) S.queue = S.queue.slice(0, 1);
     mem.set("looked", "1");
-    if (chain()) { scan.save({ q: S.queue, n: S.queue.length, at: Date.now() }); step(); return; }
+    if (chain()) { scan.save({ q: S.queue, n: S.queue.length, all: S.order, at: Date.now() }); step(); return; }
     render();
     S.timer = setTimeout(next, 700);
   }
@@ -373,7 +444,7 @@
     var a = byId(v.q[0]);
     if (!a) { v.q.shift(); scan.save(v); return step(); }
     S.cur = a.id; S.queue = []; S.phase = "look"; S.action = "app"; S.left = false; S.asked = false;
-    S.of = v.n; S.at = v.n - v.q.length + 1;
+    S.of = v.n; S.at = v.n - v.q.length + 1; S.order = v.all || [];
     render();
     S.timer = setTimeout(function () {
       try { window.location.href = deepLink(a); } catch (_e) {}
@@ -389,19 +460,19 @@
     if (!chain() || S.phase !== "look" || !S.cur || S.asked) return;
     S.asked = true; stopTimer();
     var v = scan.get() || { q: [S.cur], n: 1 }; v.pending = S.cur; v.at = Date.now(); scan.save(v);
-    S.app = S.cur; S.phase = "ask"; render();
+    S.app = S.cur; S.phase = "ask"; S.closedAt = 0; render();
   }
-  // «Отменить»: the app is there, but the person said no — offer it on a tap, or look further.
-  // «Открыть» also gives the focus back for a moment — iPhone switches apps up to a second later. So wait a
-  // little, and if the page still goes away within 3 s of the window closing, it was «Открыть».
+  // «Отменить»: the app is there, but the person does not want it — look for the next one by itself.
+  // «Открыть» also gives the focus back for a moment — iPhone switches apps up to a couple of seconds later. So wait,
+  // and only if the page is still here after that it was «Отменить»; going away in that time means «Открыть».
   function declined() {
     if (S.phase !== "ask" || S.left) return;
     S.closedAt = Date.now();
+    setTimeout(function () { if (S.phase === "ask" && !S.left && !document.hidden) render(); }, 1200);
     setTimeout(function () {
       if (S.phase !== "ask" || S.left || document.hidden) return;
-      var v = scan.get(); if (v) { delete v.pending; scan.save(v); }
-      S.phase = "declined"; render();
-    }, 1500);
+      lookFurther();
+    }, 3000);
   }
   function lookFurther() {
     var v = scan.get();
@@ -456,7 +527,7 @@
     if (S.left || demo) return;
     S.left = true;
     if (S.phase === "look") stopTimer();
-    S.opened = (S.phase === "ask" || S.phase === "declined") && Date.now() - (S.closedAt || 0) < 3000;
+    S.opened = (S.phase === "ask" || S.phase === "declined") && Date.now() - (S.closedAt || 0) < 4000;
   }
   function cameBack() {
     if (!S.left) return;
